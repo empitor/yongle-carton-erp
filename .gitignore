@@ -33,6 +33,8 @@ coverage/
 *.xls
 *.docx
 *.doc
+# 仅允许随源码分发的公开MIT测试夹具；业务DOC仍全部排除。
+!tests/fixtures/import/word-extractor-test01.doc
 *.pdf
 *.csv
 ai-settings.json
@@ -46,6 +48,7 @@ docs/**
 !docs/AI智能数据管理架构与开发计划.md
 !docs/examples/
 !docs/examples/import-proposal.example.json
-/(*rect
+# 精确忽略本机遗留的空临时文件“({rect”，不使用宽泛通配。
+/(\{rect
 # 本机可选CI草案；当前GitHub OAuth未授权workflow，不发布工作流。
 /.github/workflows/checks.yml

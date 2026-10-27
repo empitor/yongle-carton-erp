@@ -2,3 +2,4 @@
 *.cmd text eol=crlf
 *.sh text eol=lf
 *.tgz binary
+tests/fixtures/import/word-extractor-test01.doc binary
