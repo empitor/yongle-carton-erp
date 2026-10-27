@@ -70,7 +70,7 @@ npm.cmd start
 
 先使用现有备份命令`npm.cmd run backup`备份业务库；完整迁移还需在停止程序后备份整个`data/`、本机API配置和语音资源。不要只复制正在写入的SQLite主文件而漏掉WAL。凭据另行安全保管，不能放进仓库。业务库恢复使用`npm.cmd run restore -- "备份文件绝对路径"`；其他文件恢复到原目录，先保留当前副本。
 
-新电脑：登录有权限的GitHub账号，克隆**私人仓库**，执行`npm ci`、`npm run build`，恢复自己的离线数据备份；API密钥按需重新输入。更新现有副本：备份并停止程序，`git status`核对本地修改，`git pull --ff-only`，重新`npm ci`、构建、启动；有冲突先处理，不用强制重置。
+新电脑：克隆**公开仓库**，执行`npm ci`、`npm run build`，恢复自己的离线数据备份；API密钥按需重新输入。更新现有副本：备份并停止程序，`git status`核对本地修改，`git pull --ff-only`，重新`npm ci`、构建、启动；有冲突先处理，不用强制重置。
 
 需要稳定版本时可`git switch --detach v0.5.0-fix`查看或测试，继续开发前创建分支。Git只保存程序代码，不能代替业务数据备份。
 
