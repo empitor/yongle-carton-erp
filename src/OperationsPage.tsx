@@ -224,6 +224,7 @@ export default function OperationsPage({
     if (editor?.type === 'stock') setFlowTab(false);
     setEditor(null);
     setRevision((v) => v + 1);
+    window.dispatchEvent(new Event('erp-business-changed'));
     setNotice('已保存，列表和库存已更新。');
   };
   const rows = (
@@ -675,7 +676,10 @@ export default function OperationsPage({
                 recycle={recycle}
                 search={search}
                 setSearch={setSearch}
-                changed={() => setRevision((v) => v + 1)}
+                changed={(message) => {
+                  if (message) setNotice(message);
+                  setRevision((v) => v + 1);
+                }}
                 edit={(v) =>
                   mode === 'suppliers'
                     ? openSupplier(v)

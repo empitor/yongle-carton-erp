@@ -365,7 +365,10 @@ test('确认后禁止编辑/普通删除，冲销需超级验证；下游库存�
       () => f.flow.save('arrival', { ...a, version: a.version }, actor, a.id),
       /只能编辑/,
     );
-    assert.throws(() => f.flow.archive(a.id, false, actor), /保留历史/);
+    assert.equal(f.flow.archive(a.id, false, actor).archived, true);
+    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    f.flow.archive(a.id, true, actor);
+    Object.assign(a, f.flow.get(a.id));
     assert.throws(
       () => f.flow.reverse(a.id, { version: a.version, reason: '核错', acknowledged: true }, actor),
       /超级管理员/,
@@ -659,7 +662,7 @@ test('HTTP写入必须登录/CSRF，服务真实联通且原始文件上传无�
           acknowledged: true,
         })
       ).status,
-      200,
+      422,
     );
     assert.equal(
       (
@@ -669,7 +672,7 @@ test('HTTP写入必须登录/CSRF，服务真实联通且原始文件上传无�
           acknowledged: true,
         })
       ).status,
-      409,
+      200,
     );
     assert.equal(
       (

@@ -13,7 +13,7 @@ function validate(path: string) {
       throw new Error('数据库完整性校验失败');
     if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('数据关联校验失败');
     if (
-      ![1, 2, 3, 4, 5, 6, 7, 8, 9,10].includes(
+      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(
         Number(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()?.version),
       )
     )

@@ -33,6 +33,7 @@ export const developerCommandSchema = z.strictObject({
     'archive',
     'restore',
     'permanent-delete',
+    'delete',
     'confirm',
     'cancel',
     'reverse',
@@ -45,6 +46,9 @@ export const developerCommandSchema = z.strictObject({
     .max(100)
     .default([]),
   patch: z.record(z.string(), z.unknown()).default({}),
+  impactDigests: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)).optional(),
+  deletionDigest: z.string().optional(),
+  inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),
   reason: z.string().trim().min(1).max(1000),
 });
 export const developerFieldNames: Record<string, string> = {

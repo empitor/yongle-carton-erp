@@ -26,10 +26,15 @@ import type { AiProgress } from '../../shared/ai-runtime.js';
 import { ImportRepository } from './repository.js';
 import { ImportError } from './errors.js';
 import type { Actor } from '../auth.js';
-import { requireDeveloper } from '../developer-capability.js';
+import {
+  requireDeveloper,
+  requireLocalAdministrator,
+  isLocalAdministrator,
+} from '../developer-capability.js';
 
 type View = ImportWorkspaceView;
 type Workspace = View & {
+  archived?: boolean;
   arrivalAssistant?: any;
   history: { draft: OrderDraft; changes: DraftChange[] }[];
   consentProfile: {
@@ -45,7 +50,7 @@ import { analysisPrompt, chatPrompt, PROMPT_VERSION } from './prompts.js';
 import { blankField } from '../../shared/order-draft.js';
 import { mappingSchema } from '../../shared/import-mapping.js';
 import { AiConnectionError } from '../ai/connection-error.js';
-import { existsSync, renameSync } from 'node:fs';
+import { existsSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { orderSourceMessage, recognitionMode, recognitionScope } from './source-message.js';
 import { failureRecord, type FailureContext } from './failure-record.js';
 import { officialDeepSeekEndpoint } from '../../shared/assistant-attachments.js';
@@ -58,6 +63,7 @@ import {
 } from '../../shared/product-details.js';
 export class ImportManager {
   abortArrival?: (sourceId: string) => void;
+  arrivalDocumentExists?: (id: number) => boolean;
   private importing = new Set<string>();
   readonly promptPresets: PromptPresetManager;
   private repo: ImportRepository;
@@ -91,6 +97,18 @@ export class ImportManager {
         trash = join(options.directory, '_trash', w.id);
       if (existsSync(current) && !existsSync(trash)) renameSync(current, trash);
     }
+    const staging = resolve(options.directory, '_deleting');
+    if (existsSync(staging))
+      for (const id of readdirSync(staging)) {
+        if (!z.string().uuid().safeParse(id).success) continue;
+        const target = resolve(staging, id);
+        if (dirname(target) !== staging) continue;
+        const active = this.repo.get(id),
+          legacy = this.repo.trash().some((r) => r.id === id);
+        if (active || legacy)
+          renameSync(target, resolve(options.directory, ...(legacy ? ['_trash', id] : [id])));
+        else rmSync(target, { recursive: true, force: true });
+      }
   }
   close() {
     for (const controller of this.busy.values()) controller.abort();
@@ -100,10 +118,10 @@ export class ImportManager {
   isBusy(id: string) {
     return this.busy.has(id);
   }
-  mapping(id: string, raw: unknown) {
+  mapping(id: string, raw: unknown, who?: Actor | null) {
     const v = revisionSchema.extend({ mapping: mappingSchema }).parse(raw),
       w = this.load(id);
-    this.check(w, v.expectedRevision);
+    this.check(w, v.expectedRevision, isLocalAdministrator(who));
     if (!w.draft) throw new ImportError('请先识别订单。');
     if (Object.keys(v.mapping.products).some((id) => !w.draft!.lines.some((l) => l.id === id)))
       throw new ImportError('匹配对象不属于当前订单。');
@@ -124,12 +142,78 @@ export class ImportManager {
   trash() {
     return this.repo.trash();
   }
+  archives() {
+    return [...this.repo.archived(), ...this.repo.trash()];
+  }
+  archiveWorkspace(id: string, revision: number, who: Actor) {
+    requireLocalAdministrator(who);
+    const w = this.load(id);
+    this.check(w, revision, true);
+    if (this.isBusy(id) || this.importing.has(id))
+      throw new ImportError('任务正在处理，结束后可归档；删除可取消识别任务。', 409);
+    w.archived = true;
+    this.save(w, revision, 'archive');
+    return this.get(id);
+  }
+  async restoreWorkspace(id: string, who: Actor) {
+    requireLocalAdministrator(who);
+    if (!this.repo.get(id)) return this.restore(id);
+    const w = this.load(id);
+    w.archived = false;
+    this.save(w, w.revision, 'restore-archive');
+    return this.get(id);
+  }
+  async openArchivedWorkspace(id: string, who: Actor) {
+    requireLocalAdministrator(who);
+    // 旧回收格式转换为可编辑归档，始终保留归档状态，不要求先恢复为正常记录。
+    if (!this.repo.get(id)) await this.restore(id, true);
+    return this.get(id);
+  }
+  async deleteWorkspace(id: string, revision: number | undefined, who: Actor) {
+    requireLocalAdministrator(who);
+    z.string().uuid().parse(id);
+    const w = this.repo.get(id);
+    if (w && revision !== undefined && w.revision !== revision)
+      throw new ImportError('工作区版本已变化，请刷新。', 409);
+    if (this.importing.has(id))
+      throw new ImportError('工作区正在提交数据库事务，请完成后重试删除。', 409);
+    this.busy.get(id)?.abort();
+    if (w?.arrivalSourceId) this.abortArrival?.(w.arrivalSourceId);
+    this.deleting.add(id);
+    const base = resolve(this.options.directory),
+      active = resolve(base, id),
+      archived = resolve(base, '_trash', id),
+      stage = resolve(base, '_deleting', id);
+    if (
+      dirname(active) !== base ||
+      dirname(archived) !== resolve(base, '_trash') ||
+      dirname(stage) !== resolve(base, '_deleting')
+    )
+      throw new ImportError('工作区路径异常。');
+    const source = existsSync(active) ? active : existsSync(archived) ? archived : null;
+    try {
+      await mkdir(resolve(base, '_deleting'), { recursive: true });
+      if (source) await rename(source, stage);
+      try {
+        this.repo.physicalDelete(id);
+      } catch (e) {
+        if (source) await rename(stage, source);
+        throw e;
+      }
+      await rm(stage, { recursive: true, force: true });
+      return { id, deleted: true, recoverable: false };
+    } finally {
+      this.deleting.delete(id);
+    }
+  }
   private tags(w: { id: string; fileHash: string }) {
     const ref = this.options.findImport?.(w.id, w.fileHash);
     const own = ref && !ref.historical ? ref : undefined;
     return { imported: own, historyImport: own ? undefined : ref };
   }
   status() {
+    // 工作区与业务库独立保存；读取前解除已物理删除的单据引用，保留独立识别草稿。
+    for (const row of this.repo.list()) this.load(row.id);
     const p = this.options.settings.view().active;
     return {
       csrfToken: this.csrfToken,
@@ -137,6 +221,7 @@ export class ImportManager {
       workspaces: this.repo.list().map((w: any) => ({ ...w, ...this.tags(w) })),
       writesEnabled: !!this.options.findImport,
       trash: this.repo.trash(),
+      archives: this.archives(),
       promptVersion: PROMPT_VERSION,
       limits: { maxFileMB: 10 },
       queue: this.options.settings.workQueue.stats(),
@@ -148,6 +233,14 @@ export class ImportManager {
     z.string().uuid().parse(id);
     const w = this.repo.get(id) as Workspace | null;
     if (!w) throw new ImportError('导入工作区不存在。', 404);
+    if (
+      w.arrivalDocId &&
+      this.arrivalDocumentExists &&
+      !this.arrivalDocumentExists(w.arrivalDocId)
+    ) {
+      w.arrivalDocId = null;
+      this.save(w, w.revision, 'detach-deleted-arrival');
+    }
     if (w.draft)
       for (const l of w.draft.lines) for (const key of lineFields) l.fields[key] ||= blankField();
     if (
@@ -402,13 +495,13 @@ export class ImportManager {
     }
     return { results };
   }
-  async restore(id: string) {
+  async restore(id: string, keepArchived = false) {
     z.string().uuid().parse(id);
     const from = join(this.options.directory, '_trash', id),
       to = join(this.options.directory, id);
     await rename(from, to);
     try {
-      this.repo.restore(id);
+      this.repo.restore(id, keepArchived);
       const restored = this.load(id);
       restored.task = { state: restored.draft ? 'ready' : 'uploaded' };
       this.repo.task(id, restored.task);
@@ -812,12 +905,12 @@ export class ImportManager {
     } else w.changes = [];
     return changes;
   }
-  edit(id: string, raw: unknown, origin: 'manual' | 'ai' = 'manual') {
+  edit(id: string, raw: unknown, origin: 'manual' | 'ai' = 'manual', who?: Actor | null) {
     const input = revisionSchema
         .extend({ operations: z.array(patchOperationSchema).min(1).max(100) })
         .parse(raw),
       w = this.load(id);
-    this.check(w, input.expectedRevision);
+    this.check(w, input.expectedRevision, isLocalAdministrator(who));
     const changes = this.apply(w, input.operations, origin);
     this.save(
       w,
@@ -847,7 +940,7 @@ export class ImportManager {
       id,
       async () => {
         const w = this.load(id);
-        this.check(w, input.expectedRevision);
+        this.check(w, input.expectedRevision, isLocalAdministrator(actor as Actor));
         if (!w.draft) throw new ImportError('请先识别生成草稿。');
         if (w.messages.length >= 60)
           throw new ImportError('本工作区聊天已达 60 条，请保存核对记录后另建工作区。');
@@ -907,7 +1000,7 @@ export class ImportManager {
         if (this.busy.get(id)?.signal.aborted)
           throw new ImportError('任务已取消。', 409, 'cancelled');
         const latest = this.load(id);
-        this.check(latest, input.expectedRevision);
+        this.check(latest, input.expectedRevision, isLocalAdministrator(actor as Actor));
         const changes = this.apply(latest, result.operations, 'ai');
         latest.promptPreset = prompt.usage;
         const computed = evaluateDraft(latest.draft!);
@@ -932,10 +1025,10 @@ export class ImportManager {
       attempt,
     );
   }
-  undo(id: string, raw: unknown) {
+  undo(id: string, raw: unknown, who?: Actor | null) {
     const { expectedRevision } = revisionSchema.parse(raw),
       w = this.load(id);
-    this.check(w, expectedRevision);
+    this.check(w, expectedRevision, isLocalAdministrator(who));
     const last = w.history.pop();
     if (!last) throw new ImportError('没有可撤销的草稿修改。');
     w.draft = last.draft;

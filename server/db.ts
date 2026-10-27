@@ -394,6 +394,7 @@ export class Store {
     version?: number,
     includeArchived = false,
     developer = false,
+    databaseMaintenance = false,
   ): Order {
     const customer = this.customer(v.customerId, includeArchived);
     if (!customer) throw new InputError('客户不存在或已停用，请先恢复客户或重新选择');
@@ -420,7 +421,67 @@ export class Store {
     });
     const precise = precisionTotal(lines);
     const linked = !!id && flowReference(this, 'orders', id);
+    if (databaseMaintenance && linked && previous) {
+      const ids = lines.map((l) => l.id).filter(Boolean);
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.some((lineId) => !previous.lines.some((l) => l.id === lineId))
+      )
+        throw new InputError('明细编号重复或不属于当前订单。');
+    }
+    if (developer && linked && previous && !databaseMaintenance) {
+      const ids = lines.map((l) => l.id).filter((n) => n !== undefined);
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.some((n) => !previous.lines.some((l) => l.id === n))
+      )
+        throw new InputError('明细编号重复或不属于当前订单，请刷新订单。');
+      const deliveries = this.db
+        .prepare(
+          "SELECT DISTINCT d.document FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.order_id=? AND d.kind='delivery' AND d.status IN ('draft','confirmed')",
+        )
+        .all(id!);
+      if (deliveries.length && v.customerId !== previous.customerId)
+        throw new InputError('已有有效送货单，改变客户前请从关联记录更正或撤销送货单。');
+      const activeLines = new Set(
+        deliveries.flatMap((d) =>
+          JSON.parse(String(d.document))
+            .lines.filter((l: any) => l.orderId === id)
+            .map((l: any) => l.orderLineId),
+        ),
+      );
+      for (const old of previous.lines) {
+        const next = lines.find((l) => l.id === old.id);
+        const referenced = this.db
+          .prepare('SELECT 1 FROM flow_refs WHERE order_line_id=?')
+          .get(old.id!);
+        if (!next && referenced)
+          throw new InputError(
+            '明细已有送货历史，不能移除。请保留该明细并通过关联送货更正，其他未引用明细可增删。',
+          );
+        if (
+          next &&
+          activeLines.has(old.id) &&
+          (next.productId !== old.productId ||
+            next.unit !== old.unit ||
+            next.specification !== old.specification)
+        )
+          throw new InputError('明细已有有效送货单，改变产品、规格或单位前请更正关联送货单。');
+      }
+      const tasks = this.db
+        .prepare(
+          "SELECT DISTINCT d.document FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.order_id=? AND d.kind='task' AND d.status IN ('draft','confirmed')",
+        )
+        .all(id!);
+      if (
+        tasks.some(
+          (t) => !lines.some((l) => l.productId === JSON.parse(String(t.document)).productId),
+        )
+      )
+        throw new InputError('生产任务仍引用原产品，请在关联记录更正或撤销该任务后再移除产品。');
+    }
     if (
+      !developer &&
       linked &&
       previous &&
       (v.customerId !== previous.customerId ||
@@ -439,10 +500,16 @@ export class Store {
       throw new InputError(
         '订单已关联生产/送货记录，不能改变客户、产品明细、规格、数量或单位。请通过后续更正单处理。',
       );
-    if (linked && developer && lines.some((l) => shippedUnits(this, l.id!) > l.quantity * 1000))
+    if (
+      !databaseMaintenance &&
+      linked &&
+      developer &&
+      lines.some((l) => shippedUnits(this, l.id!) > l.quantity * 1000)
+    )
       throw new InputError('订单数量不能低于实际已交付数量，请先更正送货记录。');
     if (
       linked &&
+      !databaseMaintenance &&
       previous &&
       previous.lines.some((l) => shippedUnits(this, l.id!) > 0) &&
       v.status !== previous.status
@@ -474,6 +541,12 @@ export class Store {
           );
         if (!r.changes) throw new ConflictError();
         if (!linked) this.db.prepare('DELETE FROM order_lines WHERE order_id=?').run(id);
+        else if (developer && previous)
+          for (const old of previous.lines)
+            if (!lines.some((l) => l.id === old.id)) {
+              this.db.prepare('DELETE FROM order_line_extensions WHERE line_id=?').run(old.id!);
+              this.db.prepare('DELETE FROM order_lines WHERE id=? AND order_id=?').run(old.id!, id);
+            }
       } else {
         const next = this.nextId('orders');
         const number = `ZX-${v.orderDate.replaceAll('-', '')}-${String(next).padStart(4, '0')}`;
@@ -502,22 +575,31 @@ export class Store {
         'INSERT INTO order_lines(order_id,product_id,product_name,specification,quantity,unit_price_cents) VALUES(?,?,?,?,?,?)',
       );
       for (const l of lines) {
-        const result = linked
-          ? { lastInsertRowid: l.id! }
-          : insert.run(
-              id,
-              l.productId,
-              l.productName,
-              l.specification,
-              l.quantity,
-              l.unitPriceCents,
-            );
-        if (linked)
+        const result =
+          linked && l.id
+            ? { lastInsertRowid: l.id! }
+            : insert.run(
+                id,
+                l.productId,
+                l.productName,
+                l.specification,
+                l.quantity,
+                l.unitPriceCents,
+              );
+        if (linked && l.id)
           this.db
             .prepare(
-              'UPDATE order_lines SET product_name=?,unit_price_cents=?,quantity=? WHERE id=? AND order_id=?',
+              'UPDATE order_lines SET product_name=?,unit_price_cents=?,quantity=?,product_id=?,specification=? WHERE id=? AND order_id=?',
             )
-            .run(l.productName, l.unitPriceCents, l.quantity, l.id!, id);
+            .run(
+              l.productName,
+              l.unitPriceCents,
+              l.quantity,
+              l.productId,
+              l.specification,
+              l.id!,
+              id,
+            );
         if (
           l.unitPriceExact !== undefined ||
           l.customerProductCode !== undefined ||

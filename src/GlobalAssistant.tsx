@@ -26,6 +26,7 @@ import { useFloatingAssistant } from './useFloatingAssistant';
 import CartonSpirit from './CartonSpirit';
 import { isErpNavigation } from '../shared/assistant-navigation';
 import AssistantOrderTask from './AssistantOrderTask';
+import AssistantBusinessTaskPanel from './AssistantBusinessTask';
 import {
   attachmentAccept,
   officialDeepSeekEndpoint,
@@ -99,6 +100,7 @@ export default function GlobalAssistant() {
     [state, setState] = useState<any>(null),
     [thread, setThread] = useState<any>(null),
     [message, setMessage] = useState(''),
+    [newBusinessTask, setNewBusinessTask] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [progress, setProgress] = useState(''),
@@ -279,10 +281,10 @@ export default function GlobalAssistant() {
       setError((e as Error).message);
     }
   };
-  async function send() {
+  async function send(override?: string) {
     if (
       speech.active ||
-      (!message.trim() && !uploads.ready.length) ||
+      (!(override ?? message).trim() && !uploads.ready.length) ||
       busy ||
       uploads.working ||
       uploads.failed ||
@@ -297,7 +299,9 @@ export default function GlobalAssistant() {
     setPartial('');
     draftRef.current = '';
     setProgress('等待AI…');
-    const content = message;
+    const content = override ?? message;
+    const startNewTask = newBusinessTask;
+    setNewBusinessTask(false);
     setMessage('');
     atBottom.current = true;
     const owner = userId;
@@ -322,6 +326,7 @@ export default function GlobalAssistant() {
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': authState.csrf },
         body: JSON.stringify({
           requestId: crypto.randomUUID(),
+          startNewTask,
           text: content,
           attachmentIds: uploads.ready.map((a) => a.id),
           usePreviousAttachments: includePrevious,
@@ -350,6 +355,7 @@ export default function GlobalAssistant() {
       const parser = new SseParser(({ event, data }) => {
         if (userRef.current !== owner) return;
         const d = JSON.parse(data);
+        if (event === 'task') setThread((t: any) => (t ? { ...t, businessTask: d } : t));
         if (event === 'effect') {
           if (d.workspaceId)
             window.dispatchEvent(
@@ -358,6 +364,8 @@ export default function GlobalAssistant() {
               }),
             );
           if (d.type === 'business') window.dispatchEvent(new Event('erp-business-changed'));
+          if (d.module === 'workspaces')
+            window.dispatchEvent(new Event('erp-ai-workspace-list-changed'));
           if (d.type === 'navigate' && isErpNavigation(d.url)) location.hash = d.url;
         }
         if (event === 'draft') {
@@ -683,7 +691,9 @@ export default function GlobalAssistant() {
                           {executed.includes(p.id)
                             ? '已提交业务服务 · 结果已保存'
                             : p.highRisk
-                              ? '高风险 · 需超级模式、再次密码及二次确认'
+                              ? auth?.actor?.localAdministrator
+                                ? '关联或不可逆操作 · 核对具体影响'
+                                : '高风险 · 需超级模式、再次密码及二次确认'
                               : '等待逐项核对 · 尚未执行'}
                         </p>
                         <button
@@ -719,6 +729,46 @@ export default function GlobalAssistant() {
                   </article>
                 ))}
                 <AssistantOrderTask workflow={thread?.orderWorkflow} />
+                <AssistantBusinessTaskPanel
+                  task={thread?.businessTask}
+                  history={thread?.businessTaskHistory}
+                  busy={busy}
+                  resume={() => void send('继续')}
+                  newTask={() => {
+                    setNewBusinessTask(true);
+                    setMessage('');
+                  }}
+                  pendingNew={newBusinessTask}
+                  activate={async (taskId) => {
+                    try {
+                      await managementRequest(
+                        '/assistant/threads/' + thread.id + '/tasks/activate',
+                        { taskId },
+                      );
+                      await loadThread(thread.id);
+                      setNewBusinessTask(false);
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                  diagnostics={async () => {
+                    try {
+                      const d = await managementRequest(
+                        '/assistant/diagnostics?threadId=' + thread.id,
+                      );
+                      const url = URL.createObjectURL(
+                        new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }),
+                      );
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'assistant-protocol-diagnostics.json';
+                      a.click();
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                />
                 {partial && (
                   <article className="ga-message ga-assistant">
                     <small>AI业务助手 · 回复未完整接收</small>
@@ -751,7 +801,7 @@ export default function GlobalAssistant() {
                   {review.warnings.map((w: string, i: number) => (
                     <p key={i}>{w}</p>
                   ))}
-                  {review.highRisk && (
+                  {review.highRisk && !auth?.actor?.localAdministrator && (
                     <>
                       <p>
                         此操作涉及库存或不可逆影响。核对上方内容并验证密码后，点击下方按钮确认。
@@ -778,7 +828,10 @@ export default function GlobalAssistant() {
                   )}
                   <button
                     className="primary"
-                    disabled={executing || (review.highRisk && !password)}
+                    disabled={
+                      executing ||
+                      (review.highRisk && !auth?.actor?.localAdministrator && !password)
+                    }
                     onClick={execute}
                   >
                     {executing

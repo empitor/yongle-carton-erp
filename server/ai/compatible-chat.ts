@@ -6,6 +6,7 @@ import type { FilePart } from './responses-format.js';
 import { AI_REQUEST_TIMEOUT_MS } from '../../shared/ai-runtime.js';
 import type { ResponseOptions } from './compatible-responses.js';
 import { officialDeepSeekEndpoint } from '../../shared/assistant-attachments.js';
+import { ProtocolDiagnostics, hasDsml } from './protocol-diagnostics.js';
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
   content:
@@ -32,6 +33,7 @@ export async function completeCompatible(
   signal?: AbortSignal,
   options: ResponseOptions = {},
 ): Promise<unknown> {
+  const diagnostics = new ProtocolDiagnostics(profile, key, options.onDiagnostic);
   try {
     let received = '',
       pending = '',
@@ -40,6 +42,7 @@ export async function completeCompatible(
     const started = Date.now();
     const delta = (part: string) => {
       received += part;
+      diagnostics.text(received);
       pending += part;
       if (received.length > 1024 * 1024 || pending.includes(key))
         throw new AiConnectionError('response', '模型输出不安全或过大，已拒绝。', 422);
@@ -69,9 +72,10 @@ export async function completeCompatible(
             onSseEvent: ({ data }: { data: string }) => {
               if (data.trim() === '[DONE]') return;
               const v = JSON.parse(data);
+              diagnostics.stream(v);
               seen = true;
               for (const c of v.choices || []) {
-                if (c.delta?.tool_calls || c.delta?.refusal)
+                if (c.delta?.tool_calls || c.delta?.function_call || c.delta?.refusal)
                   throw new AiConnectionError('response', '模型返回未请求的调用或拒答。', 422);
                 if (typeof c.delta?.content === 'string') delta(c.delta.content);
                 if (c.finish_reason) {
@@ -102,21 +106,39 @@ export async function completeCompatible(
         : {}),
       stream: options.stream === true,
     };
+    const initialBody =
+      options.jsonMode === 'disabled'
+        ? body
+        : { ...body, response_format: { type: 'json_object' } };
+    diagnostics.request(initialBody);
     let res = await transport({
       ...request,
-      body: { ...body, response_format: { type: 'json_object' } },
+      body: initialBody,
     });
+    diagnostics.result(res.status, res.body);
     // 部分兼容站没有 JSON mode；只有明确拒绝此参数才降级，结果仍必须通过 JSON 和业务契约校验。
     const formatError = res.body as { error?: { param?: unknown; message?: unknown } } | null;
     const formatMessage = formatError?.error?.message;
     if (
+      options.jsonMode !== 'disabled' &&
+      options.jsonMode !== 'required' &&
+      !seen &&
+      !received &&
       [400, 422].includes(res.status) &&
       (formatError?.error?.param === 'response_format' ||
         (typeof formatMessage === 'string' &&
-          /response_format|json_object/i.test(formatMessage) &&
-          /not.support|unsupported|unknown|unrecognized|不支持/i.test(formatMessage)))
-    )
+          /response_format|json_object/i.test(formatMessage))) &&
+      ((typeof formatMessage === 'string' &&
+        /not.support|not.allowed|unsupported|unknown|unrecognized|不支持/i.test(formatMessage)) ||
+        ['unsupported_parameter', 'unknown_parameter', 'unsupported_value'].includes(
+          String((formatError?.error as any)?.code),
+        ))
+    ) {
+      diagnostics.emit('json-mode-unsupported');
+      diagnostics.request(body);
       res = await transport({ ...request, body });
+      diagnostics.result(res.status, res.body);
+    }
     if (res.status < 200 || res.status >= 300) {
       if (
         [400, 422].includes(res.status) &&
@@ -142,6 +164,13 @@ export async function completeCompatible(
         seen ? { choices: [{ finish_reason: 'stop', message: { content: received } }] } : res.body
       ) as any,
       c = b?.choices?.[0];
+    if (c?.message?.tool_calls?.length || c?.message?.function_call)
+      throw new AiConnectionError(
+        'response',
+        '当前使用JSON信封，服务返回了未启用的原生工具调用，未执行。',
+        422,
+        { kind: 'protocol' },
+      );
     if (c?.finish_reason !== 'stop' || typeof c?.message?.content !== 'string' || c.message.refusal)
       throw new AiConnectionError(
         'response',
@@ -161,22 +190,34 @@ export async function completeCompatible(
       .trim()
       .replace(/^```(?:json)?\s*/, '')
       .replace(/\s*```$/, '');
+    diagnostics.text(content);
     if (content.includes(key))
       throw new AiConnectionError('response', '模型输出包含敏感凭据，结果已丢弃。', 422);
     options.onTextDelta?.(pending);
     try {
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      diagnostics.emit('complete');
+      return parsed;
     } catch {
       // 合法文本但不是 JSON：把文本交给调用方决定是否安全展示，绝不臆造字段。
       throw new AiConnectionError(
         'response',
         'AI 服务返回的文本不是可解析的 JSON 业务数据。',
         422,
-        note('invalid-json', content, key),
+        hasDsml(content)
+          ? {
+              kind: 'protocol',
+              text: '模型返回DSML控制文本，与当前JSON信封协议不兼容；未从文本提取或执行工具。',
+            }
+          : note('invalid-json', content, key),
       );
     }
   } catch (error) {
     const safe = safeConnectionError(error);
+    diagnostics.emit(
+      'error',
+      safe.responseNote?.kind ? safe.code + ':' + safe.responseNote.kind : safe.code,
+    );
     if (safe.code === 'timeout' && !(error instanceof AiConnectionError))
       throw new AiConnectionError(
         'timeout',

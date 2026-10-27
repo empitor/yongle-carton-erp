@@ -23,15 +23,18 @@ import AuthPanel from './AuthPanel';
 import ImportFailures from './import/ImportFailures';
 import ArrivalDraftPanel from './import/ArrivalDraftPanel';
 import { DraftHeader } from './import/DraftUI';
+import DeveloperEditor from './DeveloperEditor';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime';
 import './order-import.css';
 export default function OrderImportPage() {
-  const developer = !!useAuthState()?.actor?.developerMode;
+  const [manage, setManage] = useState(false);
+  const importAuth = useAuthState(),
+    developer = !!(importAuth?.actor?.developerMode || importAuth?.actor?.localAdministrator);
   const api = useOrderWorkspace(),
     input = useRef<HTMLInputElement>(null);
   const [checked, setChecked] = useState<string[]>([]),
     [modal, setModal] = useState<{
-      kind: 'delete' | 'authorize' | 'review' | 'trash' | 'import' | 'undo-import';
+      kind: 'delete' | 'authorize' | 'review' | 'trash' | 'import';
       ids: string[];
     } | null>(null),
     [agreed, setAgreed] = useState(false);
@@ -62,10 +65,7 @@ export default function OrderImportPage() {
   const batchTargets = checked.length
     ? checked.filter((id) => pending.some((f) => f.id === id))
     : pending.map((f) => f.id);
-  const open = (
-    kind: 'delete' | 'authorize' | 'review' | 'trash' | 'import' | 'undo-import',
-    ids: string[],
-  ) => {
+  const open = (kind: 'delete' | 'authorize' | 'review' | 'trash' | 'import', ids: string[]) => {
     setAgreed(false);
     setModal({ kind, ids });
   };
@@ -158,7 +158,7 @@ export default function OrderImportPage() {
         (f.historyImport.permanentlyDeleted
           ? '（已永久删除）'
           : f.historyImport.archived
-            ? '（回收站）'
+            ? '（归档记录）'
             : '（有效）') +
         ' · '
       : '';
@@ -232,12 +232,22 @@ export default function OrderImportPage() {
             流式传输<small>Responses</small>
           </label>
           <AuthPanel />
+          {developer && <button onClick={() => setManage(true)}>管理原件 / 任务 / 归档</button>}
+          {manage && (
+            <DeveloperEditor
+              initialModule="workspaces"
+              close={() => {
+                setManage(false);
+                void api.refresh();
+              }}
+            />
+          )}
           {developer && id && (
             <button
               disabled={busy}
               onClick={async () => {
                 try {
-                  const r = await managementRequest<any>('/developer/workspaces', {
+                  const r = await managementRequest<any>('/management/workspaces', {
                     action: 'fork',
                     items: [{ id }],
                   });
@@ -324,7 +334,7 @@ export default function OrderImportPage() {
             批量识别{checked.length ? '所选 ' + checked.length + ' 份' : ''}
           </button>
           <button onClick={() => open('trash', [])}>
-            回收站{api.status?.trash.length ? ' (' + api.status.trash.length + ')' : ''}
+            归档记录{api.status?.archives?.length ? ' (' + api.status.archives!.length + ')' : ''}
           </button>
           <button onClick={() => setShowFailures(true)}>错误档案</button>
         </div>
@@ -492,6 +502,18 @@ export default function OrderImportPage() {
                     </button>
                   )}
                 <button
+                  disabled={!developer}
+                  onClick={async () => {
+                    const current = await api.request<any>('/' + f.id);
+                    await api.request('/' + f.id + '/archive', {
+                      expectedRevision: current.revision,
+                    });
+                    await api.refresh();
+                  }}
+                >
+                  归档
+                </button>
+                <button
                   className="oi-delete"
                   aria-label={'删除文件 ' + f.fileName}
                   title="删除工作区文件"
@@ -572,7 +594,7 @@ export default function OrderImportPage() {
                     {w.historyImport.permanentlyDeleted
                       ? '（已永久删除，可直接重新导入）'
                       : w.historyImport.archived
-                        ? '（在业务回收站）'
+                        ? '（在业务归档记录）'
                         : '（当前有效）'}
                     。重新识别不受影响，正式入库时会再次检查重复。
                     {!w.historyImport.permanentlyDeleted && (
@@ -583,7 +605,7 @@ export default function OrderImportPage() {
                             : '#orders?order=' + w.historyImport.orderId
                         }
                       >
-                        {w.historyImport.archived ? '去回收站恢复或查看' : '查看原订单'}
+                        {w.historyImport.archived ? '去归档记录恢复或查看' : '查看原订单'}
                       </a>
                     )}
                   </div>
@@ -594,7 +616,7 @@ export default function OrderImportPage() {
                       key={id}
                       workspace={{ ...w, evaluation }}
                       draft={d}
-                      locked={busy || !!w?.imported}
+                      locked={busy || (!!w?.imported && !developer)}
                       change={(k, v, line) => api.change(id, k, v, line)}
                       onMapping={(m) => {
                         if (unsaved) {
@@ -675,7 +697,7 @@ export default function OrderImportPage() {
               </section>
               <OrderChat
                 workspace={w}
-                locked={busy || !!w?.imported}
+                locked={busy || (!!w?.imported && !developer)}
                 unsaved={unsaved}
                 send={(message) => api.action(id, 'chat', { message }, '聊天核对中')}
               />
@@ -695,17 +717,16 @@ export default function OrderImportPage() {
                   </span>
                 </div>
                 <div>
-                  <button
-                    disabled={!d || busy || unsaved || !!w?.imported}
-                    onClick={() => open('review', [id])}
-                  >
-                    核对并确认
-                  </button>
-                  {w?.imported && !w.imported.archived && (
-                    <button onClick={() => open('undo-import', [id])}>撤回导入</button>
+                  {!importAuth?.actor?.localAdministrator && (
+                    <button
+                      disabled={!d || busy || unsaved || !!w?.imported}
+                      onClick={() => open('review', [id])}
+                    >
+                      核对并确认
+                    </button>
                   )}
                   {w?.imported?.permanentlyDeleted ? (
-                    <span>不可从回收站恢复</span>
+                    <span>不可从归档记录恢复</span>
                   ) : w?.imported ? (
                     <a
                       href={
@@ -763,7 +784,7 @@ export default function OrderImportPage() {
                 <h2 id="oi-dialog-title">删除 {modal.ids.length} 份工作区文件？</h2>
                 <p>{modal.ids.map((id) => files.find((f) => f.id === id)?.fileName).join('、')}</p>
                 <p>
-                  将取消正在运行的任务，并从当前工作区移除原件、未提交草稿、修改历史及该文件聊天。可在本机回收站恢复。不会删除正式ERP客户、产品或订单。
+                  将取消正在运行的任务，并从当前工作区移除原件、未提交草稿、修改历史及该文件聊天。这是物理删除，不能恢复。不会删除正式ERP客户、产品或订单。
                 </p>
                 <div className="oi-modal-actions">
                   <button onClick={() => setModal(null)}>保留文件</button>
@@ -836,35 +857,6 @@ export default function OrderImportPage() {
                   </button>
                 </div>
               </>
-            ) : modal.kind === 'undo-import' ? (
-              <>
-                <h2 id="oi-dialog-title">撤回本次导入？</h2>
-                <p>
-                  只对未进入后续业务、未被修改的原始导入订单执行软删除；原件、审计和新建的客户/产品仍保留。恢复请到订单管理的已归档列表。
-                </p>
-                <div className="oi-modal-actions">
-                  <button onClick={() => setModal(null)}>返回</button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const result = await api.request<any>('/' + id + '/undo-import', {
-                          acknowledged: true,
-                        });
-                        if (!result.results[0].success) throw new Error(result.results[0].message);
-                        await api.load(id);
-                        await api.refresh();
-                        setModal(null);
-                        api.setNotice('订单已撤回并软删除，客户、产品及来源审计保留。');
-                      } catch (error) {
-                        api.setFatal((error as Error).message);
-                        setModal(null);
-                      }
-                    }}
-                  >
-                    确认撤回
-                  </button>
-                </div>
-              </>
             ) : modal.kind === 'import' && importPreview ? (
               <>
                 <h2 id="oi-dialog-title">确认正式导入 ERP</h2>
@@ -930,15 +922,17 @@ export default function OrderImportPage() {
                     <p key={i}>{warning}</p>
                   ))}
                 </details>
-                <label className="oi-agreement">
-                  <input
-                    type="checkbox"
-                    checked={agreed}
-                    onChange={(e) => setAgreed(e.target.checked)}
-                    disabled={importBusy}
-                  />
-                  我已核对全部明细、客户/产品匹配与新建计划、金额和税费，确认按此预览正式入库。
-                </label>
+                {!importAuth?.actor?.localAdministrator && (
+                  <label className="oi-agreement">
+                    <input
+                      type="checkbox"
+                      checked={agreed}
+                      onChange={(e) => setAgreed(e.target.checked)}
+                      disabled={importBusy}
+                    />
+                    我已核对全部明细、客户/产品匹配与新建计划、金额和税费，确认按此预览正式入库。
+                  </label>
+                )}
                 {importError && (
                   <p role="alert" className="oi-bad">
                     {importError}
@@ -950,7 +944,7 @@ export default function OrderImportPage() {
                   </button>
                   <button
                     className="primary"
-                    disabled={!agreed || importBusy}
+                    disabled={(!importAuth?.actor?.localAdministrator && !agreed) || importBusy}
                     onClick={async () => {
                       setImportBusy(true);
                       try {
@@ -1025,12 +1019,21 @@ export default function OrderImportPage() {
               </>
             ) : (
               <>
-                <h2 id="oi-dialog-title">本机工作区回收站</h2>
-                <p>已移除文件不会在正常工作区重新出现；恢复时同时还原专属草稿和聊天。</p>
-                {api.status?.trash.length ? (
-                  api.status.trash.map((f) => (
+                <h2 id="oi-dialog-title">已归档工作区</h2>
+                <p>归档记录仍保存原件、任务和草稿；历史软删除文件也保留在此，可恢复或直接删除。</p>
+                {api.status?.archives?.length ? (
+                  api.status.archives!.map((f) => (
                     <div className="oi-trash-row" key={f.id}>
                       <span>{f.fileName}</span>
+                      <button
+                        onClick={async () => {
+                          await api.request('/' + f.id + '/open-archive', {});
+                          await api.choose(f.id);
+                          setModal(null);
+                        }}
+                      >
+                        编辑
+                      </button>
                       <button
                         onClick={async () => {
                           await api.restore(f.id);
@@ -1039,10 +1042,13 @@ export default function OrderImportPage() {
                       >
                         恢复
                       </button>
+                      <button className="danger" onClick={() => open('delete', [f.id])}>
+                        删除
+                      </button>
                     </div>
                   ))
                 ) : (
-                  <p>回收站为空。</p>
+                  <p>没有归档记录。</p>
                 )}
               </>
             )}

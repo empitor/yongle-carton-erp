@@ -4,6 +4,7 @@ import ManagementDialog from './ManagementDialog';
 import { managementRequest } from './session';
 import { developerModules, developerNames, developerFieldNames } from '../shared/developer';
 import './developer.css';
+import DatabaseDeleteDialog from './DatabaseDeleteDialog';
 const numberFields = new Set([
   'length',
   'width',
@@ -157,8 +158,15 @@ function Fields({
     />
   );
 }
-export default function DeveloperEditor({ close }: { close: () => void }) {
-  const [module, setModule] = useState('orders'),
+export default function DeveloperEditor({
+  close,
+  initialModule = 'orders',
+}: {
+  close: () => void;
+  initialModule?: string;
+}) {
+  const [deleting, setDeleting] = useState<any[] | null>(null);
+  const [module, setModule] = useState(initialModule),
     [data, setData] = useState<any>(null),
     [selected, setSelected] = useState<(number | string)[]>([]),
     [editing, setEditing] = useState<any>(null),
@@ -177,7 +185,7 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
     const g = ++generation.current;
     try {
       const next = await managementRequest(
-        module === 'workspaces' ? '/developer/workspaces' : '/developer/records?module=' + module,
+        module === 'workspaces' ? '/management/workspaces' : '/management/records?module=' + module,
       );
       if (g === generation.current) setData(next);
     } catch (e) {
@@ -235,20 +243,21 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
       if (submission.current?.key !== key) submission.current = { key, id: crypto.randomUUID() };
       const result =
         module === 'workspaces'
-          ? await managementRequest<any>('/developer/workspaces', {
+          ? await managementRequest<any>('/management/workspaces', {
               action,
+              requestId: submission.current!.id,
               items: rows.map((x) => ({
                 id: x.record.id,
                 ...(x.record.version == null ? {} : { revision: x.record.version }),
               })),
             })
-          : await managementRequest<any>('/developer/execute', {
+          : await managementRequest<any>('/management/execute', {
               requestId: submission.current!.id,
               module,
               action,
               items: rows.map((x) => ({ id: x.record.id, version: x.record.version })),
               patch,
-              reason: '超级管理员开发测试维护',
+              reason: '管理员数据维护',
             });
       const failed = result.results?.filter((x: any) => x.success === false) || [];
       if (failed.length) setError(failed.map((x: any) => x.id + '：' + x.message).join('；'));
@@ -275,11 +284,25 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
     }
   }
   return (
-    <ManagementDialog title="开发者数据维护" close={close} busy={busy}>
+    <ManagementDialog title="业务数据管理" close={close} busy={busy}>
+      {deleting && (
+        <DatabaseDeleteDialog
+          module={module}
+          rows={deleting}
+          close={() => setDeleting(null)}
+          done={(message) => {
+            setDeleting(null);
+            setMessage(message);
+            setSelected([]);
+            window.dispatchEvent(new Event('erp-business-changed'));
+            void load();
+          }}
+        />
+      )}
       <div className="dev-editor">
         <p className="dev-mode-note">
           <Code2 size={17} />
-          仅当前本机会话生效。普通保存直接执行；批量及永久删除先核对选定范围。库存始终通过流水更正。
+          普通编辑直接保存；删除核对选定范围。关联和库存同步重算，历史和审计保留。
         </p>
         <div className="dev-toolbar">
           <label>
@@ -336,15 +359,10 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
         {!!chosen.length && (
           <div className="dev-bulk">
             <strong>已选{chosen.length}条</strong>
-            <button
-              disabled={busy}
-              onClick={() =>
-                setAsk({ action: module === 'workspaces' ? 'remove' : 'archive', rows: chosen })
-              }
-            >
-              移入回收站
+            <button disabled={busy} onClick={() => void act('archive', chosen)}>
+              归档
             </button>
-            <button disabled={busy} onClick={() => setAsk({ action: 'restore', rows: chosen })}>
+            <button disabled={busy} onClick={() => void act('restore', chosen)}>
               <RotateCcw size={14} />
               恢复
             </button>
@@ -352,14 +370,13 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
               className="danger"
               disabled={busy}
               onClick={() =>
-                setAsk({
-                  action: module === 'workspaces' ? 'purge' : 'permanent-delete',
-                  rows: chosen,
-                })
+                module === 'workspaces'
+                  ? void act('delete', chosen)
+                  : setDeleting(chosen.map((r: any) => r.record))
               }
             >
               <Trash2 size={14} />
-              永久删除
+              删除
             </button>
             {module !== 'workspaces' && <button onClick={() => setBatch(!batch)}>批量修改</button>}
           </div>
@@ -404,7 +421,7 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
           <div className="dev-confirm">
             <strong>
               {ask.action === 'permanent-delete' || ask.action === 'purge'
-                ? '永久删除不可恢复'
+                ? '删除不可恢复'
                 : '即将执行：' + ask.action}{' '}
               · {ask.rows.length}条
             </strong>
@@ -471,25 +488,35 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
                   </td>
                   <td>
                     {r.record.archived
-                      ? '回收站 / 归档'
+                      ? '已归档'
                       : r.record.status || r.record.task?.state || '正常'}
                   </td>
                   <td>
                     <div className="dev-actions">
+                      <button
+                        disabled={busy}
+                        onClick={() => void act(r.record.archived ? 'restore' : 'archive', [r])}
+                      >
+                        {r.record.archived ? '恢复' : '归档'}
+                      </button>
+
                       {module === 'workspaces' ? (
                         <>
+                          <button
+                            onClick={() => {
+                              location.hash = '#ai-import?workspace=' + r.record.id;
+                              close();
+                            }}
+                          >
+                            编辑
+                          </button>
                           <button
                             disabled={busy || r.record.archived}
                             onClick={() => void act('fork', [r])}
                           >
                             复制为新识别任务
                           </button>
-                          <button
-                            disabled={busy}
-                            onClick={() =>
-                              setAsk({ action: r.record.archived ? 'purge' : 'remove', rows: [r] })
-                            }
-                          >
+                          <button disabled={busy} onClick={() => void act('delete', [r])}>
                             删除
                           </button>
                         </>
@@ -513,9 +540,9 @@ export default function DeveloperEditor({ close }: { close: () => void }) {
                           <button
                             className="danger"
                             disabled={busy}
-                            onClick={() => setAsk({ action: 'permanent-delete', rows: [r] })}
+                            onClick={() => setDeleting([r.record])}
                           >
-                            永久删除
+                            删除
                           </button>
                         </>
                       )}

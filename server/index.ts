@@ -21,6 +21,7 @@ process.on('exit', unlock);
 const store = new Store();
 const auth = new AuthManager(join(dirname(defaultDbPath), 'security', 'users.sqlite'), Date.now, {
   localDevelopment: localDevelopmentEnabled(),
+  localAdministration: true,
 });
 const port = Number(process.env.PORT || 3001);
 const aiSettings = new AiSettingsManager({

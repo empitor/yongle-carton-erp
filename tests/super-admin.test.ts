@@ -360,13 +360,13 @@ test('普通管理员不能编辑停用归档；超级模式可真实保存三�
   }
 });
 
-test('生产发货历史普通删除受限；超级模式可批量归档和恢复，归档订单引用仍完整', async () => {
+test('已履行订单归档和恢复采用业务条件，与物理删除独立，归档订单引用仍完整', async () => {
   const f = await fixture();
   try {
     const shipped = f.addOrder('已发货');
     assert.equal(
       (await (await f.lifecycle(f.admin, 'orders', shipped)).json()).results[0].success,
-      false,
+      true,
     );
     await f.owner.enter();
     assert.equal(
@@ -377,7 +377,7 @@ test('生产发货历史普通删除受限；超级模式可批量归档和恢�
     await f.lifecycle(f.owner, 'products', f.product);
     assert.equal(
       (await (await f.lifecycle(f.admin, 'orders', shipped, 'restore')).json()).results[0].success,
-      false,
+      true,
     );
     const restored = await (await f.lifecycle(f.owner, 'orders', shipped, 'restore')).json();
     assert.equal(restored.results[0].success, true);
@@ -647,7 +647,8 @@ test('操作区域常规查看编辑与危险更多菜单分离，详情字段�
   assert.match(html, /record-actions-main/);
   assert.match(html, /查看/);
   assert.match(html, /编辑/);
-  assert.match(html, /更多操作/);
+  assert.match(html, /归档/);
+  assert.match(html, /删除/);
   assert.doesNotMatch(html, /查看 \/ 编辑/);
   const detail = renderToStaticMarkup(createElement(RecordDetails, { entity: 'customers', row }));
   assert.match(detail, /虚构客户/);
@@ -710,7 +711,7 @@ test('同一原件在有效订单/回收站/永久删除后均可重新识别，
     await f.lifecycle(f.owner, 'orders', { id: order1.id, version: order1.version }, 'archive');
     const archived = await importTask(second.id);
     assert.equal(archived.status, 409);
-    assert.match(String(archived.preview.message), /回收站/);
+    assert.match(String(archived.preview.message), /归档|有效订单/);
 
     // 恢复后永久删除原订单
     const archivedRow = f.store.orders(true).find((o) => o.id === order1.id)!;

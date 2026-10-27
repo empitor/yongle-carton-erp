@@ -37,6 +37,7 @@ type Status = {
   } | null;
   workspaces: FileItem[];
   trash: { id: string; fileName: string; removedAt: string }[];
+  archives?: { id: string; fileName: string; revision?: number }[];
   writesEnabled: boolean;
   queue?: { active: number; waiting: number; limit: number; configured: number };
 };
@@ -223,9 +224,14 @@ export function useOrderWorkspace() {
     };
     window.addEventListener('hashchange', update);
     window.addEventListener('erp-ai-workspace-changed', update);
+    const listChanged = () => {
+      void refresh().catch(() => {});
+    };
+    window.addEventListener('erp-ai-workspace-list-changed', listChanged);
     return () => {
       window.removeEventListener('hashchange', update);
       window.removeEventListener('erp-ai-workspace-changed', update);
+      window.removeEventListener('erp-ai-workspace-list-changed', listChanged);
     };
   }, []);
   useEffect(() => {
@@ -377,7 +383,7 @@ export function useOrderWorkspace() {
     const w = cacheRef.current[id] || (await request<Workspace>('/' + id));
     cancelled.current.add(id);
     try {
-      await request('/' + id + '/remove', { expectedRevision: w.revision, acknowledged: true });
+      await request('/' + id + '/delete', { expectedRevision: w.revision, acknowledged: true });
       setCache((c) => {
         const n = { ...c };
         delete n[id];
@@ -394,7 +400,7 @@ export function useOrderWorkspace() {
         select(s.workspaces[0]?.id || '');
         if (s.workspaces[0]) await load(s.workspaces[0].id);
       }
-      setNotice('已移出工作区，可在回收站恢复；正式业务数据未改动');
+      setNotice('已物理删除工作区、识别任务和草稿；正式业务数据未改动');
     } catch (e) {
       cancelled.current.delete(id);
       setErrors((x) => ({ ...x, [id]: (e as Error).message }));
@@ -406,6 +412,8 @@ export function useOrderWorkspace() {
       const prepared = await Promise.all(
         ids.map(async (id) => {
           try {
+            if (statusRef.current?.archives?.some((r) => r.id === id && r.revision === undefined))
+              return { id, revision: 0, error: '' };
             return { id, revision: (await request<Workspace>('/' + id)).revision, error: '' };
           } catch (error) {
             return { id, revision: null, error: (error as Error).message };
@@ -417,7 +425,7 @@ export function useOrderWorkspace() {
         .map((p) => ({ id: p.id, expectedRevision: p.revision! }));
       const result = items.length
         ? await request<{ results: { id: string; removed: boolean; message: string }[] }>(
-            '/remove-many',
+            '/delete-many',
             { items, acknowledged: true },
           )
         : { results: [] as { id: string; removed: boolean; message: string }[] };
@@ -462,7 +470,7 @@ export function useOrderWorkspace() {
               failed
                 .map((r) => (cacheRef.current[r.id]?.fileName || r.id) + '：' + r.message)
                 .join('；')
-            : '，可在回收站恢复。'),
+            : '，已物理删除，不能恢复。'),
       );
       return [...removed];
     } catch (error) {

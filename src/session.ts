@@ -10,6 +10,7 @@ export type AuthState = {
     superAdminMode?: boolean;
     superAdminUntil?: number;
     developerMode?: boolean;
+    localAdministrator?: boolean;
   } | null;
   csrf: string;
 };

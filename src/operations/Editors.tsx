@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import ManagementDialog from '../ManagementDialog';
 import DimensionUnitSelect from '../DimensionUnitSelect';
-import { managementRequest } from '../session';
+import { managementRequest, useAuthState } from '../session';
 import { today } from '../../shared/domain';
 import {
   convertDimension,
@@ -137,7 +137,9 @@ export function PurchaseEditor({
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
-  const locked = !!value?.receipts.length;
+  const auth = useAuthState();
+  const locked = !!value?.receipts.length,
+    flexible = !!auth?.actor?.localAdministrator;
   const patch = (v: any) => setForm((s: any) => ({ ...s, ...v })),
     line = (i: number, v: any) =>
       setForm((s: any) => ({
@@ -179,7 +181,7 @@ export function PurchaseEditor({
           <OpField label="供应商 *">
             <select
               required
-              disabled={locked}
+              disabled={locked && !flexible}
               value={form.supplierId}
               onChange={(e) => patch({ supplierId: e.target.value })}
             >
@@ -220,7 +222,7 @@ export function PurchaseEditor({
             <input
               type="date"
               required
-              disabled={locked}
+              disabled={locked && !flexible}
               value={form.orderDate}
               onChange={(e) => patch({ orderDate: e.target.value })}
             />
@@ -234,20 +236,22 @@ export function PurchaseEditor({
           </OpField>
           <OpField label="订货状态">
             <select value={form.status} onChange={(e) => patch({ status: e.target.value })}>
-              <option disabled={locked}>待订货</option>
+              <option disabled={locked && !flexible}>待订货</option>
               <option>已订货</option>
-              <option disabled={value?.status === '全部到货'}>已取消</option>
+              <option disabled={!flexible && value?.status === '全部到货'}>已取消</option>
             </select>
           </OpField>
         </div>
         <p className="op-hint">
           部分到货、全部到货由实际登记自动计算。
           {locked
-            ? '已产生库存流水，明细、供应商和采购日期不可改；取消只取消未到货部分，不回退库存。'
+            ? flexible
+              ? '可直接修改已有到货的采购。计划与实际收货分别保存；更改供应商或实物身份时解除旧到货匹配，保留独立到货和库存数量。'
+              : '已有到货的实物身份保留；计划与实收分别记录。'
             : '尺寸、配纸、楞型和价格暂时未知可留空，数量单位需明确。'}
         </p>
         {form.lines.map((l: any, i: number) => (
-          <fieldset className="op-line-card" key={i} disabled={locked}>
+          <fieldset className="op-line-card" key={i} disabled={locked && !flexible}>
             <legend>采购明细 {i + 1}</legend>
             <div className="op-form-grid">
               <OpField label="原材料档案" wide>
@@ -354,7 +358,7 @@ export function PurchaseEditor({
                 />
               </OpField>
             </div>
-            {!locked && form.lines.length > 1 && (
+            {(!locked || flexible) && form.lines.length > 1 && (
               <button
                 type="button"
                 className="danger"
@@ -365,7 +369,7 @@ export function PurchaseEditor({
             )}
           </fieldset>
         ))}
-        {!locked && (
+        {(!locked || flexible) && (
           <button
             type="button"
             onClick={() => patch({ lines: [...form.lines, blankLine()] })}
@@ -562,6 +566,7 @@ export function ReceiptDialog({
     [agreed, setAgreed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const direct = !!useAuthState()?.actor?.localAdministrator;
   return (
     <ManagementDialog title={'分批到货 · ' + purchase.number} close={close} busy={busy}>
       <form
@@ -633,7 +638,7 @@ export function ReceiptDialog({
                     {l.quantity} {l.unit}
                   </td>
                   <td>{l.receivedQuantity}</td>
-                  <td>{quantityString(l.quantityUnits - l.receivedUnits)}</td>
+                  <td>{quantityString(Math.max(0, l.quantityUnits - l.receivedUnits))}</td>
                   <td>
                     <input
                       aria-label={'本次到货 ' + l.name}
@@ -651,15 +656,17 @@ export function ReceiptDialog({
         <OpField label="到货备注">
           <textarea value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} />
         </OpField>
-        <label className="op-agreement">
-          <input
-            type="checkbox"
-            checked={agreed}
-            required
-            onChange={(e) => setAgreed(e.target.checked)}
-          />
-          我已核对送货单与本次实际数量，确认入库。
-        </label>
+        {!direct && (
+          <label className="op-agreement">
+            <input
+              type="checkbox"
+              checked={agreed}
+              required
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            我已核对送货单与本次实际数量，确认入库。
+          </label>
+        )}
         {error && (
           <p role="alert" className="operation-error">
             {error}
@@ -669,7 +676,7 @@ export function ReceiptDialog({
           <button type="button" disabled={busy} onClick={close}>
             取消
           </button>
-          <button className="primary" disabled={busy || !agreed}>
+          <button className="primary" disabled={busy || (!direct && !agreed)}>
             {busy ? '正在入库…' : '确认到货并入库'}
           </button>
         </div>
@@ -697,6 +704,7 @@ export function MovementDialog({
     [agreed, setAgreed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const direct = !!useAuthState()?.actor?.localAdministrator;
   return (
     <ManagementDialog title={'库存操作 · ' + item.name} close={close} busy={busy}>
       <form
@@ -775,15 +783,17 @@ export function MovementDialog({
         <p className="op-hint">
           每次操作都保存原余额、变动量、结果余额和操作者；盘点填写实际总余额，不能通过编辑表单改数。
         </p>
-        <label className="op-agreement">
-          <input
-            type="checkbox"
-            required
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-          />
-          已核对实物及数量，确认登记此流水。
-        </label>
+        {!direct && (
+          <label className="op-agreement">
+            <input
+              type="checkbox"
+              required
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            已核对实物及数量，确认登记此流水。
+          </label>
+        )}
         {error && (
           <p role="alert" className="operation-error">
             {error}
@@ -793,7 +803,7 @@ export function MovementDialog({
           <button type="button" disabled={busy} onClick={close}>
             取消
           </button>
-          <button className="primary" disabled={busy || !agreed}>
+          <button className="primary" disabled={busy || (!direct && !agreed)}>
             {busy ? '正在登记…' : '确认库存变动'}
           </button>
         </div>

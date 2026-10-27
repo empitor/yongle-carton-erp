@@ -10,6 +10,7 @@ import { ImportError } from '../import/errors.js';
 import { matchDraft } from '../import/matching.js';
 import { patchOperationSchema } from '../../shared/order-draft.js';
 import type { AssistantAttachment } from '../../shared/assistant-attachments.js';
+import { isLocalAdministrator } from '../developer-capability.js';
 
 export const orderWorkflowTools = [
   {
@@ -213,7 +214,7 @@ export class AssistantOrderWorkflow {
         roundingPolicy: w.mapping?.roundingPolicy || 'exact-cents',
       };
       if (JSON.stringify(mapping) !== JSON.stringify(w.mapping)) {
-        w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping });
+        w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping }, ctx.actor);
         task.preview = await this.execution.preview(
           w.id,
           { expectedRevision: w.revision },
@@ -495,7 +496,7 @@ export class AssistantOrderWorkflow {
         message: `已正式导入销售订单 ${order.number}；客户 ${order.customerName}；${order.lines.length} 项产品，金额 ${order.totalAmountExact || (order.totalCents / 100).toFixed(2)} CNY。`,
       };
     }
-    if (w.imported && !w.imported.historical)
+    if (w.imported && !w.imported.historical && !isLocalAdministrator(ctx.check()))
       throw new ImportError('任务已正式导入，草稿不能覆盖；请明确要求修改对应正式订单。', 409);
     if (name === 'order_import.edit') {
       const input = z
@@ -511,7 +512,7 @@ export class AssistantOrderWorkflow {
             .map((op) => w.draft!.lines.findIndex((l) => l.id === (op as any).lineId) + 1),
         ),
       ];
-      w = this.imports.edit(w.id, input, 'ai');
+      w = this.imports.edit(w.id, input, 'ai', ctx.actor);
       if (rows.length === 1) task.focusLine = rows[0];
     } else if (name === 'order_import.match') {
       const input = z
@@ -552,10 +553,23 @@ export class AssistantOrderWorkflow {
         }
       } else if (input.createNew) mapping.customer = { mode: 'new' };
       else throw new ImportError('请说明客户或具体产品行及其型号。');
-      w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping });
+      w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping }, ctx.actor);
     } else if (name === 'order_import.undo') {
-      w = this.imports.undo(w.id, { expectedRevision: w.revision });
+      w = this.imports.undo(w.id, { expectedRevision: w.revision }, ctx.actor);
     } else if (name !== 'order_import.preview') throw new ImportError('未注册订单任务工具。', 404);
+    if (w.imported && !w.imported.historical) {
+      task.state = 'imported';
+      task.preview = undefined;
+      task.previewRequest = undefined;
+      task.error = undefined;
+      this.save(ctx, state);
+      this.notify(ctx, task, true);
+      return {
+        ...this.result(ctx, task),
+        message:
+          '工作区草稿已保存并重新计算；原正式订单及导入回执保留，没有再次执行导入。修改正式订单请调用业务记录编辑工具。',
+      };
+    }
     await this.prepare(ctx, state, task);
     this.notify(ctx, task, true);
     return {

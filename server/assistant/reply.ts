@@ -1,7 +1,7 @@
 import { toolCatalog } from './tools.js';
 export const MAX_MESSAGE_CHARS = 16000;
 export const MAX_TOOL_CALLS = 3;
-export type AssistantToolCall = { name: string; args: Record<string, unknown> };
+export type AssistantToolCall = { name: string; args: Record<string, unknown>; stepId?: string };
 export type RejectedToolCall = { name: string; reason: string };
 export type NormalizedAssistantReply = {
   message: string;
@@ -117,6 +117,16 @@ export function normalizeAssistantReply(raw: unknown): NormalizedAssistantReply 
 
   const toolCalls: AssistantToolCall[] = [];
   const rejected: RejectedToolCall[] = [];
+  if ((Array.isArray(raw.tool_calls) && raw.tool_calls.length) || raw.function_call) {
+    return {
+      message,
+      toolCalls: [],
+      rejected: [{ name: '原生工具字段', reason: '当前仅启用自定义JSON信封，原生工具字段未执行' }],
+      mode: message ? 'text' : 'empty',
+      issues: ['原生工具协议与JSON信封混用'],
+      keys,
+    };
+  }
   const rawCalls = raw.toolCalls;
   if (rawCalls !== undefined && rawCalls !== null && !Array.isArray(rawCalls)) {
     issues.push('toolCalls 不是数组，已忽略');
@@ -147,7 +157,11 @@ export function normalizeAssistantReply(raw: unknown): NormalizedAssistantReply 
         rejected.push({ name: clip(name, 80), reason: '工具参数不是对象，已拒绝执行' });
         return;
       }
-      toolCalls.push({ name, args });
+      const stepId =
+        typeof call.stepId === 'string' && /^[0-9a-f-]{36}$/.test(call.stepId)
+          ? call.stepId
+          : undefined;
+      toolCalls.push({ name, args, ...(stepId ? { stepId } : {}) });
     });
   }
   const mode: NormalizedAssistantReply['mode'] = toolCalls.length

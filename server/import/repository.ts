@@ -66,6 +66,12 @@ export class ImportRepository {
     return r ? JSON.parse(r.document) : null;
   }
   addFailure(record: ImportFailureRecord, legacyKey?: string) {
+    if (
+      record.workspaceId &&
+      !this.get(record.workspaceId) &&
+      !this.db.prepare('SELECT 1 FROM workspace_trash WHERE id=?').get(record.workspaceId)
+    )
+      return;
     this.db
       .prepare('INSERT INTO recognition_failures VALUES(?,?,?,?,?)')
       .run(
@@ -110,7 +116,9 @@ export class ImportRepository {
   }
   list(): { id: string; fileName: string; createdAt: string }[] {
     return this.db
-      .prepare('SELECT document FROM workspaces ORDER BY rowid DESC LIMIT 200')
+      .prepare(
+        "SELECT document FROM workspaces WHERE COALESCE(json_extract(document,'$.archived'),0)=0 ORDER BY rowid DESC LIMIT 200",
+      )
       .all()
       .map((r: any) => {
         const w = JSON.parse(r.document);
@@ -181,10 +189,30 @@ export class ImportRepository {
   forgetTrash(id: string) {
     this.db.prepare('DELETE FROM workspace_trash WHERE id=?').run(id);
   }
-  restore(id: string) {
+  archived() {
+    return this.db
+      .prepare(
+        "SELECT id,revision,json_extract(document,'$.fileName') AS fileName FROM workspaces WHERE json_extract(document,'$.archived')=1 ORDER BY rowid DESC",
+      )
+      .all();
+  }
+  physicalDelete(id: string) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('DELETE FROM workspaces WHERE id=?').run(id);
+      this.db.prepare('DELETE FROM workspace_trash WHERE id=?').run(id);
+      this.db.prepare('DELETE FROM recognition_failures WHERE workspace_id=?').run(id);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+  restore(id: string, keepArchived = false) {
     const row = this.db.prepare('SELECT document FROM workspace_trash WHERE id=?').get(id);
     if (!row) throw new Error('missing');
     const w = JSON.parse(String(row.document));
+    w.archived = keepArchived;
     if (this.get(w.id)) throw new Error('duplicate');
     this.db.exec('BEGIN IMMEDIATE');
     try {

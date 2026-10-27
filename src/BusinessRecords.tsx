@@ -17,6 +17,7 @@ import PermanentDeleteDialog from './PermanentDeleteDialog';
 import RecordDetails from './RecordDetails';
 import { TableRegion, EmptyState, Pagination } from './ui/ListLayout';
 import StatusBadge from './StatusBadge';
+import RecordContextDialog, { RecordRelations } from './RecordContext';
 import { displayAmount } from '../shared/display-amount';
 import { formatStockSize, type RecordEntity } from '../shared/operations';
 type Entity = RecordEntity;
@@ -42,7 +43,7 @@ export default function BusinessRecords({
   archived: boolean;
   setArchived: (v: boolean) => void;
   edit: (v: any) => void;
-  changed: () => void;
+  changed: (message?: string) => void;
   search: string;
   setSearch: (v: string) => void;
   allRecords?: boolean;
@@ -58,10 +59,15 @@ export default function BusinessRecords({
   const canEdit =
     !!session?.actor && (superMode || session.actor.permissions.includes('business:edit'));
   const [view, setView] = useState<any>(null),
+    [contextId, setContextId] = useState<number | null>(null),
     [permanent, setPermanent] = useState<any[] | null>(null);
   const [selected, setSelected] = useState<number[]>([]),
     [page, setPage] = useState(1),
-    [confirm, setConfirm] = useState<{ action: 'archive' | 'restore'; rows: any[] } | null>(null),
+    [confirm, setConfirm] = useState<{
+      action: 'archive' | 'restore';
+      rows: any[];
+      impactDigests?: Record<string, string>;
+    } | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState('');
   useEffect(() => {
@@ -89,6 +95,36 @@ export default function BusinessRecords({
   const money = (c: number) =>
     (c / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const isArchived = (row: any) => row.archived ?? archived;
+  async function executeLifecycle(selection: { action: 'archive' | 'restore'; rows: any[] }) {
+    setBusy(true);
+    try {
+      const result = await managementRequest('/' + entity + '/batch', {
+        action: selection.action,
+        acknowledged: true,
+        items: selection.rows.map((r) => ({ id: r.id, version: r.version })),
+      });
+      const failed = result.results.filter((r: any) => !r.success);
+      const summary =
+        '成功 ' +
+        (result.results.length - failed.length) +
+        ' 条' +
+        (failed.length
+          ? '；' + failed.map((r: any) => '编号' + r.id + '：' + r.message).join('；')
+          : '');
+      setMessage(summary);
+      setSelected(failed.map((r: any) => r.id));
+      setConfirm(null);
+      window.dispatchEvent(new Event('erp-business-changed'));
+      changed(summary);
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function requestLifecycle(selection: { action: 'archive' | 'restore'; rows: any[] }) {
+    await executeLifecycle(selection);
+  }
   const actions = (row: any) => (
     <div className="record-actions">
       <div className="record-actions-main">
@@ -100,49 +136,27 @@ export default function BusinessRecords({
           <Pencil size={14} />
           编辑
         </button>
+        <button
+          disabled={!canEdit || busy}
+          onClick={() =>
+            void requestLifecycle({ action: isArchived(row) ? 'restore' : 'archive', rows: [row] })
+          }
+        >
+          {isArchived(row) ? '恢复' : '归档'}
+        </button>
+        <button
+          className="danger"
+          disabled={!session?.actor?.localAdministrator || busy}
+          onClick={() => setPermanent([row])}
+        >
+          <Trash2 size={14} />
+          删除
+        </button>
       </div>
       {extraActions && <div className="record-extra-actions">{extraActions(row)}</div>}
-      {entity === 'orders' && !isArchived(row) && !['草稿', '已取消'].includes(row.status) && (
-        <div className="record-extra-actions">
-          <button
-            disabled={!canEdit}
-            onClick={() =>
-              (location.hash = 'warehouse?kind=finished&createDelivery=1&order=' + row.id)
-            }
-          >
-            安排送货
-          </button>
-        </div>
+      {session?.actor?.localAdministrator && (
+        <button onClick={() => setContextId(row.id)}>关联记录 / 修改历史</button>
       )}
-      <details className="record-more">
-        <summary>
-          <MoreHorizontal size={16} />
-          更多操作
-        </summary>
-        <div className="record-more-content">
-          <button
-            disabled={!canEdit}
-            onClick={() =>
-              setConfirm({ action: isArchived(row) ? 'restore' : 'archive', rows: [row] })
-            }
-          >
-            {isArchived(row) ? <ArchiveRestore size={14} /> : <Archive size={14} />}{' '}
-            {isArchived(row)
-              ? '恢复记录'
-              : ['orders', 'purchases'].includes(entity)
-                ? '删除到回收站'
-                : '停用 / 归档'}
-          </button>
-          {superMode && (
-            <div className="record-danger-zone">
-              <button className="danger" onClick={() => setPermanent([row])}>
-                <Trash2 size={14} />
-                永久删除
-              </button>
-            </div>
-          )}
-        </div>
-      </details>
     </div>
   );
   return (
@@ -210,7 +224,7 @@ export default function BusinessRecords({
                 setArchived(true);
               }}
             >
-              {entity === 'orders' || entity === 'purchases' ? '回收站记录' : '已归档 / 停用'}
+              {entity === 'orders' || entity === 'purchases' ? '归档记录' : '已归档 / 停用'}
             </button>
             {superMode && setAllRecords && (
               <button
@@ -232,20 +246,20 @@ export default function BusinessRecords({
               className={archived ? '' : 'danger'}
               disabled={!canEdit}
               onClick={() =>
-                setConfirm({
+                void requestLifecycle({
                   action: archived ? 'restore' : 'archive',
                   rows: rows.filter((r) => selected.includes(r.id)),
                 })
               }
             >
               <Trash2 size={14} />
-              {archived ? '批量恢复' : '批量删除'}
+              {archived ? '批量恢复' : '批量归档'}
             </button>
             {allRecords && (
               <button
                 disabled={!canEdit}
                 onClick={() =>
-                  setConfirm({
+                  void requestLifecycle({
                     action: 'restore',
                     rows: rows.filter((r) => selected.includes(r.id)),
                   })
@@ -261,7 +275,7 @@ export default function BusinessRecords({
                 onClick={() => setPermanent(rows.filter((r) => selected.includes(r.id)))}
               >
                 <Trash2 size={14} />
-                批量永久删除
+                批量删除
               </button>
             )}
             <button onClick={() => setSelected([])}>清除选择</button>
@@ -498,93 +512,24 @@ export default function BusinessRecords({
         </table>
       </TableRegion>
       <Pagination page={page} total={rows.length} pageSize={12} onChange={setPage} />
-      {confirm && (
-        <ManagementDialog
-          title={
-            (confirm.action === 'restore' ? '恢复' : '删除/停用') +
-            ' ' +
-            confirm.rows.length +
-            ' 条记录？'
-          }
-          close={() => setConfirm(null)}
-          busy={busy}
-        >
-          <div className="management-confirm">
-            <p>
-              {confirm.action === 'restore'
-                ? '恢复后记录重新进入正常列表，保留原始业务字段和审计。若关联档案仍停用，普通管理员须先恢复相关档案。'
-                : entity === 'orders'
-                  ? superMode
-                    ? '此操作移入回收站，历史、来源和审计保留。当前超级管理员模式允许处理历史订单，请核对业务影响。'
-                    : '订单采用软删除，历史、来源和审计保留。生产中、待发货、已发货的订单不能直接删除。'
-                  : entity === 'suppliers'
-                    ? '供应商停用后仍保留历史采购，不会删除采购单。'
-                    : entity === 'purchases'
-                      ? '采购单移入回收站，已有到货和库存流水保留，库存数量不会回退。'
-                      : entity === 'stock_items'
-                        ? '只有余额为零且无未完成采购的库存品可以归档，历史流水保留。'
-                        : '客户和产品采用停用归档，历史订单不会被级联删除；可在已归档列表恢复。'}
-            </p>
-            <p>{confirm.rows.map((r) => r.number || r.name).join('、')}</p>
-            <p>后端逐项校验权限、版本和关联，失败项会保留并显示原因。</p>
-            <button
-              className={confirm.action === 'restore' ? 'primary' : 'danger'}
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const auth = await fetch('/api/auth/state', { cache: 'no-store' }).then((r) =>
-                    r.json(),
-                  );
-                  if (!auth.actor) throw new Error('请先在右上角登录管理账号。');
-                  const response = await fetch('/api/' + entity + '/batch', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'X-ERP-Auth-Token': auth.csrf,
-                    },
-                    body: JSON.stringify({
-                      action: confirm.action,
-                      acknowledged: true,
-                      items: confirm.rows.map((r) => ({ id: r.id, version: r.version })),
-                    }),
-                  });
-                  const result = await response.json();
-                  if (!response.ok) throw new Error(result.message);
-                  const success = result.results.filter((r: any) => r.success),
-                    failed = result.results.filter((r: any) => !r.success);
-                  setMessage(
-                    '成功 ' +
-                      success.length +
-                      ' 条' +
-                      (failed.length
-                        ? '；失败 ' +
-                          failed.length +
-                          ' 条：' +
-                          failed.map((r: any) => '编号' + r.id + '：' + r.message).join('；')
-                        : ''),
-                  );
-                  setSelected(failed.map((r: any) => r.id));
-                  setConfirm(null);
-                  changed();
-                } catch (error) {
-                  setMessage((error as Error).message);
-                  setConfirm(null);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {busy ? '正在处理…' : confirm.action === 'restore' ? '确认恢复' : '确认删除/停用'}
-            </button>
-          </div>
-        </ManagementDialog>
+      {contextId !== null && (
+        <RecordContextDialog module={entity} id={contextId} close={() => setContextId(null)} />
       )}
       {view && (
         <ManagementDialog title={'查看' + (view.number || view.name)} close={() => setView(null)}>
           <RecordDetails entity={entity} row={view} />
           <div className="management-dialog-actions">
             <button onClick={() => setView(null)}>关闭</button>
+            {session?.actor?.localAdministrator && (
+              <button
+                onClick={() => {
+                  setContextId(view.id);
+                  setView(null);
+                }}
+              >
+                关联记录 / 修改历史
+              </button>
+            )}
             {canEdit &&
               !isArchived(view) &&
               ((entity === 'orders' && !['草稿', '已取消'].includes(view.status)) ||
@@ -625,7 +570,7 @@ export default function BusinessRecords({
             setMessage(message);
             setPermanent(null);
             setSelected([]);
-            changed();
+            changed(message);
           }}
         />
       )}

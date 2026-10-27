@@ -276,7 +276,7 @@ test('附件刷新及重开数据库后完整恢复，未发送附件也保留�
     store = new Store(join(dir, 'erp.sqlite'));
     m = new AssistantManager(store, f.settings, prompts);
     assert.equal(m.view(t.id, actor).messages[0].attachments[0].id, a.id);
-    assert.equal(store.db.prepare('SELECT MAX(version) v FROM schema_migrations').get()!.v, 10);
+    assert.equal(store.db.prepare('SELECT MAX(version) v FROM schema_migrations').get()!.v, 11);
   } finally {
     store.close();
     prompts.close();

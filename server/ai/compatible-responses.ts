@@ -7,7 +7,11 @@ import { responsesUpstreamError, safeConnectionError } from './adapters.js';
 import { ResponsesStream } from './responses-stream.js';
 import { AI_REQUEST_TIMEOUT_MS, type AiProgress } from '../../shared/ai-runtime.js';
 import { officialDeepSeekEndpoint } from '../../shared/assistant-attachments.js';
+import { ProtocolDiagnostics, hasDsml, type ProviderDiagnostic } from './protocol-diagnostics.js';
 export type ResponseOptions = {
+  onDiagnostic?: (event: ProviderDiagnostic) => void;
+  /** 仅服务端诊断/策略使用；不开放给模型或普通HTTP参数。 */
+  jsonMode?: 'prefer' | 'required' | 'disabled';
   /** Server-controlled per-operation budget, not a browser/model writable setting. */
   maxOutputTokens?: number;
   disableThinking?: boolean;
@@ -32,6 +36,7 @@ export async function completeResponses(
   options: ResponseOptions = {},
 ): Promise<unknown> {
   let received = '';
+  const diagnostics = new ProtocolDiagnostics(profile, key, options.onDiagnostic);
   try {
     const started = Date.now(),
       notify = (stage: AiProgress['stage'], receivedChars: number) =>
@@ -53,26 +58,38 @@ export async function completeResponses(
           : undefined,
       );
     notify('connecting', 0);
+    const body = {
+      model: profile.model,
+      input: responsesInput(messages),
+      ...(options.jsonMode === 'disabled' ? {} : { text: { format: { type: 'json_object' } } }),
+      max_output_tokens: Math.max(1000, Math.min(24000, options.maxOutputTokens || 7000)),
+      ...(officialDeepSeekEndpoint(profile.endpoint) && options.disableThinking
+        ? { reasoning: { effort: 'none' } }
+        : {}),
+      stream,
+      store: false,
+    };
+    diagnostics.request(body);
     const result = await transport({
       url: new URL(profile.endpoint + '/responses'),
       headers: { Authorization: 'Bearer ' + key },
-      body: {
-        model: profile.model,
-        input: responsesInput(messages),
-        text: { format: { type: 'json_object' } },
-        max_output_tokens: Math.max(1000, Math.min(24000, options.maxOutputTokens || 7000)),
-        ...(officialDeepSeekEndpoint(profile.endpoint) && options.disableThinking
-          ? { reasoning: { effort: 'none' } }
-          : {}),
-        stream,
-        store: false,
-      },
+      body,
       local: false,
       timeoutMs: AI_REQUEST_TIMEOUT_MS,
       maxResponseBytes: stream ? 8 * 1024 * 1024 : 1024 * 1024,
       signal,
-      ...(stream ? { onSseEvent: collector.event } : {}),
+      ...(stream
+        ? {
+            onSseEvent: (e: any) => {
+              try {
+                diagnostics.stream(JSON.parse(e.data));
+              } catch {}
+              collector.event(e);
+            },
+          }
+        : {}),
     });
+    diagnostics.result(result.status, result.body);
     if (result.status < 200 || result.status >= 300) {
       const error = responsesUpstreamError(result.status, result.body);
       error.upstreamStatus = result.status;
@@ -82,23 +99,36 @@ export async function completeResponses(
       .trim()
       .replace(/^```(?:json)?\s*/, '')
       .replace(/\s*```$/, '');
+    diagnostics.text(text);
     if (text.includes(key))
       throw new AiConnectionError('response', '模型输出包含敏感凭据，结果已丢弃。', 422);
     notify('validating', text.length);
     options.onTextDelta?.(pending);
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      diagnostics.emit('complete');
+      return parsed;
     } catch {
       // 完整文本但不是 JSON：保留文本供调用方安全展示，绝不臆造业务字段。
       throw new AiConnectionError(
         'response',
         'AI 服务返回的文本不是可解析的 JSON 业务数据。',
         422,
-        note('invalid-json', text, key),
+        hasDsml(text)
+          ? {
+              kind: 'protocol',
+              text: '模型返回DSML控制文本，与当前JSON信封协议不兼容；未从文本提取或执行工具。',
+            }
+          : note('invalid-json', text, key),
       );
     }
   } catch (error) {
     const safe = safeConnectionError(error);
+    diagnostics.text(received);
+    diagnostics.emit(
+      'error',
+      safe.responseNote?.kind ? safe.code + ':' + safe.responseNote.kind : safe.code,
+    );
     if (safe.code === 'timeout' && !(error instanceof AiConnectionError))
       throw new AiConnectionError(
         'timeout',

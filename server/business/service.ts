@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { customerSchema, productSchema, orderSchema } from '../../shared/domain.js';
 import { Store, InputError } from '../db.js';
 import { validAssistantGrant } from './assistant-approval.js';
-import { isDeveloperActor } from '../developer-capability.js';
+import { isDeveloperActor, isLocalAdministrator } from '../developer-capability.js';
+import { DatabaseMaintenanceService } from './database-maintenance.js';
 import type { Actor } from '../auth.js';
 
 export const writableEntities = ['customers', 'products', 'orders'] as const;
@@ -71,7 +72,34 @@ export function createBusinessService(store: Store) {
             version,
             context.superAdminMode,
           );
-        case 'orders':
+        case 'orders': {
+          if (id && isLocalAdministrator(context.developerActor)) {
+            const actor = context.developerActor!,
+              before = store.order(id, true)!,
+              input = orderSchema.parse(command.input),
+              maintenance = new DatabaseMaintenanceService(store);
+            if (before.version !== version) throw new InputError('记录版本已改变，请刷新。');
+            store.db.exec('SAVEPOINT database_order_edit');
+            try {
+              maintenance.prepareOrderEdit(before, input.lines, actor);
+              const updated = store.saveOrder(
+                input,
+                id,
+                store.order(id, true)!.version,
+                true,
+                true,
+                true,
+              );
+              maintenance.alignOrder(before, updated, actor);
+              maintenance.recompute([]);
+              const result = store.order(id, true)!;
+              store.db.exec('RELEASE database_order_edit');
+              return result;
+            } catch (e) {
+              store.db.exec('ROLLBACK TO database_order_edit; RELEASE database_order_edit');
+              throw e;
+            }
+          }
           return store.saveOrder(
             orderSchema.parse(command.input),
             id,
@@ -79,6 +107,7 @@ export function createBusinessService(store: Store) {
             context.superAdminMode,
             isDeveloperActor(context.developerActor),
           );
+        }
         default:
           throw new InputError('不支持的业务操作');
       }

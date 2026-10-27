@@ -45,6 +45,7 @@ vendor/models/**
 # 历史本机验收记录可能含业务样例、用户路径和API地址；保留本机，不发布。
 docs/**
 !docs/发布说明-v0.5.0.md
+!docs/发布说明-v0.5.1.md
 !docs/AI智能数据管理架构与开发计划.md
 !docs/examples/
 !docs/examples/import-proposal.example.json

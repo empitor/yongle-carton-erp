@@ -18,6 +18,9 @@ import { PermanentDeletionService } from './business/permanent-deletion.js';
 import { OperationsService } from './operations/service.js';
 import { FlowService } from './flow/service.js';
 import { ImportError } from './import/errors.js';
+import { recordContext } from './business/record-context.js';
+import { DatabaseMaintenanceService } from './business/database-maintenance.js';
+import { isLocalAdministrator } from './developer-capability.js';
 const digest = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const schemas: any = {
   customers: customerSchema,
@@ -74,6 +77,18 @@ export class DeveloperService {
     const actor = requireDeveloper(who),
       v = developerCommandSchema.parse(raw);
     if (!binding) throw new ImportError('会话无效。', 403);
+    if (isLocalAdministrator(actor) && ['delete', 'permanent-delete'].includes(v.action))
+      return new DatabaseMaintenanceService(this.store).delete(
+        {
+          module: v.module,
+          items: v.items,
+          inventoryPolicy: v.inventoryPolicy,
+          requestId: v.requestId,
+          deletionDigest: v.deletionDigest,
+        },
+        actor,
+        binding,
+      );
     if ((v.action === 'create') !== !v.items.length)
       throw new ImportError('创建不选择旧记录，其他操作必须明确选定记录。');
     if (new Set(v.items.map((i) => i.id)).size !== v.items.length)
@@ -93,6 +108,16 @@ export class DeveloperService {
       const all = this.list(v.module, actor).records,
         results = [];
       const save = (id: number | undefined, input: any) => {
+        const normalized = this.isFlow(v.module)
+          ? flowInput(v.module as FlowKind, input)
+          : schemas[v.module].parse(input);
+        const unknown = Object.keys(v.patch).filter((key) => !Object.hasOwn(normalized, key));
+        if (unknown.length)
+          throw new ImportError(
+            '不支持修改字段：' +
+              unknown.join('、') +
+              '。库存数量请登记盘点，状态请使用确认/冲销操作。',
+          );
         if (['customers', 'products', 'orders'].includes(v.module))
           return createBusinessService(this.store).execute(
             {
@@ -161,12 +186,6 @@ export class DeveloperService {
           else if (v.action === 'permanent-delete')
             result = this.deleteFlow(item.id, item.version, actor, v.reason);
           else {
-            if (v.action === 'archive' && before.status === 'confirmed')
-              this.flow.reverse(
-                item.id,
-                { version: item.version, reason: v.reason, acknowledged: true },
-                actor,
-              );
             result = this.flow.archive(
               item.id,
               v.action === 'restore',
@@ -192,22 +211,38 @@ export class DeveloperService {
           if (result.results.some((r: any) => !r.success))
             throw new ImportError(result.results.map((r: any) => r.message).join('；'), 409);
         } else throw new ImportError('该模块不支持此操作。');
-        audit(this.store, actor, 'local-developer', v.action, v.module, item.id, {
-          reason: v.reason,
-          before,
-          result,
-          requestId: v.requestId,
-          origin,
-        });
+        audit(
+          this.store,
+          actor,
+          actor.localAdministrator ? 'local-administrator' : 'local-developer',
+          v.action,
+          v.module,
+          item.id,
+          {
+            reason: v.reason,
+            before,
+            result,
+            requestId: v.requestId,
+            origin,
+          },
+        );
         results.push(result);
       }
       if (!v.items.length)
-        audit(this.store, actor, 'local-developer', v.action, v.module, results[0]?.id || null, {
-          reason: v.reason,
-          result: results[0],
-          requestId: v.requestId,
-          origin,
-        });
+        audit(
+          this.store,
+          actor,
+          actor.localAdministrator ? 'local-administrator' : 'local-developer',
+          v.action,
+          v.module,
+          results[0]?.id || null,
+          {
+            reason: v.reason,
+            result: results[0],
+            requestId: v.requestId,
+            origin,
+          },
+        );
       if (this.store.db.prepare('PRAGMA foreign_key_check').all().length)
         throw new ImportError('关联校验失败，全部回滚。', 409);
       const response = { module: v.module, action: v.action, count: results.length, results };
@@ -230,6 +265,17 @@ export class DeveloperService {
   private saveFlow(kind: FlowKind, input: any, actor: Actor, binding: string, id?: number) {
     if (!id) return this.flow.save(kind, input, actor);
     const old = this.flow.get(id);
+    if (isLocalAdministrator(actor)) return this.flow.maintenanceUpdate(id, input, actor);
+    if (old.kind !== kind) throw new ImportError('单据类型不匹配。', 409);
+    if (old.status === 'confirmed' && kind !== 'task') {
+      const metadata = ['notes', 'operator', 'address', 'contact', 'phone'];
+      const physical = (v: any) =>
+        Object.fromEntries(
+          Object.entries(flowInput(kind, v)).filter(([k]) => !metadata.includes(k)),
+        );
+      if (digest(physical(input)) === digest(physical(old)))
+        return this.flow.updateMetadata(id, input, actor);
+    }
     if (kind === 'task' && old.status === 'confirmed')
       return this.flow.developerUpdateTask(id, input, actor);
     if (old.status === 'draft') {
@@ -240,7 +286,7 @@ export class DeveloperService {
     if (old.status === 'confirmed')
       this.flow.reverse(
         id,
-        { version: old.version, reason: '开发者更正', acknowledged: true },
+        { version: old.version, reason: '管理员编辑更正', acknowledged: true },
         actor,
       );
     if (kind === 'task') {
@@ -277,6 +323,14 @@ export class DeveloperService {
         .get(id, id)
     )
       throw new ImportError('仍有生产记录引用此任务，请先处理关联记录。', 409);
+    const corrections = this.flow.list(undefined, true).filter((d) => d.correctionOf === id);
+    if (corrections.length)
+      throw new ImportError(
+        '更正单' +
+          corrections.map((d) => d.number).join('、') +
+          '仍引用本单据。请保留本单据追溯，或先处理这些更正单。',
+        409,
+      );
     if (doc.status === 'confirmed')
       this.flow.reverse(id, { version, reason, acknowledged: true }, actor);
     // 原件、收货历史、不可变库存流水与完整操作审计保留。移除的单据用永久删除凭据追溯。

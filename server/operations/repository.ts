@@ -54,7 +54,7 @@ export class OperationsRepository {
                   ),
           }));
         const received = lines.reduce((n, l) => n + l.receivedUnits, 0),
-          full = lines.every((l) => l.receivedUnits === l.quantityUnits),
+          full = lines.every((l) => l.receivedUnits >= l.quantityUnits),
           linked = r.customerOrderId
             ? this.store.db.prepare('SELECT number FROM orders WHERE id=?').get(r.customerOrderId)
             : null;
@@ -81,6 +81,7 @@ export class OperationsRepository {
               ...s,
               items: JSON.parse(String(s.document)).items,
               reversed: !!JSON.parse(String(s.document)).reversed,
+              flowId: JSON.parse(String(s.document)).flowId,
             })),
         };
       });

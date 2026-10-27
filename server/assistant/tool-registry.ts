@@ -9,15 +9,34 @@ import { patchOperationSchema } from '../../shared/order-draft.js';
 import { ImportError } from '../import/errors.js';
 import type { Actor } from '../auth.js';
 import { requirePermission } from '../business/management.js';
-import { developerCommandSchema } from '../../shared/developer.js';
-import { requireDeveloper } from '../developer-capability.js';
+import { taskPlanSchema } from '../../shared/assistant-task.js';
+import { developerCommandSchema, developerModules } from '../../shared/developer.js';
+import { requireDeveloper, isLocalAdministrator } from '../developer-capability.js';
+import { workspaceCommandSchema } from '../workspace-management.js';
+import { deletionSelection } from '../business/database-maintenance.js';
 
 const positive = z.number().int().positive(),
   uuid = z.string().uuid();
 const task = { taskId: uuid.optional() },
   module = z.enum(assistantModules);
 const schemas: Record<string, z.ZodType> = {
+  'task.plan': taskPlanSchema,
+  'task.get': z.strictObject({}),
+  'task.activate': z.strictObject({ taskId: uuid }),
+  'task.finish': z.strictObject({}),
   'developer.execute': developerCommandSchema,
+  'management.execute': developerCommandSchema,
+  'management.delete_preview': deletionSelection,
+  'records.delete': z.strictObject({
+    module,
+    id: positive,
+    inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),
+  }),
+  'management.workspaces': z.union([
+    z.strictObject({ action: z.literal('list') }),
+    workspaceCommandSchema,
+  ]),
+  'management.context': z.strictObject({ module: z.enum(developerModules), id: positive }),
   'attachments.read': z.strictObject({
     question: z.string().trim().min(1).max(4000),
     attachmentIds: z.array(uuid).min(1).max(6).optional(),
@@ -220,6 +239,8 @@ export class AssistantToolRegistry {
     if (!actor) throw new ImportError('请先登录。', 401);
     const t = this.assertAvailable(name);
     if (name === 'developer.execute') requireDeveloper(actor);
+    if (name.startsWith('management.') && !isLocalAdministrator(actor))
+      throw new ImportError('此管理工具仅向已登录本机最高管理员开放。', 403);
     const parsed = t.schema.parse(args);
     return { kind: t.kind, value: await handlers[t.kind](name, parsed) };
   }

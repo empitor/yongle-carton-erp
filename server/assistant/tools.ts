@@ -10,7 +10,13 @@ import { FlowService } from '../flow/service.js';
 import { PermanentDeletionService } from '../business/permanent-deletion.js';
 import { ImportError } from '../import/errors.js';
 import { DeveloperService } from '../developer-service.js';
-import { requireDeveloper } from '../developer-capability.js';
+import {
+  requireDeveloper,
+  isLocalAdministrator,
+  requireLocalAdministrator,
+} from '../developer-capability.js';
+import { recordContext } from '../business/record-context.js';
+import { DatabaseMaintenanceService, deletionSelection } from '../business/database-maintenance.js';
 import { developerCommandSchema } from '../../shared/developer.js';
 import {
   customerSchema,
@@ -84,6 +90,93 @@ const moduleSchema = z.enum(assistantModules),
   positive = z.number().int().positive();
 export const toolCatalog = [
   {
+    name: 'management.delete_preview',
+    description:
+      '查询数据库物理删除影响：必需级联删除、引用解除和库存处理。与归档完全独立；已确认、非零库存和历史引用不禁止删除。将返回digest用于同范围提交，涉及独立记录时先展示清单。',
+    arguments: {
+      module: '与management.execute相同',
+      items: [{ id: 1, version: 1 }],
+      inventoryPolicy: 'preserve默认保留其他库存数量并解除来源；recalculate移除来源流水重算',
+    },
+    risk: 'read',
+  },
+  {
+    name: 'records.delete',
+    description:
+      '删除就是数据库物理删除，绝不是归档、取消、冲销或移入回收站。按真实唯一ID删除业务记录，自动查询明确关联并在事务内级联/解除引用/重算；必须根据服务器回执报告。归档使用records.propose_lifecycle，恢复仅针对归档。',
+    arguments: {
+      module: assistantModules.filter((m) => m !== 'movements'),
+      id: 1,
+      inventoryPolicy: 'preserve/recalculate',
+    },
+    risk: 'review',
+  },
+  {
+    name: 'management.workspaces',
+    description:
+      '管理AI原件/任务/草稿工作区。list查询正常及归档；open读取/打开可编辑归档且保留归档状态（兼容旧回收数据），fork复制独立任务，delete实际删除原件/任务/草稿，archive归档，restore只恢复归档；remove/purge仅旧接口兼容。正式原件归档和导入回执保留。每次修改提供新requestId和准确工作区ID，删除必须用delete，不得用archive/remove代替。不会自动重新识别或收费。',
+    arguments: {
+      action: 'list/open/fork/delete/archive/restore',
+      requestId: '修改时必填UUID',
+      items: [{ id: '工作区UUID', revision: 1 }],
+    },
+    risk: 'workflow',
+  },
+  {
+    name: 'management.execute',
+    description:
+      '已登录本机最高管理员的统一业务管理工具，与页面调用同一服务。按明确ID和版本直接创建、编辑、更正、归档、恢复、永久删除、确认、冲销、库存盘点及物理删除。编辑直接更新当前单据并同步关联和库存，整个操作事务内完成；先management.context查询影响，范围不清楚时询问，普通编辑不重复确认。删除是物理删除，与archive独立；先management.delete_preview查询关联影响，将digest作为deletionDigest提交。不能编辑库存流水或猜测关联。',
+    arguments: {
+      module:
+        'customers/products/orders/suppliers/purchases/stock_items/arrival/task/production/delivery',
+      action: 'create/update/archive/restore/delete/confirm/reverse/cancel/move',
+      items: [{ id: 1, version: 1 }],
+      patch: {},
+      requestId: 'UUID',
+      reason: '用户操作原因',
+      deletionDigest: 'management.delete_preview返回的digest，绑定当前删除范围',
+    },
+    risk: 'review',
+  },
+  {
+    name: 'management.context',
+    description:
+      '查询指定真实记录的关联单据、删除/更正处理路径和最近修改审计。先用records.search/get定位唯一ID。',
+    arguments: { module: '与management.execute相同的模块', id: 1 },
+    risk: 'read',
+  },
+  {
+    name: 'task.plan',
+    description:
+      '为复杂流程保存可恢复任务与按顺序的业务步骤（不执行步骤）。每项label/tool/可选args；可先保存待查询后补参数的步骤。保留已完成步骤，不重建同一个任务。',
+    arguments: {
+      goal: '任务目标',
+      steps: [{ label: '业务步骤说明', tool: '已注册工具名', args: {} }],
+    },
+    risk: 'read',
+  },
+  {
+    name: 'task.get',
+    description:
+      '读取当前持久任务、已完成回执的数据库核验、剩余步骤及错误。继续任务先读取，复用已成功的业务记录ID，不重放写入。',
+    arguments: {},
+    risk: 'read',
+  },
+  {
+    name: 'task.activate',
+    description:
+      '切换到当前会话已保留的另一项任务，不重新创建单据。先从task.get的otherTasks取真实taskId；本轮只调用此工具，读取新状态后再执行剩余步骤。',
+    arguments: { taskId: '本会话已保存任务UUID' },
+    risk: 'read',
+  },
+  {
+    name: 'task.finish',
+    description:
+      '仅核对所有已列步骤均有服务器成功结果时结束任务；有待确认、失败或未完成步骤则仍可继续，不以模型文字判定完成。',
+    arguments: {},
+    risk: 'read',
+  },
+  {
     name: 'developer.execute',
     description:
       '仅本机已开启开发者编辑模式的超级管理员。按明确选定的记录与版本创建、纠错、归档、恢复或永久删除测试业务数据；支持库存move、实物单据confirm/reverse/cancel。仍须真实关联、数量和事务校验；确认单据更正通过原冲销与更正服务，不直接修改库存。先records.search/get核对ID与版本，不能猜测或清空未知范围。',
@@ -140,7 +233,7 @@ export const toolCatalog = [
   {
     name: 'records.search',
     description:
-      '实时查询业务记录；filters可用q、customerId、supplierId、productId、stockId、status、pending、start、end、months(1/2/3)、kind(raw/finished)、direction(in/out)、lifecycle(active/archived/all)、view(current/pending/history/all)。日期历史归档不同于回收站archived；limit<=20，offset分页。库存余额不受日期过滤。',
+      '实时查询业务记录；filters可用q、customerId、supplierId、productId、stockId、status、pending、start、end、months(1/2/3)、kind(raw/finished)、direction(in/out)、lifecycle(active/archived/all)、view(current/pending/history/all)。日期历史分类不同于主动归档archived；limit<=20，offset分页。库存余额不受日期过滤。',
     arguments: { module: assistantModules, filters: {}, limit: 20, offset: 0 },
     risk: 'read',
   },
@@ -168,7 +261,7 @@ export const toolCatalog = [
   {
     name: 'records.propose_batch_lifecycle',
     description:
-      '批量停用/归档/恢复，最多100条，必须先完整预览并由超级管理员额外确认。保留历史引用，事务内全部成功或全部回滚。流水不能归档。',
+      '批量停用/归档/恢复，最多100条，本机最高管理员按明确范围直接执行，其他账号须预览确认。保留历史引用，事务内全部成功或全部回滚。流水不能归档。',
     arguments: {
       module: assistantModules.filter((m) => m !== 'movements'),
       ids: ['正整数'],
@@ -178,7 +271,8 @@ export const toolCatalog = [
   },
   {
     name: 'records.propose_lifecycle',
-    description: '单条停用/归档/恢复，生成审核方案；不删除历史引用，确认单据不能普通删除。',
+    description:
+      '单条归档/恢复，本机最高管理员可直接执行，归档必须满足对应业务完成条件，绝不是删除；保留历史引用。',
     arguments: { module: assistantModules, id: '正整数', action: ['archive', 'restore'] },
     risk: 'review',
   },
@@ -192,7 +286,7 @@ export const toolCatalog = [
   {
     name: 'inventory.propose_movement',
     description:
-      '出入库/盘点审核方案；必须指定库存品、action=in/out/adjust、quantity十进制字符串、date、notes原因。高风险需超级模式及再次验证密码；禁止负库存或跨单位换算。',
+      '出入库/盘点审核方案；必须指定库存品、action=in/out/adjust、quantity十进制字符串、date、notes原因。本机最高管理员可按明确指令直接执行，其他账号沿用原审核；禁止负库存或跨单位换算。',
     arguments: {
       id: '库存品ID',
       action: ['in', 'out', 'adjust'],
@@ -218,7 +312,7 @@ export const toolCatalog = [
   {
     name: 'flow.propose_confirmation',
     description:
-      '确认已存在的到货/生产/送货草稿或生产任务。任务下达不改变库存，可按明确指令执行；实际收货/生产完工/发货确认属于高风险，必须额外审核。',
+      '确认已存在的到货/生产/送货草稿或生产任务。任务下达不改变库存，可按明确指令执行；本机最高管理员可直接确认实际收货/生产完工/发货，其他账号沿用审核。',
     arguments: { id: '单据ID' },
     risk: 'high',
   },
@@ -231,7 +325,7 @@ export const toolCatalog = [
   {
     name: 'records.propose_permanent_delete',
     description:
-      '单条永久删除核对方案，仅现有支持的客户/产品/订单/供应商/采购/库存档案；不自动包含关联订单。需超级模式、再次密码和输入永久删除，存在关联阻碍时拒绝。',
+      '单条永久删除核对方案，仅现有支持的客户/产品/订单/供应商/采购/库存档案；不自动包含关联订单。本机最高管理员明确请求永久删除时直接执行，保留范围预览、版本和关联校验；存在真实阻碍返回替代操作。',
     arguments: { module: recordEntities, id: '正整数' },
     risk: 'high',
   },
@@ -353,6 +447,13 @@ export class AssistantTools {
             (row.archived ? '&archived=1' : '');
   }
   read(name: string, raw: unknown, who: Actor | null | undefined): any {
+    if (name === 'management.delete_preview')
+      return new DatabaseMaintenanceService(this.store).preview(raw, who);
+    if (name === 'management.context') {
+      const actor = requireLocalAdministrator(who),
+        v = z.strictObject({ module: z.string(), id: positive }).parse(raw);
+      return recordContext(this.store, v.module, v.id, actor);
+    }
     const actor = this.actor(who);
     if (name === 'ui.open') {
       const v = z
@@ -616,7 +717,13 @@ export class AssistantTools {
       this.store.db.exec('ROLLBACK TO assistant_simulation; RELEASE assistant_simulation');
     }
   }
-  private executeSave(module: Module, id: number | undefined, input: any, actor: Actor) {
+  private executeSave(
+    module: Module,
+    id: number | undefined,
+    input: any,
+    actor: Actor,
+    binding: string,
+  ) {
     if (['customers', 'products', 'orders'].includes(module))
       return createBusinessService(this.store).execute(
         {
@@ -641,12 +748,60 @@ export class AssistantTools {
         actor,
         id,
       );
-    if (flowMap[module]) return this.flow.save(flowMap[module], input, actor, id);
+    if (flowMap[module]) {
+      if (id && isLocalAdministrator(actor))
+        return new DeveloperService(this.store).execute(
+          {
+            requestId: randomUUID(),
+            module: flowMap[module],
+            action: 'update',
+            items: [{ id, version: input.version }],
+            patch: flowInput(flowMap[module], input),
+            reason: '用户通过助手更正单据',
+          },
+          actor,
+          binding,
+          'developer-assistant',
+        ).results[0];
+      return this.flow.save(flowMap[module], input, actor, id);
+    }
     throw new ImportError('此模块不允许直接修改。', 403);
   }
   prepare(tool: string, raw: unknown, who: Actor | null | undefined, binding: string): ToolPlan {
     const actor = requirePermission(who, 'business:edit');
-    if (tool === 'developer.execute') {
+    if (
+      (tool === 'records.delete' || tool === 'records.propose_permanent_delete') &&
+      isLocalAdministrator(actor)
+    ) {
+      const v = z
+        .strictObject({
+          module: moduleSchema,
+          id: positive,
+          inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),
+        })
+        .parse(raw);
+      const before = this.rows(v.module, actor, true).find((r) => r.id === v.id);
+      if (!before) throw new ImportError('记录不存在。', 404);
+      const module =
+        flowMap[v.module] || (v.module.includes('inventory') ? 'stock_items' : v.module);
+      const selection = {
+        module,
+        items: [{ id: before.id, version: before.version }],
+        inventoryPolicy: v.inventoryPolicy,
+      };
+      const after = new DatabaseMaintenanceService(this.store).preview(selection, actor);
+      return {
+        tool,
+        args: { ...selection, deletionDigest: after.digest, requestId: randomUUID() },
+        label: '数据库删除' + moduleNames[v.module],
+        highRisk: false,
+        before,
+        after,
+        warnings: [after.inventoryEffect],
+      };
+    }
+    if (tool === 'developer.execute' || tool === 'management.execute') {
+      if (tool === 'management.execute') requireLocalAdministrator(actor);
       requireDeveloper(actor);
       const input = developerCommandSchema.parse(raw),
         service = new DeveloperService(this.store);
@@ -660,7 +815,9 @@ export class AssistantTools {
       return {
         tool,
         args: { input },
-        label: '开发者测试数据操作：' + input.action,
+        label:
+          (tool === 'management.execute' ? '业务数据管理：' : '开发者测试数据操作：') +
+          input.action,
         highRisk: false,
         before,
         after,
@@ -732,7 +889,7 @@ export class AssistantTools {
                 unknown.join('、') +
                 '。产品加工要求/备注使用requirements，不能写入不存在的字段。',
             );
-          return this.executeSave(v.module, v.id, input, actor);
+          return this.executeSave(v.module, v.id, input, actor, binding);
         });
       return {
         tool,
@@ -918,7 +1075,7 @@ export class AssistantTools {
         highRisk: true,
         before,
         after: engine.plan,
-        warnings: ['不可恢复，必须再次输入密码及“永久删除”。'],
+        warnings: ['永久删除不可恢复，审计和正式原件归档保留。'],
         engine: { previewId: engine.id },
       };
     }
@@ -927,7 +1084,13 @@ export class AssistantTools {
   commit(plan: ToolPlan, who: Actor | null | undefined, binding: string) {
     const actor = requirePermission(who, 'business:edit'),
       a = plan.args;
-    if (plan.tool === 'developer.execute')
+    if (
+      (plan.tool === 'records.delete' || plan.tool === 'records.propose_permanent_delete') &&
+      isLocalAdministrator(actor)
+    )
+      return new DatabaseMaintenanceService(this.store).delete(a, actor, binding);
+    if (plan.tool === 'management.execute') requireLocalAdministrator(actor);
+    if (plan.tool === 'developer.execute' || plan.tool === 'management.execute')
       return new DeveloperService(this.store).execute(
         a.input,
         actor,
@@ -937,7 +1100,7 @@ export class AssistantTools {
     if (plan.highRisk && !isSuperMode(actor))
       throw new ImportError('高风险操作需要有效超级管理员模式。', 403);
     if (plan.tool === 'records.propose_save')
-      return this.executeSave(a.module, a.id, a.input, actor);
+      return this.executeSave(a.module, a.id, a.input, actor, binding);
     if (plan.tool === 'records.propose_batch_lifecycle') {
       this.store.db.exec('SAVEPOINT assistant_batch_lifecycle');
       try {
@@ -952,6 +1115,19 @@ export class AssistantTools {
       }
     }
     if (plan.tool === 'records.propose_lifecycle') {
+      if (flowMap[a.module] && isLocalAdministrator(actor))
+        return new DeveloperService(this.store).execute(
+          {
+            requestId: randomUUID(),
+            module: flowMap[a.module],
+            action: a.action,
+            items: [{ id: a.id, version: a.version }],
+            reason: '用户通过助手管理单据',
+          },
+          actor,
+          binding,
+          'developer-assistant',
+        );
       if (flowMap[a.module])
         return this.flow.archive(a.id, a.action === 'restore', actor, a.version);
       const entity = a.module.includes('inventory') ? 'stock_items' : a.module;
@@ -986,7 +1162,17 @@ export class AssistantTools {
     throw new ImportError('未注册的写入工具。', 403);
   }
   stamp(plan: ToolPlan, actor: Actor) {
-    if (plan.tool === 'developer.execute')
+    if (
+      (plan.tool === 'records.delete' || plan.tool === 'records.propose_permanent_delete') &&
+      isLocalAdministrator(actor)
+    ) {
+      const { module, items, inventoryPolicy } = plan.args;
+      return new DatabaseMaintenanceService(this.store).preview(
+        { module, items, inventoryPolicy },
+        actor,
+      ).digest;
+    }
+    if (plan.tool === 'developer.execute' || plan.tool === 'management.execute')
       return {
         developer: requireDeveloper(actor).id,
         records: new DeveloperService(this.store).list(plan.args.input.module, actor).records,

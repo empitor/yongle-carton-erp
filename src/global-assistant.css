@@ -472,3 +472,69 @@
   border-bottom: 1px solid var(--border);
   padding: 6px 0;
 }
+.ga-business-task {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px 0;
+  font-size: 12px;
+  min-width: 0;
+}
+.ga-business-task summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+.ga-business-task summary > span {
+  margin-left: auto;
+  color: var(--muted);
+}
+.ga-business-task p {
+  margin: 7px 0;
+  overflow-wrap: anywhere;
+}
+.ga-business-task small {
+  color: var(--muted);
+  font-size: 11px;
+  display: block;
+}
+.ga-business-task ol {
+  max-height: 210px;
+  overflow: auto;
+  margin: 9px 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
+}
+.ga-business-task li {
+  display: flex;
+  gap: 7px;
+  align-items: start;
+}
+.ga-business-task li > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ga-business-task li[data-state='completed'] > svg {
+  color: #55c9a5;
+}
+.ga-business-task li[data-state='uncertain'] > svg,
+.ga-business-task li[data-state='failed'] > svg {
+  color: #e1ae62;
+}
+.ga-business-task li strong {
+  font-size: 12px;
+}
+.ga-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+.ga-task-actions button {
+  font-size: 11px;
+  padding: 5px 8px;
+}

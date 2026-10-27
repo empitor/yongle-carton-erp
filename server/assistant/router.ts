@@ -16,6 +16,28 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
     next();
   });
   router.get('/', (req, res) => res.json(manager.state(auth.actor(req))));
+  router.post('/threads/:id/tasks/activate', (req, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    manager.view(id, auth.actor(req));
+    if (manager.isBusy(id)) throw new ImportError('请先等待或停止当前回复。', 409);
+    const v = z.strictObject({ taskId: z.string().uuid() }).parse(req.body);
+    manager.tasks.activate(id, auth.actor(req)!, v.taskId);
+    res.json(manager.view(id, auth.actor(req)));
+  });
+  router.get('/diagnostics', (req, res) => {
+    const actor = auth.actor(req)!,
+      threadId = z.string().uuid().parse(req.query.threadId);
+    manager.view(threadId, actor);
+    res.json({
+      protocol: 'custom-json-envelope-v1',
+      events: manager.store.db
+        .prepare(
+          "SELECT state,document,created_at AS at FROM assistant_audit WHERE user_id=? AND thread_id=? AND tool='provider.diagnostic' ORDER BY id DESC LIMIT 150",
+        )
+        .all(actor.id, threadId)
+        .map(({ document, ...r }) => ({ ...r, ...JSON.parse(String(document)) })),
+    });
+  });
   router.get('/tools', (req, res) => {
     const actor = auth.actor(req)!;
     const state = manager.registry.view();

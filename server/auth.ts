@@ -5,7 +5,12 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { ImportError } from './import/errors.js';
-import { developerActor, localDevelopmentEnabled } from './developer-capability.js';
+import {
+  developerActor,
+  localDevelopmentEnabled,
+  localAdministratorActor,
+  isLocalAdministrator,
+} from './developer-capability.js';
 export type Actor = {
   id: string;
   name: string;
@@ -14,6 +19,7 @@ export type Actor = {
   superAdminUntil?: number;
   superAdminMode?: boolean;
   developerMode?: boolean;
+  localAdministrator?: boolean;
 };
 const account = z.strictObject({
   name: z.string().trim().min(1).max(60),
@@ -30,7 +36,7 @@ export class AuthManager {
   constructor(
     file: string,
     private now: () => number = Date.now,
-    private options: { localDevelopment?: boolean } = {},
+    private options: { localDevelopment?: boolean; localAdministration?: boolean } = {},
   ) {
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
@@ -97,33 +103,47 @@ export class AuthManager {
       .get(s.actor.id);
     const dev =
       !!user && !!s.developer && this.developerAvailable(req) && user.role === 'super_admin';
+    const owner =
+      !!user &&
+      user.role === 'super_admin' &&
+      this.options.localAdministration === true &&
+      this.localRequest(req);
     const result: Actor | null = user
       ? {
           id: s.actor.id,
           name: String(user.name),
           permissions: JSON.parse(String(user.permissions)),
           role: user.role as 'admin' | 'super_admin',
-          superAdminMode: dev || (user.role === 'super_admin' && (s.superUntil || 0) > this.now()),
-          superAdminUntil: dev
-            ? s.expires
-            : user.role === 'super_admin' && (s.superUntil || 0) > this.now()
-              ? s.superUntil
-              : undefined,
+          superAdminMode:
+            owner || dev || (user.role === 'super_admin' && (s.superUntil || 0) > this.now()),
+          superAdminUntil:
+            owner || dev
+              ? s.expires
+              : user.role === 'super_admin' && (s.superUntil || 0) > this.now()
+                ? s.superUntil
+                : undefined,
         }
       : null;
-    return dev && result ? developerActor(result) : result;
+    return owner && result
+      ? localAdministratorActor(result)
+      : dev && result
+        ? developerActor(result)
+        : result;
   }
-  developerAvailable(req: Request) {
+  private localRequest(req: Request) {
     const remote = req.socket.remoteAddress || '';
     const host = (req.headers.host || '').toLowerCase();
     return (
-      this.options.localDevelopment === true &&
-      localDevelopmentEnabled() &&
       ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote) &&
       /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host) &&
       !['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'].some(
         (k) => req.headers[k],
       )
+    );
+  }
+  developerAvailable(req: Request) {
+    return (
+      this.options.localDevelopment === true && localDevelopmentEnabled() && this.localRequest(req)
     );
   }
   requireSuperMode(req: Request) {
@@ -181,6 +201,10 @@ export class AuthManager {
       if (input.enabled && !this.developerAvailable(req))
         throw new ImportError('此环境未开放本地开发者模式。', 403);
       const session = this.sessions.get(this.sessionBinding(req))!;
+      if (isLocalAdministrator(actor)) {
+        res.json({ actor });
+        return;
+      }
       if (input.enabled && !actor.superAdminMode) this.verifyPassword(req, input.password);
       session.developer = input.enabled;
       if (!input.enabled) session.superUntil = 0;
@@ -194,6 +218,10 @@ export class AuthManager {
       if (!actor) throw new ImportError('请先登录管理账号。', 401);
       if (actor.role !== 'super_admin') throw new ImportError('当前账号不是超级管理员。', 403);
       const session = this.sessions.get(this.sessionBinding(req))!;
+      if (isLocalAdministrator(actor)) {
+        res.json({ actor });
+        return;
+      }
       if (req.params.action === 'enter') {
         const input = z.strictObject({ password: z.string().min(1).max(128) }).parse(req.body);
         this.verifyPassword(req, input.password);

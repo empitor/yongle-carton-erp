@@ -6,6 +6,8 @@ import { ImportError } from '../import/errors.js';
 import { audit, isSuperMode } from './management.js';
 import { recordEntities } from '../../shared/operations.js';
 import { flowReference } from '../flow/service.js';
+import { isLocalAdministrator } from '../developer-capability.js';
+import { DatabaseMaintenanceService } from './database-maintenance.js';
 const selectionSchema = z.strictObject({
   entity: z.enum(recordEntities),
   items: z
@@ -139,6 +141,38 @@ export class PermanentDeletionService {
   preview(raw: unknown, who: Actor | null | undefined, binding: string) {
     const actor = this.actor(who);
     if (!binding) throw new ImportError('登录会话无效。', 403);
+    if (isLocalAdministrator(actor)) {
+      const selection = selectionSchema.parse(raw),
+        maintenance = new DatabaseMaintenanceService(this.store).preview(
+          { module: selection.entity, items: selection.items },
+          actor,
+        );
+      const counts: any = {};
+      for (const entry of maintenance.impact.filter((r) => r.action === 'delete'))
+        counts[entry.table] = (counts[entry.table] || 0) + 1;
+      const plan = {
+        ...maintenance,
+        maintenance: true,
+        counts,
+        blockers: [],
+        records: this.store[selection.entity](true).filter((r) =>
+          selection.items.some((i) => i.id === r.id),
+        ),
+        orders: this.store
+          .orders(true)
+          .filter((o) =>
+            maintenance.impact.some(
+              (r) => r.table === 'orders' && r.action === 'delete' && r.id === o.id,
+            ),
+          ),
+        relatedOrders: [],
+      };
+      const preview = { id: randomUUID(), expiresAt: Date.now() + 10 * 60000, plan };
+      this.store.db
+        .prepare('INSERT INTO permanent_delete_previews VALUES(?,?,?,?,?,?,NULL)')
+        .run(preview.id, actor.id, binding, preview.expiresAt, digest(plan), JSON.stringify(plan));
+      return preview;
+    }
     const plan = this.plan(selectionSchema.parse(raw));
     const preview = { id: randomUUID(), expiresAt: Date.now() + 10 * 60000, plan };
     this.store.db
@@ -152,9 +186,11 @@ export class PermanentDeletionService {
       .strictObject({
         previewId: z.string().uuid(),
         acknowledged: z.literal(true),
-        confirmation: z.literal('永久删除'),
+        confirmation: z.literal('永久删除').optional(),
       })
       .parse(raw);
+    if (!isLocalAdministrator(actor) && input.confirmation !== '永久删除')
+      throw new ImportError('请输入“永久删除”确认不可恢复操作。');
     const preview = this.store.db
       .prepare('SELECT * FROM permanent_delete_previews WHERE id=?')
       .get(input.previewId);
@@ -169,6 +205,18 @@ export class PermanentDeletionService {
       throw new ImportError('删除预览已过期，请重新预览。', 409);
     if (preview.result) return JSON.parse(String(preview.result));
     const original = JSON.parse(String(preview.document));
+    if (original.maintenance && isLocalAdministrator(actor)) {
+      const result = new DatabaseMaintenanceService(this.store).delete(
+        { ...original.selection, requestId: input.previewId, deletionDigest: original.digest },
+        actor,
+        binding,
+      );
+      const response = { ...result, id: input.previewId, counts: original.counts };
+      this.store.db
+        .prepare('UPDATE permanent_delete_previews SET result=? WHERE id=?')
+        .run(JSON.stringify(response), input.previewId);
+      return response;
+    }
     this.store.db.exec('SAVEPOINT permanent_delete_execute');
     try {
       if (digest(original) !== preview.digest)

@@ -34,7 +34,7 @@ export function LocalNotice({ onGuide }: { onGuide: () => void }) {
   return (
     <div className="demo-banner">
       <AlertCircle size={16} />
-      <span>本机验收版：正式导入及业务修改需登录管理账号，删除保留历史与审计。</span>
+      <span>本机验收版：正式导入及业务修改需登录管理账号，删除实际移除记录，操作留有审计。</span>
       <button onClick={onGuide}>
         查看说明 <ArrowUpRight size={14} />
       </button>

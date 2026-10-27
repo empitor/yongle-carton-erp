@@ -16,7 +16,8 @@ import {
 import { OperationsRepository } from './repository.js';
 import { normalizedDimensions, normalizeDimensionUnit } from '../../shared/product-details.js';
 import { flowReference } from '../flow/service.js';
-import { isDeveloperActor } from '../developer-capability.js';
+import { isDeveloperActor, isLocalAdministrator } from '../developer-capability.js';
+import { DatabaseMaintenanceService } from '../business/database-maintenance.js';
 const digest = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const dimensionsKey = (v: any) =>
   JSON.stringify([
@@ -98,6 +99,7 @@ export class OperationsService {
         const fields = ['kind', 'unit', 'material', 'flute', 'productId', 'specification'];
         if (
           used &&
+          !isLocalAdministrator(actor) &&
           (dimensionsKey(before) !== dimensionsKey(v) ||
             fields.some((k) => JSON.stringify(before[k]) !== JSON.stringify((v as any)[k])))
         )
@@ -119,6 +121,8 @@ export class OperationsService {
           .run(id, name, kind, unit, JSON.stringify(document), productId, new Date().toISOString());
       }
       const after = this.repo.items(true).find((r) => r.id === id);
+      if (before && isLocalAdministrator(actor))
+        new DatabaseMaintenanceService(this.store).alignStock(before, after, actor);
       audit(this.store, actor, 'business-ui', before ? 'update' : 'create', 'stock_items', id!, {
         before,
         after,
@@ -153,9 +157,13 @@ export class OperationsService {
               (old: any) => old.id === l.id && old.stockItemId === l.stockItemId,
             ) &&
             (before.receipts.length > 0 || v.status === '已取消');
-          if (!item || (item.archived && !retaining) || item.kind !== 'raw')
+          if (
+            !item ||
+            (item.archived && !retaining && !isLocalAdministrator(actor)) ||
+            item.kind !== 'raw'
+          )
             throw new ImportError('采购明细须关联正常原材料库存品。');
-          if (item.unit !== l.unit)
+          if (!isLocalAdministrator(actor) && item.unit !== l.unit)
             throw new ImportError(
               '采购数量单位必须与所选库存品一致，系统不会换算张、只或其他数量单位。',
             );
@@ -165,7 +173,11 @@ export class OperationsService {
               (k) => JSON.stringify(item[k]) !== JSON.stringify(l[k]),
             )
           )
-            throw new ImportError('明细规格与所选库存品不一致，请使用库存品规格或选择新建库存品。');
+            if (isLocalAdministrator(actor)) l.stockItemId = null;
+            else
+              throw new ImportError(
+                '明细规格与所选库存品不一致，请使用库存品规格或选择新建库存品。',
+              );
         }
       const hasReceipts =
         before && (before.receipts.length > 0 || flowReference(this.store, 'purchases', id!));
@@ -178,7 +190,7 @@ export class OperationsService {
           ...meta,
         };
       };
-      if (hasReceipts) {
+      if (hasReceipts && !isLocalAdministrator(actor)) {
         if (isDeveloperActor(actor)) {
           if (
             v.supplierId !== before.supplierId ||
@@ -255,7 +267,46 @@ export class OperationsService {
             at,
           );
       }
-      if (hasReceipts && isDeveloperActor(actor)) {
+      if (id && isLocalAdministrator(actor) && before) {
+        const changed = before.lines
+          .filter((old: any) => {
+            const next = v.lines.find((l) => l.id === old.id);
+            return (
+              !next ||
+              v.supplierId !== before.supplierId ||
+              old.stockItemId !== next.stockItemId ||
+              old.unit !== next.unit ||
+              dimensionsKey(old) !== dimensionsKey(next) ||
+              ['material', 'flute', 'specification'].some(
+                (k) => (old as any)[k] !== (next as any)[k],
+              )
+            );
+          })
+          .map((l: any) => l.id);
+        new DatabaseMaintenanceService(this.store).detachPurchaseLines(id, changed, actor);
+        for (const old of before.lines)
+          if (!v.lines.some((l) => l.id === old.id))
+            this.store.db
+              .prepare('DELETE FROM purchase_lines WHERE id=? AND purchase_id=?')
+              .run(old.id, id);
+        for (const l of v.lines) {
+          const { id: lineId, stockItemId, quantity, ...document } = l;
+          if (lineId) {
+            if (!before.lines.some((old: any) => old.id === lineId))
+              throw new ImportError('明细编号不属于当前采购。');
+            this.store.db
+              .prepare(
+                'UPDATE purchase_lines SET stock_item_id=?,document=?,quantity_units=? WHERE id=? AND purchase_id=?',
+              )
+              .run(stockItemId, JSON.stringify(document), quantityUnits(quantity), lineId, id);
+          } else
+            this.store.db
+              .prepare(
+                'INSERT INTO purchase_lines(purchase_id,stock_item_id,document,quantity_units) VALUES(?,?,?,?)',
+              )
+              .run(id, stockItemId, JSON.stringify(document), quantityUnits(quantity));
+        }
+      } else if (hasReceipts && isDeveloperActor(actor)) {
         for (const l of v.lines) {
           const { id: lineId, stockItemId, quantity, ...document } = l;
           this.store.db
@@ -265,7 +316,7 @@ export class OperationsService {
             .run(JSON.stringify(document), quantityUnits(quantity), lineId!, id);
         }
       }
-      if (!hasReceipts) {
+      if (!hasReceipts && !(before && isLocalAdministrator(actor))) {
         this.store.db.prepare('DELETE FROM purchase_lines WHERE purchase_id=?').run(id);
         for (const l of v.lines) {
           const { id: _, stockItemId, quantity, ...document } = l;

@@ -10,7 +10,7 @@ export const erpPages = {
   warehouse: '仓库管理',
   'ai-import': 'AI智能订单导入',
   'ai-settings': 'AI设置',
-  trash: '业务回收站',
+  trash: '归档记录',
   guide: '使用说明',
   arrivals: '采购到货',
   'ai-prompts': 'AI提示词',

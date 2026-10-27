@@ -10,6 +10,7 @@ import { flowKinds } from '../../shared/physical-flow.js';
 import { AI_HTTP_TIMEOUT_MS } from '../../shared/ai-runtime.js';
 import { requirePermission } from '../business/management.js';
 import { deliveryPrint } from './printing.js';
+import { isLocalAdministrator } from '../developer-capability.js';
 export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: ReceiptAi) {
   const router = Router(),
     service = new FlowService(store);
@@ -132,7 +133,11 @@ export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: Receipt
     const kind = z.enum(flowKinds).optional().parse(req.query.kind);
     res.json(
       service
-        .list(kind, req.query.archived === '1')
+        .list(
+          kind,
+          req.query.archived === '1' ||
+            (req.query.archived === 'all' && isLocalAdministrator(auth.actor(req))),
+        )
         .filter((d) => req.query.archived !== '1' || d.archived),
     );
   });
@@ -160,7 +165,11 @@ export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: Receipt
       .json(service.save(z.enum(flowKinds).parse(req.params.kind), req.body, actor(req))),
   );
   router.put('/:id', (req, res) =>
-    res.json(service.save(service.get(id(req)).kind, req.body, actor(req), id(req))),
+    res.json(
+      isLocalAdministrator(actor(req))
+        ? service.maintenanceUpdate(id(req), req.body, actor(req))
+        : service.save(service.get(id(req)).kind, req.body, actor(req), id(req)),
+    ),
   );
   router.post('/:id/preview', (req, res) =>
     res.json(service.preview(id(req), actor(req), auth!.sessionBinding(req))),

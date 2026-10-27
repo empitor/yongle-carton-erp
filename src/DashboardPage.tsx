@@ -65,7 +65,7 @@ export default function DashboardPage({ data }: { data: Dashboard }) {
         <CalendarScope />
         <p>
           <strong>统计口径</strong>
-          ：订单按下单日期、采购按采购日期、出入库按业务日期筛选。待处理总数、待到货余量、库存余额与产品档案为实时全量数据，不受日期范围限制；回收站记录不计入。
+          ：订单按下单日期、采购按采购日期、出入库按业务日期筛选。待处理总数、待到货余量、库存余额与产品档案为实时全量数据，不受日期范围限制；手工归档记录不计入。
         </p>
       </div>
       <section className="bo-section">

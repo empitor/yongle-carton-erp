@@ -13,6 +13,7 @@ import { makeSettings, actor as baseActor } from './assistant-fixture.js';
 import { headerFields, lineFields, blankField } from '../shared/order-draft.js';
 import { customerSchema, productSchema, today } from '../shared/domain.js';
 import { imageFixture, docxFixture, xlsxFixture, pdfFixture } from './import-fixtures.js';
+import type { Actor } from '../server/auth.js';
 
 const actor = { ...baseActor, permissions: ['business:edit', 'import:execute'] };
 const field = (value: string) => ({
@@ -139,7 +140,7 @@ export function createOrderWorkflowFixture() {
     text: string,
     attachmentIds: string[] = [],
     requestId = randomUUID(),
-    who = actor,
+    who: Actor = actor,
   ) =>
     manager.chat(
       thread.id,

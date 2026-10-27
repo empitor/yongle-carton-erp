@@ -12,6 +12,7 @@ import ArrivalDraftForm from './ArrivalDraftForm';
 import ManagementDialog from '../ManagementDialog';
 import DraftChat from './DraftChat';
 import { arrivalReviewSchema } from '../../shared/arrival-assistant';
+import { flowInput } from '../../shared/physical-flow';
 const reviewValue = (v: any) => {
   try {
     return JSON.stringify(arrivalReviewSchema.parse(v));
@@ -137,7 +138,9 @@ export default function ArrivalDraftPanel({
   }, []);
   const confirmed = doc?.status === 'confirmed',
     editable =
-      (!!auth?.actor?.developerMode || !doc || (doc.status === 'draft' && !doc.archived)) &&
+      (!!(auth?.actor?.developerMode || auth?.actor?.localAdministrator) ||
+        !doc ||
+        (doc.status === 'draft' && !doc.archived)) &&
       !assistant?.readOnly;
   const dirty = !!editor && (!doc || reviewValue(editor) !== baseline),
     issues = editor ? arrivalDraftIssues(editor) : [],
@@ -281,15 +284,17 @@ export default function ArrivalDraftPanel({
         return;
       }
       const saved =
-        auth?.actor?.developerMode && editor.id && (doc?.status !== 'draft' || doc?.archived)
+        (auth?.actor?.developerMode || auth?.actor?.localAdministrator) &&
+        editor.id &&
+        (doc?.status !== 'draft' || doc?.archived)
           ? (
-              await managementRequest<any>('/developer/execute', {
+              await managementRequest<any>('/management/execute', {
                 requestId: saveRequest.current,
                 module: 'arrival',
                 action: 'update',
                 items: [{ id: editor.id, version: doc.version }],
-                patch: editor,
-                reason: '开发者修正到货草稿',
+                patch: flowInput('arrival', editor),
+                reason: '管理员修正到货草稿',
               })
             ).results[0]
           : await managementRequest<any>(

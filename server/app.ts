@@ -31,6 +31,7 @@ import { assistantRouter } from './assistant/router.js';
 import { orderInView } from '../shared/date-ranges.js';
 import { buildDashboard } from './business/dashboard.js';
 import { developerRouter } from './developer-router.js';
+import { isLocalAdministrator } from './developer-capability.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
   orderMetrics,
@@ -83,6 +84,9 @@ export function createApp(
   } = {},
 ) {
   const app = express();
+  if (options.imports)
+    options.imports.arrivalDocumentExists = (id) =>
+      !!store.db.prepare("SELECT 1 FROM flow_documents WHERE id=? AND kind='arrival'").get(id);
   const business = createBusinessService(store);
   function includeArchived(req: Request) {
     if (req.query.archived === 'all') {
@@ -193,7 +197,7 @@ export function createApp(
   // 新增核对身份仅服务于导入准备，不改变既有业务或AI设置的访问策略。
   if (options.auth) app.use('/api/auth', options.auth.router());
   if (options.auth)
-    app.use('/api/developer', developerRouter(store, options.auth, options.imports));
+    app.use(['/api/management', '/api/developer'], developerRouter(store, options.auth, options.imports));
   if (options.assistant && options.auth) {
     app.use('/api/assistant', assistantRouter(options.assistant, options.auth));
     app.use(
@@ -267,11 +271,11 @@ export function createApp(
           .strictObject({
             previewId: z.string().uuid(),
             acknowledged: z.literal(true),
-            confirmation: z.literal('永久删除'),
-            password: z.string().min(1).max(128),
+            confirmation: z.literal('永久删除').optional(),
+            password: z.string().min(1).max(128).optional(),
           })
           .parse(req.body);
-        options.auth!.verifyPassword(req, password);
+        if (!isLocalAdministrator(actor)) options.auth!.verifyPassword(req, password);
         res.json(deletion.execute(input, options.auth!.requireSuperMode(req), binding));
       } else throw new ImportError('操作不存在。', 404);
     });

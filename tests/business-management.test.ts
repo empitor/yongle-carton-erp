@@ -409,7 +409,7 @@ test('多文件删除一次请求返回部分成功，取消正在识别的文�
     await f.close();
   }
 });
-test('客户/产品停用不级联历史，订单软删除与恢复带审计，生产及发货禁止删除', async () => {
+test('客户/产品停用不级联历史，旧撤回兼容与归档恢复带审计，已履行订单允许归档', async () => {
   const f = await fixture();
   try {
     const w = await f.draft(),
@@ -471,8 +471,9 @@ test('客户/产品停用不级联历史，订单软删除与恢复带审计，�
       acknowledged: true,
       items: [{ id: order.id, version: order.version }],
     });
-    assert.equal((await r.json()).results[0].success, false);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal((await r.json()).results[0].success, true);
+    assert.equal(f.store.orders().length, 0);
+    assert.equal(f.store.orders(true).length, 1);
     assert.ok(Number(f.store.db.prepare('SELECT COUNT(*) n FROM business_audit').get()!.n) >= 9);
   } finally {
     await f.close();
@@ -525,7 +526,7 @@ test('旧版数据兼容迁移保留原始业务行，已归档记录仍可审�
     assert.equal(snapshot(), before);
     assert.equal(
       Number(store.db.prepare('SELECT MAX(version) v FROM schema_migrations').get()!.v),
-      10,
+      11,
     );
     assert.equal(store.orders()[0].lines[0].specification, '旧规格保留');
   } finally {
@@ -701,7 +702,7 @@ test('并发提交不重复写入；精确匹配复用档案，客户改名后�
   }
 });
 
-test('手工修改带真实操作者审计；已发货改回草稿仍不能删除或撤回', async () => {
+test('手工修改带真实操作者审计；历史修改可审计；归档按当前业务条件，旧导入撤回仍受原版本约束', async () => {
   const f = await fixture();
   try {
     const w = await f.draft(),
@@ -731,12 +732,13 @@ test('手工修改带真实操作者审计；已发货改回草稿仍不能删�
       acknowledged: true,
       items: [{ id: order.id, version: order.version }],
     });
-    assert.equal((await response.json()).results[0].success, false);
+    assert.equal((await response.json()).results[0].success, true);
     assert.equal(
       (await f.request('/ai/imports/' + w.id + '/undo-import', { acknowledged: true })).status,
       409,
     );
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(f.store.orders().length, 0);
+    assert.equal(f.store.orders(true).length, 1);
   } finally {
     await f.close();
   }

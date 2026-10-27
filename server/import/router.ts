@@ -8,6 +8,8 @@ import type { ReceiptAi } from '../flow/receipt-ai.js';
 import { ImportError } from './errors.js';
 import { AiConnectionError } from '../ai/connection-error.js';
 import { AI_HTTP_TIMEOUT_MS, type AiProgress } from '../../shared/ai-runtime.js';
+import { requireLocalAdministrator, isLocalAdministrator } from '../developer-capability.js';
+import type { Actor } from '../auth.js';
 export function importRouter(
   manager: ImportManager,
   operator?: (req: express.Request) => { id: string; name: string; permissions?: string[] } | null,
@@ -343,6 +345,70 @@ export function importRouter(
     '/remove-many',
     safe(async (req, res) => res.json(await manager.removeMany(req.body))),
   );
+  router.post(
+    '/delete-many',
+    safe(async (req, res) => {
+      const actor = requireLocalAdministrator(operator?.(req) as Actor),
+        v = z
+          .object({
+            items: z
+              .array(z.object({ id: z.string().uuid(), expectedRevision: z.number().int() }))
+              .min(1)
+              .max(200),
+          })
+          .parse(req.body),
+        results = [];
+      for (const item of v.items) {
+        try {
+          await manager.deleteWorkspace(item.id, item.expectedRevision, actor);
+          results.push({
+            id: item.id,
+            removed: true,
+            deleted: true,
+            message: '已从数据库和文件系统删除',
+          });
+        } catch (e) {
+          results.push({ id: item.id, removed: false, message: (e as Error).message });
+        }
+      }
+      res.json({ results });
+    }),
+  );
+  router.post(
+    '/:id/delete',
+    safe(async (req, res) =>
+      res.json(
+        await manager.deleteWorkspace(
+          String(req.params.id),
+          z.object({ expectedRevision: z.number().int() }).parse(req.body).expectedRevision,
+          requireLocalAdministrator(operator?.(req) as Actor),
+        ),
+      ),
+    ),
+  );
+  router.post(
+    '/:id/open-archive',
+    safe(async (req, res) =>
+      res.json(
+        await manager.openArchivedWorkspace(
+          String(req.params.id),
+          requireLocalAdministrator(operator?.(req) as Actor),
+        ),
+      ),
+    ),
+  );
+  router.post(
+    '/:id/archive',
+    safe((req, res) =>
+      res.json(
+        manager.archiveWorkspace(
+          String(req.params.id),
+          z.object({ expectedRevision: z.number().int() }).parse(req.body).expectedRevision,
+          requireLocalAdministrator(operator?.(req) as Actor),
+        ),
+      ),
+    ),
+  );
   const diagnosticActor = (req: express.Request) => {
     const actor = operator?.(req);
     if (!actor?.permissions?.includes('business:edit'))
@@ -457,7 +523,13 @@ export function importRouter(
   );
   router.post(
     '/:id/restore',
-    safe(async (req, res) => res.json(await manager.restore(String(req.params.id)))),
+    safe(async (req, res) =>
+      res.json(
+        isLocalAdministrator(operator?.(req) as Actor)
+          ? await manager.restoreWorkspace(String(req.params.id), operator!(req) as Actor)
+          : await manager.restore(String(req.params.id)),
+      ),
+    ),
   );
   router.post(
     '/:id/confirm',
@@ -502,14 +574,24 @@ export function importRouter(
   for (const [path, fn] of [
     ['consent', manager.consent.bind(manager)],
     ['revoke-consent', manager.revoke.bind(manager)],
-    ['edit', manager.edit.bind(manager)],
-    ['undo', manager.undo.bind(manager)],
     ['cancel', manager.cancel.bind(manager)],
-    ['mapping', manager.mapping.bind(manager)],
   ] as const)
     router.post(
       '/:id/' + path,
       safe(async (req, res) => res.json(await fn(String(req.params.id), req.body))),
+    );
+  for (const action of ['edit', 'undo', 'mapping'] as const)
+    router.post(
+      '/:id/' + action,
+      safe((req, res) => {
+        const id = String(req.params.id),
+          who = operator?.(req) as Actor | null;
+        res.json(
+          action === 'edit'
+            ? manager.edit(id, req.body, 'manual', who)
+            : manager[action](id, req.body, who),
+        );
+      }),
     );
   router.post('/:id/execute', (_req, res) =>
     res

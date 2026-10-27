@@ -482,7 +482,7 @@ export default function App() {
     'ai-settings': 'AI 设置',
     'ai-import': 'AI 智能订单导入',
     'ai-prompts': 'AI 识别提示词',
-    trash: '业务回收站',
+    trash: '归档记录',
     suppliers: '供应商管理',
     purchases: '采购订货',
     warehouse: '仓库管理',
@@ -653,7 +653,7 @@ export default function App() {
           </div>
         </header>
         <main className={page === 'ai-import' ? 'import-main' : ''}>
-          {superMode && (
+          {superMode && !auth?.actor?.localAdministrator && (
             <div className="super-mode-banner" role="status">
               <ShieldCheck size={19} />
               <div>
@@ -836,12 +836,12 @@ export default function App() {
                 note={
                   page === 'orders'
                     ? archivedView || allRecordsView
-                      ? '当前显示回收站或超级管理员全部记录，不应用日期分类。'
+                      ? '当前显示归档或全部记录，不应用日期分类。'
                       : orderView === 'history'
-                        ? `历史归档：下单日期早于 ${monthsBefore(today(), 2)} 的已发货/已取消订单。只作分类，不等同回收站。`
+                        ? `历史归档：下单日期早于 ${monthsBefore(today(), 2)} 的已发货/已取消订单。只作日期分类，不改变归档状态。`
                         : orderView === 'pending'
                           ? '待处理包含草稿、已确认、生产中、待发货；默认不限日期。'
-                          : '按下单日期，含首尾当天；快捷范围保留更早未完成订单，自定义范围严格筛选。历史归档仅分类，删除记录在回收站管理。'
+                          : '按下单日期，含首尾当天；快捷范围保留更早未完成订单，自定义范围严格筛选。历史归档仅作日期分类；手工归档可恢复，删除实际移除数据。'
                     : page === 'customers'
                       ? '支持客户名称、联系人、电话、地址与备注查询。'
                       : '产品名称、材质、楞型和加工要求可组合关键词搜索。'
@@ -962,7 +962,10 @@ export default function App() {
               edit={(value) =>
                 setEditor({ kind: page as 'orders' | 'customers' | 'products', value })
               }
-              changed={() => setRevision((r) => r + 1)}
+              changed={(message) => {
+                if (message) setNotice(message);
+                setRevision((r) => r + 1);
+              }}
               search={search}
               setSearch={setSearch}
               allRecords={allRecordsView && superMode}
@@ -984,7 +987,7 @@ export default function App() {
             <>
               <div className="recycle-heading">
                 <p>
-                  这里保留已删除、归档和停用的业务记录。永久删除后不会再出现在此列表；订单原件和审计仍保留。
+                  这里仅显示仍保存在数据库中的归档记录。历史软删除数据继续保留，可编辑、恢复或真正删除；物理删除的数据不会进入此列表。
                 </p>
                 <div className="record-view-tabs">
                   {(
@@ -1068,7 +1071,10 @@ export default function App() {
                   edit={(value) =>
                     setEditor({ kind: trashEntity as 'orders' | 'customers' | 'products', value })
                   }
-                  changed={() => setRevision((r) => r + 1)}
+                  changed={(message) => {
+                    if (message) setNotice(message);
+                    setRevision((r) => r + 1);
+                  }}
                   search={search}
                   setSearch={setSearch}
                 />

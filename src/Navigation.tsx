@@ -92,7 +92,7 @@ export default function Navigation({
       {item('warehouse', '仓库管理', Warehouse)}
       {item('ai-settings', 'AI 设置', Bot)}
       {item('ai-import', 'AI 智能订单导入', FileUp)}
-      {item('trash', '业务回收站', Trash2)}
+      {item('trash', '归档记录', Trash2)}
     </nav>
   );
 }

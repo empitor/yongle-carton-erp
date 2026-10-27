@@ -25,6 +25,8 @@ import { StockEditor } from './operations/Editors';
 import DeliveryStockPicker from './operations/DeliveryStockPicker';
 import { deliveryCandidates } from '../shared/warehouse-delivery';
 import { blankArrivalLine } from '../shared/arrival-draft';
+import RecordContextDialog, { RecordRelations } from './RecordContext';
+import DatabaseDeleteDialog from './DatabaseDeleteDialog';
 export { blankArrivalLine } from '../shared/arrival-draft';
 const title = (kind: FlowKind) =>
   kind === 'arrival'
@@ -102,6 +104,8 @@ export default function FlowPage({
   const working = useRef(false),
     saveRequest = useRef(crypto.randomUUID());
   const [opened, setOpened] = useState(false);
+  const [contextId, setContextId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<any[] | null>(null);
   const [kind, setKind] = useState<FlowKind>(mode),
     [rows, setRows] = useState<any[]>([]),
     [data, setData] = useState<any>({
@@ -151,13 +155,27 @@ export default function FlowPage({
     setBusy(true);
     Promise.all([
       managementRequest<any[]>('/flow?kind=' + kind + (archived ? '&archived=1' : '')),
-      managementRequest<any[]>('/suppliers'),
-      managementRequest<any[]>('/purchases'),
-      managementRequest<any[]>('/warehouse/items'),
-      managementRequest<any[]>('/products'),
-      managementRequest<any[]>('/orders'),
-      managementRequest<any[]>('/customers'),
-      managementRequest<any[]>('/flow?kind=task'),
+      managementRequest<any[]>(
+        '/suppliers' + (auth?.actor?.localAdministrator ? '?archived=all' : ''),
+      ),
+      managementRequest<any[]>(
+        '/purchases' + (auth?.actor?.localAdministrator ? '?archived=all' : ''),
+      ),
+      managementRequest<any[]>(
+        '/warehouse/items' + (auth?.actor?.localAdministrator ? '?archived=all' : ''),
+      ),
+      managementRequest<any[]>(
+        '/products' + (auth?.actor?.localAdministrator ? '?archived=all' : ''),
+      ),
+      managementRequest<any[]>(
+        '/orders' + (auth?.actor?.localAdministrator ? '?archived=all' : ''),
+      ),
+      managementRequest<any[]>(
+        '/customers' + (auth?.actor?.localAdministrator ? '?archived=all' : ''),
+      ),
+      managementRequest<any[]>(
+        '/flow?kind=task' + (auth?.actor?.localAdministrator ? '&archived=all' : ''),
+      ),
     ])
       .then(([r, suppliers, purchases, items, products, orders, customers, tasks]) => {
         if (active) {
@@ -170,7 +188,7 @@ export default function FlowPage({
     return () => {
       active = false;
     };
-  }, [kind, archived, revision]);
+  }, [kind, archived, revision, auth?.actor?.localAdministrator]);
   const filtered = rows.filter(
       (r) =>
         r.kind === kind &&
@@ -325,18 +343,35 @@ export default function FlowPage({
   const save = () =>
     work(async () => {
       const parsed = flowInput(kind, editor),
-        result = await managementRequest<any>(
-          '/flow/' + (editor.id || kind),
-          {
-            ...parsed,
-            requestId: saveRequest.current,
-            ...(editor.id ? { version: editor.version } : {}),
-          },
-          editor.id ? 'PUT' : 'POST',
-        );
+        saved =
+          auth?.actor?.localAdministrator && editor.id
+            ? await managementRequest<any>('/management/execute', {
+                requestId: saveRequest.current,
+                module: kind,
+                action: 'update',
+                items: [{ id: editor.id, version: editor.version }],
+                patch: parsed,
+                reason: '管理员编辑业务单据',
+              })
+            : null,
+        result = saved
+          ? saved.results[0]
+          : await managementRequest<any>(
+              '/flow/' + (editor.id || kind),
+              {
+                ...parsed,
+                requestId: saveRequest.current,
+                ...(editor.id ? { version: editor.version } : {}),
+              },
+              editor.id ? 'PUT' : 'POST',
+            );
       setEditor(null);
       setView(result);
-      setNotice('草稿已保存，尚未影响库存。');
+      setNotice(
+        saved && editor.status === 'confirmed' && result.id !== editor.id
+          ? '更正已保存，原单据和冲销流水保留，库存已同步。'
+          : '单据已保存。',
+      );
       refresh();
     });
   const review = (r: any) =>
@@ -359,6 +394,21 @@ export default function FlowPage({
   const perform = () =>
     work(async () => {
       const results = [];
+      if (auth?.actor?.localAdministrator) {
+        await managementRequest('/management/execute', {
+          requestId: action.requestId,
+          module: kind,
+          action: action.type,
+          items: action.rows.map((r: any) => ({ id: r.id, version: r.version })),
+          reason: reason.trim() || '管理员业务管理',
+        });
+        setAction(null);
+        setView(null);
+        setSelected([]);
+        refresh();
+        setNotice('操作已保存，历史及审计记录已保留。');
+        return;
+      }
       for (const r of action.rows) {
         try {
           await managementRequest(
@@ -384,8 +434,47 @@ export default function FlowPage({
       else setNotice('操作已保存，历史及审计记录已保留。');
     });
   const ask = (type: string, r: any[]) => {
+    if (type === 'delete' || type === 'permanent-delete') {
+      setDeleting(r);
+      return;
+    }
+    if (type === 'archive' || type === 'restore') {
+      void work(async () => {
+        await managementRequest('/management/execute', {
+          requestId: crypto.randomUUID(),
+          module: kind,
+          action: type,
+          items: r.map((x) => ({ id: x.id, version: x.version })),
+          reason: '管理员' + type,
+        });
+        setView(null);
+        setSelected([]);
+        refresh();
+        setNotice(type === 'archive' ? '已归档，数据库记录保留。' : '已恢复归档记录。');
+      });
+      return;
+    }
     setReason('');
-    setAction({ type, rows: r });
+    if (auth?.actor?.localAdministrator) {
+      void work(async () => {
+        const contexts = await Promise.all(
+          r.map((x) => managementRequest('/management/context?module=' + kind + '&id=' + x.id)),
+        );
+        setAction({
+          type,
+          rows: r,
+          requestId: crypto.randomUUID(),
+          impactDigests: Object.fromEntries(contexts.map((c) => [c.id, c.impactDigest])),
+          hasDownstream: contexts.some((c) =>
+            c.related.some(
+              (x: any) =>
+                x.direction !== 'upstream' &&
+                ['arrival', 'task', 'production', 'delivery'].includes(x.module),
+            ),
+          ),
+        });
+      });
+    } else setAction({ type, rows: r, requestId: crypto.randomUUID() });
   };
   const labelRow = (r: any) =>
     kind === 'arrival'
@@ -506,7 +595,7 @@ export default function FlowPage({
                   onChange={(e) => setArchived(e.target.value === '1')}
                 >
                   <option value="0">正常业务</option>
-                  <option value="1">已移入回收站</option>
+                  <option value="1">已归档</option>
                 </select>
               </FilterField>
             )}
@@ -549,8 +638,22 @@ export default function FlowPage({
                   )
                 }
               >
-                {archived ? '批量恢复' : '批量移入回收站'}
+                {archived ? '批量恢复' : '批量归档'}
               </button>
+              {auth?.actor?.localAdministrator && (
+                <button
+                  className="danger-button"
+                  disabled={busy}
+                  onClick={() =>
+                    ask(
+                      'permanent-delete',
+                      rows.filter((r) => selected.includes(r.id)),
+                    )
+                  }
+                >
+                  批量删除
+                </button>
+              )}
             </div>
           )}
           <section className="panel business-records flow-records">
@@ -629,7 +732,7 @@ export default function FlowPage({
                       </td>
                       <td>
                         <span className={'badge flow-state-' + r.status}>
-                          {r.archived ? '回收站 · ' : ''}
+                          {r.archived ? '归档 · ' : ''}
                           {flowStatusLabel(r)}
                         </span>
                       </td>
@@ -639,7 +742,8 @@ export default function FlowPage({
                           <button className="secondary" onClick={() => setView(r)}>
                             查看
                           </button>
-                          {r.status === 'draft' && !archived && (
+                          {((r.status === 'draft' && !archived) ||
+                            auth?.actor?.localAdministrator) && (
                             <button
                               className="secondary"
                               disabled={!canEdit}
@@ -648,9 +752,27 @@ export default function FlowPage({
                               编辑
                             </button>
                           )}
+                          <button
+                            disabled={!canEdit || busy}
+                            onClick={() => ask(archived ? 'restore' : 'archive', [r])}
+                          >
+                            {archived ? '恢复' : '归档'}
+                          </button>
+                          <button
+                            className="danger-text"
+                            disabled={!auth?.actor?.localAdministrator || busy}
+                            onClick={() => ask('delete', [r])}
+                          >
+                            删除
+                          </button>
                           <details className="record-more">
                             <summary>更多操作</summary>
                             <div className="record-more-content">
+                              {auth?.actor?.localAdministrator && (
+                                <button onClick={() => setContextId(r.id)}>
+                                  关联记录 / 修改历史
+                                </button>
+                              )}
                               {r.status === 'draft' && !archived && (
                                 <>
                                   <button disabled={!canEdit} onClick={() => review(r)}>
@@ -694,16 +816,6 @@ export default function FlowPage({
                                   建立更正草稿
                                 </button>
                               )}
-                              <button
-                                className="danger-text"
-                                disabled={
-                                  !canEdit ||
-                                  (!archived && !['draft', 'cancelled'].includes(r.status))
-                                }
-                                onClick={() => ask(archived ? 'restore' : 'archive', [r])}
-                              >
-                                {archived ? '恢复' : '移入回收站'}
-                              </button>
                             </div>
                           </details>
                         </div>
@@ -738,12 +850,38 @@ export default function FlowPage({
           </section>
         </>
       )}
+      {deleting && (
+        <DatabaseDeleteDialog
+          module={kind}
+          rows={deleting}
+          close={() => setDeleting(null)}
+          done={(message) => {
+            setDeleting(null);
+            setView(null);
+            setSelected([]);
+            setNotice(message);
+            refresh();
+          }}
+        />
+      )}
+      {contextId !== null && (
+        <RecordContextDialog module={kind} id={contextId} close={() => setContextId(null)} />
+      )}
       {editor && !stockSeed && (
         <ManagementDialog
-          title={(editor.id ? '编辑' : '新建') + flowNames[kind] + '草稿'}
+          title={
+            (editor.id ? '编辑' : '新建') +
+            flowNames[kind] +
+            (editor.id && editor.status !== 'draft' && auth?.actor?.localAdministrator
+              ? ''
+              : '草稿')
+          }
           close={() => setEditor(null)}
           busy={busy}
         >
+          {auth?.actor?.localAdministrator && editor.status === 'confirmed' && kind !== 'task' && (
+            <p>直接修改当前记录，并在同一事务同步关联、金额、实收量和库存余额。</p>
+          )}
           <FlowEditor
             kind={kind}
             value={editor}
@@ -773,7 +911,11 @@ export default function FlowPage({
               取消
             </button>
             <button className="primary" disabled={busy} onClick={save}>
-              {busy ? '正在保存…' : '保存草稿（不影响库存）'}
+              {busy
+                ? '正在保存…'
+                : editor.id && editor.status !== 'draft' && auth?.actor?.localAdministrator
+                  ? '保存修改'
+                  : '保存草稿（不影响库存）'}
             </button>
           </div>
         </ManagementDialog>
@@ -816,6 +958,17 @@ export default function FlowPage({
                   导出送货单
                 </a>
               </>
+            )}
+            {auth?.actor?.localAdministrator && view.status !== 'draft' && (
+              <button
+                className="primary"
+                onClick={() => {
+                  begin(view);
+                  setView(null);
+                }}
+              >
+                编辑 / 更正单据
+              </button>
             )}
             {view.status === 'draft' && !view.archived && (
               <>
@@ -920,7 +1073,9 @@ export default function FlowPage({
                 ? '取消草稿或剩余生产任务'
                 : action.type === 'restore'
                   ? '恢复业务记录'
-                  : '移入业务回收站'
+                  : action.type === 'permanent-delete'
+                    ? '永久删除业务单据'
+                    : '移入归档记录'
           }
           close={() => setAction(null)}
           busy={busy}
@@ -929,9 +1084,16 @@ export default function FlowPage({
           <p>
             将处理 {action.rows.length} 张单据：{action.rows.map((r: any) => r.number).join('、')}
           </p>
+          {auth?.actor?.localAdministrator &&
+            action.rows.map((r: any) => <RecordRelations key={r.id} module={kind} id={r.id} />)}
+          {action.type === 'permanent-delete' && (
+            <p className="flow-warning">
+              永久删除不可恢复。已确认单据将先冲销，原始流水、来源和审计保留。
+            </p>
+          )}
           {action.type === 'reverse' && (
             <p className="flow-warning">
-              此操作会产生反向库存流水，并保留原始单据。若相关库存已被使用，系统将拒绝冲销。请先在右上角验证密码进入超级管理员模式。
+              此操作会产生反向库存流水，并保留原始单据。若相关库存已被使用，请先更正下方关联记录。
             </p>
           )}
           {['reverse', 'cancel'].includes(action.type) && (
@@ -942,9 +1104,6 @@ export default function FlowPage({
                 maxLength={1000}
               />
             </Field>
-          )}
-          {action.type === 'archive' && (
-            <p>只允许草稿及已取消单据移入回收站。已有库存影响的单据保留历史，不直接删除。</p>
           )}
           <div className="modal-actions">
             <button className="secondary" onClick={() => setAction(null)} disabled={busy}>
@@ -957,6 +1116,7 @@ export default function FlowPage({
             >
               确认操作
             </button>
+
           </div>
         </ManagementDialog>
       )}

@@ -5,7 +5,7 @@ import type { AiFailureCode } from '../../shared/ai-settings.js';
  * 它绝不进入业务写入路径，只用于避免已生成的回答被整条丢弃。
  */
 export type AiResponseNote = {
-  kind: 'invalid-json' | 'truncated' | 'incomplete' | 'refusal' | 'empty';
+  kind: 'invalid-json' | 'truncated' | 'incomplete' | 'refusal' | 'empty' | 'protocol';
   text?: string;
 };
 export class AiConnectionError extends Error {

@@ -11,7 +11,7 @@ import { operationsMetadata } from '../operations/metadata.js';
 import { flowMetadata } from '../flow/metadata.js';
 import { toolCatalog } from '../assistant/tools.js';
 
-export const CATALOG_VERSION = '21' as const;
+export const CATALOG_VERSION = '24' as const;
 type Field = {
   path: string;
   description: string;
@@ -273,7 +273,16 @@ export function getBusinessMetadata(
 ) {
   return {
     catalogVersion: CATALOG_VERSION,
-    developerEditing:{available:'仅服务端明确启用的本机非生产环境，超级管理员验证后当前会话开启',scope:'档案、订单、采购、实物单据更正、库存盘点和AI工作区维护',tool:'developer.execute',integrity:'保留事务、版本、幂等、类型、关联及库存非负校验；不可任意SQL；关闭/重启撤销权限'},
+    developerEditing: {
+      available:
+        '生产入口明确开放的本机最高管理员登录后直接拥有；真实loopback、无代理头，普通账号不提升',
+      scope:
+        '档案、订单、采购、到货、生产、送货、库存与AI工作区的直接编辑、物理删除、独立归档/恢复',
+      tool: 'management.execute',
+      contextTool: 'management.context',
+      integrity:
+        '保留事务、版本、幂等、类型、关联及库存非负校验；不可任意SQL；退出登录/重启撤销会话',
+    },
     schemaVersion: 1,
     locale: 'zh-CN',
     timeZone: 'Asia/Shanghai',
@@ -328,6 +337,21 @@ export function getBusinessMetadata(
     },
     modules: { ...modules, ...operationsMetadata, ...flowMetadata },
     globalAssistant: {
+      taskRecovery: {
+        storage: '原业务库assistant_threads.document.businessTask及taskArchive，按账号和会话隔离',
+        progress:
+          '任务ID、已列步骤、成功回执、关联记录、待执行和待核验状态；生成结束不代表业务完成',
+        resume: '继续前核对原业务回执及实时记录；成功写入不重放，未知外部计费结果不得自动重发',
+        limits: {
+          roundsPerRequest: 6,
+          callsPerRequest: 18,
+          routineWritesPerRequest: 8,
+          minutesPerRequest: 30,
+        },
+        protocol: 'custom-json-envelope-v1；未启用原生tool_calls，DSML仅诊断且不执行',
+        diagnostics:
+          '按用户会话记录脱敏参数、结构、结束原因及错误类型；不保存密钥、消息正文或完整模型响应',
+      },
       protocol:
         '提示词与独立工具注册表分离；统一调度器校验参数、身份、启停与业务规则，最多6轮连续调用',
       runtimeTools:
@@ -347,7 +371,7 @@ export function getBusinessMetadata(
               : null,
       })),
       writeGate:
-        '真实用户/会话/关联版本/内部方案及幂等；单条常规操作按明确指令执行。客户订单附件通过持久任务桥接原识别及完整预览服务，当前用户聊天确认后提交原正式导入。原文不授权工具，高风险库存/永久删除保留原审核，禁止伪装manual-ui。',
+        '真实用户/会话/关联版本/内部方案及幂等；单条常规操作按明确指令执行。客户订单附件通过持久任务桥接原识别及完整预览服务，当前用户聊天确认后提交原正式导入。原文不授权工具，本机最高管理员直接调用受控业务工具，其他账号保留原审核，禁止伪装manual-ui。',
       history: '按登录账号隔离，业务数据与备注不能成为指令',
     },
     arrivalDraftAssistant: {
@@ -368,9 +392,12 @@ export function getBusinessMetadata(
       permission: 'business:edit',
       aiEnabled: false,
       quantityScale: 1000,
-      receipts: '请求幂等与采购单内送货单号唯一，事务内到货和入库，禁止超量',
-      ledger: '不可变库存流水，数量按单位分组，出库不能为负；盘点生成差额流水',
-      deletion: '已有到货和库存流水不可永久删除；客户订单关联采购/流水时限制归档、撤回和永久删除',
+      receipts:
+        '请求幂等与采购单内送货单号唯一，事务内到货和入库；本机最高管理员可更正计划及实收并维护关联，不以计划上限阻止实收维护',
+      ledger:
+        '正常业务追加库存流水；本机最高管理员直接编辑实物单据或物理删除时同步维护来源流水及前后余额；按单位分组，不自动换算',
+      deletion:
+        'Delete是物理删除，与归档条件无关；已确认、有到货、非零库存均可删除。真实FK及单据引用在事务内级联/解除并重算，独立关联范围先展示。Archive保留记录，按履行完成及库存条件校验，可恢复',
     },
     operations: writableEntities.flatMap((entity) => [
       {
@@ -401,9 +428,9 @@ export function getBusinessMetadata(
     ]),
     businessRules: [
       {
-        id: 'super-admin-manual-only',
+        id: 'authenticated-local-administrator',
         description:
-          '超级管理员仅在后端密码验证的会话模式中维护归档和历史记录。助手只可提出高风险方案；永久删除须人工核对关联范围、再次验证密码和文字确认，经原事务及审计执行，模型不能自行确认。',
+          '本机最高管理员经真实登录、loopback且无代理头核验后直接管理业务及历史记录，页面与助手共用服务。普通操作不重复确认；永久删除核对一次具体影响。保留事务、版本、幂等、关联、非负库存和审计；模型字段不授予权限。',
       },
       {
         id: 'server-authority',

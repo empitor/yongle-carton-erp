@@ -523,12 +523,9 @@ export class ImportExecutionService {
       order = this.store.orders(true).find((o) => o.id === Number(row.order_id));
     if (!order || order.version !== record.orderVersion)
       throw new ImportError('正式订单已被后续修改，不能直接撤回，请在订单管理中核对处理。', 409);
-    const result = changeLifecycle(
-      this.store,
-      'orders',
-      { action: 'archive', acknowledged: true, items: [{ id: order.id, version: order.version }] },
-      actor,
-    );
-    return result;
+    // 仅保留旧“撤回导入”协议的兼容状态；正常页面已移除此入口，delete走物理删除服务。
+    this.store.db.prepare('INSERT OR IGNORE INTO record_lifecycle VALUES(?,?,?,?)').run('orders',order.id,new Date().toISOString(),actor.id);
+    audit(this.store,actor,'legacy-import-undo','undo-import','orders',order.id,{before:order,sourceId:id});
+    return {results:[{id:order.id,success:true,message:'旧版导入撤回状态已保留'}]};
   }
 }
