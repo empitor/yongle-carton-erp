@@ -1,0 +1,8 @@
+const escape = (v: unknown) =>
+  String(v ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+  );
+export function deliveryPrint(doc: any, customer: any) {
+  return `<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>${escape(doc.number)} · 送货单</title><style>body{font-family:Arial,'Microsoft Yahei',sans-serif;color:#172c32;margin:32px}h1{text-align:center;font-size:22px}h2{text-align:center;font-size:18px}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{border:1px solid #52666b;padding:12px;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere}p{line-height:1.8}.note{color:#b54532}@media print{.print-help{display:none}body{margin:12mm}}</style><h1>宁波甬勒包装制品有限公司</h1><h2>客户送货单</h2><p>送货单号：${escape(doc.number)}　日期：${escape(doc.date)}<br>客户：${escape(customer?.name)}<br>收货地址：${escape(doc.address || customer?.address)}<br>联系人：${escape(doc.contact || customer?.contact)}　电话：${escape(doc.phone || customer?.phone)}</p>${doc.status !== 'confirmed' ? '<p class="note">' + (doc.status === 'draft' ? '草稿 · 尚未确认发货，不作为实际出库凭证' : doc.status === 'reversed' ? '已冲销 · 本单不作为有效出库凭证' : '已取消') + '</p>' : ''}<table><thead><tr><th>关联订单</th><th>产品名称</th><th>规格型号</th><th>本次数量</th><th>单位</th><th>备注</th></tr></thead><tbody>${doc.lines.map((l: any) => `<tr><td>${escape(l.orderNumber || l.orderId)}</td><td>${escape(l.productName)}</td><td>${escape(l.specification)}</td><td>${escape(l.quantity)}</td><td>${escape(l.unit)}</td><td>${escape(l.notes)}</td></tr>`).join('')}</tbody></table><p>备注：${escape(doc.notes)}<br><br>发货人：____________　承运人：____________　收货签字：____________</p><p class="print-help">按 Ctrl+P 打印，或选择“另存为PDF”。</p></html>`;
+}

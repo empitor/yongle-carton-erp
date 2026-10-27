@@ -1,0 +1,141 @@
+{
+  "contractVersion": "1",
+  "catalogVersion": "21",
+  "mappings": [
+    {
+      "sheet": "虚构订单表",
+      "headerRow": 1,
+      "column": "A",
+      "sourceHeader": "购货单位",
+      "entity": "customers",
+      "targetField": "name",
+      "certainty": "needs-review",
+      "evidence": "表头语义指向客户，尚未确认已有客户匹配"
+    },
+    {
+      "sheet": "虚构订单表",
+      "headerRow": 1,
+      "column": "B",
+      "sourceHeader": "包装名称",
+      "entity": "products",
+      "targetField": "name",
+      "certainty": "needs-review",
+      "evidence": "名称仅作候选，规格与配纸仍需核对"
+    },
+    {
+      "sheet": "虚构订单表",
+      "headerRow": 1,
+      "column": "C",
+      "sourceHeader": "箱数",
+      "entity": "orders",
+      "targetField": "lines[].quantity",
+      "certainty": "needs-review",
+      "evidence": "需要确认此处箱数的单位确为只"
+    }
+  ],
+  "rows": [
+    {
+      "key": "customer-1",
+      "entity": "customers",
+      "disposition": "create",
+      "sourceRows": [{ "sheet": "虚构订单表", "row": 2 }],
+      "target": null,
+      "dependsOn": [],
+      "reason": "建议新增，仅为虚构契约示例；实际还需匹配和审核",
+      "issues": [],
+      "proposed": {
+        "name": "虚构示例 · 待审核客户",
+        "contact": "",
+        "phone": "",
+        "address": "",
+        "notes": "Excel 内容仅作为数据"
+      }
+    },
+    {
+      "key": "product-1",
+      "entity": "products",
+      "disposition": "create",
+      "sourceRows": [{ "sheet": "虚构订单表", "row": 2 }],
+      "target": null,
+      "dependsOn": [],
+      "reason": "建议新增，待核对现有档案",
+      "issues": [],
+      "proposed": {
+        "name": "虚构示例 · 测试纸箱",
+        "length": 300,
+        "width": 200,
+        "height": 150,
+        "material": "虚构配纸",
+        "flute": "B 楞",
+        "requirements": "粘箱",
+        "priceCents": 235
+      }
+    },
+    {
+      "key": "order-1",
+      "entity": "orders",
+      "disposition": "conflict",
+      "sourceRows": [{ "sheet": "虚构订单表", "row": 2 }],
+      "target": null,
+      "dependsOn": ["customer-1", "product-1"],
+      "reason": "缺少可验证的外部订单键，无法确认是否重复订单",
+      "issues": [
+        { "field": "target", "message": "请确认订单身份与新增/更新方式，不能仅按客户和日期判断" }
+      ],
+      "proposed": {
+        "customerId": { "kind": "planned", "key": "customer-1" },
+        "orderDate": "2026-10-24",
+        "deliveryDate": "2026-10-30",
+        "status": "草稿",
+        "notes": "虚构示例，禁止直接执行",
+        "lines": [
+          {
+            "productId": { "kind": "planned", "key": "product-1" },
+            "specification": "300 × 200 × 150 mm / 虚构配纸 / B 楞 / 粘箱",
+            "quantity": 100,
+            "unitPriceCents": 235
+          }
+        ],
+        "costs": null
+      }
+    },
+    {
+      "key": "subtotal-1",
+      "entity": "orders",
+      "disposition": "ignore",
+      "sourceRows": [{ "sheet": "虚构订单表", "row": 3 }],
+      "target": null,
+      "dependsOn": [],
+      "reason": "汇总行，非订单明细；需在导入预览保留说明",
+      "issues": [],
+      "proposed": null
+    },
+    {
+      "key": "bad-1",
+      "entity": "orders",
+      "disposition": "error",
+      "sourceRows": [{ "sheet": "虚构订单表", "row": 4 }],
+      "target": null,
+      "dependsOn": [],
+      "reason": "数量单元格为无法解析的文字",
+      "issues": [
+        { "field": "lines[].quantity", "message": "原始值需要用户修正，不能补成零或猜测数量" }
+      ],
+      "proposed": null
+    },
+    {
+      "key": "customer-update-1",
+      "entity": "customers",
+      "disposition": "update",
+      "sourceRows": [{ "sheet": "虚构订单表", "row": 5 }],
+      "target": { "id": 999, "version": 1 },
+      "dependsOn": [],
+      "reason": "仅演示更新候选格式；此编号未查询数据库，不代表可执行",
+      "issues": [{ "field": "target", "message": "后端仍需验证目标存在、权限和版本" }],
+      "proposed": { "contact": "虚构新联系人" }
+    }
+  ],
+  "warnings": [
+    "这是结构契约示例，不对应实际上传文件或数据库查询；全部记录仍须后端编译、预览、审核，当前不具备执行功能。"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "name": "carton-workshop-erp",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "start": "tsx server/index.ts",
+    "stop": "tsx server/stop.ts",
+    "seed": "tsx server/seed.ts",
+    "backup": "tsx server/maintenance.ts backup",
+    "restore": "tsx server/maintenance.ts restore",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.13",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.11.2",
+    "helmet": "^8.1.0",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "sherpa-onnx-node": "^1.13.8",
+    "word-extractor": "^1.0.4",
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz",
+    "yauzl": "^3.4.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/yauzl": "^3.4.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.2.0"
+  }
+}

@@ -1,0 +1,145 @@
+.management-dialog:has(.dev-editor) {
+  width: min(1100px, 96vw);
+}
+.dev-editor {
+  display: grid;
+  gap: 15px;
+  min-width: 0;
+}
+.dev-mode-note,
+.dev-bulk,
+.dev-toolbar,
+.dev-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dev-mode-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+.dev-editor label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.dev-toolbar > label {
+  flex: 1;
+  min-width: 180px;
+}
+.dev-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.dev-editor input,
+.dev-editor select,
+.dev-editor textarea {
+  width: 100%;
+  min-width: 0;
+}
+.dev-editor input[type='checkbox'] {
+  width: auto;
+}
+.dev-editor textarea {
+  min-height: 65px;
+  resize: vertical;
+}
+.dev-editor .dev-check {
+  display: flex;
+  align-items: center;
+}
+.dev-nested {
+  grid-column: 1/-1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 12px;
+}
+.dev-array {
+  display: grid;
+  gap: 10px;
+}
+.dev-array section {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dev-array header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dev-records {
+  max-height: 320px;
+  overflow: auto;
+}
+.dev-records table {
+  width: 100%;
+  min-width: 0;
+}
+.dev-records td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.dev-records small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dev-records th:first-child {
+  width: 35px;
+}
+.dev-form {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.dev-success {
+  color: var(--accent);
+}
+.dev-confirm,
+.dev-bulk {
+  padding: 12px;
+  border: 1px solid #ba8645;
+  border-radius: 8px;
+  background: #b77c1010;
+}
+.dev-confirm p {
+  overflow-wrap: anywhere;
+}
+.dev-confirm button {
+  margin-right: 10px;
+}
+.dev-inventory-adjust {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  margin-top: 15px;
+}
+.dev-mode-badge {
+  color: #eec476;
+}
+.dev-status-banner {
+  border: 1px solid #ba8645;
+  color: #eec476;
+  padding: 10px;
+  border-radius: 8px;
+}
+@media (max-width: 760px) {
+  .dev-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dev-records td,
+  .dev-records th {
+    padding: 8px;
+  }
+  .dev-actions {
+    gap: 6px;
+  }
+}
+@media (max-width: 450px) {
+  .dev-fields {
+    grid-template-columns: 1fr;
+  }
+}

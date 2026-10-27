@@ -1,0 +1,242 @@
+.ga-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ga-attachment {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 6px;
+  min-width: 0;
+}
+.ga-attachment.is-error {
+  border-color: var(--danger);
+}
+.ga-attachment-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 2px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.ga-attachment-open img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex: none;
+}
+.ga-attachment-open > span {
+  min-width: 0;
+  flex: 1;
+}
+.ga-attachment-open strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ga-attachment-open small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.ga-attachment > button:not(.ga-attachment-open) {
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.ga-attachment p {
+  font-size: 11px;
+  color: var(--danger);
+  margin: 0;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+.ga-pending-attachments {
+  max-height: 150px;
+  overflow: auto;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ga-file-context {
+  font-size: 11px;
+  padding: 6px 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  max-height: 76px;
+  overflow: auto;
+}
+.ga-file-context label {
+  display: flex;
+  gap: 6px;
+  align-items: start;
+}
+.ga-file-context p {
+  margin: 4px 0;
+}
+.ga-panel.ga-dragging {
+  outline: 2px dashed var(--teal);
+  outline-offset: -4px;
+}
+.ga-compose .ga-attach-button {
+  width: 34px;
+  align-self: flex-end;
+  flex: none;
+}
+.ga-message > .ga-attachments {
+  margin: 8px 0;
+}
+.ga-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000a;
+  padding: 16px;
+}
+.ga-preview {
+  background: var(--surface);
+  color: var(--ink);
+  width: min(1080px, 100%);
+  height: min(900px, calc(100dvh - 32px));
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.ga-preview header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ga-preview header > div {
+  flex: 1;
+  min-width: 0;
+}
+.ga-preview header strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.ga-preview small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.ga-preview button,
+.ga-preview a {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+.ga-preview nav {
+  display: flex;
+  flex-direction: row;
+  overflow: auto;
+  gap: 6px;
+  padding: 8px 14px;
+}
+.ga-preview nav button {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.ga-preview nav .selected {
+  border-color: var(--teal);
+  background: var(--accent-soft);
+}
+.ga-preview-controls {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+.ga-preview-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  background: var(--surface-muted);
+}
+.ga-preview-content > img {
+  display: block;
+  max-width: none;
+  height: auto;
+}
+.ga-preview-content canvas {
+  display: block;
+  margin: auto;
+  max-width: none;
+  height: auto;
+}
+.ga-preview-content pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.ga-office-info {
+  max-width: 540px;
+  margin: 40px auto;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.ga-office-info details {
+  text-align: left;
+}
+.ga-office-info summary {
+  cursor: pointer;
+  color: var(--teal);
+}
+.ga-preview-content [role='alert'] {
+  color: var(--danger);
+}
+@media (max-width: 600px) {
+  .ga-preview-overlay {
+    padding: 6px;
+  }
+  .ga-preview {
+    height: calc(100dvh - 12px);
+  }
+  .ga-preview header {
+    padding: 10px;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .ga-preview button,
+  .ga-preview a {
+    padding: 5px 7px;
+  }
+  .ga-pending-attachments {
+    max-height: 110px;
+  }
+}

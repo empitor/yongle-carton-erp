@@ -1,0 +1,372 @@
+/* 语义化外观变量：同一组件在浅色和深色下保持一致的层级与操作含义。 */
+:root {
+  --page-bg: #f3f6f7;
+  --surface: #ffffff;
+  --input-bg: #ffffff;
+  --surface-muted: #f4f7f8;
+  --surface-hover: #edf3f4;
+  --ink: #23353c;
+  --text-secondary: #526c75;
+  --muted: #72868f;
+  --border: #dfe7eb;
+  --border-strong: #aec4cc;
+  --teal: #226b68;
+  --accent-hover: #195b58;
+  --accent-soft: #e7f3ef;
+  --accent-ink: #226b60;
+  --on-accent: #ffffff;
+  --danger: #ac453c;
+  --danger-fill: #aa4036;
+  --danger-hover: #91352d;
+  --danger-soft: #fbefed;
+  --danger-border: #e9c7c1;
+  --on-danger: #ffffff;
+  --warning: #8a641e;
+  --warning-soft: #fff5dc;
+  --warning-border: #dcc58e;
+  --info: #476e96;
+  --info-soft: #ebf2f9;
+  --purple: #7d65a3;
+  --purple-soft: #f0ecf9;
+  --focus-ring: #60a6b8;
+  --overlay: #142b3c70;
+  --shadow: 0 12px 48px #172d3a25;
+  --sidebar-bg: #213e45;
+  --sidebar-hover: #2c4c52;
+  --sidebar-ink: #d4e4e5;
+  --sidebar-muted: #a6c0c3;
+  --sidebar-selected: #e1efea;
+  --sidebar-active-ink: #215b53;
+}
+:root[data-theme='dark'] {
+  --page-bg: #141c24;
+  --surface: #1c2732;
+  --input-bg: #18232e;
+  --surface-muted: #22303d;
+  --surface-hover: #293a47;
+  --ink: #e4edf0;
+  --text-secondary: #bdcdd4;
+  --muted: #95abb6;
+  --border: #334652;
+  --border-strong: #567382;
+  --teal: #4eafa0;
+  --accent-hover: #66c2b0;
+  --accent-soft: #213e3e;
+  --accent-ink: #91dccb;
+  --on-accent: #102c29;
+  --danger: #f19387;
+  --danger-fill: #ae493f;
+  --danger-hover: #c15a4d;
+  --danger-soft: #422c32;
+  --danger-border: #7c4c50;
+  --warning: #edca7e;
+  --warning-soft: #3b3525;
+  --warning-border: #7c6c43;
+  --info: #a2c7ee;
+  --info-soft: #253a4e;
+  --purple: #c6b1e7;
+  --purple-soft: #373046;
+  --focus-ring: #75c6d4;
+  --overlay: #07111bc4;
+  --shadow: 0 18px 60px #00000060;
+  --sidebar-bg: #18252e;
+  --sidebar-hover: #243b46;
+  --sidebar-ink: #d2e4e8;
+  --sidebar-muted: #9ab4bf;
+  --sidebar-selected: #284a49;
+  --sidebar-active-ink: #9be0d2;
+}
+html {
+  background: var(--page-bg);
+  color: var(--ink);
+  scrollbar-color: var(--border-strong) var(--page-bg);
+}
+body {
+  background: var(--page-bg);
+  color: var(--ink);
+}
+button,
+input,
+select,
+textarea {
+  border-radius: 7px;
+}
+button {
+  min-height: 35px;
+  font-weight: 500;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+button:disabled {
+  opacity: 0.48;
+}
+button.primary {
+  box-shadow: 0 1px 2px #00000012;
+  color: var(--on-accent);
+  background: var(--teal);
+  border-color: var(--teal);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+button.danger {
+  color: var(--danger);
+}
+button.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+button.danger-solid,
+.order-import button.danger {
+  background: var(--danger-fill);
+  border-color: var(--danger-fill);
+  color: var(--on-danger);
+}
+button.danger-solid:hover:not(:disabled),
+.order-import button.danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  color: var(--on-danger);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.82;
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--muted);
+  background: var(--surface-muted);
+  opacity: 1;
+}
+input,
+select,
+textarea {
+  accent-color: var(--teal);
+}
+input[type='checkbox'] {
+  cursor: pointer;
+}
+.theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  padding: 0 7px 0 10px;
+  min-height: 36px;
+}
+.theme-switcher select {
+  width: auto;
+  padding: 6px 1px;
+  min-height: 32px;
+  font-size: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.theme-switcher svg {
+  flex-shrink: 0;
+  color: var(--accent-ink);
+}
+.theme-switcher option {
+  background: var(--surface);
+  color: var(--ink);
+}
+.topbar {
+  border-bottom: 1px solid var(--border);
+}
+.sidebar {
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+}
+.sidebar .brand,
+.sidebar .brand span,
+.sidebar .phase strong {
+  color: var(--sidebar-ink);
+}
+.sidebar .brand-mark {
+  border-color: var(--sidebar-muted);
+}
+.sidebar .workspace,
+.sidebar .workspace span,
+.sidebar .phase span,
+.sidebar .phase p,
+.sidebar .database-label {
+  color: var(--sidebar-muted);
+}
+.sidebar .phase {
+  background: var(--sidebar-hover);
+  border-color: var(--sidebar-muted);
+}
+.sidebar .nav-item,
+.sidebar .nav-subitem {
+  color: var(--sidebar-ink);
+}
+.sidebar .nav-item:hover,
+.sidebar .nav-subitem:hover {
+  background: var(--sidebar-hover);
+}
+.sidebar .nav-item.selected,
+.sidebar .nav-subitem.selected {
+  background: var(--sidebar-selected);
+  color: var(--sidebar-active-ink);
+}
+.sidebar .nav-item small {
+  background: var(--sidebar-selected);
+  color: var(--sidebar-active-ink);
+}
+.sidebar .nav-submenu {
+  border-color: var(--border-strong);
+}
+.panel,
+.stat,
+.ai-presets,
+.ai-editor,
+.prompt-list,
+.prompt-editor {
+  border-radius: 10px;
+}
+.panel,
+.stat {
+  box-shadow: 0 1px 3px #00000005;
+}
+.modal,
+.management-dialog,
+.ai-dialog,
+.oi-modal {
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.overlay,
+.oi-modal-backdrop,
+.ai-dialog-backdrop {
+  background: var(--overlay);
+}
+.ai-delete-dialog {
+  box-shadow: var(--shadow);
+}
+th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+td,
+output,
+.amount,
+.op-quantity {
+  font-variant-numeric: tabular-nums;
+}
+.business-records > .table-wrap > table > tbody > tr:hover,
+.op-flow-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+.record-actions-main button,
+.record-extra-actions button {
+  min-height: 33px;
+  border-radius: 7px;
+}
+.record-more summary {
+  padding: 6px 9px;
+  border: 1px solid transparent;
+}
+.record-more[open] summary {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+.record-danger-zone {
+  border-color: var(--danger-border);
+}
+.record-view-tabs button.selected {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+}
+.business-selection {
+  background: var(--surface-muted);
+}
+.business-selection b {
+  color: var(--accent-ink);
+}
+.ai-settings-tabs {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0 0 12px;
+}
+.ai-settings-tabs button {
+  padding: 9px 22px;
+  min-width: 118px;
+}
+.ai-settings-tabs button[aria-selected='true'] {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+  color: var(--accent-ink);
+}
+.order-import {
+  --oi-border: var(--border);
+  --oi-muted: var(--muted);
+  --oi-teal: var(--teal);
+}
+.order-import .primary {
+  color: var(--on-accent);
+  background: var(--teal);
+}
+.order-import .primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.order-import button {
+  border-radius: 6px;
+}
+.oi-file-list,
+.oi-preview,
+.oi-draft,
+.oi-chat,
+.oi-batch-bar,
+.oi-review-bar {
+  border-radius: 8px;
+}
+.oi-file-list > header,
+.oi-preview > header,
+.oi-draft > header,
+.oi-chat > header {
+  border-radius: 8px 8px 0 0;
+}
+.oi-file-row:not(.active):hover {
+  background: var(--surface-hover);
+}
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+@media (max-width: 760px) {
+  .topbar-right {
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .theme-switcher {
+    padding-left: 7px;
+  }
+  .theme-switcher select {
+    max-width: 96px;
+  }
+  .top-date {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+}
