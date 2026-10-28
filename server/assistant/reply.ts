@@ -50,7 +50,10 @@ function parseObjectText(text: string): unknown {
  * 纯文字、缺少 toolCalls、额外字段都按正常文字回复处理；
  * 未注册工具、非对象参数、超过每轮上限的调用只进入 rejected，绝不进入执行路径。
  */
-export function normalizeAssistantReply(raw: unknown): NormalizedAssistantReply {
+export function normalizeAssistantReply(
+  raw: unknown,
+  registeredTools: ReadonlySet<string> = registered,
+): NormalizedAssistantReply {
   const empty = (issues: string[], keys: string[] = []): NormalizedAssistantReply => ({
     message: '',
     toolCalls: [],
@@ -148,7 +151,7 @@ export function normalizeAssistantReply(raw: unknown): NormalizedAssistantReply 
         rejected.push({ name: '未命名', reason: '工具调用缺少名称，已拒绝执行' });
         return;
       }
-      if (!registered.has(name)) {
+      if (!registeredTools.has(name)) {
         rejected.push({ name: clip(name, 80), reason: '未注册的工具，已拒绝执行' });
         return;
       }

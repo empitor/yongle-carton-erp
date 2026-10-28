@@ -35,6 +35,14 @@ export type BusinessTaskStep = {
   error?: string;
   updatedAt: string;
   async?: boolean;
+  attemptedAt?: string;
+  pageOutcome?: {
+    module: string;
+    id: number;
+    expected: Record<string, unknown>;
+    beforeVersion: number;
+    beforeValues?: Record<string, unknown>;
+  };
 };
 export type AssistantBusinessTask = {
   id: string;
@@ -46,4 +54,35 @@ export type AssistantBusinessTask = {
   steps: BusinessTaskStep[];
   lastResult?: string;
   requestId?: string;
+  budget?: AgentBudgetView;
+};
+
+export type AgentBudgetView = {
+  requestId: string;
+  limits: {
+    modelCalls: number;
+    toolCalls: number;
+    businessWrites: number;
+    pageInteractions: number;
+    timeoutMs: number;
+    noProgress: number;
+    consecutiveFailures: number;
+    sameFailure: number;
+  };
+  used: { modelCalls: number; toolCalls: number; businessWrites: number; pageInteractions: number };
+  elapsedMs: number;
+  readOperations: number;
+  toolOutputChars: number;
+  estimatedToolOutputTokens: number;
+  estimateBasis: string;
+  providerUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    requests: number;
+    inputReports?: number;
+    outputReports?: number;
+  };
+  toolOutputs: { tool: string; chars: number }[];
+  stopReason?: string;
 };

@@ -1,3 +1,4 @@
+import { providerTokenUsage, type ProviderTokenUsage } from './usage.js';
 import type { AiProfile } from '../../shared/ai-settings.js';
 import type { ChatMessage } from './compatible-chat.js';
 import { responsesInput, responsesText } from './responses-format.js';
@@ -9,6 +10,7 @@ import { AI_REQUEST_TIMEOUT_MS, type AiProgress } from '../../shared/ai-runtime.
 import { officialDeepSeekEndpoint } from '../../shared/assistant-attachments.js';
 import { ProtocolDiagnostics, hasDsml, type ProviderDiagnostic } from './protocol-diagnostics.js';
 export type ResponseOptions = {
+  onUsage?: (usage: ProviderTokenUsage) => void;
   onDiagnostic?: (event: ProviderDiagnostic) => void;
   /** 仅服务端诊断/策略使用；不开放给模型或普通HTTP参数。 */
   jsonMode?: 'prefer' | 'required' | 'disabled';
@@ -95,7 +97,10 @@ export async function completeResponses(
       error.upstreamStatus = result.status;
       throw error;
     }
-    const text = responsesText(result.streamed || collector.seen ? collector.finish() : result.body)
+    const response = result.streamed || collector.seen ? collector.finish() : result.body;
+    const usage = providerTokenUsage((response as any)?.usage);
+    if (usage) options.onUsage?.(usage);
+    const text = responsesText(response)
       .trim()
       .replace(/^```(?:json)?\s*/, '')
       .replace(/\s*```$/, '');

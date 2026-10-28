@@ -46,6 +46,8 @@ vendor/models/**
 docs/**
 !docs/发布说明-v0.5.0.md
 !docs/发布说明-v0.5.1.md
+!docs/发布说明-v0.5.2.md
+!docs/Agent插件与页面控制验收-2026-10-28.md
 !docs/AI智能数据管理架构与开发计划.md
 !docs/examples/
 !docs/examples/import-proposal.example.json

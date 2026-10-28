@@ -11,8 +11,30 @@ import { matchDraft } from '../import/matching.js';
 import { patchOperationSchema } from '../../shared/order-draft.js';
 import type { AssistantAttachment } from '../../shared/assistant-attachments.js';
 import { isLocalAdministrator } from '../developer-capability.js';
+import type { ProviderTokenUsage } from '../ai/usage.js';
 
 export const orderWorkflowTools = [
+  {
+    name: 'order_import.list',
+    description:
+      '查询当前账号在AI订单导入页面可访问的现有工作区，包含手工上传文件。按UUID、文件名、模式、草稿及导入状态定位，不调用识别。',
+    arguments: {},
+    risk: 'workflow',
+  },
+  {
+    name: 'order_import.attach',
+    description:
+      '将现有销售订单工作区关联到当前任务，保留原ID、哈希、修订、草稿和识别记录；不复制、不识别、不收费。返回最新完整草稿和真实匹配候选。',
+    arguments: { workspaceId: 'list返回的工作区UUID' },
+    risk: 'workflow',
+  },
+  {
+    name: 'order_import.execute_many',
+    description:
+      '用户明确要求导入多份已识别订单时，逐份生成最新正式预览并通过原导入服务执行。workspaceIds须来自list/attach，最多6份；逐份回执，部分失败不回滚已成功文件，重试不重复导入。仅预览要求不得调用。',
+    arguments: { workspaceIds: ['真实工作区UUID'] },
+    risk: 'workflow',
+  },
   {
     name: 'order_import.start',
     description:
@@ -23,7 +45,7 @@ export const orderWorkflowTools = [
   {
     name: 'order_import.get',
     description:
-      '读取当前会话关联的完整订单识别草稿、金额、匹配候选、预览和错误，始终取服务器最新状态。',
+      '读取已关联工作区的完整订单识别草稿、金额、匹配候选、预览和错误，始终取服务器最新状态。',
     arguments: { taskId: '任务UUID，可省略；默认当前任务' },
     risk: 'workflow',
   },
@@ -73,7 +95,7 @@ export const orderWorkflowTools = [
   {
     name: 'order_import.execute',
     description:
-      '只在当前用户明确确认导入已展示的完整方案后执行原正式销售订单导入服务。草稿或关联版本变化须重新展示，不得模型自行确认，不重复创建订单。',
+      '用户明确要求正式导入时调用。服务器生成并校验最新完整预览，使用与人工页面相同的正式导入服务；不要求聊天专属跨轮确认，不重复创建订单。',
     arguments: {},
     risk: 'workflow',
   },
@@ -95,7 +117,7 @@ type Task = {
   recognitionRequest?: string;
   focusLine?: number;
   id: string;
-  attachmentId: string;
+  attachmentId?: string;
   fileName: string;
   fileHash: string;
   workspaceId: string;
@@ -103,6 +125,7 @@ type Task = {
   error?: string;
   preview?: any;
   previewRequest?: string;
+  previewRevision?: number;
   result?: any;
   updatedAt: string;
 };
@@ -116,6 +139,9 @@ export type WorkflowContext = {
   files: AssistantAttachment[];
   profile?: { id: string; endpoint: string; model: string; apiStyle: string };
   check: () => Actor;
+  consumeMutation?: () => void;
+  consumeModel?: () => void;
+  onUsage?: (usage: ProviderTokenUsage) => void;
   signal: AbortSignal;
   emit: (event: string, data: any) => void;
 };
@@ -228,6 +254,7 @@ export class AssistantOrderWorkflow {
       task.state = 'needs_review';
       task.error = e instanceof Error ? e.message : '预览失败';
     }
+    task.previewRevision = this.imports.get(task.workspaceId).revision;
     task.updatedAt = new Date().toISOString();
     this.save(ctx, state);
   }
@@ -259,6 +286,7 @@ export class AssistantOrderWorkflow {
       )
     )
       throw new ImportError('AI预设已变化，请载入当前配置后重新要求识别。', 409);
+    ctx.consumeModel?.();
     this.imports.consent(w.id, {
       expectedRevision: w.revision,
       accepted: true,
@@ -286,6 +314,7 @@ export class AssistantOrderWorkflow {
           ctx.emit('progress', p);
         },
         ctx.actor,
+        ctx.onUsage,
       );
       ctx.check();
       await this.prepare(ctx, state, task);
@@ -316,7 +345,9 @@ export class AssistantOrderWorkflow {
           }
         : task,
       ...(imported ? { order, previewIsHistorical: true } : {}),
+      executionReceipt: this.execution.receipt(w.id, ctx.check()),
       workspace: {
+        mode: w.mode,
         id: w.id,
         revision: w.revision,
         fileName: w.fileName,
@@ -336,12 +367,85 @@ export class AssistantOrderWorkflow {
       message:
         task.state === 'imported'
           ? '该订单已正式导入，未重复创建。'
-          : task.error || '草稿及完整导入方案已准备好，请核对后回复“确认导入”。',
+          : task.error ||
+            '已读取最新草稿及核验数据；用户明确要求导入时可直接提交，预览不会写入正式订单。',
     };
   }
   async call(name: string, raw: unknown, ctx: WorkflowContext): Promise<any> {
     requirePermission(ctx.check(), 'business:edit');
     const args = z.record(z.string(), z.unknown()).parse(raw);
+    if (name === 'order_import.list') {
+      return {
+        workspaces: this.imports.status().workspaces,
+        archives: isLocalAdministrator(ctx.check()) ? this.imports.archives() : [],
+        message: '已读取原AI导入页面工作区；现有草稿直接attach，无需重新识别。',
+      };
+    }
+    if (name === 'order_import.attach') {
+      const workspaceId = z.string().uuid().parse(args.workspaceId);
+      const w = this.imports.archives().some((w: any) => w.id === workspaceId)
+        ? await this.imports.openArchivedWorkspace(workspaceId, ctx.check())
+        : this.imports.get(workspaceId);
+      if (w.mode === 'arrival')
+        throw new ImportError('该工作区是供应商到货单，不能作为销售订单导入。', 409);
+      const state = this.state(ctx.threadId, ctx.actor);
+      let task = state.tasks.find((t) => t.workspaceId === w.id);
+      if (!task) {
+        if (state.tasks.length >= 50) throw new ImportError('本会话最多50个订单任务。', 413);
+        task = {
+          id: randomUUID(),
+          workspaceId: w.id,
+          fileName: w.fileName,
+          fileHash: w.fileHash,
+          state: w.draft ? 'needs_review' : 'uploaded',
+          updatedAt: new Date().toISOString(),
+        };
+        state.tasks.push(task);
+      }
+      state.activeId = task.id;
+      this.save(ctx, state);
+      return {
+        ...this.result(ctx, task),
+        message: '已关联原工作区，未上传、复制或调用识别。请读取草稿核验后按用户要求预览或导入。',
+      };
+    }
+    if (name === 'order_import.execute_many') {
+      requirePermission(ctx.check(), 'import:execute');
+      const ids = z.array(z.string().uuid()).min(1).max(6).parse(args.workspaceIds);
+      const results = [];
+      for (const workspaceId of [...new Set(ids)]) {
+        ctx.check();
+        let fileName: string | undefined;
+        try {
+          const attached = await this.call('order_import.attach', { workspaceId }, ctx);
+          fileName = attached.task.fileName;
+          const result = await this.call('order_import.execute', { taskId: attached.task.id }, ctx);
+          results.push({
+            workspaceId,
+            fileName: attached.task.fileName,
+            success: !!result.order?.id,
+            ...result,
+          });
+        } catch (e) {
+          results.push({
+            workspaceId,
+            fileName,
+            success: false,
+            message: e instanceof Error ? e.message : '导入失败',
+          });
+          if (e instanceof ImportError && e.code === 'agent-budget') break;
+        }
+      }
+      return {
+        results,
+        message: results.map((r) => (r.fileName || r.workspaceId) + '：' + r.message).join('；'),
+        budgetExhausted:
+          results.length < new Set(ids).size ||
+          results.some((r) => !r.success && /预算/.test(r.message)),
+        completed: results.filter((r) => r.success).length,
+        failed: results.filter((r) => !r.success).length,
+      };
+    }
     if (name === 'order_import.start') {
       if (args.recognitionType === 'arrival')
         throw new ImportError(
@@ -395,6 +499,7 @@ export class AssistantOrderWorkflow {
         try {
           await this.recognize(ctx, state, task);
         } catch (e) {
+          if (e instanceof ImportError && e.code === 'agent-budget') throw e;
           if (ctx.signal.aborted) throw e;
         }
       }
@@ -427,8 +532,7 @@ export class AssistantOrderWorkflow {
       ctx,
       typeof args.taskId === 'string' ? args.taskId : undefined,
     );
-    if (!['order_import.get', 'order_import.select'].includes(name) && task.id !== state.activeId)
-      throw new ImportError('请先明确切换当前文件任务，再修改或导入。', 409);
+    state.activeId = task.id;
     if (name === 'order_import.select') {
       state.activeId = task.id;
       this.save(ctx, state);
@@ -459,24 +563,20 @@ export class AssistantOrderWorkflow {
         };
       }
 
-      if (!task.preview || task.previewRequest === ctx.requestId) {
-        await this.prepare(ctx, state, task);
-        return this.result(ctx, task);
-      }
-      if (Date.parse(task.preview.expiresAt) < Date.now()) {
+      if (task.previewRevision !== undefined && task.previewRevision !== w.revision) {
         await this.prepare(ctx, state, task);
         return {
           ...this.result(ctx, task),
-          message: '原导入预览已过期，已刷新方案，请核对后再次确认。',
+          message: '草稿已被其他页面修改，原版本发生变化。已读取新方案；请核对最新资料后继续。',
         };
       }
-      if (task.preview.plan.source.revision !== w.revision) {
-        await this.prepare(ctx, state, task);
-        return {
-          ...this.result(ctx, task),
-          message: '草稿已变化，旧确认失效。已展示新方案，请核对后再次确认。',
-        };
-      }
+      // 与人工页面共用最新完整预览、字段/关联/权限检查，无聊天专属跨轮门槛。
+      await this.prepare(ctx, state, task);
+      if (!task.preview || task.error)
+        throw new ImportError(task.error || '正式导入预览未通过。', 409);
+      w = this.imports.get(task.workspaceId);
+      ctx.emit('import_preview', { workspaceId: w.id, preview: task.preview });
+      ctx.consumeMutation?.();
       const receipt = await this.execution.execute(
           w.id,
           { previewId: task.preview.id, acknowledged: true },
@@ -580,7 +680,7 @@ export class AssistantOrderWorkflow {
           : name === 'order_import.match'
             ? '档案匹配已保存。'
             : '导入方案已刷新。') +
-        (task.error ? '仍需核对：' + task.error : '请核对方案后确认导入。'),
+        (task.error ? '仍需核对：' + task.error : '可按用户当前明确指令正式导入。'),
     };
   }
 }

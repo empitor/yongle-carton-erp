@@ -35,6 +35,29 @@ export default function AssistantBusinessTaskPanel({
         <small>
           任务 #{task.id.slice(0, 8)} · {task.stage}
         </small>
+        {task.budget && (
+          <div className="ga-budget" aria-label="本轮Agent预算">
+            <p>
+              模型 {task.budget.used.modelCalls}/{task.budget.limits.modelCalls} · 工具{' '}
+              {task.budget.used.toolCalls}/{task.budget.limits.toolCalls}
+            </p>
+            <p>
+              只读 {task.budget.readOperations} · 页面交互 {task.budget.used.pageInteractions}/
+              {task.budget.limits.pageInteractions} · 业务写入/预占{' '}
+              {task.budget.used.businessWrites}/{task.budget.limits.businessWrites}
+            </p>
+            <p>
+              工具输出 {task.budget.toolOutputChars.toLocaleString()} 字符 · 约{' '}
+              {task.budget.estimatedToolOutputTokens.toLocaleString()} Token（估算，字符数÷3）
+            </p>
+            <p>
+              {task.budget.providerUsage.requests
+                ? `Provider真实用量：输入 ${task.budget.providerUsage.inputReports ? task.budget.providerUsage.inputTokens : '未提供'} / 输出 ${task.budget.providerUsage.outputReports ? task.budget.providerUsage.outputTokens : '未提供'} Token（${task.budget.providerUsage.requests}/${task.budget.used.modelCalls} 次请求有报告）`
+                : 'Provider未提供真实Token用量；上方仅为工具输出估算。'}
+            </p>
+            {task.budget.stopReason && <p>{task.budget.stopReason}</p>}
+          </div>
+        )}
         {!!history.length && (
           <select
             aria-label="切换保留业务任务"
@@ -70,7 +93,10 @@ export default function AssistantBusinessTaskPanel({
                       planned: '待完成',
                       running: busy ? '正在执行' : '已中断，继续前核验',
                       completed: s.verification ? '已完成 · 数据库已核验' : '已完成 · 服务器回执',
-                      waiting: '等待原业务确认',
+                      waiting:
+                        s.tool === 'page.act'
+                          ? '页面交互已返回，等待该步业务核验'
+                          : '等待原业务确认',
                       failed: '执行失败，可修正后继续',
                       uncertain: '结果待核实，禁止直接重放',
                     }[s.state]

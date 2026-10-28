@@ -326,6 +326,29 @@ export class ImportExecutionService {
       )
         throw new ImportError('相同产品已经存在（可能已停用），请选择已有档案或先恢复。', 409);
   }
+  receipt(id: string, who: Actor) {
+    requirePermission(who, 'business:edit');
+    const row = this.store.db
+      .prepare('SELECT document FROM import_executions WHERE source_id=?')
+      .get(z.string().uuid().parse(id));
+    if (!row) return null;
+    const r = JSON.parse(String(row.document));
+    return Object.fromEntries(
+      [
+        'executionId',
+        'orderId',
+        'orderNumber',
+        'sourceId',
+        'fileHash',
+        'fileName',
+        'at',
+        'previewId',
+        'digest',
+        'created',
+        'orderVersion',
+      ].map((k) => [k, r[k]]),
+    );
+  }
   async preview(id: string, raw: unknown, who: Actor | null | undefined) {
     const actor = this.actor(who),
       input = z.strictObject({ expectedRevision: z.number().int().nonnegative() }).parse(raw);
@@ -524,8 +547,13 @@ export class ImportExecutionService {
     if (!order || order.version !== record.orderVersion)
       throw new ImportError('正式订单已被后续修改，不能直接撤回，请在订单管理中核对处理。', 409);
     // 仅保留旧“撤回导入”协议的兼容状态；正常页面已移除此入口，delete走物理删除服务。
-    this.store.db.prepare('INSERT OR IGNORE INTO record_lifecycle VALUES(?,?,?,?)').run('orders',order.id,new Date().toISOString(),actor.id);
-    audit(this.store,actor,'legacy-import-undo','undo-import','orders',order.id,{before:order,sourceId:id});
-    return {results:[{id:order.id,success:true,message:'旧版导入撤回状态已保留'}]};
+    this.store.db
+      .prepare('INSERT OR IGNORE INTO record_lifecycle VALUES(?,?,?,?)')
+      .run('orders', order.id, new Date().toISOString(), actor.id);
+    audit(this.store, actor, 'legacy-import-undo', 'undo-import', 'orders', order.id, {
+      before: order,
+      sourceId: id,
+    });
+    return { results: [{ id: order.id, success: true, message: '旧版导入撤回状态已保留' }] };
   }
 }

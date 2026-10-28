@@ -11,7 +11,7 @@ import {
   assistantDefaultPreset,
 } from '../server/assistant/default-preset.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { erpPageIds, isErpNavigation } from '../shared/assistant-navigation.js';
+import { erpPageIds, isErpNavigation, pageLink } from '../shared/assistant-navigation.js';
 import { imageFixture } from './import-fixtures.js';
 import { toolCatalog } from '../server/assistant/tools.js';
 import { AuthManager } from '../server/auth.js';
@@ -196,7 +196,7 @@ test('同一导航工具接受不同自然语言，不以固定词语拒绝；�
       );
     }
     for (const page of erpPageIds)
-      assert.equal(f.manager.tools.read('ui.open', { page }, actor).url, '#' + page);
+      assert.equal(f.manager.tools.read('ui.open', { page }, actor).url, pageLink(page));
     for (const url of [
       'https://example.com',
       '#unknown',

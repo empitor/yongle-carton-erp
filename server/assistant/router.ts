@@ -1,3 +1,4 @@
+import { isSuperMode } from '../business/management.js';
 import express, { Router } from 'express';
 import { z } from 'zod';
 import type { AuthManager } from '../auth.js';
@@ -38,12 +39,64 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
         .map(({ document, ...r }) => ({ ...r, ...JSON.parse(String(document)) })),
     });
   });
-  router.get('/tools', (req, res) => {
+  router.post('/page/results', (req, res) => {
+    res.json(manager.pageBridge.complete(req.body, auth.actor(req)!, auth.sessionBinding(req)));
+  });
+  router.get('/plugins', (req, res) => {
     const actor = auth.actor(req)!;
-    const state = manager.registry.view();
+    const state = manager.registry.pluginsView(actor);
     res.json({
       ...state,
-      canManage: actor.role === 'super_admin',
+      canManage:
+        actor.role === 'super_admin' &&
+        (actor.permissions.includes('business:edit') || isSuperMode(actor)),
+      plugins: state.plugins.map((p) => ({
+        ...p,
+        tools: p.tools.map((t) => ({
+          ...t,
+          lastExecution:
+            manager.store.db
+              .prepare(
+                'SELECT state,created_at AS at FROM assistant_audit WHERE user_id=? AND tool=? ORDER BY id DESC LIMIT 1',
+              )
+              .get(actor.id, t.name) || null,
+        })),
+        logs: p.tools.length
+          ? manager.store.db
+              .prepare(
+                'SELECT tool,state,created_at AS at FROM assistant_audit WHERE user_id=? AND tool IN (' +
+                  p.tools.map(() => '?').join(',') +
+                  ') ORDER BY id DESC LIMIT 20',
+              )
+              .all(actor.id, ...p.tools.map((t) => t.name))
+          : [],
+      })),
+    });
+  });
+  router.post('/plugins/settings', (req, res) => {
+    const actor = auth.actor(req)!;
+    manager.registry.setPlugin(req.body, actor);
+    manager.store.db
+      .prepare(
+        'INSERT INTO assistant_audit(user_id,thread_id,tool,state,document,created_at) VALUES(?,NULL,?,?,?,?)',
+      )
+      .run(
+        actor.id,
+        'plugins.configure',
+        'completed',
+        JSON.stringify(req.body),
+        new Date().toISOString(),
+      );
+    res.json(manager.registry.pluginsView());
+  });
+  router.get('/tools', (req, res) => {
+    const actor = auth.actor(req)!;
+    const state = manager.registry.view(actor);
+    res.json({
+      ...state,
+      canManage:
+        actor.role === 'super_admin' &&
+        (actor.permissions.includes('business:edit') || isSuperMode(actor)),
       tools: state.tools.map((t) => ({
         ...t,
         lastExecution:
@@ -57,7 +110,7 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
   });
   router.post('/tools/settings', (req, res) => {
     const actor = auth.actor(req)!;
-    const result = manager.registry.set(req.body, actor);
+    manager.registry.set(req.body, actor);
     manager.store.db
       .prepare(
         'INSERT INTO assistant_audit(user_id,thread_id,tool,state,document,created_at) VALUES(?,NULL,?,?,?,?)',
@@ -69,7 +122,7 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
         JSON.stringify(req.body),
         new Date().toISOString(),
       );
-    res.json(result);
+    res.json(manager.registry.view(actor));
   });
   // 本地语音识别：音频只在本机后端内存中处理，不落盘、不外发。
   router.post(

@@ -1,5 +1,5 @@
 import { APP_VERSION } from '../shared/version';
-import { erpPageIds } from '../shared/assistant-navigation';
+import { erpPageIds, normalizeAiSettingsHash } from '../shared/assistant-navigation';
 import { legacyCents, precisionTotal } from '../shared/precision';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
@@ -92,6 +92,7 @@ type Page =
   | 'customers'
   | 'products'
   | 'guide'
+  | 'ai-plugins'
   | 'ai-settings'
   | 'ai-import'
   | 'ai-prompts'
@@ -275,7 +276,7 @@ export default function App() {
   );
   const validPages: Page[] = erpPageIds;
   const getPage = () => {
-    const normalized = warehouseDeliveryHash(location.hash);
+    const normalized = normalizeAiSettingsHash(warehouseDeliveryHash(location.hash));
     if (normalized !== location.hash) history.replaceState(null, '', normalized);
     return location.hash.split('?')[0] === '#ai-prompts'
       ? 'ai-settings'
@@ -347,7 +348,16 @@ export default function App() {
     return () => window.removeEventListener('hashchange', f);
   }, []);
   useEffect(() => {
-    const changed = () => setRevision((v) => v + 1);
+    const changed = () => {
+      setRevision(v => v + 1);
+      setEditor(current => {
+        if (current?.value?.id && ['orders','customers','products'].includes(current.kind)) {
+          const kind = current.kind, id = current.value.id;
+          void api<any>('/' + kind + '/' + id).then(value => setEditor(latest => latest?.kind === kind && latest.value?.id === id ? { ...latest, value } as Editor : latest)).catch(()=>{});
+        }
+        return current;
+      });
+    };
     window.addEventListener('erp-business-changed', changed);
     return () => window.removeEventListener('erp-business-changed', changed);
   }, []);
@@ -358,6 +368,7 @@ export default function App() {
   }, [notice]);
   useEffect(() => {
     if (
+      page === 'ai-plugins' ||
       page === 'ai-settings' ||
       page === 'ai-import' ||
       page === 'ai-prompts' ||
@@ -479,6 +490,7 @@ export default function App() {
     customers: '客户管理',
     products: '产品管理',
     guide: '使用与验收',
+    'ai-plugins': 'AI 插件',
     'ai-settings': 'AI 设置',
     'ai-import': 'AI 智能订单导入',
     'ai-prompts': 'AI 识别提示词',
@@ -1147,6 +1159,7 @@ export default function App() {
           </footer>
         </main>
       </div>
+      {editor?.value && <span data-agent-module={editor.kind} data-agent-record={editor.value.id} data-agent-label={'number' in editor.value ? editor.value.number : editor.value.name} style={{position:'fixed',width:1,height:1,left:0,top:0}} />}
       <GlobalAssistant />
       {editor?.kind === 'customers' && (
         <CustomerEditor value={editor.value} close={closeEditor} saved={saved} />
@@ -1159,6 +1172,7 @@ export default function App() {
       )}
       {editor?.kind === 'orders' && (
         <OrderEditor
+          key={editor.value ? editor.value.id + ":" + editor.value.version : "new"}
           value={editor.value}
           customers={customers}
           products={products}

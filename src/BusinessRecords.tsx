@@ -82,6 +82,9 @@ export default function BusinessRecords({
     setSelected((s) => s.filter((id) => rows.some((r) => r.id === id)));
     setPage((p) => Math.min(p, Math.max(1, Math.ceil(rows.length / 12))));
   }, [rows.map((r) => r.id).join(',')]);
+  useEffect(() => {
+    setView((current:any) => current ? rows.find(r=>r.id===current.id) || null : null);
+  }, [rows]);
   const check = (id: number) => (
     <input
       type="checkbox"

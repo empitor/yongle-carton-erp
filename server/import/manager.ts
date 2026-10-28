@@ -19,6 +19,7 @@ import {
 import { dateSchema } from '../../shared/domain.js';
 import { AiSettingsManager } from '../ai/settings-manager.js';
 import type { ChatMessage } from '../ai/compatible-chat.js';
+import type { ProviderTokenUsage } from '../ai/usage.js';
 import { getBusinessMetadata } from '../business/metadata.js';
 import { storeOriginal, detectFormat } from './file-store.js';
 import type { parseUpload } from './parse-file.js';
@@ -679,6 +680,7 @@ export class ImportManager {
     raw: unknown,
     onProgress?: (event: AiProgress) => void,
     actor?: { id: string; name: string } | null,
+    onUsage?: (usage: ProviderTokenUsage) => void,
   ) {
     const { expectedRevision, stream, force } = revisionSchema
       .extend({ stream: z.boolean().default(true), force: z.boolean().default(false) })
@@ -720,6 +722,7 @@ export class ImportManager {
           this.busy.get(id)?.signal,
           {
             stream: profile.apiStyle === 'responses' && stream,
+            onUsage,
             ...(officialDeepSeekEndpoint(profile.endpoint)
               ? { maxOutputTokens: 16000, disableThinking: true }
               : {}),

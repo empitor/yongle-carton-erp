@@ -1712,7 +1712,7 @@ function FlowDetails({ doc: d, data }: { doc: any; data: any }) {
     );
   }, [d.kind, d.id]);
   return (
-    <div className="flow-details">
+    <div className="flow-details" data-agent-module={({arrival:"arrivals",task:"production_tasks",production:"production_records",delivery:"deliveries"} as any)[d.kind]} data-agent-record={d.id} data-agent-label={d.number}>
       <dl className="record-detail-grid">
         <div>
           <dt>业务日期 / 状态</dt>

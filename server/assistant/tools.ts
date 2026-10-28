@@ -1,3 +1,4 @@
+import { pageTools } from '../../shared/assistant-page.js';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../db.js';
@@ -89,6 +90,7 @@ const flowMap: Record<string, (typeof flowKinds)[number]> = {
 const moduleSchema = z.enum(assistantModules),
   positive = z.number().int().positive();
 export const toolCatalog = [
+  ...pageTools,
   {
     name: 'management.delete_preview',
     description:

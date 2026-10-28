@@ -1,15 +1,12 @@
+import { aiSettingsTab } from '../shared/assistant-navigation';
+import './assistant-plugins.css';
 import { useEffect, useState } from 'react';
 import AiSettingsPage from './AiSettingsPage';
 import PromptSettingsPage from './PromptSettingsPage';
 import { promptModules } from '../shared/prompt-modules';
-import AssistantCapabilities from './AssistantCapabilities';
+import AssistantPlugins from './AssistantPlugins';
 export default function AiSettingsHub() {
-  const read = () =>
-    location.hash.includes('tab=tools')
-      ? 'tools'
-      : location.hash.includes('tab=prompts') || location.hash === '#ai-prompts'
-        ? 'prompts'
-        : 'api';
+  const read = () => aiSettingsTab(location.hash);
   const [tab, setTab] = useState(read);
   const [promptKind, setPromptKind] = useState(() =>
     location.hash.includes('assistant=1') ? 'assistant' : 'sales-order',
@@ -45,15 +42,15 @@ export default function AiSettingsHub() {
           aria-selected={tab === 'tools'}
           onClick={() => (location.hash = 'ai-settings?tab=tools')}
         >
-          AI 工具管理
+          AI 插件与工具管理
         </button>
       </nav>
       <section role="tabpanel" aria-label="API配置" hidden={tab !== 'api'}>
         <AiSettingsPage />
       </section>
       {tab === 'tools' && (
-        <section role="tabpanel" aria-label="AI工具管理">
-          <AssistantCapabilities />
+        <section role="tabpanel" aria-label="AI插件与工具管理">
+          <AssistantPlugins />
         </section>
       )}
       <section role="tabpanel" aria-label="AI提示词" hidden={tab !== 'prompts'}>

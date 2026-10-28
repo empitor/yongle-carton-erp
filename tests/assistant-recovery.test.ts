@@ -28,7 +28,12 @@ const call = (name: string, args: any = {}) => ({
 });
 const create = (name: string) =>
   call('records.propose_save', { module: 'customers', patch: { name } });
-function fixture(who: any = actor) {
+function fixture(
+  who: any = actor,
+  budget?:
+    | import('../server/assistant/budget.js').AgentBudgetLimits
+    | Partial<import('../server/assistant/budget.js').AgentBudgetLimits>,
+) {
   const store = new Store(':memory:'),
     queue: any[] = [],
     requests: any[] = [];
@@ -56,7 +61,7 @@ function fixture(who: any = actor) {
     return { status: 200, body: response };
   });
   const prompts = new PromptPresetManager(':memory:', assistantDefaultPreset);
-  let manager = new AssistantManager(store, settings, prompts);
+  let manager = new AssistantManager(store, settings, prompts, { budget });
   const thread = manager.create(who);
   const send = (text: string, requestId = randomUUID(), extra: any = {}) =>
     manager.chat(
@@ -81,7 +86,7 @@ function fixture(who: any = actor) {
     view: () => manager.view(thread.id, who),
     reopen() {
       manager.registry.close();
-      manager = new AssistantManager(store, settings, prompts);
+      manager = new AssistantManager(store, settings, prompts, { budget });
     },
     close() {
       manager.registry.close();
@@ -210,7 +215,7 @@ test('恢复任务和协议诊断HTTP按真实账号隔离，切换需CSRF且刷
   }
 });
 test('复杂任务达到6轮上限保留剩余步骤；不同继续指令、重复继续与请求重放均不重复创建', async () => {
-  const f = fixture();
+  const f = fixture(actor, { modelCalls: 6, noProgress: 8 });
   try {
     f.queue.push(
       call('task.plan', {

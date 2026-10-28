@@ -10,6 +10,10 @@ import {
   type MouseEvent,
 } from 'react';
 import {
+  fitFloatingSize,
+  readFloatingSize,
+  resizeFloatingRect,
+  floatingSizeKey,
   clampFloatingPosition,
   defaultFloatingAnchor,
   fitFloatingAnchor,
@@ -43,7 +47,22 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
     }),
     [node, setNode] = useState<HTMLElement | null>(null),
     [measured, setMeasured] = useState<{ mode: string; size: FloatingSize } | null>(null),
-    [moving, setMoving] = useState(false);
+    [moving, setMoving] = useState(false),
+    [panelSize, setPanelSize] = useState(() => {
+      try {
+        return readFloatingSize(window.localStorage, viewport());
+      } catch {
+        return fitFloatingSize({ width: 440, height: 690 }, viewport());
+      }
+    });
+  const resizing = useRef<{
+    id: number;
+    direction: string;
+    start: FloatingPoint;
+    rect: FloatingPoint & FloatingSize;
+  } | null>(null);
+  const sizeRef = useRef(panelSize);
+  sizeRef.current = panelSize;
   const mode = open ? (large ? 'large' : 'panel') : 'mascot';
   const activeNode = useRef<HTMLElement | null>(null),
     anchorRef = useRef(anchor),
@@ -111,6 +130,7 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
     const resize = () => {
       const next = viewport();
       setView(next);
+      resizing.current = null;
       viewRef.current = next;
       if (gesture.current) {
         gesture.current = null;
@@ -147,13 +167,10 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
       persist();
     };
   }, [commit]);
-  const fallback: FloatingSize = open
-    ? {
-        width: Math.min(large ? 760 : 440, view.width - 16),
-        height: Math.min(large ? view.height - 32 : 690, view.height - 32),
-      }
-    : mascotSize;
-  const size = measured?.mode === mode ? measured.size : fallback;
+  const panel = large
+    ? fitFloatingSize({ width: view.width - 16, height: view.height - 16 }, view)
+    : fitFloatingSize(panelSize, view);
+  const size = open ? panel : measured?.mode === mode ? measured.size : mascotSize;
   const point = floatingPosition(anchor, size, view);
   const finish = (e: PointerEvent<HTMLElement>, cancelled = false) => {
     const g = gesture.current;
@@ -233,10 +250,61 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
   };
   return {
     elementRef,
+    resizeBind: (direction: string) => ({
+      onPointerDown: (e: PointerEvent<HTMLElement>) => {
+        if (large || !e.isPrimary || e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const r = activeNode.current?.getBoundingClientRect();
+        if (!r) return;
+        resizing.current = {
+          id: e.pointerId,
+          direction,
+          start: { x: e.clientX, y: e.clientY },
+          rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setMoving(true);
+      },
+      onPointerMove: (e: PointerEvent<HTMLElement>) => {
+        const g = resizing.current;
+        if (!g || g.id !== e.pointerId) return;
+        const r = resizeFloatingRect(
+          g.rect,
+          g.direction,
+          e.clientX - g.start.x,
+          e.clientY - g.start.y,
+          viewRef.current,
+        );
+        setPanelSize({ width: r.width, height: r.height });
+        sizeRef.current = { width: r.width, height: r.height };
+        commit({ x: r.x + r.width, y: r.y + r.height });
+      },
+      onPointerUp: (e: PointerEvent<HTMLElement>) => {
+        if (resizing.current?.id !== e.pointerId) return;
+        resizing.current = null;
+        setMoving(false);
+        commit(anchorRef.current, true);
+        try {
+          window.localStorage.setItem(floatingSizeKey, JSON.stringify(sizeRef.current));
+        } catch {}
+        if (e.currentTarget.hasPointerCapture(e.pointerId))
+          e.currentTarget.releasePointerCapture(e.pointerId);
+      },
+      onPointerCancel: () => {
+        resizing.current = null;
+        setMoving(false);
+      },
+      onLostPointerCapture: () => {
+        resizing.current = null;
+        setMoving(false);
+      },
+    }),
     bind,
     moving,
     compact: view.height < 520,
     style: {
+      ...(open ? { width: panel.width, height: panel.height } : {}),
       left: point.x,
       top: point.y,
       right: 'auto',

@@ -1,6 +1,8 @@
+import { observeErpPage, executePageCommand } from './assistant-page';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bot,
+  Plug,
   ChevronDown,
   Eraser,
   Expand,
@@ -24,7 +26,7 @@ import { useAssistantSpeech } from './speech/useAssistantSpeech';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useFloatingAssistant } from './useFloatingAssistant';
 import CartonSpirit from './CartonSpirit';
-import { isErpNavigation } from '../shared/assistant-navigation';
+import { isErpNavigation, assistantManagementHash } from '../shared/assistant-navigation';
 import AssistantOrderTask from './AssistantOrderTask';
 import AssistantBusinessTaskPanel from './AssistantBusinessTask';
 import {
@@ -130,6 +132,7 @@ export default function GlobalAssistant() {
         })
         .catch((e) => setError(e.message));
   };
+  const pageClientId = useRef(crypto.randomUUID());
   const floating = useFloatingAssistant(open, large, openAssistant);
   const history = useRef<HTMLDivElement>(null),
     controller = useRef<AbortController | null>(null),
@@ -320,12 +323,15 @@ export default function GlobalAssistant() {
         abort = new AbortController();
       if (userRef.current !== owner) return;
       controller.current = abort;
+      const pageSnapshot = observeErpPage();
       const r = await fetch('/api/assistant/threads/' + current.id + '/chat', {
         method: 'POST',
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(AI_HTTP_TIMEOUT_MS * 9)]),
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': authState.csrf },
         body: JSON.stringify({
           requestId: crypto.randomUUID(),
+          pageClientId: pageClientId.current,
+          pageSnapshot,
           startNewTask,
           text: content,
           attachmentIds: uploads.ready.map((a) => a.id),
@@ -341,7 +347,7 @@ export default function GlobalAssistant() {
           },
           context: {
             page: location.hash,
-            ...(context ? { module: context.module, id: context.id } : {}),
+            ...(pageSnapshot.record ? { module: pageSnapshot.record.module, id: pageSnapshot.record.id } : {}),
           },
         }),
       });
@@ -355,6 +361,7 @@ export default function GlobalAssistant() {
       const parser = new SseParser(({ event, data }) => {
         if (userRef.current !== owner) return;
         const d = JSON.parse(data);
+        if (event === 'page_command') void executePageCommand(d, pageClientId.current, owner!, () => userRef.current, managementRequest).catch(e => setError(e.message));
         if (event === 'task') setThread((t: any) => (t ? { ...t, businessTask: d } : t));
         if (event === 'effect') {
           if (d.workspaceId)
@@ -527,6 +534,7 @@ export default function GlobalAssistant() {
           aria-label="全局AI业务助手"
           style={floating.style}
         >
+          {!large && ['n','s','e','w','ne','nw','se','sw'].map(direction => <div key={direction} className={'ga-resize ga-resize-'+direction} aria-label={'调整聊天窗口大小 '+direction} {...floating.resizeBind(direction)} />)}
           <header
             className="ga-header"
             tabIndex={0}
@@ -537,6 +545,7 @@ export default function GlobalAssistant() {
             <strong>全局业务助手</strong>
             <GripHorizontal size={16} />
             <div>
+              <button aria-label="打开AI插件与工具管理" title="AI插件与工具管理" onClick={() => { location.hash = assistantManagementHash; }}><Plug size={16} /></button>
               <button
                 aria-label={large ? '恢复窗口' : '展开窗口'}
                 onClick={() => {

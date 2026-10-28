@@ -654,7 +654,7 @@ test('导航分组和业务元数据对应实际新表，采购库存不是AI可
   const f = await fixture();
   try {
     const meta = await f.good('/business/metadata');
-    assert.equal(meta.catalogVersion, '24');
+    assert.equal(meta.catalogVersion, '25');
     assert.equal(meta.purchasingWarehouse.aiEnabled, false);
     assert.ok(meta.modules.suppliers);
     assert.ok(meta.modules.purchase_receipts);

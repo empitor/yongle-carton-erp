@@ -1,3 +1,10 @@
+import { pageActionSchema, pageObserveSchema } from '../../shared/assistant-page.js';
+import {
+  builtinPlugins,
+  builtinPluginFor,
+  type PluginManifest,
+  type PluginTool,
+} from './plugins.js';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -8,7 +15,7 @@ import { navigationTargets, erpPageIds } from '../../shared/assistant-navigation
 import { patchOperationSchema } from '../../shared/order-draft.js';
 import { ImportError } from '../import/errors.js';
 import type { Actor } from '../auth.js';
-import { requirePermission } from '../business/management.js';
+import { requirePermission, isSuperMode } from '../business/management.js';
 import { taskPlanSchema } from '../../shared/assistant-task.js';
 import { developerCommandSchema, developerModules } from '../../shared/developer.js';
 import { requireDeveloper, isLocalAdministrator } from '../developer-capability.js';
@@ -20,6 +27,17 @@ const positive = z.number().int().positive(),
 const task = { taskId: uuid.optional() },
   module = z.enum(assistantModules);
 const schemas: Record<string, z.ZodType> = {
+  'page.observe': pageObserveSchema,
+  'page.verify': z.strictObject({
+    stepIds: z.array(uuid).min(1).max(10),
+    module: module.optional(),
+    id: positive.optional(),
+    expected: z.record(z.string(), z.unknown()).optional(),
+  }),
+  'page.act': pageActionSchema.refine(
+    (v) => !v.outcome || module.safeParse(v.outcome.module).success,
+    '核验目标模块不合法',
+  ),
   'task.plan': taskPlanSchema,
   'task.get': z.strictObject({}),
   'task.activate': z.strictObject({ taskId: uuid }),
@@ -107,6 +125,9 @@ const schemas: Record<string, z.ZodType> = {
     items: z.array(z.strictObject({ lineId: positive, quantity: z.string() })).min(1),
     notes: z.string().optional(),
   }),
+  'order_import.list': z.strictObject({}),
+  'order_import.attach': z.strictObject({ workspaceId: uuid }),
+  'order_import.execute_many': z.strictObject({ workspaceIds: z.array(uuid).min(1).max(6) }),
   'order_import.start': z.strictObject({
     attachmentIds: z.array(uuid).max(6).optional(),
     recognitionType: z.enum(['order', 'arrival']),
@@ -138,13 +159,15 @@ export type ToolKind = 'read' | 'business' | 'workflow';
 export class AssistantToolRegistry {
   readonly db: DatabaseSync;
   private closed = false;
-  private readonly definitions = new Map(
+  private readonly plugins = new Map(builtinPlugins.map((p) => [p.id, p]));
+  private readonly definitions = new Map<string, PluginTool & { pluginId: string }>(
     toolCatalog.map((t) => {
       if (!schemas[t.name]) throw new Error('工具缺少参数结构：' + t.name);
       return [
         t.name,
         {
           ...t,
+          pluginId: builtinPluginFor(t.name),
           kind: (t.risk === 'workflow'
             ? 'workflow'
             : t.risk === 'read'
@@ -165,46 +188,189 @@ export class AssistantToolRegistry {
       'PRAGMA busy_timeout=5000; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS tool_settings(name TEXT PRIMARY KEY, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS tool_settings_revision(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL); INSERT OR IGNORE INTO tool_settings_revision VALUES(1,0)',
     );
   }
+  registerPlugin(manifest: PluginManifest, tools: PluginTool[]) {
+    z.strictObject({
+      id: z.string().regex(/^[a-z][a-z0-9-]{1,60}$/),
+      name: z.string().min(1).max(100),
+      description: z.string().max(1000),
+      version: z.string().max(40),
+      capabilities: z.array(z.string().max(300)).max(30),
+    }).parse(manifest);
+    if (this.plugins.has(manifest.id)) throw new ImportError('插件ID已注册。', 409);
+    const names = new Set<string>();
+    for (const t of tools) {
+      if (
+        !/^[a-z][a-z0-9_.-]{1,100}$/.test(t.name) ||
+        this.definitions.has(t.name) ||
+        names.has(t.name) ||
+        !t.execute
+      )
+        throw new ImportError('插件工具重名、名称非法或缺少执行器。', 409);
+      z.toJSONSchema(t.schema);
+      names.add(t.name);
+    }
+    this.plugins.set(manifest.id, structuredClone(manifest));
+    for (const t of tools) this.definitions.set(t.name, { ...t, pluginId: manifest.id });
+  }
+  pluginsView(actor?: Actor | null) {
+    const state = this.view(actor);
+    return {
+      revision: state.revision,
+      plugins: [...this.plugins.values()].map((p) => ({
+        ...p,
+        enabled: this.enabled('plugin:' + p.id),
+        tools: state.tools.filter((t) => t.pluginId === p.id),
+      })),
+    };
+  }
+  setPlugin(raw: unknown, actor: Actor) {
+    const v = z
+      .strictObject({ id: z.string(), enabled: z.boolean(), expectedRevision: z.number().int() })
+      .parse(raw);
+    if (!this.plugins.has(v.id)) throw new ImportError('插件未注册。', 404);
+    return this.set(
+      { name: 'plugin:' + v.id, enabled: v.enabled, expectedRevision: v.expectedRevision },
+      actor,
+    );
+  }
   private enabled(name: string) {
     return (
       this.db.prepare('SELECT enabled FROM tool_settings WHERE name=?').get(name)?.enabled !== 0
     );
   }
-  view() {
+  private serviceReady(t: PluginTool & { pluginId: string }) {
+    return (t.pluginId !== 'order-import' || this.workflowReady()) && (t.available?.() ?? true);
+  }
+  private access(t: PluginTool, actor?: Actor | null, args?: any) {
+    const local =
+      t.capability === 'management' ||
+      t.name.startsWith('management.') ||
+      t.name === 'records.delete';
+    const superMode = t.risk === 'high' && t.name !== 'flow.propose_confirmation';
+    // 声明只能增加权限，不能覆盖能力类别对应的系统最低权限。
+    const required = [
+      ...new Set([
+        ...(t.kind === 'business' ||
+        t.kind === 'workflow' ||
+        t.capability === 'write' ||
+        t.capability === 'management'
+          ? ['business:edit']
+          : []),
+        ...(t.permissions || []),
+      ]),
+    ];
+    const permissions = [...required];
+    if (['order_import.execute', 'order_import.execute_many'].includes(t.name))
+      permissions.push('import:execute');
+    if (local) permissions.push('本机最高管理员');
+    if (t.name === 'developer.execute') permissions.push('已核验的本机管理员/开发者会话');
+    if (superMode) permissions.push('有效超级管理员会话');
+    const permissionLimited =
+      actor !== undefined &&
+      !!actor &&
+      (((t.name === 'page.act' || t.capability === 'page') &&
+        !isSuperMode(actor) &&
+        !actor.permissions.includes('business:edit')) ||
+        (t.name === 'flow.propose_confirmation' && !isSuperMode(actor)));
+    const permissionNote =
+      t.name === 'page.act' || t.capability === 'page'
+        ? permissionLimited
+          ? '当前账号仅可导航、滚动；写交互缺少 business:edit 权限，执行时拒绝。'
+          : '导航和滚动按登录权限；写交互另需 business:edit，执行时核验。'
+        : t.name === 'flow.propose_confirmation'
+          ? '生产任务下达可直接处理；实物确认仍由原服务核验超级管理员会话。'
+          : '';
+    try {
+      if (actor !== undefined) {
+        if (!actor) throw new ImportError('尚未登录。', 401);
+        if (local && !isLocalAdministrator(actor))
+          throw new ImportError('需要已核验的本机最高管理员会话。', 403);
+        if (t.name === 'developer.execute') requireDeveloper(actor);
+        if (
+          (t.name === 'page.act' || t.capability === 'page') &&
+          args &&
+          !['navigate', 'scroll'].includes(args.action)
+        )
+          requirePermission(actor, 'business:edit');
+        for (const permission of required) requirePermission(actor, permission);
+        if (['order_import.execute', 'order_import.execute_many'].includes(t.name))
+          requirePermission(actor, 'import:execute');
+        if (superMode && !isSuperMode(actor))
+          throw new ImportError('需要有效超级管理员会话（模式）。', 403);
+      }
+      return {
+        permissionLimited,
+        permitted: true,
+        permissions: permissions.length ? permissions : ['已登录账号'],
+        permissionNote,
+        permissionReason: '',
+      };
+    } catch (error) {
+      return {
+        permissionLimited,
+        permitted: false,
+        permissions: permissions.length ? permissions : ['已登录账号'],
+        permissionNote,
+        permissionReason: error instanceof Error ? error.message : '当前账号无权限',
+      };
+    }
+  }
+  view(actor?: Actor | null) {
     return {
       revision: Number(
         this.db.prepare('SELECT revision FROM tool_settings_revision WHERE id=1').get()!.revision,
       ),
-      tools: [...this.definitions.values()].map(({ schema, ...t }) => ({
-        ...t,
-        module:
-          t.kind === 'workflow'
-            ? '单据识别与导入'
-            : t.name === 'attachments.read'
-              ? '附件阅读'
-              : t.name === 'ui.open'
-                ? '页面导航'
-                : t.name === 'overview.get'
-                  ? '经营概览'
-                  : t.name.startsWith('records.')
-                    ? '业务档案与单据'
-                    : '库存与实物流转',
-        parameters: z.toJSONSchema(schema),
-        enabled: this.enabled(t.name),
-        available: t.kind !== 'workflow' || this.workflowReady(),
-        status: t.kind === 'workflow' && !this.workflowReady() ? '服务未连接' : '已接入原业务服务',
-      })),
+      tools: [...this.definitions.values()].map(
+        ({ schema, execute, available: readiness, ...t }) => {
+          const pluginEnabled = this.enabled('plugin:' + t.pluginId),
+            toolEnabled = this.enabled(t.name);
+          const available = this.serviceReady({ ...t, schema, execute, available: readiness });
+          const access = this.access({ ...t, schema, execute }, actor);
+          const enabled = pluginEnabled && toolEnabled;
+          const unavailableReasons = [
+            !pluginEnabled ? '插件已停用' : '',
+            !toolEnabled ? '工具已停用' : '',
+            !access.permitted ? access.permissionReason : '',
+            !available ? '执行服务未连接' : '',
+          ].filter(Boolean);
+          return {
+            ...t,
+            module: this.plugins.get(t.pluginId)!.name,
+            parameters: z.toJSONSchema(schema),
+            enabled,
+            pluginEnabled,
+            toolEnabled,
+            available,
+            ...access,
+            usable: enabled && access.permitted && available,
+            unavailableReasons,
+            status: unavailableReasons.length
+              ? unavailableReasons.join('；')
+              : access.permissionLimited
+                ? '部分操作可用'
+                : '可用',
+            serviceStatus: !available
+              ? '执行服务未连接'
+              : t.pluginId === 'erp-page'
+                ? '页面桥接服务已接入；执行时核验当前标签页连接'
+                : '已接入原业务服务',
+          };
+        },
+      ),
     };
   }
-  exposed() {
-    return this.view().tools.filter((t) => t.enabled && t.available);
+  exposed(actor?: Actor | null) {
+    return this.view(actor).tools.filter((t) => t.usable);
+  }
+  definition(name: string) {
+    return this.definitions.get(name);
   }
   assertAvailable(name: string) {
     const t = this.definitions.get(name);
     if (!t) throw new ImportError('工具未注册。', 403);
+    if (!this.enabled('plugin:' + t.pluginId)) throw new ImportError('此AI插件已停用。', 403);
     if (!this.enabled(name)) throw new ImportError('此AI工具已停用，请在AI工具管理中启用。', 403);
-    if (t.kind === 'workflow' && !this.workflowReady())
-      throw new ImportError('识别业务服务未连接。', 503);
+    if (!this.serviceReady(t)) throw new ImportError('执行服务未连接。', 503);
     return t;
   }
   set(raw: unknown, actor: Actor) {
@@ -213,7 +379,11 @@ export class AssistantToolRegistry {
     const v = z
       .strictObject({ name: z.string(), enabled: z.boolean(), expectedRevision: z.number().int() })
       .parse(raw);
-    if (!this.definitions.has(v.name)) throw new ImportError('工具未注册。', 404);
+    if (
+      !this.definitions.has(v.name) &&
+      !(v.name.startsWith('plugin:') && this.plugins.has(v.name.slice(7)))
+    )
+      throw new ImportError('工具未注册。', 404);
     this.db.exec('BEGIN IMMEDIATE');
     try {
       if (this.view().revision !== v.expectedRevision)
@@ -235,15 +405,36 @@ export class AssistantToolRegistry {
     args: unknown,
     actor: Actor,
     handlers: Record<ToolKind, (name: string, args: any) => unknown>,
+    context?: unknown,
   ) {
     if (!actor) throw new ImportError('请先登录。', 401);
-    const t = this.assertAvailable(name);
-    if (name === 'developer.execute') requireDeveloper(actor);
-    if (name.startsWith('management.') && !isLocalAdministrator(actor))
-      throw new ImportError('此管理工具仅向已登录本机最高管理员开放。', 403);
-    const parsed = t.schema.parse(args);
-    return { kind: t.kind, value: await handlers[t.kind](name, parsed) };
+    const t = this.assertAvailable(name),
+      parsed = t.schema.parse(args);
+    const supplied = context as
+      | { check?: () => Actor; signal?: AbortSignal; reuseResult?: unknown; onExecute?: () => void }
+      | undefined;
+    const check = () => {
+      const live = supplied?.check ? supplied.check() : actor;
+      if (!live || live.id !== actor.id || supplied?.signal?.aborted)
+        throw new ImportError('真实登录身份已变化或执行已停止。', 403);
+      this.assertAvailable(name);
+      const access = this.access(t, live, parsed);
+      if (!access.permitted) throw new ImportError(access.permissionReason, 403, 'permission');
+      return live;
+    };
+    const current = check();
+    if (!(supplied && Object.hasOwn(supplied, 'reuseResult')) && t.execute)
+      (supplied as any)?.onExecute?.();
+    const value =
+      supplied && Object.hasOwn(supplied, 'reuseResult')
+        ? supplied.reuseResult
+        : t.execute
+          ? await t.execute(parsed, current, { ...(context as any), check })
+          : await handlers[t.kind](name, parsed);
+    check();
+    return { kind: t.kind, value };
   }
+
   close() {
     if (!this.closed) {
       this.db.close();

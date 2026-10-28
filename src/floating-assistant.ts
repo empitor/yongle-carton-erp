@@ -79,3 +79,43 @@ export function saveFloatingAnchor(storage: Pick<Storage, 'setItem'>, anchor: Fl
     /* Still draggable when storage is unavailable. */
   }
 }
+
+export const floatingSizeKey = 'erp-assistant-size-v1';
+export function fitFloatingSize(s: FloatingSize, v: FloatingViewport): FloatingSize {
+  return {
+    width: clamp(s.width, Math.min(300, v.width - 16), Math.max(1, v.width - 16)),
+    height: clamp(s.height, Math.min(260, v.height - 16), Math.max(1, v.height - 16)),
+  };
+}
+export function readFloatingSize(
+  storage: Pick<Storage, 'getItem'>,
+  v: FloatingViewport,
+): FloatingSize {
+  try {
+    const s = JSON.parse(storage.getItem(floatingSizeKey) || 'null');
+    if (Number.isFinite(s?.width) && Number.isFinite(s?.height) && s.width > 0 && s.height > 0)
+      return fitFloatingSize(s, v);
+  } catch {}
+  return fitFloatingSize({ width: 440, height: 690 }, v);
+}
+export function resizeFloatingRect(
+  rect: FloatingPoint & FloatingSize,
+  direction: string,
+  dx: number,
+  dy: number,
+  v: FloatingViewport,
+) {
+  const left = direction.includes('w')
+    ? clamp(rect.x + dx, v.left + 8, rect.x + rect.width - Math.min(300, v.width - 16))
+    : rect.x;
+  const top = direction.includes('n')
+    ? clamp(rect.y + dy, v.top + 8, rect.y + rect.height - Math.min(260, v.height - 16))
+    : rect.y;
+  const right = direction.includes('e')
+    ? clamp(rect.x + rect.width + dx, rect.x + Math.min(300, v.width - 16), v.left + v.width - 8)
+    : rect.x + rect.width;
+  const bottom = direction.includes('s')
+    ? clamp(rect.y + rect.height + dy, rect.y + Math.min(260, v.height - 16), v.top + v.height - 8)
+    : rect.y + rect.height;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}

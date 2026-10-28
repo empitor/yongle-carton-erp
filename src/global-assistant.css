@@ -538,3 +538,13 @@
   font-size: 11px;
   padding: 5px 8px;
 }
+
+.ga-resize { position:absolute; z-index:10; touch-action:none; }
+.ga-resize-n,.ga-resize-s {left:12px;right:12px;height:6px;cursor:ns-resize;}
+.ga-resize-n {top:0}.ga-resize-s{bottom:0}
+.ga-resize-e,.ga-resize-w {top:12px;bottom:12px;width:6px;cursor:ew-resize;}
+.ga-resize-e{right:0}.ga-resize-w{left:0}
+.ga-resize-ne,.ga-resize-nw,.ga-resize-se,.ga-resize-sw {width:12px;height:12px;}
+.ga-resize-ne{top:0;right:0;cursor:nesw-resize}.ga-resize-nw{top:0;left:0;cursor:nwse-resize}
+.ga-resize-se{bottom:0;right:0;cursor:nwse-resize;border-right:3px double var(--muted);border-bottom:3px double var(--muted)}
+.ga-resize-sw{bottom:0;left:0;cursor:nesw-resize}

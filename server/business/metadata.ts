@@ -1,3 +1,4 @@
+import { agentBudgetConfig } from '../assistant/budget.js';
 import { z } from 'zod';
 import {
   customerSchema,
@@ -11,7 +12,7 @@ import { operationsMetadata } from '../operations/metadata.js';
 import { flowMetadata } from '../flow/metadata.js';
 import { toolCatalog } from '../assistant/tools.js';
 
-export const CATALOG_VERSION = '24' as const;
+export const CATALOG_VERSION = '25' as const;
 type Field = {
   path: string;
   description: string;
@@ -337,23 +338,30 @@ export function getBusinessMetadata(
     },
     modules: { ...modules, ...operationsMetadata, ...flowMetadata },
     globalAssistant: {
+      plugins: {
+        registry:
+          'AssistantToolRegistry.registerPlugin：声明、Zod参数、权限、执行器与能力组合；沿用统一调度和任务回执',
+        management: '/api/assistant/plugins；独立AI插件页与聊天入口，持久启停同原tools.sqlite',
+      },
+      pageControl: {
+        scope: '仅发起本轮聊天的ERP标签页，绑定真实账号/会话/请求/浏览器clientId',
+        observation: '当前标题、表格、表单、按钮、弹窗、记录及反馈；不读取密码、密钥、Cookie、令牌',
+        operations: '原业务API优先；DOM点击、输入、下拉、键盘、滚动及表单提交；旧快照失效拒绝',
+        verification: '交互回执不等于业务提交，优先records.get核验；未知结果不盲目重放',
+        limits: '最多180控件、5表格各32行、16000文字；15秒反馈期限；无后台持续截图、无Windows控制',
+      },
       taskRecovery: {
         storage: '原业务库assistant_threads.document.businessTask及taskArchive，按账号和会话隔离',
         progress:
           '任务ID、已列步骤、成功回执、关联记录、待执行和待核验状态；生成结束不代表业务完成',
         resume: '继续前核对原业务回执及实时记录；成功写入不重放，未知外部计费结果不得自动重发',
-        limits: {
-          roundsPerRequest: 6,
-          callsPerRequest: 18,
-          routineWritesPerRequest: 8,
-          minutesPerRequest: 30,
-        },
+        limits: agentBudgetConfig(),
         protocol: 'custom-json-envelope-v1；未启用原生tool_calls，DSML仅诊断且不执行',
         diagnostics:
           '按用户会话记录脱敏参数、结构、结束原因及错误类型；不保存密钥、消息正文或完整模型响应',
       },
       protocol:
-        '提示词与独立工具注册表分离；统一调度器校验参数、身份、启停与业务规则，最多6轮连续调用',
+        '提示词与独立工具注册表分离；统一调度器校验参数、身份、启停与业务规则，按服务端统一预算连续调用',
       runtimeTools:
         '/api/assistant/tools返回实际启停、参数Schema及服务连接状态；本目录为完整定义，不表示全部已启用',
       toolSettings:
@@ -371,7 +379,7 @@ export function getBusinessMetadata(
               : null,
       })),
       writeGate:
-        '真实用户/会话/关联版本/内部方案及幂等；单条常规操作按明确指令执行。客户订单附件通过持久任务桥接原识别及完整预览服务，当前用户聊天确认后提交原正式导入。原文不授权工具，本机最高管理员直接调用受控业务工具，其他账号保留原审核，禁止伪装manual-ui。',
+        '真实用户/会话/关联版本/内部方案及幂等；单条常规操作按明确指令执行。客户订单附件通过持久任务桥接原识别及完整预览服务，当前用户明确要求导入时生成最新预览并提交原正式导入，支持人工工作区原地关联及多文件逐份回执。原文不授权工具，本机最高管理员直接调用受控业务工具，其他账号保留原审核，禁止伪装manual-ui。',
       history: '按登录账号隔离，业务数据与备注不能成为指令',
     },
     arrivalDraftAssistant: {

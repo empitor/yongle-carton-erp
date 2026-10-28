@@ -65,7 +65,7 @@ export default function RecordDetails({ entity, row }: { entity: RecordEntity; r
               ];
   return (
     <>
-      <dl className="record-detail-grid">
+      <dl data-agent-module={entity==='stock_items'?(row.kind==='raw'?'raw_inventory':'finished_inventory'):entity} data-agent-record={row.id} data-agent-label={row.number||row.name} className="record-detail-grid">
         {pairs.map(([k, v]) => (
           <div key={k}>
             <dt>{k}</dt>

@@ -1,3 +1,4 @@
+import { providerTokenUsage } from './usage.js';
 import type { AiProfile } from '../../shared/ai-settings.js';
 import { AiConnectionError, type AiResponseNote } from './connection-error.js';
 import { safeConnectionError, upstreamError } from './adapters.js';
@@ -35,6 +36,7 @@ export async function completeCompatible(
 ): Promise<unknown> {
   const diagnostics = new ProtocolDiagnostics(profile, key, options.onDiagnostic);
   try {
+    let streamedUsage: ReturnType<typeof providerTokenUsage>;
     let received = '',
       pending = '',
       finished = false,
@@ -72,6 +74,7 @@ export async function completeCompatible(
             onSseEvent: ({ data }: { data: string }) => {
               if (data.trim() === '[DONE]') return;
               const v = JSON.parse(data);
+              streamedUsage = providerTokenUsage(v.usage) || streamedUsage;
               diagnostics.stream(v);
               seen = true;
               for (const c of v.choices || []) {
@@ -160,6 +163,8 @@ export async function completeCompatible(
         422,
         note('incomplete', received, key),
       );
+    const usage = streamedUsage || providerTokenUsage((res.body as any)?.usage);
+    if (usage) options.onUsage?.(usage);
     const b = (
         seen ? { choices: [{ finish_reason: 'stop', message: { content: received } }] } : res.body
       ) as any,

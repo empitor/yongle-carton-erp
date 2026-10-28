@@ -169,6 +169,11 @@ export class AssistantTaskLedger {
     if (!step && call.stepId) {
       step = task.steps.find((x) => x.id === call.stepId);
       if (!step || step.tool !== call.name) throw new ImportError('工具步骤不属于当前任务。', 409);
+      if (
+        step.attemptedAt &&
+        JSON.stringify(step.args?.outcome) !== JSON.stringify(call.args?.outcome)
+      )
+        throw new ImportError('已尝试页面步骤不能更换核验目标。', 409);
       if (step.state === 'completed') throw new ImportError('已完成步骤不能更换参数重放。', 409);
     }
     if (!step)
@@ -222,6 +227,16 @@ export class AssistantTaskLedger {
     }
     this.put(threadId, actor, task);
     return structuredClone(step);
+  }
+  saveBudget(
+    threadId: string,
+    actor: Actor,
+    goal: string,
+    budget: import('../../shared/assistant-task.js').AgentBudgetView,
+  ) {
+    const task = this.get(threadId, actor) || this.begin(threadId, actor, goal);
+    task.budget = budget;
+    return this.put(threadId, actor, task);
   }
   update(threadId: string, actor: Actor, id: string, patch: Partial<BusinessTaskStep>) {
     const task = this.get(threadId, actor),
@@ -361,6 +376,15 @@ export class AssistantTaskLedger {
     const task = this.get(threadId, actor) || this.bootstrap(threadId, actor);
     if (!task) return null;
     for (const step of task.steps) {
+      if (
+        step.tool === 'page.act' &&
+        step.state === 'completed' &&
+        step.verification?.currentStateVerified &&
+        !step.pageOutcome
+      ) {
+        step.state = 'uncertain';
+        step.error = '旧版页面核验没有绑定每步独立目标，不能继续视为已完成。';
+      }
       if (step.previewId) {
         const receipt = this.store.db
           .prepare(
@@ -425,6 +449,10 @@ export class AssistantTaskLedger {
           ? '外部操作结果尚未核实，禁止自动重放；先读取关联文件任务。'
           : undefined;
       }
+    }
+    if (task.steps.some((s) => s.state === 'uncertain')) {
+      task.state = 'paused';
+      task.stage = '有待核验步骤，不能跳过或重放';
     }
     return this.put(threadId, actor, task);
   }
