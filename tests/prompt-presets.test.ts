@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { PromptPresetManager, defaultPromptSettingsPath } from '../server/ai/prompt-presets.js';
-import { defaultPromptPreset } from '../server/import/default-prompts.js';
+
 import { analysisPrompt, chatPrompt } from '../server/import/prompts.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { ImportManager } from '../server/import/manager.js';

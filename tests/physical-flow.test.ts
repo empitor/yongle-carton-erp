@@ -452,7 +452,7 @@ test('确认后禁止编辑/普通删除，冲销需超级验证；下游库存�
 test('后续引用阻止订单撤回/永久删除，客户订单金额备注编辑保留稳定明细编号', () => {
   const f = fixture();
   try {
-    const task = f.flow.save(
+    f.flow.save(
       'task',
       {
         date: '2026-10-20',

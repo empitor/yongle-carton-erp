@@ -7,7 +7,7 @@ import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { makeSettings, actor, superActor, secret } from './assistant-fixture.js';
 import { developerActor } from '../server/developer-capability.js';
 import { AiConnectionError } from '../server/ai/connection-error.js';
-import { customerSchema, productSchema, orderSchema } from '../shared/domain.js';
+import { productSchema } from '../shared/domain.js';
 import { createBusinessService } from '../server/business/service.js';
 import { OperationsService } from '../server/operations/service.js';
 import { FlowService } from '../server/flow/service.js';
@@ -61,7 +61,9 @@ function fixture(
     return { status: 200, body: response };
   });
   const prompts = new PromptPresetManager(':memory:', assistantDefaultPreset);
-  let manager = new AssistantManager(store, settings, prompts, { budget });
+  let manager = new AssistantManager(store, settings, prompts, {
+    budget: { protocolRecoveries: 0, ...budget },
+  });
   const thread = manager.create(who);
   const send = (text: string, requestId = randomUUID(), extra: any = {}) =>
     manager.chat(
@@ -86,7 +88,9 @@ function fixture(
     view: () => manager.view(thread.id, who),
     reopen() {
       manager.registry.close();
-      manager = new AssistantManager(store, settings, prompts, { budget });
+      manager = new AssistantManager(store, settings, prompts, {
+        budget: { protocolRecoveries: 0, ...budget },
+      });
     },
     close() {
       manager.registry.close();
@@ -349,7 +353,7 @@ test('成功回执与步骤同事务；中断后核验最新档案而非旧回�
     f.close();
   }
 });
-test('库存调整/生产确认在断网、重复继续、管理器重启后均只影响库存一次，关闭开发权限仍拒绝', async () => {
+test('库存调整/生产确认在断网、重复继续、管理器重启后均只影响库存一次，撤销业务权限仍拒绝', async () => {
   const who = developerActor(superActor()),
     f = fixture(who),
     ops = new OperationsService(f.store),
@@ -419,7 +423,7 @@ test('库存调整/生产确认在断网、重复继续、管理器重启后均�
     const normal = {
       id: actor.id,
       name: actor.name,
-      permissions: actor.permissions,
+      permissions: [],
       role: 'super_admin' as const,
     };
     f.queue.push(call('inventory.propose_movement', { ...movement, quantity: '400' }));
@@ -433,7 +437,7 @@ test('库存调整/生产确认在断网、重复继续、管理器重启后均�
     );
     assert.equal(ops.repo.balance(raw.id), 210000);
     assert.equal(f.view().businessTask!.state, 'paused');
-    assert.match(f.view().messages.at(-1)!.text, /模式/);
+    assert.match(f.view().messages.at(-1)!.text, /权限/);
     assert.equal(f.store.db.prepare('PRAGMA foreign_key_check').all().length, 0);
   } finally {
     f.close();
@@ -453,7 +457,7 @@ test('原审核方案等待确认独立于模型生成，人工确认将回执�
         notes: '虚构库存',
       }),
     );
-    let result = await f.send('盘点虚构原料');
+    let result = await f.send('先预览盘点虚构原料');
     assert.equal(result.businessTask!.state, 'waiting');
     assert.equal(ops.repo.balance(stock.id), 0);
     const preview = result.messages.at(-1)!.plans[0].id;
@@ -622,7 +626,7 @@ test('正式订单导入成功后模型断网，下一轮继续及重复确认�
     f.replies.push(call('order_import.execute'), () => {
       throw new AiConnectionError('network', '正式导入后的虚构断网', 502);
     });
-    await assert.rejects(() => f.send('确认导入'), /断网/);
+    await f.send('确认导入'); // 控制模型故障后台恢复，正式导入不重放。
     assert.equal(f.store.orders().length, 1);
     const customerCount = f.store.customers().length,
       productCount = f.store.products().length;

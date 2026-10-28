@@ -5,14 +5,14 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Store } from '../server/db.js';
 import { AssistantManager, assistantDefaultPreset } from '../server/assistant/manager.js';
-import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
+
 import { ImportManager } from '../server/import/manager.js';
 import { ImportExecutionService, findImport } from '../server/business/import-execution.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { makeSettings, actor as baseActor } from './assistant-fixture.js';
 import { headerFields, lineFields, blankField } from '../shared/order-draft.js';
-import { customerSchema, productSchema, today } from '../shared/domain.js';
-import { imageFixture, docxFixture, xlsxFixture, pdfFixture } from './import-fixtures.js';
+import { customerSchema, today } from '../shared/domain.js';
+
 import type { Actor } from '../server/auth.js';
 
 const actor = { ...baseActor, permissions: ['business:edit', 'import:execute'] };

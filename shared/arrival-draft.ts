@@ -141,7 +141,7 @@ export function arrivalDraftIssues(draft: any): string[] {
               sourceId: '来源原件',
             };
             const field = i.path
-              .map((key, index) =>
+              .map((key) =>
                 typeof key === 'number'
                   ? `第${key + 1}行`
                   : key === 'lines' || key === 'item'

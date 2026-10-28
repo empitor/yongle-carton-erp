@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { managementRequest, useAuthState } from './session';
+import AssistantBrowserConnection from './AssistantBrowserConnection';
 type Execution = { state: string; at: string; tool?: string };
 export type ManagedTool = {
   name: string;
@@ -213,6 +214,7 @@ export default function AssistantPlugins() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      <AssistantBrowserConnection />
       {!userId ? <p>请先登录管理账号。</p> : !state && !error ? <p>正在读取插件与工具…</p> : null}
       {state && (
         <PluginManagementView

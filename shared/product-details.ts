@@ -107,3 +107,16 @@ export function formatDimensions(p: {
     unit = normalizeDimensionUnit(p.dimensionUnit);
   return values.join(' × ') + (unit ? ' ' + unit : '（尺寸单位待确认）');
 }
+// 与正式导入相同的完整身份；仅移动共用比较，不改变既有指纹内容。
+export function productIdentityParts(p: any) {
+  const key = (s: string) => s.trim().replace(/\s+/g, '').toLowerCase();
+  return [
+    key(p.name || ''),
+    ...normalizedDimensions(p),
+    normalizeDimensionUnit(p.dimensionUnit) ? 'known' : p.dimensionUnitRaw || 'unknown',
+    key(p.material || ''),
+    key(p.flute || ''),
+    key(p.requirements || ''),
+    key(p.customerProductCode || ''),
+  ];
+}

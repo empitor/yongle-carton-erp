@@ -247,6 +247,19 @@ test('AI缺失字段仅补未知包装，不编造业务值；错误字段类型
   bad.lines[0].quantity = field(null);
   bad.lines[0].quantity.value = 1000;
   assert.equal(analysisSchema.safeParse(bad).success, false);
+
+  const nullableNotes = minimal() as any;
+  nullableNotes.header.orderDate.note = null;
+  nullableNotes.header.orderDate.sources = null;
+  nullableNotes.header.orderDate.quote = null;
+  nullableNotes.lines[0].productName.note = null;
+  nullableNotes.lines[0].productName.sources = null;
+  nullableNotes.lines[0].productName.quote = null;
+  const normalized = analysisSchema.parse(nullableNotes);
+  assert.equal(normalized.header.orderDate.note, '');
+  assert.deepEqual(normalized.header.orderDate.sources, []);
+  assert.equal(normalized.header.orderDate.quote, '');
+  assert.equal(normalized.lines[0].productName.note, '');
 });
 
 test('人民币别名及缺省订单在大量可选字段同时缺失时均可经HTTP核对、预览、事务正式导入并幂等重试', async () => {

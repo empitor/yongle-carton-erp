@@ -1,4 +1,4 @@
-import { providerTokenUsage } from './usage.js';
+import { usageCollector } from './usage.js';
 import type { AiProfile } from '../../shared/ai-settings.js';
 import { AiConnectionError, type AiResponseNote } from './connection-error.js';
 import { safeConnectionError, upstreamError } from './adapters.js';
@@ -35,8 +35,8 @@ export async function completeCompatible(
   options: ResponseOptions = {},
 ): Promise<unknown> {
   const diagnostics = new ProtocolDiagnostics(profile, key, options.onDiagnostic);
+  const usage = usageCollector(options.onUsage);
   try {
-    let streamedUsage: ReturnType<typeof providerTokenUsage>;
     let received = '',
       pending = '',
       finished = false,
@@ -74,7 +74,7 @@ export async function completeCompatible(
             onSseEvent: ({ data }: { data: string }) => {
               if (data.trim() === '[DONE]') return;
               const v = JSON.parse(data);
-              streamedUsage = providerTokenUsage(v.usage) || streamedUsage;
+              usage.capture(v.usage);
               diagnostics.stream(v);
               seen = true;
               for (const c of v.choices || []) {
@@ -108,6 +108,9 @@ export async function completeCompatible(
         ? { thinking: { type: 'disabled' } }
         : {}),
       stream: options.stream === true,
+      ...(options.stream && officialDeepSeekEndpoint(profile.endpoint)
+        ? { stream_options: { include_usage: true } }
+        : {}),
     };
     const initialBody =
       options.jsonMode === 'disabled'
@@ -119,6 +122,7 @@ export async function completeCompatible(
       body: initialBody,
     });
     diagnostics.result(res.status, res.body);
+    usage.capture((res.body as any)?.usage);
     // 部分兼容站没有 JSON mode；只有明确拒绝此参数才降级，结果仍必须通过 JSON 和业务契约校验。
     const formatError = res.body as { error?: { param?: unknown; message?: unknown } } | null;
     const formatMessage = formatError?.error?.message;
@@ -163,8 +167,7 @@ export async function completeCompatible(
         422,
         note('incomplete', received, key),
       );
-    const usage = streamedUsage || providerTokenUsage((res.body as any)?.usage);
-    if (usage) options.onUsage?.(usage);
+
     const b = (
         seen ? { choices: [{ finish_reason: 'stop', message: { content: received } }] } : res.body
       ) as any,
@@ -230,5 +233,7 @@ export async function completeCompatible(
         504,
       );
     throw safe;
+  } finally {
+    usage.report();
   }
 }

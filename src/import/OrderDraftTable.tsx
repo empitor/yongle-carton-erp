@@ -16,7 +16,6 @@ import {
   parseDimension,
   convertDimension,
   normalizeDimensionUnit,
-  type DimensionUnit,
 } from '../../shared/product-details';
 type Matches = {
   customers: Customer[];

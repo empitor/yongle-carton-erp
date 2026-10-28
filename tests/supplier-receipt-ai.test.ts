@@ -218,9 +218,9 @@ test('未授权/预设切换/错误格式/模型响应错误/流中断拒绝；�
 test('同一AI原件不可二次入库，预览绑定原件哈希，收货只经人工受控确认', async () => {
   const f = fixture(async () => ({ status: 200, body: body(analysis()) }));
   try {
-    const source = f.ai.upload(docxFixture(), '有来源.docx', actor)!,
-      recognized = await f.ai.analyze(String(source.id), f.input(false), actor),
-      ops = new OperationsService(f.store),
+    const source = f.ai.upload(docxFixture(), '有来源.docx', actor)!;
+    await f.ai.analyze(String(source.id), f.input(false), actor);
+    const ops = new OperationsService(f.store),
       supplier = ops.saveSupplier({ name: '虚构送货纸板厂' }, actor),
       flow = new FlowService(f.store);
     const input = {

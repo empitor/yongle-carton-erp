@@ -421,8 +421,15 @@ test('回复归一化：纯文字、别名、额外字段、空值与超限都�
     message: 'x',
     toolCalls: [1, 2, 3, 4].map(() => ({ name: 'records.search', args: {} })),
   });
-  assert.equal(tooMany.toolCalls.length, 3);
-  assert.equal(tooMany.rejected.length, 1);
+  assert.equal(tooMany.toolCalls.length, 4);
+  assert.equal(tooMany.rejected.length, 0);
+  const limited = normalizeAssistantReply(
+    { message: 'x', toolCalls: [1, 2, 3, 4].map(() => ({ name: 'records.search', args: {} })) },
+    undefined,
+    3,
+  );
+  assert.equal(limited.toolCalls.length, 3);
+  assert.equal(limited.rejected.length, 1);
   const objectMessage = normalizeAssistantReply({ message: { a: 1 } });
   assert.equal(objectMessage.message, '{"a":1}');
 });

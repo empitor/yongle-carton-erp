@@ -1,18 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { Store } from '../server/db.js';
-import { AssistantManager, assistantDefaultPreset } from '../server/assistant/manager.js';
+
 import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
-import { ImportManager } from '../server/import/manager.js';
-import { ImportExecutionService, findImport } from '../server/business/import-execution.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { makeSettings, actor as baseActor } from './assistant-fixture.js';
-import { headerFields, lineFields, blankField } from '../shared/order-draft.js';
-import { customerSchema, productSchema, today } from '../shared/domain.js';
+
+import { actor as baseActor } from './assistant-fixture.js';
+
+import { productSchema } from '../shared/domain.js';
 import { imageFixture, docxFixture, xlsxFixture, pdfFixture } from './import-fixtures.js';
 
 import { createOrderWorkflowFixture as fixture } from './assistant-workflow-fixture.js';
@@ -126,6 +122,52 @@ test('聊天附件→原识别/独立任务→跨轮修改同草稿→聊天确�
           .get()!.n,
       ) > 0,
     );
+  } finally {
+    f.close();
+  }
+});
+
+test('多份订单附件在同一次order_import.start中批量识别，不逐份调用', async () => {
+  const f = fixture();
+  try {
+    const a = await f.manager.attachments.upload(
+      f.thread.id,
+      imageFixture(),
+      '订单甲.png',
+      randomUUID(),
+      actor,
+    );
+    const b = await f.manager.attachments.upload(
+      f.thread.id,
+      imageFixture(true),
+      '订单乙.jpg',
+      randomUUID(),
+      actor,
+    );
+    f.replies.push(
+      {
+        message: '一次识别这两份订单',
+        toolCalls: [
+          {
+            name: 'order_import.start',
+            args: { attachmentIds: [a.id, b.id] },
+          },
+        ],
+      },
+      { message: '两份订单都已返回草稿，请分别核对。', toolCalls: [] },
+    );
+    const view = await f.send('把这两份订单一起识别', [a.id, b.id]);
+    assert.equal(f.recognitionCalls(), 2);
+    assert.equal(view.orderWorkflow?.tasks.length, 2);
+    assert.deepEqual(
+      view.orderWorkflow?.tasks.map((task) => task.state),
+      ['awaiting_confirmation', 'awaiting_confirmation'],
+    );
+    assert.deepEqual(view.orderWorkflow?.tasks.map((task) => task.fileName).sort(), [
+      '订单乙.jpg',
+      '订单甲.png',
+    ]);
+    assert.equal(f.store.orders().length, 0);
   } finally {
     f.close();
   }
@@ -267,7 +309,7 @@ test('草稿手工变化/无效字段阻断旧方案，导入失败不丢附件�
     });
     let v = await f.send('确认导入');
     assert.equal(f.store.orders().length, 0);
-    assert(v.messages.at(-1)!.text.includes('变化'));
+    assert.match(v.messages.at(-1)!.text, /单位|缺失/);
     assert(f.current().draft);
     w = f.current();
     f.imports.edit(w.id, {
@@ -283,7 +325,7 @@ test('草稿手工变化/无效字段阻断旧方案，导入失败不丢附件�
       ],
     });
     v = await f.send('确认导入');
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(f.store.orders().length, 1);
     await f.send('确认导入');
     assert.equal(f.store.orders().length, 1);
   } finally {

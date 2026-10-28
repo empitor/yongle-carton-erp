@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, get } from 'node:http';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import { SseParser } from '../shared/sse.js';
 import { ResponsesStream } from '../server/ai/responses-stream.js';
 import { consumeWireResponse, type WireRequest, type AiTransport } from '../server/ai/transport.js';
-import { completeResponses } from '../server/ai/compatible-responses.js';
+
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { ImportManager } from '../server/import/manager.js';
-import { headerFields, lineFields, blankField } from '../shared/order-draft.js';
+import { headerFields, lineFields } from '../shared/order-draft.js';
 import { AI_REQUEST_TIMEOUT_MS, AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime.js';
 import { imageFixture, docxFixture, xlsxFixture } from './import-fixtures.js';
 import { createApp } from '../server/app.js';

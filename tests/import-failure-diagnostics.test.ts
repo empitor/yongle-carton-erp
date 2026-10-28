@@ -12,7 +12,7 @@ import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { ResponsesStream } from '../server/ai/responses-stream.js';
 import { responsesText } from '../server/ai/responses-format.js';
 import { completeCompatible } from '../server/ai/compatible-chat.js';
-import { AiConnectionError } from '../server/ai/connection-error.js';
+
 import { blankField } from '../shared/order-draft.js';
 import type { AiTransport, WireRequest } from '../server/ai/transport.js';
 import { docxFixture, xlsxFixture, pdfFixture } from './import-fixtures.js';

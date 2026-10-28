@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes, randomUUID, createCipheriv, createDecipheriv } from 'node:crypto';
@@ -17,7 +17,6 @@ import {
   lineFields,
   sourceReferenceSchema,
   type OrderDraft,
-  type ParsedFile,
 } from '../shared/order-draft.js';
 import { createApp } from '../server/app.js';
 import { importRouter } from '../server/import/router.js';

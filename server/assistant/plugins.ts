@@ -16,7 +16,7 @@ export type PluginTool = {
   capability?: 'read' | 'page' | 'write' | 'management';
   schema: z.ZodType;
   permissions?: string[];
-  available?: () => boolean;
+  available?: (actor?: Actor | null) => boolean;
   execute?: (args: any, actor: Actor, context: unknown) => unknown | Promise<unknown>;
 };
 export const builtinPlugins: PluginManifest[] = [
@@ -42,7 +42,7 @@ export const builtinPlugins: PluginManifest[] = [
     capabilities: [
       '页面/表格/表单/弹窗感知',
       '导航、点击、输入、选择、滚动和提交',
-      '操作反馈循环与原服务核验；不提供桌面及截图控制',
+      '操作反馈与原服务核验；连接独立ERP浏览器后支持真实截图、坐标、键盘和附件上传；不控制Windows',
     ],
   },
   {
@@ -61,7 +61,7 @@ export const builtinPlugins: PluginManifest[] = [
   },
 ];
 export function builtinPluginFor(name: string) {
-  return name.startsWith('page.') || name === 'ui.open'
+  return name.startsWith('page.') || name.startsWith('browser.') || name === 'ui.open'
     ? 'erp-page'
     : name.startsWith('order_import.') || name === 'management.workspaces'
       ? 'order-import'

@@ -2,7 +2,7 @@ export const assistantCapabilities = [
   {
     module: '客户、供应商、产品',
     state: '已接入并验证',
-    operations: '查询、汇总、单条新增/编辑、停用/恢复；删除为物理删除，归档/恢复为独立操作。',
+    operations: '查询、汇总、单条或批量新增/编辑、停用/恢复；删除为物理删除，归档/恢复为独立操作。',
     validation: '既有工具/业务自动化通过；未逐项完成真实模型验收',
   },
   {
@@ -23,7 +23,7 @@ export const assistantCapabilities = [
     module: '采购到货、生产、客户送货',
     state: '已接入并验证',
     operations:
-      '查询、新增/编辑草稿、任务下达、取消；本机最高管理员可直接确认和编辑已确认单据，维护原记录及关联库存；删除执行物理删除。',
+      '查询、新增/编辑草稿、任务下达、取消；复合生产完工支持真实参数预检、共享整张原料分配、成品档案匹配/创建及正式领料入库；本机最高管理员可直接确认和编辑已确认单据，维护原记录及关联库存；删除执行物理删除。',
     validation: '既有实物服务/事务自动化通过；未逐项完成真实模型验收',
   },
   {
@@ -36,7 +36,8 @@ export const assistantCapabilities = [
   {
     module: '页面导航、经营概览',
     state: '已接入并验证',
-    operations: '实时经营汇总、打开业务页或记录；page.observe读取实际控件、表格、表单、弹窗和反馈；page.act执行界面后备操作，业务成功须原服务核验。',
+    operations:
+      '实时经营汇总、打开业务页或记录；page.observe读取实际控件、表格、表单、弹窗和反馈；page.act执行DOM后备操作；连接独立本机ERP浏览器后browser.capture/act提供真实截图、坐标/键盘/附件上传，需模型支持视觉；业务成功须原服务核验。',
     validation: '助手查询、导航与浏览器测试',
   },
   {
@@ -48,7 +49,8 @@ export const assistantCapabilities = [
   {
     module: '系统账号、API密钥、提示词等设置',
     state: '通过页面桥接支持非敏感设置',
-    operations: '非敏感设置可按现有页面控件操作并受原接口权限校验；密码、API密钥及账号认证区域不进入页面桥接。',
+    operations:
+      '非敏感设置可按现有页面控件操作并受原接口权限校验；密码、API密钥及账号认证区域不进入页面桥接。',
     validation: '本轮未扩展管理凭据工具',
   },
   {

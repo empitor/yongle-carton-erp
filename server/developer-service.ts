@@ -18,7 +18,7 @@ import { PermanentDeletionService } from './business/permanent-deletion.js';
 import { OperationsService } from './operations/service.js';
 import { FlowService } from './flow/service.js';
 import { ImportError } from './import/errors.js';
-import { recordContext } from './business/record-context.js';
+
 import { DatabaseMaintenanceService } from './business/database-maintenance.js';
 import { isLocalAdministrator } from './developer-capability.js';
 const digest = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -107,11 +107,15 @@ export class DeveloperService {
     try {
       const all = this.list(v.module, actor).records,
         results = [];
-      const save = (id: number | undefined, input: any) => {
+      const save = (
+        id: number | undefined,
+        input: any,
+        patch: Record<string, unknown> = v.patch,
+      ) => {
         const normalized = this.isFlow(v.module)
           ? flowInput(v.module as FlowKind, input)
           : schemas[v.module].parse(input);
-        const unknown = Object.keys(v.patch).filter((key) => !Object.hasOwn(normalized, key));
+        const unknown = Object.keys(patch).filter((key) => !Object.hasOwn(normalized, key));
         if (unknown.length)
           throw new ImportError(
             '不支持修改字段：' +
@@ -148,9 +152,10 @@ export class DeveloperService {
         if (!before || before.version !== item.version)
           throw new ImportError('记录已变化，请刷新。', 409);
         let result: any;
-        if (v.action === 'update')
-          result = save(item.id, { ...selected!.input, ...v.patch, version: item.version });
-        else if (v.action === 'move') {
+        if (v.action === 'update') {
+          const patch = { ...v.patch, ...v.patches?.[String(item.id)] };
+          result = save(item.id, { ...selected!.input, ...patch, version: item.version }, patch);
+        } else if (v.action === 'move') {
           if (v.module !== 'stock_items') throw new ImportError('仅库存档案可登记库存调整。');
           result = this.ops.move(
             item.id,

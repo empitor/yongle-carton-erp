@@ -4,29 +4,18 @@ import { legacyCents, precisionTotal } from '../shared/precision';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
 import {
-  LayoutDashboard,
-  Users,
   Package,
-  ClipboardList,
   Plus,
-  Search,
   X,
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
-  Box,
   PanelLeftClose,
   CircleHelp,
-  AlertCircle,
   Check,
   RefreshCw,
   Trash2,
   Save,
-  CalendarDays,
   Database,
-  Bot,
   FileUp,
-  ListOrdered,
   ShieldCheck,
 } from 'lucide-react';
 import AiSettingsHub from './AiSettingsHub';
@@ -114,7 +103,7 @@ const money = (cents: number) =>
     currency: 'CNY',
     minimumFractionDigits: 2,
   }).format(cents / 100);
-const number = (n: number) => n.toLocaleString('zh-CN');
+
 function cents(value: string) {
   if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new Error('金额需为非负数，最多两位小数');
   const [a, b = ''] = value.split('.');
@@ -146,14 +135,7 @@ async function api<T>(url: string, body?: unknown, method = 'POST'): Promise<T> 
   }
   return res.json();
 }
-function Badge({ status }: { status: string }) {
-  return (
-    <span className={`badge status-${statuses.indexOf(status as (typeof statuses)[number])}`}>
-      <i />
-      {status}
-    </span>
-  );
-}
+
 function Field({
   label,
   children,
@@ -229,42 +211,6 @@ function Modal({
     </div>
   );
 }
-function Pager({
-  page,
-  total,
-  setPage,
-}: {
-  page: number;
-  total: number;
-  setPage: (v: number) => void;
-}) {
-  const max = Math.max(1, Math.ceil(total / 12));
-  return (
-    <div className="pager">
-      <span>共 {total} 条记录 · 每页 12 条</span>
-      <div>
-        <button aria-label="上一页" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-          <ChevronLeft size={16} />
-        </button>
-        <span>
-          {page} / {max}
-        </span>
-        <button aria-label="下一页" disabled={page >= max} onClick={() => setPage(page + 1)}>
-          <ChevronRight size={16} />
-        </button>
-      </div>
-    </div>
-  );
-}
-function Empty({ text = '没有符合条件的记录' }: { text?: string }) {
-  return (
-    <div className="empty">
-      <Box size={32} />
-      <h3>{text}</h3>
-      <p>可以调整筛选条件，或点击右上角新增记录。</p>
-    </div>
-  );
-}
 
 export default function App() {
   const auth = useAuthState(),
@@ -299,7 +245,6 @@ export default function App() {
     [status, setStatus] = useState(() => readListFilters().status),
     [start, setStart] = useState(() => readListFilters().start),
     [end, setEnd] = useState(() => readListFilters().end),
-    [pagination, setPagination] = useState(1),
     [revision, setRevision] = useState(0),
     [menu, setMenu] = useState(false);
   const [productAttention, setProductAttention] = useState(false);
@@ -342,18 +287,26 @@ export default function App() {
       setAllRecordsView(false);
       setSearch(new URLSearchParams(location.hash.split('?')[1] || '').get('q') || '');
       setProductAttention(false);
-      setPagination(1);
     };
     window.addEventListener('hashchange', f);
     return () => window.removeEventListener('hashchange', f);
   }, []);
   useEffect(() => {
     const changed = () => {
-      setRevision(v => v + 1);
-      setEditor(current => {
-        if (current?.value?.id && ['orders','customers','products'].includes(current.kind)) {
-          const kind = current.kind, id = current.value.id;
-          void api<any>('/' + kind + '/' + id).then(value => setEditor(latest => latest?.kind === kind && latest.value?.id === id ? { ...latest, value } as Editor : latest)).catch(()=>{});
+      setRevision((v) => v + 1);
+      setEditor((current) => {
+        if (current?.value?.id && ['orders', 'customers', 'products'].includes(current.kind)) {
+          const kind = current.kind,
+            id = current.value.id;
+          void api<any>('/' + kind + '/' + id)
+            .then((value) =>
+              setEditor((latest) =>
+                latest?.kind === kind && latest.value?.id === id
+                  ? ({ ...latest, value } as Editor)
+                  : latest,
+              ),
+            )
+            .catch(() => {});
         }
         return current;
       });
@@ -472,7 +425,7 @@ export default function App() {
   useEffect(() => {
     if (!superMode) setAllRecordsView(false);
   }, [superMode]);
-  useEffect(() => setPagination(1), [search, customerId, status, start, end, page]);
+
   const navigate = (v: Page) => {
     location.hash = v;
     setMenu(false);
@@ -534,77 +487,7 @@ export default function App() {
     setStart(range.start);
     setEnd(range.end);
   };
-  const orderTable = (data: Order[], compact = false) => (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>订单 / 客户</th>
-            <th>产品规格</th>
-            <th className="numeric">数量</th>
-            <th className="numeric">订单金额</th>
-            <th>交货日期</th>
-            <th>状态</th>
-            {!compact && <th>预估毛利</th>}
-            <th className="end">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((o) => (
-            <tr key={o.id}>
-              <td>
-                <strong className="order-number">{o.number}</strong>
-                <span className="sub">{o.customerName}</span>
-              </td>
-              <td>
-                <strong>{o.lines[0]?.productName}</strong>
-                <span className="sub specification">{o.lines[0]?.specification}</span>
-                {o.lines.length > 1 && <small>另有 {o.lines.length - 1} 项明细</small>}
-              </td>
-              <td className="numeric">
-                {number(o.lines.reduce((s, l) => s + l.quantity, 0))}
-                <span className="sub">只</span>
-              </td>
-              <td className="numeric amount">{money(o.totalCents)}</td>
-              <td>
-                <span
-                  className={
-                    o.deliveryDate < today() && !['已发货', '已取消'].includes(o.status)
-                      ? 'overdue'
-                      : ''
-                  }
-                >
-                  {o.deliveryDate}
-                </span>
-              </td>
-              <td>
-                <Badge status={o.status} />
-              </td>
-              {!compact && (
-                <td>
-                  {o.costCents === null ? (
-                    <span className="muted">未核算</span>
-                  ) : (
-                    <span className={o.totalCents - o.costCents < 0 ? 'overdue' : 'profit'}>
-                      {money(o.totalCents - o.costCents)}
-                    </span>
-                  )}
-                </td>
-              )}
-              <td className="end">
-                <button
-                  className="text-button"
-                  onClick={() => setEditor({ kind: 'orders', value: o })}
-                >
-                  查看 / 编辑
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+
   return (
     <div className="shell">
       <aside className={menu ? 'sidebar open' : 'sidebar'}>
@@ -1159,7 +1042,14 @@ export default function App() {
           </footer>
         </main>
       </div>
-      {editor?.value && <span data-agent-module={editor.kind} data-agent-record={editor.value.id} data-agent-label={'number' in editor.value ? editor.value.number : editor.value.name} style={{position:'fixed',width:1,height:1,left:0,top:0}} />}
+      {editor?.value && (
+        <span
+          data-agent-module={editor.kind}
+          data-agent-record={editor.value.id}
+          data-agent-label={'number' in editor.value ? editor.value.number : editor.value.name}
+          style={{ position: 'fixed', width: 1, height: 1, left: 0, top: 0 }}
+        />
+      )}
       <GlobalAssistant />
       {editor?.kind === 'customers' && (
         <CustomerEditor value={editor.value} close={closeEditor} saved={saved} />
@@ -1172,7 +1062,7 @@ export default function App() {
       )}
       {editor?.kind === 'orders' && (
         <OrderEditor
-          key={editor.value ? editor.value.id + ":" + editor.value.version : "new"}
+          key={editor.value ? editor.value.id + ':' + editor.value.version : 'new'}
           value={editor.value}
           customers={customers}
           products={products}

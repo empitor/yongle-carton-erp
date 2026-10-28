@@ -14,7 +14,6 @@ import {
 } from '../../shared/physical-flow.js';
 import { normalizedDimensions } from '../../shared/product-details.js';
 import {
-  isDeveloperActor,
   requireDeveloper,
   isLocalAdministrator,
   requireLocalAdministrator,

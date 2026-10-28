@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Store } from '../server/db.js';
 import { orderSchema, productSchema } from '../shared/domain.js';
 import { legacyCents, precisionTotal } from '../shared/precision.js';
-import { matchDraft } from '../server/import/matching.js';
+
 import { AuthManager } from '../server/auth.js';
 import { createApp } from '../server/app.js';
 const priceList = ['1.3000', '8.7800', '0.1700'],
@@ -132,8 +132,26 @@ test('核对账号加盐哈希存储、Cookie会话、重启需重登，旧业�
   }
 });
 
-
-test('旧客户端修改参考分价格时不会遗留覆盖新价格的旧四位价格',()=>{
- const s=new Store(':memory:');try{const product={name:'虚构产品',length:1,width:1,height:1,material:'牛卡',flute:'B',requirements:'',priceCents:123,priceExact:'1.2345'};let p=s.saveProduct(product);assert.equal(p.priceExact,'1.2345');p=s.saveProduct({...product,priceExact:undefined,priceCents:150},p.id,p.version);assert.equal(p.priceCents,150);assert.equal(p.priceExact,undefined);
- }finally{s.close();}
+test('旧客户端修改参考分价格时不会遗留覆盖新价格的旧四位价格', () => {
+  const s = new Store(':memory:');
+  try {
+    const product = {
+      name: '虚构产品',
+      length: 1,
+      width: 1,
+      height: 1,
+      material: '牛卡',
+      flute: 'B',
+      requirements: '',
+      priceCents: 123,
+      priceExact: '1.2345',
+    };
+    let p = s.saveProduct(product);
+    assert.equal(p.priceExact, '1.2345');
+    p = s.saveProduct({ ...product, priceExact: undefined, priceCents: 150 }, p.id, p.version);
+    assert.equal(p.priceCents, 150);
+    assert.equal(p.priceExact, undefined);
+  } finally {
+    s.close();
+  }
 });

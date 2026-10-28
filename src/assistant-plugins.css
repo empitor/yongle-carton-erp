@@ -104,3 +104,20 @@
     padding: 14px;
   }
 }
+
+.ai-browser-connection {
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.ai-browser-connection h3 {
+  margin: 0 0 8px;
+}
+.ai-browser-connection p {
+  margin: 0 0 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.ai-browser-connection [role='status'] {
+  margin-left: 12px;
+  color: var(--text-secondary);
+}

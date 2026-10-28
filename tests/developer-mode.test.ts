@@ -440,7 +440,7 @@ test('AI工作区可独立复制、恢复及永久清理；原件与识别草稿
   }
 });
 test('版本号的包、锁文件与界面来源一致', () => {
-  assert.equal(APP_VERSION, '0.5.2');
+  assert.equal(APP_VERSION, '0.5.3');
   for (const file of ['package.json', 'package-lock.json'])
     assert.equal(JSON.parse(readFileSync(file, 'utf8')).version, APP_VERSION);
   assert.match(readFileSync('src/App.tsx', 'utf8'), /APP_VERSION/);

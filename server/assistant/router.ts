@@ -6,7 +6,7 @@ import type { AssistantManager } from './manager.js';
 import { ImportError } from '../import/errors.js';
 import { AI_HTTP_TIMEOUT_MS } from '../../shared/ai-runtime.js';
 import { transcribePcm } from '../speech/service.js';
-import { isDeveloperActor } from '../developer-capability.js';
+
 export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
   const router = Router();
   router.use((req, res, next) => {
@@ -17,6 +17,42 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
     next();
   });
   router.get('/', (req, res) => res.json(manager.state(auth.actor(req))));
+  router.get('/browser', (req, res) =>
+    res.json(manager.localBrowser.status(auth.actor(req)!, auth.sessionBinding(req))),
+  );
+  router.post('/browser/connect', async (req, res) => {
+    const remote = req.socket.remoteAddress || '';
+    if (
+      !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote) ||
+      req.headers.forwarded ||
+      req.headers['x-forwarded-for'] ||
+      req.headers['x-forwarded-host']
+    )
+      throw new ImportError('可控浏览器只接受当前本机直接登录会话，不能通过代理提升权限。', 403);
+    const v = z.strictObject({ route: z.string().max(500) }).parse(req.body);
+    const cookie =
+      req.headers.cookie
+        ?.split(';')
+        .map((x) => x.trim())
+        .find((x) => x.startsWith('erp_session='))
+        ?.slice(12) || '';
+    const origin = `http://127.0.0.1:${req.socket.localPort}`;
+    res.json(
+      await manager.localBrowser.connect(
+        auth.actor(req)!,
+        auth.sessionBinding(req),
+        origin,
+        cookie,
+        v.route,
+      ),
+    );
+  });
+  router.post('/browser/disconnect', async (req, res) => {
+    if (!manager.localBrowser.status(auth.actor(req)!, auth.sessionBinding(req)).connected)
+      throw new ImportError('当前会话未连接可控浏览器。', 409);
+    await manager.localBrowser.close();
+    res.json(manager.localBrowser.status(auth.actor(req)!, auth.sessionBinding(req)));
+  });
   router.post('/threads/:id/tasks/activate', (req, res) => {
     const id = z.string().uuid().parse(req.params.id);
     manager.view(id, auth.actor(req));
@@ -276,10 +312,7 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
         .get(String(req.params.id), actor.id);
     if (!row) throw new ImportError('方案不存在或无权访问。', 404);
     const { password, ...input } = req.body;
-    if (JSON.parse(String(row.document)).plan.highRisk && !isDeveloperActor(auth.actor(req))) {
-      auth.requireSuperMode(req);
-      auth.verifyPassword(req, z.string().min(1).max(128).parse(password));
-    }
+
     res.json(
       manager.execute(String(req.params.id), input, auth.actor(req), auth.sessionBinding(req)),
     );

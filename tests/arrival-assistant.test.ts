@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';
-import { arrivalReviewSchema } from '../shared/arrival-assistant.js';
+
 import { FlowService } from '../server/flow/service.js';
 import { AuthManager } from '../server/auth.js';
 import { createApp } from '../server/app.js';

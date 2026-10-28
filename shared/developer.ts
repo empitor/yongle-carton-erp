@@ -46,6 +46,7 @@ export const developerCommandSchema = z.strictObject({
     .max(100)
     .default([]),
   patch: z.record(z.string(), z.unknown()).default({}),
+  patches: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   impactDigests: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)).optional(),
   deletionDigest: z.string().optional(),
   inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),

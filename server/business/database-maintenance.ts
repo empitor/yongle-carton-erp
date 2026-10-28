@@ -4,7 +4,7 @@ import type { Store } from '../db.js';
 import type { Actor } from '../auth.js';
 import { requireLocalAdministrator } from '../developer-capability.js';
 import { ImportError } from '../import/errors.js';
-import { audit } from './management.js';
+import { audit, rememberDeletedRecord } from './management.js';
 import { developerModules } from '../../shared/developer.js';
 import { quantityUnits } from '../../shared/operations.js';
 import { precisionTotal } from '../../shared/precision.js';
@@ -23,7 +23,7 @@ export const deletionSelection = z.strictObject({
     .max(100),
   inventoryPolicy: z.enum(['preserve', 'recalculate']).default('preserve'),
 });
-type Selection = z.infer<typeof deletionSelection>;
+
 type Row = Record<string, any> & { __rowid: number };
 const businessTables = new Set([
   'customers',
@@ -611,15 +611,11 @@ export class DatabaseMaintenanceService {
             inventoryPolicy: v.inventoryPolicy,
             requestId: v.requestId,
           });
-          this.store.db
-            .prepare('INSERT OR REPLACE INTO permanent_record_deletions VALUES(?,?,?,?,?)')
-            .run(
-              entity,
-              row.id,
-              new Date().toISOString(),
-              actor.id,
-              row.number || row.name || String(row.id),
-            );
+          rememberDeletedRecord(this.store, actor, entity, {
+            id: Number(row.id),
+            number: row.number,
+            name: row.name,
+          });
           this.store.db
             .prepare('DELETE FROM record_lifecycle WHERE entity=? AND record_id=?')
             .run(entity, row.id);

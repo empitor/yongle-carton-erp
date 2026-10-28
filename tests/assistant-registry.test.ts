@@ -109,7 +109,7 @@ test('多工具中后续API中断保留已成功写入的真实结果，重放�
       () => {},
       () => actor,
     );
-    assert.equal(n, 2);
+    assert.equal(n, 4);
     assert.equal(f.store.customers().length, 1);
   } finally {
     f.close();

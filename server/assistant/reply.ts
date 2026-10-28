@@ -1,6 +1,9 @@
+import type { AgentExecutionState, AgentQuestion } from '../../shared/assistant-task.js';
 import { toolCatalog } from './tools.js';
 export const MAX_MESSAGE_CHARS = 16000;
-export const MAX_TOOL_CALLS = 3;
+export const MAX_TOOL_CALLS = Number(process.env.ERP_AGENT_CALLS_PER_REPLY ?? 0);
+if (!Number.isSafeInteger(MAX_TOOL_CALLS) || MAX_TOOL_CALLS < 0)
+  throw new Error('ERP_AGENT_CALLS_PER_REPLY必须为非负安全整数；0表示不限制');
 export type AssistantToolCall = { name: string; args: Record<string, unknown>; stepId?: string };
 export type RejectedToolCall = { name: string; reason: string };
 export type NormalizedAssistantReply = {
@@ -10,6 +13,10 @@ export type NormalizedAssistantReply = {
   mode: 'envelope' | 'text' | 'empty';
   issues: string[];
   keys: string[];
+  taskUpdate?: unknown;
+  status?: AgentExecutionState;
+  questions?: AgentQuestion[];
+  taskControl?: { mode: 'new' | 'continue'; goal?: string };
 };
 const registered = new Set(toolCatalog.map((t) => t.name));
 // 常见兼容模型会使用别名或包裹字段；按顺序取第一个非空文本，不猜测其他业务字段。
@@ -53,6 +60,7 @@ function parseObjectText(text: string): unknown {
 export function normalizeAssistantReply(
   raw: unknown,
   registeredTools: ReadonlySet<string> = registered,
+  maxCalls = MAX_TOOL_CALLS,
 ): NormalizedAssistantReply {
   const empty = (issues: string[], keys: string[] = []): NormalizedAssistantReply => ({
     message: '',
@@ -136,10 +144,14 @@ export function normalizeAssistantReply(
     rejected.push({ name: 'toolCalls', reason: '回复中的工具列表格式不合法，已拒绝执行' });
   }
   if (Array.isArray(rawCalls)) {
-    if (rawCalls.length > MAX_TOOL_CALLS) issues.push('工具调用超过每轮上限，超出部分已拒绝');
+    if (maxCalls > 0 && rawCalls.length > maxCalls)
+      issues.push('工具调用超过每轮上限，超出部分已拒绝');
     rawCalls.forEach((call, index) => {
-      if (index >= MAX_TOOL_CALLS) {
-        rejected.push({ name: '超出上限', reason: '每轮最多 3 个工具调用，超出部分已拒绝' });
+      if (maxCalls > 0 && index >= maxCalls) {
+        rejected.push({
+          name: '超出上限',
+          reason: `本次回复服务端配置最多${maxCalls}个调用，超出部分未执行`,
+        });
         return;
       }
       if (!isPlainObject(call)) {
@@ -172,5 +184,40 @@ export function normalizeAssistantReply(
     : message
       ? 'text'
       : 'empty';
-  return { message, toolCalls, rejected, mode, issues, keys };
+  return {
+    message,
+    toolCalls,
+    rejected,
+    mode,
+    issues,
+    keys,
+    ...(['working', 'needs_input', 'completed', 'blocked'].includes(String(raw.status))
+      ? { status: raw.status as AgentExecutionState }
+      : {}),
+    ...(isPlainObject(raw.taskUpdate) ? { taskUpdate: raw.taskUpdate } : {}),
+    ...(isPlainObject(raw.taskControl) && ['new', 'continue'].includes(String(raw.taskControl.mode))
+      ? {
+          taskControl: {
+            mode: raw.taskControl.mode as 'new' | 'continue',
+            goal:
+              typeof raw.taskControl.goal === 'string'
+                ? raw.taskControl.goal.slice(0, 1000)
+                : undefined,
+          },
+        }
+      : {}),
+    ...(Array.isArray(raw.questions)
+      ? {
+          questions: raw.questions
+            .slice(0, 20)
+            .filter(
+              (q) =>
+                isPlainObject(q) &&
+                typeof q.key === 'string' &&
+                typeof q.question === 'string' &&
+                q.question.length <= 500,
+            ) as any,
+        }
+      : {}),
+  };
 }

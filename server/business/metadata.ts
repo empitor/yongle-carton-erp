@@ -12,7 +12,7 @@ import { operationsMetadata } from '../operations/metadata.js';
 import { flowMetadata } from '../flow/metadata.js';
 import { toolCatalog } from '../assistant/tools.js';
 
-export const CATALOG_VERSION = '25' as const;
+export const CATALOG_VERSION = '26' as const;
 type Field = {
   path: string;
   description: string;
@@ -341,7 +341,8 @@ export function getBusinessMetadata(
       plugins: {
         registry:
           'AssistantToolRegistry.registerPlugin：声明、Zod参数、权限、执行器与能力组合；沿用统一调度和任务回执',
-        management: '/api/assistant/plugins；独立AI插件页与聊天入口，持久启停同原tools.sqlite',
+        management:
+          '/api/assistant/plugins；AI设置→AI插件与工具管理及聊天入口，持久启停同原tools.sqlite',
       },
       pageControl: {
         scope: '仅发起本轮聊天的ERP标签页，绑定真实账号/会话/请求/浏览器clientId',
@@ -350,10 +351,25 @@ export function getBusinessMetadata(
         verification: '交互回执不等于业务提交，优先records.get核验；未知结果不盲目重放',
         limits: '最多180控件、5表格各32行、16000文字；15秒反馈期限；无后台持续截图、无Windows控制',
       },
+      autonomousExecution: {
+        states: ['working', 'needs_input', 'completed', 'blocked'],
+        resources:
+          '服务端可配置，模型/工具/写入/页面次数0为持续；默认2小时，保留无进展与失败限制；每步持久检查点',
+        composition:
+          '基础查询/创建/修改/确认可自主组合；management.execute支持真实全部选择和命令结果引用，flow.propose_production_completion复用原服务整批完工及共享领料',
+        visual:
+          '真实本机ERP浏览器桥接：仅本实例同一登录会话，Chrome/Edge已安装且已连接时开放；截图遮盖敏感区域，非Windows或任意浏览器控制',
+      },
       taskRecovery: {
         storage: '原业务库assistant_threads.document.businessTask及taskArchive，按账号和会话隔离',
         progress:
           '任务ID、已列步骤、成功回执、关联记录、待执行和待核验状态；生成结束不代表业务完成',
+        memory:
+          '当前任务内保存真实用户来源的结构化决定，区分confirmed/inferred/unknown/conflict；文件顺序固定，恢复和跨轮继承，显式新任务隔离',
+        recovery:
+          '无关字段版本变化允许安全重基；冲突字段不覆盖，页面旧引用先自动观察；未知提交先核验，不重放',
+        completion:
+          '草稿、页面交互和正式提交分别标记；只有目标文件真实回执齐全才结束，核验后的替代步骤不再阻塞',
         resume: '继续前核对原业务回执及实时记录；成功写入不重放，未知外部计费结果不得自动重发',
         limits: agentBudgetConfig(),
         protocol: 'custom-json-envelope-v1；未启用原生tool_calls，DSML仅诊断且不执行',

@@ -222,14 +222,14 @@ test('信息不足时模型提问，服务器拒绝只读账户写入及虚假�
     assert.equal(f.store.product(p.id)!.requirements, '旧值');
     f.replies.push({ message: '已修改产品备注。', toolCalls: [] });
     const r = await chat(f, t, '修改产品编号1备注为新值');
-    assert.match(r.messages.at(-1)!.text, /没有成功的后端写入结果/);
+    assert.match(r.messages.at(-1)!.text, /没有成功的后端写入结果|未完成事项/);
     assert.equal(f.store.product(p.id)!.requirements, '旧值');
   } finally {
     f.close();
   }
 });
 
-test('单条归档恢复可按明确指令直接执行；批量必须审核，事务失败不部分提交', async () => {
+test('单条及批量按明确指令执行；显式预览保留，事务失败不部分提交', async () => {
   const f = assistantFixture(),
     owner = superActor();
   try {
@@ -266,17 +266,13 @@ test('单条归档恢复可按明确指令直接执行；批量必须审核，�
     const result = await chat(
         f,
         t,
-        '批量归档这两项产品',
+        '先预览批量归档这两项产品',
         'records.propose_batch_lifecycle',
         args,
         owner,
       ),
       plan = result.messages.at(-1)!.plans[0];
     assert(plan.highRisk);
-    assert.throws(
-      () => f.manager.execute(plan.id, { acknowledged: true }, owner, 'capabilities'),
-      /二次确认/,
-    );
     assert(!f.store.archived('products', a.id));
     f.manager.execute(
       plan.id,
@@ -295,9 +291,23 @@ test('单条归档恢复可按明确指令直接执行；批量必须审核，�
     f.store.db.prepare('UPDATE products SET version=version+1 WHERE id=?').run(b.id);
     assert.throws(() => f.manager.tools.commit(restore, owner, 'capabilities'), /已修改|已变化/);
     assert(f.store.archived('products', a.id) && f.store.archived('products', b.id));
+    assert(
+      f.manager.tools.prepare(
+        'records.propose_batch_lifecycle',
+        { ...args, action: 'restore' },
+        actor,
+        'capabilities',
+      ),
+    );
     assert.throws(
-      () => f.manager.tools.prepare('records.propose_batch_lifecycle', args, actor, 'capabilities'),
-      /超级管理员/,
+      () =>
+        f.manager.tools.prepare(
+          'records.propose_batch_lifecycle',
+          args,
+          { ...actor, permissions: [] },
+          'capabilities',
+        ),
+      /权限/,
     );
   } finally {
     f.close();

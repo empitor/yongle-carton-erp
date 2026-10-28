@@ -43,6 +43,24 @@ export function audit(
       JSON.stringify(document),
     );
 }
+
+/** 删除后的记录身份继续供编号分配、审计和任务恢复使用，不能指向将来的新记录。 */
+export function rememberDeletedRecord(
+  store: Store,
+  actor: Actor,
+  entity: string,
+  row: { id: number; number?: string; name?: string },
+) {
+  store.db
+    .prepare('INSERT OR REPLACE INTO permanent_record_deletions VALUES(?,?,?,?,?)')
+    .run(
+      entity,
+      row.id,
+      new Date().toISOString(),
+      actor.id,
+      row.number || row.name || String(row.id),
+    );
+}
 export function changeLifecycle(
   store: Store,
   entity: RecordEntity,

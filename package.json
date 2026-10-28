@@ -1,6 +1,6 @@
 {
   "name": "carton-workshop-erp",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,7 +15,7 @@
     "seed": "tsx server/seed.ts",
     "backup": "tsx server/maintenance.ts backup",
     "restore": "tsx server/maintenance.ts restore",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts tests/*.test.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.13",
@@ -24,6 +24,7 @@
     "helmet": "^8.1.0",
     "lucide-react": "^0.468.0",
     "pdfjs-dist": "^6.4.299",
+    "playwright-core": "1.64.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "sherpa-onnx-node": "^1.13.8",

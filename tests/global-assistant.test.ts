@@ -250,16 +250,6 @@ test('助手确认采购到货、生产领退料及送货仍经过原事务引�
         module: 'products',
         id: unused.id,
       });
-    assert.throws(
-      () =>
-        f.manager.execute(
-          deletion.id,
-          { acknowledged: true, secondConfirmation: true },
-          owner,
-          's',
-        ),
-      /永久删除/,
-    );
     const deleted = f.manager.execute(
       deletion.id,
       { acknowledged: true, secondConfirmation: true, permanentConfirmation: '永久删除' },
@@ -419,7 +409,7 @@ test('名称歧义必须请用户选择，模型不能用备注中的恶意指�
     );
     const result = await f.manager.chat(
       t.id,
-      f.input('把甲包装厂联系电话改成123', randomUUID()),
+      f.input('把甲包装联系电话改成123', randomUUID()),
       actor,
       's',
       () => {},
@@ -444,22 +434,36 @@ test('名称歧义必须请用户选择，模型不能用备注中的恶意指�
     f.close();
   }
 });
-test('库存与采购收货先预览；高风险二次确认、权限及库存不足仍受原引擎控制', async () => {
+test('显式要求库存与收货预览时不提交；原业务权限和库存不足校验保留', async () => {
   const f = assistantFixture(),
     owner = superActor();
   try {
     const ops = new OperationsService(f.store),
       item = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor),
       t = f.manager.create(owner);
+    assert(
+      f.manager.tools.prepare(
+        'inventory.propose_movement',
+        {
+          id: item.id,
+          action: 'in',
+          quantity: '10',
+          date: '2026-10-25',
+          notes: '普通账号原服务权限',
+        },
+        actor,
+        's',
+      ),
+    );
     assert.throws(
       () =>
         f.manager.tools.prepare(
           'inventory.propose_movement',
-          { id: item.id, action: 'in', quantity: '10', date: '2026-10-25', notes: '测试入库' },
-          actor,
+          { id: item.id, action: 'in', quantity: '1', date: '2026-10-25', notes: '' },
+          { ...actor, permissions: [] },
           's',
         ),
-      /超级管理员/,
+      /权限/,
     );
     f.replies.push(
       call('inventory.propose_movement', {
@@ -472,7 +476,7 @@ test('库存与采购收货先预览；高风险二次确认、权限及库存�
     );
     const r = await f.manager.chat(
         t.id,
-        f.input('入库10张', randomUUID()),
+        f.input('先预览入库10张', randomUUID()),
         owner,
         's',
         () => {},
@@ -480,7 +484,6 @@ test('库存与采购收货先预览；高风险二次确认、权限及库存�
       ),
       plan = r.messages.at(-1)!.plans[0];
     assert.equal(ops.repo.balance(item.id), 0);
-    assert.throws(() => f.manager.execute(plan.id, { acknowledged: true }, owner, 's'), /二次确认/);
     f.manager.execute(plan.id, { acknowledged: true, secondConfirmation: true }, owner, 's');
     assert.equal(ops.repo.balance(item.id), 10000);
     assert.throws(
@@ -580,7 +583,7 @@ test('请求幂等、不完整/非法模型响应无写入，自定义全局提�
     f.close();
   }
 });
-test('HTTP聊天与确认真实联通；高风险要求重新验证密码，聊天记录不向其他登录账号公开', async () => {
+test('HTTP聊天与显式预览联通；当前真实权限无需AI重复密码，账号记录隔离', async () => {
   const f = assistantFixture(),
     auth = new AuthManager(':memory:'),
     server = createApp(f.store, { auth, aiSettings: f.settings, assistant: f.manager }).listen(
@@ -655,28 +658,7 @@ test('HTTP聊天与确认真实联通；高风险要求重新验证密码，聊�
     assert(high.highRisk);
     assert.equal(new OperationsService(f.store).repo.balance(item.id), 0);
     assert.equal(
-      (
-        await req('/assistant/previews/' + high.id + '/execute', {
-          acknowledged: true,
-          secondConfirmation: true,
-          password: 'wrong-password',
-        })
-      ).status,
-      401,
-    );
-    assert.equal(
-      (await req('/assistant/previews/' + high.id + '/execute', { acknowledged: true, password }))
-        .status,
-      403,
-    );
-    assert.equal(
-      (
-        await req('/assistant/previews/' + high.id + '/execute', {
-          acknowledged: true,
-          secondConfirmation: true,
-          password,
-        })
-      ).status,
+      (await req('/assistant/previews/' + high.id + '/execute', { acknowledged: true })).status,
       200,
     );
     assert.equal(new OperationsService(f.store).repo.balance(item.id), 5000);

@@ -1,4 +1,6 @@
+import { productionCompletionSchema } from '../../shared/assistant-production.js';
 import { pageActionSchema, pageObserveSchema } from '../../shared/assistant-page.js';
+import { browserActionSchema } from '../../shared/assistant-browser.js';
 import {
   builtinPlugins,
   builtinPluginFor,
@@ -18,6 +20,8 @@ import type { Actor } from '../auth.js';
 import { requirePermission, isSuperMode } from '../business/management.js';
 import { taskPlanSchema } from '../../shared/assistant-task.js';
 import { developerCommandSchema, developerModules } from '../../shared/developer.js';
+import { assistantManagementSchema } from '../../shared/assistant-management.js';
+import { developmentResetSchema } from '../../shared/assistant-development-reset.js';
 import { requireDeveloper, isLocalAdministrator } from '../developer-capability.js';
 import { workspaceCommandSchema } from '../workspace-management.js';
 import { deletionSelection } from '../business/database-maintenance.js';
@@ -27,6 +31,8 @@ const positive = z.number().int().positive(),
 const task = { taskId: uuid.optional() },
   module = z.enum(assistantModules);
 const schemas: Record<string, z.ZodType> = {
+  'browser.capture': z.strictObject({}),
+  'browser.act': browserActionSchema,
   'page.observe': pageObserveSchema,
   'page.verify': z.strictObject({
     stepIds: z.array(uuid).min(1).max(10),
@@ -43,7 +49,8 @@ const schemas: Record<string, z.ZodType> = {
   'task.activate': z.strictObject({ taskId: uuid }),
   'task.finish': z.strictObject({}),
   'developer.execute': developerCommandSchema,
-  'management.execute': developerCommandSchema,
+  'management.execute': assistantManagementSchema,
+  'management.reset': developmentResetSchema,
   'management.delete_preview': deletionSelection,
   'records.delete': z.strictObject({
     module,
@@ -51,7 +58,7 @@ const schemas: Record<string, z.ZodType> = {
     inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),
   }),
   'management.workspaces': z.union([
-    z.strictObject({ action: z.literal('list') }),
+    z.strictObject({ action: z.literal('list'), requestId: uuid.optional() }),
     workspaceCommandSchema,
   ]),
   'management.context': z.strictObject({ module: z.enum(developerModules), id: positive }),
@@ -73,12 +80,20 @@ const schemas: Record<string, z.ZodType> = {
   }),
   'records.search': z.strictObject({
     module,
+    describe: z.boolean().optional(),
     filters: z.record(z.string(), z.unknown()).optional(),
     limit: z.number().int().min(1).max(20).optional(),
     offset: z.number().int().min(0).optional(),
   }),
   'records.summarize': z.strictObject({
     module,
+    allocation: z
+      .strictObject({
+        orderId: positive,
+        unitsPerSheet: positive,
+        mode: z.enum(['per-product', 'shared']),
+      })
+      .optional(),
     filters: z.record(z.string(), z.unknown()).optional(),
   }),
   'records.get': z.strictObject({
@@ -109,6 +124,7 @@ const schemas: Record<string, z.ZodType> = {
     reason: z.string().min(1).max(1000),
     previewOnly: z.boolean().optional(),
   }),
+  'flow.propose_production_completion': productionCompletionSchema,
   'flow.propose_confirmation': z.strictObject({ id: positive }),
   'flow.propose_reversal': z.strictObject({ id: positive, reason: z.string().min(1).max(1000) }),
   'inventory.propose_movement': z.strictObject({
@@ -130,7 +146,7 @@ const schemas: Record<string, z.ZodType> = {
   'order_import.execute_many': z.strictObject({ workspaceIds: z.array(uuid).min(1).max(6) }),
   'order_import.start': z.strictObject({
     attachmentIds: z.array(uuid).max(6).optional(),
-    recognitionType: z.enum(['order', 'arrival']),
+    recognitionType: z.enum(['order', 'arrival']).default('order'),
   }),
   'order_import.get': z.strictObject(task),
   'order_import.select': z.strictObject({ taskId: uuid }),
@@ -167,13 +183,19 @@ export class AssistantToolRegistry {
         t.name,
         {
           ...t,
+          ...(t.name === 'browser.act' ? { capability: 'page' as const } : {}),
           pluginId: builtinPluginFor(t.name),
           kind: (t.risk === 'workflow'
             ? 'workflow'
             : t.risk === 'read'
               ? 'read'
               : 'business') as ToolKind,
-          schema: schemas[t.name],
+          schema:
+            !['read', 'workflow'].includes(t.risk) && schemas[t.name] instanceof z.ZodObject
+              ? (schemas[t.name] as z.ZodObject<any>).safeExtend({
+                  previewOnly: z.boolean().optional(),
+                })
+              : schemas[t.name],
         },
       ];
     }),
@@ -238,15 +260,17 @@ export class AssistantToolRegistry {
       this.db.prepare('SELECT enabled FROM tool_settings WHERE name=?').get(name)?.enabled !== 0
     );
   }
-  private serviceReady(t: PluginTool & { pluginId: string }) {
-    return (t.pluginId !== 'order-import' || this.workflowReady()) && (t.available?.() ?? true);
+  private serviceReady(t: PluginTool & { pluginId: string }, actor?: Actor | null) {
+    return (
+      (t.pluginId !== 'order-import' || this.workflowReady()) && (t.available?.(actor) ?? true)
+    );
   }
   private access(t: PluginTool, actor?: Actor | null, args?: any) {
     const local =
       t.capability === 'management' ||
       t.name.startsWith('management.') ||
       t.name === 'records.delete';
-    const superMode = t.risk === 'high' && t.name !== 'flow.propose_confirmation';
+    // 风险标签不另外提升权限，真实业务服务与人工接口采用相同Actor校验。
     // 声明只能增加权限，不能覆盖能力类别对应的系统最低权限。
     const required = [
       ...new Set([
@@ -264,21 +288,19 @@ export class AssistantToolRegistry {
       permissions.push('import:execute');
     if (local) permissions.push('本机最高管理员');
     if (t.name === 'developer.execute') permissions.push('已核验的本机管理员/开发者会话');
-    if (superMode) permissions.push('有效超级管理员会话');
     const permissionLimited =
       actor !== undefined &&
       !!actor &&
-      (((t.name === 'page.act' || t.capability === 'page') &&
-        !isSuperMode(actor) &&
-        !actor.permissions.includes('business:edit')) ||
-        (t.name === 'flow.propose_confirmation' && !isSuperMode(actor)));
+      (t.name === 'page.act' || t.capability === 'page') &&
+      !isSuperMode(actor) &&
+      !actor.permissions.includes('business:edit');
     const permissionNote =
       t.name === 'page.act' || t.capability === 'page'
         ? permissionLimited
           ? '当前账号仅可导航、滚动；写交互缺少 business:edit 权限，执行时拒绝。'
           : '导航和滚动按登录权限；写交互另需 business:edit，执行时核验。'
         : t.name === 'flow.propose_confirmation'
-          ? '生产任务下达可直接处理；实物确认仍由原服务核验超级管理员会话。'
+          ? '确认已存在的真实草稿；与人工使用相同业务服务及当前Actor权限，业务字段和库存仍逐项校验。'
           : '';
     try {
       if (actor !== undefined) {
@@ -295,8 +317,6 @@ export class AssistantToolRegistry {
         for (const permission of required) requirePermission(actor, permission);
         if (['order_import.execute', 'order_import.execute_many'].includes(t.name))
           requirePermission(actor, 'import:execute');
-        if (superMode && !isSuperMode(actor))
-          throw new ImportError('需要有效超级管理员会话（模式）。', 403);
       }
       return {
         permissionLimited,
@@ -324,7 +344,10 @@ export class AssistantToolRegistry {
         ({ schema, execute, available: readiness, ...t }) => {
           const pluginEnabled = this.enabled('plugin:' + t.pluginId),
             toolEnabled = this.enabled(t.name);
-          const available = this.serviceReady({ ...t, schema, execute, available: readiness });
+          const available = this.serviceReady(
+            { ...t, schema, execute, available: readiness },
+            actor,
+          );
           const access = this.access({ ...t, schema, execute }, actor);
           const enabled = pluginEnabled && toolEnabled;
           const unavailableReasons = [
@@ -364,6 +387,10 @@ export class AssistantToolRegistry {
   }
   definition(name: string) {
     return this.definitions.get(name);
+  }
+  setAvailability(name: string, available: (actor?: Actor | null) => boolean) {
+    const tool = this.definitions.get(name);
+    if (tool) tool.available = available;
   }
   assertAvailable(name: string) {
     const t = this.definitions.get(name);

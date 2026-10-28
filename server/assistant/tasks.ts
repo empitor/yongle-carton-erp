@@ -8,7 +8,14 @@ import {
   type BusinessTaskStep,
 } from '../../shared/assistant-task.js';
 import type { AssistantTools } from './tools.js';
+import { mergeDecisions, userDecisions } from './task-memory.js';
 const now = () => new Date().toISOString();
+const byteLimit = (name: string, fallback: number) => {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(name + '必须为非负安全整数；0表示不设大小上限');
+  return value;
+};
 const canonical = (v: any): any =>
   Array.isArray(v)
     ? v.map(canonical)
@@ -52,7 +59,116 @@ const receiptOnly = (v: any) => {
 };
 /** 与业务预览回执同库；成功业务写入和步骤完成由commitPreview在同一事务提交。 */
 export class AssistantTaskLedger {
+  private readonly taskBytes = byteLimit('ERP_AGENT_TASK_BYTES', 16_000_000);
+  private readonly archiveBytes = byteLimit('ERP_AGENT_ARCHIVE_BYTES', 64_000_000);
   constructor(readonly store: Store) {}
+  rememberInput(
+    threadId: string,
+    actor: Actor,
+    messageId: string,
+    text: string,
+    files: { id: string; name: string }[] = [],
+    restoreLegacy = true,
+  ) {
+    const prior = this.get(threadId, actor);
+    const task = this.begin(threadId, actor, text);
+    const memory = (task.memory ||= { decisions: [], turns: [], workspaceIds: [] });
+    if (prior && !prior.memory && restoreLegacy) {
+      const first = this.store.db
+        .prepare(
+          "SELECT rowid FROM assistant_messages WHERE thread_id=? AND role='user' AND created_at<=? ORDER BY rowid DESC LIMIT 1",
+        )
+        .get(threadId, task.createdAt);
+      const until =
+        this.history(threadId, actor)
+          .filter((t) => t.createdAt >= task.createdAt)
+          .map((t) => t.createdAt)
+          .sort()[0] || '9999';
+      if (first)
+        for (const row of this.store.db
+          .prepare(
+            "SELECT id,text FROM assistant_messages WHERE thread_id=? AND role='user' AND rowid>=? AND created_at<? AND id<>? ORDER BY rowid LIMIT 100",
+          )
+          .all(threadId, first.rowid, until, messageId)) {
+          const turn = { id: String(row.id), text: String(row.text) };
+          memory.turns.push(turn);
+          mergeDecisions(
+            memory,
+            userDecisions(turn.text, turn.id),
+            /改为|更正|纠正|以.*为准/.test(turn.text),
+          );
+        }
+      for (const step of task.steps)
+        for (const wid of step.scope?.workspaceIds || [])
+          if (!memory.workspaceIds.includes(wid)) memory.workspaceIds.push(wid);
+    }
+    if (!memory.turns.some((t) => t.id === messageId)) memory.turns.push({ id: messageId, text });
+    memory.files ||= [];
+    for (const f of files)
+      if (!memory.files.some((x) => x.id === f.id)) memory.files.push({ id: f.id, name: f.name });
+    mergeDecisions(memory, userDecisions(text, messageId), /改为|更正|纠正|以.*为准/.test(text));
+    return this.put(threadId, actor, task);
+  }
+  rememberModel(threadId: string, actor: Actor, raw: any) {
+    if (!raw || !Array.isArray(raw.decisions)) return;
+    const task = this.get(threadId, actor);
+    if (!task?.memory) return;
+    for (const item of raw.decisions.slice(0, 30)) {
+      if (
+        !item ||
+        !/^[a-zA-Z][a-zA-Z0-9.]{0,60}$/.test(item.key) ||
+        JSON.stringify(item.value ?? null).length > 2000
+      )
+        continue;
+      const source = task.memory.turns.find((t) => t.id === item.messageId);
+      const quote = typeof item.quote === 'string' ? item.quote.slice(0, 1000) : '';
+      const verified =
+        source && quote && source.text.includes(quote)
+          ? userDecisions(source.text, source.id).find(
+              (d) =>
+                d.key === item.key &&
+                d.scope === (item.scope || 'task') &&
+                JSON.stringify(d.value) === JSON.stringify(item.value),
+            )
+          : undefined;
+      mergeDecisions(task.memory, [
+        {
+          key: item.key,
+          scope: /^(task|all|order:[1-6])$/.test(item.scope) ? item.scope : 'task',
+          value: item.value ?? null,
+          status: verified ? 'confirmed' : item.status === 'unknown' ? 'unknown' : 'inferred',
+          source: verified?.source || { kind: 'model', quote },
+        },
+      ]);
+    }
+    return this.put(threadId, actor, task);
+  }
+  bindWorkspaces(threadId: string, actor: Actor, ids: string[]) {
+    const task = this.get(threadId, actor);
+    if (!task?.memory) return;
+    for (const id of ids)
+      if (!task.memory.workspaceIds.includes(id)) task.memory.workspaceIds.push(id);
+    return this.put(threadId, actor, task);
+  }
+  supersede(threadId: string, actor: Actor, oldId: string, replacementId: string) {
+    const task = this.get(threadId, actor),
+      old = task?.steps.find((s) => s.id === oldId),
+      replacement = task?.steps.find((s) => s.id === replacementId);
+    if (
+      !task ||
+      !old ||
+      !replacement ||
+      old.id === replacement.id ||
+      !['failed', 'planned', 'waiting'].includes(old.state) ||
+      replacement.state !== 'completed' ||
+      !replacement.completion?.verified
+    )
+      return;
+    old.state = 'superseded';
+    old.supersededBy = replacement.id;
+    old.verification = { replacementVerified: true, at: now(), replacementId };
+    return this.put(threadId, actor, task);
+  }
   get(threadId: string, actor: Actor): AssistantBusinessTask | null {
     const r = this.store.db
       .prepare('SELECT document FROM assistant_threads WHERE id=? AND user_id=?')
@@ -62,7 +178,7 @@ export class AssistantTaskLedger {
   }
   private put(threadId: string, actor: Actor, task: AssistantBusinessTask) {
     task.updatedAt = now();
-    if (JSON.stringify(task).length > 3_000_000)
+    if (this.taskBytes > 0 && Buffer.byteLength(JSON.stringify(task), 'utf8') > this.taskBytes)
       throw new ImportError('任务记录过大，请保留结果后开始新任务。', 409);
     const r = this.store.db
       .prepare(
@@ -76,7 +192,10 @@ export class AssistantTaskLedger {
     let task = this.get(threadId, actor);
     if (newTask && task) {
       const history = [...this.history(threadId, actor).filter((t) => t.id !== task!.id), task];
-      if (history.length > 20 || JSON.stringify(history).length > 10_000_000)
+      if (
+        this.archiveBytes > 0 &&
+        Buffer.byteLength(JSON.stringify(history), 'utf8') > this.archiveBytes
+      )
         throw new ImportError('本会话任务档案达到上限，请新建会话；原任务保留。');
       this.store.db
         .prepare(
@@ -149,9 +268,9 @@ export class AssistantTaskLedger {
         updatedAt: now(),
       });
     }
-    if (task.steps.length > 80) throw new ImportError('任务最多80个受控步骤，请拆分任务。');
     task.goal = v.goal;
     task.state = 'running';
+    task.execution = { state: 'working' };
     task.stage = '计划已保存，尚未执行剩余步骤';
     return this.put(threadId, actor, task);
   }
@@ -206,7 +325,6 @@ export class AssistantTaskLedger {
       }
     }
     if (!step) {
-      if (task.steps.length >= 80) throw new ImportError('任务步骤已达上限，请开始新任务。');
       step = {
         id: randomUUID(),
         key,
@@ -257,12 +375,53 @@ export class AssistantTaskLedger {
     return this.put(threadId, actor, task);
   }
   done(threadId: string, actor: Actor, id: string, result: any, previewId?: string) {
-    return this.update(threadId, actor, id, {
+    const step = this.get(threadId, actor)?.steps.find((s) => s.id === id);
+    const formal =
+      !!previewId ||
+      !!result?.order?.id ||
+      !!result?.workspace?.imported?.orderId ||
+      !!(result?.results?.length && result.results.every((r: any) => r.success && r.order?.id));
+    const saved = this.update(threadId, actor, id, {
       state: 'completed',
+      completion: {
+        kind: formal
+          ? 'business'
+          : ['page.act', 'browser.act'].includes(step?.tool || '')
+            ? 'interaction'
+            : step?.tool.startsWith('order_import.')
+              ? 'draft'
+              : 'read',
+        verified: true,
+      },
       result,
       ...(previewId ? { previewId } : {}),
       error: undefined,
     });
+    for (const old of saved.steps) {
+      if (old.id === id || old.state !== 'failed' || old.tool !== step?.tool) continue;
+      const sameScope =
+        JSON.stringify(canonical(old.scope || {})) === JSON.stringify(canonical(step.scope || {}));
+      if (sameScope && old.key === step.key) this.supersede(threadId, actor, old.id, id);
+      else if (
+        sameScope &&
+        old.tool === 'order_import.edit' &&
+        old.args?.operations?.length &&
+        result?.workspace?.draft
+      ) {
+        const draft = result.workspace.draft;
+        if (
+          old.args.operations.every(
+            (op: any) =>
+              (op.op === 'set-header'
+                ? draft.header[op.field]?.value
+                : draft.lines.find((l: any) => l.id === op.lineId)?.fields[op.field]?.value) ===
+              op.value,
+          )
+        )
+          this.supersede(threadId, actor, old.id, id);
+      }
+    }
+    return this.get(threadId, actor)!;
   }
   fail(threadId: string, actor: Actor, id: string, error: string, uncertain = false) {
     const step = this.get(threadId, actor)?.steps.find((x) => x.id === id);
@@ -272,6 +431,38 @@ export class AssistantTaskLedger {
       error: error.slice(0, 600),
     });
   }
+  needsBusinessProof(threadId: string, actor: Actor) {
+    const task = this.get(threadId, actor);
+    if (!task) return false;
+    if (
+      !/保存|创建|新建|新增|修改|更新|删除|清空|归档|恢复|导入|确认|入库|出库|领料|完工|发货|发出|送货|采购|下单/.test(
+        task.goal,
+      ) ||
+      /^(?:打开|进入|导航|填写|选择|查看|查询|解释|说明|介绍|统计|汇总|列出)/.test(task.goal) ||
+      /^(?:请问|想了解)?(?:如何|怎么|能否|是否)/.test(task.goal)
+    )
+      return false;
+    if (!task.steps.length) return true; // 零业务回执不能证明业务目标已完成。
+    return (
+      task.steps.some(
+        (s) =>
+          ['page.act', 'browser.act'].includes(s.tool) &&
+          s.completion?.kind === 'interaction' &&
+          (['submit', 'click'].includes(s.args?.action) ||
+            (s.args?.action === 'key' && s.args.key === 'Enter')),
+      ) && !task.steps.some((s) => s.completion?.kind === 'business' && s.completion.verified)
+    );
+  }
+  execution(
+    threadId: string,
+    actor: Actor,
+    execution: NonNullable<AssistantBusinessTask['execution']>,
+  ) {
+    const task = this.get(threadId, actor);
+    if (!task) return null;
+    task.execution = execution;
+    return this.put(threadId, actor, task);
+  }
   finish(
     threadId: string,
     actor: Actor,
@@ -279,13 +470,30 @@ export class AssistantTaskLedger {
   ) {
     const task = this.get(threadId, actor);
     if (!task) return null;
-    const pending = task.steps.filter((x) => x.state !== 'completed');
+    const unfinished = task.steps.filter((x) => !['completed', 'superseded'].includes(x.state)),
+      missingProof = this.needsBusinessProof(threadId, actor);
+    // 最终回复正常结束、且没有仍可续办的 waiting/planned 步骤时，旧失败/不确定步骤
+    // 只代表本轮已处理过的尝试，不能一直把任务挂在“未完成”。真实未完成会以
+    // waiting/planned 步骤或 blocked 状态保留。
+    if (reason === 'normal' && !missingProof && !unfinished.some((x) => x.state !== 'failed'))
+      for (const step of unfinished) step.state = 'superseded';
+    const pending = task.steps.filter((x) => !['completed', 'superseded'].includes(x.state));
     task.state =
       reason === 'waiting' || pending.some((x) => x.state === 'waiting')
         ? 'waiting'
-        : reason !== 'normal' || pending.length
+        : reason !== 'normal' || pending.length || missingProof
           ? 'paused'
           : 'completed';
+    task.execution = {
+      state:
+        task.state === 'completed'
+          ? 'completed'
+          : task.state === 'waiting'
+            ? 'needs_input'
+            : 'blocked',
+      ...(task.execution?.questions?.length ? { questions: task.execution.questions } : {}),
+      reason: task.execution?.reason,
+    };
     task.stage =
       reason === 'limit'
         ? '本轮预算已到，已保存进度'
@@ -293,9 +501,13 @@ export class AssistantTaskLedger {
           ? '模型协议异常，步骤未重放'
           : reason === 'error'
             ? '请求中断，继续前核验'
-            : pending.length
-              ? '尚有未执行步骤'
-              : '所有已列步骤都有服务器结果';
+            : reason === 'waiting'
+              ? '等待必要的业务决定或原业务确认'
+              : missingProof
+                ? '页面交互已返回，业务结果仍待真实核验'
+                : pending.length
+                  ? '尚有未执行步骤'
+                  : '所有已列步骤都有服务器结果';
     return this.put(threadId, actor, task);
   }
   private bootstrap(threadId: string, actor: Actor) {
@@ -461,11 +673,41 @@ export class AssistantTaskLedger {
     if (!task) return null;
     return {
       ...task,
-      otherTasks: this.history(threadId, actor).map((t) => ({
-        id: t.id,
-        goal: t.goal,
-        state: t.state,
-      })),
+      memory: task.memory
+        ? {
+            decisions: task.memory.decisions,
+            workspaceIds: task.memory.workspaceIds,
+            files: task.memory.files,
+            latestUserMessageId: task.memory.turns.at(-1)?.id,
+          }
+        : undefined,
+      budget: task.budget
+        ? { used: task.budget.used, limits: task.budget.limits, stopReason: task.budget.stopReason }
+        : undefined,
+      otherTasks: this.history(threadId, actor)
+        .slice(-8)
+        .map((t) => ({
+          id: t.id,
+          goal: t.goal,
+          state: t.state,
+          references: t.steps
+            .filter((s) => s.completion?.kind === 'business' && s.completion.verified)
+            .slice(-5)
+            .map((s) => ({
+              tool: s.tool,
+              id: s.result?.id,
+              orderId: s.result?.orderId,
+              number: s.result?.number,
+              outputs: s.result?.outputs
+                ? Object.fromEntries(
+                    Object.entries(s.result.outputs).map(([key, v]: any) => [
+                      key,
+                      { id: v?.id, number: v?.number },
+                    ]),
+                  )
+                : undefined,
+            })),
+        })),
       steps: task.steps.map((s, i) => {
         const read = [
             'records.search',
@@ -485,6 +727,24 @@ export class AssistantTaskLedger {
                 total: s.result?.total,
                 workspaceId: s.result?.workspaceId,
                 documentTaskId: s.result?.documentTaskId,
+                outputs: s.result?.outputs
+                  ? Object.fromEntries(
+                      Object.entries(s.result.outputs).map(([key, v]: any) => [
+                        key,
+                        {
+                          id: v?.id,
+                          version: v?.version,
+                          number: v?.number,
+                          results: v?.results?.map((x: any) => ({ id: x.id, version: x.version })),
+                          lines: v?.lines?.map((x: any) => ({
+                            id: x.id,
+                            stockItemId: x.stockItemId,
+                            productId: x.productId,
+                          })),
+                        },
+                      ]),
+                    )
+                  : undefined,
               }
             : s.result,
           ...(compact

@@ -13,7 +13,7 @@ export function verifyPageOutcome(
 ) {
   const task = ledger.get(threadId, actor);
   const steps = [...new Set(args.stepIds)].map((id) => task?.steps.find((s) => s.id === id));
-  if (!steps.length || steps.some((s) => !s || s.tool !== 'page.act'))
+  if (!steps.length || steps.some((s) => !s || !['page.act', 'browser.act'].includes(s.tool)))
     throw new ImportError('只能核验当前账号当前任务中的真实页面步骤。', 403);
   const results = steps.map((step) => {
     const s = step!,
@@ -61,6 +61,7 @@ export function verifyPageOutcome(
         throw new ImportError('该步目标字段尚不符合：' + mismatched.join('、'), 409);
       ledger.update(threadId, actor, s.id, {
         state: 'completed',
+        completion: { kind: 'business', verified: true },
         error: undefined,
         verification: {
           at: new Date().toISOString(),

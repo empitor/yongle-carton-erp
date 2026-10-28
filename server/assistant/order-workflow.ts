@@ -1,17 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import type { Store } from '../db.js';
 import type { Actor } from '../auth.js';
 import type { ImportManager } from '../import/manager.js';
 import type { ImportExecutionService } from '../business/import-execution.js';
 import type { AssistantAttachments } from './attachments.js';
 import { requirePermission } from '../business/management.js';
-import { ImportError } from '../import/errors.js';
+import { ImportError, formatZodIssues } from '../import/errors.js';
 import { matchDraft } from '../import/matching.js';
 import { patchOperationSchema } from '../../shared/order-draft.js';
 import type { AssistantAttachment } from '../../shared/assistant-attachments.js';
 import { isLocalAdministrator } from '../developer-capability.js';
 import type { ProviderTokenUsage } from '../ai/usage.js';
+import type { TaskMemory } from '../../shared/assistant-task.js';
+import { confirmedValue, decision } from './task-memory.js';
+import { isDeepStrictEqual } from 'node:util';
+import { productFieldsFromDraft } from '../import/product-input.js';
+import { hasCompleteProductIdentity, productIdentityParts } from '../../shared/product-details.js';
 
 export const orderWorkflowTools = [
   {
@@ -38,8 +43,12 @@ export const orderWorkflowTools = [
   {
     name: 'order_import.start',
     description:
-      '将当前会话附件复制到原订单识别工作区并识别客户销售订单。仅用户明确要求识别/导入订单时使用；相同附件复用原任务，不自动重新收费。',
-    arguments: { attachmentIds: ['当前会话附件UUID，可省略；多份时逐份独立任务'] },
+      '将当前会话附件复制到原订单识别工作区并识别客户销售订单。仅用户明确要求识别/导入订单时使用；相同附件复用原任务，不自动重新收费。当前消息有多份订单附件时，必须在同一次调用中传入全部 attachmentIds，由服务端一次批量识别，不得拆成多次逐份调用。',
+    arguments: {
+      attachmentIds: [
+        '当前会话附件UUID，可省略（省略时使用当前消息全部附件）；有多份订单时一次传入全部ID',
+      ],
+    },
     risk: 'workflow',
   },
   {
@@ -114,6 +123,7 @@ export const orderWorkflowTools = [
   },
 ] as const;
 type Task = {
+  observed?: { revision: number; draft: any };
   recognitionRequest?: string;
   focusLine?: number;
   id: string;
@@ -142,6 +152,7 @@ export type WorkflowContext = {
   consumeMutation?: () => void;
   consumeModel?: () => void;
   onUsage?: (usage: ProviderTokenUsage) => void;
+  memory?: () => TaskMemory | undefined;
   signal: AbortSignal;
   emit: (event: string, data: any) => void;
 };
@@ -176,11 +187,12 @@ export class AssistantOrderWorkflow {
     return {
       ...state,
       tasks: state.tasks.map((t) => {
+        const { observed, ...publicTask } = t;
         try {
           const w = this.imports.get(t.workspaceId);
           if (w.imported && !w.imported.historical)
             return {
-              ...t,
+              ...publicTask,
               preview: undefined,
               previewRequest: undefined,
               state: 'imported',
@@ -188,17 +200,21 @@ export class AssistantOrderWorkflow {
               error: undefined,
             };
         } catch {
-          return { ...t, state: 'missing', error: '原工作区已移除，正式业务及聊天附件不受影响。' };
+          return {
+            ...publicTask,
+            state: 'missing',
+            error: '原工作区已移除，正式业务及聊天附件不受影响。',
+          };
         }
         return t.state === 'recognizing' &&
           !this.running.has(t.id) &&
           !this.imports.isBusy(t.workspaceId)
           ? {
-              ...t,
+              ...publicTask,
               state: 'interrupted',
               error: '上次识别已中断，原件和旧草稿保留；可明确要求重试。',
             }
-          : t;
+          : publicTask;
       }),
     };
   }
@@ -223,6 +239,39 @@ export class AssistantOrderWorkflow {
     task.previewRequest = undefined;
     try {
       let w = this.imports.get(task.workspaceId);
+      // 仅复用同任务已正式建档、完整身份完全相同的产品；相似/不完整身份仍询问。
+      const created = this.state(ctx.threadId, ctx.actor).tasks.flatMap((t) => {
+        const receipt = this.execution.receipt(t.workspaceId, ctx.check());
+        return (receipt?.created || [])
+          .filter((r: any) => r.entity === 'products')
+          .map((r: any) => r.id);
+      });
+      const mapping = structuredClone(w.mapping);
+      let changed = false;
+      for (const line of w.draft?.lines || [])
+        if (mapping?.products[line.id]?.mode === 'new') {
+          const definition = productFieldsFromDraft(line.fields);
+          const exact = hasCompleteProductIdentity(definition)
+            ? this.store
+                .products()
+                .filter(
+                  (p) =>
+                    created.includes(p.id) &&
+                    hasCompleteProductIdentity(p) &&
+                    isDeepStrictEqual(productIdentityParts(p), productIdentityParts(definition)),
+                )
+            : [];
+          if (exact.length === 1) {
+            mapping.products[line.id] = {
+              mode: 'existing',
+              id: exact[0].id,
+              version: exact[0].version,
+            };
+            changed = true;
+          }
+        }
+      if (changed)
+        w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping }, ctx.check());
       task.preview = await this.execution.preview(
         w.id,
         { expectedRevision: w.revision },
@@ -232,15 +281,19 @@ export class AssistantOrderWorkflow {
         ref.mode === 'existing'
           ? { mode: 'existing', id: ref.id, version: ref.version }
           : { mode: 'new' };
-      const mapping = {
+      const refreshedMapping = {
         customer: choice(task.preview.plan.customer),
         products: Object.fromEntries(
           w.draft!.lines.map((line, i) => [line.id, choice(task.preview.plan.products[i])]),
         ),
         roundingPolicy: w.mapping?.roundingPolicy || 'exact-cents',
       };
-      if (JSON.stringify(mapping) !== JSON.stringify(w.mapping)) {
-        w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping }, ctx.actor);
+      if (JSON.stringify(refreshedMapping) !== JSON.stringify(w.mapping)) {
+        w = this.imports.mapping(
+          w.id,
+          { expectedRevision: w.revision, mapping: refreshedMapping },
+          ctx.actor,
+        );
         task.preview = await this.execution.preview(
           w.id,
           { expectedRevision: w.revision },
@@ -320,7 +373,12 @@ export class AssistantOrderWorkflow {
       await this.prepare(ctx, state, task);
     } catch (e) {
       task.state = 'failed';
-      task.error = e instanceof Error ? e.message : '识别失败';
+      task.error =
+        e instanceof ZodError
+          ? formatZodIssues(e, '识别结果字段不完整')
+          : e instanceof Error
+            ? e.message
+            : '识别失败';
       this.save(ctx, state);
       throw e;
     } finally {
@@ -334,16 +392,24 @@ export class AssistantOrderWorkflow {
       matches = matchDraft(this.store, w),
       imported = w.imported && !w.imported.historical ? w.imported : null,
       order = imported ? this.store.order(imported.orderId, true) : undefined;
+    task.observed = { revision: w.revision, draft: structuredClone(w.draft) };
+    const state = this.state(ctx.threadId, ctx.actor);
+    const saved = state.tasks.find((t) => t.id === task.id);
+    if (saved) {
+      saved.observed = task.observed;
+      this.save(ctx, state);
+    }
     return {
       task: imported
         ? {
             ...task,
+            observed: undefined,
             state: 'imported',
             preview: undefined,
             previewRequest: undefined,
             result: { orderId: imported.orderId, orderNumber: imported.orderNumber },
           }
-        : task,
+        : { ...task, observed: undefined },
       ...(imported ? { order, previewIsHistorical: true } : {}),
       executionReceipt: this.execution.receipt(w.id, ctx.check()),
       workspace: {
@@ -412,9 +478,34 @@ export class AssistantOrderWorkflow {
     if (name === 'order_import.execute_many') {
       requirePermission(ctx.check(), 'import:execute');
       const ids = z.array(z.string().uuid()).min(1).max(6).parse(args.workspaceIds);
+      // 一次检查全部文件，集中返回业务阻碍，避免逐张重复问相同问题。
+      const blocked = [];
+      for (const workspaceId of [...new Set(ids)]) {
+        const attached = await this.call('order_import.attach', { workspaceId }, ctx);
+        const w = this.imports.get(workspaceId);
+        if (w.imported && !w.imported.historical) continue;
+        try {
+          this.checkDecisions(ctx, attached.task, w);
+          const current = this.selected(ctx, attached.task.id);
+          await this.prepare(ctx, current.state, current.task);
+          if (current.task.error) throw new ImportError(current.task.error, 409);
+        } catch (e) {
+          blocked.push({
+            workspaceId,
+            fileName: w.fileName,
+            success: false,
+            message: e instanceof Error ? e.message : '资料需核对',
+          });
+        }
+      }
       const results = [];
       for (const workspaceId of [...new Set(ids)]) {
         ctx.check();
+        const issue = blocked.find((b) => b.workspaceId === workspaceId);
+        if (issue) {
+          results.push(issue);
+          continue;
+        }
         let fileName: string | undefined;
         try {
           const attached = await this.call('order_import.attach', { workspaceId }, ctx);
@@ -495,14 +586,16 @@ export class AssistantOrderWorkflow {
       }
       state.activeId = targets[0].id;
       this.save(ctx, state);
-      for (const task of targets) {
-        try {
-          await this.recognize(ctx, state, task);
-        } catch (e) {
-          if (e instanceof ImportError && e.code === 'agent-budget') throw e;
-          if (ctx.signal.aborted) throw e;
-        }
-      }
+      await Promise.all(
+        targets.map(async (task) => {
+          try {
+            await this.recognize(ctx, state, task);
+          } catch (e) {
+            if (e instanceof ImportError && e.code === 'agent-budget') throw e;
+            if (ctx.signal.aborted) throw e;
+          }
+        }),
+      );
       this.notify(ctx, targets[0], true);
       return {
         ...this.result(ctx, targets[0]),
@@ -523,9 +616,7 @@ export class AssistantOrderWorkflow {
                   t.state),
             )
             .join('；') +
-          '。当前文件：' +
-          targets[0].fileName +
-          '，客户采购订单按我司销售订单处理。核对下方方案后可回复“确认导入”。',
+          `。本批共 ${targets.length} 份订单附件，已按同一次请求提交识别；核对方案后再确认导入。`,
       };
     }
     const { state, task } = this.selected(
@@ -551,6 +642,8 @@ export class AssistantOrderWorkflow {
       throw new ImportError('该文件当前是到货单模式，不能修改或导入为客户订单。', 409);
     if (name === 'order_import.execute') {
       requirePermission(ctx.check(), 'import:execute');
+      if (confirmedValue(ctx.memory?.(), 'operation') === 'preview')
+        throw new ImportError('用户当前要求仅预览，尚未授权正式导入。', 409, 'business-ambiguity');
       const own = w.imported && !w.imported.historical ? w.imported : null;
       if (own) {
         task.state = 'imported';
@@ -563,13 +656,8 @@ export class AssistantOrderWorkflow {
         };
       }
 
-      if (task.previewRevision !== undefined && task.previewRevision !== w.revision) {
-        await this.prepare(ctx, state, task);
-        return {
-          ...this.result(ctx, task),
-          message: '草稿已被其他页面修改，原版本发生变化。已读取新方案；请核对最新资料后继续。',
-        };
-      }
+      // 预览过期是技术状态；总是按最新草稿重新校验，不将其伪装成成功导入或要求重复授权。
+      this.checkDecisions(ctx, task, w);
       // 与人工页面共用最新完整预览、字段/关联/权限检查，无聊天专属跨轮门槛。
       await this.prepare(ctx, state, task);
       if (!task.preview || task.error)
@@ -612,6 +700,29 @@ export class AssistantOrderWorkflow {
             .map((op) => w.draft!.lines.findIndex((l) => l.id === (op as any).lineId) + 1),
         ),
       ];
+      this.checkEditDecisions(ctx, task, input.operations);
+      if (input.expectedRevision !== w.revision) {
+        const baseline = task.observed;
+        const value = (draft: any, op: any) =>
+          op.op === 'set-header'
+            ? draft?.header[op.field]?.value
+            : draft?.lines.find((l: any) => l.id === op.lineId)?.fields[op.field]?.value;
+        if (
+          !baseline ||
+          baseline.revision !== input.expectedRevision ||
+          input.operations.some(
+            (op) =>
+              !isDeepStrictEqual(value(baseline.draft, op), value(w.draft, op)) &&
+              !isDeepStrictEqual(value(w.draft, op), op.value),
+          )
+        )
+          throw new ImportError(
+            '草稿目标字段已被其他操作修改，需要核对冲突值；不会覆盖新的业务决定。',
+            409,
+            'business-conflict',
+          );
+        input.expectedRevision = w.revision;
+      }
       w = this.imports.edit(w.id, input, 'ai', ctx.actor);
       if (rows.length === 1) task.focusLine = rows[0];
     } else if (name === 'order_import.match') {
@@ -682,5 +793,122 @@ export class AssistantOrderWorkflow {
             : '导入方案已刷新。') +
         (task.error ? '仍需核对：' + task.error : '可按用户当前明确指令正式导入。'),
     };
+  }
+  private checkEditDecisions(ctx: WorkflowContext, task: Task, operations: any[]) {
+    const memory = ctx.memory?.(),
+      ordinal = (memory?.workspaceIds.indexOf(task.workspaceId) ?? -1) + 1;
+    for (const op of operations) {
+      const fact = decision(
+        memory,
+        op.field === 'statedTotalQuantity' ? 'quantityTotal' : op.field,
+        ordinal,
+      );
+      if (fact?.status === 'conflict')
+        throw new ImportError(
+          '用户关于' + fact.key + '的决定有矛盾，需要集中核对。',
+          409,
+          'business-conflict',
+        );
+      if (
+        fact?.status === 'confirmed' &&
+        ['deliveryDate', 'taxRate', 'taxMode', 'statedTotalQuantity'].includes(op.field) &&
+        String(fact.value) !== op.value
+      )
+        throw new ImportError(
+          '该修改与用户已确认的' + fact.key + '不一致。',
+          409,
+          'business-conflict',
+        );
+      if (
+        op.field === 'unit' &&
+        confirmedValue(memory, 'unitPolicy', ordinal) === 'preserve-original'
+      )
+        throw new ImportError(
+          '用户已确认保留原单位，不能自行换算或覆盖。',
+          409,
+          'business-conflict',
+        );
+      if (
+        op.field === 'taxMode' &&
+        !fact &&
+        confirmedValue(memory, 'taxRate', ordinal) !== undefined
+      )
+        throw new ImportError(
+          '税率不能证明单价含税口径，请先确认含税或未税。',
+          409,
+          'business-ambiguity',
+        );
+    }
+  }
+  private checkDecisions(ctx: WorkflowContext, task: Task, w: any) {
+    const memory = ctx.memory?.();
+    if (!memory) return;
+    const ordinal = memory.workspaceIds.indexOf(task.workspaceId) + 1;
+    for (const key of [
+      'orderDate',
+      'deliveryDate',
+      'taxRate',
+      'taxMode',
+      'externalPurchaseOrder',
+    ]) {
+      const fact = decision(memory, key, ordinal);
+      if (fact?.status === 'conflict')
+        throw new ImportError(
+          '用户关于' + key + '的决定有矛盾，需要核对。',
+          409,
+          'business-conflict',
+        );
+      const actual =
+        w.draft?.header[key === 'externalPurchaseOrder' ? 'purchaseOrderNumber' : key]?.value;
+      if (fact?.status === 'confirmed' && actual !== String(fact.value))
+        throw new ImportError(
+          '草稿尚未应用用户已确认的' + key + '，应先修改草稿再导入。',
+          409,
+          'decision-not-applied',
+        );
+    }
+    const total = confirmedValue(memory, 'quantityTotal', ordinal);
+    if (total !== undefined && w.evaluation?.totalQuantity !== String(total))
+      throw new ImportError(
+        '明细合计与用户确认的数量' + total + '不符，不能猜测分配明细数量。',
+        409,
+        'business-ambiguity',
+      );
+    const customerId = confirmedValue(memory, 'customerId', ordinal);
+    if (
+      customerId !== undefined &&
+      (w.mapping?.customer.mode !== 'existing' || w.mapping.customer.id !== customerId)
+    )
+      throw new ImportError('客户匹配尚未采用用户确认的档案编号。', 409, 'business-ambiguity');
+    const customerName = confirmedValue(memory, 'customerName', ordinal);
+    const matchedName =
+      w.mapping?.customer.mode === 'existing'
+        ? this.store.customer(w.mapping.customer.id)?.name
+        : w.draft?.header.buyerName.value;
+    if (
+      customerName !== undefined &&
+      String(matchedName || '').replace(/\s+/g, '') !== String(customerName).replace(/\s+/g, '')
+    )
+      throw new ImportError(
+        '当前匹配客户与用户确认的名称不同，需要核对身份。',
+        409,
+        'business-ambiguity',
+      );
+    // 保留“未明确”口径，不用13%推断含税；用户可明确选择保留未知，无需虚构。
+    if (confirmedValue(memory, 'sameCustomer', ordinal)) {
+      const siblings = this.state(ctx.threadId, ctx.actor).tasks.filter((t) =>
+        memory.workspaceIds.includes(t.workspaceId),
+      );
+      const ids = siblings
+        .map((t) => this.imports.get(t.workspaceId).mapping?.customer)
+        .filter((m: any) => m?.mode === 'existing')
+        .map((m: any) => m.id);
+      if (new Set(ids).size > 1)
+        throw new ImportError(
+          '两张订单应属于同一客户，但当前客户匹配不同。',
+          409,
+          'business-ambiguity',
+        );
+    }
   }
 }

@@ -55,3 +55,17 @@ docs/**
 /(\{rect
 # 本机可选CI草案；当前GitHub OAuth未授权workflow，不发布工作流。
 /.github/workflows/checks.yml
+
+# 可重新生成的开发与测试缓存。
+.vite/
+.npm/
+playwright-report/
+test-results/
+.eslintcache
+# 经检查可公开的现行维护说明；其余本机报告继续保留但不上传。
+!docs/发布说明-v0.5.3.md
+!docs/ERP自主Agent架构升级验收-2026-10-28.md
+!docs/项目目录与维护.md
+!docs/项目清理与0.5.3验收-2026-10-28.md
+!docs/history/
+!docs/history/AI架构演进至0.5.2.md

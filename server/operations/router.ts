@@ -6,7 +6,7 @@ import { ImportError } from '../import/errors.js';
 import { OperationsService } from './service.js';
 import { changeLifecycle } from '../business/management.js';
 import { stockKinds, purchaseStatuses, quantityString } from '../../shared/operations.js';
-import { dateSchema } from '../../shared/domain.js';
+
 import { purchaseFilterSchema, matchesPurchase } from '../../shared/purchase-filters.js';
 import { movementFilterSchema, matchesMovement } from '../../shared/movement-filters.js';
 import {

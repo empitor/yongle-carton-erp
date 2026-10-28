@@ -1,4 +1,4 @@
-import { providerTokenUsage, type ProviderTokenUsage } from './usage.js';
+import { usageCollector, type ProviderTokenUsage } from './usage.js';
 import type { AiProfile } from '../../shared/ai-settings.js';
 import type { ChatMessage } from './compatible-chat.js';
 import { responsesInput, responsesText } from './responses-format.js';
@@ -39,6 +39,7 @@ export async function completeResponses(
 ): Promise<unknown> {
   let received = '';
   const diagnostics = new ProtocolDiagnostics(profile, key, options.onDiagnostic);
+  const usage = usageCollector(options.onUsage);
   try {
     const started = Date.now(),
       notify = (stage: AiProgress['stage'], receivedChars: number) =>
@@ -84,7 +85,9 @@ export async function completeResponses(
         ? {
             onSseEvent: (e: any) => {
               try {
-                diagnostics.stream(JSON.parse(e.data));
+                const event = JSON.parse(e.data);
+                usage.capture(event.response?.usage || event.usage);
+                diagnostics.stream(event);
               } catch {}
               collector.event(e);
             },
@@ -92,14 +95,14 @@ export async function completeResponses(
         : {}),
     });
     diagnostics.result(result.status, result.body);
+    usage.capture((result.body as any)?.usage);
     if (result.status < 200 || result.status >= 300) {
       const error = responsesUpstreamError(result.status, result.body);
       error.upstreamStatus = result.status;
       throw error;
     }
     const response = result.streamed || collector.seen ? collector.finish() : result.body;
-    const usage = providerTokenUsage((response as any)?.usage);
-    if (usage) options.onUsage?.(usage);
+    usage.capture((response as any)?.usage);
     const text = responsesText(response)
       .trim()
       .replace(/^```(?:json)?\s*/, '')
@@ -146,5 +149,7 @@ export async function completeResponses(
       if (safeText) safe.responseNote = { kind: 'incomplete', text: safeText };
     }
     throw safe;
+  } finally {
+    usage.report();
   }
 }

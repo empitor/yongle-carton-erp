@@ -136,6 +136,12 @@ export class ImportRepository {
         };
       });
   }
+  allIds() {
+    return this.db
+      .prepare('SELECT id FROM workspaces UNION SELECT id FROM workspace_trash ORDER BY id')
+      .all()
+      .map((r: any) => String(r.id));
+  }
   stats() {
     const r = this.db
       .prepare(

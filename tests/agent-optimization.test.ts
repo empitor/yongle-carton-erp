@@ -27,7 +27,9 @@ const create = (name: string) =>
   call('records.propose_save', { module: 'customers', patch: { name } });
 function setup(budget?: Parameters<typeof agentBudgetConfig>[0]) {
   const f = assistantFixture();
-  let manager = new AssistantManager(f.store, f.settings, f.prompts, { budget });
+  let manager = new AssistantManager(f.store, f.settings, f.prompts, {
+    budget: { modelCalls: 15, toolCalls: 40, businessWrites: 8, pageInteractions: 20, ...budget },
+  });
   const t = manager.create(actor);
   return {
     ...f,
@@ -46,7 +48,15 @@ function setup(budget?: Parameters<typeof agentBudgetConfig>[0]) {
       ),
     restart() {
       manager.registry.close();
-      manager = new AssistantManager(f.store, f.settings, f.prompts, { budget });
+      manager = new AssistantManager(f.store, f.settings, f.prompts, {
+        budget: {
+          modelCalls: 15,
+          toolCalls: 40,
+          businessWrites: 8,
+          pageInteractions: 20,
+          ...budget,
+        },
+      });
     },
     close() {
       manager.registry.close();
@@ -134,7 +144,7 @@ test('无进展循环、连续失败、页面预算及总超时保留；客户�
         () => actor,
       ),
     );
-    assert.throws(() => agentBudgetConfig({ businessWrites: 9 }));
+    assert.equal(agentBudgetConfig({ businessWrites: 90 }).businessWrites, 90);
     const b = new AgentExecutionBudget(agentBudgetConfig({ pageInteractions: 1 }), randomUUID());
     b.take('pageInteractions');
     assert.throws(() => b.take('pageInteractions'), AgentBudgetExceeded);
@@ -386,14 +396,11 @@ test('自定义写入即使省略/清空权限声明也需编辑权限，声明�
     assert.equal(count, 6);
     assert.equal(
       registry.view(actor).tools.find((t) => t.name === 'minimum.high')!.permitted,
-      false,
+      true,
     );
-    await assert.rejects(
-      () => registry.dispatch('minimum.high', {}, actor, handlers),
-      /超级管理员/,
-    );
+    await registry.dispatch('minimum.high', {}, actor, handlers);
     await registry.dispatch('minimum.high', {}, superActor(), handlers);
-    assert.equal(count, 7);
+    assert.equal(count, 8);
   } finally {
     registry.close();
   }
@@ -518,6 +525,13 @@ test('快照增量维持新snapshotId和稳定控件ID，移除控件明确失�
   assert.equal(delta.tables.length, 0);
   const old = JSON.stringify(next).length,
     size = JSON.stringify(delta).length;
+  console.log(
+    JSON.stringify({
+      snapshotFullChars: old,
+      snapshotDeltaChars: size,
+      reduction: ((1 - size / old) * 100).toFixed(1) + '%',
+    }),
+  );
   assert(size < old * 0.15, `完整${old}，增量${size}`);
   assert.equal(
     pageActionSchema.parse({

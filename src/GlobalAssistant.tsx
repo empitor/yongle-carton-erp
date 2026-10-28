@@ -34,17 +34,7 @@ import {
   officialDeepSeekEndpoint,
   type AssistantAttachment,
 } from '../shared/assistant-attachments';
-const modules: Record<string, string> = {
-  orders: 'orders',
-  customers: 'customers',
-  products: 'products',
-  suppliers: 'suppliers',
-  purchases: 'purchases',
-  warehouse: 'raw_inventory',
-  arrivals: 'arrivals',
-  production: 'production_tasks',
-  deliveries: 'deliveries',
-};
+
 const text = (v: any) =>
   v == null ? '未填写' : typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
 function Changes({ before, after }: { before: any; after: any }) {
@@ -110,8 +100,6 @@ export default function GlobalAssistant() {
     [partial, setPartial] = useState(''),
     [context, setContext] = useState<any>(null),
     [review, setReview] = useState<any>(null),
-    [password, setPassword] = useState(''),
-    [confirmation, setConfirmation] = useState(''),
     [executing, setExecuting] = useState(false),
     [executed, setExecuted] = useState<string[]>([]);
   const [previewFiles, setPreviewFiles] = useState<{
@@ -206,8 +194,6 @@ export default function GlobalAssistant() {
     setExecuting(false);
     setReview(null);
     setMessage('');
-    setPassword('');
-    setConfirmation('');
     setExecuted([]);
     setProgress('');
     setPreviewFiles(null);
@@ -347,7 +333,9 @@ export default function GlobalAssistant() {
           },
           context: {
             page: location.hash,
-            ...(pageSnapshot.record ? { module: pageSnapshot.record.module, id: pageSnapshot.record.id } : {}),
+            ...(pageSnapshot.record
+              ? { module: pageSnapshot.record.module, id: pageSnapshot.record.id }
+              : {}),
           },
         }),
       });
@@ -361,7 +349,14 @@ export default function GlobalAssistant() {
       const parser = new SseParser(({ event, data }) => {
         if (userRef.current !== owner) return;
         const d = JSON.parse(data);
-        if (event === 'page_command') void executePageCommand(d, pageClientId.current, owner!, () => userRef.current, managementRequest).catch(e => setError(e.message));
+        if (event === 'page_command')
+          void executePageCommand(
+            d,
+            pageClientId.current,
+            owner!,
+            () => userRef.current,
+            managementRequest,
+          ).catch((e) => setError(e.message));
         if (event === 'task') setThread((t: any) => (t ? { ...t, businessTask: d } : t));
         if (event === 'effect') {
           if (d.workspaceId)
@@ -389,9 +384,7 @@ export default function GlobalAssistant() {
           );
         if (event === 'progress') setProgress('正在处理 · ' + (d.receivedChars || 0) + ' 字符');
         if (event === 'tool')
-          setProgress(
-            '工具 ' + d.name + ' · ' + (d.state === 'running' ? '读取/准备中' : '已返回'),
-          );
+          setProgress(d.state === 'running' ? '正在处理业务…' : '已读取最新结果…');
         if (event === 'result') {
           setThread(d);
           uploads.restore(d.pendingAttachments || []);
@@ -467,11 +460,6 @@ export default function GlobalAssistant() {
     try {
       await managementRequest('/assistant/previews/' + review.id + '/execute', {
         acknowledged: true,
-        secondConfirmation: review.highRisk,
-        ...(review.highRisk ? { password } : {}),
-        ...(review.tool === 'records.propose_permanent_delete'
-          ? { permanentConfirmation: confirmation }
-          : {}),
       });
       if (userRef.current !== owner) return;
       setExecuted((x) => [...x, review.id]);
@@ -481,8 +469,6 @@ export default function GlobalAssistant() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setPassword('');
-      setConfirmation('');
       setExecuting(false);
     }
   }
@@ -534,7 +520,15 @@ export default function GlobalAssistant() {
           aria-label="全局AI业务助手"
           style={floating.style}
         >
-          {!large && ['n','s','e','w','ne','nw','se','sw'].map(direction => <div key={direction} className={'ga-resize ga-resize-'+direction} aria-label={'调整聊天窗口大小 '+direction} {...floating.resizeBind(direction)} />)}
+          {!large &&
+            ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map((direction) => (
+              <div
+                key={direction}
+                className={'ga-resize ga-resize-' + direction}
+                aria-label={'调整聊天窗口大小 ' + direction}
+                {...floating.resizeBind(direction)}
+              />
+            ))}
           <header
             className="ga-header"
             tabIndex={0}
@@ -545,7 +539,15 @@ export default function GlobalAssistant() {
             <strong>全局业务助手</strong>
             <GripHorizontal size={16} />
             <div>
-              <button aria-label="打开AI插件与工具管理" title="AI插件与工具管理" onClick={() => { location.hash = assistantManagementHash; }}><Plug size={16} /></button>
+              <button
+                aria-label="打开AI插件与工具管理"
+                title="AI插件与工具管理"
+                onClick={() => {
+                  location.hash = assistantManagementHash;
+                }}
+              >
+                <Plug size={16} />
+              </button>
               <button
                 aria-label={large ? '恢复窗口' : '展开窗口'}
                 onClick={() => {
@@ -711,8 +713,6 @@ export default function GlobalAssistant() {
                           }
                           onClick={() => {
                             setReview(p);
-                            setPassword('');
-                            setConfirmation('');
                             setError('');
                           }}
                         >
@@ -810,39 +810,8 @@ export default function GlobalAssistant() {
                   {review.warnings.map((w: string, i: number) => (
                     <p key={i}>{w}</p>
                   ))}
-                  {review.highRisk && !auth?.actor?.localAdministrator && (
-                    <>
-                      <p>
-                        此操作涉及库存或不可逆影响。核对上方内容并验证密码后，点击下方按钮确认。
-                      </p>
-                      <label>
-                        再次验证当前账号密码
-                        <input
-                          type="password"
-                          autoComplete="current-password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                        />
-                      </label>
-                      {review.tool === 'records.propose_permanent_delete' && (
-                        <label>
-                          输入“永久删除”
-                          <input
-                            value={confirmation}
-                            onChange={(e) => setConfirmation(e.target.value)}
-                          />
-                        </label>
-                      )}
-                    </>
-                  )}
-                  <button
-                    className="primary"
-                    disabled={
-                      executing ||
-                      (review.highRisk && !auth?.actor?.localAdministrator && !password)
-                    }
-                    onClick={execute}
-                  >
+
+                  <button className="primary" disabled={executing} onClick={execute}>
                     {executing
                       ? '正在提交…'
                       : review.highRisk

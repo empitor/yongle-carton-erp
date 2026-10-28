@@ -3,7 +3,7 @@ import ManagementDialog from './ManagementDialog';
 import { managementRequest } from './session';
 import { recognizedArrivalDraft } from '../shared/arrival-draft';
 import { officialDeepSeekEndpoint } from '../shared/assistant-attachments';
-import { dateSchema } from '../shared/domain';
+
 import { SseParser } from '../shared/sse';
 export default function ReceiptRecognition({
   data,

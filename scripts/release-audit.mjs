@@ -6,7 +6,7 @@ const findings=[];
 // 只例外允许已核对来源与MIT许可证的公开夹具；同名文件被替换也会拒绝。
 const fixturePath='tests/fixtures/import/word-extractor-test01.doc';
 const fixtureHash='3aefb1a8370ede7cc3aef1280fe216e9597e2a458a3125bd55dd735109407f33';
-const forbidden=/(^|\/)(node_modules|data|backups|work|outputs?|dist|\.playwright-cli)\/|\.env($|\.(?!example$))|\.(sqlite(?:-\w+)?|db|pem|key|pfx|p12|onnx|safetensors|log|zip|xlsx?|docx?|pdf)$/i;
+const forbidden=/(^|\/)(node_modules|data|backups|work|outputs?|dist|\.playwright-cli|\.cache|\.vite|\.npm|coverage|test-results|playwright-report|\.build-tmp-[^/]+)\/|\.env($|\.(?!example$))|\.(sqlite(?:-\w+)?|db|pem|key|pfx|p12|onnx|safetensors|tsbuildinfo|log|zip|xlsx?|docx?|pdf)$/i;
 const dummy=s=>/^(sk-(fictional|test|fake|mock|not-a-real|example|dummy|unit|secure-test|masked|super-test)|ghp_example)/i.test(s);
 const inspect=(name,bytes,scope)=>{
  const publicFixture=name===fixturePath&&bytes.length===22528&&createHash('sha256').update(bytes).digest('hex')===fixtureHash;

@@ -7,11 +7,7 @@ import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
-import {
-  windowsProtector,
-  defaultAiSettingsPath,
-  type SecretProtector,
-} from '../server/ai/credential-store.js';
+import { defaultAiSettingsPath, type SecretProtector } from '../server/ai/credential-store.js';
 import { normalizeProfile, isPublicIPv4, resolvePublicAddress } from '../server/ai/endpoint.js';
 import {
   probeModel,

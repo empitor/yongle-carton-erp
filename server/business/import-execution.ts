@@ -6,20 +6,14 @@ import type { Actor } from '../auth.js';
 import type { Store } from '../db.js';
 import type { ImportManager } from '../import/manager.js';
 import type { ImportWorkspaceView } from '../../shared/order-draft.js';
-import {
-  customerSchema,
-  productSchema,
-  orderSchema,
-  type OrderInput,
-} from '../../shared/domain.js';
+import { customerSchema, productSchema, orderSchema } from '../../shared/domain.js';
 import { standardOrderDraft } from '../import/standard-order.js';
 import { ImportError } from '../import/errors.js';
-import { audit, requirePermission, changeLifecycle } from './management.js';
+import { audit, requirePermission } from './management.js';
 import { CATALOG_VERSION } from './metadata.js';
 import {
-  normalizedDimensions,
-  normalizeDimensionUnit,
   hasCompleteProductIdentity,
+  productIdentityParts,
   uniqueMessages,
 } from '../../shared/product-details.js';
 import { productFieldsFromDraft } from '../import/product-input.js';
@@ -39,16 +33,7 @@ type Plan = {
 };
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const key = (s: string) => s.trim().replace(/\s+/g, '').toLowerCase();
-const productKey = (p: any) =>
-  hash([
-    key(p.name || ''),
-    ...normalizedDimensions(p),
-    normalizeDimensionUnit(p.dimensionUnit) ? 'known' : p.dimensionUnitRaw || 'unknown',
-    key(p.material || ''),
-    key(p.flute || ''),
-    key(p.requirements || ''),
-    key(p.customerProductCode || ''),
-  ]);
+const productKey = (p: any) => hash(productIdentityParts(p));
 const price = (v: string) => (v.includes('.') ? v.replace(/0+$/, '').replace(/\.$/, '') : v);
 function fingerprint(customer: string, order: any) {
   return hash([

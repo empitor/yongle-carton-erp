@@ -1,9 +1,12 @@
+import { productionCompletionSchema } from '../../shared/assistant-production.js';
+import { ProductionCompletion } from './production-completion.js';
 import { pageTools } from '../../shared/assistant-page.js';
+import { browserTools } from '../../shared/assistant-browser.js';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../db.js';
 import type { Actor } from '../auth.js';
-import { requirePermission, isSuperMode, changeLifecycle, audit } from '../business/management.js';
+import { requirePermission, isSuperMode, changeLifecycle } from '../business/management.js';
 import { createBusinessService } from '../business/service.js';
 import { reviewedAssistantGrant } from '../business/assistant-approval.js';
 import { OperationsService } from '../operations/service.js';
@@ -11,13 +14,19 @@ import { FlowService } from '../flow/service.js';
 import { PermanentDeletionService } from '../business/permanent-deletion.js';
 import { ImportError } from '../import/errors.js';
 import { DeveloperService } from '../developer-service.js';
+import { assistantManagementSchema } from '../../shared/assistant-management.js';
+import { AssistantManagementBatch } from './management-batch.js';
+import type { TaskMemory } from '../../shared/assistant-task.js';
 import {
   requireDeveloper,
   isLocalAdministrator,
   requireLocalAdministrator,
 } from '../developer-capability.js';
 import { recordContext } from '../business/record-context.js';
-import { DatabaseMaintenanceService, deletionSelection } from '../business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../business/database-maintenance.js';
+import { DevelopmentResetService } from '../business/development-reset.js';
+import { developmentResetSchema } from '../../shared/assistant-development-reset.js';
+import type { ImportManager } from '../import/manager.js';
 import { developerCommandSchema } from '../../shared/developer.js';
 import {
   customerSchema,
@@ -36,6 +45,13 @@ import {
   receiptSchema,
 } from '../../shared/operations.js';
 import { flowInput, flowKinds, flowStatusLabel } from '../../shared/physical-flow.js';
+import {
+  arrivalSchema,
+  taskSchema,
+  productionSchema,
+  deliverySchema,
+} from '../../shared/physical-flow.js';
+import { developerTemplate } from '../../shared/developer.js';
 import { monthsBefore } from '../../shared/date-ranges.js';
 import {
   pendingOrder,
@@ -91,6 +107,7 @@ const moduleSchema = z.enum(assistantModules),
   positive = z.number().int().positive();
 export const toolCatalog = [
   ...pageTools,
+  ...browserTools,
   {
     name: 'management.delete_preview',
     description:
@@ -137,6 +154,28 @@ export const toolCatalog = [
       requestId: 'UUID',
       reason: '用户操作原因',
       deletionDigest: 'management.delete_preview返回的digest，绑定当前删除范围',
+      selection: { all: true, kind: 'raw/finished可选，按实际全部记录选择，不逐条查询ID' },
+      commands: [
+        { key: 'supplier', module: 'suppliers', action: 'create', patch: { name: '用户指定名称' } },
+        {
+          key: 'purchase',
+          module: 'purchases',
+          action: 'create',
+          patch: { supplierId: { $ref: 'supplier.id' }, lines: '真实采购明细' },
+        },
+      ],
+      references:
+        'commands按顺序调用原服务；{$ref:"前一步key.id"}等路径引用实际返回。全批事务与幂等；原料分配须真实业务规则。',
+    },
+    risk: 'review',
+  },
+  {
+    name: 'management.reset',
+    description:
+      '开发模式一键初始化，仅本机最高管理员。clear business清空客户、产品、订单、采购、库存/流水、到货/生产/送货及业务草稿和权限缓存；ai-imports清空AI识别工作区、草稿和失败记录；all两者都清。保留账号、审计、AI配置和审计日志。不可恢复，用户明确要求初始化/清空全部业务数据时直接执行，不再逐条删除。',
+    arguments: {
+      scope: 'business/ai-imports/all，默认all',
+      reason: '用户要求初始化的原因（可选）',
     },
     risk: 'review',
   },
@@ -263,7 +302,7 @@ export const toolCatalog = [
   {
     name: 'records.propose_batch_lifecycle',
     description:
-      '批量停用/归档/恢复，最多100条，本机最高管理员按明确范围直接执行，其他账号须预览确认。保留历史引用，事务内全部成功或全部回滚。流水不能归档。',
+      '批量停用/归档/恢复，最多100条，按明确范围和真实业务权限执行；显式只预览时保留方案。保留历史引用，事务内全部成功或全部回滚。流水不能归档。',
     arguments: {
       module: assistantModules.filter((m) => m !== 'movements'),
       ids: ['正整数'],
@@ -312,9 +351,27 @@ export const toolCatalog = [
     risk: 'high',
   },
   {
+    name: 'flow.propose_production_completion',
+    description:
+      '对指定或全部待完工生产任务执行领料、完工及成品入库。自动查询真实任务、产品和关联原料，唯一匹配或创建对应成品档案；整批预检及事务幂等。100%良品可按剩余任务数量，省略goodRatePct时按100%处理；其他情况传实际良品和废品数，且良品率须与实际数量一致。共享原料必须使用整批实际总量，按产量比例最大余数法分配整张，或传明确逐任务distribution，不逐型号独立取整。原业务权限及库存校验不变。',
+    arguments: {
+      taskIds: '任务ID数组，与allActive二选一',
+      allActive: 'true全部待完工任务',
+      goodRatePct: 100,
+      materials: [
+        { stockId: '可选，原料须真实唯一匹配', unit: '张', issued: '547', returned: '0' },
+      ],
+      allocation: 'shared-proportional/explicit',
+      distribution: 'explicit时必填逐任务实际材料',
+      date: '可选实际生产日期',
+      createMissingFinished: true,
+    },
+    risk: 'review',
+  },
+  {
     name: 'flow.propose_confirmation',
     description:
-      '确认已存在的到货/生产/送货草稿或生产任务。任务下达不改变库存，可按明确指令执行；本机最高管理员可直接确认实际收货/生产完工/发货，其他账号沿用审核。',
+      '确认已存在的到货/生产/送货草稿或生产任务。任务下达不改变库存，可按明确指令执行；实际收货/生产完工/发货使用当前真实Actor及原业务确认服务，不额外提升权限。',
     arguments: { id: '单据ID' },
     risk: 'high',
   },
@@ -360,9 +417,13 @@ function outstandingQuantities(rows: any[]) {
 export class AssistantTools {
   readonly ops: OperationsService;
   readonly flow: FlowService;
+  private imports?: ImportManager;
   constructor(readonly store: Store) {
     this.ops = new OperationsService(store);
     this.flow = new FlowService(store);
+  }
+  attachImports(imports: ImportManager) {
+    this.imports = imports;
   }
   private actor(actor: Actor | null | undefined) {
     if (!actor) throw new ImportError('请先登录管理账号。', 401);
@@ -457,6 +518,106 @@ export class AssistantTools {
       return recordContext(this.store, v.module, v.id, actor);
     }
     const actor = this.actor(who);
+    if (name === 'records.search' && (raw as any)?.describe === true) {
+      const v = z
+        .strictObject({
+          module: moduleSchema,
+          describe: z.literal(true),
+          filters: z.record(z.string(), z.unknown()).optional(),
+          limit: z.number().optional(),
+          offset: z.number().optional(),
+        })
+        .parse(raw);
+      const schemas: any = {
+        customers: customerSchema,
+        products: productSchema,
+        orders: orderSchema,
+        suppliers: supplierSchema,
+        purchases: purchaseSchema,
+        raw_inventory: stockItemSchema,
+        finished_inventory: stockItemSchema,
+        arrivals: arrivalSchema,
+        production_tasks: taskSchema,
+        production_records: productionSchema,
+        deliveries: deliverySchema,
+      };
+      return {
+        module: v.module,
+        inputSchema: schemas[v.module] ? z.toJSONSchema(schemas[v.module]) : null,
+        template:
+          v.module === 'movements'
+            ? null
+            : developerTemplate(
+                flowMap[v.module] || (v.module.includes('inventory') ? 'stock_items' : v.module),
+                today(),
+              ),
+        dependencies:
+          v.module === 'production_records'
+            ? {
+                finishedStockId:
+                  'finished_inventory中productId与本次产品一致的实际档案；没有时经库存档案创建接口建立',
+                materials:
+                  '实际原料库存ID、领料与退料数量；先查询raw_inventory余额并按用户明确分配规则计算，不能猜数量',
+                taskId: '已下达且产品一致的production_tasks',
+              }
+            : v.module === 'arrivals'
+              ? {
+                  supplierId: 'suppliers',
+                  lines: 'purchases中的真实明细关联与raw_inventory/新纸板档案',
+                }
+              : v.module === 'deliveries'
+                ? { lines: '同一客户真实orders明细与对应finished_inventory' }
+                : {},
+        message:
+          '这是与人工表单相同的真实参数结构。关联档案与版本从查询结果获取，不向用户索要内部编号。',
+      };
+    }
+    if (name === 'records.summarize' && (raw as any)?.allocation) {
+      const v = z
+        .strictObject({
+          module: moduleSchema,
+          allocation: z.strictObject({
+            orderId: positive,
+            unitsPerSheet: positive,
+            mode: z.enum(['per-product', 'shared']),
+          }),
+          filters: z.record(z.string(), z.unknown()).optional(),
+        })
+        .parse(raw);
+      const order = this.store.order(v.allocation.orderId);
+      if (!order) throw new ImportError('客户订单不存在。', 404);
+      if (order.lines.some((l) => l.unit !== '只'))
+        throw new ImportError('订单数量单位并非全部为只，不能擅自按只与张换算。', 409);
+      const rate = BigInt(v.allocation.unitsPerSheet),
+        ceil = (n: bigint) => (n + rate - 1n) / rate;
+      const lines = order.lines.map((l) => ({
+        orderLineId: l.id,
+        productId: l.productId,
+        quantity: l.quantity,
+        sheets: Number(ceil(BigInt(l.quantity))),
+        exactShare:
+          String(BigInt(l.quantity) / rate) +
+          (BigInt(l.quantity) % rate ? ` + ${BigInt(l.quantity) % rate}/${rate}` : ''),
+      }));
+      const total = order.lines.reduce((n, l) => n + BigInt(l.quantity), 0n),
+        independent = lines.reduce((n, l) => n + l.sheets, 0);
+      return {
+        orderId: order.id,
+        orderVersion: order.version,
+        mode: v.allocation.mode,
+        unitsPerSheet: v.allocation.unitsPerSheet,
+        totalPieces: Number(total),
+        perProductSheets: independent,
+        sharedMinimumSheets: Number(ceil(total)),
+        requiredSheets: v.allocation.mode === 'per-product' ? independent : Number(ceil(total)),
+        lines,
+        requiresDistribution: v.allocation.mode === 'shared',
+        message:
+          v.allocation.mode === 'shared'
+            ? '共享是总需求下界；具体共用型号、领料归属与余料处理仍须有明确业务规则，不能随意把总张数摊给型号。'
+            : '各型号独立向上取整，可按各行实际领料量执行。',
+      };
+    }
     if (name === 'ui.open') {
       const v = z
         .strictObject({
@@ -769,7 +930,13 @@ export class AssistantTools {
     }
     throw new ImportError('此模块不允许直接修改。', 403);
   }
-  prepare(tool: string, raw: unknown, who: Actor | null | undefined, binding: string): ToolPlan {
+  prepare(
+    tool: string,
+    raw: unknown,
+    who: Actor | null | undefined,
+    binding: string,
+    context?: { memory?: TaskMemory },
+  ): ToolPlan {
     const actor = requirePermission(who, 'business:edit');
     if (
       (tool === 'records.delete' || tool === 'records.propose_permanent_delete') &&
@@ -802,9 +969,54 @@ export class AssistantTools {
         warnings: [after.inventoryEffect],
       };
     }
+    if (tool === 'management.reset') {
+      const v = developmentResetSchema.parse(raw),
+        service = new DevelopmentResetService(this.store),
+        before = service.preview(v.scope, actor);
+      return {
+        tool,
+        args: { scope: v.scope },
+        label:
+          v.scope === 'business'
+            ? '一键清空业务数据'
+            : v.scope === 'ai-imports'
+              ? '一键清空AI识别工作区'
+              : '一键清空业务数据与AI识别工作区',
+        highRisk: false,
+        before,
+        after: before,
+        warnings: ['该操作不可撤销；账号、审计、AI配置和提示词保留。'],
+      };
+    }
     if (tool === 'developer.execute' || tool === 'management.execute') {
       if (tool === 'management.execute') requireLocalAdministrator(actor);
       requireDeveloper(actor);
+      if (tool === 'management.execute') {
+        const batch = assistantManagementSchema.parse(raw);
+        if ('commands' in batch || batch.selection || batch.dimensionPolicy) {
+          const memory = context?.memory
+            ? {
+                decisions: context.memory.decisions.filter((d) =>
+                  ['unitsPerSheet', 'allocationMode'].includes(d.key),
+                ),
+                turns: [],
+                workspaceIds: [],
+              }
+            : undefined;
+          const service = new AssistantManagementBatch(this.store, memory),
+            before = service.stamp(batch, actor);
+          const after = this.simulate(() => service.execute(batch, actor, binding));
+          return {
+            tool,
+            args: { input: batch, batch: true, memory },
+            label: after.message,
+            highRisk: false,
+            before,
+            after,
+            warnings: [],
+          };
+        }
+      }
       const input = developerCommandSchema.parse(raw),
         service = new DeveloperService(this.store);
       const before = service
@@ -824,6 +1036,40 @@ export class AssistantTools {
         before,
         after,
         warnings: [],
+      };
+    }
+    if (tool === 'flow.propose_production_completion') {
+      const input = productionCompletionSchema.parse({
+        ...(raw as any),
+        requestId: (raw as any).requestId || randomUUID(),
+      });
+      const before = { tasks: this.flow.list('task'), stock: this.ops.repo.items() };
+      const memory = context?.memory
+        ? {
+            decisions: context.memory.decisions.filter((d) =>
+              [
+                'materialIssuedTotal',
+                'materialReturnedTotal',
+                'goodRatePct',
+                'allocationMode',
+                'unitsPerSheet',
+              ].includes(d.key),
+            ),
+            turns: [],
+            workspaceIds: [],
+          }
+        : undefined;
+      const after = this.simulate(() =>
+        new ProductionCompletion(this.store, memory).execute(input, actor, binding),
+      );
+      return {
+        tool,
+        args: { input, memory },
+        label: after.message,
+        highRisk: false,
+        before,
+        after,
+        warnings: [after.allocationBasis],
       };
     }
     if (tool === 'records.propose_save') {
@@ -931,7 +1177,6 @@ export class AssistantTools {
       return plan;
     }
     if (tool === 'records.propose_batch_lifecycle') {
-      if (!isSuperMode(actor)) throw new ImportError('批量操作需要有效超级管理员模式。', 403);
       const v = z
         .strictObject({
           module: moduleSchema,
@@ -980,8 +1225,6 @@ export class AssistantTools {
       const { id } = z.strictObject({ id: positive }).parse(raw),
         before = this.flow.get(id);
       const highRisk = before.kind !== 'task';
-      if (highRisk && !isSuperMode(actor))
-        throw new ImportError('实物确认需要有效超级管理员模式。', 403);
       const engine = this.flow.preview(id, actor, binding);
       return {
         tool,
@@ -996,11 +1239,6 @@ export class AssistantTools {
         engine: { previewId: engine.previewId },
       };
     }
-    if (!isSuperMode(actor))
-      throw new ImportError(
-        '此操作涉及库存或不可逆变更，请先在右上角验证密码进入超级管理员模式。',
-        403,
-      );
     if (tool === 'inventory.propose_movement') {
       const v = z.object({ id: positive }).parse(raw),
         before = this.ops.repo.items().find((r) => r.id === v.id);
@@ -1091,7 +1329,24 @@ export class AssistantTools {
       isLocalAdministrator(actor)
     )
       return new DatabaseMaintenanceService(this.store).delete(a, actor, binding);
+    if (plan.tool === 'management.reset') {
+      const v = developmentResetSchema.parse(plan.args),
+        clearImports = this.imports
+          ? () => {
+              const r = this.imports!.deleteAllWorkspaces(actor);
+              if (r.failed.length)
+                throw new ImportError(
+                  `已清理 ${r.count} 个工作区，${r.failed.length} 个失败，请稍后重试。`,
+                  409,
+                );
+              return { count: r.count, ids: r.ids };
+            }
+          : undefined;
+      return new DevelopmentResetService(this.store).execute(v.scope, actor, clearImports);
+    }
     if (plan.tool === 'management.execute') requireLocalAdministrator(actor);
+    if (plan.tool === 'management.execute' && a.batch)
+      return new AssistantManagementBatch(this.store, a.memory).execute(a.input, actor, binding);
     if (plan.tool === 'developer.execute' || plan.tool === 'management.execute')
       return new DeveloperService(this.store).execute(
         a.input,
@@ -1099,8 +1354,8 @@ export class AssistantTools {
         binding,
         'developer-assistant',
       );
-    if (plan.highRisk && !isSuperMode(actor))
-      throw new ImportError('高风险操作需要有效超级管理员模式。', 403);
+    if (plan.tool === 'flow.propose_production_completion')
+      return new ProductionCompletion(this.store, a.memory).execute(a.input, actor, binding);
     if (plan.tool === 'records.propose_save')
       return this.executeSave(a.module, a.id, a.input, actor, binding);
     if (plan.tool === 'records.propose_batch_lifecycle') {
@@ -1174,6 +1429,15 @@ export class AssistantTools {
         actor,
       ).digest;
     }
+    if (plan.tool === 'management.execute' && plan.args.batch)
+      return new AssistantManagementBatch(this.store).stamp(plan.args.input, actor);
+    if (plan.tool === 'flow.propose_production_completion')
+      return {
+        tasks: this.flow.list('task'),
+        productions: this.flow.list('production'),
+        items: this.ops.repo.items(),
+        products: this.store.products(),
+      };
     if (plan.tool === 'developer.execute' || plan.tool === 'management.execute')
       return {
         developer: requireDeveloper(actor).id,

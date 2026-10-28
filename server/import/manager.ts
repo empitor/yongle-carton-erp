@@ -6,7 +6,6 @@ import {
   analysisSchema,
   chatReplySchema,
   patchOperationSchema,
-  headerFields,
   lineFields,
   fieldLabels,
   evaluateDraft,
@@ -20,7 +19,7 @@ import { dateSchema } from '../../shared/domain.js';
 import { AiSettingsManager } from '../ai/settings-manager.js';
 import type { ChatMessage } from '../ai/compatible-chat.js';
 import type { ProviderTokenUsage } from '../ai/usage.js';
-import { getBusinessMetadata } from '../business/metadata.js';
+
 import { storeOriginal, detectFormat } from './file-store.js';
 import type { parseUpload } from './parse-file.js';
 import type { AiProgress } from '../../shared/ai-runtime.js';
@@ -206,6 +205,48 @@ export class ImportManager {
     } finally {
       this.deleting.delete(id);
     }
+  }
+  /**
+   * 开发初始化：一次性清空所有识别工作区、回收站和失败记录。
+   * 与逐条 deleteWorkspace 分离，避免级联/版本校验把“批量清空”拖成几十次失败。
+   */
+  deleteAllWorkspaces(who: Actor) {
+    requireLocalAdministrator(who);
+    const ids = this.repo.allIds(),
+      base = resolve(this.options.directory),
+      failed: string[] = [];
+    const busy = ids.filter((id) => this.importing.has(id) || this.busy.has(id));
+    if (busy.length) throw new ImportError('部分工作区正在识别或提交，请稍后重试批量清理。', 409);
+    let count = 0;
+    for (const id of ids) {
+      if (!z.string().uuid().safeParse(id).success) continue;
+      const active = resolve(base, id),
+        archived = resolve(base, '_trash', id),
+        stage = resolve(base, '_deleting', id);
+      if (
+        dirname(active) !== base ||
+        dirname(archived) !== resolve(base, '_trash') ||
+        dirname(stage) !== resolve(base, '_deleting')
+      ) {
+        failed.push(id);
+        continue;
+      }
+      this.deleting.add(id);
+      try {
+        const w = this.repo.get(id);
+        if (w?.arrivalSourceId) this.abortArrival?.(w.arrivalSourceId);
+        rmSync(active, { recursive: true, force: true });
+        rmSync(archived, { recursive: true, force: true });
+        rmSync(stage, { recursive: true, force: true });
+        this.repo.physicalDelete(id);
+        count++;
+      } catch {
+        failed.push(id);
+      } finally {
+        this.deleting.delete(id);
+      }
+    }
+    return { count, ids, failed };
   }
   private tags(w: { id: string; fileHash: string }) {
     const ref = this.options.findImport?.(w.id, w.fileHash);

@@ -1,23 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { precisionTotal } from '../shared/precision';
 import { formatDimensions } from '../shared/product-details';
-import {
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Pencil,
-  MoreHorizontal,
-  ArchiveRestore,
-  Archive,
-} from 'lucide-react';
+import { Trash2, Eye, Pencil, ArchiveRestore } from 'lucide-react';
 import { useAuthState, managementRequest } from './session';
 import ManagementDialog from './ManagementDialog';
 import PermanentDeleteDialog from './PermanentDeleteDialog';
 import RecordDetails from './RecordDetails';
 import { TableRegion, EmptyState, Pagination } from './ui/ListLayout';
 import StatusBadge from './StatusBadge';
-import RecordContextDialog, { RecordRelations } from './RecordContext';
+import RecordContextDialog from './RecordContext';
 import { displayAmount } from '../shared/display-amount';
 import { formatStockSize, type RecordEntity } from '../shared/operations';
 type Entity = RecordEntity;
@@ -63,11 +54,6 @@ export default function BusinessRecords({
     [permanent, setPermanent] = useState<any[] | null>(null);
   const [selected, setSelected] = useState<number[]>([]),
     [page, setPage] = useState(1),
-    [confirm, setConfirm] = useState<{
-      action: 'archive' | 'restore';
-      rows: any[];
-      impactDigests?: Record<string, string>;
-    } | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState('');
   useEffect(() => {
@@ -75,7 +61,7 @@ export default function BusinessRecords({
     setPage(1);
     setMessage('');
     setView(null);
-    setConfirm(null);
+
     setPermanent(null);
   }, [entity, archived, search, allRecords, filterKey]);
   useEffect(() => {
@@ -83,7 +69,7 @@ export default function BusinessRecords({
     setPage((p) => Math.min(p, Math.max(1, Math.ceil(rows.length / 12))));
   }, [rows.map((r) => r.id).join(',')]);
   useEffect(() => {
-    setView((current:any) => current ? rows.find(r=>r.id===current.id) || null : null);
+    setView((current: any) => (current ? rows.find((r) => r.id === current.id) || null : null));
   }, [rows]);
   const check = (id: number) => (
     <input
@@ -116,7 +102,7 @@ export default function BusinessRecords({
           : '');
       setMessage(summary);
       setSelected(failed.map((r: any) => r.id));
-      setConfirm(null);
+
       window.dispatchEvent(new Event('erp-business-changed'));
       changed(summary);
     } catch (e) {
@@ -125,9 +111,7 @@ export default function BusinessRecords({
       setBusy(false);
     }
   }
-  async function requestLifecycle(selection: { action: 'archive' | 'restore'; rows: any[] }) {
-    await executeLifecycle(selection);
-  }
+
   const actions = (row: any) => (
     <div className="record-actions">
       <div className="record-actions-main">
@@ -142,7 +126,7 @@ export default function BusinessRecords({
         <button
           disabled={!canEdit || busy}
           onClick={() =>
-            void requestLifecycle({ action: isArchived(row) ? 'restore' : 'archive', rows: [row] })
+            void executeLifecycle({ action: isArchived(row) ? 'restore' : 'archive', rows: [row] })
           }
         >
           {isArchived(row) ? '恢复' : '归档'}
@@ -249,7 +233,7 @@ export default function BusinessRecords({
               className={archived ? '' : 'danger'}
               disabled={!canEdit}
               onClick={() =>
-                void requestLifecycle({
+                void executeLifecycle({
                   action: archived ? 'restore' : 'archive',
                   rows: rows.filter((r) => selected.includes(r.id)),
                 })
@@ -262,7 +246,7 @@ export default function BusinessRecords({
               <button
                 disabled={!canEdit}
                 onClick={() =>
-                  void requestLifecycle({
+                  void executeLifecycle({
                     action: 'restore',
                     rows: rows.filter((r) => selected.includes(r.id)),
                   })

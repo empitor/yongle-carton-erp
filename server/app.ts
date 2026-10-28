@@ -197,12 +197,15 @@ export function createApp(
   // 新增核对身份仅服务于导入准备，不改变既有业务或AI设置的访问策略。
   if (options.auth) app.use('/api/auth', options.auth.router());
   if (options.auth)
-    app.use(['/api/management', '/api/developer'], developerRouter(store, options.auth, options.imports));
+    app.use(
+      ['/api/management', '/api/developer'],
+      developerRouter(store, options.auth, options.imports),
+    );
   if (options.assistant && options.auth) {
     app.use('/api/assistant', assistantRouter(options.assistant, options.auth));
     app.use(
       '/api/ai/assistant-prompts',
-      (req, res, next) => {
+      (req, _res, next) => {
         requirePermission(options.auth!.actor(req), 'business:edit');
         next();
       },
@@ -214,7 +217,7 @@ export function createApp(
   if (options.receiptAi && options.auth)
     app.use(
       '/api/ai/receipt-prompts',
-      (req, res, next) => {
+      (req, _res, next) => {
         requirePermission(options.auth!.actor(req), 'business:edit');
         next();
       },
@@ -250,7 +253,7 @@ export function createApp(
       if (!manager) continue;
       app.use(
         module.apiPath,
-        (req, res, next) => {
+        (req, _res, next) => {
           requirePermission(options.auth!.actor(req), 'business:edit');
           next();
         },

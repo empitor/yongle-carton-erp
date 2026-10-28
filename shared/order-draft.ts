@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema, lineSchema, productSchema } from './domain.js';
+import { dateSchema, lineSchema } from './domain.js';
 import type { ImportMapping } from './import-mapping.js';
 import type { PromptPresetUsage } from './prompt-presets.js';
 import { parseDimension, normalizeDimensionUnit, productNotices } from './product-details.js';
@@ -113,10 +113,16 @@ export const fieldLabels: Record<HeaderField | LineField, string> = {
 };
 const fieldSchema = z.strictObject({
   value: z.string().max(2000).nullable(),
-  sources: z.array(z.string().min(1).max(80)).max(30).default([]),
-  quote: z.string().max(1000).default(''),
+  sources: z.preprocess(
+    (v) => (v === null || v === undefined ? [] : v),
+    z.array(z.string().min(1).max(80)).max(30).default([]),
+  ),
+  quote: z.preprocess(
+    (v) => (v === null || v === undefined ? '' : v),
+    z.string().max(1000).default(''),
+  ),
   certainty: z.enum(['recognized', 'needs-review', 'user-modified']),
-  note: z.string().max(600),
+  note: z.preprocess((v) => (v === null || v === undefined ? '' : v), z.string().max(600)),
 });
 const missingField = () => ({
   value: null,

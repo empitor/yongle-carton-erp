@@ -27,9 +27,6 @@ export default function OperationsPage({
   mode,
   recycle = false,
   openSupplier,
-  onGuide = () => {
-    location.hash = 'guide';
-  },
 }: {
   mode: 'suppliers' | 'purchases' | 'warehouse';
   recycle?: boolean;
