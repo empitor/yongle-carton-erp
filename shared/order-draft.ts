@@ -348,8 +348,10 @@ export function evaluateDraft(draft: OrderDraft): DraftEvaluation {
       }
     }
     if (!f.productName.value) issue(prefix + 'productName', '产品名称缺失。', 'error');
-    if (f.unit.value !== '只')
-      issue(prefix + 'unit', '数量单位不是明确的“只”，需人工核对单位映射。');
+    const unit = (f.unit.value || '').trim();
+    if (!unit) issue(prefix + 'unit', '数量单位缺失，请核对原文；系统不自动换算。', 'error');
+    else if (!['个', '只', '张'].includes(unit))
+      issue(prefix + 'unit', '数量单位只支持“个/只”或“张”，请核对原文单位。');
     if (!f.specification.value) issue(prefix + 'specification', '产品规格未识别。');
     const computed = q && p ? { value: q.value * p.value, scale: q.scale + p.scale } : null;
     lineAmounts[line.id] = computed ? format(computed) : null;

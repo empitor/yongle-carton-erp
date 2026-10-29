@@ -57,7 +57,18 @@ export class DevelopmentResetService {
     return Object.fromEntries(
       this.tables().map((name) => [
         name,
-        Number(this.store.db.prepare('SELECT COUNT(*) AS n FROM "' + name + '"').get()!.n),
+        Number(
+          this.store.db
+            .prepare(
+              'SELECT COUNT(*) AS n FROM "' +
+                name +
+                '"' +
+                (name === 'operation_requests'
+                  ? " WHERE kind <> 'document-template-settings'"
+                  : ''),
+            )
+            .get()!.n,
+        ),
       ]),
     );
   }
@@ -102,7 +113,13 @@ export class DevelopmentResetService {
       ])
         for (const row of db.prepare('SELECT * FROM "' + entity + '"').all())
           rememberDeletedRecord(this.store, actor, entity, row as { id: number });
-      for (const name of tables) db.exec('DELETE FROM "' + name + '"');
+      for (const name of tables)
+        db.exec(
+          'DELETE FROM "' +
+            name +
+            '"' +
+            (name === 'operation_requests' ? " WHERE kind <> 'document-template-settings'" : ''),
+        );
       // 审计、正式归档与持久任务仍保留旧记录身份，清空业务不能让新记录复用旧ID。
       if (db.prepare('PRAGMA foreign_key_check').all().length)
         throw new ImportError('初始化后的业务关联检查未通过，已回滚。', 409);

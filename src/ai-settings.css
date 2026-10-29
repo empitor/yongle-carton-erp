@@ -357,7 +357,7 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: #17303966;
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;

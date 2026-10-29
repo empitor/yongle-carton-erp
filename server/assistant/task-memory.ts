@@ -1,4 +1,5 @@
 import type { TaskDecision, TaskMemory } from '../../shared/assistant-task.js';
+import { receiptEditMode } from '../../shared/receipt-edit-mode.js';
 
 // 这里只采集真实用户原话中的明确参数；不读取附件、模型回复或业务备注作为授权。
 export function userDecisions(text: string, messageId: string): TaskDecision[] {
@@ -11,6 +12,8 @@ export function userDecisions(text: string, messageId: string): TaskDecision[] {
       status: 'confirmed',
       source: { messageId, quote, kind: 'user' },
     });
+  const mode = receiptEditMode(text);
+  if (mode) add('receiptCorrectionMode', mode, text);
   for (const sentence of text
     .split(/[。；;\n，,]/)
     .map((s) => s.trim())
@@ -149,7 +152,7 @@ export function mergeDecisions(memory: TaskMemory, incoming: TaskDecision[], cor
         item.status === 'confirmed' &&
         JSON.stringify(old.value) !== JSON.stringify(item.value) &&
         !correction &&
-        item.key !== 'operation'
+        !['operation', 'receiptCorrectionMode'].includes(item.key)
       )
         memory.decisions[i] = { ...item, status: 'conflict', previous: old.value };
       else memory.decisions[i] = item;

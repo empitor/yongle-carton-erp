@@ -23,8 +23,12 @@ export function orderMetrics(rows: { status: string; deliveryDate?: unknown }[],
 }
 export function pendingPurchase(row: any) {
   return (
-    row.status !== '已取消' &&
-    row.lines.some((line: any) => line.quantityUnits > line.receivedUnits)
+    (row.businessStatus || row.status) !== '已取消' &&
+    row.lines.some((line: any) =>
+      line.remainingUnits === undefined
+        ? line.quantityUnits > line.receivedUnits
+        : line.remainingUnits > 0,
+    )
   );
 }
 export function purchaseMetrics(rows: any[], date = today()) {

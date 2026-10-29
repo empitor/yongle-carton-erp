@@ -1,9 +1,34 @@
+import BusinessExport from './BusinessExport';
+import RelatedBusiness from './RelatedBusiness';
 import { formatDimensions } from '../shared/product-details';
-import{useEffect}from'react';
-import { precisionTotal } from '../shared/precision';
+import { useEffect } from 'react';
 import { formatStockSize, type RecordEntity } from '../shared/operations';
-export default function RecordDetails({ entity, row }: { entity: RecordEntity; row: any }) {
-  useEffect(()=>{window.dispatchEvent(new CustomEvent('erp-ai-record-context',{detail:{module:entity==='stock_items'?(row.kind==='raw'?'raw_inventory':'finished_inventory'):entity,id:row.id,label:row.number||row.name}}));},[entity,row.id]);
+import { ProgressSummary, PurchaseLines, ReceiptHistory, SalesLines } from './FulfillmentDetails';
+export default function RecordDetails({
+  entity,
+  row,
+  correctReceipt,
+}: {
+  entity: RecordEntity;
+  row: any;
+  correctReceipt?: (receipt: any) => void;
+}) {
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('erp-ai-record-context', {
+        detail: {
+          module:
+            entity === 'stock_items'
+              ? row.kind === 'raw'
+                ? 'raw_inventory'
+                : 'finished_inventory'
+              : entity,
+          id: row.id,
+          label: row.number || row.name,
+        },
+      }),
+    );
+  }, [entity, row.id]);
   const pairs =
     entity === 'customers' || entity === 'suppliers'
       ? [
@@ -20,8 +45,10 @@ export default function RecordDetails({ entity, row }: { entity: RecordEntity; r
             ['关联客户订单', row.customerOrderNumber || '独立采购'],
             ['采购日期', row.orderDate],
             ['预计到货', row.expectedDate],
-            ['状态', row.status],
+            ['业务状态', row.businessStatus],
+            ['到货进度', row.arrivalProgress],
             ['程序计算金额 / 元', row.totalAmount ?? '待定价'],
+            ['有效到货金额 / 元', row.receivedAmount ?? '待定价'],
             ['备注', row.notes],
           ]
         : entity === 'stock_items'
@@ -37,6 +64,7 @@ export default function RecordDetails({ entity, row }: { entity: RecordEntity; r
           : entity === 'products'
             ? [
                 ['产品名称', row.name],
+                ['客户产品编码 / 料号', row.customerProductCode],
                 ['尺寸与单位', formatDimensions(row)],
                 ['材质 / 配纸', row.material],
                 ['类型 / 楞型', row.flute],
@@ -49,14 +77,8 @@ export default function RecordDetails({ entity, row }: { entity: RecordEntity; r
                 ['客户采购单号', row.externalPurchaseOrder],
                 ['订单日期', row.orderDate],
                 ['交货日期', row.deliveryDate],
-                [
-                  '订单状态',
-                  row.status === '已发货'
-                    ? '已完成 / 已发货'
-                    : row.lines?.some((l: any) => l.shippedQuantity > 0)
-                      ? '部分发货'
-                      : row.status,
-                ],
+                ['订单状态', row.status],
+                ['发货进度', row.shippingProgress],
                 ['币种', row.currency || 'CNY'],
                 ['金额 / 元', row.totalAmountExact ?? String(row.totalCents / 100)],
                 ['税费说明', (row.taxRate || '') + ' ' + (row.taxMode || '未明确')],
@@ -65,7 +87,18 @@ export default function RecordDetails({ entity, row }: { entity: RecordEntity; r
               ];
   return (
     <>
-      <dl data-agent-module={entity==='stock_items'?(row.kind==='raw'?'raw_inventory':'finished_inventory'):entity} data-agent-record={row.id} data-agent-label={row.number||row.name} className="record-detail-grid">
+      <dl
+        data-agent-module={
+          entity === 'stock_items'
+            ? row.kind === 'raw'
+              ? 'raw_inventory'
+              : 'finished_inventory'
+            : entity
+        }
+        data-agent-record={row.id}
+        data-agent-label={row.number || row.name}
+        className="record-detail-grid"
+      >
         {pairs.map(([k, v]) => (
           <div key={k}>
             <dt>{k}</dt>
@@ -73,120 +106,41 @@ export default function RecordDetails({ entity, row }: { entity: RecordEntity; r
           </div>
         ))}
       </dl>
+      {entity === 'customers' && (
+        <div className="related-next-actions">
+          <a className="action-link" href={'#orders?customerId=' + row.id + '&range=all'}>
+            查看客户全部订单
+          </a>
+        </div>
+      )}
       {entity === 'suppliers' && (
         <>
           <h3>历史采购记录（{row.purchaseHistory?.length || 0}张）</h3>
           {row.purchaseHistory?.map((p: any) => (
-            <p key={p.id}>
-              {p.number} · {p.orderDate} · {p.status}
-            </p>
+            <a className="related-link" href={'#purchases?record=' + p.id} key={p.id}>
+              {p.number} · {p.orderDate} · {p.businessStatus} · {p.arrivalProgress}
+            </a>
           ))}
         </>
       )}
       {entity === 'purchases' && (
         <>
+          <BusinessExport
+            kind="purchase"
+            id={row.id}
+            version={row.version}
+            status={row.businessStatus}
+          />
           <h3>采购明细</h3>
-          <div className="table-wrap">
-            <table className="op-detail-table">
-              <thead>
-                <tr>
-                  {[
-                    '纸板名称 / 规格',
-                    '楞型 / 材质',
-                    '订购数量',
-                    '累计到货',
-                    '单价 / 元',
-                    '金额 / 元',
-                    '备注',
-                  ].map((t) => (
-                    <th key={t}>{t}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {row.lines.map((l: any) => (
-                  <tr key={l.id}>
-                    <td>
-                      {l.name}
-                      <span className="sub">{l.specification || formatStockSize(l)}</span>
-                    </td>
-                    <td>
-                      {l.flute || '—'} / {l.material || '—'}
-                    </td>
-                    <td>
-                      {l.quantity} {l.unit}
-                    </td>
-                    <td>{l.receivedQuantity}</td>
-                    <td>{l.unitPrice ?? '待定'}</td>
-                    <td>{l.amount ?? '待定'}</td>
-                    <td>{l.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <h3>到货历史（{row.receipts.length}批）</h3>
-          {row.receipts.map((r: any) => (
-            <p key={r.id}>
-              {r.reversed && <strong>已冲销 · </strong>}
-              {r.reference} · {r.date} · {r.actorName} · 本批
-              {r.items.map((l: any) => l.quantity).join(' / ')}（各明细单位见上表）
-            </p>
-          ))}
+          <ProgressSummary row={row} purchase />
+          <PurchaseLines row={row} correct={correctReceipt} />
+          <h3>到货历史（{row.receipts.length}条，含原始与更正记录）</h3>
+          <ReceiptHistory row={row} correct={correctReceipt} />
         </>
       )}
-      {entity === 'orders' && (
-        <div className="table-wrap record-detail-lines">
-          <table>
-            <thead>
-              <tr>
-                {[
-                  '产品名称',
-                  '规格型号',
-                  '备注',
-                  '数量',
-                  '单位',
-                  '单价 / 元',
-                  '金额 / 元',
-                  '累计已发货',
-                  '待发货',
-                ].map((k) => (
-                  <th key={k}>{k}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {row.lines.map((l: any, i: number) => (
-                <tr key={i}>
-                  <td>{l.productName}</td>
-                  <td>{l.specification || '未填写'}</td>
-                  <td>
-                    {l.notes || '—'}
-                    {(l.taxRate || l.taxMode || l.deliveryDate) && (
-                      <span className="sub">
-                        {l.taxRate} {l.taxMode} {l.deliveryDate}
-                      </span>
-                    )}
-                  </td>
-                  <td>{l.quantity}</td>
-                  <td>{l.unit || '未确认'}</td>
-                  <td>{l.unitPriceExact ?? String(l.unitPriceCents / 100)}</td>
-                  <td>{precisionTotal([l]).exact}</td>
-                  <td>
-                    {l.shippedQuantity === null ? '历史数量待核对' : (l.shippedQuantity ?? 0)}{' '}
-                    {l.unit || ''}
-                  </td>
-                  <td>
-                    {l.remainingQuantity === null
-                      ? '历史数量待核对'
-                      : (l.remainingQuantity ?? l.quantity)}{' '}
-                    {l.unit || ''}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {entity === 'orders' && <SalesLines row={row} />}
+      {(entity === 'orders' || entity === 'purchases') && (
+        <RelatedBusiness entity={entity} row={row} />
       )}
     </>
   );

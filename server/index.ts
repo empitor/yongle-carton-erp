@@ -16,6 +16,8 @@ import { ReceiptAi } from './flow/receipt-ai.js';
 import { defaultAssistantToolsPath } from './assistant/tool-registry.js';
 import { AssistantManager } from './assistant/manager.js';
 import { localDevelopmentEnabled } from './developer-capability.js';
+import { createRuntimeControl } from '../scripts/runtime-control.mjs';
+import { createServer } from 'node:http';
 const unlock = acquireLock(defaultDbPath);
 process.on('exit', unlock);
 const store = new Store();
@@ -56,34 +58,61 @@ const imports = new ImportManager({
       }
   },
 });
-const server = createApp(store, {
-  assistant,
-  aiSettings,
-  promptModules: promptManagers,
-  imports,
-  auth,
-  receiptAi,
-  enableReviewedImports: true,
-}).listen(port, '127.0.0.1', () =>
+const server = createServer(
+  createApp(store, {
+    assistant,
+    aiSettings,
+    promptModules: promptManagers,
+    imports,
+    auth,
+    receiptAi,
+    enableReviewedImports: true,
+  }),
+);
+server.on('error', (error) => {
+  console.error('服务启动失败：', error.message);
+  void shutdown(false)
+    .then(() => control.close())
+    .finally(() => process.exit(1));
+});
+server.requestTimeout = AI_HTTP_TIMEOUT_MS;
+server.setTimeout(0); // 响应等待由AI的600秒绝对期限控制，不再被本机socket空闲超时截断。
+let closing: Promise<void> | undefined;
+const shutdown = (notify = true) =>
+  (closing ||= new Promise<void>((done, reject) => {
+    if (notify) process.send?.({ type: 'erp-shutdown' });
+    server.close((error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING')
+        return reject(error);
+      try {
+        store.close();
+        aiSettings.close();
+        imports.close();
+        for (const manager of Object.values(promptManagers)) manager.close();
+        auth.close();
+        unlock();
+        done();
+      } catch (error) {
+        reject(error);
+      }
+    });
+    server.closeIdleConnections();
+  }));
+const control = await createRuntimeControl(defaultDbPath, shutdown, () => process.exit(0));
+server.listen(port, '127.0.0.1', () =>
   console.log(
     `宁波甬勒包装制品有限公司 · 管理系统：http://127.0.0.1:${port}\n数据库：${defaultDbPath}\n本机验收版，正式导入与业务写入需登录管理账号。`,
   ),
 );
-server.on('error', (error) => {
-  console.error('服务启动失败：', error.message);
-  store.close();
-  process.exitCode = 1;
-});
-server.requestTimeout = AI_HTTP_TIMEOUT_MS;
-server.setTimeout(0); // 响应等待由AI的600秒绝对期限控制，不再被本机socket空闲超时截断。
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
-    server.close(() => {
-      store.close();
-      aiSettings.close();
-      imports.close();
-      for (const manager of Object.values(promptManagers)) manager.close();
-      auth.close();
-      process.exit(0);
-    });
+    void shutdown()
+      .then(() => control.close())
+      .then(
+        () => process.exit(0),
+        (error) => {
+          console.error('服务关闭失败：', error.message);
+          process.exitCode = 1;
+        },
+      );
   });

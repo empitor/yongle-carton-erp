@@ -162,6 +162,7 @@ export async function runLauncher({
     log('请保留此窗口；按 Ctrl+C 停止服务，也可使用“停止系统.cmd”。');
     const result = await backend.done;
     if (result.failed) throw new Error('ERP 服务异常退出，请查看上方错误。');
+    log('ERP 服务已正常关闭。');
   } catch (error) {
     await stop(backend);
     throw error;

@@ -25,11 +25,13 @@ import { ImportExecutionService } from './business/import-execution.js';
 import { fileURLToPath } from 'node:url';
 import { operationsRouter } from './operations/router.js';
 import { flowRouter } from './flow/router.js';
+import { documentsRouter } from './documents/router.js';
 import type { ReceiptAi } from './flow/receipt-ai.js';
 import type { AssistantManager } from './assistant/manager.js';
 import { assistantRouter } from './assistant/router.js';
 import { orderInView } from '../shared/date-ranges.js';
 import { buildDashboard } from './business/dashboard.js';
+import { relatedBusiness } from './business/workbench.js';
 import { developerRouter } from './developer-router.js';
 import { isLocalAdministrator } from './developer-capability.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -214,6 +216,7 @@ export function createApp(
   }
   app.use('/api', operationsRouter(store, options.auth));
   app.use('/api/flow', flowRouter(store, options.auth, options.receiptAi));
+  app.use('/api/documents', documentsRouter(store, options.auth));
   if (options.receiptAi && options.auth)
     app.use(
       '/api/ai/receipt-prompts',
@@ -251,6 +254,7 @@ export function createApp(
               ? options.assistant?.prompts
               : undefined);
       if (!manager) continue;
+      options.assistant?.promptEdit.managers.set(module.id, manager);
       app.use(
         module.apiPath,
         (req, _res, next) => {
@@ -382,6 +386,18 @@ export function createApp(
         scoped.filter(({ archived, ...x }) => Object.values(x).join(' ').toLowerCase().includes(q)),
       );
     });
+    app.get(`/api/${entity}/:id`, (req, res) => {
+      const id = z.coerce.number().int().positive().parse(req.params.id);
+      const item =
+        entity === 'customers'
+          ? store.customer(id, isSuperMode(options.auth?.actor(req)))
+          : store.product(id, isSuperMode(options.auth?.actor(req)));
+      if (!item)
+        return res
+          .status(404)
+          .json({ message: entity === 'customers' ? '客户不存在' : '产品不存在' });
+      res.json(item);
+    });
     for (const method of ['post', 'put'] as const)
       app[method](`/api/${entity}${method === 'put' ? '/:id' : ''}`, (req, res) => {
         const command =
@@ -429,6 +445,13 @@ export function createApp(
           : { entity: 'orders' as const, action: 'create' as const, input: req.body };
       res.status(method === 'put' ? 200 : 201).json(manualWrite(command, req));
     });
+  app.get('/api/business/:entity/:id/related', (req, res) => {
+    requirePermission(options.auth?.actor(req), 'business:edit');
+    const entity = z.enum(['orders', 'purchases']).parse(req.params.entity), id = z.coerce.number().int().positive().parse(req.params.id);
+    const result = relatedBusiness(store, entity, id);
+    if (!result) return res.status(404).json({ message: '业务记录不存在。' });
+    res.json(result);
+  });
   app.get('/api/dashboard', (req, res) => {
     const range = z
       .object({ start: dateSchema.optional(), end: dateSchema.optional() })

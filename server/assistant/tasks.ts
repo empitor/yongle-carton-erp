@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { BusinessDocuments } from '../documents/service.js';
 import type { Store } from '../db.js';
 import type { Actor } from '../auth.js';
 import { ImportError } from '../import/errors.js';
@@ -62,6 +63,16 @@ export class AssistantTaskLedger {
   private readonly taskBytes = byteLimit('ERP_AGENT_TASK_BYTES', 16_000_000);
   private readonly archiveBytes = byteLimit('ERP_AGENT_ARCHIVE_BYTES', 64_000_000);
   constructor(readonly store: Store) {}
+  promptEdit(
+    threadId: string,
+    actor: Actor,
+    edit: NonNullable<NonNullable<AssistantBusinessTask['memory']>['promptEdit']>,
+  ) {
+    const task = this.get(threadId, actor);
+    if (!task) throw new ImportError('当前任务不存在。', 409);
+    (task.memory ||= { decisions: [], turns: [], workspaceIds: [] }).promptEdit = edit;
+    return this.put(threadId, actor, task);
+  }
   rememberInput(
     threadId: string,
     actor: Actor,
@@ -377,6 +388,7 @@ export class AssistantTaskLedger {
   done(threadId: string, actor: Actor, id: string, result: any, previewId?: string) {
     const step = this.get(threadId, actor)?.steps.find((s) => s.id === id);
     const formal =
+      (step?.tool === 'prompts.save' && result?.verified === true) ||
       !!previewId ||
       !!result?.order?.id ||
       !!result?.workspace?.imported?.orderId ||
@@ -434,6 +446,11 @@ export class AssistantTaskLedger {
   needsBusinessProof(threadId: string, actor: Actor) {
     const task = this.get(threadId, actor);
     if (!task) return false;
+    if (
+      task.memory?.promptEdit?.phase === 'discussion' &&
+      /能.*修改.*提示词.*[吗?？]/.test(task.goal)
+    )
+      return false;
     if (
       !/保存|创建|新建|新增|修改|更新|删除|清空|归档|恢复|导入|确认|入库|出库|领料|完工|发货|发出|送货|采购|下单/.test(
         task.goal,
@@ -588,6 +605,15 @@ export class AssistantTaskLedger {
     const task = this.get(threadId, actor) || this.bootstrap(threadId, actor);
     if (!task) return null;
     for (const step of task.steps) {
+      if (step.tool === 'documents.export' && step.args?.requestId) {
+        try {
+          const result = new BusinessDocuments(this.store).status(step.args.requestId, actor);
+          step.state = result.completedAt ? 'completed' : 'waiting';
+          step.result = receiptOnly(result);
+          step.error = result.completedAt ? undefined : '文件已生成，等待完整下载交付';
+        } catch { step.state = 'uncertain'; step.error = '尚未核验导出文件，请先查询原导出回执'; }
+        continue;
+      }
       if (
         step.tool === 'page.act' &&
         step.state === 'completed' &&
@@ -678,6 +704,7 @@ export class AssistantTaskLedger {
             decisions: task.memory.decisions,
             workspaceIds: task.memory.workspaceIds,
             files: task.memory.files,
+            promptEdit: task.memory.promptEdit,
             latestUserMessageId: task.memory.turns.at(-1)?.id,
           }
         : undefined,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, basename, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -303,7 +303,11 @@ test(
           killer.once('error', r);
         });
       }
-      rmSync(dir, { recursive: true, force: true });
+      // Windows可能在子进程退出后短暂保留其工作目录句柄；仅重试本测试创建的临时目录。
+      const target = resolve(dir);
+      assert.ok(target.startsWith(resolve(tmpdir()) + sep));
+      assert.ok(basename(target).startsWith('纸序 启动验收-'));
+      rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   },
 );

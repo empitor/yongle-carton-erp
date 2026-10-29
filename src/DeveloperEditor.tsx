@@ -5,6 +5,7 @@ import { managementRequest } from './session';
 import { developerModules, developerNames, developerFieldNames } from '../shared/developer';
 import './developer.css';
 import DatabaseDeleteDialog from './DatabaseDeleteDialog';
+import DataResetPanel from './DataResetPanel';
 const numberFields = new Set([
   'length',
   'width',
@@ -300,6 +301,7 @@ export default function DeveloperEditor({
         />
       )}
       <div className="dev-editor">
+        <DataResetPanel />
         <p className="dev-mode-note">
           <Code2 size={17} />
           普通编辑直接保存；删除核对选定范围。关联和库存同步重算，历史和审计保留。

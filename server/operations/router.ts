@@ -110,6 +110,12 @@ export function operationsRouter(store: Store, auth?: AuthManager) {
   router.post('/purchases/:id/receive', (req, res) =>
     res.json(service.receive(id(req), req.body, actor(req))),
   );
+  router.post('/purchases/:id/receipts/:receiptId/correction-preview', (req, res) =>
+    res.json(service.previewReceiptCorrection(id(req), z.string().min(1).max(150).parse(req.params.receiptId), req.body, actor(req))),
+  );
+  router.post('/purchases/:id/receipts/:receiptId/correct', (req, res) =>
+    res.json(service.correctReceipt(id(req), z.string().min(1).max(150).parse(req.params.receiptId), req.body, actor(req))),
+  );
   router.post('/warehouse/items/:id/move', (req, res) =>
     res.json(service.move(id(req), req.body, actor(req))),
   );

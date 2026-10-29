@@ -210,7 +210,7 @@ test('只读业务元数据接口不包含业务记录且 AI 写入能力保持�
   const r = await request('/business/metadata');
   assert.equal(r.status, 200);
   const metadata = await r.json();
-  assert.equal(metadata.catalogVersion, '26');
+  assert.equal(metadata.catalogVersion, '33');
   assert.equal(metadata.readiness.aiWrites, false);
   assert.ok(metadata.modules.orders.inputSchema.properties.lines);
   assert.ok(!JSON.stringify(metadata).includes('更名客户'));

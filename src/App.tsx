@@ -3,6 +3,7 @@ import { erpPageIds, normalizeAiSettingsHash } from '../shared/assistant-navigat
 import { legacyCents, precisionTotal } from '../shared/precision';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Package,
   Plus,
@@ -12,11 +13,11 @@ import {
   CircleHelp,
   Check,
   RefreshCw,
-  Trash2,
   Save,
   Database,
   FileUp,
   ShieldCheck,
+  Bot,
 } from 'lucide-react';
 import AiSettingsHub from './AiSettingsHub';
 import AuthPanel from './AuthPanel';
@@ -35,12 +36,17 @@ import { useAuthState } from './session';
 import BusinessRecords from './BusinessRecords';
 import Navigation from './Navigation';
 import OperationsPage from './OperationsPage';
+import { uiCapabilities } from '../shared/ui-capabilities';
+import { userError } from '../shared/user-errors';
 import FlowPage from './FlowPage';
+import { warehouseArrivalHash } from '../shared/arrival-navigation';
 import GlobalAssistant from './GlobalAssistant';
 import type { RecordEntity } from '../shared/operations';
 import DimensionUnitSelect from './DimensionUnitSelect';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../shared/product-details';
 import OrderImportPage from './OrderImportPage';
+import OrderLineTable from './OrderLineTable';
+import { displayAmount } from '../shared/display-amount';
 import {
   statuses,
   specification,
@@ -76,6 +82,7 @@ function readListFilters() {
   };
 }
 type Page =
+  | 'document-templates'
   | 'dashboard'
   | 'orders'
   | 'customers'
@@ -131,7 +138,7 @@ async function api<T>(url: string, body?: unknown, method = 'POST'): Promise<T> 
   );
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: '服务响应异常' }));
-    throw new Error(error.message || '操作失败');
+    throw new Error(userError(error.message || '操作失败'));
   }
   return res.json();
 }
@@ -153,10 +160,12 @@ function Field({
   );
 }
 function Modal({
+  wide = false,
   title,
   children,
   close,
 }: {
+  wide?: boolean;
   title: string;
   children: ReactNode;
   close: () => void;
@@ -165,8 +174,16 @@ function Modal({
   useEffect(() => {
     const prior = document.activeElement as HTMLElement;
     const root = ref.current!;
-    (root.querySelector('input,select,button') as HTMLElement)?.focus();
+    (
+      (root.querySelector('input,select,textarea') as HTMLElement) || root.querySelector('button')
+    )?.focus();
     const onKey = (e: KeyboardEvent) => {
+      if (
+        [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')]
+          .filter((d) => d.getClientRects().length)
+          .at(-1) !== root
+      )
+        return;
       if (e.key === 'Escape') close();
       if (e.key === 'Tab') {
         const els = Array.from(
@@ -194,9 +211,15 @@ function Modal({
       prior?.focus();
     };
   }, [close]);
-  return (
+  const dialog = (
     <div className="overlay">
-      <div ref={ref} className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        ref={ref}
+        className={'modal' + (wide ? ' modal-wide' : '')}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <div className="modal-head">
           <div>
             <small>业务记录</small>
@@ -210,6 +233,7 @@ function Modal({
       </div>
     </div>
   );
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body);
 }
 
 export default function App() {
@@ -222,7 +246,9 @@ export default function App() {
   );
   const validPages: Page[] = erpPageIds;
   const getPage = () => {
-    const normalized = normalizeAiSettingsHash(warehouseDeliveryHash(location.hash));
+    const normalized = normalizeAiSettingsHash(
+      warehouseArrivalHash(warehouseDeliveryHash(location.hash)),
+    );
     if (normalized !== location.hash) history.replaceState(null, '', normalized);
     return location.hash.split('?')[0] === '#ai-prompts'
       ? 'ai-settings'
@@ -261,15 +287,9 @@ export default function App() {
     () => new URLSearchParams(location.hash.split('?')[1] || '').get('archived') === '1',
   );
   useEffect(() => {
-    if (page !== 'orders') return;
-    const id = new URLSearchParams(location.hash.split('?')[1] || '').get('order');
-    if (id && /^\d+$/.test(id)) {
-      api<Order>('/orders/' + id)
-        .then((value) => setEditor({ kind: 'orders', value }))
-        .catch((e) => setError(e.message));
-      history.replaceState(null, '', '#orders');
-    }
-  }, [page]);
+    const params = new URLSearchParams(routeKey.split('?')[1] || '');
+    if (page === 'orders' && params.get('create') === '1') setEditor({ kind: 'orders' });
+  }, [page, routeKey]);
   useEffect(() => {
     const f = () => {
       setRouteKey(location.hash);
@@ -325,6 +345,7 @@ export default function App() {
       page === 'ai-settings' ||
       page === 'ai-import' ||
       page === 'ai-prompts' ||
+      page === 'document-templates' ||
       ['suppliers', 'purchases', 'warehouse'].includes(page) ||
       (page === 'trash' && ['suppliers', 'purchases', 'stock_items'].includes(trashEntity))
     ) {
@@ -438,7 +459,7 @@ export default function App() {
     setNotice('已保存到本机数据库');
   };
   const names: Record<Page, string> = {
-    dashboard: '经营概览',
+    dashboard: '业务工作台',
     orders: '客户订单',
     customers: '客户管理',
     products: '产品管理',
@@ -451,6 +472,7 @@ export default function App() {
     suppliers: '供应商管理',
     purchases: '采购订货',
     warehouse: '仓库管理',
+    'document-templates': '单据模板',
     arrivals: '采购到货',
     production: '生产管理',
   };
@@ -508,7 +530,7 @@ export default function App() {
           <div className="phase">
             <span>当前阶段</span>
             <strong>让每一张订单有据可查</strong>
-            <p>客户、产品、订单与预估成本，先把核心流程串起来。</p>
+            <p>采购、生产、库存与送货，按真实单据衔接。</p>
           </div>
           <button
             className={page === 'guide' ? 'nav-item selected' : 'nav-item'}
@@ -538,6 +560,15 @@ export default function App() {
             </span>
           </div>
           <div className="topbar-right">
+            <button
+              className="assistant-topbar-button"
+              aria-label="打开全局AI助手"
+              aria-haspopup="dialog"
+              onClick={() => window.dispatchEvent(new Event('erp-open-assistant'))}
+            >
+              <Bot size={16} />
+              AI助手
+            </button>
             <ThemeSwitcher />
             {page !== 'ai-import' && <AuthPanel />}
             <span className="local-indicator">
@@ -560,15 +591,22 @@ export default function App() {
               </div>
             </div>
           )}
-          {!['suppliers', 'purchases', 'warehouse', 'arrivals', 'production'].includes(page) && (
+          {![
+            'suppliers',
+            'purchases',
+            'warehouse',
+            'arrivals',
+            'production',
+            'document-templates',
+          ].includes(page) && (
             <>
               <PageHeading
-                title={page === 'dashboard' ? '宁波甬勒包装制品有限公司' : names[page]}
-                kicker={page === 'dashboard' ? '经营概览 · 日常经营' : '宁波甬勒包装制品有限公司'}
+                title={names[page]}
+                kicker="宁波甬勒包装制品有限公司"
                 description={
                   <>
                     {page === 'dashboard'
-                      ? '客户订单、采购与库存，掌握工厂每日业务。'
+                      ? '采购、生产、库存和送货，从待办直接进入下一步。'
                       : page === 'orders'
                         ? '从接单到发货，记录每一项约定。'
                         : page === 'customers'
@@ -576,7 +614,7 @@ export default function App() {
                           : page === 'products'
                             ? '沉淀纸箱规格，下单时快速引用。'
                             : page === 'ai-settings'
-                              ? '保存连接预设，选择模型，让每次启动都更简单。'
+                              ? '维护API、提示词、工具与正式单据模板。'
                               : page === 'ai-prompts'
                                 ? '按客户或订单格式保存识别规则，调整条目顺序并随时切换。'
                                 : page === 'ai-import'
@@ -633,7 +671,7 @@ export default function App() {
                   ) : undefined
                 }
               />
-              {!['orders', 'customers', 'products'].includes(page) && (
+              {!auth?.actor && !['orders', 'customers', 'products'].includes(page) && (
                 <LocalNotice onGuide={() => navigate('guide')} />
               )}
             </>
@@ -875,9 +913,7 @@ export default function App() {
               openSupplier={(value) => setEditor({ kind: 'suppliers', value })}
             />
           )}
-          {(['arrivals', 'production'] as string[]).includes(page) && (
-            <FlowPage key={page + routeKey} mode={page === 'arrivals' ? 'arrival' : 'task'} />
-          )}
+          {page === 'production' && <FlowPage key={page + routeKey} mode="task" />}
           {page === 'trash' && (
             <>
               <div className="recycle-heading">
@@ -979,7 +1015,20 @@ export default function App() {
           {page === 'guide' && (
             <div className="guide-grid">
               <section className="panel prose">
-                <h2>第一版验收顺序</h2>
+                <h2>日常业务功能入口</h2>
+                <p>按业务归属打开页面；右上角管理员菜单提供本机数据管理。</p>
+                {uiCapabilities
+                  .filter((c) => c.kind === 'business')
+                  .map((c) => (
+                    <p key={c.id}>
+                      <a href={c.page}>{c.name}</a>
+                      <br />
+                      <small>{c.entry}</small>
+                    </p>
+                  ))}
+              </section>
+              <section className="panel prose">
+                <h2>日常操作顺序</h2>
                 <ol>
                   <li>新增一个虚构客户，填写联系人、电话和地址。</li>
                   <li>新增一款纸箱产品，填写尺寸、材质、楞型和参考价格。</li>
@@ -993,7 +1042,7 @@ export default function App() {
               <section className="panel prose">
                 <h2>本版业务口径</h2>
                 <p>
-                  每项明细的金额由后端按数量 × 单价计算。单价精度暂为两位小数，数量单位暂为“只”。
+                  明细金额由后端按数量和实际计价口径计算，单价最多四位小数。数量单位按订单原文填写，不同单位不自动换算。
                 </p>
                 <p>
                   尺寸可用毫米或厘米，未知时留空。规格为接单时的快照，修改产品档案不会自动修改历史订单。客户更名也不会自动改写历史客户名称。
@@ -1002,7 +1051,7 @@ export default function App() {
                   成本录入的是整张订单的预估总费用，包括材料、加工、损耗和其他费用；请自行说明依据。本版没有内置纸箱面积、配纸或损耗公式。
                 </p>
                 <p>
-                  订单状态由人工维护，尚不等同于生产、出库或收款记录。已发货金额不是会计销售收入。
+                  订单业务状态与实际发货进度独立展示；发货进度来自正式送货记录。生产、到货、送货计划不会提前改变库存，已发货金额不等同于会计销售收入。
                 </p>
               </section>
               <section className="panel prose">
@@ -1027,7 +1076,7 @@ export default function App() {
                 </p>
                 <p>
                   密钥由 Windows DPAPI
-                  加密保存，重启后无需重填。订单识别和聊天核对已开放，正式业务写入保持关闭。
+                  加密保存，重启后无需重填。AI助手沿用当前账号权限，通过与人工页面相同的业务服务执行操作，并返回真实结果。
                 </p>
                 <button className="text-button" onClick={() => navigate('ai-settings')}>
                   前往 AI 设置 <ArrowUpRight size={15} />
@@ -1082,7 +1131,7 @@ function CustomerEditor({
 }: {
   value?: Customer;
   close: () => void;
-  saved: () => void;
+  saved: (record?: any) => void;
   entity?: 'customers' | 'suppliers';
 }) {
   const [form, setForm] = useState(
@@ -1096,8 +1145,12 @@ function CustomerEditor({
     setSaving(true);
     setError('');
     try {
-      await api('/' + entity + (value ? '/' + value.id : ''), form, value ? 'PUT' : 'POST');
-      saved();
+      const record = await api(
+        '/' + entity + (value ? '/' + value.id : ''),
+        form,
+        value ? 'PUT' : 'POST',
+      );
+      saved(record);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1166,7 +1219,7 @@ function ProductEditor({
 }: {
   value?: Product;
   close: () => void;
-  saved: () => void;
+  saved: (record?: any) => void;
 }) {
   const [form, setForm] = useState<ProductInput & { id?: number; version?: number }>(
       value || {
@@ -1190,7 +1243,7 @@ function ProductEditor({
     setSaving(true);
     setError('');
     try {
-      await api(
+      const record = await api(
         '/products' + (value ? '/' + value.id : ''),
         {
           ...form,
@@ -1199,7 +1252,7 @@ function ProductEditor({
         },
         value ? 'PUT' : 'POST',
       );
-      saved();
+      saved(record);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1210,101 +1263,125 @@ function ProductEditor({
     <Modal title={value ? '编辑产品' : '新增产品'} close={saving ? () => {} : close}>
       <form onSubmit={submit}>
         <div className="form-body">
-          <div className="form-grid">
-            <Field label="产品名称 *" wide>
-              <input
-                required
-                maxLength={100}
-                value={form.name}
-                onChange={(e) => change('name', e.target.value)}
-              />
-            </Field>
-            <Field label="尺寸单位（可后续确认）" wide>
-              <DimensionUnitSelect
-                unit={form.dimensionUnit ?? form.dimensionUnitRaw}
-                hasValues={dimensionKeys.some((k) => form[k] !== null)}
-                onChange={(to) => {
-                  const from = normalizeDimensionUnit(form.dimensionUnit);
-                  setForm((f) => ({
-                    ...f,
-                    dimensionUnit: to,
-                    dimensionUnitRaw: to ? '' : f.dimensionUnitRaw,
-                    ...(from && to
-                      ? Object.fromEntries(
-                          dimensionKeys.map((k) => [k, convertDimension(f[k], from, to)]),
-                        )
-                      : {}),
-                  }));
-                }}
-              />
-            </Field>
-            <p className="wide help-text">
-              长、宽、高、配纸和楞型可暂时留空，不影响保存产品或导入订单。
-            </p>
-            <div className="wide dimensions">
-              {(['length', 'width', 'height'] as const).map((k, i) => (
-                <Field
-                  key={k}
-                  label={
-                    ['长', '宽', '高'][i] +
-                    (form.dimensionUnit ? ' / ' + form.dimensionUnit : '（可后补）')
-                  }
-                >
-                  <input
-                    type="number"
-                    min={Number.MIN_VALUE}
-                    max={form.dimensionUnit === 'cm' ? 1000 : 10000}
-                    step="any"
-                    value={form[k] || ''}
-                    onChange={(e) =>
-                      change(k, e.target.value === '' ? null : Number(e.target.value))
-                    }
-                  />
-                </Field>
-              ))}
+          <p className="form-intro">
+            先填写产品名称或型号即可建档；尺寸、配纸和报价可按实际资料补充。数量单位在订单和库存中单独填写。
+          </p>
+          <fieldset className="form-section">
+            <legend>基本信息</legend>
+            <div className="form-grid">
+              <Field label="产品名称 / 型号 *" wide>
+                <input
+                  required
+                  maxLength={100}
+                  value={form.name}
+                  onChange={(e) => change('name', e.target.value)}
+                />
+              </Field>
             </div>
-            <Field label="材质 / 配纸（可后补）">
-              <input
-                maxLength={100}
-                value={form.material}
-                onChange={(e) => change('material', e.target.value)}
-                placeholder="按实际配纸填写"
-              />
-            </Field>
-            <Field label="类型 / 楞型（可后补）">
-              <input
-                maxLength={50}
-                value={form.flute}
-                onChange={(e) => change('flute', e.target.value)}
-                list="flutes"
-              />
-              <datalist id="flutes">
-                {['B 楞', 'C 楞', 'E 楞', 'BC 楞', 'BE 楞'].map((s) => (
-                  <option key={s}>{s}</option>
+          </fieldset>
+          <fieldset className="form-section">
+            <legend>尺寸与规格（选填）</legend>
+            <div className="form-grid">
+              <Field label="尺寸单位（可后续确认）" wide>
+                <DimensionUnitSelect
+                  unit={form.dimensionUnit ?? form.dimensionUnitRaw}
+                  hasValues={dimensionKeys.some((k) => form[k] !== null)}
+                  onChange={(to) => {
+                    const from = normalizeDimensionUnit(form.dimensionUnit);
+                    setForm((f) => ({
+                      ...f,
+                      dimensionUnit: to,
+                      dimensionUnitRaw: to ? '' : f.dimensionUnitRaw,
+                      ...(from && to
+                        ? Object.fromEntries(
+                            dimensionKeys.map((k) => [k, convertDimension(f[k], from, to)]),
+                          )
+                        : {}),
+                    }));
+                  }}
+                />
+              </Field>
+              <p className="wide help-text">
+                长、宽、高、配纸和楞型可暂时留空，不影响保存产品或导入订单。
+              </p>
+              <div className="wide dimensions">
+                {(['length', 'width', 'height'] as const).map((k, i) => (
+                  <Field
+                    key={k}
+                    label={
+                      ['长', '宽', '高'][i] +
+                      (form.dimensionUnit ? ' / ' + form.dimensionUnit : '（可后补）')
+                    }
+                  >
+                    <input
+                      type="number"
+                      min={Number.MIN_VALUE}
+                      max={form.dimensionUnit === 'cm' ? 1000 : 10000}
+                      step="any"
+                      value={form[k] || ''}
+                      onChange={(e) =>
+                        change(k, e.target.value === '' ? null : Number(e.target.value))
+                      }
+                    />
+                  </Field>
                 ))}
-              </datalist>
-            </Field>
-            <Field label="参考单价 / 元每只（可后补）">
-              <input
-                inputMode="decimal"
-                type="number"
-                min="0"
-                max="1000000"
-                step="0.0001"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-              />
-            </Field>
-            <Field label="加工要求" wide>
-              <textarea
-                rows={3}
-                maxLength={500}
-                value={form.requirements}
-                onChange={(e) => change('requirements', e.target.value)}
-                placeholder="印刷、开槽、模切、钉箱或粘箱等"
-              />
-            </Field>
-          </div>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset className="form-section">
+            <legend>材质、加工与报价（选填）</legend>
+            <div className="form-grid">
+              <Field label="材质 / 配纸（可后补）">
+                <input
+                  maxLength={100}
+                  value={form.material}
+                  onChange={(e) => change('material', e.target.value)}
+                  placeholder="按实际配纸填写"
+                />
+              </Field>
+              <Field label="类型 / 楞型（可后补）">
+                <input
+                  maxLength={50}
+                  value={form.flute}
+                  onChange={(e) => change('flute', e.target.value)}
+                  list="flutes"
+                />
+                <datalist id="flutes">
+                  {['B 楞', 'C 楞', 'E 楞', 'BC 楞', 'BE 楞'].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </datalist>
+              </Field>
+              <Field label="参考单价 / 元（可后补）">
+                <input
+                  inputMode="decimal"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="0.0001"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="客户产品编码 / 料号（选填）">
+                <input
+                  maxLength={100}
+                  value={form.customerProductCode || ''}
+                  onChange={(e) => change('customerProductCode', e.target.value)}
+                />
+              </Field>
+              <Field label="加工要求" wide>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={form.requirements}
+                  onChange={(e) => change('requirements', e.target.value)}
+                  placeholder="印刷、开槽、模切、钉箱或粘箱等"
+                />
+              </Field>
+            </div>
+          </fieldset>
+          <p className="product-spec-preview">规格预览：{specification(form)}</p>
         </div>
         <FormFooter error={error} saving={saving} close={close} />
       </form>
@@ -1354,6 +1431,14 @@ function OrderEditor({
   close: () => void;
   saved: () => void;
 }) {
+  const [availableCustomers, setAvailableCustomers] = useState(customers),
+    [availableProducts, setAvailableProducts] = useState(products),
+    [quickCreate, setQuickCreate] = useState<null | {
+      kind: 'customer' | 'product';
+      line?: number;
+    }>(null);
+  useEffect(() => setAvailableCustomers(customers), [customers]);
+  useEffect(() => setAvailableProducts(products), [products]);
   const [customerId, setCustomerId] = useState(String(value?.customerId || '')),
     [orderDate, setOrderDate] = useState(value?.orderDate || today()),
     [deliveryDate, setDeliveryDate] = useState(value?.deliveryDate || today()),
@@ -1375,11 +1460,19 @@ function OrderEditor({
     unit: '只',
     notes: '',
     specification: '',
+    customerProductCode: '',
+    taxRate: '',
+    taxMode: '',
+    deliveryDate: '',
     quantity: '1',
     price: '0',
   });
   const [lines, setLines] = useState(
     value?.lines.map((l) => ({
+      customerProductCode: l.customerProductCode || '',
+      taxRate: l.taxRate || '',
+      taxMode: l.taxMode || '',
+      deliveryDate: l.deliveryDate || '',
       id: l.id,
       productId: String(l.productId),
       productName: l.productName,
@@ -1403,7 +1496,7 @@ function OrderEditor({
   const changeLine = (index: number, key: string, v: string) =>
     setLines((rows) => rows.map((l, i) => (i === index ? { ...l, [key]: v } : l)));
   const chooseProduct = (index: number, id: string) => {
-    const p = products.find((x) => x.id === Number(id));
+    const p = availableProducts.find((x) => x.id === Number(id));
     setLines((rows) =>
       rows.map((l, i) =>
         i === index
@@ -1411,6 +1504,7 @@ function OrderEditor({
               ...l,
               productId: id,
               productName: p?.name || '',
+              customerProductCode: p?.customerProductCode || '',
               specification: p ? specification(p) : '',
               price: p ? (p.priceExact ?? String(p.priceCents / 100)) : '0',
             }
@@ -1419,15 +1513,18 @@ function OrderEditor({
     );
   };
   let total = 0,
+    totalExact = '0',
     costTotal = 0;
   try {
-    total = precisionTotal(
+    const calculation = precisionTotal(
       lines.map((l) => ({
         quantity: Number(l.quantity),
         unitPriceCents: legacyCents(l.price),
         unitPriceExact: l.price,
       })),
-    ).cents;
+    );
+    total = calculation.cents;
+    totalExact = calculation.exact;
     costTotal = ['material', 'processing', 'waste', 'other'].reduce(
       (s, k) => s + cents(costs[k as keyof typeof costs]),
       0,
@@ -1458,7 +1555,10 @@ function OrderEditor({
           quantity: Number(l.quantity),
           unitPriceCents: legacyCents(l.price),
           unitPriceExact: l.price,
-          customerProductCode: value?.lines.find((old) => old.id === l.id)?.customerProductCode,
+          customerProductCode: l.customerProductCode,
+          taxRate: l.taxRate,
+          taxMode: l.taxMode,
+          deliveryDate: l.deliveryDate || undefined,
           unit: l.unit,
         })),
         costs: costed
@@ -1480,24 +1580,52 @@ function OrderEditor({
     }
   };
   return (
-    <Modal title={value ? `订单 ${value.number}` : '新建订单'} close={saving ? () => {} : close}>
+    <Modal
+      wide
+      title={value ? `订单 ${value.number}` : '新建订单'}
+      close={saving ? () => {} : close}
+    >
       <form onSubmit={submit}>
-        <div className="form-body">
-          {(!customers.length || !products.length) && (
-            <div className="inline-warning">请先新增至少一个客户和一个产品，再录入订单。</div>
+        <div className="form-body order-entry">
+          <p className="form-intro">
+            选择客户 → 添加产品与本次数量 → 核对交期和金额。标 * 为必填，其余按实际业务选填。
+          </p>
+          {(!availableCustomers.length || !availableProducts.length) && (
+            <div className="inline-warning">
+              尚无客户或产品时，可使用下方快捷建档，已填写订单内容会保留。
+            </div>
           )}
+          <div className="form-section-heading">
+            <h3>客户与交期</h3>
+            <span>订单编号由系统保存时生成</span>
+          </div>
           <div className="form-grid">
-            <Field label="客户 *" wide>
-              <select required value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+            <div className="field wide">
+              <div className="field-label-row">
+                <span>客户 *</span>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setQuickCreate({ kind: 'customer' })}
+                >
+                  新增客户
+                </button>
+              </div>
+              <select
+                aria-label="订单客户"
+                required
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+              >
                 <option value="">请选择客户</option>
-                {customers.map((c) => (
+                {availableCustomers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
               </select>
               {value && <small>下单时客户名称：{value.customerName}</small>}
-            </Field>
+            </div>
             <Field label="下单日期 *">
               <input
                 required
@@ -1569,93 +1697,20 @@ function OrderEditor({
             <h3>订单明细</h3>
             <span>数量与单位独立保存 · 单价最多四位小数，保留原始精度</span>
           </div>
-          {lines.map((l, i) => (
-            <div className="line-editor" key={i}>
-              <div className="line-heading">
-                <strong>明细 {i + 1}</strong>
-                <button
-                  type="button"
-                  className="text-button danger"
-                  disabled={lines.length === 1}
-                  onClick={() => setLines((rows) => rows.filter((_, n) => n !== i))}
-                >
-                  <Trash2 size={14} />
-                  移除
-                </button>
-              </div>
-              <div className="form-grid">
-                <Field label="产品档案 *" wide>
-                  <select
-                    required
-                    value={l.productId}
-                    onChange={(e) => chooseProduct(i, e.target.value)}
-                  >
-                    <option value="">选择产品，带入规格和参考价</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="本单产品名称 *" wide>
-                  <textarea
-                    required
-                    rows={2}
-                    maxLength={2000}
-                    value={l.productName}
-                    onChange={(e) => changeLine(i, 'productName', e.target.value)}
-                  />
-                </Field>
-                <Field label="规格型号（可后补）" wide>
-                  <textarea
-                    maxLength={2000}
-                    rows={2}
-                    value={l.specification}
-                    onChange={(e) => changeLine(i, 'specification', e.target.value)}
-                  />
-                </Field>
-                <Field label="明细备注" wide>
-                  <textarea
-                    rows={2}
-                    maxLength={2000}
-                    value={l.notes}
-                    onChange={(e) => changeLine(i, 'notes', e.target.value)}
-                  />
-                </Field>
-                <Field label="数量 *">
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    max="1000000"
-                    step="1"
-                    value={l.quantity}
-                    onChange={(e) => changeLine(i, 'quantity', e.target.value)}
-                  />
-                </Field>
-                <Field label="数量单位 *">
-                  <input
-                    required
-                    maxLength={20}
-                    value={l.unit}
-                    onChange={(e) => changeLine(i, 'unit', e.target.value)}
-                  />
-                </Field>
-                <Field label="单价 / 元 *">
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    max="1000000"
-                    step="0.0001"
-                    value={l.price}
-                    onChange={(e) => changeLine(i, 'price', e.target.value)}
-                  />
-                </Field>
-              </div>
-            </div>
-          ))}
+          <OrderLineTable
+            lines={lines}
+            products={availableProducts}
+            orderDate={orderDate}
+            change={changeLine}
+            choose={chooseProduct}
+            quick={(i) => setQuickCreate({ kind: 'product', line: i })}
+            remove={(i) => setLines((rows) => rows.filter((_, n) => n !== i))}
+          />
+          <datalist id="order-quantity-units">
+            {['只', '张', '箱', '套'].map((u) => (
+              <option key={u}>{u}</option>
+            ))}
+          </datalist>
           <button
             type="button"
             className="add-line"
@@ -1667,7 +1722,7 @@ function OrderEditor({
           </button>
           <div className="order-total">
             <span>订单合计</span>
-            <strong>{money(total)}</strong>
+            <strong>¥{displayAmount(totalExact)}</strong>
           </div>
           <div className="form-section-heading">
             <h3>预估成本</h3>
@@ -1734,6 +1789,40 @@ function OrderEditor({
         </div>
         <FormFooter error={error} saving={saving} close={close} />
       </form>
+      {quickCreate?.kind === 'customer' && (
+        <CustomerEditor
+          close={() => setQuickCreate(null)}
+          saved={(record) => {
+            setAvailableCustomers((v) => [...v.filter((x) => x.id !== record.id), record]);
+            setCustomerId(String(record.id));
+            setQuickCreate(null);
+            window.dispatchEvent(new Event('erp-business-changed'));
+          }}
+        />
+      )}
+      {quickCreate?.kind === 'product' && (
+        <ProductEditor
+          close={() => setQuickCreate(null)}
+          saved={(record) => {
+            setAvailableProducts((v) => [...v.filter((x) => x.id !== record.id), record]);
+            setLines((v) =>
+              v.map((l, i) =>
+                i === quickCreate.line
+                  ? {
+                      ...l,
+                      productId: String(record.id),
+                      productName: record.name,
+                      specification: specification(record),
+                      price: record.priceExact ?? String(record.priceCents / 100),
+                    }
+                  : l,
+              ),
+            );
+            setQuickCreate(null);
+            window.dispatchEvent(new Event('erp-business-changed'));
+          }}
+        />
+      )}
     </Modal>
   );
 }

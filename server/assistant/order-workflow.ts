@@ -8,6 +8,7 @@ import type { AssistantAttachments } from './attachments.js';
 import { requirePermission } from '../business/management.js';
 import { ImportError, formatZodIssues } from '../import/errors.js';
 import { matchDraft } from '../import/matching.js';
+import { resolveImportCustomer } from '../import/customer-resolution.js';
 import { patchOperationSchema } from '../../shared/order-draft.js';
 import type { AssistantAttachment } from '../../shared/assistant-attachments.js';
 import { isLocalAdministrator } from '../developer-capability.js';
@@ -85,7 +86,7 @@ export const orderWorkflowTools = [
   {
     name: 'order_import.match',
     description:
-      '明确选择草稿客户或某行产品档案，优先已有型号。customerId或line(从1起)/productId/productCode；不能凭相似型号猜测，歧义必须提问。',
+      '客户不传参数时按真实名称、历史订单自动匹配，唯一可靠身份复用已有ID；归档客户需恢复，模糊候选返回差异供核对。也可明确指定customerId或line(从1起)/productId/productCode；不能凭相似型号猜测。',
     arguments: {
       customerId: '客户ID可省略',
       line: '产品行号',
@@ -141,6 +142,7 @@ type Task = {
 };
 type WorkflowState = { activeId?: string; tasks: Task[] };
 export type WorkflowContext = {
+  batchWorkspaceIds?: string[];
   sourceWorkspaceId?: string;
   threadId: string;
   actor: Actor;
@@ -248,6 +250,35 @@ export class AssistantOrderWorkflow {
       });
       const mapping = structuredClone(w.mapping);
       let changed = false;
+      if (mapping && mapping.customer.mode !== 'existing') {
+        // 每份执行前重新读取正式回执及真实档案，首份新建后后续立即复用。
+        const confirmedIds = confirmedValue(ctx.memory?.(), 'sameCustomer')
+          ? state.tasks
+              .filter((t) =>
+                (ctx.batchWorkspaceIds || ctx.memory?.()?.workspaceIds || []).includes(
+                  t.workspaceId,
+                ),
+              )
+              .flatMap((t) => {
+                const receipt = this.execution.receipt(t.workspaceId, ctx.check());
+                const order = receipt?.orderId
+                  ? this.store.order(receipt.orderId, true)
+                  : undefined;
+                return order ? [order.customerId] : [];
+              })
+          : [];
+        const resolution = resolveImportCustomer(
+          this.store,
+          w.draft?.header.buyerName.value || '',
+          confirmedIds,
+        );
+        if (resolution.state === 'resolved') {
+          const c = resolution.customer!;
+          mapping.customer = { mode: 'existing', id: c.id, version: c.version };
+          changed = true;
+        } else if (resolution.state === 'archived')
+          throw new ImportError('匹配客户已归档或停用，请先恢复原档案；不会重复新建。', 409);
+      }
       for (const line of w.draft?.lines || [])
         if (mapping?.products[line.id]?.mode === 'new') {
           const definition = productFieldsFromDraft(line.fields);
@@ -478,6 +509,7 @@ export class AssistantOrderWorkflow {
     if (name === 'order_import.execute_many') {
       requirePermission(ctx.check(), 'import:execute');
       const ids = z.array(z.string().uuid()).min(1).max(6).parse(args.workspaceIds);
+      ctx = { ...ctx, batchWorkspaceIds: ids };
       // 一次检查全部文件，集中返回业务阻碍，避免逐张重复问相同问题。
       const blocked = [];
       for (const workspaceId of [...new Set(ids)]) {
@@ -763,7 +795,18 @@ export class AssistantOrderWorkflow {
           mapping.products[line.id] = { mode: 'existing', id: p.id, version: p.version };
         }
       } else if (input.createNew) mapping.customer = { mode: 'new' };
-      else throw new ImportError('请说明客户或具体产品行及其型号。');
+      else {
+        const resolved = resolveImportCustomer(this.store, w.draft?.header.buyerName.value || '');
+        if (resolved.state !== 'resolved')
+          throw new ImportError(
+            resolved.state === 'archived'
+              ? '匹配客户已归档，请先恢复。'
+              : '客户身份未唯一确定，请查看候选及差异后选择。',
+            409,
+          );
+        const c = resolved.customer!;
+        mapping.customer = { mode: 'existing', id: c.id, version: c.version };
+      }
       w = this.imports.mapping(w.id, { expectedRevision: w.revision, mapping }, ctx.actor);
     } else if (name === 'order_import.undo') {
       w = this.imports.undo(w.id, { expectedRevision: w.revision }, ctx.actor);

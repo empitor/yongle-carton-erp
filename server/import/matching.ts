@@ -1,6 +1,7 @@
 import type { Store } from '../db.js';
 import type { ImportWorkspaceView } from '../../shared/order-draft.js';
 import { normalizedDimensions, normalizeDimensionUnit } from '../../shared/product-details.js';
+import { resolveImportCustomer } from './customer-resolution.js';
 const key = (v: string) =>
   v
     .replace(/[\s·（）()]/g, '')
@@ -15,13 +16,7 @@ export function matchDraft(store: Store, w: ImportWorkspaceView) {
     customers,
     products,
     customerCandidates: d
-      ? customers
-          .filter(
-            (c) =>
-              key(c.name).includes(key(d.header.buyerName.value || '!')) ||
-              key(d.header.buyerName.value || '!').includes(key(c.name)),
-          )
-          .map((c) => ({ id: c.id, name: c.name, reason: '名称相近，必须人工核对身份' }))
+      ? resolveImportCustomer(store, d.header.buyerName.value || '').candidates
       : [],
     productCandidates: d
       ? Object.fromEntries(

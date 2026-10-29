@@ -83,7 +83,7 @@
   color: var(--muted);
 }
 .ai-tool-ready {
-  color: var(--teal);
+  color: var(--accent-ink);
 }
 .ai-tool-unavailable {
   color: var(--text-secondary);

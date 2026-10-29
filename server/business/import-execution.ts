@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { Actor } from '../auth.js';
 import type { Store } from '../db.js';
+import { resolveImportCustomer } from '../import/customer-resolution.js';
 import type { ImportManager } from '../import/manager.js';
 import type { ImportWorkspaceView } from '../../shared/order-draft.js';
 import { customerSchema, productSchema, orderSchema } from '../../shared/domain.js';
@@ -151,6 +152,15 @@ export class ImportExecutionService {
     const customers = this.store.customers(),
       products = this.store.products(),
       name = w.draft.header.buyerName.value || '';
+    if (mapping.customer.mode === 'pending' || mapping.customer.mode === 'new') {
+      const resolved = resolveImportCustomer(this.store, name);
+      if (resolved.state === 'archived')
+        throw new ImportError('同名客户已归档或停用，请先恢复原档案；不会重复新建。', 409);
+      if (resolved.state === 'resolved') {
+        const c = resolved.customer!;
+        mapping.customer = { mode: 'existing', id: c.id, version: c.version };
+      }
+    }
     if (mapping.customer.mode === 'pending') {
       const exact = customers.filter((c) => key(c.name) === key(name));
       if (exact.length === 1)

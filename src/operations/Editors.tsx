@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import ManagementDialog from '../ManagementDialog';
+import QuickPartyDialog from '../QuickPartyDialog';
 import DimensionUnitSelect from '../DimensionUnitSelect';
 import { managementRequest, useAuthState } from '../session';
 import { today } from '../../shared/domain';
@@ -8,7 +9,7 @@ import {
   normalizeDimensionUnit,
   dimensionKeys,
 } from '../../shared/product-details';
-import { lineMoney, quantityString, formatStockSize } from '../../shared/operations';
+import { lineMoney, sumMoney, formatStockSize } from '../../shared/operations';
 import { purchaseLineAmount } from '../../shared/physical-flow';
 export function OpField({
   label,
@@ -138,6 +139,12 @@ export function PurchaseEditor({
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const auth = useAuthState();
+  const [createdSuppliers, setCreatedSuppliers] = useState<any[]>([]),
+    [quickSupplier, setQuickSupplier] = useState(false);
+  const supplierOptions = [
+    ...suppliers,
+    ...createdSuppliers.filter((s) => !suppliers.some((p) => p.id === s.id)),
+  ];
   const locked = !!value?.receipts.length,
     flexible = !!auth?.actor?.localAdministrator;
   const patch = (v: any) => setForm((s: any) => ({ ...s, ...v })),
@@ -159,7 +166,7 @@ export function PurchaseEditor({
           setBusy(true);
           setError('');
           try {
-            await managementRequest(
+            const result = await managementRequest<any>(
               '/purchases' + (value ? '/' + value.id : ''),
               {
                 ...form,
@@ -170,6 +177,8 @@ export function PurchaseEditor({
               value ? 'PUT' : 'POST',
             );
             saved();
+            if ((e.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'preview')
+              location.hash = 'purchases?record=' + result.id + '&previewDocument=1';
           } catch (e) {
             setError((e as Error).message);
           } finally {
@@ -177,6 +186,10 @@ export function PurchaseEditor({
           }
         }}
       >
+        <div className="form-section-heading">
+          <h3>供应商与采购安排</h3>
+          <span>标 * 为必填，单号保存时生成。</span>
+        </div>
         <div className="op-form-grid">
           <OpField label="供应商 *">
             <select
@@ -189,7 +202,7 @@ export function PurchaseEditor({
               {!suppliers.some((s) => s.id === Number(form.supplierId)) && value && (
                 <option value={value.supplierId}>{value.supplierName}（历史档案）</option>
               )}
-              {suppliers.map((s) => (
+              {supplierOptions.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                   {s.archived ? '（停用）' : ''}
@@ -197,6 +210,13 @@ export function PurchaseEditor({
               ))}
             </select>
           </OpField>
+          <button
+            type="button"
+            disabled={locked && !flexible}
+            onClick={() => setQuickSupplier(true)}
+          >
+            新增供应商，保留当前采购单
+          </button>
           <OpField label="关联客户订单（可不选）">
             <select
               value={form.customerOrderId ?? ''}
@@ -250,6 +270,10 @@ export function PurchaseEditor({
               : '已有到货的实物身份保留；计划与实收分别记录。'
             : '尺寸、配纸、楞型和价格暂时未知可留空，数量单位需明确。'}
         </p>
+        <div className="form-section-heading">
+          <h3>采购明细</h3>
+          <span>尺寸单位与数量单位分别填写，未知价格可留空。</span>
+        </div>
         {form.lines.map((l: any, i: number) => (
           <fieldset className="op-line-card" key={i} disabled={locked && !flexible}>
             <legend>采购明细 {i + 1}</legend>
@@ -378,9 +402,30 @@ export function PurchaseEditor({
             添加纸板明细
           </button>
         )}
-        <OpField label="采购备注">
+        <div className="purchase-amount-total">
+          <span>采购金额合计 / 元</span>
+          <strong>
+            {(() => {
+              try {
+                return (
+                  sumMoney(
+                    form.lines.map((l: any) =>
+                      l.priceBasis === 'area'
+                        ? purchaseLineAmount(l)
+                        : lineMoney(l.quantity, l.unitPrice),
+                    ),
+                  ) || '待定价'
+                );
+              } catch {
+                return '待完善明细';
+              }
+            })()}
+          </strong>
+        </div>
+        <OpField label="采购备注 / 本单交货、税费及付款约定（选填）">
           <textarea
             maxLength={1000}
+            placeholder="按实际约定填写交货地址、税率及含税口径、验收和付款条件；系统不自动推算未知税额。"
             value={form.notes}
             onChange={(e) => patch({ notes: e.target.value })}
           />
@@ -397,8 +442,21 @@ export function PurchaseEditor({
           <button className="primary" disabled={busy}>
             {busy ? '正在保存…' : '保存采购单'}
           </button>
+          <button type="submit" name="next" value="preview" disabled={busy}>
+            保存并预览订货单
+          </button>
         </div>
       </form>
+      {quickSupplier && (
+        <QuickPartyDialog
+          close={() => setQuickSupplier(false)}
+          saved={(s) => {
+            setCreatedSuppliers((v) => [...v, s]);
+            patch({ supplierId: s.id });
+            setQuickSupplier(false);
+          }}
+        />
+      )}
     </ManagementDialog>
   );
 }
@@ -541,143 +599,6 @@ export function StockEditor({
           </button>
           <button className="primary" disabled={busy}>
             {busy ? '正在保存…' : '保存库存品'}
-          </button>
-        </div>
-      </form>
-    </ManagementDialog>
-  );
-}
-export function ReceiptDialog({
-  purchase,
-  close,
-  saved,
-}: {
-  purchase: any;
-  close: () => void;
-  saved: () => void;
-}) {
-  const [requestId] = useState(() => crypto.randomUUID()),
-    [reference, setReference] = useState(
-      () => 'DH-' + today().replaceAll('-', '') + '-' + crypto.randomUUID().slice(0, 8),
-    ),
-    [date, setDate] = useState(today()),
-    [notes, setNotes] = useState(''),
-    [quantities, setQuantities] = useState<Record<number, string>>({}),
-    [agreed, setAgreed] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
-  const direct = !!useAuthState()?.actor?.localAdministrator;
-  return (
-    <ManagementDialog title={'分批到货 · ' + purchase.number} close={close} busy={busy}>
-      <form
-        className="op-form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError('');
-          try {
-            if (!purchase.lines.some((l: any) => !!quantities[l.id]?.trim()))
-              throw new Error('请至少填写一项本次实际到货数量。');
-            await managementRequest('/purchases/' + purchase.id + '/receive', {
-              expectedVersion: purchase.version,
-              requestId,
-              reference,
-              date,
-              notes,
-              items: purchase.lines
-                .filter((l: any) => !!quantities[l.id]?.trim())
-                .map((l: any) => ({ lineId: l.id, quantity: quantities[l.id] })),
-              acknowledged: true,
-            });
-            saved();
-          } catch (e) {
-            setError((e as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <p>
-          {purchase.supplierName}；只填写本次实际到货数量，不是累计数量。完成后同步增加原材料库存。
-        </p>
-        <div className="op-form-grid">
-          <OpField label="供应商送货单号 / 本次批次号 *">
-            <input
-              required
-              maxLength={100}
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-            />
-          </OpField>
-          <OpField label="实际到货日期 *">
-            <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-          </OpField>
-        </div>
-        <p className="op-hint">
-          同一送货单不得更换批次号重复登记。没有外部单号时保留生成的编号；网络异常可原样重试，不会重复入库。
-        </p>
-        <div className="table-wrap">
-          <table className="op-receipt-lines">
-            <thead>
-              <tr>
-                <th>纸板 / 规格</th>
-                <th>订货</th>
-                <th>已到</th>
-                <th>未到</th>
-                <th>本次到货</th>
-              </tr>
-            </thead>
-            <tbody>
-              {purchase.lines.map((l: any) => (
-                <tr key={l.id}>
-                  <td>
-                    {l.name}
-                    <span className="sub">{l.specification || formatStockSize(l)}</span>
-                  </td>
-                  <td>
-                    {l.quantity} {l.unit}
-                  </td>
-                  <td>{l.receivedQuantity}</td>
-                  <td>{quantityString(Math.max(0, l.quantityUnits - l.receivedUnits))}</td>
-                  <td>
-                    <input
-                      aria-label={'本次到货 ' + l.name}
-                      disabled={l.quantityUnits === l.receivedUnits}
-                      inputMode="decimal"
-                      value={quantities[l.id] || ''}
-                      onChange={(e) => setQuantities((v) => ({ ...v, [l.id]: e.target.value }))}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <OpField label="到货备注">
-          <textarea value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} />
-        </OpField>
-        {!direct && (
-          <label className="op-agreement">
-            <input
-              type="checkbox"
-              checked={agreed}
-              required
-              onChange={(e) => setAgreed(e.target.checked)}
-            />
-            我已核对送货单与本次实际数量，确认入库。
-          </label>
-        )}
-        {error && (
-          <p role="alert" className="operation-error">
-            {error}
-          </p>
-        )}
-        <div className="management-dialog-actions">
-          <button type="button" disabled={busy} onClick={close}>
-            取消
-          </button>
-          <button className="primary" disabled={busy || (!direct && !agreed)}>
-            {busy ? '正在入库…' : '确认到货并入库'}
           </button>
         </div>
       </form>

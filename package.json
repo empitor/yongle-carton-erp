@@ -1,13 +1,13 @@
 {
   "name": "carton-workshop-erp",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=24.15.0 <25"
   },
   "scripts": {
-    "dev": "concurrently -k -n API,WEB \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
+    "dev": "node scripts/dev-system.mjs",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
     "start": "tsx server/index.ts",
@@ -19,6 +19,9 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.13",
+    "docx": "^9.15.0",
+    "docx-preview": "^0.4.1",
+    "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "fast-xml-parser": "^5.11.2",
     "helmet": "^8.1.0",
@@ -40,10 +43,14 @@
     "@types/react-dom": "^19.2.0",
     "@types/yauzl": "^3.4.0",
     "@vitejs/plugin-react": "^5.1.0",
-    "concurrently": "^9.2.0",
     "prettier": "^3.9.10",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vite": "^7.2.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

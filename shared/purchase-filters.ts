@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { dateSchema } from './domain.js';
-import { purchaseStatuses } from './operations.js';
+import { purchaseStatuses, purchaseBusinessStatuses, arrivalProgresses } from './operations.js';
 import { pendingPurchase } from './business-metrics.js';
 export const purchaseFilterSchema = z
   .object({
@@ -8,6 +8,8 @@ export const purchaseFilterSchema = z
     supplierId: z.coerce.number().int().positive().optional(),
     supplierName: z.string().max(200).optional(),
     status: z.enum(purchaseStatuses).optional(),
+    businessStatus: z.enum(purchaseBusinessStatuses).optional(),
+    arrivalProgress: z.enum(arrivalProgresses).optional(),
     start: dateSchema.optional(),
     end: dateSchema.optional(),
     pending: z.enum(['1', '0']).optional(),
@@ -32,6 +34,8 @@ export function matchesPurchase(row: any, query: z.infer<typeof purchaseFilterSc
     (!query.supplierName ||
       row.supplierName.toLowerCase().includes(query.supplierName.toLowerCase())) &&
     (!query.status || row.status === query.status) &&
+    (!query.businessStatus || row.businessStatus === query.businessStatus) &&
+    (!query.arrivalProgress || row.arrivalProgress === query.arrivalProgress) &&
     (!query.start || row.orderDate >= query.start) &&
     (!query.end || row.orderDate <= query.end) &&
     (query.pending !== '1' || pendingPurchase(row))

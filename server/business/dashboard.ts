@@ -1,4 +1,5 @@
 import type { Store } from '../db.js';
+import { buildWorkbench } from './workbench.js';
 import { statuses, today, type Dashboard, type Order } from '../../shared/domain.js';
 import { monthsBefore, closedOrder } from '../../shared/date-ranges.js';
 import { quantityString, sumMoney } from '../../shared/operations.js';
@@ -47,7 +48,7 @@ export function buildDashboard(
       id: 'order-' + o.id,
       date: o.orderDate,
       title: o.number,
-      detail: o.customerName + ' · ' + o.status,
+      detail: o.customerName + ' · ' + o.status + ' · ' + o.shippingProgress,
       target: '#orders?order=' + o.id,
       category: '客户订单',
       recordedAt: o.createdAt,
@@ -56,7 +57,7 @@ export function buildDashboard(
       id: 'purchase-' + p.id,
       date: p.orderDate,
       title: p.number,
-      detail: p.supplierName + ' · ' + p.status,
+      detail: p.supplierName + ' · ' + p.businessStatus + ' · ' + p.arrivalProgress,
       target: '#purchases?q=' + encodeURIComponent(p.number),
       category: '采购订货',
       recordedAt: p.createdAt,
@@ -98,6 +99,7 @@ export function buildDashboard(
     })),
     recentOrders,
     overview: {
+      workbench: buildWorkbench(store, date),
       range: { start: range.start || null, end: range.end || null },
       orders: {
         total: rows.length,
@@ -120,12 +122,13 @@ export function buildDashboard(
               .filter((p) => p.status !== '已取消' && p.totalAmount !== null)
               .map((p) => p.totalAmount),
           ) || '0',
+        receivedAmount: sumMoney(purchases.map((p) => p.receivedAmount)),
         outstanding: balances(
           allPurchases
             .filter(pendingPurchase)
             .flatMap((p) => p.lines)
-            .filter((l) => l.quantityUnits > l.receivedUnits),
-          (l) => l.quantityUnits - l.receivedUnits,
+            .filter((l) => l.remainingUnits > 0),
+          (l) => l.remainingUnits,
         ),
         recent: recentPurchases,
       },

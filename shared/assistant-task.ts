@@ -37,6 +37,23 @@ export type TaskDecision = {
   previous?: unknown;
 };
 export type TaskMemory = {
+  promptEdit?: {
+    phase: 'discussion' | 'drafting' | 'preview' | 'executed';
+    module: string;
+    proposal?: {
+      id: string;
+      presetId: string;
+      presetName: string;
+      entryId: string;
+      entryName: string;
+      content: string;
+      before: string;
+      expectedRevision: number;
+      sourceMessageId: string;
+      shownMessageId?: string;
+      savedRevision?: number;
+    };
+  };
   decisions: TaskDecision[];
   turns: { id: string; text: string }[];
   workspaceIds: string[];

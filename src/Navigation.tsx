@@ -78,7 +78,7 @@ export default function Navigation({
   );
   return (
     <nav>
-      {item('dashboard', '经营概览', LayoutDashboard)}
+      {item('dashboard', '业务工作台', LayoutDashboard)}
       {group('orders', '订单业务', ClipboardList, [
         ['orders', '客户订单'],
         ['purchases', '采购订货'],

@@ -45,9 +45,9 @@ export const workflowAnalysis = () => ({
   })),
   warnings: [],
 });
-export function createOrderWorkflowFixture() {
+export function createOrderWorkflowFixture(databasePath?: string) {
   const dir = mkdtempSync(join(tmpdir(), 'erp-assistant-orders-')),
-    store = new Store(join(dir, 'erp.sqlite'));
+    store = new Store(databasePath || join(dir, 'erp.sqlite'));
   let recognitionCalls = 0,
     broken = false;
   const requests: any[] = [],

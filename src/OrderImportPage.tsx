@@ -18,6 +18,7 @@ import { formatDimensions } from '../shared/product-details';
 import { useOrderWorkspace } from './import/useOrderWorkspace';
 import FilePreview from './import/FilePreview';
 import OrderDraftTable from './import/OrderDraftTable';
+import BatchImportDialog from './BatchImportDialog';
 import OrderChat from './import/OrderChat';
 import AuthPanel from './AuthPanel';
 import ImportFailures from './import/ImportFailures';
@@ -42,6 +43,7 @@ export default function OrderImportPage() {
     [importBusy, setImportBusy] = useState(false),
     [importError, setImportError] = useState('');
   const [showFailures, setShowFailures] = useState(false);
+  const [batchImport, setBatchImport] = useState(false);
   const w = api.workspace,
     d = api.draft,
     id = api.selected,
@@ -321,6 +323,21 @@ export default function OrderImportPage() {
               批量删除（已选{checked.length}份）
             </button>
           )}
+          <button
+            disabled={
+              !importAuth?.actor ||
+              unsaved ||
+              !checked.some((id) =>
+                files.some(
+                  (f) =>
+                    f.id === id && (f.mode || 'order') === 'order' && f.hasDraft && !f.imported,
+                ),
+              )
+            }
+            onClick={() => setBatchImport(true)}
+          >
+            批量核对并导入
+          </button>
           <button
             disabled={!batchTargets.length}
             onClick={() =>
@@ -1054,6 +1071,23 @@ export default function OrderImportPage() {
             )}
           </section>
         </div>
+      )}
+      {batchImport && (
+        <BatchImportDialog
+          files={files.filter(
+            (f) =>
+              checked.includes(f.id) &&
+              (f.mode || 'order') === 'order' &&
+              f.hasDraft &&
+              !f.imported,
+          )}
+          request={api.request}
+          close={() => setBatchImport(false)}
+          done={() => {
+            void api.refresh();
+            window.dispatchEvent(new Event('erp-business-changed'));
+          }}
+        />
       )}
     </div>
   );

@@ -1,0 +1,189 @@
+/* 沿用ERP蓝色操作、绿/琥珀状态及现有字体，只强化逐行数量的可读性。 */
+.fulfillment-summary {
+  min-width: 112px;
+}
+.fulfillment-summary .sub {
+  white-space: nowrap;
+}
+.fulfillment-lines {
+  max-width: 100%;
+}
+.fulfillment-lines > table {
+  min-width: 1060px;
+  width: 100%;
+}
+.fulfillment-lines td {
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+.fulfillment-lines td:nth-child(3),
+.fulfillment-lines td:nth-child(4),
+.fulfillment-lines td:nth-child(5) {
+  white-space: nowrap;
+}
+.line-receipts {
+  margin-top: 8px;
+}
+.line-receipts summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+.line-receipts[open] {
+  min-width: 450px;
+}
+.receipt-history table {
+  width: 100%;
+  min-width: 550px;
+}
+.receipt-history td {
+  white-space: normal;
+}
+.receipt-history .sub {
+  display: block;
+  margin-top: 4px;
+}
+.receipt-correction .table-wrap table {
+  min-width: 580px;
+  width: 100%;
+}
+.receipt-correction input {
+  width: 110px;
+  font-variant-numeric: tabular-nums;
+}
+.management-dialog:has(.receipt-correction) {
+  width: min(1160px, 100%);
+}
+.correction-reason {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0;
+}
+.correction-reason textarea {
+  min-height: 80px;
+  padding: 10px;
+  resize: vertical;
+}
+.correction-impact {
+  border-left: 3px solid var(--info);
+  padding: 2px 16px;
+  margin: 16px 0;
+  background: var(--info-soft);
+  color: var(--ink);
+}
+.correction-impact p {
+  line-height: 1.7;
+}
+.business-records[data-entity='orders'] > .unified-table-region > table {
+  min-width: 1180px;
+}
+.business-records[data-entity='purchases'] > .unified-table-region > table {
+  min-width: 1150px;
+}
+.order-full-lines .table-wrap {
+  max-width: min(1100px, 75vw);
+}
+.record-expand {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+.business-records .fulfillment-expanded > td {
+  padding: 12px 18px;
+  background: var(--surface-muted);
+}
+.business-records .fulfillment-expanded .table-wrap {
+  width: 100%;
+}
+.business-records[data-entity='purchases']
+  > .unified-table-region
+  > table
+  > tbody
+  > tr:not(.fulfillment-expanded)
+  > td:nth-child(4),
+.business-records[data-entity='purchases']
+  > .unified-table-region
+  > table
+  > tbody
+  > tr:not(.fulfillment-expanded)
+  > td:nth-child(5),
+.business-records[data-entity='orders']
+  > .unified-table-region
+  > table
+  > tbody
+  > tr:not(.fulfillment-expanded)
+  > td:nth-child(5),
+.business-records[data-entity='orders']
+  > .unified-table-region
+  > table
+  > tbody
+  > tr:not(.fulfillment-expanded)
+  > td:nth-child(6) {
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .order-full-lines .table-wrap {
+    max-width: 75vw;
+  }
+  .receipt-correction .management-dialog-actions {
+    flex-wrap: wrap;
+  }
+  .receipt-correction .table-wrap table {
+    min-width: 0;
+  }
+  .receipt-correction thead {
+    display: none;
+  }
+  .receipt-correction tbody {
+    display: block;
+  }
+  .receipt-correction tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .receipt-correction tbody td {
+    display: block;
+    padding: 10px 6px;
+    border: 0;
+  }
+  .receipt-correction tbody td:first-child {
+    grid-column: 1/-1;
+    font-weight: 600;
+  }
+  .receipt-correction tbody td:nth-child(2)::before {
+    content: '当前有效数量';
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+  }
+  .receipt-correction tbody td:nth-child(3)::before {
+    content: '正确数量';
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+  }
+  .receipt-correction input {
+    width: 100px;
+  }
+}
+.reconciliation-warning {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.data-edit-history summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+}
+.fulfillment-expanded table {
+  background: var(--surface);
+}
+.receipt-correction p {
+  overflow-wrap: anywhere;
+}

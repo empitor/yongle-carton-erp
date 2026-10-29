@@ -1,0 +1,54 @@
+.arrival-warehouse {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.arrival-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.warehouse-record-filters input { flex: 1; min-width: 300px; width: auto; }
+.warehouse-record-filters select { flex: 0 0 230px; width: 230px; }
+.arrival-table {
+  width: 100%;
+  min-width: 980px;
+}
+.arrival-table td {
+  vertical-align: top;
+}
+.arrival-warehouse .business-records > .unified-table-region > .arrival-table > thead > tr > th:first-child,
+.arrival-warehouse .business-records > .unified-table-region > .arrival-table > tbody > tr:not(.fulfillment-expanded) > td:first-child {
+  width: 220px;
+  min-width: 220px;
+}
+.arrival-warehouse .arrival-table > thead > tr > th { white-space: nowrap; }
+.arrival-warehouse .fulfillment-expanded > td { width: auto; }
+.arrival-table .sub {
+  display: block;
+}
+.arrival-table .record-expand {
+  margin: 4px 0;
+}
+.arrival-record-lines table {
+  min-width: 1400px;
+}
+.arrival-movement {
+  max-width: 340px;
+  white-space: normal;
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+}
+.arrival-movement code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  color: var(--muted);
+}
+.arrival-warehouse .section-heading {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.arrival-warehouse .section-heading p {
+  margin-top: 6px;
+  color: var(--text-secondary);
+}

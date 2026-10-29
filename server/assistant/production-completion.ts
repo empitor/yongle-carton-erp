@@ -8,7 +8,7 @@ import { FlowService } from '../flow/service.js';
 import { ImportError } from '../import/errors.js';
 import { productionCompletionSchema } from '../../shared/assistant-production.js';
 import { quantityUnits, quantityString } from '../../shared/operations.js';
-import { today } from '../../shared/domain.js';
+import { today, specification } from '../../shared/domain.js';
 
 // 复合编排只调用原生产/库存服务。整批先在回滚预演内预检，再由同一事务正式提交。
 export class ProductionCompletion {
@@ -279,7 +279,7 @@ export class ProductionCompletion {
               kind: 'finished',
               unit: task.unit,
               productId: product.id,
-              specification: product.customerProductCode || '',
+              specification: specification(product),
               length: product.length,
               width: product.width,
               height: product.height,

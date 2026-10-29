@@ -1,5 +1,5 @@
-import { Layers, Package, ArrowLeftRight, Truck } from 'lucide-react';
-export type WarehouseView = 'raw' | 'finished' | 'flows' | 'deliveries';
+import { Layers, Package, ArrowLeftRight, Truck, PackagePlus } from 'lucide-react';
+export type WarehouseView = 'raw' | 'finished' | 'flows' | 'deliveries' | 'arrivals';
 export default function WarehouseNavigation({
   view,
   onChange,
@@ -15,6 +15,7 @@ export default function WarehouseNavigation({
           ['finished', '成品库存', '加工完成纸箱的当前余额', Package],
           ['flows', '出入库流水', '每笔入库、出库和盘点记录', ArrowLeftRight],
           ['deliveries', '送货记录', '客户发货、分批交付与历史单据', Truck],
+          ['arrivals', '到货记录', '采购收货、验收及入库流水追溯', PackagePlus],
         ] as const
       ).map(([key, title, description, Icon]) => (
         <button
@@ -26,7 +27,7 @@ export default function WarehouseNavigation({
           aria-selected={view === key}
           onClick={() => onChange(key)}
           onKeyDown={(event) => {
-            const views: WarehouseView[] = ['raw', 'finished', 'flows', 'deliveries'],
+            const views: WarehouseView[] = ['raw', 'finished', 'flows', 'deliveries', 'arrivals'],
               index = views.indexOf(key);
             const next =
               event.key === 'ArrowRight'

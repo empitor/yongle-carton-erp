@@ -16,6 +16,8 @@ import { OperationsRepository } from './operations/repository.js';
 import { migrateFlow } from './flow/schema.js';
 import { migrateAssistant } from './assistant/schema.js';
 import { flowReference, shippedUnits } from './flow/service.js';
+import { syncReceivedUnits } from './operations/fulfillment.js';
+import { fulfillmentSummary, shippingLineStatus } from '../shared/fulfillment.js';
 
 export const defaultDbPath = resolve(process.env.DB_PATH || 'data/erp.sqlite');
 export class Store {
@@ -50,6 +52,22 @@ export class Store {
     migrateOperations(this.db);
     migrateFlow(this.db);
     migrateAssistant(this.db);
+    if (!this.db.prepare('SELECT 1 FROM schema_migrations WHERE version=12').get()) {
+      this.db.exec('SAVEPOINT fulfillment_migration');
+      try {
+        const before = this.db.prepare('SELECT id,purchase_id,received_units FROM purchase_lines ORDER BY id').all();
+        syncReceivedUnits(this, true);
+        const after = this.db.prepare('SELECT id,purchase_id,received_units FROM purchase_lines ORDER BY id').all();
+        if (JSON.stringify(before) !== JSON.stringify(after)) this.db.prepare('INSERT INTO business_audit(at,actor_id,actor_name,source,action,entity,record_id,document) VALUES(?,?,?,?,?,?,?,?)').run(
+          new Date().toISOString(), 'system-migration', '系统兼容迁移', 'migration-12', 'reconcile-received', 'purchases', null,
+          JSON.stringify({ before, after, rule: '有效到货事件去重重算累计缓存；库存流水不变' }));
+        this.db.prepare("INSERT INTO schema_migrations VALUES(12,datetime('now'))").run();
+        this.db.exec('RELEASE fulfillment_migration');
+      } catch (e) {
+        this.db.exec('ROLLBACK TO fulfillment_migration; RELEASE fulfillment_migration');
+        throw e;
+      }
+    }
   }
   private migratePermanentDeletion() {
     this.db.exec('SAVEPOINT permanent_schema');
@@ -349,13 +367,20 @@ export class Store {
           r.status === '已发货' &&
           !this.db
             .prepare(
-              "SELECT 1 FROM flow_refs f JOIN flow_documents d ON d.id=f.document_id WHERE f.order_id=? AND d.kind='delivery' AND d.status='confirmed' LIMIT 1",
+              "SELECT 1 FROM flow_documents d,json_each(d.document,'$.lines') l WHERE json_extract(l.value,'$.orderId')=? AND d.kind='delivery' AND d.status IN ('confirmed','reversed') LIMIT 1",
             )
             .get(r.id);
         const execution = this.db
             .prepare('SELECT document FROM import_executions WHERE order_id=?')
             .get(Number(r.id)),
           receipt = execution ? JSON.parse(String(execution.document)) : null;
+        const orderLines = lines.filter((l) => l.orderId === r.id).map(({ orderId, ...l }) => {
+          const shippedQuantity = legacyDelivery ? null : quantityForDelivery(this, Number(l.id));
+          return { ...l, ...this.extension('order_line_extensions', 'line_id', Number(l.id)),
+            shippedQuantity, remainingQuantity: shippedQuantity === null ? null : Math.max(0, Number(l.quantity) - shippedQuantity),
+            shippingStatus: shippingLineStatus(Number(l.quantity), shippedQuantity) };
+        });
+        const shippingSummary = fulfillmentSummary(orderLines.map((l) => l.shippingStatus), '已发完', '部分发货', '未发货', '历史数量待核对');
         return {
           ...rest,
           ...(receipt
@@ -371,17 +396,10 @@ export class Store {
           ...this.extension('order_extensions', 'order_id', Number(r.id)),
           costs,
           deliveryQuantitiesKnown: !legacyDelivery,
+          shippingProgress: shippingSummary.progress,
+          shippingSummary,
           costCents: totalCost(costs),
-          lines: lines
-            .filter((l) => l.orderId === r.id)
-            .map(({ orderId, ...l }) => ({
-              ...l,
-              ...this.extension('order_line_extensions', 'line_id', Number(l.id)),
-              shippedQuantity: legacyDelivery ? null : quantityForDelivery(this, Number(l.id)),
-              remainingQuantity: legacyDelivery
-                ? null
-                : Math.max(0, Number(l.quantity) - quantityForDelivery(this, Number(l.id))),
-            })),
+          lines: orderLines,
         } as Order;
       });
   }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { dateSchema, exactPriceSchema } from './domain.js';
 import { stockItemSchema, positiveQuantity, quantityText, quantityUnits } from './operations.js';
+import { inspectionFields, arrivalTimeSchema } from './arrival.js';
 export const flowKinds = ['arrival', 'task', 'production', 'delivery'] as const;
 export type FlowKind = (typeof flowKinds)[number];
 export const flowNames: Record<FlowKind, string> = {
@@ -52,8 +53,9 @@ export const arrivalLineSchema = z.object({
   item: z
     .object(stockItemSchema.shape)
     .omit({ kind: true, productId: true })
-    .extend({ unit: z.literal('张').default('张') }),
+    .extend({ unit: z.string().trim().min(1).max(20).default('张') }),
   quantity: positiveQuantity,
+  ...inspectionFields,
   statedQuantity: quantityText.nullable().default(null),
   unitPrice: exactPriceSchema.nullable().default(null),
   priceBasis: z.enum(['area', 'quantity']).nullable().default('area'),
@@ -67,13 +69,19 @@ export const arrivalLineSchema = z.object({
 });
 export const arrivalSchema = z.object({
   ...base,
+  isPlan: z.boolean().default(false),
+  plannedDate: dateSchema.nullable().optional(),
+  plannedTime: arrivalTimeSchema,
+  actualTime: arrivalTimeSchema,
   supplierId: id,
-  reference: z.string().trim().min(1, '请填写供应商送货单号/批次').max(100),
+  reference: z.string().trim().max(100).default(''),
   sourceId: z.string().uuid().nullable().default(null),
   lines: z.array(arrivalLineSchema).min(1).max(100),
-});
+}).refine((v) => v.isPlan ? !!v.plannedDate : !!v.reference, { message: '计划须填写预计到货日期；实际到货须填写送货单号或内部批次。', path: ['reference'] });
 export const taskSchema = z.object({
   ...base,
+  plannedDate: dateSchema.nullable().optional(),
+  plannedTime: arrivalTimeSchema,
   productId: id,
   quantity: positiveQuantity,
   unit: z.string().trim().min(1).max(20),
@@ -101,6 +109,9 @@ export const productionSchema = z
   });
 export const deliverySchema = z.object({
   ...base,
+  plannedDate: dateSchema.nullable().optional(),
+  plannedTime: arrivalTimeSchema,
+  actualTime: arrivalTimeSchema,
   customerId: id,
   address: text,
   contact: text,
@@ -119,6 +130,12 @@ export const deliverySchema = z.object({
     )
     .min(1)
     .max(100),
+});
+export const flowScheduleSchema = z.strictObject({
+  plannedDate: dateSchema,
+  plannedTime: arrivalTimeSchema.optional(),
+  expectedVersion: z.number().int().positive(),
+  requestId: z.string().uuid(),
 });
 export function flowInput(kind: FlowKind, raw: unknown): any {
   return {

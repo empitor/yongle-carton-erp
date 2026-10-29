@@ -25,12 +25,33 @@ import { developmentResetSchema } from '../../shared/assistant-development-reset
 import { requireDeveloper, isLocalAdministrator } from '../developer-capability.js';
 import { workspaceCommandSchema } from '../workspace-management.js';
 import { deletionSelection } from '../business/database-maintenance.js';
+import { promptToolSchemas } from './prompt-edit.js';
+import { receiptCorrectionPreviewSchema, receiptCorrectionSchema } from '../../shared/operations.js';
+import { flowScheduleSchema } from '../../shared/physical-flow.js';
+import { arrivalQuerySchema, arrivalPlanInputSchema, arrivalAiReceiveSchema } from '../../shared/arrival.js';
+import { dailyQuerySchema } from '../flow/daily.js';
+import { documentExportSchema } from '../../shared/business-export.js';
 
 const positive = z.number().int().positive(),
   uuid = z.string().uuid();
 const task = { taskId: uuid.optional() },
   module = z.enum(assistantModules);
 const schemas: Record<string, z.ZodType> = {
+  'documents.templates':z.strictObject({}),
+  'flow.daily': dailyQuerySchema,
+  'documents.preview': z.strictObject({kind:z.enum(['purchase','delivery']),id:positive,templateId:z.string().regex(/^(purchase|delivery)-[a-z0-9-]{1,60}$/).optional()}),
+  'documents.status': z.strictObject({exportId:uuid}),
+  'documents.export': documentExportSchema,
+  'arrival.records': arrivalQuerySchema,
+  'arrival.plans': arrivalQuerySchema,
+  'arrival.plan.save': arrivalPlanInputSchema,
+  'arrival.receive': arrivalAiReceiveSchema,
+  'purchase.receipt.data_edit_preview': receiptCorrectionPreviewSchema.extend({ mode: z.literal('data-edit').default('data-edit'), purchaseId: positive, receiptId: z.string().min(1).max(150) }),
+  'purchase.receipt.data_edit': receiptCorrectionSchema.extend({ mode: z.literal('data-edit').default('data-edit'), purchaseId: positive, receiptId: z.string().min(1).max(150) }),
+  'flow.schedule': flowScheduleSchema.extend({ id: positive }),
+  'purchase.receipt.preview': receiptCorrectionPreviewSchema.extend({ purchaseId: positive, receiptId: z.string().min(1).max(150) }),
+  'purchase.receipt.correct': receiptCorrectionSchema.extend({ purchaseId: positive, receiptId: z.string().min(1).max(150) }),
+  ...promptToolSchemas,
   'browser.capture': z.strictObject({}),
   'browser.act': browserActionSchema,
   'page.observe': pageObserveSchema,
@@ -183,6 +204,7 @@ export class AssistantToolRegistry {
         t.name,
         {
           ...t,
+          ...(t.name.startsWith('prompts.') ? { permissions: ['business:edit'] } : {}),
           ...(t.name === 'browser.act' ? { capability: 'page' as const } : {}),
           pluginId: builtinPluginFor(t.name),
           kind: (t.risk === 'workflow'
@@ -269,6 +291,8 @@ export class AssistantToolRegistry {
     const local =
       t.capability === 'management' ||
       t.name.startsWith('management.') ||
+      t.name.startsWith('purchase.receipt.data_edit') ||
+      (t.name.startsWith('purchase.receipt.') && args?.mode === 'data-edit') ||
       t.name === 'records.delete';
     // 风险标签不另外提升权限，真实业务服务与人工接口采用相同Actor校验。
     // 声明只能增加权限，不能覆盖能力类别对应的系统最低权限。

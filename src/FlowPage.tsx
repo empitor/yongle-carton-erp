@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, type ReactNode } from 'react';
-import { Plus, FileUp, Printer, Download, RefreshCw } from 'lucide-react';
+import { Plus, FileUp, Printer, RefreshCw } from 'lucide-react';
 import {
   flowNames,
   flowStates,
@@ -11,7 +11,7 @@ import {
   type FlowKind,
 } from '../shared/physical-flow';
 import { quantityString, formatStockSize } from '../shared/operations';
-import { today } from '../shared/domain';
+import { today, dateSchema } from '../shared/domain';
 import { convertDimension, normalizedDimensions } from '../shared/product-details';
 import { managementRequest, useAuthState } from './session';
 import ManagementDialog from './ManagementDialog';
@@ -27,6 +27,12 @@ import { deliveryCandidates } from '../shared/warehouse-delivery';
 import { blankArrivalLine } from '../shared/arrival-draft';
 import RecordContextDialog, { RecordRelations } from './RecordContext';
 import DatabaseDeleteDialog from './DatabaseDeleteDialog';
+import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
+import DateSchedule from './DateSchedule';
+import './date-schedule.css';
+import BusinessExport from './BusinessExport';
+import ProductionBatchDialog from './ProductionBatchDialog';
+import { planDate, scheduleSummary } from '../shared/schedule';
 export { blankArrivalLine } from '../shared/arrival-draft';
 const title = (kind: FlowKind) =>
   kind === 'arrival'
@@ -86,6 +92,7 @@ export default function FlowPage({
   recycle = false,
   embedded = false,
   dialogOnly = false,
+  scheduleView = true,
   launch,
   onClose,
 }: {
@@ -93,7 +100,19 @@ export default function FlowPage({
   recycle?: boolean;
   embedded?: boolean;
   dialogOnly?: boolean;
-  launch?: { order?: string; stock?: string; doc?: string };
+  scheduleView?: boolean;
+  launch?: {
+    order?: string;
+    product?: string;
+    stock?: string;
+    doc?: string;
+    purchase?: string;
+    plannedDate?: string;
+    isPlan?: string;
+    receivePlan?: string;
+    edit?: string;
+    ai?: string;
+  };
   onClose?: () => void;
 }) {
   const auth = useAuthState(),
@@ -104,9 +123,23 @@ export default function FlowPage({
   const working = useRef(false),
     saveRequest = useRef(crypto.randomUUID());
   const [opened, setOpened] = useState(false);
+  const [batchCompletion, setBatchCompletion] = useState(false);
   const [contextId, setContextId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<any[] | null>(null);
-  const [kind, setKind] = useState<FlowKind>(mode),
+  const [receiptCorrection, setReceiptCorrection] = useState<any>(null);
+  const routeParams = new URLSearchParams(location.hash.split('?')[1] || '');
+  const [scheduleDate, setScheduleDate] = useState(
+    dateSchema.safeParse(routeParams.get('date')).success ? routeParams.get('date')! : today(),
+  );
+  const [allDates, setAllDates] = useState(routeParams.get('scope') === 'all');
+  const [pendingOnly, setPendingOnly] = useState(routeParams.get('pending') === '1');
+  const [scheduling, setScheduling] = useState<any>(null);
+  const [newPlanDate, setNewPlanDate] = useState('');
+  const [newPlanTime, setNewPlanTime] = useState('');
+  const scheduleRequest = useRef(crypto.randomUUID());
+  const [kind, setKind] = useState<FlowKind>(
+      mode === 'task' && routeParams.get('view') === 'production' ? 'production' : mode,
+    ),
     [rows, setRows] = useState<any[]>([]),
     [data, setData] = useState<any>({
       suppliers: [],
@@ -126,8 +159,14 @@ export default function FlowPage({
     [archived, setArchived] = useState(
       recycle || new URLSearchParams(location.hash.split('?')[1] || '').get('archived') === '1',
     ),
-    [preset, setPreset] = useState<DatePreset>('2'),
-    [range, setRange] = useState(presetRange('2')),
+    [preset, setPreset] = useState<DatePreset>(
+      routeParams.get('range') === 'custom' ? 'custom' : '2',
+    ),
+    [range, setRange] = useState(
+      routeParams.get('range') === 'custom'
+        ? { start: routeParams.get('start') || '', end: routeParams.get('end') || '' }
+        : presetRange('2'),
+    ),
     [page, setPage] = useState(1),
     [editor, setEditor] = useState<any>(null),
     [view, setView] = useState<any>(null),
@@ -140,6 +179,21 @@ export default function FlowPage({
   const refresh = () => {
     setRevision((v) => v + 1);
     window.dispatchEvent(new Event('erp-business-changed'));
+  };
+  const arrivalReceipt = (doc: any) => {
+    for (const purchase of data.purchases) {
+      const receipt = purchase.receipts.find((r: any) => r.flowId === doc.id && r.effective);
+      if (receipt) return { purchase, receipt };
+    }
+    return null;
+  };
+  useEffect(() => {
+    setView((current: any) => (current && rows.find((r) => r.id === current.id)) || current);
+  }, [rows]);
+  const correctArrival = (doc: any) => {
+    setView(null);
+    setEditor(null);
+    setReceiptCorrection(arrivalReceipt(doc));
   };
   useEffect(() => {
     const changed = () => setRevision((v) => v + 1);
@@ -194,8 +248,10 @@ export default function FlowPage({
         r.kind === kind &&
         (!q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase())) &&
         matchesFlowStatus(r, status) &&
-        (!range.start || r.date >= range.start) &&
-        (!range.end || r.date <= range.end),
+        (!pendingOnly || (['draft', 'confirmed'].includes(r.status) && r.progress < 100)) &&
+        (kind === 'task' || (kind === 'delivery' && scheduleView)
+          ? allDates || planDate(r) === scheduleDate
+          : (!range.start || r.date >= range.start) && (!range.end || r.date <= range.end)),
     ),
     sliced = filtered.slice((page - 1) * 12, page * 12);
   useEffect(() => {
@@ -209,18 +265,28 @@ export default function FlowPage({
       ? new URLSearchParams(launch)
       : new URLSearchParams(location.hash.split('?')[1] || '');
     const common = { date: today(), notes: '', correctionOf: null };
+    const planned = {
+      ...common,
+      plannedDate: params.get('plannedDate') || scheduleDate,
+      plannedTime: null,
+      actualTime: null,
+    };
     let v = value
       ? structuredClone(value)
       : kind === 'arrival'
         ? {
             ...common,
+            isPlan: params.get('isPlan') === '1',
+            plannedDate: params.get('plannedDate') || null,
+            plannedTime: null,
+            actualTime: null,
             supplierId: null,
             reference: '',
             sourceId: null,
             lines: [blankArrivalLine()],
           }
         : kind === 'task'
-          ? { ...common, productId: null, quantity: '', unit: '只', orderIds: [] }
+          ? { ...planned, productId: null, quantity: '', unit: '只', orderIds: [] }
           : kind === 'production'
             ? {
                 ...common,
@@ -233,7 +299,7 @@ export default function FlowPage({
                 materials: [{ stockId: null, issued: '', returned: '0' }],
               }
             : {
-                ...common,
+                ...planned,
                 customerId: null,
                 address: '',
                 contact: '',
@@ -244,6 +310,15 @@ export default function FlowPage({
                   { orderId: null, orderLineId: null, stockId: null, quantity: '', notes: '' },
                 ],
               };
+    if (!value && kind === 'task' && params.get('order')) {
+      const order = data.orders.find((o: any) => o.id === Number(params.get('order')));
+      const line = order?.lines.find((l: any) => l.productId === Number(params.get('product')));
+      v.orderIds = order ? [order.id] : [];
+      v.productId = line?.productId || null;
+      v.unit = line?.unit || '只';
+      // 用户核对待生产数量；不能把订单数量误当作已扣除其他任务的余量。
+      v.quantity = '';
+    }
     if (!value && kind === 'delivery' && params.get('order')) {
       const order = data.orders.find((o: any) => o.id === Number(params.get('order')));
       if (order) {
@@ -278,14 +353,15 @@ export default function FlowPage({
     if (!value && kind === 'arrival' && params.get('purchase')) {
       const p = data.purchases.find((p: any) => p.id === Number(params.get('purchase')));
       if (p) {
+        if (v.isPlan && !params.get('plannedDate')) v.plannedDate = p.expectedDate || today();
         v.supplierId = p.supplierId;
         v.lines = p.lines
-          .filter((l: any) => l.quantityUnits > l.receivedUnits && l.unit === '张')
+          .filter((l: any) => l.quantityUnits > l.receivedUnits)
           .map((l: any) => ({
             ...blankArrivalLine(),
             stockId: l.stockItemId,
             purchaseLineId: l.id,
-            item: { ...l, unit: '张' },
+            item: { ...l },
             quantity: quantityString(l.quantityUnits - l.receivedUnits),
             unitPrice: l.unitPrice,
             priceBasis: l.priceBasis || 'quantity',
@@ -299,10 +375,21 @@ export default function FlowPage({
     const params = launch
       ? new URLSearchParams(launch)
       : new URLSearchParams(location.hash.split('?')[1] || '');
-    if (params.get('doc')) {
+    if (params.get('ai')) {
+      setAi(true);
+      setOpened(true);
+      linkedOpened.current = true;
+    } else if (params.get('receivePlan')) {
+      const plan = rows.find((r) => r.id === Number(params.get('receivePlan')));
+      if (plan) {
+        begin({ ...plan, isPlan: false, date: today(), actualTime: null });
+        linkedOpened.current = true;
+      }
+    } else if (params.get('doc')) {
       const row = rows.find((r) => r.id === Number(params.get('doc')));
       if (row) {
-        setView(row);
+        if (params.get('edit') === '1' && row.status === 'draft') begin(row);
+        else setView(row);
         setOpened(true);
         linkedOpened.current = true;
       } else if (mode === 'task' && kind !== 'production') setKind('production');
@@ -312,8 +399,19 @@ export default function FlowPage({
     }
   }, [data, rows, busy, auth?.actor, kind]);
   useEffect(() => {
-    if (dialogOnly && opened && !busy && !editor && !view && !preview && !action) onClose?.();
-  }, [dialogOnly, opened, busy, editor, view, preview, action, onClose]);
+    if (
+      dialogOnly &&
+      opened &&
+      !busy &&
+      !editor &&
+      !view &&
+      !preview &&
+      !action &&
+      !ai &&
+      !receiptCorrection
+    )
+      onClose?.();
+  }, [dialogOnly, opened, busy, editor, view, preview, action, ai, receiptCorrection, onClose]);
   async function work(job: () => Promise<void>) {
     if (working.current) return;
     working.current = true;
@@ -344,7 +442,7 @@ export default function FlowPage({
     work(async () => {
       const parsed = flowInput(kind, editor),
         saved =
-          auth?.actor?.localAdministrator && editor.id
+          auth?.actor?.localAdministrator && editor.id && editor.status !== 'draft'
             ? await managementRequest<any>('/management/execute', {
                 requestId: saveRequest.current,
                 module: kind,
@@ -510,6 +608,11 @@ export default function FlowPage({
                       AI识别供应商送货单
                     </button>
                   )}
+                  {kind === 'task' && (
+                    <button disabled={!canEdit || busy} onClick={() => setBatchCompletion(true)}>
+                      整批领料与完工
+                    </button>
+                  )}
                   <button
                     className="primary"
                     disabled={!canEdit || busy || archived}
@@ -538,6 +641,79 @@ export default function FlowPage({
               ))}
             </div>
           )}
+          {(kind === 'task' || (kind === 'delivery' && scheduleView)) && (
+            <>
+              <DateSchedule
+                value={scheduleDate}
+                onChange={(date) => {
+                  setAllDates(false);
+                  setScheduleDate(date);
+                  setPage(1);
+                  setSelected([]);
+                }}
+                label={kind === 'task' ? '生产' : '送货'}
+                counts={Object.fromEntries(
+                  [...new Set(rows.map(planDate))].map((date) => [
+                    date,
+                    scheduleSummary(rows.filter((r) => planDate(r) === date)),
+                  ]),
+                )}
+              />
+              <div className="schedule-daily-summary" aria-label="当日计划概览">
+                {kind === 'task' && (
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={pendingOnly}
+                      onChange={(e) => {
+                        setPendingOnly(e.target.checked);
+                        setPage(1);
+                      }}
+                    />
+                    仅未完工任务
+                  </label>
+                )}
+                <button className={!allDates ? 'selected' : ''} onClick={() => setAllDates(false)}>
+                  当日任务
+                </button>
+                <button className={allDates ? 'selected' : ''} onClick={() => setAllDates(true)}>
+                  全部日期
+                </button>
+                <span>
+                  计划任务{' '}
+                  <strong>
+                    {scheduleSummary(rows.filter((r) => planDate(r) === scheduleDate)).total}
+                  </strong>
+                </span>
+                <span>
+                  待{kind === 'task' ? '生产' : '送货'}{' '}
+                  <strong>
+                    {scheduleSummary(rows.filter((r) => planDate(r) === scheduleDate)).pending}
+                  </strong>
+                </span>
+                <span>
+                  已完成{' '}
+                  <strong>
+                    {scheduleSummary(rows.filter((r) => planDate(r) === scheduleDate)).completed}
+                  </strong>
+                </span>
+                <span>
+                  计划数量{' '}
+                  <strong>
+                    {scheduleSummary(
+                      rows.filter((r) => planDate(r) === scheduleDate),
+                      (id) => data.items.find((s: any) => s.id === id)?.unit,
+                    ).quantities || '—'}
+                  </strong>
+                </span>
+                {embedded && (
+                  <button className="primary" disabled={!canEdit || busy} onClick={() => begin()}>
+                    安排当天送货
+                  </button>
+                )}
+              </div>
+            </>
+          )}
           {error && (
             <div className="form-error" role="alert">
               {error}
@@ -554,22 +730,26 @@ export default function FlowPage({
             onSearch={setQ}
             placeholder="搜索单号、备注和明细"
             onReset={() => {
+              setPendingOnly(false);
               setQ('');
               setStatus('');
               setPreset('2');
               setRange(presetRange('2'));
+              setScheduleDate(today());
             }}
             dates={
-              <DateRangeFilter
-                preset={preset}
-                start={range.start}
-                end={range.end}
-                change={(p, s, e) => {
-                  setPreset(p);
-                  setRange({ start: s, end: e });
-                }}
-                label="业务日期"
-              />
+              kind !== 'task' && !(kind === 'delivery' && scheduleView) ? (
+                <DateRangeFilter
+                  preset={preset}
+                  start={range.start}
+                  end={range.end}
+                  change={(p, s, e) => {
+                    setPreset(p);
+                    setRange({ start: s, end: e });
+                  }}
+                  label="业务日期"
+                />
+              ) : undefined
             }
           >
             <FilterField label="单据状态">
@@ -707,7 +887,20 @@ export default function FlowPage({
                       </td>
                       <td>
                         <strong>{r.number}</strong>
-                        <span className="sub">{r.date}</span>
+                        <span className="sub">
+                          {kind === 'task' || kind === 'delivery' ? '计划 ' + planDate(r) : r.date}
+                        </span>
+                        {kind === 'delivery' && (
+                          <span className="sub">实际发货：{r.actualDate || '尚未发货'}</span>
+                        )}
+                        {kind === 'task' && (
+                          <span className="sub">
+                            实际完工：{r.actualCompletionDate || '尚未完工'}
+                          </span>
+                        )}
+                        {r.plannedDateSource === 'legacy-date' && (
+                          <span className="sub">沿用历史业务日期</span>
+                        )}
                       </td>
                       <td>{labelRow(r) || '历史档案'}</td>
                       <td>
@@ -739,15 +932,44 @@ export default function FlowPage({
                       <td>{r.actorName}</td>
                       <td>
                         <div className="flow-actions">
+                          {canEdit &&
+                            !r.archived &&
+                            ((r.kind === 'task' &&
+                              ['draft', 'confirmed'].includes(r.status) &&
+                              r.progress < 100) ||
+                              (r.kind === 'delivery' && r.status === 'draft')) && (
+                              <button
+                                onClick={() => {
+                                  setScheduling(r);
+                                  setNewPlanDate(planDate(r));
+                                  setNewPlanTime(r.plannedTime || '');
+                                  scheduleRequest.current = crypto.randomUUID();
+                                }}
+                              >
+                                调整排程
+                              </button>
+                            )}
                           <button className="secondary" onClick={() => setView(r)}>
                             查看
                           </button>
+                          {canEdit &&
+                            r.kind === 'arrival' &&
+                            r.status === 'confirmed' &&
+                            arrivalReceipt(r) && (
+                              <button onClick={() => correctArrival(r)}>更正到货单</button>
+                            )}
                           {((r.status === 'draft' && !archived) ||
                             auth?.actor?.localAdministrator) && (
                             <button
                               className="secondary"
                               disabled={!canEdit}
-                              onClick={() => begin(r)}
+                              onClick={() =>
+                                r.kind === 'arrival' &&
+                                r.status === 'confirmed' &&
+                                arrivalReceipt(r)
+                                  ? correctArrival(r)
+                                  : begin(r)
+                              }
                             >
                               编辑
                             </button>
@@ -907,6 +1129,14 @@ export default function FlowPage({
           />
           {error && <p className="form-error">{error}</p>}
           <div className="modal-actions">
+            {canEdit &&
+              editor.kind === 'arrival' &&
+              editor.status === 'confirmed' &&
+              arrivalReceipt(editor) && (
+                <button className="primary" onClick={() => correctArrival(editor)}>
+                  更正到货单
+                </button>
+              )}
             <button className="secondary" disabled={busy} onClick={() => setEditor(null)}>
               取消
             </button>
@@ -937,11 +1167,43 @@ export default function FlowPage({
       )}
       {view && (
         <ManagementDialog
-          title={flowNames[view.kind as FlowKind] + ' · ' + view.number}
+          title={
+            (view.kind === 'arrival' && view.isPlan
+              ? '到货计划'
+              : flowNames[view.kind as FlowKind]) +
+            ' · ' +
+            view.number
+          }
           close={() => setView(null)}
         >
           <FlowDetails doc={view} data={data} />
           <div className="modal-actions">
+            {view.kind === 'arrival' && view.isPlan && view.status === 'draft' && canEdit && (
+              <button
+                className="primary"
+                onClick={() => {
+                  begin({ ...view, isPlan: false, date: today(), actualTime: null });
+                  setView(null);
+                }}
+              >
+                按此计划登记实际到货
+              </button>
+            )}
+            {view.kind === 'task' &&
+              canEdit &&
+              !view.archived &&
+              ['draft', 'confirmed'].includes(view.status) &&
+              view.progress < 100 && (
+                <button
+                  className="primary"
+                  onClick={() => {
+                    setSelected([view.id]);
+                    setBatchCompletion(true);
+                  }}
+                >
+                  领料与完工入库
+                </button>
+              )}
             {view.kind === 'delivery' && (
               <>
                 <a
@@ -953,17 +1215,25 @@ export default function FlowPage({
                   <Printer size={16} />
                   打印 / 另存PDF
                 </a>
-                <a className="secondary" href={'/api/flow/' + view.id + '/print?download=1'}>
-                  <Download size={16} />
-                  导出送货单
-                </a>
+                <BusinessExport
+                  kind="delivery"
+                  id={view.id}
+                  version={view.version}
+                  status={view.status}
+                />
               </>
             )}
             {auth?.actor?.localAdministrator && view.status !== 'draft' && (
               <button
                 className="primary"
                 onClick={() => {
-                  begin(view);
+                  if (
+                    view.kind === 'arrival' &&
+                    view.status === 'confirmed' &&
+                    arrivalReceipt(view)
+                  )
+                    correctArrival(view);
+                  else begin(view);
                   setView(null);
                 }}
               >
@@ -982,14 +1252,16 @@ export default function FlowPage({
                 >
                   编辑草稿
                 </button>
-                <button
-                  className="primary"
-                  disabled={!canEdit || busy}
-                  onClick={() => review(view)}
-                >
-                  核对并确认
-                  {view.kind === 'arrival' ? '收货' : view.kind === 'delivery' ? '发货' : ''}
-                </button>
+                {!view.isPlan && (
+                  <button
+                    className="primary"
+                    disabled={!canEdit || busy}
+                    onClick={() => review(view)}
+                  >
+                    核对并确认
+                    {view.kind === 'arrival' ? '收货' : view.kind === 'delivery' ? '发货' : ''}
+                  </button>
+                )}
               </>
             )}
             {view.status === 'confirmed' && auth?.actor?.superAdminMode && (
@@ -1008,7 +1280,9 @@ export default function FlowPage({
       )}
       {preview && (
         <ManagementDialog
-          title="最后核对 · 确认后同步更新业务与库存"
+          title={
+            kind === 'task' ? '核对生产任务 · 不改变库存' : '最后核对 · 确认后同步更新业务与库存'
+          }
           close={() => setPreview(null)}
           busy={busy}
         >
@@ -1064,6 +1338,86 @@ export default function FlowPage({
           </div>
         </ManagementDialog>
       )}
+      {batchCompletion && (
+        <ProductionBatchDialog
+          tasks={data.tasks.map((t: any) => ({
+            ...t,
+            productName: data.products.find((p: any) => p.id === t.productId)?.name,
+          }))}
+          items={data.items}
+          selected={selected}
+          close={() => setBatchCompletion(false)}
+          done={(r) => {
+            setBatchCompletion(false);
+            setNotice(r.message);
+            window.dispatchEvent(new Event('erp-business-changed'));
+            refresh();
+          }}
+        />
+      )}
+      {scheduling && (
+        <ManagementDialog title="调整计划日期" close={() => setScheduling(null)} busy={busy}>
+          <div className="schedule-dialog">
+            <p>
+              {scheduling.number} · {labelRow(scheduling)}
+            </p>
+            <label>
+              计划日期
+              <input
+                type="date"
+                aria-label="新的计划日期"
+                value={newPlanDate}
+                onChange={(e) => setNewPlanDate(e.target.value)}
+              />
+            </label>
+            <label>
+              计划时间（选填）
+              <input
+                type="time"
+                value={newPlanTime}
+                onChange={(e) => setNewPlanTime(e.target.value)}
+              />
+            </label>
+            <p>只调整排程，不登记实际生产或发货，也不改变库存。</p>
+            <div className="management-dialog-actions">
+              <button onClick={() => setScheduling(null)} disabled={busy}>
+                取消
+              </button>
+              <button
+                className="primary"
+                disabled={busy || !newPlanDate}
+                onClick={() =>
+                  void work(async () => {
+                    await managementRequest('/flow/' + scheduling.id + '/schedule', {
+                      plannedDate: newPlanDate,
+                      plannedTime: newPlanTime || null,
+                      expectedVersion: scheduling.version,
+                      requestId: scheduleRequest.current,
+                    });
+                    setScheduleDate(newPlanDate);
+                    setScheduling(null);
+                    setNotice('计划日期已调整，实际业务与库存未改变。');
+                    refresh();
+                  })
+                }
+              >
+                保存排程
+              </button>
+            </div>
+          </div>
+        </ManagementDialog>
+      )}
+      {receiptCorrection && (
+        <ReceiptCorrectionDialog
+          {...receiptCorrection}
+          close={() => setReceiptCorrection(null)}
+          done={(result) => {
+            setReceiptCorrection(null);
+            setNotice(result.summary || '到货更正已核验。');
+            refresh();
+          }}
+        />
+      )}
       {action && (
         <ManagementDialog
           title={
@@ -1116,7 +1470,6 @@ export default function FlowPage({
             >
               确认操作
             </button>
-
           </div>
         </ManagementDialog>
       )}
@@ -1160,9 +1513,88 @@ export function FlowEditor({
   return (
     <div className="flow-editor">
       <div className="op-form-grid">
-        <Field label="业务日期 *">
-          <input type="date" value={v.date} onChange={(e) => change({ date: e.target.value })} />
-        </Field>
+        {(kind === 'task' || kind === 'delivery') && (
+          <Field label={kind === 'task' ? '计划生产日期 *' : '计划送货日期 *'}>
+            <input
+              aria-label="计划日期"
+              type="date"
+              value={v.plannedDate || v.date}
+              onChange={(e) => change({ plannedDate: e.target.value })}
+            />
+          </Field>
+        )}
+        {kind === 'task' && (
+          <Field label="计划生产时间（选填）">
+            <input
+              type="time"
+              value={v.plannedTime || ''}
+              onChange={(e) => change({ plannedTime: e.target.value || null })}
+            />
+          </Field>
+        )}
+        {kind === 'arrival' && v.isPlan && (
+          <>
+            <Field label="预计到货日期 *">
+              <input
+                type="date"
+                value={v.plannedDate || v.date}
+                onChange={(e) => change({ plannedDate: e.target.value, date: e.target.value })}
+              />
+            </Field>
+            <Field label="预计到货时间">
+              <input
+                type="time"
+                value={v.plannedTime || ''}
+                onChange={(e) => change({ plannedTime: e.target.value || null })}
+              />
+            </Field>
+            <p className="flow-warning">
+              到货计划不增加库存。实际收货时另行登记实际日期、数量及验收结果。
+            </p>
+          </>
+        )}
+        {!(kind === 'arrival' && v.isPlan) && (
+          <Field
+            label={
+              kind === 'delivery'
+                ? '实际送货日期（确认发货时生效） *'
+                : kind === 'task'
+                  ? '任务登记日期 *'
+                  : kind === 'arrival'
+                    ? '实际到货日期 *'
+                    : '业务日期 *'
+            }
+          >
+            <input type="date" value={v.date} onChange={(e) => change({ date: e.target.value })} />
+          </Field>
+        )}
+        {kind === 'delivery' && (
+          <>
+            <Field label="预计送货时间">
+              <input
+                type="time"
+                value={v.plannedTime || ''}
+                onChange={(e) => change({ plannedTime: e.target.value || null })}
+              />
+            </Field>
+            <Field label="实际送货时间（未知可留空）">
+              <input
+                type="time"
+                value={v.actualTime || ''}
+                onChange={(e) => change({ actualTime: e.target.value || null })}
+              />
+            </Field>
+          </>
+        )}
+        {kind === 'arrival' && !v.isPlan && (
+          <Field label="实际到货时间（未知可留空）">
+            <input
+              type="time"
+              value={v.actualTime || ''}
+              onChange={(e) => change({ actualTime: e.target.value || null })}
+            />
+          </Field>
+        )}
         {kind === 'arrival' && (
           <>
             <Select
@@ -1176,13 +1608,15 @@ export function FlowEditor({
                 })
               }
             />
-            <Field label="供应商送货单号 / 到货批次 *">
-              <input
-                value={v.reference}
-                onChange={(e) => change({ reference: e.target.value })}
-                maxLength={100}
-              />
-            </Field>
+            {!v.isPlan && (
+              <Field label="供应商送货单号 / 到货批次 *">
+                <input
+                  value={v.reference}
+                  onChange={(e) => change({ reference: e.target.value })}
+                  maxLength={100}
+                />
+              </Field>
+            )}
             {v.sourceId && (
               <p className="flow-warning">
                 本草稿来自AI识别，必须逐项核对数量、单位与采购关联。原件会保留。
@@ -1374,7 +1808,7 @@ export function FlowEditor({
       </div>
       {kind === 'arrival' && (
         <>
-          <h3>实际收货明细 · 纸板按张管理</h3>
+          <h3>{v.isPlan ? '预计到货明细' : '实际收货明细'} · 纸板按张管理</h3>
           {v.lines.map((l: any, i: number) => (
             <section className="flow-line" key={i}>
               <div className="flow-line-head">
@@ -1533,13 +1967,47 @@ export function FlowEditor({
                     />
                   </Field>
                 ))}
-                <Field label="实收张数 *">
+                <Field label={v.isPlan ? '预计到货数量 *' : '本批实际到货数量 *'}>
                   <input
                     value={l.quantity}
                     inputMode="numeric"
-                    onChange={(e) => patchLine(i, { quantity: e.target.value })}
+                    onChange={(e) =>
+                      patchLine(i, {
+                        quantity: e.target.value,
+                        ...(l.acceptedQuantity === l.quantity &&
+                        l.rejectedQuantity === '0' &&
+                        l.stockedQuantity === l.quantity
+                          ? { acceptedQuantity: e.target.value, stockedQuantity: e.target.value }
+                          : {}),
+                      })
+                    }
                   />
                 </Field>
+                {!v.isPlan && (
+                  <>
+                    <Field label="验收合格数量（空白为全部合格）">
+                      <input
+                        inputMode="decimal"
+                        value={l.acceptedQuantity ?? ''}
+                        onChange={(e) => patchLine(i, { acceptedQuantity: e.target.value || null })}
+                      />
+                    </Field>
+                    <Field label="不合格数量（空白按总数减合格数）">
+                      <input
+                        inputMode="decimal"
+                        value={l.rejectedQuantity ?? ''}
+                        onChange={(e) => patchLine(i, { rejectedQuantity: e.target.value || null })}
+                      />
+                    </Field>
+                    <Field label="实际入库数量（空白为合格数量）">
+                      <input
+                        inputMode="decimal"
+                        value={l.stockedQuantity ?? ''}
+                        onChange={(e) => patchLine(i, { stockedQuantity: e.target.value || null })}
+                      />
+                    </Field>
+                  </>
+                )}
                 <Field label="送货单标注张数（可留空）">
                   <input
                     value={l.statedQuantity ?? ''}
@@ -1712,18 +2180,50 @@ function FlowDetails({ doc: d, data }: { doc: any; data: any }) {
     );
   }, [d.kind, d.id]);
   return (
-    <div className="flow-details" data-agent-module={({arrival:"arrivals",task:"production_tasks",production:"production_records",delivery:"deliveries"} as any)[d.kind]} data-agent-record={d.id} data-agent-label={d.number}>
+    <div
+      className="flow-details"
+      data-agent-module={
+        (
+          {
+            arrival: 'arrivals',
+            task: 'production_tasks',
+            production: 'production_records',
+            delivery: 'deliveries',
+          } as any
+        )[d.kind]
+      }
+      data-agent-record={d.id}
+      data-agent-label={d.number}
+    >
       <dl className="record-detail-grid">
         <div>
           <dt>业务日期 / 状态</dt>
           <dd>
             {d.date} · {flowStatusLabel(d)}
+            {(d.kind === 'task' || d.kind === 'delivery') && (
+              <span className="sub">
+                计划日期：{planDate(d)}；
+                {d.kind === 'delivery'
+                  ? '实际发货：' + (d.actualDate || '尚未发货')
+                  : '实际完工：' + (d.actualCompletionDate || '尚未完工')}
+              </span>
+            )}
           </dd>
         </div>
         <div>
           <dt>操作人员</dt>
           <dd>{d.confirmedBy || d.actorName}</dd>
         </div>
+        {d.kind === 'arrival' && (
+          <div>
+            <dt>{d.isPlan ? '预计到货' : '实际到货时间'}</dt>
+            <dd>
+              {d.isPlan
+                ? `${d.plannedDate} ${d.plannedTime || '时间未填写'}`
+                : `${d.date} ${d.actualTime || '时间未记录'}`}
+            </dd>
+          </div>
+        )}
         {d.reference && (
           <div>
             <dt>供应商送货单号</dt>
@@ -1771,7 +2271,8 @@ function FlowDetails({ doc: d, data }: { doc: any; data: any }) {
                 {[
                   '纸板名称 / 规格',
                   '材质 / 楞型',
-                  '实收张数',
+                  d.isPlan ? '预计到货数量' : '实收到货数量',
+                  '合格 / 不合格 / 实际入库',
                   '面积 m²',
                   '计价 / 金额 元',
                   '采购关联 / 差异',
@@ -1790,11 +2291,27 @@ function FlowDetails({ doc: d, data }: { doc: any; data: any }) {
                   <td>
                     {l.item.material} / {l.item.flute}
                   </td>
-                  <td>{l.quantity}</td>
+                  <td>
+                    {l.quantity} {l.item.unit}
+                  </td>
+                  <td>
+                    {d.isPlan ? (
+                      '尚未验收 / 尚未入库'
+                    ) : (
+                      <>
+                        {l.acceptedQuantity ?? '未记录'} / {l.rejectedQuantity ?? '未记录'} /{' '}
+                        {l.stockedQuantity ?? '确认后核验'}
+                      </>
+                    )}
+                  </td>
                   <td>{safeArea(l)}</td>
                   <td>
                     {l.unitPrice ?? '待定'} /{' '}
-                    {l.priceBasis === null ? '依据待确认' : l.priceBasis === 'area' ? 'm²' : '张'}
+                    {l.priceBasis === null
+                      ? '依据待确认'
+                      : l.priceBasis === 'area'
+                        ? 'm²'
+                        : l.item.unit}
                     <span className="sub">金额 {safeAmount(l)}</span>
                   </td>
                   <td>

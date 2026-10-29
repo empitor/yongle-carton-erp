@@ -4,8 +4,16 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promptModules } from '../shared/prompt-modules.js';
-import { defaultPromptPreset } from '../server/import/default-prompts.js';
+import {
+  defaultPromptPreset,
+  legacyDefaultPromptPreset,
+} from '../server/import/default-prompts.js';
+import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { createPromptManagers } from '../server/ai/recognition-modules.js';
+import {
+  assistantDefaultPreset,
+  legacyAssistantDefaults,
+} from '../server/assistant/default-preset.js';
 import { AuthManager } from '../server/auth.js';
 import { createApp } from '../server/app.js';
 import { assistantFixture } from './assistant-fixture.js';
@@ -16,6 +24,62 @@ test('客户订单默认提示词：含税合同用含税单价和税价合计�
   assert.match(entry!.content, /税价合计/);
   assert.match(entry!.content, /含税单价/);
   assert.match(entry!.content, /金额（不含税）/);
+});
+
+test('客户订单默认提示词：个/只同义、张单列，缺档默认新建并合并唯一相近客户', () => {
+  const entries = defaultPromptPreset().entries;
+  const unit = entries.find((e) => e.name === '数量单位与同义词');
+  assert.ok(unit);
+  assert.match(unit!.content, /“个”或“只”/);
+  assert.match(unit!.content, /“张”/);
+  assert.match(unit!.content, /不要因为个\/只差异追问/);
+  assert.match(unit!.content, /只能是“个”“只”“张”三种/);
+  const archive = entries.find((e) => e.name === '客户与产品档案');
+  assert.ok(archive);
+  assert.match(archive!.content, /主体名称完全一致/);
+  assert.match(archive!.content, /宁波巴山/);
+  assert.match(archive!.content, /没有匹配客户档案时，按原件客户名称直接新建/);
+});
+
+test('未修改的旧订单默认预设升级到单位/客户新规则，且只升级一次', () => {
+  const manager = new PromptPresetManager(':memory:', defaultPromptPreset);
+  try {
+    const legacy = legacyDefaultPromptPreset();
+    manager.change('save', {
+      expectedRevision: 0,
+      preset: legacy,
+      activate: true,
+    });
+    manager.upgradeUntouchedDefaults([legacy], 'test-order-default-upgrade');
+    const upgraded = manager.view();
+    assert.equal(upgraded.presets[0].entries.length, defaultPromptPreset().entries.length);
+    assert.ok(upgraded.presets[0].entries.some((e) => e.name === '数量单位与同义词'));
+    manager.upgradeUntouchedDefaults([legacy], 'test-order-default-upgrade');
+    assert.equal(manager.view().revision, upgraded.revision);
+  } finally {
+    manager.close();
+  }
+});
+
+test('旧全局助手默认提示词升级到批量导入/一键清空/生产完工新规则，且只升级一次', () => {
+  const manager = new PromptPresetManager(':memory:', assistantDefaultPreset);
+  try {
+    const legacy = legacyAssistantDefaults[0];
+    manager.change('save', {
+      expectedRevision: 0,
+      preset: legacy,
+      activate: true,
+    });
+    manager.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-assistant-default-upgrade');
+    const upgraded = manager.view();
+    assert.equal(upgraded.presets[0].entries.length, assistantDefaultPreset().entries.length);
+    assert.match(upgraded.presets[0].entries[1].content, /management\.reset/);
+    assert.match(upgraded.presets[0].entries[1].content, /order_import\.start/);
+    manager.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-assistant-default-upgrade');
+    assert.equal(manager.view().revision, upgraded.revision);
+  } finally {
+    manager.close();
+  }
 });
 
 test('提示词模块目录：五个模块独立标识，旧存储文件保持兼容', () => {

@@ -11,8 +11,12 @@ import { createBusinessService } from '../business/service.js';
 import { reviewedAssistantGrant } from '../business/assistant-approval.js';
 import { OperationsService } from '../operations/service.js';
 import { FlowService } from '../flow/service.js';
+import { WarehouseDaily } from '../flow/daily.js';
+import { BusinessDocuments } from '../documents/service.js';
+import { DocumentTemplateSettings } from '../documents/settings.js';
 import { PermanentDeletionService } from '../business/permanent-deletion.js';
 import { ImportError } from '../import/errors.js';
+import { arrivalPlanInputSchema, arrivalAiReceiveSchema } from '../../shared/arrival.js';
 import { DeveloperService } from '../developer-service.js';
 import { assistantManagementSchema } from '../../shared/assistant-management.js';
 import { AssistantManagementBatch } from './management-batch.js';
@@ -25,6 +29,7 @@ import {
 import { recordContext } from '../business/record-context.js';
 import { DatabaseMaintenanceService } from '../business/database-maintenance.js';
 import { DevelopmentResetService } from '../business/development-reset.js';
+import { executeDevelopmentReset } from '../business/reset-execution.js';
 import { developmentResetSchema } from '../../shared/assistant-development-reset.js';
 import type { ImportManager } from '../import/manager.js';
 import { developerCommandSchema } from '../../shared/developer.js';
@@ -43,8 +48,11 @@ import {
   movementSchema,
   recordEntities,
   receiptSchema,
+  receiptCorrectionSchema,
+  purchaseBusinessStatuses,
+  arrivalProgresses,
 } from '../../shared/operations.js';
-import { flowInput, flowKinds, flowStatusLabel } from '../../shared/physical-flow.js';
+import { flowInput, flowKinds, flowStatusLabel, flowScheduleSchema } from '../../shared/physical-flow.js';
 import {
   arrivalSchema,
   taskSchema,
@@ -67,6 +75,7 @@ import { sumMoney } from '../../shared/operations.js';
 import { orderInView } from '../../shared/date-ranges.js';
 import { legacyCents } from '../../shared/precision.js';
 import { orderWorkflowTools } from './order-workflow.js';
+import { promptTools } from './prompt-edit.js';
 import { navigationTargets, erpPages, pageLink } from '../../shared/assistant-navigation.js';
 export const assistantModules = [
   'customers',
@@ -106,6 +115,32 @@ const flowMap: Record<string, (typeof flowKinds)[number]> = {
 const moduleSchema = z.enum(assistantModules),
   positive = z.number().int().positive();
 export const toolCatalog = [
+  { name:'documents.templates',risk:'read',description:'查询正式采购订货单和送货单的默认模板ID、版本、格式及呈现配置。模板与真实业务字段映射独立于AI提示词；documents.export可选择相应templateId。',arguments:{} },
+  { name: 'flow.daily', risk: 'read', description: '查询指定业务日期的生产任务或仓库送货/到货记录及每日计划、实际完成、待执行批次；统一正式服务，未计划实际业务也计入，取消/冲销不算待执行。', arguments: { kind: 'arrival/delivery/task', date: 'YYYY-MM-DD' } },
+  { name: 'documents.preview', risk: 'read', description: '查询完整采购订货单或指定批次送货单模板内容，不改变任何业务状态；计划送货明确标为非正式。', arguments: { kind: 'purchase/delivery', id: 1 } },
+  { name: 'documents.status', risk: 'read', description: '按真实exportId核验导出文件、下载交付和采购业务状态。ready只代表已生成，completed才代表交付完成；不能在交付前声称已订货。', arguments: { exportId: '真实UUID' } },
+  { name: 'documents.export', risk: 'workflow', description: '生成完整Word(docx)/Excel(xlsx)采购订货单或本批送货单并向当前聊天交付可下载文件。采购正式订货传markOrdered=true，文件完整交付后原采购服务才标记已订货；普通导出false不改状态。必须先查最新版本，取消采购不能恢复。已订货可重新导出；送货导出不会扣库存。返回真实文件和交付/状态核验。', arguments: { kind: 'purchase/delivery', id: 1, expectedVersion: 1, format: 'docx/xlsx', markOrdered: true, requestId: '唯一UUID' } },
+  { name: 'arrival.plans', risk: 'read', description: '查询仓库到货排程。按date业务日期、purchaseId或supplierId筛选，返回计划真实ID/版本、预计日期时间、产品数量、状态及对应正式到货记录。计划不计入实收或库存。', arguments: { date: 'YYYY-MM-DD可省略', purchaseId: '可省略', supplierId: '可省略' } },
+  { name: 'arrival.records', risk: 'read', description: '统一查询正式到货及历史独立收货凭据，不漏旧purchase_receipts、不重复计算arrival投影。支持date、purchaseId、supplierId、receiptId；返回采购逐行累计/剩余、合格/不合格、实际入库、库存流水、更正链和管理员待核对差异。历史未记录时间/验收为null。', arguments: { purchaseId: '真实采购ID可省略', date: '业务日期可省略', receiptId: '真实到货记录键可省略' } },
+  { name: 'arrival.plan.save', risk: 'review', description: '创建或修改供应商分批到货计划，复用原arrival草稿。先查真实采购及明细，传purchaseId/expectedPurchaseVersion、plannedDate/plannedTime、items(lineId/预计quantity)、requestId；修改另传id/expectedVersion。仅排程，不入库、不更新实收，同采购可分多批。', arguments: { purchaseId: 1, expectedPurchaseVersion: 1, plannedDate: '2026-11-02', plannedTime: '14:00', items: [{ lineId: 1, quantity: '5000' }], requestId: '唯一UUID' } },
+  { name: 'arrival.receive', risk: 'review', description: '登记实际到货，一次完成正式到货单、验收、实际入库、采购进度、流水及核验，与人工/旧receive共用FlowService事务。先查真实供应商/采购/明细和版本，唯一匹配直接执行不重复确认。quantity为实际到货总量，合格+不合格=总量，stockedQuantity<=合格；验收及入库三个字段必须明确；用户说全部合格入库时分别传总量/0/总量。缺少验收事实先集中询问或仅存草稿，不猜全部合格。date/actualTime来自用户事实，不伪造历史时间；reference可省略生成明确内部批次。已有计划传planId/expectedPlanVersion。相同成功requestId不重复入库。', arguments: { purchaseId: 1, expectedPurchaseVersion: 1, date: '2026-10-29', actualTime: '14:00', items: [{ lineId: 1, quantity: '5000', acceptedQuantity: '5000', rejectedQuantity: '0', stockedQuantity: '5000' }], requestId: '唯一UUID' } },
+  { name: 'purchase.receipt.data_edit_preview', risk: 'read', description: '管理员历史数据编辑预览。仅当前真实本机最高管理员可用；用户明确仅修改到货记录、不调整库存时使用。与正常更正使用相同真实单据、版本和摘要校验，返回统计及待核对差异，库存净变化为0。不能因正常更正库存不足自行切换模式。', arguments: { purchaseId: 1, receiptId: '真实receipts.id', expectedVersion: 1, expectedPurchaseVersion: 1, reason: '用户说明历史录入错误且库存不变', items: [{ index: 0, lineId: 1, quantity: '5000' }] } },
+  { name: 'purchase.receipt.data_edit', risk: 'review', description: '管理员历史到货数据编辑，仅修正有效到货数量/金额及采购进度，保留原单和全部库存流水，登记操作者、原因、原新值及待核对差异。需data_edit_preview摘要及requestId，无额外管理员确认。用户明确同步库存时用正常correct。', arguments: { purchaseId: 1, receiptId: '真实receipts.id', expectedVersion: 1, expectedPurchaseVersion: 1, reason: '真实原因', items: [{ index: 0, lineId: 1, quantity: '5000' }], requestId: '唯一UUID', previewDigest: 'data_edit_preview返回摘要' } },
+  { name: 'flow.schedule', risk: 'review', description: '安排或调整未完成生产任务/未发货送货草稿的计划日期。使用真实单据id、expectedVersion、plannedDate和唯一requestId。仅更新计划与审计，不更改实际生产/发货日期，不确认单据、不增减库存。', arguments: { id: 1, expectedVersion: 1, plannedDate: '2026-11-02', requestId: '唯一UUID' } },
+  {
+    name: 'purchase.receipt.preview', risk: 'read',
+    description: '查询采购到货更正的真实影响。先records.get读取purchases中的真实receipts、版本及correctionLines，明确原记录后提交。返回每行原数量、正确数量、累计到货/待到货、库存净变化及金额和previewDigest；不写业务数据。',
+    arguments: { purchaseId: 1, receiptId: '真实receipts.id', expectedVersion: 1, expectedPurchaseVersion: 1,
+      reason: '真实用户更正原因', items: [{ index: 0, lineId: 1, quantity: '5000' }] },
+  },
+  {
+    name: 'purchase.receipt.correct', risk: 'review',
+    description: '正式更正采购到货，与人工页面共用事务服务，追加冲销/替代流水，保留原件及更正链。先读取真实采购和到货，再purchase.receipt.preview取得最新previewDigest，以当前Actor提交，无AI专属确认。items可只列需更正的行，保留原行index和lineId。库存不足、版本冲突整单拒绝；相同requestId重试不重复入库。回执包含读回核验的采购、有效到货与库存。不得用records.propose_save或management.execute改写原到货流水。',
+    arguments: { purchaseId: 1, receiptId: '真实receipts.id', expectedVersion: 1, expectedPurchaseVersion: 1,
+      reason: '用户说明实际到货数量录错', items: [{ index: 0, lineId: 1, quantity: '5000' }],
+      requestId: '唯一UUID', previewDigest: 'preview工具返回的摘要' },
+  },
+  ...promptTools,
   ...pageTools,
   ...browserTools,
   {
@@ -403,7 +438,7 @@ function outstandingQuantities(rows: any[]) {
   const groups = new Map<string, bigint>();
   for (const row of rows.filter((r) => r.status !== '已取消'))
     for (const line of row.lines) {
-      const remaining = BigInt(Math.max(0, line.quantityUnits - line.receivedUnits));
+      const remaining = BigInt(line.remainingUnits);
       groups.set(line.unit, (groups.get(line.unit) || 0n) + remaining);
     }
   return [...groups].map(([unit, value]) => {
@@ -453,6 +488,9 @@ export class AssistantTools {
             : undefined),
       }));
     }
+    if (module === 'arrivals') return this.flow.arrivalRecords().map((r) => ({ ...r.document, ...r, receiptRecordId: r.id, id: r.flowId || r.id, kind: 'arrival', archived: false,
+      lines: r.lines.map((l) => ({ ...l, purchaseLineId: l.lineId })),
+    }));
     if (flowMap[module]) {
       const products = new Map(this.store.products(true).map((p) => [p.id, p.name])),
         customers = new Map(this.store.customers(true).map((c) => [c.id, c.name])),
@@ -485,13 +523,14 @@ export class AssistantTools {
         ).map((r) => ({ ...r, archived: this.store.archived(module, r.id) }));
   }
   link(module: Module, row: any) {
+    if (module === 'arrivals') return '#warehouse?arrivals=1&receipt=' + encodeURIComponent(row.receiptRecordId || 'flow-' + row.id);
     if (module === 'deliveries')
       return (
         '#warehouse?kind=finished&deliveries=1&doc=' + row.id + (row.archived ? '&archived=1' : '')
       );
     return flowMap[module]
       ? '#' +
-          (module === 'arrivals' ? 'arrivals' : 'production') +
+          'production' +
           '?doc=' +
           row.id +
           (row.archived ? '&archived=1' : '')
@@ -510,6 +549,14 @@ export class AssistantTools {
             (row.archived ? '&archived=1' : '');
   }
   read(name: string, raw: unknown, who: Actor | null | undefined): any {
+    if(name==='documents.templates'){this.actor(who);return new DocumentTemplateSettings(this.store).get();}
+    if (name === 'flow.daily') { this.actor(who); return new WarehouseDaily(this.store).get(raw); }
+    if (name === 'documents.preview') { this.actor(who); const v=z.strictObject({kind:z.enum(['purchase','delivery']),id:positive,templateId:z.string().optional()}).parse(raw); return new BusinessDocuments(this.store).form(v.kind,v.id,v.templateId).form; }
+    if (name === 'documents.status') { const actor=this.actor(who), v=z.strictObject({exportId:z.string().uuid()}).parse(raw); return new BusinessDocuments(this.store).status(v.exportId,actor); }
+    if (name === 'arrival.records' || name === 'arrival.plans') {
+      this.actor(who);
+      return { records: name === 'arrival.records' ? this.flow.arrivalRecords(raw) : this.flow.arrivalPlans(raw), url: name === 'arrival.records' ? '#warehouse?arrivals=1' : '#warehouse?arrivalPlans=1' };
+    }
     if (name === 'management.delete_preview')
       return new DatabaseMaintenanceService(this.store).preview(raw, who);
     if (name === 'management.context') {
@@ -518,6 +565,10 @@ export class AssistantTools {
       return recordContext(this.store, v.module, v.id, actor);
     }
     const actor = this.actor(who);
+    if (name === 'purchase.receipt.preview' || name === 'purchase.receipt.data_edit_preview') {
+      const { purchaseId, receiptId, ...input } = raw as any;
+      return this.ops.previewReceiptCorrection(positive.parse(purchaseId), z.string().min(1).max(150).parse(receiptId), { ...input, ...(name.endsWith('data_edit_preview') ? { mode: 'data-edit' } : {}) }, actor);
+    }
     if (name === 'records.search' && (raw as any)?.describe === true) {
       const v = z
         .strictObject({
@@ -687,6 +738,9 @@ export class AssistantTools {
               productId: positive.optional(),
               stockId: positive.optional(),
               status: z.string().max(40).optional(),
+              businessStatus: z.enum(purchaseBusinessStatuses).optional(),
+              arrivalProgress: z.enum(arrivalProgresses).optional(),
+              shippingProgress: z.enum(['未发货', '部分发货', '已发完', '历史数量待核对']).optional(),
               pending: z.boolean().optional(),
               start: dateSchema.optional(),
               end: dateSchema.optional(),
@@ -716,6 +770,9 @@ export class AssistantTools {
         date = r.orderDate || r.date || String(r.createdAt || '').slice(0, 10),
         inventory = v.module.includes('inventory');
       return (
+        (!f.businessStatus || r.businessStatus === f.businessStatus) &&
+        (!f.arrivalProgress || r.arrivalProgress === f.arrivalProgress) &&
+        (!f.shippingProgress || r.shippingProgress === f.shippingProgress) &&
         (f.lifecycle !== 'archived' || !!r.archived) &&
         (f.lifecycle !== 'active' || !r.archived) &&
         (!f.kind || r.kind === f.kind) &&
@@ -768,13 +825,11 @@ export class AssistantTools {
                 r.lines?.some((l: any) => l.stockId === f.stockId) ||
                 r.materials?.some((m: any) => m.stockId === f.stockId))) &&
         (!f.status ||
-          r.status === f.status ||
+          r.status === f.status || r.shippingProgress === f.status || r.arrivalProgress === f.status || r.businessStatus === f.status ||
           (flowMap[v.module] && flowStatusLabel(r) === f.status) ||
           (v.module === 'orders' &&
             ((f.status === '已完成' && r.status === '已发货') ||
-              (f.status === '部分发货' &&
-                r.status === '待发货' &&
-                r.lines.some((l: any) => l.shippedQuantity > 0))))) &&
+              (f.status === '部分发货' && r.shippingProgress === '部分发货')))) &&
         (!f.pending ||
           (v.module === 'orders'
             ? pendingOrder(r)
@@ -800,6 +855,7 @@ export class AssistantTools {
       if (v.module === 'orders')
         metrics = {
           ...orderMetrics(rows),
+          byShippingProgress: Object.fromEntries([...new Set(rows.map((r) => r.shippingProgress))].map((s) => [s, rows.filter((r) => r.shippingProgress === s).length])),
           amount: sumMoney(
             rows
               .filter((r) => !['草稿', '已取消'].includes(r.status))
@@ -810,6 +866,8 @@ export class AssistantTools {
       else if (v.module === 'purchases')
         metrics = {
           ...purchaseMetrics(rows),
+          receivedAmount: sumMoney(rows.map((r) => r.receivedAmount)),
+          byArrivalProgress: Object.fromEntries([...new Set(rows.map((r) => r.arrivalProgress))].map((s) => [s, rows.filter((r) => r.arrivalProgress === s).length])),
           amount: sumMoney(
             rows
               .filter((r) => r.status !== '已取消' && r.totalAmount !== null)
@@ -938,6 +996,27 @@ export class AssistantTools {
     context?: { memory?: TaskMemory },
   ): ToolPlan {
     const actor = requirePermission(who, 'business:edit');
+    if (tool === 'arrival.plan.save' || tool === 'arrival.receive') {
+      const { previewOnly: _previewOnly, ...rawInput } = raw as any;
+      const input = (tool === 'arrival.plan.save' ? arrivalPlanInputSchema : arrivalAiReceiveSchema).parse(rawInput);
+      const after = this.simulate(() => tool === 'arrival.plan.save' ? this.flow.saveArrivalPlan(input, actor) : this.flow.receivePurchase(input, actor, binding));
+      return { tool, args: { input }, label: tool === 'arrival.plan.save' ? '保存到货计划（不入库）' : '登记实际到货、验收及入库', highRisk: false, before: null, after, warnings: [] };
+    }
+    if (tool === 'flow.schedule') {
+      const { id, previewOnly: _previewOnly, ...rawInput } = raw as any;
+      const input = flowScheduleSchema.parse(rawInput);
+      const after = this.simulate(() => this.flow.schedule(positive.parse(id), input, actor));
+      return { tool, args: { id, input }, label: '调整计划日期', highRisk: false, before: this.flow.get(id), after, warnings: [] };
+    }
+    if (tool === 'purchase.receipt.correct' || tool === 'purchase.receipt.data_edit') {
+      const { purchaseId, receiptId, previewOnly: _previewOnly, ...rawInput } = raw as any;
+      const id = positive.parse(purchaseId), key = z.string().min(1).max(150).parse(receiptId);
+      const input = receiptCorrectionSchema.parse({ ...rawInput, ...(tool.endsWith('data_edit') ? { mode: 'data-edit' } : {}) });
+      const after = this.simulate(() => this.ops.correctReceipt(id, key, input, actor));
+      return { tool, args: { id, receiptId: key, input }, label: input.mode === 'data-edit' ? '管理员编辑历史到货统计（库存不变）' : '更正采购到货单', highRisk: false,
+        before: this.ops.repo.purchases(true).find((p) => p.id === id), after,
+        warnings: [input.mode === 'data-edit' ? '库存流水不变；登记采购统计与入库流水的待核对差异。' : '保留原到货、冲销和替代记录；库存及采购有效到货在同一事务更新。'] };
+    }
     if (
       (tool === 'records.delete' || tool === 'records.propose_permanent_delete') &&
       isLocalAdministrator(actor)
@@ -1119,6 +1198,9 @@ export class AssistantTools {
               'archived',
               'quantityUnits',
               'receivedUnits',
+              'receivedQuantity', 'remainingQuantity', 'remainingUnits', 'receivedAmount',
+              'shippedQuantity', 'shippingProgress', 'shippingSummary', 'shippingStatus',
+              'arrivalProgress', 'arrivalSummary', 'arrivalStatus', 'businessStatus',
               'balanceUnits',
               'status',
             ].includes(k) && !(k === 'status' && ['orders', 'purchases'].includes(v.module)),
@@ -1324,26 +1406,16 @@ export class AssistantTools {
   commit(plan: ToolPlan, who: Actor | null | undefined, binding: string) {
     const actor = requirePermission(who, 'business:edit'),
       a = plan.args;
+    if (plan.tool === 'flow.schedule') return this.flow.schedule(a.id, a.input, actor);
+    if (plan.tool === 'arrival.plan.save') return this.flow.saveArrivalPlan(a.input, actor);
+    if (plan.tool === 'arrival.receive') return this.flow.receivePurchase(a.input, actor, binding);
+    if (plan.tool === 'purchase.receipt.correct' || plan.tool === 'purchase.receipt.data_edit') return this.ops.correctReceipt(a.id, a.receiptId, a.input, actor);
     if (
       (plan.tool === 'records.delete' || plan.tool === 'records.propose_permanent_delete') &&
       isLocalAdministrator(actor)
     )
       return new DatabaseMaintenanceService(this.store).delete(a, actor, binding);
-    if (plan.tool === 'management.reset') {
-      const v = developmentResetSchema.parse(plan.args),
-        clearImports = this.imports
-          ? () => {
-              const r = this.imports!.deleteAllWorkspaces(actor);
-              if (r.failed.length)
-                throw new ImportError(
-                  `已清理 ${r.count} 个工作区，${r.failed.length} 个失败，请稍后重试。`,
-                  409,
-                );
-              return { count: r.count, ids: r.ids };
-            }
-          : undefined;
-      return new DevelopmentResetService(this.store).execute(v.scope, actor, clearImports);
-    }
+    if (plan.tool === 'management.reset') return executeDevelopmentReset(this.store,this.imports,plan.args,actor);
     if (plan.tool === 'management.execute') requireLocalAdministrator(actor);
     if (plan.tool === 'management.execute' && a.batch)
       return new AssistantManagementBatch(this.store, a.memory).execute(a.input, actor, binding);

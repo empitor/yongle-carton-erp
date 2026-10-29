@@ -10,6 +10,8 @@ import { flowKinds } from '../../shared/physical-flow.js';
 import { AI_HTTP_TIMEOUT_MS } from '../../shared/ai-runtime.js';
 import { requirePermission } from '../business/management.js';
 import { deliveryPrint } from './printing.js';
+import { WarehouseDaily } from './daily.js';
+import { ManualProductionCompletion } from './production-completion.js';
 import { isLocalAdministrator } from '../developer-capability.js';
 export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: ReceiptAi) {
   const router = Router(),
@@ -141,6 +143,22 @@ export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: Receipt
         .filter((d) => req.query.archived !== '1' || d.archived),
     );
   });
+  router.get('/arrival-records', (req, res) => {
+    if (!auth?.actor(req)) throw new ImportError('请先登录管理账号。', 401);
+    res.json(service.arrivalRecords({ ...(req.query.date ? { date: req.query.date } : {}), ...(req.query.purchaseId ? { purchaseId: Number(req.query.purchaseId) } : {}) }));
+  });
+  router.get('/daily', (req, res) => {
+    if (!auth?.actor(req)) throw new ImportError('请先登录管理账号。', 401);
+    res.json(new WarehouseDaily(store).get(req.query));
+  });
+  router.post('/production-completion/preview',(req,res)=>res.json(new ManualProductionCompletion(store).preview(req.body,actor(req),auth!.sessionBinding(req))));
+  router.post('/production-completion/execute',(req,res)=>res.json(new ManualProductionCompletion(store).execute(req.body,actor(req),auth!.sessionBinding(req))));
+  router.get('/arrival-plans', (req, res) => {
+    if (!auth?.actor(req)) throw new ImportError('请先登录管理账号。', 401);
+    res.json(service.arrivalPlans({ ...(req.query.date ? { date: req.query.date } : {}), ...(req.query.purchaseId ? { purchaseId: Number(req.query.purchaseId) } : {}) }));
+  });
+  router.post('/arrival-plans', (req, res) => res.json(service.saveArrivalPlan(req.body, actor(req))));
+  router.post('/arrival-receive', (req, res) => res.json(service.receivePurchase(req.body, actor(req), auth!.sessionBinding(req))));
   router.get('/:id/print', (req, res) => {
     if (!auth?.actor(req)) throw new ImportError('请先登录。', 401);
     const d = service.get(id(req));
@@ -166,7 +184,7 @@ export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: Receipt
   );
   router.put('/:id', (req, res) =>
     res.json(
-      isLocalAdministrator(actor(req))
+      isLocalAdministrator(actor(req)) && service.get(id(req)).status !== 'draft'
         ? service.maintenanceUpdate(id(req), req.body, actor(req))
         : service.save(service.get(id(req)).kind, req.body, actor(req), id(req)),
     ),
@@ -174,6 +192,7 @@ export function flowRouter(store: Store, auth?: AuthManager, receiptAi?: Receipt
   router.post('/:id/preview', (req, res) =>
     res.json(service.preview(id(req), actor(req), auth!.sessionBinding(req))),
   );
+  router.post('/:id/schedule', (req, res) => res.json(service.schedule(id(req), req.body, actor(req))));
   router.post('/:id/confirm', (req, res) =>
     res.json(service.confirm(id(req), req.body, actor(req), auth!.sessionBinding(req))),
   );
