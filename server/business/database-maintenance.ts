@@ -10,6 +10,7 @@ import { quantityUnits } from '../../shared/operations.js';
 import { precisionTotal } from '../../shared/precision.js';
 import { FlowService } from '../flow/service.js';
 import { sheetArea, purchaseLineAmount } from '../../shared/physical-flow.js';
+import { syncReceivedUnits } from '../operations/fulfillment.js';
 
 const quote = (s: string) => '"' + s.replaceAll('"', '""') + '"';
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -679,25 +680,7 @@ export class DatabaseMaintenanceService {
   }
   recompute(affectedOrders?: number[]) {
     const db = this.store.db;
-    const receipts = db
-      .prepare('SELECT document FROM purchase_receipts')
-      .all()
-      .map((r) => JSON.parse(String(r.document)))
-      .filter((r) => !r.reversed);
-    for (const line of db.prepare('SELECT * FROM purchase_lines').all()) {
-      const received = receipts.reduce(
-        (n, r) =>
-          n +
-          (r.items || [])
-            .filter((i: any) => i.lineId === line.id)
-            .reduce((n: number, i: any) => n + quantityUnits(i.quantity), 0),
-        0,
-      );
-      if (received !== line.received_units) {
-        db.prepare('UPDATE purchase_lines SET received_units=? WHERE id=?').run(received, line.id);
-        db.prepare('UPDATE purchases SET version=version+1 WHERE id=?').run(line.purchase_id);
-      }
-    }
+    syncReceivedUnits(this.store, true);
     for (const item of db.prepare('SELECT id FROM stock_items').all()) {
       let balance = 0;
       for (const m of db

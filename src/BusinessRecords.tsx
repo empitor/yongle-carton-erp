@@ -1,13 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { precisionTotal } from '../shared/precision';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { formatDimensions } from '../shared/product-details';
 import { Trash2, Eye, Pencil, ArchiveRestore } from 'lucide-react';
 import { useAuthState, managementRequest } from './session';
 import ManagementDialog from './ManagementDialog';
+import { BusinessDocumentButton } from './BusinessExport';
 import PermanentDeleteDialog from './PermanentDeleteDialog';
 import RecordDetails from './RecordDetails';
 import { TableRegion, EmptyState, Pagination } from './ui/ListLayout';
 import StatusBadge from './StatusBadge';
+import { ProgressSummary, PurchaseLines, SalesLines } from './FulfillmentDetails';
+import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
 import RecordContextDialog from './RecordContext';
 import { displayAmount } from '../shared/display-amount';
 import { formatStockSize, type RecordEntity } from '../shared/operations';
@@ -50,14 +52,55 @@ export default function BusinessRecords({
   const canEdit =
     !!session?.actor && (superMode || session.actor.permissions.includes('business:edit'));
   const [view, setView] = useState<any>(null),
+    [correction, setCorrection] = useState<any>(null),
     [contextId, setContextId] = useState<number | null>(null),
     [permanent, setPermanent] = useState<any[] | null>(null);
+  const [sort, setSort] = useState('recent');
+  const sortedRows = [...rows].sort((a, b) =>
+    sort === 'name'
+      ? String(a.name || a.number).localeCompare(String(b.name || b.number), 'zh-CN', {
+          numeric: true,
+        })
+      : sort === 'due'
+        ? String(a.deliveryDate || a.expectedDate || '').localeCompare(
+            String(b.deliveryDate || b.expectedDate || ''),
+          ) || b.id - a.id
+        : sort === 'oldest'
+          ? a.id - b.id
+          : b.id - a.id,
+  );
   const [selected, setSelected] = useState<number[]>([]),
+    [expanded, setExpanded] = useState<number[]>([]),
     [page, setPage] = useState(1),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState('');
+  const routeHash = typeof location === 'undefined' ? '' : location.hash;
+  useEffect(() => {
+    const params = new URLSearchParams(routeHash.split('?')[1] || '');
+    const id = params.get(entity === 'orders' ? 'order' : 'record');
+    if (!id || !/^\d+$/.test(id) || !['orders', 'purchases'].includes(entity)) return;
+    let active = true;
+    const request =
+      entity === 'orders'
+        ? managementRequest('/orders/' + id)
+        : managementRequest<any[]>('/purchases').then((list) =>
+            list.find((r) => r.id === Number(id)),
+          );
+    request
+      .then((row) => {
+        if (active) {
+          if (row) setView(row);
+          else setMessage('记录不存在或当前账号不可查看。');
+        }
+      })
+      .catch((e) => active && setMessage(e.message));
+    return () => {
+      active = false;
+    };
+  }, [entity, routeHash]);
   useEffect(() => {
     setSelected([]);
+    setExpanded([]);
     setPage(1);
     setMessage('');
     setView(null);
@@ -69,7 +112,7 @@ export default function BusinessRecords({
     setPage((p) => Math.min(p, Math.max(1, Math.ceil(rows.length / 12))));
   }, [rows.map((r) => r.id).join(',')]);
   useEffect(() => {
-    setView((current: any) => (current ? rows.find((r) => r.id === current.id) || null : null));
+    setView((current: any) => (current ? rows.find((r) => r.id === current.id) || current : null));
   }, [rows]);
   const check = (id: number) => (
     <input
@@ -84,6 +127,22 @@ export default function BusinessRecords({
   const money = (c: number) =>
     (c / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const isArchived = (row: any) => row.archived ?? archived;
+  const correct = (row: any, receipt: any) => {
+    setView(null);
+    setCorrection({ purchase: row, receipt });
+  };
+  const expand = (row: any) => (
+    <button
+      className="record-expand"
+      aria-expanded={expanded.includes(row.id)}
+      onClick={() =>
+        setExpanded((v) => (v.includes(row.id) ? v.filter((id) => id !== row.id) : [...v, row.id]))
+      }
+    >
+      {expanded.includes(row.id) ? '收起' : '展开'}
+      {entity === 'purchases' ? '产品进度与到货记录' : `全部 ${row.lines.length} 项明细`}
+    </button>
+  );
   async function executeLifecycle(selection: { action: 'archive' | 'restore'; rows: any[] }) {
     setBusy(true);
     try {
@@ -119,6 +178,14 @@ export default function BusinessRecords({
           <Eye size={14} />
           查看
         </button>
+        {entity === 'purchases' && (
+          <BusinessDocumentButton
+            kind="purchase"
+            id={row.id}
+            version={row.version}
+            status={row.businessStatus}
+          />
+        )}
         <button disabled={!canEdit || (isArchived(row) && !superMode)} onClick={() => edit(row)}>
           <Pencil size={14} />
           编辑
@@ -185,6 +252,24 @@ export default function BusinessRecords({
         )}
       </div>
       <div className="business-selection">
+        <label className="list-sort-control">
+          排序
+          <select
+            aria-label="业务列表排序"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="recent">最近创建</option>
+            <option value="oldest">最早创建</option>
+            <option value="name">名称 / 单号</option>
+            {['orders', 'purchases'].includes(entity) && (
+              <option value="due">交货日期由近到远</option>
+            )}
+          </select>
+        </label>
         <label>
           <input
             type="checkbox"
@@ -285,7 +370,8 @@ export default function BusinessRecords({
                   <th>纸板明细</th>
                   <th>金额 / 元</th>
                   <th>预计到货</th>
-                  <th>状态 / 关联订单</th>
+                  <th>业务状态 / 关联订单</th>
+                  <th>到货进度</th>
                 </>
               ) : entity === 'stock_items' ? (
                 <>
@@ -303,6 +389,7 @@ export default function BusinessRecords({
                   <th>金额/元</th>
                   <th>交货日期</th>
                   <th>订单状态</th>
+                  <th>发货进度</th>
                 </>
               ) : entity === 'customers' || entity === 'suppliers' ? (
                 <>
@@ -325,168 +412,160 @@ export default function BusinessRecords({
             </tr>
           </thead>
           <tbody>
-            {rows.slice((page - 1) * 12, page * 12).map((row) => (
-              <tr key={row.id}>
-                <td>{check(row.id)}</td>
-                {entity === 'purchases' ? (
-                  <>
-                    <td>
-                      <strong>{row.number}</strong>
-                      <span className="sub">{row.supplierName}</span>
-                      <span className="sub">采购日期 {row.orderDate}</span>
-                    </td>
-                    <td>
-                      {row.lines.map((l: any) => (
-                        <div key={l.id} className="op-line-summary">
-                          <strong>{l.name}</strong>
-                          <span className="sub">
-                            {l.specification || formatStockSize(l)} · {l.flute || '楞型待补'} ·{' '}
-                            {l.material || '配纸待补'}
+            {sortedRows.slice((page - 1) * 12, page * 12).map((row) => (
+              <Fragment key={row.id}>
+                <tr>
+                  <td>{check(row.id)}</td>
+                  {entity === 'purchases' ? (
+                    <>
+                      <td>
+                        <strong>{row.number}</strong>
+                        <span className="sub">{row.supplierName}</span>
+                        <span className="sub">采购日期 {row.orderDate}</span>
+                      </td>
+                      <td>
+                        {row.lines.map((l: any) => (
+                          <div key={l.id} className="op-line-summary">
+                            <strong>{l.name}</strong>
+                            <span className="sub">
+                              {l.specification || formatStockSize(l)} · {l.flute || '楞型待补'} ·{' '}
+                              {l.material || '配纸待补'}
+                            </span>
+                            <span className="sub">
+                              订购 {l.quantity} {l.unit} / 已到 {l.receivedQuantity} {l.unit} / 待到{' '}
+                              {l.remainingQuantity} {l.unit}；单价 {l.unitPrice ?? '待定'}
+                            </span>
+                          </div>
+                        ))}
+                        {expand(row)}
+                      </td>
+                      <td>
+                        {row.totalAmount === null ? '待定价' : displayAmount(row.totalAmount)}
+                      </td>
+                      <td>{row.expectedDate || '待确认'}</td>
+                      <td>
+                        <StatusBadge status={row.businessStatus} />
+                        <span className="sub">{row.customerOrderNumber || '独立采购'}</span>
+                        {isArchived(row) && <span className="record-state">已归档</span>}
+                      </td>
+                      <td>
+                        <ProgressSummary row={row} purchase />
+                      </td>
+                    </>
+                  ) : entity === 'stock_items' ? (
+                    <>
+                      <td>
+                        <strong>{row.name}</strong>
+                        <span className="sub">
+                          {row.kind === 'raw' ? '外购瓦楞纸板' : '加工成品纸箱'}
+                        </span>
+                        {isArchived(row) && <span className="record-state">已归档</span>}
+                      </td>
+                      <td>
+                        {row.specification || formatStockSize(row)}
+                        <span className="sub">
+                          {row.flute || '楞型待补'} / {row.material || '材质待补'}
+                        </span>
+                      </td>
+                      <td className="op-quantity">{row.quantity}</td>
+                      <td>{row.unit}</td>
+                      <td>{row.notes || '—'}</td>
+                    </>
+                  ) : entity === 'orders' ? (
+                    <>
+                      <td>
+                        <strong>{row.number}</strong>
+                        <span className="sub">{row.customerName}</span>
+                        <span className="sub">下单 {row.orderDate}</span>
+                        {row.externalPurchaseOrder && (
+                          <span className="sub">采购单号：{row.externalPurchaseOrder}</span>
+                        )}
+                      </td>
+                      <td>
+                        <strong>{row.lines[0]?.productName}</strong>
+                        {expand(row)}
+                      </td>
+                      <td>
+                        {[
+                          ...(row.lines.reduce(
+                            (groups: Map<string, number>, l: any) =>
+                              groups.set(
+                                l.unit || '未注明单位',
+                                (groups.get(l.unit || '未注明单位') || 0) + l.quantity,
+                              ),
+                            new Map<string, number>(),
+                          ) as Map<string, number>),
+                        ].map(([unit, quantity]) => (
+                          <span className="order-unit-total" key={unit}>
+                            {quantity.toLocaleString('zh-CN')} <small>{unit}</small>
                           </span>
-                          <span className="sub">
-                            订购 {l.quantity} {l.unit} / 已到 {l.receivedQuantity}；单价{' '}
-                            {l.unitPrice ?? '待定'}
-                          </span>
-                        </div>
-                      ))}
-                    </td>
-                    <td>{row.totalAmount === null ? '待定价' : displayAmount(row.totalAmount)}</td>
-                    <td>{row.expectedDate || '待确认'}</td>
-                    <td>
-                      <StatusBadge status={row.status} />
-                      <span className="sub">{row.customerOrderNumber || '独立采购'}</span>
-                      {isArchived(row) && <span className="record-state">已归档</span>}
-                    </td>
-                  </>
-                ) : entity === 'stock_items' ? (
-                  <>
-                    <td>
-                      <strong>{row.name}</strong>
-                      <span className="sub">
-                        {row.kind === 'raw' ? '外购瓦楞纸板' : '加工成品纸箱'}
-                      </span>
-                      {isArchived(row) && <span className="record-state">已归档</span>}
-                    </td>
-                    <td>
-                      {row.specification || formatStockSize(row)}
-                      <span className="sub">
-                        {row.flute || '楞型待补'} / {row.material || '材质待补'}
-                      </span>
-                    </td>
-                    <td className="op-quantity">{row.quantity}</td>
-                    <td>{row.unit}</td>
-                    <td>{row.notes || '—'}</td>
-                  </>
-                ) : entity === 'orders' ? (
-                  <>
-                    <td>
-                      <strong>{row.number}</strong>
-                      <span className="sub">{row.customerName}</span>
-                      <span className="sub">下单 {row.orderDate}</span>
-                      {row.externalPurchaseOrder && (
-                        <span className="sub">采购单号：{row.externalPurchaseOrder}</span>
+                        ))}
+                      </td>
+                      <td>{row.totalAmountExact || money(row.totalCents)}</td>
+                      <td>{row.deliveryDate}</td>
+                      <td>
+                        <StatusBadge status={row.status} />
+                        {isArchived(row) && <span className="record-state">已归档</span>}
+                      </td>
+                      <td>
+                        <ProgressSummary row={row} />
+                      </td>
+                    </>
+                  ) : entity === 'customers' || entity === 'suppliers' ? (
+                    <>
+                      <td>
+                        {row.name}
+                        {isArchived(row) && <span className="record-state">已停用</span>}
+                      </td>
+                      <td>{row.contact || '—'}</td>
+                      <td>{row.phone || '—'}</td>
+                      <td>{row.address || '—'}</td>
+                      <td>{row.notes || '—'}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td>
+                        {row.name}
+                        {isArchived(row) && <span className="record-state">已停用</span>}
+                      </td>
+                      <td>{formatDimensions(row)}</td>
+                      <td>
+                        {row.material} / {row.flute}
+                      </td>
+                      <td>{row.requirements || '—'}</td>
+                      <td>{row.priceExact || money(row.priceCents)}</td>
+                    </>
+                  )}
+                  <td>{actions(row)}</td>
+                </tr>
+                {['orders', 'purchases'].includes(entity) && (
+                  <tr className="fulfillment-expanded" hidden={!expanded.includes(row.id)}>
+                    <td colSpan={entity === 'purchases' ? 8 : 9}>
+                      {entity === 'purchases' ? (
+                        <PurchaseLines
+                          row={row}
+                          correct={canEdit ? (receipt) => correct(row, receipt) : undefined}
+                        />
+                      ) : (
+                        <>
+                          <SalesLines row={row} />
+                          <p>
+                            税费：{row.taxRate || '未明确'} {row.taxMode || ''}；合同条件：
+                            {row.terms || '无'}；整单备注：{row.notes || '无'}
+                          </p>
+                          {row.importSource && (
+                            <p>
+                              来源：{row.importSource.fileName}；导入人：
+                              {row.importSource.actorName}；时间：
+                              {new Date(row.importSource.at).toLocaleString('zh-CN')}
+                            </p>
+                          )}
+                        </>
                       )}
                     </td>
-                    <td>
-                      <strong>{row.lines[0]?.productName}</strong>
-                      <details className="order-full-lines">
-                        <summary>展开全部 {row.lines.length} 项明细</summary>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>产品名称</th>
-                              <th>规格型号</th>
-                              <th>备注</th>
-                              <th>数量</th>
-                              <th>单位</th>
-                              <th>单价/元</th>
-                              <th>金额/元</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {row.lines.map((line: any, i: number) => (
-                              <tr key={i}>
-                                <td>{line.productName}</td>
-                                <td>{line.specification}</td>
-                                <td>{line.notes || '—'}</td>
-                                <td>{line.quantity}</td>
-                                <td>{line.unit || '只'}</td>
-                                <td>{line.unitPriceExact ?? String(line.unitPriceCents / 100)}</td>
-                                <td>{precisionTotal([line]).exact}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <p>
-                          税费：{row.taxRate || '未明确'} {row.taxMode || ''}；合同条件：
-                          {row.terms || '无'}；整单备注：{row.notes || '无'}
-                        </p>
-                        {row.importSource && (
-                          <p>
-                            来源：{row.importSource.fileName}；导入人：{row.importSource.actorName}
-                            ；时间：{new Date(row.importSource.at).toLocaleString('zh-CN')}
-                          </p>
-                        )}
-                      </details>
-                    </td>
-                    <td>
-                      {[
-                        ...(row.lines.reduce(
-                          (groups: Map<string, number>, l: any) =>
-                            groups.set(
-                              l.unit || '未注明单位',
-                              (groups.get(l.unit || '未注明单位') || 0) + l.quantity,
-                            ),
-                          new Map<string, number>(),
-                        ) as Map<string, number>),
-                      ].map(([unit, quantity]) => (
-                        <span className="order-unit-total" key={unit}>
-                          {quantity.toLocaleString('zh-CN')} <small>{unit}</small>
-                        </span>
-                      ))}
-                    </td>
-                    <td>{row.totalAmountExact || money(row.totalCents)}</td>
-                    <td>{row.deliveryDate}</td>
-                    <td>
-                      <StatusBadge
-                        status={
-                          row.lines?.some((l: any) => l.shippedQuantity > 0)
-                            ? row.status === '已发货'
-                              ? '已完成'
-                              : '部分发货'
-                            : row.status
-                        }
-                      />
-                      {isArchived(row) && <span className="record-state">已归档</span>}
-                    </td>
-                  </>
-                ) : entity === 'customers' || entity === 'suppliers' ? (
-                  <>
-                    <td>
-                      {row.name}
-                      {isArchived(row) && <span className="record-state">已停用</span>}
-                    </td>
-                    <td>{row.contact || '—'}</td>
-                    <td>{row.phone || '—'}</td>
-                    <td>{row.address || '—'}</td>
-                    <td>{row.notes || '—'}</td>
-                  </>
-                ) : (
-                  <>
-                    <td>
-                      {row.name}
-                      {isArchived(row) && <span className="record-state">已停用</span>}
-                    </td>
-                    <td>{formatDimensions(row)}</td>
-                    <td>
-                      {row.material} / {row.flute}
-                    </td>
-                    <td>{row.requirements || '—'}</td>
-                    <td>{row.priceExact || money(row.priceCents)}</td>
-                  </>
+                  </tr>
                 )}
-                <td>{actions(row)}</td>
-              </tr>
+              </Fragment>
             ))}
             {!rows.length && (
               <tr>
@@ -504,7 +583,11 @@ export default function BusinessRecords({
       )}
       {view && (
         <ManagementDialog title={'查看' + (view.number || view.name)} close={() => setView(null)}>
-          <RecordDetails entity={entity} row={view} />
+          <RecordDetails
+            entity={entity}
+            row={view}
+            correctReceipt={canEdit ? (receipt) => correct(view, receipt) : undefined}
+          />
           <div className="management-dialog-actions">
             <button onClick={() => setView(null)}>关闭</button>
             {session?.actor?.localAdministrator && (
@@ -519,15 +602,12 @@ export default function BusinessRecords({
             )}
             {canEdit &&
               !isArchived(view) &&
-              ((entity === 'orders' && !['草稿', '已取消'].includes(view.status)) ||
-                (entity === 'stock_items' && view.kind === 'finished')) && (
+              entity === 'stock_items' &&
+              view.kind === 'finished' && (
                 <button
                   className="secondary"
                   onClick={() => {
-                    location.hash =
-                      entity === 'orders'
-                        ? 'warehouse?kind=finished&createDelivery=1&order=' + view.id
-                        : 'warehouse?kind=finished&createDelivery=1&stock=' + view.id;
+                    location.hash = 'warehouse?kind=finished&createDelivery=1&stock=' + view.id;
                     setView(null);
                   }}
                 >
@@ -558,6 +638,16 @@ export default function BusinessRecords({
             setPermanent(null);
             setSelected([]);
             changed(message);
+          }}
+        />
+      )}
+      {correction && (
+        <ReceiptCorrectionDialog
+          {...correction}
+          close={() => setCorrection(null)}
+          done={(result) => {
+            setCorrection(null);
+            changed(result.summary || '到货更正已核验。');
           }}
         />
       )}

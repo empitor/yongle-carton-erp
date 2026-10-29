@@ -18,6 +18,8 @@ coverage/
 *.sqlite-*
 *.db
 *.db-*
+*.running
+*.control
 *.pem
 *.key
 *.pfx
@@ -67,5 +69,15 @@ test-results/
 !docs/ERP自主Agent架构升级验收-2026-10-28.md
 !docs/项目目录与维护.md
 !docs/项目清理与0.5.3验收-2026-10-28.md
+!docs/提示词修改与客户复用修复验收-2026-10-28.md
+!docs/订单履约与采购到货更正验收-2026-10-29.md
 !docs/history/
 !docs/history/AI架构演进至0.5.2.md
+!docs/管理员数据编辑与日期排程验收-2026-10-29.md
+!docs/采购到货仓库整合验收-2026-10-29.md
+!docs/仓库日期台账与业务单据导出验收-2026-10-29.md
+!docs/全局UI能力覆盖与交互验收-2026-10-29.md
+
+!docs/ERP全面UI优化与单据模板升级验收-2026-10-29.md
+!docs/发布说明-v0.6.0.md
+!docs/PowerShell兼容修复与0.6.0验收-2026-10-30.md

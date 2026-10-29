@@ -13,6 +13,7 @@ import { completeResponses } from '../server/ai/compatible-responses.js';
 import { getBusinessMetadata } from '../server/business/metadata.js';
 import { completeCompatible } from '../server/ai/compatible-chat.js';
 import { AgentExecutionBudget, agentBudgetConfig } from '../server/assistant/budget.js';
+import { today } from '../shared/domain.js';
 const who = { ...actor, permissions: ['business:edit', 'import:execute'] };
 const call = (name: string, args: any) => ({ name, args });
 const reply = (...calls: any[]) => ({ message: '继续处理业务目标', toolCalls: calls });
@@ -187,6 +188,10 @@ test('确认记忆区分税率/含税、文件顺序、单位和授权，模型�
 
 test('两张订单：集中问题、已确认不再问、无关字段版本冲突自主恢复、连续导入及新产品复用、真实回执后结束', async () => {
   const f = createOrderWorkflowFixture();
+  // 订单原件使用当天日期；交期随样例日期前移，避免真实日历跨日后把合法导入变成日期错误。
+  const delivery = new Date(today() + 'T00:00:00Z');
+  delivery.setUTCDate(delivery.getUTCDate() + 7);
+  const agreedDeliveryDate = delivery.toISOString().slice(0, 10);
   try {
     const a = await manual(f),
       b = await manual(f, true);
@@ -245,7 +250,12 @@ test('两张订单：集中问题、已确认不再问、无关字段版本冲�
           who,
         );
         const ops = [
-          { op: 'set-header', field: 'deliveryDate', value: '2026-10-29', reason: '已确认交期' },
+          {
+            op: 'set-header',
+            field: 'deliveryDate',
+            value: agreedDeliveryDate,
+            reason: '已确认交期',
+          },
           { op: 'set-header', field: 'taxRate', value: '13', reason: '已确认税率，含税口径仍未知' },
         ];
         return reply(
@@ -265,13 +275,13 @@ test('两张订单：集中问题、已确认不再问、无关字段版本冲�
       reply(call('order_import.execute_many', { workspaceIds: [a.id, b.id] })),
       { message: '两张订单已处理。', toolCalls: [] },
     );
-    view = await f.send(decisions);
+    view = await f.send(decisions.replace('2026-10-29', agreedDeliveryDate));
     assert.equal(f.store.orders().length, 2, view.messages.at(-1)!.text);
     assert.equal(f.store.products().length, 2, '相同完整身份的新产品应只建一份');
     const orders = f.store.orders();
     assert.equal(orders[0].customerId, orders[1].customerId);
     for (const o of orders) {
-      assert.equal(o.deliveryDate, '2026-10-29');
+      assert.equal(o.deliveryDate, agreedDeliveryDate);
       assert.equal(o.taxRate, '13');
       assert.equal(o.taxMode, '未明确');
     }

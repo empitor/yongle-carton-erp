@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Plus, PackagePlus, RefreshCw } from 'lucide-react';
 import BusinessRecords from './BusinessRecords';
 import { managementRequest, useAuthState } from './session';
-import { PurchaseEditor, StockEditor, ReceiptDialog, MovementDialog } from './operations/Editors';
-import { purchaseStatuses } from '../shared/operations';
+import { PurchaseEditor, StockEditor, MovementDialog } from './operations/Editors';
+import { purchaseBusinessStatuses, arrivalProgresses } from '../shared/operations';
 import './operations.css';
 import DateRangeFilter from './DateRangeFilter';
 import { presetRange, type DatePreset } from '../shared/date-ranges';
@@ -18,6 +18,7 @@ import { PageHeading, ListFilters, FilterField, ListSummary } from './ui/ListLay
 import WarehouseNavigation, { type WarehouseView } from './WarehouseNavigation';
 import MovementRecords from './MovementRecords';
 import FlowPage from './FlowPage';
+import WarehouseRecords from './WarehouseRecords';
 import {
   purchaseMetrics,
   inventoryMetrics,
@@ -54,7 +55,8 @@ export default function OperationsPage({
     [pendingOnly, setPendingOnly] = useState(params.get('pending') === '1'),
     [zeroOnly, setZeroOnly] = useState(params.get('zero') === '1'),
     [datePreset, setDatePreset] = useState<DatePreset>(initialPreset),
-    [status, setStatus] = useState(''),
+    [status, setStatus] = useState(params.get('businessStatus') || ''),
+    [arrivalProgress, setArrivalProgress] = useState(''),
     [historyFilter, setHistoryFilter] = useState(''),
     [start, setStart] = useState(
       initialPreset === 'custom' ? params.get('start') || '' : initialRange.start,
@@ -67,7 +69,12 @@ export default function OperationsPage({
     ),
     [flowAction, setFlowAction] = useState(''),
     [flowTab, setFlowTab] = useState(params.get('flow') === '1'),
-    [deliveryTab, setDeliveryTab] = useState(params.get('deliveries') === '1'),
+    [deliveryTab, setDeliveryTab] = useState(
+      params.get('deliveries') === '1' || params.get('deliveryPlans') === '1',
+    ),
+    [arrivalView, setArrivalView] = useState<'arrivals' | null>(
+      params.get('arrivalPlans') === '1' || params.get('arrivals') === '1' ? 'arrivals' : null,
+    ),
     [deliveryLaunch, setDeliveryLaunch] = useState<{ order?: string; stock?: string } | null>(
       params.get('createDelivery') === '1'
         ? {
@@ -101,9 +108,13 @@ export default function OperationsPage({
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [editor, setEditor] = useState<{
-      type: 'purchase' | 'stock' | 'receipt' | 'move';
+      type: 'purchase' | 'stock' | 'move';
       value?: any;
     } | null>(null);
+  useEffect(() => {
+    if (mode === 'purchases' && params.get('create') === '1' && canEdit)
+      setEditor({ type: 'purchase' });
+  }, [mode, canEdit]);
   useEffect(() => {
     const listener = () => setRevision((v) => v + 1);
     window.addEventListener('erp-business-changed', listener);
@@ -119,7 +130,8 @@ export default function OperationsPage({
     if (mode === 'purchases') {
       if (supplierFilter) purchaseQuery.set('supplierId', supplierFilter);
       if (supplierSearch) purchaseQuery.set('supplierName', supplierSearch);
-      if (status) purchaseQuery.set('status', status);
+      if (status) purchaseQuery.set('businessStatus', status);
+      if (arrivalProgress) purchaseQuery.set('arrivalProgress', arrivalProgress);
       if (search) purchaseQuery.set('q', search);
       if (start) purchaseQuery.set('start', start);
       if (end) purchaseQuery.set('end', end);
@@ -199,6 +211,7 @@ export default function OperationsPage({
     supplierFilter,
     supplierSearch,
     status,
+    arrivalProgress,
     start,
     end,
     search,
@@ -232,7 +245,12 @@ export default function OperationsPage({
           q: search,
           supplierName: supplierSearch,
           supplierId: supplierFilter ? Number(supplierFilter) : undefined,
-          status: status ? (status as (typeof purchaseStatuses)[number]) : undefined,
+          businessStatus: status
+            ? (status as (typeof purchaseBusinessStatuses)[number])
+            : undefined,
+          arrivalProgress: arrivalProgress
+            ? (arrivalProgress as (typeof arrivalProgresses)[number])
+            : undefined,
           start: start || undefined,
           end: end || undefined,
           pending: pendingOnly ? '1' : undefined,
@@ -281,6 +299,7 @@ export default function OperationsPage({
   );
   const selectWarehouseView = (view: WarehouseView) => {
     setDeliveryTab(view === 'deliveries');
+    setArrivalView(view === 'arrivals' ? view : null);
     setFlowTab(view === 'flows');
     if (view === 'raw' || view === 'finished') setKind(view);
     if (view === 'deliveries') setKind('finished');
@@ -293,9 +312,11 @@ export default function OperationsPage({
         '',
         view === 'flows'
           ? '#warehouse?flow=1'
-          : view === 'deliveries'
-            ? '#warehouse?kind=finished&deliveries=1'
-            : '#warehouse?kind=' + view,
+          : view === 'arrivals'
+            ? '#warehouse?arrivals=1'
+            : view === 'deliveries'
+              ? '#warehouse?kind=finished&deliveries=1'
+              : '#warehouse?kind=' + view,
       );
   };
   const resetFilters = () => {
@@ -303,6 +324,7 @@ export default function OperationsPage({
     setSupplierFilter('');
     setSupplierSearch('');
     setStatus('');
+    setArrivalProgress('');
     setHistoryFilter('');
     setPendingOnly(false);
     setZeroOnly(false);
@@ -317,31 +339,38 @@ export default function OperationsPage({
   };
   const actions = (
     <>
-      {!recycle && mode === 'purchases' && (
-        <button onClick={() => (location.hash = 'arrivals')}>
-          <PackagePlus size={15} />
-          采购到货 / AI收货
-        </button>
-      )}
       {!recycle && mode === 'warehouse' && (
         <button onClick={() => (location.hash = 'production')}>生产领料与完工</button>
       )}
-      <button disabled={busy} onClick={() => setRevision((v) => v + 1)}>
+      <button
+        disabled={busy}
+        onClick={() =>
+          arrivalView || deliveryTab
+            ? window.dispatchEvent(new Event('erp-business-changed'))
+            : setRevision((v) => v + 1)
+        }
+      >
         <RefreshCw size={15} />
         刷新
       </button>
-      {!recycle && mode === 'warehouse' && (deliveryTab || (kind === 'finished' && !flowTab)) && (
-        <button
-          className="primary"
-          disabled={!canEdit || busy}
-          onClick={() => setDeliveryLaunch({})}
-        >
-          <Plus size={18} />
-          新建送货单
-        </button>
-      )}
+      {!recycle &&
+        mode === 'warehouse' &&
+        !arrivalView &&
+        !deliveryTab &&
+        kind === 'finished' &&
+        !flowTab && (
+          <button
+            className="primary"
+            disabled={!canEdit || busy}
+            onClick={() => setDeliveryLaunch({})}
+          >
+            <Plus size={18} />
+            新建送货单
+          </button>
+        )}
       {!recycle &&
         !deliveryTab &&
+        !arrivalView &&
         (mode === 'warehouse' && flowTab ? (
           <button className="primary" onClick={() => selectWarehouseView(kind as WarehouseView)}>
             返回库存管理
@@ -382,7 +411,10 @@ export default function OperationsPage({
       {recycle && <div className="page-actions recycle-actions">{actions}</div>}
       {mode === 'warehouse' && (
         <WarehouseNavigation
-          view={deliveryTab ? 'deliveries' : flowTab ? 'flows' : (kind as WarehouseView)}
+          view={
+            arrivalView ||
+            (deliveryTab ? 'deliveries' : flowTab ? 'flows' : (kind as WarehouseView))
+          }
           onChange={selectWarehouseView}
         />
       )}
@@ -391,12 +423,15 @@ export default function OperationsPage({
         role={mode === 'warehouse' ? 'tabpanel' : undefined}
         aria-labelledby={
           mode === 'warehouse'
-            ? 'warehouse-tab-' + (deliveryTab ? 'deliveries' : flowTab ? 'flows' : kind)
+            ? 'warehouse-tab-' +
+              (arrivalView || (deliveryTab ? 'deliveries' : flowTab ? 'flows' : kind))
             : undefined
         }
       >
-        {deliveryTab && mode === 'warehouse' ? (
-          <FlowPage key="warehouse-deliveries" mode="delivery" embedded recycle={recycle} />
+        {arrivalView && mode === 'warehouse' ? (
+          <WarehouseRecords key="arrival" kind="arrival" />
+        ) : deliveryTab && mode === 'warehouse' ? (
+          <WarehouseRecords key="delivery" kind="delivery" />
         ) : (
           <>
             {mode === 'purchases' && !error && (
@@ -547,14 +582,26 @@ export default function OperationsPage({
                       </select>
                     </div>
                   </FilterField>
-                  <FilterField label="采购状态">
+                  <FilterField label="采购业务状态">
                     <select
                       aria-label="筛选采购状态"
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
                     >
                       <option value="">全部状态</option>
-                      {purchaseStatuses.map((s) => (
+                      {purchaseBusinessStatuses.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                  </FilterField>
+                  <FilterField label="到货进度">
+                    <select
+                      aria-label="筛选到货进度"
+                      value={arrivalProgress}
+                      onChange={(e) => setArrivalProgress(e.target.value)}
+                    >
+                      <option value="">全部进度</option>
+                      {arrivalProgresses.map((s) => (
                         <option key={s}>{s}</option>
                       ))}
                     </select>
@@ -627,7 +674,8 @@ export default function OperationsPage({
                 {notice}
               </p>
             )}
-            {error ? null : busy ? (
+            {error ? null : busy &&
+              !(mode === 'warehouse' && flowTab ? movements.length : rows.length) ? (
               <p className="empty">正在读取业务数据…</p>
             ) : mode === 'warehouse' && flowTab ? (
               <MovementRecords
@@ -650,6 +698,7 @@ export default function OperationsPage({
                   supplierFilter,
                   supplierSearch,
                   status,
+                  arrivalProgress,
                   start,
                   end,
                   pendingOnly,
@@ -684,17 +733,12 @@ export default function OperationsPage({
                 }
                 extraActions={(r) =>
                   mode === 'purchases' ? (
-                    !r.archived &&
-                    r.baseStatus === '已订货' &&
-                    r.status !== '全部到货' && (
-                      <button
-                        disabled={!canEdit}
-                        onClick={() => (location.hash = 'arrivals?purchase=' + r.id)}
-                      >
-                        <PackagePlus size={14} />
-                        到货入库
-                      </button>
-                    )
+                    <button
+                      onClick={() => (location.hash = 'warehouse?arrivals=1&purchase=' + r.id)}
+                    >
+                      <PackagePlus size={14} />
+                      到货记录
+                    </button>
                   ) : mode === 'warehouse' ? (
                     <>
                       <button
@@ -755,9 +799,6 @@ export default function OperationsPage({
           close={() => setEditor(null)}
           saved={done}
         />
-      )}{' '}
-      {editor?.type === 'receipt' && (
-        <ReceiptDialog purchase={editor.value} close={() => setEditor(null)} saved={done} />
       )}{' '}
       {editor?.type === 'move' && (
         <MovementDialog

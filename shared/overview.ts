@@ -1,5 +1,17 @@
 export type UnitBalance = { unit: string; quantity: string; itemCount: number };
 export type BusinessOverview = {
+  workbench?: {
+    date: string;
+    toOrder: number;
+    pendingArrivals: number;
+    arrivalsToday: number;
+    stockedToday: number;
+    activeTasks: number;
+    tasksToday: number;
+    productionToday: number;
+    deliveriesToday: number;
+    pendingDeliveries: number;
+  };
   range: { start: string | null; end: string | null };
   orders: {
     total: number;
@@ -14,6 +26,7 @@ export type BusinessOverview = {
     pendingAll: number;
     unknownPrices: number;
     amount: string;
+    receivedAmount: string | null;
     outstanding: UnitBalance[];
     recent: {
       id: number;
@@ -21,6 +34,8 @@ export type BusinessOverview = {
       supplierName: string;
       orderDate: string;
       status: string;
+      businessStatus: string;
+      arrivalProgress: string;
       totalAmount: string | null;
     }[];
   };

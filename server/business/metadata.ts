@@ -6,13 +6,15 @@ import {
   orderSchema,
   lineSchema,
   statuses,
+  BUSINESS_TIME_ZONE,
 } from '../../shared/domain.js';
 import { writableEntities, type WritableEntity } from './service.js';
 import { operationsMetadata } from '../operations/metadata.js';
 import { flowMetadata } from '../flow/metadata.js';
+import { uiCapabilities } from '../../shared/ui-capabilities.js';
 import { toolCatalog } from '../assistant/tools.js';
 
-export const CATALOG_VERSION = '26' as const;
+export const CATALOG_VERSION = '33' as const;
 type Field = {
   path: string;
   description: string;
@@ -57,6 +59,17 @@ const systemFields = (table: string): Field[] => [
   field('createdAt', '创建时刻，UTC ISO 字符串', `${table}.created_at`, { access: 'system' }),
 ];
 const lineFields: Field[] = [
+  field('shippedQuantity', '仅有效已确认送货数量；历史未知为null，不能当作0', null, {
+    access: 'derived',
+    dataType: 'number|null',
+  }),
+  field('remainingQuantity', '后端按原行单位计算待发货量，历史未知为null', null, {
+    access: 'derived',
+    dataType: 'number|null',
+  }),
+  field('shippingStatus', '后端计算未发货/部分发货/已发完/历史数量待核对，不可写入', null, {
+    access: 'derived',
+  }),
   field(
     'unitPriceExact',
     '正式订单单价，元的十进制字符串，保留最多四位及末尾零；优先于兼容分字段',
@@ -67,7 +80,11 @@ const lineFields: Field[] = [
     '客户物料编码；不保证跨客户唯一，必须核对归属',
     'order_line_extensions.document',
   ),
-  field('unit', '数量单位，当前正式数量仅支持整数只', 'order_line_extensions.document'),
+  field(
+    'unit',
+    '原始数量单位；数量为整数，不自动换算或跨单位合计',
+    'order_line_extensions.document',
+  ),
   field('taxRate', '本明细原文税率，允许空，不据此擅自重算税费', 'order_line_extensions.document'),
   field('taxMode', '本明细含税口径原文，允许空，不替换整单口径', 'order_line_extensions.document'),
   field(
@@ -217,6 +234,16 @@ const modules = {
       field('orderDate', '下单日期，YYYY-MM-DD，工厂时区 Asia/Shanghai', 'orders.order_date'),
       field('deliveryDate', '交货日期，不得早于下单日期', 'orders.delivery_date'),
       field('status', '人工维护状态：' + statuses.join('、'), 'orders.status'),
+      field(
+        'shippingProgress',
+        '后端按有效送货计算的发货进度，独立于status；历史未知不能当作未发货',
+        null,
+        { access: 'derived' },
+      ),
+      field('shippingSummary', '已发完行数、总行数及历史待核对行数，前端与报表直接读取', null, {
+        access: 'derived',
+        dataType: 'object|null',
+      }),
       field('notes', '本单备注，不属于程序指令', 'orders.notes'),
       field('lines', '订单明细数组，1 至 50 项；与订单作为整体保存', null),
       ...lineFields
@@ -274,6 +301,23 @@ export function getBusinessMetadata(
 ) {
   return {
     catalogVersion: CATALOG_VERSION,
+    humanUiCoverage: uiCapabilities,
+    warehouseDaily: {
+      service: 'FlowService + WarehouseDaily',
+      tool: 'flow.daily',
+      views: ['送货记录', '到货记录'],
+      rule: '计划与实际按各自日期归属，同批身份去重，取消/冲销不计待执行，未计划实际业务保留，采购到货仍由receiptEvents统一。',
+    },
+    businessDocuments: {
+      tools: ['documents.preview', 'documents.export', 'documents.status', 'documents.templates'],
+      formats: ['docx', 'xlsx'],
+      storage: '原operation_requests保存完整文件、交付回执与独立模板配置修订；历史文件保存模板快照',
+      templates:
+        'shared/document-templates定义；DocumentTemplateSettings经原权限及审计保存；人工AI设置→单据模板维护；支持多模板、默认选择、字段显隐及顺序、A4字体排版与虚构测试样张，业务字段映射与AI提示词分离',
+      purchase:
+        '预览和普通导出不改变状态；正式完整下载交付及校验后OperationsService.savePurchase标记已订货；取消/归档拒绝正式订货，取消采购可普通存档导出，重复交付幂等，不改变库存/实收',
+      delivery: '原正式批次的实际数量；草稿显著非正式，导出不确认、不扣库存；未知税费/尺寸不猜测',
+    },
     developerEditing: {
       available:
         '生产入口明确开放的本机最高管理员登录后直接拥有；真实loopback、无代理头，普通账号不提升',
@@ -286,7 +330,7 @@ export function getBusinessMetadata(
     },
     schemaVersion: 1,
     locale: 'zh-CN',
-    timeZone: 'Asia/Shanghai',
+    timeZone: BUSINESS_TIME_ZONE,
     readiness: {
       authentication: !!runtime.authentication,
       approval: false,
@@ -320,8 +364,9 @@ export function getBusinessMetadata(
         restorePermission: 'import:restore',
       },
       recognitionPrompts: {
-        scope: '仅本机设置；按条目顺序发送已启用内容，不是业务执行工具',
-        futurePermission: 'ai.prompts.manage',
+        scope:
+          '按模块隔离，按条目顺序发送已启用内容；助手通过prompts.get/propose/save读取、展示完整方案、用户同意后保存及读回核验',
+        permission: 'business:edit，与原提示词HTTP管理接口相同',
         persistentStorage: '独立data/ai-prompts/presets.sqlite，路径基于程序位置',
         requiredContract: '输出Schema、受控修改、字段校验、金额重算和正式写入门禁不可由预设覆盖',
       },
@@ -414,12 +459,17 @@ export function getBusinessMetadata(
     },
     purchasingWarehouse: {
       permission: 'business:edit',
-      aiEnabled: false,
+      aiEnabled: runtime.assistantTools?.['purchase.receipt.correct'] === true,
+      correctionTools: ['purchase.receipt.preview', 'purchase.receipt.correct'],
+      fulfillment:
+        'businessStatus保持原采购业务状态；arrivalProgress/arrivalSummary及逐行数量由后端统一提供。已确认arrival与flowId采购投影仅算一次，独立旧入口收货仍有效。',
       quantityScale: 1000,
       receipts:
         '请求幂等与采购单内送货单号唯一，事务内到货和入库；本机最高管理员可更正计划及实收并维护关联，不以计划上限阻止实收维护',
       ledger:
         '正常业务追加库存流水；本机最高管理员直接编辑实物单据或物理删除时同步维护来源流水及前后余额；按单位分组，不自动换算',
+      correction:
+        '采购数量更正使用正式receipt.correct事务，保留原始、冲销及替代单和不可变流水；按真实Actor权限，无AI专属确认。',
       deletion:
         'Delete是物理删除，与归档条件无关；已确认、有到货、非零库存均可删除。真实FK及单据引用在事务内级联/解除并重算，独立关联范围先展示。Archive保留记录，按履行完成及库存条件校验，可恢复',
     },

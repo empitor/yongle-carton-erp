@@ -1,5 +1,6 @@
 import { observeErpPage, executePageCommand } from './assistant-page';
 import { useEffect, useRef, useState } from 'react';
+import { deliverBusinessFile, ExportFileCard } from './BusinessExport';
 import {
   Bot,
   Plug,
@@ -111,6 +112,13 @@ export default function GlobalAssistant() {
   const [attachmentTextMode, setAttachmentTextMode] = useState<
     'original' | 'with-text' | 'text-only'
   >('with-text');
+  const [floatingLauncher, setFloatingLauncher] = useState(() => {
+    try {
+      return localStorage.getItem('erp-assistant-launcher-mode-v1') === 'floating';
+    } catch {
+      return false;
+    }
+  });
   const openAssistant = () => {
     setOpen(true);
     if (userId)
@@ -121,6 +129,10 @@ export default function GlobalAssistant() {
         .catch((e) => setError(e.message));
   };
   const pageClientId = useRef(crypto.randomUUID());
+  useEffect(() => {
+    window.addEventListener('erp-open-assistant', openAssistant);
+    return () => window.removeEventListener('erp-open-assistant', openAssistant);
+  }, [userId]);
   const floating = useFloatingAssistant(open, large, openAssistant);
   const history = useRef<HTMLDivElement>(null),
     controller = useRef<AbortController | null>(null),
@@ -359,6 +371,8 @@ export default function GlobalAssistant() {
           ).catch((e) => setError(e.message));
         if (event === 'task') setThread((t: any) => (t ? { ...t, businessTask: d } : t));
         if (event === 'effect') {
+          if (d.type === 'download' && d.file)
+            void deliverBusinessFile(d.file).catch((e) => setError(e.message));
           if (d.workspaceId)
             window.dispatchEvent(
               new CustomEvent('erp-ai-workspace-changed', {
@@ -475,21 +489,23 @@ export default function GlobalAssistant() {
   return (
     <aside data-global-assistant="true" className="global-assistant">
       {!open ? (
-        <button
-          ref={floating.elementRef}
-          className={'ga-launcher' + (floating.moving ? ' ga-moving' : '')}
-          aria-label="打开全局AI助手"
-          aria-haspopup="dialog"
-          aria-expanded={false}
-          title="纸箱精灵 · 点击聊天，拖动换位置；方向键也可移动"
-          style={floating.style}
-          {...floating.bind}
-          onClickCapture={floating.onClickCapture}
-          onClick={openAssistant}
-        >
-          <CartonSpirit />
-          {busy && <i aria-label="AI正在处理" />}
-        </button>
+        floatingLauncher ? (
+          <button
+            ref={floating.elementRef}
+            className={'ga-launcher' + (floating.moving ? ' ga-moving' : '')}
+            aria-label="打开悬浮AI助手"
+            aria-haspopup="dialog"
+            aria-expanded={false}
+            title="纸箱精灵 · 点击聊天，拖动换位置；方向键也可移动"
+            style={floating.style}
+            {...floating.bind}
+            onClickCapture={floating.onClickCapture}
+            onClick={openAssistant}
+          >
+            <CartonSpirit />
+            {busy && <i aria-label="AI正在处理" />}
+          </button>
+        ) : null
       ) : (
         <section
           ref={floating.elementRef}
@@ -539,6 +555,22 @@ export default function GlobalAssistant() {
             <strong>全局业务助手</strong>
             <GripHorizontal size={16} />
             <div>
+              <button
+                aria-label={floatingLauncher ? '收起后停靠顶栏' : '收起后显示悬浮精灵'}
+                title={floatingLauncher ? '收起后停靠顶栏' : '收起后显示悬浮精灵'}
+                onClick={() => {
+                  const next = !floatingLauncher;
+                  setFloatingLauncher(next);
+                  try {
+                    localStorage.setItem(
+                      'erp-assistant-launcher-mode-v1',
+                      next ? 'floating' : 'docked',
+                    );
+                  } catch {}
+                }}
+              >
+                <Bot size={16} />
+              </button>
               <button
                 aria-label="打开AI插件与工具管理"
                 title="AI插件与工具管理"
@@ -656,6 +688,11 @@ export default function GlobalAssistant() {
                   <article className={'ga-message ga-' + m.role} key={m.id}>
                     <small>{m.role === 'user' ? '你' : 'AI业务助手'}</small>
                     <div className="ga-text">{m.text}</div>
+                    {m.executions
+                      ?.filter((e: any) => e.tool === 'documents.export' && e.result?.exportId)
+                      .map((e: any) => (
+                        <ExportFileCard key={e.result.exportId} file={e.result} />
+                      ))}
                     {!!m.attachments?.length && (
                       <AttachmentCards
                         slots={attachmentSlots(m.attachments)}
@@ -737,7 +774,10 @@ export default function GlobalAssistant() {
                     )}
                   </article>
                 ))}
-                <AssistantOrderTask workflow={thread?.orderWorkflow} />
+                <AssistantOrderTask
+                  workflow={thread?.orderWorkflow}
+                  businessTask={thread?.businessTask}
+                />
                 <AssistantBusinessTaskPanel
                   task={thread?.businessTask}
                   history={thread?.businessTaskHistory}

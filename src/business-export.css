@@ -1,0 +1,48 @@
+.business-export-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.business-export-actions p {
+  width: 100%;
+  margin: 4px 0;
+}
+.business-export-actions select {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.export-file-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+}
+.export-file-card span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.business-form-preview {
+  min-width: 850px;
+}
+.business-form-preview table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.business-form-preview td,
+.business-form-preview th {
+  padding: 9px;
+  border: 1px solid var(--border);
+  white-space: normal;
+}
+.business-form-preview h2 {
+  text-align: center;
+}

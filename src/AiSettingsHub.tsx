@@ -5,6 +5,7 @@ import AiSettingsPage from './AiSettingsPage';
 import PromptSettingsPage from './PromptSettingsPage';
 import { promptModules } from '../shared/prompt-modules';
 import AssistantPlugins from './AssistantPlugins';
+import DocumentTemplateSettings from './DocumentTemplateSettings';
 export default function AiSettingsHub() {
   const read = () => aiSettingsTab(location.hash);
   const [tab, setTab] = useState(read);
@@ -44,7 +45,19 @@ export default function AiSettingsHub() {
         >
           AI 插件与工具管理
         </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'templates'}
+          onClick={() => (location.hash = 'ai-settings?tab=templates')}
+        >
+          单据模板
+        </button>
       </nav>
+      {tab === 'templates' && (
+        <section role="tabpanel" aria-label="单据模板">
+          <DocumentTemplateSettings />
+        </section>
+      )}
       <section role="tabpanel" aria-label="API配置" hidden={tab !== 'api'}>
         <AiSettingsPage />
       </section>
@@ -73,9 +86,15 @@ export default function AiSettingsHub() {
           {module.status === 'planned'
             ? '（识别服务尚未接入，当前仅维护提示词）'
             : module.status === 'generation'
-              ? '（供全局助手生成我方单据，不用于识别外部单据）'
+              ? '（可辅助拟定单据文字；正式导出由单据模板和真实业务数据生成）'
               : ''}
         </p>
+        {module.status === 'generation' && (
+          <p className="help-text">
+            <a href="#ai-settings?tab=templates">前往单据模板设置</a>
+            ，调整我方名称、标题、样式和默认格式。
+          </p>
+        )}
         <PromptSettingsPage key={module.id} purpose={module.purpose} baseUrl={module.apiPath} />
       </section>
     </div>

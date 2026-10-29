@@ -62,7 +62,7 @@ export const operationsMetadata = {
       ['customer_order_id', '关联客户订单id或null，允许独立采购'],
       ['order_date', '采购日期'],
       ['expected_date', '预计到货日期或null'],
-      ['status', '手工订货状态；部分/全部到货由明细数量计算'],
+      ['status', '持久化原有业务状态，API businessStatus返回；arrivalProgress及arrivalSummary由后端有效到货计算，status保留旧接口兼容展示'],
       ['notes', '备注'],
       ['version', '编辑/到货版本'],
       ['created_at', '建立时间'],
@@ -86,7 +86,7 @@ export const operationsMetadata = {
         '纸板名称、规格、长宽高/单位、楞型、配纸、数量单位、十进制单价与备注；缺尺寸和价格允许空',
       ],
       ['quantity_units', '订货数量的千分之一单位整数，1=0.001数量单位'],
-      ['received_units', '累计到货千分单位整数，不得超过订购'],
+      ['received_units', '有效到货总量千分单位缓存（非合格/实际入库数量）；与历史独立收货和已确认arrival去重并叠加明确管理员统计纠偏一致。remainingQuantity、arrivalStatus、receivedAmount后端派生；实际库存单独按stockedQuantity流水计算'],
     ],
     [
       '只能通过采购整体保存；数量单位必须与库存单位一致；尺寸mm/cm等值换算不代表张、只等数量单位可换算。',
@@ -120,12 +120,13 @@ export const operationsMetadata = {
       ['purchase_id', '关联采购单'],
       ['reference', '送货单号/批次号，同一采购单唯一'],
       ['date', '实际到货日期'],
-      ['document', '批次明细、数量、备注和对应库存流水编号'],
+      ['document', '旧入口独立批次；flowId关联arrival时仅为采购投影不能重复计数；保留版本、原单、冲销、替代和原因'],
       ['actor_id', '真实登录操作者编号'],
       ['actor_name', '操作者名称快照'],
       ['created_at', '实际记录时间'],
     ],
-    ['当前用户确认后事务写到货与库存；同一请求幂等、同一送货号拒绝重复、不能超量。'],
+    ['正式更正使用purchase.receipt.preview/correct，复用页面服务；同一事务追加替代及冲销流水并重算累计到货，不修改原订购量/合同金额。requestId幂等、版本及库存校验，原批次身份合法复用。',
+      '真实本机最高管理员可显式选择data-edit，仅通过purchase.receipt.data_edit_preview/data_edit及同一更正表单修正有效到货统计。原单和库存流水不变，business_audit的receipt-data-edit不可变记录保存原因、操作者、时间、原新值。receiptEvents统一派生有效数量和待核对差异；不通过伪造入库或删除历史消除差异。后续正式更正按原始入库数量计算库存影响并消除相应差异。'],
   ),
   stock_movements: module(
     '出入库流水',
@@ -151,7 +152,7 @@ export const operationsMetadata = {
     [
       '不可编辑/删除流水；盘点提交实际余额，程序产生差额流水。',
       '流水页面按业务date字段查询，默认最近两自然月且含首尾当天；支持仓库/变动类型/关键词组合。旧记录仅隐藏，可用全部日期查看，不自动删除或归档，库存余额始终使用全部流水。',
-      '不能通过删除采购单、供应商或订单回退库存；所有写入由人工业务入口受控执行，AI未开放。',
+      '库存变动必须经已注册业务服务；正式到货更正使用purchase.receipt.correct复用人工服务，保留原始、冲销及替代流水；不允许模型直接编辑库存余额或流水。',
     ],
   ),
 };

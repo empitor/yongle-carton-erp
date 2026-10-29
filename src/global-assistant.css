@@ -1,5 +1,9 @@
 .global-assistant {
   position: relative;
+  z-index: 40;
+}
+/* 收起时随页面位于业务弹窗下方，避免遮住保存按钮；展开聊天仍可协助当前页面。 */
+.global-assistant:has(.ga-panel) {
   z-index: 1600;
 }
 .global-assistant .ga-launcher {
@@ -519,11 +523,11 @@
   margin-top: 2px;
 }
 .ga-business-task li[data-state='completed'] > svg {
-  color: #55c9a5;
+  color: var(--accent-ink);
 }
 .ga-business-task li[data-state='uncertain'] > svg,
 .ga-business-task li[data-state='failed'] > svg {
-  color: #e1ae62;
+  color: var(--warning);
 }
 .ga-business-task li strong {
   font-size: 12px;

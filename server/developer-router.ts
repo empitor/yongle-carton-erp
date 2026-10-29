@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { manageWorkspaces } from './workspace-management.js';
 import { recordContext } from './business/record-context.js';
 import { DatabaseMaintenanceService } from './business/database-maintenance.js';
+import { DevelopmentResetService, developmentResetScope } from './business/development-reset.js';
+import { executeDevelopmentReset } from './business/reset-execution.js';
 export function developerRouter(store: Store, auth: AuthManager, imports?: ImportManager) {
   const router = Router(),
     service = new DeveloperService(store);
@@ -22,6 +24,17 @@ export function developerRouter(store: Store, auth: AuthManager, imports?: Impor
   });
   router.get('/records', (req, res) =>
     res.json(service.list(String(req.query.module), auth.actor(req))),
+  );
+  router.get('/reset-preview', (req, res) =>
+    res.json(
+      new DevelopmentResetService(store).preview(
+        z.enum(developmentResetScope).parse(req.query.scope),
+        auth.actor(req)!,
+      ),
+    ),
+  );
+  router.post('/reset', (req, res) =>
+    res.json(executeDevelopmentReset(store, imports, req.body, auth.actor(req)!)),
   );
   router.get('/context', (req, res) =>
     res.json(

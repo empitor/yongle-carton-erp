@@ -387,7 +387,7 @@
 }
 .oi-text-original .selected {
   background: var(--accent-soft);
-  box-shadow: inset 3px 0 #b58a39;
+  box-shadow: inset 3px 0 var(--warning);
 }
 .oi-recognition-details {
   flex: none;
@@ -845,7 +845,7 @@
 .oi-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: #17363f66;
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;

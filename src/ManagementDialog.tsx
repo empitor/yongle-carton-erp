@@ -22,7 +22,13 @@ export default function ManagementDialog({
     const root = ref.current!;
     root.focus();
     const listener = (e: KeyboardEvent) => {
-      if((e.target as HTMLElement)?.closest?.('[data-global-assistant]'))return;
+      if (
+        [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')]
+          .filter((d) => d.getClientRects().length)
+          .at(-1) !== root
+      )
+        return;
+      if ((e.target as HTMLElement)?.closest?.('[data-global-assistant]')) return;
       if (e.key === 'Escape' && !busy) closeRef.current();
       if (e.key === 'Tab') {
         const items = [

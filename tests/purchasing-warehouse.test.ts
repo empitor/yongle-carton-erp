@@ -230,7 +230,7 @@ test('采购分两批到货自动增加同一原材料库存，派生部分/全�
     assert.equal(p.receipts.length, 2);
     const movements = await f.good('/warehouse/movements?itemId=' + id);
     assert.equal(movements.length, 2);
-    assert.equal(movements[0].source_kind, 'purchase_receipt');
+    assert.equal(movements[0].source_kind, 'flow_arrival');
     assert.equal(movements[0].actor_name, '采购仓库测试管理员');
     assert.equal(movements[0].purchaseNumber, p.number);
     const summary = await f.good('/warehouse/summary?kind=raw');
@@ -627,7 +627,7 @@ test('版本5非空业务库安全迁移为6，旧订单/明细/审计原样保�
       assert.equal(copy.suppliers().length, 0);
       assert.equal(copy.purchases().length, 0);
       assert.equal(copy.stock_items().length, 0);
-      assert.equal(copy.db.prepare('SELECT MAX(version) n FROM schema_migrations').get()!.n, 11);
+      assert.equal(copy.db.prepare('SELECT MAX(version) n FROM schema_migrations').get()!.n, 12);
       assert.deepEqual(copy.db.prepare('PRAGMA foreign_key_check').all(), []);
     } finally {
       copy.close();
@@ -654,7 +654,7 @@ test('导航分组和业务元数据对应实际新表，采购库存不是AI可
   const f = await fixture();
   try {
     const meta = await f.good('/business/metadata');
-    assert.equal(meta.catalogVersion, '26');
+    assert.equal(meta.catalogVersion, '33');
     assert.equal(meta.purchasingWarehouse.aiEnabled, false);
     assert.ok(meta.modules.suppliers);
     assert.ok(meta.modules.purchase_receipts);

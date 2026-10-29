@@ -96,14 +96,14 @@
   padding-top: 16px;
 }
 .dev-success {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .dev-confirm,
 .dev-bulk {
   padding: 12px;
-  border: 1px solid #ba8645;
+  border: 1px solid var(--warning-border);
   border-radius: 8px;
-  background: #b77c1010;
+  background: var(--warning-soft);
 }
 .dev-confirm p {
   overflow-wrap: anywhere;
@@ -118,11 +118,11 @@
   margin-top: 15px;
 }
 .dev-mode-badge {
-  color: #eec476;
+  color: var(--warning);
 }
 .dev-status-banner {
-  border: 1px solid #ba8645;
-  color: #eec476;
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
   padding: 10px;
   border-radius: 8px;
 }

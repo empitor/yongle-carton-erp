@@ -166,10 +166,13 @@ export type Order = Omit<OrderInput, 'lines'> & {
   updatedAt: string;
   importSource?: { fileName: string; at: string; actorName: string; sourceId: string };
   deliveryQuantitiesKnown?: boolean;
+  shippingProgress?: import('./fulfillment.js').ShippingProgress;
+  shippingSummary?: { progress: string; completedLines: number; totalLines: number; unknownLines: number };
   lines: (z.infer<typeof lineSchema> & {
     productName: string;
     shippedQuantity?: number | null;
     remainingQuantity?: number | null;
+    shippingStatus?: import('./fulfillment.js').ShippingProgress;
   })[];
 };
 export type Dashboard = {
@@ -187,12 +190,13 @@ export type Dashboard = {
 };
 export const totalCost = (cost: Cost | null) =>
   cost === null ? null : cost.material + cost.processing + cost.waste + cost.other;
-export const today = () =>
+export const BUSINESS_TIME_ZONE = 'Asia/Shanghai';
+export const today = (now = new Date()) =>
   new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
+    timeZone: BUSINESS_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
+  }).format(now);
 export const specification = (p: ProductInput) =>
   [formatDimensions(p), p.material, p.flute, p.requirements].filter(Boolean).join(' / ');

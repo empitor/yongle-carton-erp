@@ -133,7 +133,7 @@ test('多预设、条目顺序/启停/内容、复制、重命名、切换、恢
   let manager = new PromptPresetManager(file);
   try {
     let s = manager.view();
-    assert.equal(s.presets[0].entries.length, 5);
+    assert.equal(s.presets[0].entries.length, 7);
     const p = fresh();
     p.entries.reverse();
     s = manager.change('save', { expectedRevision: s.revision, preset: p, activate: true });
@@ -158,7 +158,7 @@ test('多预设、条目顺序/启停/内容、复制、重命名、切换、恢
     assert.equal(s.presets.find((x) => x.id === copy.id)!.entries.length, 1);
     assert.throws(() => manager.change('restore', { expectedRevision: s.revision, id: copy.id }));
     s = manager.change('restore', { expectedRevision: s.revision, id: copy.id, confirmed: true });
-    assert.equal(s.presets.find((x) => x.id === copy.id)!.entries.length, 5);
+    assert.equal(s.presets.find((x) => x.id === copy.id)!.entries.length, 7);
     assert.equal(s.presets.find((x) => x.id === copy.id)!.name, '备用模板');
     assert.throws(() => manager.change('delete', { expectedRevision: s.revision, id: copy.id }));
     s = manager.change('delete', { expectedRevision: s.revision, id: copy.id, confirmed: true });

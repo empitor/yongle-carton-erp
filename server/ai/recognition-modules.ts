@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import type { PromptPreset } from '../../shared/prompt-presets.js';
 import { promptModules, type PromptModuleId } from '../../shared/prompt-modules.js';
 import { PromptPresetManager } from './prompt-presets.js';
-import { defaultPromptPreset } from '../import/default-prompts.js';
+import { defaultPromptPreset, legacyDefaultPromptPreset } from '../import/default-prompts.js';
 import { supplierDefaultPreset } from '../flow/receipt-ai.js';
 import { assistantDefaultPreset } from '../assistant/manager.js';
 import { purchaseOrderDefaultPreset } from './default-prompts/purchase-order.js';
@@ -27,5 +27,10 @@ export function createPromptManagers(baseDirectory: string) {
       join(baseDirectory, module.storageFile),
       factories[module.id],
     );
+  // 订单默认规则升级：只替换从未改过的旧默认预设，保留用户自定义。
+  managers['sales-order'].upgradeUntouchedDefaults(
+    [legacyDefaultPromptPreset()],
+    'sales-order-units-customers-2026-10-29-v2',
+  );
   return managers;
 }

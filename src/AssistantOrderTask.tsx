@@ -1,3 +1,5 @@
+import { currentOrderCard } from '../shared/assistant-order-card';
+import type { AssistantBusinessTask } from '../shared/assistant-task';
 const labels: Record<string, string> = {
   uploaded: '已关联',
   recognizing: '正在识别',
@@ -7,8 +9,8 @@ const labels: Record<string, string> = {
   awaiting_confirmation: '待确认导入',
   imported: '已导入',
 };
-export default function AssistantOrderTask({ workflow }: { workflow: any }) {
-  const task = workflow?.tasks?.find((t: any) => t.id === workflow.activeId);
+export default function AssistantOrderTask({ workflow, businessTask }: { workflow: any; businessTask?: AssistantBusinessTask | null }) {
+  const task = currentOrderCard(workflow, businessTask);
   if (!task) return null;
   const plan = task.preview?.plan;
   return (

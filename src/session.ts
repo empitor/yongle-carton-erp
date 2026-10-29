@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { userError } from '../shared/user-errors';
 export type AuthState = {
   configured: boolean;
   developerAvailable?: boolean;
@@ -62,7 +63,7 @@ export async function managementRequest<T = any>(
   const data = await r.json();
   if (!r.ok) {
     authChanged();
-    throw new Error(data.message || '操作失败，请刷新后重试。');
+    throw new Error(userError(data.message || '操作失败，请刷新后重试。'));
   }
   return data;
 }

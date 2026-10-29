@@ -1,4 +1,5 @@
 import type { AssistantBusinessTask } from '../../shared/assistant-task.js';
+import { receiptEditMode } from '../../shared/receipt-edit-mode.js';
 const domains = (text: string) =>
   [
     ['orders', /客户订单|销售订单|订单导入|导入.*订单|订单.*导入|交期|客户采购/],
@@ -7,13 +8,21 @@ const domains = (text: string) =>
     ['production', /生产|领料|完工/],
     ['products', /产品|型号|尺寸单位/],
     ['customers', /客户/],
+    ['prompts', /提示词/],
   ]
     .filter(([, re]) => (re as RegExp).test(text))
     .map(([name]) => name as string);
 /** 只决定任务归属，不决定操作权限或业务授权。模型仍可通过taskControl补充语义判断。 */
 export function startsIndependentTask(text: string, current: AssistantBusinessTask | null) {
+  if (current && receiptEditMode(text) && /采购|到货|库存|更正/.test(current.goal)) return false;
+  if (
+    current?.memory?.promptEdit &&
+    /润色|修饰|先.*看|再.*看|^(?:好[的，,\s]*)?(?:保存|请保存|允许修改)/.test(text)
+  )
+    return false;
   if (!current || /^(?:继续|接着|接上|恢复|核验|确认|没问题|好的|按刚才|下一步)/.test(text.trim()))
     return false;
+  if (/提示词/.test(text) && !/提示词/.test(current.goal)) return true;
   if (
     /^(?:解释|说明|介绍|查询|查看|统计|汇总|列出|这个.*是什么)/.test(text.trim()) &&
     !/继续(?:处理|生产|执行|完成)/.test(text)

@@ -147,7 +147,7 @@
   max-width: 170px;
   width: 100%;
   height: 6px;
-  accent-color: var(--accent);
+  accent-color: var(--accent-ink);
 }
 .flow-actions {
   display: flex;
@@ -188,8 +188,9 @@
 }
 .flow-warning {
   padding: 12px 16px;
-  background: color-mix(in srgb, #d6a852 10%, transparent);
-  border-left: 3px solid #c49e52;
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-left: 3px solid var(--warning-border);
   border-radius: 5px;
   line-height: 1.8;
 }
@@ -245,14 +246,17 @@
   line-height: 1.8;
 }
 .flow-state-confirmed {
-  color: #52cba5;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
 }
 .flow-state-cancelled,
 .flow-state-reversed {
-  color: #c89778;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
 }
 .flow-state-draft {
-  color: #d6bc72;
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 .flow-page .secondary,
 .flow-page .primary,

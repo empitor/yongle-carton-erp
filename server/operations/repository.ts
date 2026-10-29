@@ -2,9 +2,12 @@ import type { Store } from '../db.js';
 import { quantityString, lineMoney, sumMoney, formatStockSize } from '../../shared/operations.js';
 import { matchesMovement, type MovementFilters } from '../../shared/movement-filters.js';
 import { purchaseLineAmount } from '../../shared/physical-flow.js';
+import { receiptEvents, effectiveReceiptUnits } from './fulfillment.js';
+import { fulfillmentSummary, arrivalLineStatus } from '../../shared/fulfillment.js';
 export class OperationsRepository {
   constructor(readonly store: Store) {}
   suppliers(include = false): any[] {
+    const purchases = this.purchases(true);
     return this.store.db
       .prepare(
         'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM suppliers ORDER BY id DESC',
@@ -14,14 +17,20 @@ export class OperationsRepository {
       .map((r) => ({
         ...r,
         archived: this.store.archived('suppliers', Number(r.id)),
-        purchaseHistory: this.store.db
-          .prepare(
-            "SELECT p.id,p.number,CASE WHEN p.status='已取消' THEN '已取消' WHEN NOT EXISTS(SELECT 1 FROM purchase_lines l WHERE l.purchase_id=p.id AND l.received_units<l.quantity_units) THEN '全部到货' WHEN EXISTS(SELECT 1 FROM purchase_lines l WHERE l.purchase_id=p.id AND l.received_units>0) THEN '部分到货' ELSE p.status END AS status,p.order_date AS orderDate FROM purchases p WHERE p.supplier_id=? ORDER BY p.id DESC",
-          )
-          .all(r.id),
+        purchaseHistory: purchases.filter((p) => p.supplierId === Number(r.id))
+          .map((p) => ({
+            id: p.id,
+            number: p.number,
+            orderDate: p.orderDate,
+            status: p.status,
+            businessStatus: p.businessStatus,
+            arrivalProgress: p.arrivalProgress,
+          })),
       }));
   }
   purchases(include = false): any[] {
+    const events = receiptEvents(this.store),
+      receivedUnits = effectiveReceiptUnits(events);
     return this.store.db
       .prepare(
         'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases ORDER BY id DESC',
@@ -39,9 +48,28 @@ export class OperationsRepository {
             id: Number(l.id),
             stockItemId: l.stockItemId,
             quantity: quantityString(Number(l.quantityUnits)),
-            receivedQuantity: quantityString(Number(l.receivedUnits)),
+            receivedQuantity: quantityString(receivedUnits.get(Number(l.id)) || 0),
+            remainingQuantity: quantityString(
+              Math.max(0, Number(l.quantityUnits) - (receivedUnits.get(Number(l.id)) || 0)),
+            ),
+            remainingUnits: Math.max(
+              0,
+              Number(l.quantityUnits) - (receivedUnits.get(Number(l.id)) || 0),
+            ),
+            arrivalStatus: arrivalLineStatus(
+              Number(l.quantityUnits),
+              receivedUnits.get(Number(l.id)) || 0,
+            ),
             quantityUnits: Number(l.quantityUnits),
-            receivedUnits: Number(l.receivedUnits),
+            receivedUnits: receivedUnits.get(Number(l.id)) || 0,
+            discrepancies: events.filter((e) => e.effective).flatMap((e) => (e.discrepancies || []).filter((d) => d.lineId === Number(l.id)).map((d) => ({ ...d, receiptId: e.id }))),
+            receivedAmount: sumMoney(
+              events
+                .filter((e) => e.effective)
+                .flatMap((e) =>
+                  e.lines.filter((line) => line.lineId === Number(l.id)).map((line) => line.amount),
+                ),
+            ),
             amount:
               JSON.parse(String(l.document)).priceBasis === 'area'
                 ? purchaseLineAmount({
@@ -53,35 +81,48 @@ export class OperationsRepository {
                     JSON.parse(String(l.document)).unitPrice,
                   ),
           }));
-        const received = lines.reduce((n, l) => n + l.receivedUnits, 0),
-          full = lines.every((l) => l.receivedUnits >= l.quantityUnits),
+        const summary = fulfillmentSummary(
+            lines.map((l) => l.arrivalStatus),
+            '已到齐',
+            '部分到货',
+            '未到货',
+          ),
+          arrivalProgress = summary.progress === '已到齐' ? '全部到货' : summary.progress,
           linked = r.customerOrderId
             ? this.store.db.prepare('SELECT number FROM orders WHERE id=?').get(r.customerOrderId)
             : null;
         return {
           ...r,
           lines,
+          businessStatus: r.baseStatus,
+          arrivalProgress,
+          discrepancies: lines.flatMap((l) => l.discrepancies),
+          reconciliationStatus: lines.some((l) => l.discrepancies.length) ? '待核对差异' : '一致',
+          arrivalSummary: { ...summary, progress: arrivalProgress },
           status:
             r.baseStatus === '已取消'
               ? '已取消'
-              : full
-                ? '全部到货'
-                : received
-                  ? '部分到货'
-                  : r.baseStatus,
+              : arrivalProgress === '未到货'
+                ? r.baseStatus
+                : arrivalProgress,
           customerOrderNumber: linked?.number || '',
           totalAmount: sumMoney(lines.map((l) => l.amount)),
+          receivedAmount: sumMoney(lines.map((l) => l.receivedAmount)),
           archived: this.store.archived('purchases', Number(r.id)),
-          receipts: this.store.db
-            .prepare(
-              'SELECT id,reference,date,document,actor_name AS actorName,created_at AS createdAt FROM purchase_receipts WHERE purchase_id=? ORDER BY created_at DESC',
+          receipts: events
+            .filter(
+              (e) =>
+                e.purchaseId === Number(r.id) || e.lines.some((l) => l.purchaseId === Number(r.id)),
             )
-            .all(r.id)
-            .map((s) => ({
-              ...s,
-              items: JSON.parse(String(s.document)).items,
-              reversed: !!JSON.parse(String(s.document)).reversed,
-              flowId: JSON.parse(String(s.document)).flowId,
+            .reverse()
+            .map(({ document, lines: receiptLines, ...e }) => ({
+              ...e,
+              sourceId: document.sourceId || null,
+              reason: document.correctionReason || document.reason || e.reversal?.reason || '',
+              reversed: e.status === 'reversed',
+              items: receiptLines.filter((l) => l.purchaseId === Number(r.id)),
+              correctionLines: receiptLines,
+              amount: sumMoney(receiptLines.map((l) => l.amount)),
             })),
         };
       });

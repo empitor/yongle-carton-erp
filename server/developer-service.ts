@@ -270,6 +270,13 @@ export class DeveloperService {
   private saveFlow(kind: FlowKind, input: any, actor: Actor, binding: string, id?: number) {
     if (!id) return this.flow.save(kind, input, actor);
     const old = this.flow.get(id);
+    // 兼容旧维护表单仅改数量：原来全部合格入库、且验收字段未另行修改时，保持原口径。
+    if (kind === 'arrival' && input.lines) input = { ...input, lines: input.lines.map((l: any, i: number) => {
+      const prior = old.lines[i];
+      return prior && l.quantity !== prior.quantity && prior.acceptedQuantity === prior.quantity && prior.rejectedQuantity === '0' && prior.stockedQuantity === prior.quantity &&
+        ['acceptedQuantity', 'rejectedQuantity', 'stockedQuantity'].every((k) => l[k] === undefined || l[k] === prior[k])
+        ? { ...l, acceptedQuantity: l.quantity, rejectedQuantity: '0', stockedQuantity: l.quantity } : l;
+    }) };
     if (isLocalAdministrator(actor)) return this.flow.maintenanceUpdate(id, input, actor);
     if (old.kind !== kind) throw new ImportError('单据类型不匹配。', 409);
     if (old.status === 'confirmed' && kind !== 'task') {

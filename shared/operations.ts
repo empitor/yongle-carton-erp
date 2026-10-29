@@ -11,6 +11,8 @@ export const recordEntities = [
 ] as const;
 export type RecordEntity = (typeof recordEntities)[number];
 export const purchaseStatuses = ['待订货', '已订货', '部分到货', '全部到货', '已取消'] as const;
+export const purchaseBusinessStatuses = ['待订货', '已订货', '已取消'] as const;
+export const arrivalProgresses = ['未到货', '部分到货', '全部到货'] as const;
 export const stockKinds = ['raw', 'finished'] as const;
 export const quantityText = z
   .string()
@@ -113,7 +115,7 @@ export const purchaseSchema = z
     customerOrderId: optionalId,
     orderDate: dateSchema,
     expectedDate: nullableDate,
-    status: z.enum(['待订货', '已订货', '已取消']),
+    status: z.enum(purchaseBusinessStatuses),
     notes: txt(1000),
     lines: z.array(purchaseLineSchema).min(1).max(50),
   })
@@ -126,12 +128,32 @@ export const receiptSchema = z.strictObject({
   requestId: z.string().uuid(),
   reference: z.string().trim().min(1, '请填写送货单号或到货批次号').max(100),
   date: dateSchema,
+  actualTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
   notes: txt(1000),
   items: z
-    .array(z.strictObject({ lineId: z.number().int().positive(), quantity: positiveQuantity }))
+    .array(z.strictObject({ lineId: z.number().int().positive(), quantity: positiveQuantity,
+      acceptedQuantity: quantityText.optional(), rejectedQuantity: quantityText.optional(), stockedQuantity: quantityText.optional() }))
     .min(1)
     .max(50),
   acknowledged: z.literal(true),
+});
+export const receiptCorrectionPreviewSchema = z.strictObject({
+  mode: z.enum(['business', 'data-edit']).default('business'),
+  expectedVersion: z.number().int().positive(),
+  expectedPurchaseVersion: z.number().int().positive(),
+  reason: z.string().trim().min(1, '请填写更正原因').max(1000),
+  items: z.array(z.strictObject({
+    index: z.number().int().min(0),
+    lineId: z.number().int().positive().nullable(),
+    quantity: quantityText,
+    acceptedQuantity: quantityText.optional(),
+    rejectedQuantity: quantityText.optional(),
+    stockedQuantity: quantityText.optional(),
+  })).min(1).max(100),
+});
+export const receiptCorrectionSchema = receiptCorrectionPreviewSchema.extend({
+  requestId: z.string().uuid(),
+  previewDigest: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export const movementSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
