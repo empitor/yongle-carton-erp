@@ -357,7 +357,6 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -380,33 +379,6 @@
 .ai-delete-dialog .danger {
   color: var(--danger);
   border-color: var(--danger-border);
-}
-.ai-page-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.ai-import-button {
-  font-size: 12px;
-  padding: 10px 15px;
-  color: var(--text-secondary);
-  border-color: var(--border);
-}
-.ai-import-button small {
-  font-size: 9px;
-  background: var(--surface-muted);
-  color: var(--muted);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-.ai-import-description {
-  padding: 25px;
-  line-height: 1.95;
-  color: var(--muted);
-  font-size: 12px;
-}
-.ai-import-description p + p {
-  margin-top: 15px;
 }
 .ai-spin {
   animation: ai-spin 1s linear infinite;

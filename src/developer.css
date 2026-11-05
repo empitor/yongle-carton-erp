@@ -117,15 +117,6 @@
   align-items: end;
   margin-top: 15px;
 }
-.dev-mode-badge {
-  color: var(--warning);
-}
-.dev-status-banner {
-  border: 1px solid var(--warning-border);
-  color: var(--warning);
-  padding: 10px;
-  border-radius: 8px;
-}
 @media (max-width: 760px) {
   .dev-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));

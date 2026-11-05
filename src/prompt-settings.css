@@ -49,7 +49,6 @@
 .prompt-editor {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
   min-width: 0;
 }
 .prompt-list {

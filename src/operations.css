@@ -101,11 +101,6 @@
   flex: 0 0 16px;
   margin-top: 4px;
 }
-.record-extra-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .op-quantity {
   font-size: 16px;
   font-weight: 600;
@@ -121,23 +116,6 @@
   font-size: 24px;
   margin: 0 7px;
   color: var(--teal);
-}
-.op-line-summary + .op-line-summary {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-.op-receipt-lines {
-  min-width: 600px;
-  white-space: normal;
-}
-.op-receipt-lines td {
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-.op-receipt-lines input {
-  min-width: 90px;
-  max-width: 160px;
 }
 .op-detail-table {
   min-width: 760px;
@@ -163,7 +141,4 @@
   .op-line-card {
     padding: 12px;
   }
-}
-@media (prefers-reduced-motion: reduce) {
-
 }

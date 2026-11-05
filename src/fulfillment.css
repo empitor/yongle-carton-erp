@@ -80,21 +80,11 @@
 .business-records[data-entity='purchases'] > .unified-table-region > table {
   min-width: 1150px;
 }
-.order-full-lines .table-wrap {
-  max-width: min(1100px, 75vw);
-}
 .record-expand {
   display: block;
   margin-top: 8px;
   font-size: 12px;
   color: var(--accent-ink);
-}
-.business-records .fulfillment-expanded > td {
-  padding: 12px 18px;
-  background: var(--surface-muted);
-}
-.business-records .fulfillment-expanded .table-wrap {
-  width: 100%;
 }
 .business-records[data-entity='purchases']
   > .unified-table-region
@@ -123,9 +113,6 @@
   white-space: nowrap;
 }
 @media (max-width: 700px) {
-  .order-full-lines .table-wrap {
-    max-width: 75vw;
-  }
   .receipt-correction .management-dialog-actions {
     flex-wrap: wrap;
   }
@@ -180,9 +167,6 @@
 .data-edit-history summary {
   cursor: pointer;
   color: var(--accent-ink);
-}
-.fulfillment-expanded table {
-  background: var(--surface);
 }
 .receipt-correction p {
   overflow-wrap: anywhere;
