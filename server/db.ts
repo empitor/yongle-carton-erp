@@ -18,11 +18,14 @@ import { migrateAssistant } from './assistant/schema.js';
 import { flowReference, shippedUnits } from './flow/service.js';
 import { syncReceivedUnits } from './operations/fulfillment.js';
 import { fulfillmentSummary, shippingLineStatus } from '../shared/fulfillment.js';
+import { quantityUnits } from '../shared/operations.js';
 
 export const defaultDbPath = resolve(process.env.DB_PATH || 'data/erp.sqlite');
 export class Store {
   db: DatabaseSync;
+  readonly path: string;
   constructor(path = defaultDbPath) {
+    this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
@@ -67,6 +70,42 @@ export class Store {
         this.db.exec('ROLLBACK TO fulfillment_migration; RELEASE fulfillment_migration');
         throw e;
       }
+    }
+    this.migrateReadIndexes();
+  }
+  /** 13：读取索引、补齐送货明细关联、流水修订台账；只新增，不改写业务记录。 */
+  private migrateReadIndexes() {
+    if (this.db.prepare('SELECT 1 FROM schema_migrations WHERE version=13').get()) return;
+    this.db.exec('SAVEPOINT read_indexes');
+    try {
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS flow_refs_order_line ON flow_refs(order_line_id);
+        CREATE INDEX IF NOT EXISTS flow_refs_task ON flow_refs(task_id);
+        CREATE INDEX IF NOT EXISTS flow_documents_kind ON flow_documents(kind,status);
+        CREATE INDEX IF NOT EXISTS stock_movements_source ON stock_movements(source_kind,source_id);
+        CREATE INDEX IF NOT EXISTS business_audit_action ON business_audit(action);
+        CREATE INDEX IF NOT EXISTS purchase_receipts_purchase ON purchase_receipts(purchase_id);
+        CREATE TABLE IF NOT EXISTS stock_movement_revisions(id INTEGER PRIMARY KEY,movement_id TEXT NOT NULL,item_id INTEGER NOT NULL,at TEXT NOT NULL,actor_id TEXT NOT NULL,actor_name TEXT NOT NULL,reason TEXT NOT NULL,before_document TEXT NOT NULL,after_document TEXT);
+        CREATE INDEX IF NOT EXISTS stock_movement_revisions_movement ON stock_movement_revisions(movement_id);
+        CREATE INDEX IF NOT EXISTS stock_movement_revisions_item ON stock_movement_revisions(item_id);`);
+      const known = this.db.prepare('SELECT 1 FROM flow_refs WHERE document_id=? AND order_line_id=?'),
+        exists = this.db.prepare('SELECT 1 FROM order_lines WHERE id=? AND order_id=?'),
+        add = this.db.prepare(
+          'INSERT INTO flow_refs(document_id,order_id,order_line_id,stock_id) VALUES(?,?,?,?)',
+        ),
+        stock = this.db.prepare('SELECT 1 FROM stock_items WHERE id=?');
+      for (const row of this.db
+        .prepare("SELECT id,document FROM flow_documents WHERE kind='delivery'")
+        .all())
+        for (const line of JSON.parse(String(row.document)).lines || [])
+          if (!known.get(row.id, line.orderLineId) && exists.get(line.orderLineId, line.orderId))
+            add.run(row.id, line.orderId, line.orderLineId, stock.get(line.stockId) ? line.stockId : null);
+      this.db.exec(
+        "INSERT INTO schema_migrations VALUES(13,datetime('now')); RELEASE read_indexes",
+      );
+    } catch (e) {
+      this.db.exec('ROLLBACK TO read_indexes; RELEASE read_indexes');
+      throw e;
     }
   }
   private migratePermanentDeletion() {
@@ -212,33 +251,61 @@ export class Store {
   stock_items(include = false) {
     return new OperationsRepository(this).items(include);
   }
+  /** 一次取回某类记录的归档编号，避免列表逐行查询。 */
+  archivedIds(entity: string) {
+    return new Set(
+      this.db
+        .prepare('SELECT record_id FROM record_lifecycle WHERE entity=?')
+        .all(entity)
+        .map((r) => Number(r.record_id)),
+    );
+  }
+  private extensionMap(sql: string, ...params: number[]) {
+    const map = new Map<number, any>();
+    for (const row of this.db.prepare(sql).all(...params))
+      map.set(Number(row.id), JSON.parse(String(row.document)));
+    return map;
+  }
   customers(includeArchived = false): Customer[] {
+    const archived = includeArchived ? null : this.archivedIds('customers');
     return this.db
       .prepare(
         'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM customers ORDER BY id DESC',
       )
       .all()
-      .filter(
-        (r) => includeArchived || !this.archived('customers', Number(r.id)),
-      ) as unknown as Customer[];
+      .filter((r) => !archived?.has(Number(r.id))) as unknown as Customer[];
   }
   products(includeArchived = false): Product[] {
+    const archived = includeArchived ? null : this.archivedIds('products'),
+      extensions = this.extensionMap(
+        'SELECT product_id AS id,document FROM product_extensions',
+      );
     return this.db
       .prepare(
         'SELECT id,name,length,width,height,dimension_unit AS dimensionUnit,material,flute,requirements,price_cents AS priceCents,version,created_at AS createdAt FROM products ORDER BY id DESC',
       )
       .all()
-      .filter((r) => includeArchived || !this.archived('products', Number(r.id)))
-      .map((p: any) => ({
-        ...p,
-        ...this.extension('product_extensions', 'product_id', p.id),
-      })) as Product[];
+      .filter((r) => !archived?.has(Number(r.id)))
+      .map((p: any) => ({ ...p, ...extensions.get(p.id) })) as Product[];
   }
   customer(id: number, includeArchived = false) {
-    return this.customers(includeArchived).find((x) => x.id === id);
+    if (!includeArchived && this.archived('customers', id)) return undefined;
+    return this.db
+      .prepare(
+        'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM customers WHERE id=?',
+      )
+      .get(id) as unknown as Customer | undefined;
   }
   product(id: number, includeArchived = false) {
-    return this.products(includeArchived).find((x) => x.id === id);
+    if (!includeArchived && this.archived('products', id)) return undefined;
+    const row = this.db
+      .prepare(
+        'SELECT id,name,length,width,height,dimension_unit AS dimensionUnit,material,flute,requirements,price_cents AS priceCents,version,created_at AS createdAt FROM products WHERE id=?',
+      )
+      .get(id);
+    return row
+      ? ({ ...row, ...this.extension('product_extensions', 'product_id', id) } as unknown as Product)
+      : undefined;
   }
   saveCustomer(v: CustomerInput, id?: number, version?: number, includeArchived = false) {
     if (id) {
@@ -347,64 +414,117 @@ export class Store {
       });
     return this.product(id, includeArchived)!;
   }
-  orders(includeArchived = false): Order[] {
+  /** 批量组装订单视图：送货、扩展资料与导入回执各读取一次，查询量不随订单数增长。 */
+  private orderViews(id: number | undefined, includeArchived: boolean): Order[] {
+    const one = id !== undefined,
+      params = one ? [id] : [];
+    if (one && !includeArchived && this.archived('orders', id)) return [];
+    const archived = one || includeArchived ? null : this.archivedIds('orders');
     const rows = this.db
       .prepare(
-        'SELECT id,number,customer_id AS customerId,customer_name AS customerName,order_date AS orderDate,delivery_date AS deliveryDate,status,notes,costs_json,total_cents AS totalCents,version,created_at AS createdAt,updated_at AS updatedAt FROM orders ORDER BY order_date DESC,id DESC',
+        'SELECT id,number,customer_id AS customerId,customer_name AS customerName,order_date AS orderDate,delivery_date AS deliveryDate,status,notes,costs_json,total_cents AS totalCents,version,created_at AS createdAt,updated_at AS updatedAt FROM orders' +
+          (one ? ' WHERE id=?' : '') +
+          ' ORDER BY order_date DESC,id DESC',
       )
-      .all();
-    const lines = this.db
+      .all(...params)
+      .filter((r) => !archived?.has(Number(r.id)));
+    if (!rows.length) return [];
+    const linesByOrder = new Map<number, any[]>();
+    for (const l of this.db
       .prepare(
-        'SELECT id,order_id AS orderId,product_id AS productId,product_name AS productName,specification,quantity,unit_price_cents AS unitPriceCents FROM order_lines ORDER BY id',
+        'SELECT id,order_id AS orderId,product_id AS productId,product_name AS productName,specification,quantity,unit_price_cents AS unitPriceCents FROM order_lines' +
+          (one ? ' WHERE order_id=?' : '') +
+          ' ORDER BY id',
       )
-      .all();
-    return rows
-      .filter((r) => includeArchived || !this.archived('orders', Number(r.id)))
-      .map((r) => {
-        const { costs_json, ...rest } = r;
-        const costs = costs_json === null ? null : JSON.parse(String(costs_json));
-        const legacyDelivery =
-          r.status === '已发货' &&
-          !this.db
-            .prepare(
-              "SELECT 1 FROM flow_documents d,json_each(d.document,'$.lines') l WHERE json_extract(l.value,'$.orderId')=? AND d.kind='delivery' AND d.status IN ('confirmed','reversed') LIMIT 1",
-            )
-            .get(r.id);
-        const execution = this.db
-            .prepare('SELECT document FROM import_executions WHERE order_id=?')
-            .get(Number(r.id)),
-          receipt = execution ? JSON.parse(String(execution.document)) : null;
-        const orderLines = lines.filter((l) => l.orderId === r.id).map(({ orderId, ...l }) => {
-          const shippedQuantity = legacyDelivery ? null : quantityForDelivery(this, Number(l.id));
-          return { ...l, ...this.extension('order_line_extensions', 'line_id', Number(l.id)),
-            shippedQuantity, remainingQuantity: shippedQuantity === null ? null : Math.max(0, Number(l.quantity) - shippedQuantity),
-            shippingStatus: shippingLineStatus(Number(l.quantity), shippedQuantity) };
-        });
-        const shippingSummary = fulfillmentSummary(orderLines.map((l) => l.shippingStatus), '已发完', '部分发货', '未发货', '历史数量待核对');
+      .all(...params)) {
+      const group = linesByOrder.get(Number(l.orderId));
+      if (group) group.push(l);
+      else linesByOrder.set(Number(l.orderId), [l]);
+    }
+    const lineExtensions = this.extensionMap(
+        'SELECT line_id AS id,document FROM order_line_extensions' +
+          (one ? ' WHERE line_id IN (SELECT id FROM order_lines WHERE order_id=?)' : ''),
+        ...params,
+      ),
+      orderExtensions = this.extensionMap(
+        'SELECT order_id AS id,document FROM order_extensions' + (one ? ' WHERE order_id=?' : ''),
+        ...params,
+      ),
+      receipts = this.extensionMap(
+        'SELECT order_id AS id,document FROM import_executions WHERE order_id IS NOT NULL' +
+          (one ? ' AND order_id=?' : ''),
+        ...params,
+      ),
+      deliveries = deliveryIndex(this, id),
+      material = new Map<number, 'pending' | 'partial' | 'done'>();
+    for (const row of this.db
+      .prepare(
+        "SELECT p.customer_order_id AS id,SUM(l.quantity_units) AS ordered,SUM(l.received_units) AS received FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.customer_order_id IS NOT NULL AND p.status!='已取消'" +
+          (one ? ' AND p.customer_order_id=?' : '') +
+          ' GROUP BY p.customer_order_id',
+      )
+      .all(...params))
+      material.set(
+        Number(row.id),
+        Number(row.received) >= Number(row.ordered)
+          ? 'done'
+          : Number(row.received) > 0
+            ? 'partial'
+            : 'pending',
+      );
+    return rows.map((r) => {
+      const { costs_json, ...rest } = r;
+      const costs = costs_json === null ? null : JSON.parse(String(costs_json));
+      const legacyDelivery = r.status === '已发货' && !deliveries.orders.has(Number(r.id));
+      const receipt = receipts.get(Number(r.id));
+      const orderLines = (linesByOrder.get(Number(r.id)) || []).map(({ orderId, ...l }) => {
+        const shippedQuantity = legacyDelivery
+          ? null
+          : (deliveries.shipped.get(Number(l.id)) || 0) / 1000;
         return {
-          ...rest,
-          ...(receipt
-            ? {
-                importSource: {
-                  fileName: receipt.fileName,
-                  at: receipt.at,
-                  actorName: receipt.actor.name,
-                  sourceId: receipt.sourceId,
-                },
-              }
-            : {}),
-          ...this.extension('order_extensions', 'order_id', Number(r.id)),
-          costs,
-          deliveryQuantitiesKnown: !legacyDelivery,
-          shippingProgress: shippingSummary.progress,
-          shippingSummary,
-          costCents: totalCost(costs),
-          lines: orderLines,
-        } as Order;
+          ...l,
+          ...lineExtensions.get(Number(l.id)),
+          shippedQuantity,
+          remainingQuantity:
+            shippedQuantity === null ? null : Math.max(0, Number(l.quantity) - shippedQuantity),
+          shippingStatus: shippingLineStatus(Number(l.quantity), shippedQuantity),
+        };
       });
+      const shippingSummary = fulfillmentSummary(
+        orderLines.map((l) => l.shippingStatus),
+        '已发完',
+        '部分发货',
+        '未发货',
+        '历史数量待核对',
+      );
+      return {
+        ...rest,
+        ...(receipt
+          ? {
+              importSource: {
+                fileName: receipt.fileName,
+                at: receipt.at,
+                actorName: receipt.actor.name,
+                sourceId: receipt.sourceId,
+              },
+            }
+          : {}),
+        ...orderExtensions.get(Number(r.id)),
+        costs,
+        deliveryQuantitiesKnown: !legacyDelivery,
+        shippingProgress: shippingSummary.progress,
+        shippingSummary,
+        materialProgress: material.get(Number(r.id)) || 'none',
+        costCents: totalCost(costs),
+        lines: orderLines,
+      } as unknown as Order;
+    });
   }
-  order(id: number, includeArchived = false) {
-    return this.orders(includeArchived).find((x) => x.id === id);
+  orders(includeArchived = false): Order[] {
+    return this.orderViews(undefined, includeArchived);
+  }
+  order(id: number, includeArchived = false): Order | undefined {
+    return this.orderViews(id, includeArchived)[0];
   }
   saveOrder(
     v: OrderInput,
@@ -669,8 +789,30 @@ export class Store {
   }
 }
 export class InputError extends Error {}
-function quantityForDelivery(store: Store, lineId: number) {
-  return shippedUnits(store, lineId) / 1000;
+/** 汇总有效送货量及曾有正式送货的订单；指定订单时经flow_refs索引只读取相关送货单。 */
+function deliveryIndex(store: Store, orderId?: number) {
+  const shipped = new Map<number, number>(),
+    orders = new Set<number>();
+  for (const row of store.db
+    .prepare(
+      "SELECT status,document FROM flow_documents WHERE kind='delivery' AND status IN ('confirmed','reversed')" +
+        (orderId === undefined
+          ? ''
+          : ' AND id IN (SELECT document_id FROM flow_refs WHERE order_id=?)'),
+    )
+    .all(...(orderId === undefined ? [] : [orderId]))) {
+    const doc = JSON.parse(String(row.document)),
+      effective = row.status === 'confirmed' && !doc.reversal && !doc.replacedBy;
+    for (const line of doc.lines) {
+      orders.add(Number(line.orderId));
+      if (effective)
+        shipped.set(
+          Number(line.orderLineId),
+          (shipped.get(Number(line.orderLineId)) || 0) + quantityUnits(line.quantity),
+        );
+    }
+  }
+  return { shipped, orders };
 }
 export class ConflictError extends Error {
   constructor() {

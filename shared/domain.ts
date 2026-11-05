@@ -4,6 +4,8 @@ import { dimensionValueSchema, formatDimensions } from './product-details.js';
 import { canonicalCurrency } from './currency.js';
 
 export const statuses = ['草稿', '已确认', '生产中', '待发货', '已发货', '已取消'] as const;
+/** 由生产任务和送货单推进，普通录入只选择草稿、已确认或已取消。 */
+export const derivedOrderStatuses: readonly string[] = ['生产中', '待发货', '已发货'];
 const text = (max = 200) => z.string().trim().max(max);
 // 可选说明的null表示原件未提供；数字、对象等错误类型仍拒绝。
 const blankText = (max: number) => z.preprocess((v) => (v === null ? '' : v), text(max));
@@ -168,6 +170,7 @@ export type Order = Omit<OrderInput, 'lines'> & {
   deliveryQuantitiesKnown?: boolean;
   shippingProgress?: import('./fulfillment.js').ShippingProgress;
   shippingSummary?: { progress: string; completedLines: number; totalLines: number; unknownLines: number };
+  materialProgress?: 'none' | 'pending' | 'partial' | 'done';
   lines: (z.infer<typeof lineSchema> & {
     productName: string;
     shippedQuantity?: number | null;

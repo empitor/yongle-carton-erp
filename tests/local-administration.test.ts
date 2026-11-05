@@ -156,7 +156,7 @@ test('真实本机最高管理员登录即获完整能力；超15分钟仍有效
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   try {
-    assert.equal((await req('/management/records?module=orders')).status, 403);
+    assert.equal((await req('/management/records?module=orders')).status, 401);
     const setup = await req('/auth/setup', { name: '虚构最高管理员', password });
     cookie = setup.headers.get('set-cookie')!.split(';')[0];
     const state = await (await req('/auth/state')).json();
@@ -214,7 +214,7 @@ test('真实本机最高管理员登录即获完整能力；超15分钟仍有效
     );
     const db = new DatabaseSync(file),
       salt = 'fictional-local-admin-salt';
-    db.prepare('INSERT INTO users VALUES(?,?,?,?,?,?)').run(
+    db.prepare('INSERT INTO users(id,name,salt,password_hash,permissions,role) VALUES(?,?,?,?,?,?)').run(
       randomUUID(),
       '虚构普通账号',
       salt,
@@ -232,7 +232,7 @@ test('真实本机最高管理员登录即获完整能力；超15分钟仍有效
       403,
     );
     await req('/auth/logout', {});
-    assert.equal((await req('/management/records?module=orders')).status, 403);
+    assert.equal((await req('/management/records?module=orders')).status, 401);
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
     auth.close();

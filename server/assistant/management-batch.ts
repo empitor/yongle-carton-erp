@@ -11,6 +11,7 @@ import type { TaskMemory } from '../../shared/assistant-task.js';
 import { confirmedValue } from './task-memory.js';
 import { today } from '../../shared/domain.js';
 import { DatabaseMaintenanceService } from '../business/database-maintenance.js';
+import { snapshotBeforeDestructive } from '../backup.js';
 import { audit } from '../business/management.js';
 import { quantityUnits } from '../../shared/operations.js';
 const uuid = (root: string, suffix: string) => {
@@ -76,6 +77,9 @@ export class AssistantManagementBatch {
     }
     const outputs: Record<string, any> = {},
       results: any[] = [];
+    // 批次在事务内执行，恢复快照必须在进入事务之前生成。
+    if (commands.some((c: any) => c.action === 'delete'))
+      snapshotBeforeDestructive(this.store, 'batch-delete');
     this.store.db.exec('SAVEPOINT assistant_management_batch');
     try {
       for (const [index, source] of commands.entries()) {

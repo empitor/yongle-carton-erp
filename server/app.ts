@@ -184,6 +184,15 @@ export function createApp(
       database: 'SQLite',
     }),
   );
+  // 启用账号体系后，除健康检查与登录接口外的全部API都要求有效会话；写入权限仍由各业务服务校验。
+  if (options.auth)
+    app.use('/api', (req, res, next) => {
+      if (req.path === '/health' || req.path === '/auth' || req.path.startsWith('/auth/'))
+        return next();
+      if (!options.auth!.actor(req))
+        return res.status(401).json({ message: '请先登录账号。', code: 'authentication' });
+      next();
+    });
   app.get('/api/business/metadata', (_req, res) =>
     res.json(
       getBusinessMetadata({

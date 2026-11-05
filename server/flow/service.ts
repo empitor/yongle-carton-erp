@@ -21,6 +21,7 @@ import {
 } from '../developer-capability.js';
 import { DatabaseMaintenanceService } from '../business/database-maintenance.js';
 import { receiptEvents, syncReceivedUnits } from '../operations/fulfillment.js';
+import { recordMovementRevision } from '../operations/repository.js';
 import { arrivalPlanInputSchema, arrivalReceiveInputSchema, arrivalQuerySchema, arrivalQuantities } from '../../shared/arrival.js';
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 function fail(message: string, status = 422): never {
@@ -48,11 +49,14 @@ export function flowReference(store: Store, entity: string, id: number) {
     !!store.db.prepare('SELECT 1 FROM flow_refs WHERE ' + column[entity] + '=? LIMIT 1').get(id)
   );
 }
-export function shippedUnits(store: Store, lineId: number, excluding?: number) {
+export function shippedUnits(store: Store, lineId: number | undefined, excluding?: number) {
   let n = 0;
+  if (lineId === undefined) return n; // 尚未保存的新明细没有送货记录。
   for (const row of store.db
-    .prepare("SELECT id,document FROM flow_documents WHERE kind='delivery' AND status='confirmed'")
-    .all())
+    .prepare(
+      "SELECT id,document FROM flow_documents WHERE kind='delivery' AND status='confirmed' AND id IN (SELECT document_id FROM flow_refs WHERE order_line_id=?)",
+    )
+    .all(lineId))
     if (Number(row.id) !== excluding) {
       const doc = JSON.parse(String(row.document));
       if (!doc.reversal && !doc.replacedBy)
@@ -76,58 +80,83 @@ export class FlowService {
       throw e;
     }
   }
-  list(kind?: FlowKind, includeArchived = false): any[] {
-    return this.store.db
-      .prepare('SELECT * FROM flow_documents ORDER BY date DESC,id DESC')
-      .all()
-      .filter(
-        (r) =>
-          (!kind || r.kind === kind) &&
-          (includeArchived || !this.store.archived('flow_' + r.kind, Number(r.id))),
-      )
-      .map((r) => {
-        const doc = JSON.parse(String(r.document));
-        const actualProduction = r.kind === 'task' ? this.list('production', true).filter((p) => p.status === 'confirmed' && p.taskId === r.id) : [];
-        const completed =
-          r.kind === 'task'
-            ? actualProduction.reduce((n, p) => n + quantityUnits(p.goodQuantity), 0)
-            : null;
-        return {
-          ...doc,
-          id: Number(r.id),
-          kind: r.kind,
-          number: r.number,
-          date: r.date,
-          status: r.status,
-          version: r.version,
-          actorName: r.actor_name,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-          ...(r.kind === 'arrival' ? { arrivalPlanState: r.status === 'cancelled' ? '已取消' : r.status === 'reversed' ? '已冲销' : r.status === 'confirmed' ? '已到货' : doc.isPlan ? '待到货' : '待验收入库' } : {}),
-          ...(['task', 'delivery'].includes(String(r.kind)) ? {
-            plannedDate: doc.plannedDate || String(r.date),
-            plannedDateSource: doc.plannedDate ? 'explicit' : 'legacy-date',
-            actualDate: r.kind === 'delivery' && r.status === 'confirmed' ? String(r.date) : null,
-          } : {}),
-          archived: this.store.archived('flow_' + r.kind, Number(r.id)),
-          ...(r.kind === 'task' ? {
-            actualStartDate: actualProduction.map((p) => p.date).sort()[0] || null,
-            actualCompletionDate: completed! >= quantityUnits(doc.quantity) ? actualProduction.map((p) => p.date).sort().at(-1) || null : null,
-          } : {}),
-          ...(completed == null
-            ? {}
-            : {
-                completed: quantityString(completed),
-                progress: Math.min(
-                  100,
-                  Math.floor((completed / quantityUnits(doc.quantity)) * 100),
-                ),
-              }),
-        };
-      });
+  private view(r: Record<string, any>, production: { date: string; good: number }[], archived: boolean) {
+    const doc = JSON.parse(String(r.document));
+    const completed = r.kind === 'task' ? production.reduce((n, p) => n + p.good, 0) : null;
+    return {
+      ...doc,
+      id: Number(r.id),
+      kind: r.kind,
+      number: r.number,
+      date: r.date,
+      status: r.status,
+      version: r.version,
+      actorName: r.actor_name,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      ...(r.kind === 'arrival' ? { arrivalPlanState: r.status === 'cancelled' ? '已取消' : r.status === 'reversed' ? '已冲销' : r.status === 'confirmed' ? '已到货' : doc.isPlan ? '待到货' : '待验收入库' } : {}),
+      ...(['task', 'delivery'].includes(String(r.kind)) ? {
+        plannedDate: doc.plannedDate || String(r.date),
+        plannedDateSource: doc.plannedDate ? 'explicit' : 'legacy-date',
+        actualDate: r.kind === 'delivery' && r.status === 'confirmed' ? String(r.date) : null,
+      } : {}),
+      archived,
+      ...(r.kind === 'task' ? {
+        actualStartDate: production.map((p) => p.date).sort()[0] || null,
+        actualCompletionDate: completed! >= quantityUnits(doc.quantity) ? production.map((p) => p.date).sort().at(-1) || null : null,
+      } : {}),
+      ...(completed == null
+        ? {}
+        : {
+            completed: quantityString(completed),
+            progress: Math.min(100, Math.floor((completed / quantityUnits(doc.quantity)) * 100)),
+          }),
+    };
   }
-  get(id: number) {
-    return this.list(undefined, true).find((r) => r.id === id) || fail('业务单据不存在。', 404);
+  /** 已确认完工按任务汇总；指定任务时走flow_refs索引。 */
+  private confirmedProduction(taskId?: number) {
+    const groups = new Map<number, { date: string; good: number }[]>();
+    for (const row of this.store.db
+      .prepare(
+        "SELECT date,document FROM flow_documents WHERE kind='production' AND status='confirmed'" +
+          (taskId === undefined ? '' : ' AND id IN (SELECT document_id FROM flow_refs WHERE task_id=?)'),
+      )
+      .all(...(taskId === undefined ? [] : [taskId]))) {
+      const doc = JSON.parse(String(row.document));
+      if (doc.taskId == null) continue;
+      const group = groups.get(doc.taskId) || [];
+      group.push({ date: String(row.date), good: quantityUnits(doc.goodQuantity) });
+      groups.set(doc.taskId, group);
+    }
+    return groups;
+  }
+  list(kind?: FlowKind, includeArchived = false): any[] {
+    const rows = this.store.db
+      .prepare(
+        'SELECT * FROM flow_documents' + (kind ? ' WHERE kind=?' : '') + ' ORDER BY date DESC,id DESC',
+      )
+      .all(...(kind ? [kind] : []));
+    const archived = new Set(
+      this.store.db
+        .prepare("SELECT entity,record_id FROM record_lifecycle WHERE entity LIKE 'flow\\_%' ESCAPE '\\'")
+        .all()
+        .map((r) => r.entity + ':' + r.record_id),
+    );
+    const production =
+      !kind || kind === 'task' ? this.confirmedProduction() : new Map<number, { date: string; good: number }[]>();
+    return rows
+      .map((r) => ({ r, isArchived: archived.has('flow_' + r.kind + ':' + r.id) }))
+      .filter(({ isArchived }) => includeArchived || !isArchived)
+      .map(({ r, isArchived }) => this.view(r, production.get(Number(r.id)) || [], isArchived));
+  }
+  get(id: number): any {
+    const row = this.store.db.prepare('SELECT * FROM flow_documents WHERE id=?').get(id);
+    if (!row) fail('业务单据不存在。', 404);
+    return this.view(
+      row!,
+      row!.kind === 'task' ? this.confirmedProduction(id).get(id) || [] : [],
+      this.store.archived('flow_' + row!.kind, id),
+    );
   }
   private refs(id: number, doc: any, kind: FlowKind) {
     const add = (r: Record<string, number | null>) => {
@@ -388,8 +417,8 @@ export class FlowService {
       )
         fail('更正须由已验证超级管理员操作，且原单必须已冲销。', 403);
     }
-    const items = this.ops.repo.items(true),
-      purchases = this.ops.repo.purchases(true),
+    const items = kind === 'task' ? [] : this.ops.repo.items(true),
+      purchases = kind === 'arrival' ? this.ops.repo.purchases(true) : [],
       changes: any[] = [],
       warnings: string[] = [],
       lines: any[] = [];
@@ -412,7 +441,7 @@ export class FlowService {
     };
     if (kind === 'arrival') {
       if (confirm && v.isPlan) fail('到货计划不代表实收；请先登记实际到货数量、日期和验收结果，不能直接将计划入库。', 409);
-      if (!this.ops.repo.suppliers(maintenance).some((s) => s.id === v.supplierId))
+      if (this.ops.repo.supplierName(v.supplierId, maintenance) === undefined)
         fail('供应商不存在或已停用。');
       if (v.sourceId) {
         const source = this.store.db
@@ -503,7 +532,7 @@ export class FlowService {
           amount,
           purchaseId: purchase?.id || null,
           purchaseNumber: purchase?.number || '',
-          supplierName: this.ops.repo.suppliers().find((s) => s.id === v.supplierId)?.name,
+          supplierName: this.ops.repo.supplierName(v.supplierId, false),
         });
       }
     }
@@ -735,23 +764,33 @@ export class FlowService {
   private updateOrders(ids: number[]) {
     for (const id of new Set(ids)) {
       const order = this.store.order(id, true);
-      if (!order) continue;
-      const full = order.lines.every((l) => shippedUnits(this.store, l.id!) >= l.quantity * 1000),
+      // 取消和草稿是人工决定，不被后续单据的重算覆盖。
+      if (!order || order.status === '已取消' || order.status === '草稿') continue;
+      const open = order.lines.filter((l) => shippedUnits(this.store, l.id!) < l.quantity * 1000),
         any = order.lines.some((l) => shippedUnits(this.store, l.id!) > 0);
       const tasks = this.store.db
-          .prepare(
-            "SELECT DISTINCT d.id FROM flow_documents d JOIN flow_refs r ON r.document_id=d.id WHERE r.order_id=? AND d.kind='task' AND d.status='confirmed'",
-          )
-          .all(id)
-          .map((r) => this.get(Number(r.id))),
-        pendingStatus = tasks.length
-          ? tasks.every((t) => t.progress >= 100)
+        .prepare(
+          "SELECT DISTINCT d.id FROM flow_documents d JOIN flow_refs r ON r.document_id=d.id WHERE r.order_id=? AND d.kind='task' AND d.status='confirmed'",
+        )
+        .all(id)
+        .map((r) => this.get(Number(r.id)));
+      // 未发完的每一行都要有任务且其任务全部完工，才算生产完毕；只做完部分产品不能算待发货。
+      const produced = open.every((l) => {
+        const own = tasks.filter((t) => t.productId === l.productId);
+        return own.length > 0 && own.every((t) => t.progress >= 100);
+      });
+      const status = !open.length
+        ? '已发货'
+        : tasks.length
+          ? produced
             ? '待发货'
             : '生产中'
-          : '已确认';
+          : any
+            ? '待发货'
+            : '已确认';
       this.store.db
         .prepare('UPDATE orders SET status=?,version=version+1,updated_at=? WHERE id=?')
-        .run(full ? '已发货' : any ? '待发货' : pendingStatus, new Date().toISOString(), id);
+        .run(status, new Date().toISOString(), id);
     }
   }
   refreshOrderProgress(ids?: number[]) {
@@ -856,7 +895,16 @@ export class FlowService {
             )
             .run(...values);
           movements.push(movementId);
+          if (prior && (Number(prior.delta_units) !== c.deltaUnits || prior.item_id !== c.stockId || prior.date !== v.date))
+            recordMovementRevision(this.store, actor, '管理员直接编辑' + before.number, prior, {
+              item_id: c.stockId,
+              delta_units: c.deltaUnits,
+              date: v.date,
+            });
         }
+      if (before.status === 'confirmed')
+        for (const removed of oldMoves.slice(plan.changes.length))
+          recordMovementRevision(this.store, actor, '管理员直接编辑' + before.number, removed, null);
       const next = {
         ...v,
         lines: plan.lines.length ? plan.lines : v.lines,
@@ -1073,13 +1121,6 @@ export class FlowService {
       if (doc.kind === 'delivery') this.updateOrders(doc.lines.map((l: any) => l.orderId));
       if (doc.kind === 'task') this.updateOrders(doc.orderIds);
       if (doc.kind === 'production' && doc.taskId) this.updateOrders(this.get(doc.taskId).orderIds);
-      if (doc.kind === 'task')
-        for (const orderId of doc.orderIds)
-          this.store.db
-            .prepare(
-              "UPDATE orders SET status='生产中',version=version+1 WHERE id=? AND status='已确认'",
-            )
-            .run(orderId);
       const result = this.get(id);
       this.store.db
         .prepare('INSERT INTO operation_requests VALUES(?,?,?,?)')
@@ -1238,6 +1279,8 @@ export class FlowService {
           id,
         );
       if (doc.kind === 'delivery') this.updateOrders(doc.lines.map((l: any) => l.orderId));
+      if (doc.kind === 'task') this.updateOrders(doc.orderIds);
+      if (doc.kind === 'production' && doc.taskId) this.updateOrders(this.get(doc.taskId).orderIds);
       if (doc.kind === 'arrival') syncReceivedUnits(this.store);
       audit(this.store, actor, 'super-admin', 'reverse', 'flow_' + doc.kind, id, {
         before: doc,

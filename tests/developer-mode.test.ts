@@ -129,7 +129,7 @@ test('本机超级管理员启停需真实身份，生产环境/代理/缺CSRF�
     assert.equal((await request('/developer/records?module=customers')).status, 403);
     const db = new DatabaseSync(file),
       salt = 'fictional-dev-salt';
-    db.prepare('INSERT INTO users VALUES(?,?,?,?,?,?)').run(
+    db.prepare('INSERT INTO users(id,name,salt,password_hash,permissions,role) VALUES(?,?,?,?,?,?)').run(
       randomUUID(),
       '普通账号',
       salt,
@@ -526,7 +526,7 @@ test('开发者生产更正、分批送货与订单数量纠错同步库存和�
       date: '2026-10-27',
       lines: [{ orderId: order.id, orderLineId: line.id, stockId: finished.id, quantity: '40' }],
     });
-    assert.equal(f.store.order(order.id)!.status, '待发货');
+    assert.equal(f.store.order(order.id)!.status, '生产中');
     confirm('delivery', {
       customerId: f.customer.id,
       date: '2026-10-27',

@@ -56,12 +56,14 @@ export function receiptEvents(store: Store): ReceiptEvent[] {
       .all()
       .map((p) => [Number(p.id), p]),
   );
-  const events: ReceiptEvent[] = [];
+  const events: ReceiptEvent[] = [],
+    flowIds = new Set<number>();
   for (const row of db
     .prepare("SELECT * FROM flow_documents WHERE kind='arrival' ORDER BY id")
     .all()) {
     const doc = JSON.parse(String(row.document));
     if (doc.isPlan) continue;
+    flowIds.add(Number(row.id));
     events.push({
       id: 'flow-' + row.id,
       source: 'flow',
@@ -104,7 +106,7 @@ export function receiptEvents(store: Store): ReceiptEvent[] {
   }
   for (const row of db.prepare('SELECT * FROM purchase_receipts ORDER BY created_at,id').all()) {
     const doc = JSON.parse(String(row.document));
-    if (doc.flowId && events.some((e) => e.flowId === doc.flowId)) continue;
+    if (doc.flowId && flowIds.has(doc.flowId)) continue;
     const auditRow = db
       .prepare(
         "SELECT document FROM business_audit WHERE action='receive' AND entity='purchases' AND json_extract(document,'$.receiptId')=? ORDER BY id DESC LIMIT 1",
@@ -171,7 +173,13 @@ export function receiptEvents(store: Store): ReceiptEvent[] {
     });
   }
   // 管理员统计纠偏使用原不可变审计台账；原到货和原库存流水保持原样。
-  const edits = store.db.prepare("SELECT * FROM business_audit WHERE action='receipt-data-edit' ORDER BY id").all();
+  const editsByReceipt = new Map<string, any[]>();
+  for (const r of store.db.prepare("SELECT * FROM business_audit WHERE action='receipt-data-edit' ORDER BY id").all()) {
+    const edit = { ...JSON.parse(String(r.document)), auditId: Number(r.id), at: r.at, actorName: r.actor_name };
+    const group = editsByReceipt.get(edit.receiptId);
+    if (group) group.push(edit);
+    else editsByReceipt.set(edit.receiptId, [edit]);
+  }
   for (const event of events) {
     for (const line of event.lines) {
       if (line.stockedQuantity == null && line.stockId) {
@@ -180,8 +188,7 @@ export function receiptEvents(store: Store): ReceiptEvent[] {
         if (movements.length) line.stockedQuantity = quantityString(movements.reduce((n, m) => n + Number(m.delta_units), 0));
       }
     }
-    event.dataEdits = edits.map((r) => ({ ...JSON.parse(String(r.document)), auditId: Number(r.id), at: r.at, actorName: r.actor_name }))
-      .filter((r) => r.receiptId === event.id);
+    event.dataEdits = editsByReceipt.get(event.id) || [];
     event.version += event.dataEdits.length;
     for (const line of event.lines) {
       line.recordedQuantity = line.quantity;

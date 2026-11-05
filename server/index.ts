@@ -2,7 +2,8 @@ import { Store, defaultDbPath } from './db.js';
 import { createApp } from './app.js';
 import { acquireLock } from './lock.js';
 import { AiSettingsManager } from './ai/settings-manager.js';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { scheduleDailyBackup } from './backup.js';
 import { defaultAiSettingsPath } from './ai/credential-store.js';
 import { ImportManager } from './import/manager.js';
 import { fileURLToPath } from 'node:url';
@@ -99,6 +100,11 @@ const shutdown = (notify = true) =>
     server.closeIdleConnections();
   }));
 const control = await createRuntimeControl(defaultDbPath, shutdown, () => process.exit(0));
+scheduleDailyBackup({
+  dataDir: dirname(defaultDbPath),
+  backupRoot: resolve('backups'),
+  extraFiles: { 'ai-settings.sqlite': defaultAiSettingsPath() },
+});
 server.listen(port, '127.0.0.1', () =>
   console.log(
     `宁波甬勒包装制品有限公司 · 管理系统：http://127.0.0.1:${port}\n数据库：${defaultDbPath}\n本机验收版，正式导入与业务写入需登录管理账号。`,
