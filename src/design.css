@@ -176,7 +176,10 @@ textarea:focus-visible {
   gap: 0;
 }
 .main {
+  flex: 1 1 0;
+  width: auto;
   margin-left: var(--sidebar-w);
+  margin-right: var(--assistant-w);
   min-width: 0;
 }
 .brand {
@@ -739,12 +742,12 @@ main > footer {
 .detail-panel {
   position: fixed;
   top: var(--topbar-h);
-  right: 0;
+  right: var(--assistant-w);
   bottom: 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
-  width: min(560px, calc(100vw - var(--sidebar-w) - 240px));
+  width: min(560px, calc(100vw - var(--sidebar-w) - var(--assistant-w) - 240px));
   min-width: 420px;
   background: var(--surface);
   border-left: 1px solid var(--border);
@@ -828,6 +831,7 @@ main > footer {
 
 /* 弹层 */
 .overlay {
+  right: var(--assistant-w);
   background: var(--overlay);
   backdrop-filter: none;
 }
@@ -891,7 +895,7 @@ main > footer {
 /* 命令面板 */
 .palette-overlay {
   position: fixed;
-  inset: 0;
+  inset: 0 var(--assistant-w) 0 0;
   z-index: 90;
   display: flex;
   justify-content: center;
@@ -1667,4 +1671,118 @@ main > footer {
   min-height: 24px;
   padding: 0 4px;
   font-size: 12px;
+}
+
+/* AI 助手停靠：占据右侧一列，内容、详情面板和弹窗都让开。窄屏改为覆盖，不推内容。 */
+:root {
+  --assistant-w: 0px;
+}
+@media (min-width: 1024px) {
+  html[data-assistant-dock='on'] {
+    --assistant-w: 380px;
+  }
+  html[data-assistant-dock='wide'] {
+    --assistant-w: 720px;
+  }
+}
+.ga-panel.ga-docked,
+.ga-panel.ga-docked.ga-large {
+  inset: 0 0 0 auto;
+  width: var(--assistant-w);
+  height: 100dvh;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.ga-panel.ga-docked .ga-header {
+  height: var(--topbar-h);
+  padding: 0 12px;
+  cursor: default;
+  touch-action: auto;
+  user-select: auto;
+}
+@media (max-width: 1023px) {
+  .ga-panel.ga-docked,
+  .ga-panel.ga-docked.ga-large {
+    width: 100%;
+    border-width: 0;
+  }
+}
+.ga-panel {
+  border-radius: var(--r-panel);
+}
+.ga-page-context {
+  flex: none;
+  margin: 0;
+  padding: 4px 12px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 打印：只留当前页面内容，表格完整展开 */
+@media print {
+  html[data-assistant-dock] {
+    --assistant-w: 0px;
+  }
+  .sidebar,
+  .topbar,
+  .global-assistant,
+  .detail-panel,
+  .unified-pager,
+  .list-filters,
+  .page-actions,
+  .business-selection,
+  .ready-to-ship,
+  th[aria-label='操作'],
+  .record-row > td:last-child:has(button),
+  .record-view-tabs,
+  main > footer {
+    display: none !important;
+  }
+  .shell,
+  .main,
+  main {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .panel,
+  .table-wrap,
+  .table-region {
+    overflow: visible !important;
+    max-height: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  table {
+    width: 100% !important;
+    color: #000 !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  thead th {
+    position: static !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  td,
+  th {
+    border-bottom: 1px solid #999 !important;
+  }
+  td input[type='checkbox'],
+  th input[type='checkbox'] {
+    display: none;
+  }
 }

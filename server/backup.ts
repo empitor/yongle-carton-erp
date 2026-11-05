@@ -168,6 +168,10 @@ export function restoreFullBackup(source: string, dataDir: string) {
 }
 
 /** 每日自动完整备份：启动后检查，距上次满24小时再做；失败只记录，不影响业务。 */
+let lastAutoBackupFailure: { at: string; message: string } | null = null;
+/** 最近一次自动备份失败的记录，下一次成功后清除。今日页据此提示。 */
+export const autoBackupFailure = () => lastAutoBackupFailure;
+
 export function scheduleDailyBackup(options: {
   dataDir: string;
   backupRoot: string;
@@ -179,11 +183,13 @@ export function scheduleDailyBackup(options: {
       const latest = newest(options.backupRoot, 'auto-').filter((n) => !n.endsWith('.partial'))[0];
       if (latest && Date.now() - statSync(join(options.backupRoot, latest)).mtimeMs < DAY_MS) return;
       await createFullBackup({ ...options, prefix: 'auto' });
+      lastAutoBackupFailure = null;
       for (const old of newest(options.backupRoot, 'auto-')
         .filter((n) => !n.endsWith('.partial'))
         .slice(AUTO_BACKUP_KEEP))
         rmSync(join(options.backupRoot, old), { recursive: true, force: true });
     } catch (error) {
+      lastAutoBackupFailure = { at: new Date().toISOString(), message: (error as Error).message };
       (options.onError || ((e) => console.error('自动备份失败：', e.message)))(error as Error);
     }
   };

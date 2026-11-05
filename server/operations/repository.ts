@@ -69,7 +69,8 @@ export class OperationsRepository {
     const row = this.store.db.prepare('SELECT name FROM suppliers WHERE id=?').get(id);
     return row ? String(row.name) : undefined;
   }
-  purchases(include = false): any[] {
+  /** 传 onlyId 时只组装这一张，供按主键读取。 */
+  purchases(include = false, onlyId?: number): any[] {
     const events = receiptEvents(this.store),
       receivedUnits = effectiveReceiptUnits(events),
       archived = this.store.archivedIds('purchases');
@@ -112,7 +113,11 @@ export class OperationsRepository {
         'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases ORDER BY id DESC',
       )
       .all()
-      .filter((r) => include || !archived.has(Number(r.id)))
+      .filter(
+        (r) =>
+          (onlyId === undefined || Number(r.id) === onlyId) &&
+          (include || !archived.has(Number(r.id))),
+      )
       .map((r) => {
         const lines = (linesByPurchase.get(Number(r.id)) || [])
           .map((l) => ({

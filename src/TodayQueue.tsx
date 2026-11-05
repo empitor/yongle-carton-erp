@@ -21,7 +21,7 @@ export default function TodayQueue() {
     [error, setError] = useState('');
   useEffect(() => {
     const load = () => {
-      managementRequest('/business/today')
+      managementRequest<any>('/business/today')
         .then((v) => {
           setData(v);
           setError('');
@@ -129,6 +129,12 @@ export default function TodayQueue() {
   const s = data.summary;
   return (
     <>
+      {data.backupFailedAt && (
+        <div className="error" role="alert">
+          自动备份失败（{new Date(data.backupFailedAt).toLocaleString('zh-CN')}
+          ）。请检查磁盘空间或备份目录权限，并尽快手动备份。
+        </div>
+      )}
       <div className="today-strip" aria-label="经营摘要">
         <div>
           本月接单 <strong>¥{(s.monthOrderCents / 100).toLocaleString('zh-CN')}</strong>

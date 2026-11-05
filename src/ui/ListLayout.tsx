@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Search,
   RotateCcw,
@@ -171,6 +171,15 @@ export function TableRegion({
     </>
   );
 }
+/** 页码随筛选条件复位：条件一变立刻回到第一页，不会先用旧页码多发一次请求。 */
+export function useResettingPage(signature: string) {
+  const [state, setState] = useState({ signature, page: 1 });
+  // 渲染期间更新，确保换回原条件时不会恢复旧页码。
+  if (state.signature !== signature) setState({ signature, page: 1 });
+  const page = state.signature === signature ? state.page : 1;
+  return [page, (next: number) => setState({ signature, page: next })] as const;
+}
+
 export function Pagination({
   page,
   total,

@@ -44,6 +44,13 @@ export default function DetailPanel({
     document.addEventListener('keydown', listener);
     return () => document.removeEventListener('keydown', listener);
   }, []);
+  // 告诉助手当前正在看哪条记录，只用于显示上下文提示。
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('erp-panel-focus', { detail: title }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('erp-panel-focus', { detail: null }));
+    };
+  }, [title]);
   const panel = (
     <aside className="detail-panel" aria-label={title + ' 详情'}>
       <header className="detail-panel-head">

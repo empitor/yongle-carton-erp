@@ -12,6 +12,9 @@ import Navigation from '../src/Navigation.js';
 import Combobox from '../src/ui/Combobox.js';
 import { FlowService } from '../server/flow/service.js';
 import { groupIssues } from '../src/import/ReviewIssues.js';
+import { allocateShipments } from '../src/ReadyToShip.js';
+import { pageRows } from '../server/paging.js';
+import { createApp } from '../server/app.js';
 import { randomUUID } from 'node:crypto';
 
 const actor: any = { id: 'ui', name: '虚构操作员', permissions: ['business:edit'] };
@@ -200,6 +203,110 @@ test('库存可用量扣除送货和生产草稿，确认后转为实际库存�
   purchase('已订货');
   assert.equal(ops.repo.items().find((i) => i.id === raw.id).onOrderUnits, 50000);
   store.close();
+});
+
+test('可发货合并按勾选先后分配同一成品的可用量，合计不超过可用', () => {
+  const candidates = [
+    { key: 'a', stockId: 1, remaining: 80, available: 100000 },
+    { key: 'b', stockId: 1, remaining: 50, available: 100000 },
+    { key: 'c', stockId: 1, remaining: 10, available: 100000 },
+    { key: 'd', stockId: 2, remaining: 30, available: 20000 },
+  ];
+  const first = allocateShipments(candidates, ['a', 'b', 'd']);
+  assert.deepEqual(Object.fromEntries(first.allocated), { a: 80000, b: 20000, d: 20000 });
+  assert.equal(first.left.get(1), 0);
+  assert.equal(first.left.get(2), 0);
+  // 用尽后再勾选也分不到数量；取消前面的行，余量释放给后面的行。
+  assert.equal(allocateShipments(candidates, ['a', 'b', 'c']).allocated.has('c'), false);
+  assert.deepEqual(Object.fromEntries(allocateShipments(candidates, ['b', 'c']).allocated), {
+    b: 50000,
+    c: 10000,
+  });
+  assert.equal(allocateShipments(candidates, ['b', 'c']).left.get(1), 40000);
+});
+
+test('列表分页：不带页码保持全量，页码超出落到最后一页，排序跨页稳定', () => {
+  const rows = [1, 2, 3, 4, 5].map((id) => ({ id, number: 'N' + id, deliveryDate: '2026-11-0' + (6 - id) }));
+  assert.deepEqual(pageRows(rows, {}), { rows, filteredRecords: 5 });
+  const second = pageRows(rows, { page: '2', pageSize: '2', sort: 'recent' });
+  assert.deepEqual(second.rows.map((r) => r.id), [3, 2]);
+  assert.equal(second.filteredRecords, 5);
+  assert.equal(second.page, 2);
+  const beyond = pageRows(rows, { page: '99', pageSize: '2', sort: 'oldest' });
+  assert.equal(beyond.page, 3);
+  assert.deepEqual(beyond.rows.map((r) => r.id), [5]);
+  assert.deepEqual(pageRows(rows, { page: '1', pageSize: '2', sort: 'due' }).rows.map((r) => r.id), [5, 4]);
+  assert.equal(pageRows([], { page: '3' }).page, 1);
+  assert.throws(() => pageRows(rows, { page: '1', pageSize: '1000' }));
+  assert.throws(() => pageRows(rows, { page: '1', sort: '任意' }));
+});
+
+test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿到全量，采购可按主键读取', async () => {
+  const store = new Store(':memory:'),
+    ops = new OperationsService(store),
+    customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
+    product = store.saveProduct(productSchema.parse({ name: '虚构箱' })),
+    supplier = ops.saveSupplier({ name: '虚构供应商' }, actor),
+    stock = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只' }, actor);
+  const orders = [1, 2, 3].map((n) =>
+    store.saveOrder(
+      orderSchema.parse({
+        customerId: customer.id,
+        orderDate: '2026-10-0' + n,
+        deliveryDate: '2026-12-0' + n,
+        status: '已确认',
+        notes: '',
+        costs: null,
+        lines: [
+          { productId: product.id, productName: product.name, specification: '', quantity: 10, unit: '只', unitPriceCents: 100 },
+        ],
+      }),
+    ),
+  );
+  const purchases = [1, 2, 3].map(() =>
+    ops.savePurchase(
+      { supplierId: supplier.id, orderDate: '2026-10-01', status: '已订货', notes: '', lines: [{ name: '虚构纸板', unit: '张', quantity: '5' }] },
+      actor,
+    ),
+  );
+  for (let n = 0, version = stock.version; n < 3; n++, version++)
+    ops.move(
+      stock.id,
+      { action: 'in', quantity: '1', date: '2026-10-01', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: version },
+      actor,
+    );
+  const server = createApp(store).listen(0, '127.0.0.1');
+  await new Promise<void>((r) => server.once('listening', r));
+  const get = async (path: string) => {
+    const r = await fetch('http://127.0.0.1:' + (server.address() as any).port + '/api' + path);
+    return { status: r.status, body: await r.json() };
+  };
+  try {
+    const paged = (await get('/orders?withMetrics=1&page=2&pageSize=2&sort=recent')).body;
+    assert.deepEqual(paged.rows.map((o: any) => o.id), [orders[0].id]);
+    assert.equal(paged.filteredRecords, 3);
+    assert.equal(paged.totalRecords, 3);
+    assert.equal(paged.page, 2);
+    assert.equal(paged.metrics.total, 3);
+    assert.equal((await get('/orders')).body.length, 3);
+    assert.equal((await get('/orders?withMetrics=1')).body.rows.length, 3);
+    const paid = (await get('/purchases?withMetrics=1&page=1&pageSize=1&sort=oldest')).body;
+    assert.deepEqual(paid.rows.map((p: any) => p.id), [purchases[0].id]);
+    assert.equal(paid.filteredRecords, 3);
+    assert.equal(paid.metrics.total, 3);
+    assert.deepEqual(paid.suppliers, [{ id: supplier.id, name: '虚构供应商' }]);
+    assert.equal((await get('/purchases/' + purchases[1].id)).body.id, purchases[1].id);
+    assert.equal((await get('/purchases/999999')).status, 404);
+    const moves = (await get('/warehouse/movements?withMetrics=1&page=1&pageSize=2')).body;
+    assert.equal(moves.rows.length, 2);
+    assert.equal(moves.filteredRecords, 3);
+    assert.equal(moves.metrics.length >= 1, true);
+    assert.equal((await get('/warehouse/movements')).body.length, 3);
+    assert.equal((await get('/orders?withMetrics=1&page=1&pageSize=9999')).status, 400);
+  } finally {
+    await new Promise((r) => server.close(r));
+    store.close();
+  }
 });
 
 test('疑点清单合并相同提示，必须处理的排在前面', () => {

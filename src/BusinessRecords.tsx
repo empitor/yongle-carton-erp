@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { compareRecords, type RecordSort } from '../shared/record-sort';
 import { formatDimensions } from '../shared/product-details';
 import { Trash2, Eye, Pencil, ArchiveRestore } from 'lucide-react';
 import { useAuthState, managementRequest } from './session';
@@ -15,7 +16,7 @@ import { displayAmount } from '../shared/display-amount';
 import { today } from '../shared/domain';
 import { formatStockSize, quantityString, type RecordEntity } from '../shared/operations';
 type Entity = RecordEntity;
-const PAGE_SIZE = 50;
+export const PAGE_SIZE = 50;
 export default function BusinessRecords({
   entity,
   rows,
@@ -32,6 +33,7 @@ export default function BusinessRecords({
   hideSearch = false,
   filterKey = '',
   totalRecords,
+  paging,
 }: {
   entity: Entity;
   rows: any[];
@@ -48,6 +50,14 @@ export default function BusinessRecords({
   hideSearch?: boolean;
   filterKey?: string;
   totalRecords?: number;
+  /** 提供时由服务端分页和排序，rows 只是当前页。 */
+  paging?: {
+    page: number;
+    total: number;
+    onPage: (page: number) => void;
+    sort: RecordSort;
+    onSort: (sort: RecordSort) => void;
+  };
 }) {
   const session = useAuthState(),
     superMode = !!session?.actor?.superAdminMode;
@@ -57,24 +67,17 @@ export default function BusinessRecords({
     [correction, setCorrection] = useState<any>(null),
     [contextId, setContextId] = useState<number | null>(null),
     [permanent, setPermanent] = useState<any[] | null>(null);
-  const [sort, setSort] = useState('recent');
-  const sortedRows = [...rows].sort((a, b) =>
-    sort === 'name'
-      ? String(a.name || a.number).localeCompare(String(b.name || b.number), 'zh-CN', {
-          numeric: true,
-        })
-      : sort === 'due'
-        ? String(a.deliveryDate || a.expectedDate || '').localeCompare(
-            String(b.deliveryDate || b.expectedDate || ''),
-          ) || b.id - a.id
-        : sort === 'oldest'
-          ? a.id - b.id
-          : b.id - a.id,
-  );
+  const [localSort, setLocalSort] = useState<RecordSort>('recent');
+  const sort = paging?.sort ?? localSort;
+  const sortedRows = paging ? rows : [...rows].sort(compareRecords(sort));
   const [selected, setSelected] = useState<number[]>([]),
-    [page, setPage] = useState(1),
+    [localPage, setPage] = useState(1),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState('');
+  const page = paging?.page ?? localPage,
+    filteredTotal = paging?.total ?? rows.length;
+  // 面板切到页边时先翻页，新一页到达后再选中首行或末行。
+  const pendingEdge = useRef<'first' | 'last' | null>(null);
   const routeHash = typeof location === 'undefined' ? '' : location.hash;
   useEffect(() => {
     const params = new URLSearchParams(routeHash.split('?')[1] || '');
@@ -84,9 +87,7 @@ export default function BusinessRecords({
     const request =
       entity === 'orders'
         ? managementRequest('/orders/' + id)
-        : managementRequest<any[]>('/purchases').then((list) =>
-            list.find((r) => r.id === Number(id)),
-          );
+        : managementRequest('/purchases/' + id);
     request
       .then((row) => {
         if (active) {
@@ -112,6 +113,11 @@ export default function BusinessRecords({
     setPage((p) => Math.min(p, Math.max(1, Math.ceil(rows.length / PAGE_SIZE))));
   }, [rows.map((r) => r.id).join(',')]);
   useEffect(() => {
+    if (pendingEdge.current && rows.length) {
+      setView(pendingEdge.current === 'first' ? rows[0] : rows[rows.length - 1]);
+      pendingEdge.current = null;
+      return;
+    }
     setView((current: any) => (current ? rows.find((r) => r.id === current.id) || current : null));
   }, [rows]);
   const check = (id: number) => (
@@ -159,13 +165,20 @@ export default function BusinessRecords({
     }
   }
 
-  const pageRows = sortedRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageRows = paging ? rows : sortedRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const stepView = (delta: number) => {
     const index = sortedRows.findIndex((r) => r.id === view?.id),
       next = sortedRows[index + delta];
-    if (!next) return;
-    setView(next);
-    setPage(Math.floor((index + delta) / PAGE_SIZE) + 1);
+    if (next) {
+      setView(next);
+      if (!paging) setPage(Math.floor((index + delta) / PAGE_SIZE) + 1);
+      return;
+    }
+    if (!paging || index < 0) return;
+    const target = page + delta;
+    if (target < 1 || target > Math.ceil(filteredTotal / PAGE_SIZE)) return;
+    pendingEdge.current = delta > 0 ? 'first' : 'last';
+    paging.onPage(target);
   };
   const panelActions = (row: any) => (
     <>
@@ -244,8 +257,8 @@ export default function BusinessRecords({
             ）
           </span>
         </h2>
-        {totalRecords !== undefined && totalRecords !== rows.length && (
-          <span className="record-filter-count">筛选结果 {rows.length} 条</span>
+        {totalRecords !== undefined && totalRecords !== filteredTotal && (
+          <span className="record-filter-count">筛选结果 {filteredTotal} 条</span>
         )}
         {entity !== 'orders' && !hideSearch && (
           <input
@@ -262,7 +275,9 @@ export default function BusinessRecords({
               aria-label="业务列表排序"
               value={sort}
               onChange={(e) => {
-                setSort(e.target.value);
+                const next = e.target.value as RecordSort;
+                if (paging) paging.onSort(next);
+                else setLocalSort(next);
                 setPage(1);
               }}
             >
@@ -321,8 +336,8 @@ export default function BusinessRecords({
               <th>
                 <input
                   type="checkbox"
-                  aria-label={'全选当前筛选结果（' + rows.length + '条）'}
-                  title={'全选当前筛选结果（' + rows.length + '条）'}
+                  aria-label={(paging ? '全选当前页（' : '全选当前筛选结果（') + rows.length + '条）'}
+                  title={(paging ? '全选当前页（' : '全选当前筛选结果（') + rows.length + '条）'}
                   checked={!!rows.length && rows.every((r) => selected.includes(r.id))}
                   onChange={(e) => setSelected(e.target.checked ? rows.map((r) => r.id) : [])}
                 />
@@ -590,7 +605,12 @@ export default function BusinessRecords({
             <button onClick={() => setSelected([])}>清除选择</button>
         </div>
       )}
-      <Pagination page={page} total={rows.length} pageSize={PAGE_SIZE} onChange={setPage} />
+      <Pagination
+        page={page}
+        total={filteredTotal}
+        pageSize={PAGE_SIZE}
+        onChange={paging ? paging.onPage : setPage}
+      />
       {contextId !== null && (
         <RecordContextDialog module={entity} id={contextId} close={() => setContextId(null)} />
       )}

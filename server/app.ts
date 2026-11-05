@@ -3,6 +3,8 @@ import helmet from 'helmet';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { z, ZodError } from 'zod';
+import { pageRows } from './paging.js';
+import { autoBackupFailure } from './backup.js';
 import { dateSchema, statuses, today, type Order } from '../shared/domain.js';
 import { Store, ConflictError, InputError } from './db.js';
 import { createBusinessService, BusinessAccessError, NotFoundError } from './business/service.js';
@@ -431,7 +433,7 @@ export function createApp(
     const rows = filters(req, scoped);
     res.json(
       req.query.withMetrics === '1'
-        ? { rows, totalRecords: scoped.length, metrics: orderMetrics(rows) }
+        ? { ...pageRows(rows, req.query), totalRecords: scoped.length, metrics: orderMetrics(rows) }
         : rows,
     );
   });
@@ -463,7 +465,15 @@ export function createApp(
     if (!result) return res.status(404).json({ message: '业务记录不存在。' });
     res.json(result);
   });
-  app.get('/api/business/today', (_req, res) => res.json(buildToday(store, today())));
+  app.get('/api/business/today', (req, res) => {
+    const actor = options.auth?.actor(req),
+      failure = autoBackupFailure();
+    res.json({
+      ...buildToday(store, today()),
+      // 只读账号处理不了备份问题，不打扰；错误原文只在服务端日志。
+      backupFailedAt: failure && actor?.permissions.includes('business:edit') ? failure.at : null,
+    });
+  });
   app.get('/api/dashboard', (req, res) => {
     const range = z
       .object({ start: dateSchema.optional(), end: dateSchema.optional() })

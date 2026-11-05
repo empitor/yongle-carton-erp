@@ -9,6 +9,10 @@ export type ListResult<T, M = Record<string, never> | null> = {
   rows: T[];
   totalRecords: number;
   metrics: M;
+  /** 筛选后的总条数；分页时 rows 只是其中一页。 */
+  filteredRecords: number;
+  page?: number;
+  pageSize?: number;
 };
 export const pendingOrder = (row: { status: string }) =>
   ['已确认', '生产中', '待发货'].includes(row.status);

@@ -4,7 +4,6 @@ import { deliverBusinessFile, ExportFileCard } from './BusinessExport';
 import {
   Bot,
   Plug,
-  ChevronDown,
   Eraser,
   Expand,
   LoaderCircle,
@@ -16,6 +15,8 @@ import {
   Trash2,
   X,
   GripHorizontal,
+  PanelRight,
+  PictureInPicture2,
 } from 'lucide-react';
 import { managementRequest, useAuthState } from './session';
 import { SseParser } from '../shared/sse';
@@ -26,7 +27,14 @@ import { useAssistantUploads } from './useAssistantUploads';
 import { useAssistantSpeech } from './speech/useAssistantSpeech';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useFloatingAssistant } from './useFloatingAssistant';
-import { floatingLauncherModeKey, readFloatingLauncher } from './floating-assistant';
+import {
+  assistantPageLabel,
+  assistantPanelModeKey,
+  floatingLauncherModeKey,
+  readAssistantPanelMode,
+  readFloatingLauncher,
+  type AssistantPanelMode,
+} from './floating-assistant';
 import CartonSpirit from './CartonSpirit';
 import { isErpNavigation, assistantManagementHash } from '../shared/assistant-navigation';
 import AssistantOrderTask from './AssistantOrderTask';
@@ -120,6 +128,46 @@ export default function GlobalAssistant() {
       return true;
     }
   });
+  const [panelMode, setPanelMode] = useState<AssistantPanelMode>(() => {
+    try {
+      return readAssistantPanelMode(window.localStorage);
+    } catch {
+      return 'docked';
+    }
+  });
+  const docked = open && panelMode === 'docked';
+  const [pageLabel, setPageLabel] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    let record: string | null = document.querySelector('.detail-panel-head h2')?.textContent || null;
+    const refresh = () => setPageLabel(assistantPageLabel(location.hash, record));
+    const focus = (e: Event) => {
+      record = (e as CustomEvent<string | null>).detail;
+      refresh();
+    };
+    refresh();
+    window.addEventListener('hashchange', refresh);
+    window.addEventListener('erp-panel-focus', focus);
+    return () => {
+      window.removeEventListener('hashchange', refresh);
+      window.removeEventListener('erp-panel-focus', focus);
+    };
+  }, [open]);
+  // 停靠时由样式变量推开内容、详情面板和弹窗，保存按钮不会被挡住。
+  useEffect(() => {
+    if (!docked) return;
+    document.documentElement.dataset.assistantDock = large ? 'wide' : 'on';
+    return () => {
+      delete document.documentElement.dataset.assistantDock;
+    };
+  }, [docked, large]);
+  const changePanelMode = (next: AssistantPanelMode) => {
+    setPanelMode(next);
+    setLarge(false);
+    try {
+      localStorage.setItem(assistantPanelModeKey, next);
+    } catch {}
+  };
   const openAssistant = () => {
     setOpen(true);
     if (userId)
@@ -134,7 +182,17 @@ export default function GlobalAssistant() {
     window.addEventListener('erp-open-assistant', openAssistant);
     return () => window.removeEventListener('erp-open-assistant', openAssistant);
   }, [userId]);
-  const floating = useFloatingAssistant(open, large, openAssistant);
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'j') return;
+      e.preventDefault();
+      if (open) setOpen(false);
+      else openAssistant();
+    };
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [open, userId]);
+  const floating = useFloatingAssistant(open && !docked, large, openAssistant);
   const history = useRef<HTMLDivElement>(null),
     controller = useRef<AbortController | null>(null),
     draftRef = useRef(''),
@@ -510,11 +568,12 @@ export default function GlobalAssistant() {
         ) : null
       ) : (
         <section
-          ref={floating.elementRef}
+          ref={docked ? undefined : floating.elementRef}
           className={
             'ga-panel' +
+            (docked ? ' ga-docked' : '') +
             (large ? ' ga-large' : '') +
-            (floating.compact ? ' ga-compact' : '') +
+            (!docked && floating.compact ? ' ga-compact' : '') +
             (dragging ? ' ga-dragging' : '') +
             (floating.moving ? ' ga-moving' : '')
           }
@@ -536,9 +595,10 @@ export default function GlobalAssistant() {
           role="dialog"
           aria-modal="false"
           aria-label="全局AI业务助手"
-          style={floating.style}
+          style={docked ? undefined : floating.style}
         >
           {!large &&
+            !docked &&
             ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map((direction) => (
               <div
                 key={direction}
@@ -549,14 +609,25 @@ export default function GlobalAssistant() {
             ))}
           <header
             className="ga-header"
-            tabIndex={0}
-            aria-label="拖动聊天窗口，方向键也可移动"
-            {...floating.bind}
+            {...(docked
+              ? {}
+              : {
+                  tabIndex: 0,
+                  'aria-label': '拖动聊天窗口，方向键也可移动',
+                  ...floating.bind,
+                })}
           >
             <Bot size={20} />
             <strong>全局业务助手</strong>
-            <GripHorizontal size={16} />
+            {!docked && <GripHorizontal size={16} />}
             <div>
+              <button
+                aria-label={docked ? '改为浮动窗口' : '停靠到右侧'}
+                title={docked ? '改为浮动窗口' : '停靠到右侧'}
+                onClick={() => changePanelMode(docked ? 'floating' : 'docked')}
+              >
+                {docked ? <PictureInPicture2 size={16} /> : <PanelRight size={16} />}
+              </button>
               <button
                 aria-label={floatingLauncher ? '收起后停靠顶栏' : '收起后显示悬浮精灵'}
                 title={floatingLauncher ? '收起后停靠顶栏' : '收起后显示悬浮精灵'}
@@ -590,14 +661,16 @@ export default function GlobalAssistant() {
               >
                 {large ? <Minimize2 size={16} /> : <Expand size={16} />}
               </button>
-              <button aria-label="缩小聊天窗口" onClick={() => setOpen(false)}>
-                <ChevronDown size={17} />
-              </button>
-              <button aria-label="关闭聊天窗口" onClick={() => setOpen(false)}>
+              <button
+                aria-label="关闭聊天窗口"
+                title="关闭（Ctrl+J）"
+                onClick={() => setOpen(false)}
+              >
                 <X size={17} />
               </button>
             </div>
           </header>
+          {pageLabel && <p className="ga-page-context">当前页面：{pageLabel}</p>}
           {!userId ? (
             <p className="ga-empty">请先使用右上角原有管理账号登录。聊天和工具权限按账号隔离。</p>
           ) : (
