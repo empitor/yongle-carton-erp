@@ -4,6 +4,15 @@ export type FloatingViewport = FloatingSize & { left: number; top: number };
 export const floatingPositionKey = 'erp-assistant-position-v1';
 export const mascotSize: FloatingSize = { width: 88, height: 98 };
 export const dragThreshold = 6;
+export const floatingLauncherModeKey = 'erp-assistant-launcher-mode-v1';
+/** Only an explicitly saved topbar preference hides the mascot. Missing/old values stay usable. */
+export function readFloatingLauncher(storage: Pick<Storage, 'getItem'>): boolean {
+  try {
+    return storage.getItem(floatingLauncherModeKey) !== 'docked';
+  } catch {
+    return true;
+  }
+}
 const margin = 8;
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(n, Math.max(min, max)));
@@ -77,6 +86,97 @@ export function saveFloatingAnchor(storage: Pick<Storage, 'setItem'>, anchor: Fl
     storage.setItem(floatingPositionKey, JSON.stringify({ version: 1, ...anchor }));
   } catch {
     /* Still draggable when storage is unavailable. */
+  }
+}
+
+export type FloatingDock = 'free' | 'dock-left' | 'dock-right';
+export type FloatingMascot = FloatingPoint & { dock: FloatingDock };
+export const floatingMascotKey = 'erp-assistant-mascot-v2';
+export const mascotDockDistance = 24;
+/** Mascot placement is independent of the panel. Legacy v1 remains the panel anchor. */
+export function fitFloatingMascot(
+  p: FloatingMascot,
+  v: FloatingViewport,
+  size: FloatingSize = mascotSize,
+): FloatingMascot {
+  const fitted = clampFloatingPosition({ x: p.x - size.width, y: p.y - size.height }, size, v);
+  return {
+    x:
+      p.dock === 'dock-left'
+        ? v.left + size.width / 2
+        : p.dock === 'dock-right'
+          ? v.left + v.width + size.width / 2
+          : fitted.x + size.width,
+    y: fitted.y + size.height,
+    dock: p.dock,
+  };
+}
+export function floatingMascotPosition(p: FloatingMascot, size: FloatingSize, v: FloatingViewport) {
+  const fitted = fitFloatingMascot(p, v, size);
+  return { x: fitted.x - size.width, y: fitted.y - size.height };
+}
+/** During dragging allow half the mascot outside either side, without losing the grab point. */
+export function clampMascotDragPosition(p: FloatingPoint, size: FloatingSize, v: FloatingViewport) {
+  return {
+    x: clamp(p.x, v.left - size.width / 2, v.left + v.width - size.width / 2),
+    y: clampFloatingPosition(p, size, v).y,
+  };
+}
+export function settleFloatingMascot(
+  p: FloatingPoint,
+  size: FloatingSize,
+  v: FloatingViewport,
+): FloatingMascot {
+  const left = p.x - v.left,
+    right = v.left + v.width - p.x - size.width;
+  const dock: FloatingDock =
+    Math.min(left, right) <= mascotDockDistance
+      ? left <= right
+        ? 'dock-left'
+        : 'dock-right'
+      : 'free';
+  return fitFloatingMascot({ x: p.x + size.width, y: p.y + size.height, dock }, v, size);
+}
+export function readFloatingMascot(
+  storage: Pick<Storage, 'getItem'>,
+  v: FloatingViewport,
+): FloatingMascot {
+  try {
+    const p = JSON.parse(storage.getItem(floatingMascotKey) || 'null');
+    if (
+      p?.version === 2 &&
+      Number.isFinite(p.x) &&
+      Number.isFinite(p.y) &&
+      ['free', 'dock-left', 'dock-right'].includes(p.dock)
+    )
+      return fitFloatingMascot(p, v);
+  } catch {
+    /* Fall back to the original position without deleting user preferences. */
+  }
+  return { ...readFloatingAnchor(storage, v), dock: 'free' };
+}
+export function moveFloatingMascot(
+  p: FloatingMascot,
+  size: FloatingSize,
+  v: FloatingViewport,
+  dx: number,
+  dy: number,
+): FloatingMascot {
+  if (!dx) return fitFloatingMascot({ ...p, y: p.y + dy }, v, size);
+  const point = floatingMascotPosition(p, size, v);
+  const next = { x: point.x + dx, y: point.y + dy };
+  const awayFromEdge =
+    (dx > 0 && point.x <= v.left + mascotDockDistance) ||
+    (dx < 0 && point.x + size.width >= v.left + v.width - mascotDockDistance);
+  return awayFromEdge
+    ? fitFloatingMascot({ x: next.x + size.width, y: next.y + size.height, dock: 'free' }, v, size)
+    : settleFloatingMascot(next, size, v);
+}
+export function saveFloatingMascot(storage: Pick<Storage, 'setItem'>, p: FloatingMascot) {
+  try {
+    storage.setItem(floatingMascotKey, JSON.stringify({ version: 2, ...p }));
+  } catch {
+    /* Dragging remains available without browser storage. */
   }
 }
 

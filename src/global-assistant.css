@@ -1,6 +1,13 @@
 .global-assistant {
-  position: relative;
+  position: fixed;
+  inset: 0;
+  contain: paint;
+  overflow: clip;
+  pointer-events: none;
   z-index: 40;
+}
+.global-assistant > * {
+  pointer-events: auto;
 }
 /* 收起时随页面位于业务弹窗下方，避免遮住保存按钮；展开聊天仍可协助当前页面。 */
 .global-assistant:has(.ga-panel) {
@@ -24,6 +31,16 @@
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
+  transition:
+    left 0.28s cubic-bezier(0.22, 1.12, 0.36, 1),
+    top 0.28s cubic-bezier(0.22, 1.12, 0.36, 1);
+}
+.global-assistant .ga-launcher.ga-moving {
+  transition: none;
+}
+.global-assistant .ga-launcher:hover {
+  background: transparent;
+  box-shadow: none;
 }
 .ga-launcher:focus-visible,
 .ga-header:focus-visible {
@@ -73,6 +90,90 @@
 .ga-moving .ga-spirit-eyes {
   animation-play-state: paused;
 }
+/* A single box leans and looks inward. The grip stays attached to the viewport seam. */
+.ga-spirit-pose {
+  transform-box: view-box;
+  transform-origin: 50px 90px;
+  transition: transform 0.34s cubic-bezier(0.22, 1.12, 0.36, 1);
+}
+.ga-spirit-face,
+.ga-spirit-gaze {
+  transform-box: view-box;
+  transform-origin: 50px 68px;
+  transition: transform 0.28s ease;
+}
+.ga-spirit-hand,
+.ga-spirit-rest-hand,
+.ga-spirit-shadow {
+  transition: opacity 0.2s ease;
+}
+.ga-spirit-grip {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.22s ease,
+    transform 0.3s ease;
+}
+.ga-spirit[data-pose='dock-left'] {
+  --ga-inward: 1;
+}
+.ga-spirit[data-pose='dock-right'] {
+  --ga-inward: -1;
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-pose {
+  transform: translate(calc(var(--ga-inward) * 4px), -2px) rotate(calc(var(--ga-inward) * 8deg));
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-body {
+  animation: none;
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-peek {
+  transform-box: view-box;
+  transform-origin: 50px 90px;
+  animation: ga-spirit-peek 11s ease-in-out infinite;
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-face {
+  transform: translateX(calc(var(--ga-inward) * 8px)) scaleX(0.9);
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-gaze {
+  transform: translateX(calc(var(--ga-inward) * 1.4px));
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-eyes {
+  animation-duration: 9.8s;
+}
+.ga-spirit[data-pose^='dock-'] .ga-spirit-hand,
+.ga-spirit[data-pose^='dock-'] .ga-spirit-rest-hand,
+.ga-spirit[data-pose^='dock-'] .ga-spirit-shadow {
+  opacity: 0;
+  animation: none;
+}
+.ga-spirit[data-pose='dock-left'] .ga-spirit-grip-left,
+.ga-spirit[data-pose='dock-right'] .ga-spirit-grip-right {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ga-launcher[data-dock^='dock-']:hover .ga-spirit {
+  transform: none;
+}
+.ga-launcher[data-dock^='dock-']:hover .ga-spirit-pose {
+  transform: translate(calc(var(--ga-inward) * 7px), -2px) rotate(calc(var(--ga-inward) * 10deg));
+}
+.ga-moving .ga-spirit-peek {
+  animation-play-state: paused;
+}
+@keyframes ga-spirit-peek {
+  0%,
+  78%,
+  96%,
+  100% {
+    transform: translateX(0);
+  }
+  85% {
+    transform: translateX(calc(var(--ga-inward) * 1.8px));
+  }
+  90% {
+    transform: translateX(calc(var(--ga-inward) * 0.6px));
+  }
+}
 @keyframes ga-spirit-breathe {
   0%,
   100% {
@@ -107,6 +208,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .global-assistant .ga-launcher,
+  .global-assistant .ga-launcher .ga-spirit *,
   .ga-spirit,
   .ga-spirit-body,
   .ga-spirit-eyes,
@@ -543,12 +646,63 @@
   padding: 5px 8px;
 }
 
-.ga-resize { position:absolute; z-index:10; touch-action:none; }
-.ga-resize-n,.ga-resize-s {left:12px;right:12px;height:6px;cursor:ns-resize;}
-.ga-resize-n {top:0}.ga-resize-s{bottom:0}
-.ga-resize-e,.ga-resize-w {top:12px;bottom:12px;width:6px;cursor:ew-resize;}
-.ga-resize-e{right:0}.ga-resize-w{left:0}
-.ga-resize-ne,.ga-resize-nw,.ga-resize-se,.ga-resize-sw {width:12px;height:12px;}
-.ga-resize-ne{top:0;right:0;cursor:nesw-resize}.ga-resize-nw{top:0;left:0;cursor:nwse-resize}
-.ga-resize-se{bottom:0;right:0;cursor:nwse-resize;border-right:3px double var(--muted);border-bottom:3px double var(--muted)}
-.ga-resize-sw{bottom:0;left:0;cursor:nesw-resize}
+.ga-resize {
+  position: absolute;
+  z-index: 10;
+  touch-action: none;
+}
+.ga-resize-n,
+.ga-resize-s {
+  left: 12px;
+  right: 12px;
+  height: 6px;
+  cursor: ns-resize;
+}
+.ga-resize-n {
+  top: 0;
+}
+.ga-resize-s {
+  bottom: 0;
+}
+.ga-resize-e,
+.ga-resize-w {
+  top: 12px;
+  bottom: 12px;
+  width: 6px;
+  cursor: ew-resize;
+}
+.ga-resize-e {
+  right: 0;
+}
+.ga-resize-w {
+  left: 0;
+}
+.ga-resize-ne,
+.ga-resize-nw,
+.ga-resize-se,
+.ga-resize-sw {
+  width: 12px;
+  height: 12px;
+}
+.ga-resize-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.ga-resize-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.ga-resize-se {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+  border-right: 3px double var(--muted);
+  border-bottom: 3px double var(--muted);
+}
+.ga-resize-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
