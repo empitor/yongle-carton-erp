@@ -5,13 +5,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
-  AlertCircle,
-  ArrowUpRight,
 } from 'lucide-react';
 export function PageHeading({
   title,
   description,
-  kicker = '宁波甬勒包装制品有限公司',
+  kicker,
   actions,
 }: {
   title: string;
@@ -22,22 +20,11 @@ export function PageHeading({
   return (
     <div className="page-heading unified-heading">
       <div>
-        <div className="heading-kicker">{kicker}</div>
+        {kicker && <div className="heading-kicker">{kicker}</div>}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
       {actions && <div className="page-actions">{actions}</div>}
-    </div>
-  );
-}
-export function LocalNotice({ onGuide }: { onGuide: () => void }) {
-  return (
-    <div className="demo-banner">
-      <AlertCircle size={16} />
-      <span>本机验收版：正式导入及业务修改需登录管理账号，删除实际移除记录，操作留有审计。</span>
-      <button onClick={onGuide}>
-        查看说明 <ArrowUpRight size={14} />
-      </button>
     </div>
   );
 }

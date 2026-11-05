@@ -7,15 +7,22 @@ import {
   AlertTriangle,
   Layers,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { Dashboard } from '../shared/domain';
 import type { UnitBalance } from '../shared/overview';
 import './overview.css';
 import StatusBadge from './StatusBadge';
-import Workbench from './Workbench';
+import TodayQueue from './TodayQueue';
 import { displayAmount as exactMoney } from '../shared/display-amount';
 const money = (cents: number) =>
   (cents / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-export default function DashboardPage({ data }: { data: Dashboard }) {
+export default function DashboardPage({
+  data,
+  rangeFilter,
+}: {
+  data: Dashboard;
+  rangeFilter?: ReactNode;
+}) {
   if (!data.overview)
     return (
       <div className="error" role="alert">
@@ -62,9 +69,10 @@ export default function DashboardPage({ data }: { data: Dashboard }) {
     );
   return (
     <div className="business-overview">
-      {v.workbench && <Workbench value={v.workbench} overview={v} />}
+      <TodayQueue />
       <details className="workbench-report" open={false}>
-        <summary>经营统计与近期动态 · 按上方日期筛选</summary>
+        <summary>经营统计与近期动态</summary>
+        {rangeFilter}
         <div className="bo-scope">
           <CalendarScope />
           <p>

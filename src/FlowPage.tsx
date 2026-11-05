@@ -29,6 +29,8 @@ import RecordContextDialog, { RecordRelations } from './RecordContext';
 import DatabaseDeleteDialog from './DatabaseDeleteDialog';
 import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
 import DateSchedule from './DateSchedule';
+import ProductionBoard from './ProductionBoard';
+import DetailPanel from './ui/DetailPanel';
 import './date-schedule.css';
 import BusinessExport from './BusinessExport';
 import ProductionBatchDialog from './ProductionBatchDialog';
@@ -38,9 +40,9 @@ const title = (kind: FlowKind) =>
   kind === 'arrival'
     ? '采购到货管理'
     : kind === 'task'
-      ? '生产管理'
+      ? '生产任务'
       : kind === 'production'
-        ? '每日生产登记'
+        ? '完工记录'
         : '客户送货管理';
 function Field({
   label,
@@ -87,6 +89,7 @@ function Select({
     </Field>
   );
 }
+const FLOW_PAGE_SIZE = 50;
 export default function FlowPage({
   mode,
   recycle = false,
@@ -112,6 +115,7 @@ export default function FlowPage({
     receivePlan?: string;
     edit?: string;
     ai?: string;
+    lines?: string;
   };
   onClose?: () => void;
 }) {
@@ -134,6 +138,7 @@ export default function FlowPage({
   const [allDates, setAllDates] = useState(routeParams.get('scope') === 'all');
   const [pendingOnly, setPendingOnly] = useState(routeParams.get('pending') === '1');
   const [scheduling, setScheduling] = useState<any>(null);
+  const [listView, setListView] = useState(routeParams.get('scope') === 'all' || routeParams.get('pending') === '1');
   const [newPlanDate, setNewPlanDate] = useState('');
   const [newPlanTime, setNewPlanTime] = useState('');
   const scheduleRequest = useRef(crypto.randomUUID());
@@ -243,6 +248,7 @@ export default function FlowPage({
       active = false;
     };
   }, [kind, archived, revision, auth?.actor?.localAdministrator]);
+  const showBoard = kind === 'task' && mode === 'task' && !listView && !recycle && !archived && !dialogOnly;
   const filtered = rows.filter(
       (r) =>
         r.kind === kind &&
@@ -253,9 +259,9 @@ export default function FlowPage({
           ? allDates || planDate(r) === scheduleDate
           : (!range.start || r.date >= range.start) && (!range.end || r.date <= range.end)),
     ),
-    sliced = filtered.slice((page - 1) * 12, page * 12);
+    sliced = filtered.slice((page - 1) * FLOW_PAGE_SIZE, page * FLOW_PAGE_SIZE);
   useEffect(() => {
-    setPage((p) => Math.min(p, Math.max(1, Math.ceil(filtered.length / 12))));
+    setPage((p) => Math.min(p, Math.max(1, Math.ceil(filtered.length / FLOW_PAGE_SIZE))));
   }, [filtered.length]);
   const begin = (value?: any) => {
     saveRequest.current = crypto.randomUUID();
@@ -341,6 +347,11 @@ export default function FlowPage({
           }));
       }
     }
+    if (!value && kind === 'delivery' && params.get('lines')) {
+      const preset = JSON.parse(params.get('lines')!);
+      v.customerId = preset.customerId;
+      v.lines = preset.lines.map((l: any) => ({ ...l, notes: '' }));
+    }
     if (!value && kind === 'delivery' && v.customerId) {
       const customer = data.customers.find((c: any) => c.id === v.customerId);
       v.address = customer?.address || '';
@@ -393,7 +404,7 @@ export default function FlowPage({
         setOpened(true);
         linkedOpened.current = true;
       } else if (mode === 'task' && kind !== 'production') setKind('production');
-    } else if (launch || params.get('purchase') || params.get('order') || params.get('stock')) {
+    } else if (launch || params.get('lines') || params.get('create') === '1' || params.get('purchase') || params.get('order') || params.get('stock')) {
       begin();
       linkedOpened.current = true;
     }
@@ -580,6 +591,177 @@ export default function FlowPage({
       : kind === 'delivery'
         ? r.customerName || data.customers.find((s: any) => s.id === r.customerId)?.name
         : r.productName || data.products.find((s: any) => s.id === r.productId)?.name;
+  const viewTitle = (d: any) =>
+    (d.kind === 'arrival' && d.isPlan ? '到货计划' : flowNames[d.kind as FlowKind]) + ' · ' + d.number;
+  const stepView = (delta: number) => {
+    const index = filtered.findIndex((r) => r.id === view?.id),
+      next = filtered[index + delta];
+    if (!next) return;
+    setView(next);
+    setPage(Math.floor((index + delta) / FLOW_PAGE_SIZE) + 1);
+  };
+  const viewActions = (view: any) => (
+    <>
+          {view.kind === 'arrival' && view.isPlan && view.status === 'draft' && canEdit && (
+            <button
+              className="primary"
+              onClick={() => {
+                begin({ ...view, isPlan: false, date: today(), actualTime: null });
+                setView(null);
+              }}
+            >
+              按此计划登记实际到货
+            </button>
+          )}
+          {view.kind === 'task' &&
+            canEdit &&
+            !view.archived &&
+            ['draft', 'confirmed'].includes(view.status) &&
+            view.progress < 100 && (
+              <button
+                className="primary"
+                onClick={() => {
+                  setSelected([view.id]);
+                  setBatchCompletion(true);
+                }}
+              >
+                领料与完工入库
+              </button>
+            )}
+          {view.kind === 'delivery' && (
+            <>
+              <a
+                className="secondary"
+                href={'/api/flow/' + view.id + '/print'}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Printer size={16} />
+                打印 / 另存PDF
+              </a>
+              <BusinessExport
+                kind="delivery"
+                id={view.id}
+                version={view.version}
+                status={view.status}
+              />
+            </>
+          )}
+          {auth?.actor?.localAdministrator && view.status !== 'draft' && (
+            <button
+              className="primary"
+              onClick={() => {
+                if (
+                  view.kind === 'arrival' &&
+                  view.status === 'confirmed' &&
+                  arrivalReceipt(view)
+                )
+                  correctArrival(view);
+                else begin(view);
+                setView(null);
+              }}
+            >
+              编辑 / 更正单据
+            </button>
+          )}
+          {view.status === 'draft' && !view.archived && (
+            <>
+              <button
+                className="secondary"
+                disabled={!canEdit}
+                onClick={() => {
+                  begin(view);
+                  setView(null);
+                }}
+              >
+                编辑草稿
+              </button>
+              {!view.isPlan && (
+                <button
+                  className="primary"
+                  disabled={!canEdit || busy}
+                  onClick={() => review(view)}
+                >
+                  核对并确认
+                  {view.kind === 'arrival' ? '收货' : view.kind === 'delivery' ? '发货' : ''}
+                </button>
+              )}
+            </>
+          )}
+          {view.status === 'confirmed' && auth?.actor?.superAdminMode && (
+            <button
+              className="danger-button"
+              onClick={() => {
+                ask('reverse', [view]);
+                setView(null);
+              }}
+            >
+              冲销更正
+            </button>
+          )}
+      {canEdit &&
+        !view.archived &&
+        ((view.kind === 'task' &&
+          ['draft', 'confirmed'].includes(view.status) &&
+          view.progress < 100) ||
+          (view.kind === 'delivery' && view.status === 'draft')) && (
+          <button
+            onClick={() => {
+              setScheduling(view);
+              setNewPlanDate(planDate(view));
+              setNewPlanTime(view.plannedTime || '');
+              scheduleRequest.current = crypto.randomUUID();
+            }}
+          >
+            调整排程
+          </button>
+        )}
+      {canEdit &&
+        view.kind === 'arrival' &&
+        view.status === 'confirmed' &&
+        arrivalReceipt(view) && <button onClick={() => correctArrival(view)}>更正到货单</button>}
+      {view.status === 'draft' && !view.archived && (
+        <button disabled={!canEdit} onClick={() => ask('cancel', [view])}>
+          取消草稿
+        </button>
+      )}
+      {view.kind === 'task' && view.status === 'confirmed' && view.progress < 100 && (
+        <button disabled={!canEdit} onClick={() => ask('cancel', [view])}>
+          取消剩余任务
+        </button>
+      )}
+      {view.status === 'reversed' && auth?.actor?.superAdminMode && (
+        <button
+          onClick={() => {
+            const copy = structuredClone(view);
+            delete copy.id;
+            delete copy.version;
+            copy.correctionOf = view.id;
+            setEditor(copy);
+            setView(null);
+          }}
+        >
+          建立更正草稿
+        </button>
+      )}
+      <button
+        disabled={!canEdit || busy}
+        onClick={() => ask(view.archived ? 'restore' : 'archive', [view])}
+      >
+        {view.archived ? '恢复' : '归档'}
+      </button>
+      {auth?.actor?.localAdministrator && (
+        <button onClick={() => setContextId(view.id)}>修改历史</button>
+      )}
+      <button
+        className="danger-text"
+        disabled={!auth?.actor?.localAdministrator || busy}
+        onClick={() => ask('delete', [view])}
+      >
+        删除
+      </button>
+    </>
+  );
   return (
     <div className="flow-page">
       {!dialogOnly && (
@@ -639,9 +821,38 @@ export default function FlowPage({
                   {flowNames[k]}
                 </button>
               ))}
+              {kind === 'task' && !recycle && (
+                <span className="flow-view-switch">
+                  <button className={showBoard ? 'selected' : ''} onClick={() => setListView(false)}>
+                    排产板
+                  </button>
+                  <button className={showBoard ? '' : 'selected'} onClick={() => setListView(true)}>
+                    列表
+                  </button>
+                </span>
+              )}
             </div>
           )}
-          {(kind === 'task' || (kind === 'delivery' && scheduleView)) && (
+          {showBoard && (
+            <ProductionBoard
+              tasks={rows.filter((r) => r.kind === 'task')}
+              products={data.products}
+              canEdit={canEdit}
+              open={setView}
+              reschedule={(task, plannedDate) =>
+                void work(async () => {
+                  await managementRequest('/flow/' + task.id + '/schedule', {
+                    plannedDate,
+                    expectedVersion: task.version,
+                    requestId: crypto.randomUUID(),
+                  });
+                  setNotice(task.number + ' 已改到 ' + plannedDate + '，实际业务与库存未改变。');
+                  refresh();
+                })
+              }
+            />
+          )}
+          {!showBoard && (kind === 'task' || (kind === 'delivery' && scheduleView)) && (
             <>
               <DateSchedule
                 value={scheduleDate}
@@ -724,8 +935,7 @@ export default function FlowPage({
               {notice}
             </div>
           )}
-          {!auth?.actor && <p className="form-error">请先在右上角登录管理账号。</p>}
-          <ListFilters
+          {!showBoard && <ListFilters
             search={q}
             onSearch={setQ}
             placeholder="搜索单号、备注和明细"
@@ -779,8 +989,8 @@ export default function FlowPage({
                 </select>
               </FilterField>
             )}
-          </ListFilters>
-          {!archived && !embedded && (
+          </ListFilters>}
+          {!showBoard && !archived && !embedded && (
             <ListSummary
               items={
                 kind === 'task'
@@ -846,7 +1056,7 @@ export default function FlowPage({
                 刷新
               </button>
             </div>
-            <div className="table-wrap">
+            <div className="table-wrap unified-table-region" tabIndex={0}>
               <table className="flow-table">
                 <thead>
                   <tr>
@@ -862,17 +1072,29 @@ export default function FlowPage({
                         }
                       />
                     </th>
-                    <th>单号 / 日期</th>
+                    <th>单号</th>
                     <th>{kind === 'arrival' ? '供应商' : kind === 'delivery' ? '客户' : '产品'}</th>
-                    <th>{kind === 'task' ? '计划 / 完工进度' : '业务内容'}</th>
+                    <th>{kind === 'task' ? '完工 / 计划' : '内容'}</th>
+                    <th>{kind === 'task' || kind === 'delivery' ? '计划日期' : '日期'}</th>
+                    {(kind === 'task' || kind === 'delivery') && <th>实际日期</th>}
                     <th>状态</th>
                     <th>登记人</th>
-                    <th>操作</th>
+                    <th aria-label="操作" />
                   </tr>
                 </thead>
                 <tbody>
                   {sliced.map((r) => (
-                    <tr key={r.id}>
+                    <tr
+                      key={r.id}
+                      tabIndex={0}
+                      className={'record-row' + (view?.id === r.id ? ' selected' : '')}
+                      onClick={(e) => {
+                        if (!(e.target as HTMLElement).closest('input,button,a')) setView(r);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.target === e.currentTarget) setView(r);
+                      }}
+                    >
                       <td>
                         <input
                           type="checkbox"
@@ -885,44 +1107,31 @@ export default function FlowPage({
                           }
                         />
                       </td>
-                      <td>
-                        <strong>{r.number}</strong>
-                        <span className="sub">
-                          {kind === 'task' || kind === 'delivery' ? '计划 ' + planDate(r) : r.date}
-                        </span>
-                        {kind === 'delivery' && (
-                          <span className="sub">实际发货：{r.actualDate || '尚未发货'}</span>
-                        )}
-                        {kind === 'task' && (
-                          <span className="sub">
-                            实际完工：{r.actualCompletionDate || '尚未完工'}
-                          </span>
-                        )}
-                        {r.plannedDateSource === 'legacy-date' && (
-                          <span className="sub">沿用历史业务日期</span>
-                        )}
-                      </td>
-                      <td>{labelRow(r) || '历史档案'}</td>
+                      <td className="record-no">{r.number}</td>
+                      <td className="cell-wrap">{labelRow(r) || '历史档案'}</td>
                       <td>
                         {kind === 'task' ? (
-                          <>
+                          <span className="inline-progress">
+                            <span className="board-progress">
+                              <i style={{ width: r.progress + '%' }} />
+                            </span>
                             {r.completed} / {r.quantity} {r.unit}
-                            <progress value={r.progress} max="100" />
-                          </>
+                          </span>
                         ) : kind === 'production' ? (
                           <>
                             合格 {r.goodQuantity} · 报废 {r.scrapQuantity}
-                            <span className="sub">
-                              {r.materials.length} 种领用材料 · {r.operator}
-                            </span>
+                            <span className="sub">{r.operator}</span>
                           </>
                         ) : (
                           <>
                             {r.lines.length} 条明细
-                            <span className="sub">{r.reference || r.notes || '—'}</span>
+                            <span className="sub">{r.reference || r.notes || ''}</span>
                           </>
                         )}
                       </td>
+                      <td>{kind === 'task' || kind === 'delivery' ? planDate(r) : r.date}</td>
+                      {kind === 'task' && <td>{r.actualCompletionDate || '—'}</td>}
+                      {kind === 'delivery' && <td>{r.actualDate || '—'}</td>}
                       <td>
                         <span className={'badge flow-state-' + r.status}>
                           {r.archived ? '归档 · ' : ''}
@@ -931,116 +1140,9 @@ export default function FlowPage({
                       </td>
                       <td>{r.actorName}</td>
                       <td>
-                        <div className="flow-actions">
-                          {canEdit &&
-                            !r.archived &&
-                            ((r.kind === 'task' &&
-                              ['draft', 'confirmed'].includes(r.status) &&
-                              r.progress < 100) ||
-                              (r.kind === 'delivery' && r.status === 'draft')) && (
-                              <button
-                                onClick={() => {
-                                  setScheduling(r);
-                                  setNewPlanDate(planDate(r));
-                                  setNewPlanTime(r.plannedTime || '');
-                                  scheduleRequest.current = crypto.randomUUID();
-                                }}
-                              >
-                                调整排程
-                              </button>
-                            )}
-                          <button className="secondary" onClick={() => setView(r)}>
-                            查看
-                          </button>
-                          {canEdit &&
-                            r.kind === 'arrival' &&
-                            r.status === 'confirmed' &&
-                            arrivalReceipt(r) && (
-                              <button onClick={() => correctArrival(r)}>更正到货单</button>
-                            )}
-                          {((r.status === 'draft' && !archived) ||
-                            auth?.actor?.localAdministrator) && (
-                            <button
-                              className="secondary"
-                              disabled={!canEdit}
-                              onClick={() =>
-                                r.kind === 'arrival' &&
-                                r.status === 'confirmed' &&
-                                arrivalReceipt(r)
-                                  ? correctArrival(r)
-                                  : begin(r)
-                              }
-                            >
-                              编辑
-                            </button>
-                          )}
-                          <button
-                            disabled={!canEdit || busy}
-                            onClick={() => ask(archived ? 'restore' : 'archive', [r])}
-                          >
-                            {archived ? '恢复' : '归档'}
-                          </button>
-                          <button
-                            className="danger-text"
-                            disabled={!auth?.actor?.localAdministrator || busy}
-                            onClick={() => ask('delete', [r])}
-                          >
-                            删除
-                          </button>
-                          <details className="record-more">
-                            <summary>更多操作</summary>
-                            <div className="record-more-content">
-                              {auth?.actor?.localAdministrator && (
-                                <button onClick={() => setContextId(r.id)}>
-                                  关联记录 / 修改历史
-                                </button>
-                              )}
-                              {r.status === 'draft' && !archived && (
-                                <>
-                                  <button disabled={!canEdit} onClick={() => review(r)}>
-                                    核对并确认
-                                  </button>
-                                  <button disabled={!canEdit} onClick={() => ask('cancel', [r])}>
-                                    取消草稿
-                                  </button>
-                                </>
-                              )}
-                              {r.status === 'confirmed' && (
-                                <button
-                                  className="danger-text"
-                                  disabled={!auth?.actor?.superAdminMode}
-                                  onClick={() => ask('reverse', [r])}
-                                >
-                                  冲销更正
-                                </button>
-                              )}
-                              {r.kind === 'task' &&
-                                r.status === 'confirmed' &&
-                                r.progress < 100 && (
-                                  <button
-                                    className="danger-text"
-                                    disabled={!canEdit}
-                                    onClick={() => ask('cancel', [r])}
-                                  >
-                                    取消剩余任务（保留已生产）
-                                  </button>
-                                )}
-                              {r.status === 'reversed' && auth?.actor?.superAdminMode && (
-                                <button
-                                  onClick={() => {
-                                    const copy = structuredClone(r);
-                                    delete copy.id;
-                                    delete copy.version;
-                                    copy.correctionOf = r.id;
-                                    setEditor(copy);
-                                  }}
-                                >
-                                  建立更正草稿
-                                </button>
-                              )}
-                            </div>
-                          </details>
-                        </div>
+                        <button className="row-open" onClick={() => setView(r)}>
+                          查看
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1059,11 +1161,11 @@ export default function FlowPage({
                 上一页
               </button>
               <span>
-                {page} / {Math.max(1, Math.ceil(filtered.length / 12))}
+                {page} / {Math.max(1, Math.ceil(filtered.length / FLOW_PAGE_SIZE))}
               </span>
               <button
                 className="secondary"
-                disabled={page * 12 >= filtered.length}
+                disabled={page * FLOW_PAGE_SIZE >= filtered.length}
                 onClick={() => setPage((p) => p + 1)}
               >
                 下一页
@@ -1165,119 +1267,29 @@ export default function FlowPage({
           }}
         />
       )}
-      {view && (
-        <ManagementDialog
-          title={
-            (view.kind === 'arrival' && view.isPlan
-              ? '到货计划'
-              : flowNames[view.kind as FlowKind]) +
-            ' · ' +
-            view.number
-          }
-          close={() => setView(null)}
-        >
-          <FlowDetails doc={view} data={data} />
-          <div className="modal-actions">
-            {view.kind === 'arrival' && view.isPlan && view.status === 'draft' && canEdit && (
-              <button
-                className="primary"
-                onClick={() => {
-                  begin({ ...view, isPlan: false, date: today(), actualTime: null });
-                  setView(null);
-                }}
-              >
-                按此计划登记实际到货
-              </button>
-            )}
-            {view.kind === 'task' &&
-              canEdit &&
-              !view.archived &&
-              ['draft', 'confirmed'].includes(view.status) &&
-              view.progress < 100 && (
-                <button
-                  className="primary"
-                  onClick={() => {
-                    setSelected([view.id]);
-                    setBatchCompletion(true);
-                  }}
-                >
-                  领料与完工入库
-                </button>
-              )}
-            {view.kind === 'delivery' && (
-              <>
-                <a
-                  className="secondary"
-                  href={'/api/flow/' + view.id + '/print'}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Printer size={16} />
-                  打印 / 另存PDF
-                </a>
-                <BusinessExport
-                  kind="delivery"
-                  id={view.id}
-                  version={view.version}
-                  status={view.status}
-                />
-              </>
-            )}
-            {auth?.actor?.localAdministrator && view.status !== 'draft' && (
-              <button
-                className="primary"
-                onClick={() => {
-                  if (
-                    view.kind === 'arrival' &&
-                    view.status === 'confirmed' &&
-                    arrivalReceipt(view)
-                  )
-                    correctArrival(view);
-                  else begin(view);
-                  setView(null);
-                }}
-              >
-                编辑 / 更正单据
-              </button>
-            )}
-            {view.status === 'draft' && !view.archived && (
-              <>
-                <button
-                  className="secondary"
-                  disabled={!canEdit}
-                  onClick={() => {
-                    begin(view);
-                    setView(null);
-                  }}
-                >
-                  编辑草稿
-                </button>
-                {!view.isPlan && (
-                  <button
-                    className="primary"
-                    disabled={!canEdit || busy}
-                    onClick={() => review(view)}
-                  >
-                    核对并确认
-                    {view.kind === 'arrival' ? '收货' : view.kind === 'delivery' ? '发货' : ''}
-                  </button>
-                )}
-              </>
-            )}
-            {view.status === 'confirmed' && auth?.actor?.superAdminMode && (
-              <button
-                className="danger-button"
-                onClick={() => {
-                  ask('reverse', [view]);
-                  setView(null);
-                }}
-              >
-                冲销更正
-              </button>
-            )}
-          </div>
-        </ManagementDialog>
-      )}
+      {view &&
+        (dialogOnly ? (
+          <ManagementDialog title={viewTitle(view)} close={() => setView(null)}>
+            <FlowDetails doc={view} data={data} />
+            <div className="modal-actions">{viewActions(view)}</div>
+          </ManagementDialog>
+        ) : (
+          <DetailPanel
+            title={viewTitle(view)}
+            status={
+              <span className={'badge flow-state-' + view.status}>
+                {view.archived ? '归档 · ' : ''}
+                {flowStatusLabel(view)}
+              </span>
+            }
+            actions={viewActions(view)}
+            close={() => setView(null)}
+            previous={() => stepView(-1)}
+            next={() => stepView(1)}
+          >
+            <FlowDetails doc={view} data={data} />
+          </DetailPanel>
+        ))}
       {preview && (
         <ManagementDialog
           title={

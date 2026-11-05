@@ -642,13 +642,19 @@ test('导航分组和业务元数据对应实际新表，采购库存不是AI可
     createElement(Navigation, { page: 'purchases', navigate: () => {} }),
   );
   for (const t of [
-    '订单业务',
-    '客户订单',
-    '采购订货',
-    '往来单位',
-    '供应商管理',
-    '仓库管理',
-    'aria-expanded',
+    '今日',
+    '收件箱',
+    '销售',
+    '订单',
+    '采购',
+    '采购单',
+    '供应商',
+    '生产',
+    '仓储',
+    '库存',
+    '到货',
+    '送货',
+    '流水',
   ])
     assert.ok(nav.includes(t));
   const f = await fixture();

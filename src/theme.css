@@ -198,37 +198,7 @@ input[type='checkbox'] {
 .sidebar .brand-mark {
   border-color: var(--sidebar-muted);
 }
-.sidebar .workspace,
-.sidebar .workspace span,
-.sidebar .phase span,
-.sidebar .phase p,
-.sidebar .database-label {
-  color: var(--sidebar-muted);
-}
-.sidebar .phase {
-  background: var(--sidebar-hover);
-  border-color: var(--sidebar-muted);
-}
-.sidebar .nav-item,
-.sidebar .nav-subitem {
-  color: var(--sidebar-ink);
-}
-.sidebar .nav-item:hover,
-.sidebar .nav-subitem:hover {
-  background: var(--sidebar-hover);
-}
-.sidebar .nav-item.selected,
-.sidebar .nav-subitem.selected {
-  background: var(--sidebar-selected);
-  color: var(--sidebar-active-ink);
-}
-.sidebar .nav-item small {
-  background: var(--sidebar-selected);
-  color: var(--sidebar-active-ink);
-}
-.sidebar .nav-submenu {
-  border-color: var(--border-strong);
-}
+
 .panel,
 .stat,
 .ai-presets,
@@ -369,4 +339,99 @@ output,
   button {
     transition: none;
   }
+}
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--page-bg);
+}
+.login-card {
+  width: min(400px, 100%);
+  padding: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.login-card h1 {
+  margin-top: 16px;
+  font-size: 20px;
+}
+.login-card > p {
+  margin: 4px 0 16px;
+  color: var(--text-secondary);
+}
+.login-card .brand-mark {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--teal);
+}
+.login-card .auth-form button {
+  width: 100%;
+}
+.account-section {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.account-section summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.account-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.account-table th,
+.account-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.account-actions {
+  display: flex;
+  gap: 6px;
+}
+.account-actions button {
+  padding: 4px 8px;
+  min-height: 28px;
+}
+.account-create {
+  margin-top: 10px;
+}
+.movement-revisions {
+  margin-top: 4px;
+  color: var(--warning);
+  font-size: 12px;
+}
+.movement-revisions summary {
+  cursor: pointer;
+}
+.movement-revisions .sub {
+  display: block;
+}
+/* 操作列冻结在右侧：表格横向溢出时主要操作不被裁切。 */
+.business-records .unified-table-region > table > thead > tr > th:last-child,
+.business-records .unified-table-region > table > tbody > tr > td:last-child:not([colspan]) {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: -1px 0 0 var(--border);
+}
+.business-records .unified-table-region > table > thead > tr > th:last-child {
+  background: var(--surface-muted);
+}
+.sidebar nav {
+  margin-top: 16px;
 }

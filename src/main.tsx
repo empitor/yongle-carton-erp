@@ -8,6 +8,7 @@ import './fulfillment.css';
 import './business-export.css';
 import './ui-audit.css';
 import './ui-upgrade.css';
+import './design.css';
 import { loadTheme } from './theme';
 loadTheme();
 createRoot(document.getElementById('root')!).render(

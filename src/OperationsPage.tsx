@@ -32,7 +32,6 @@ export default function OperationsPage({
   mode: 'suppliers' | 'purchases' | 'warehouse';
   recycle?: boolean;
   openSupplier: (v?: any) => void;
-  onGuide?: () => void;
 }) {
   const auth = useAuthState(),
     superMode = !!auth?.actor?.superAdminMode,
@@ -403,13 +402,15 @@ export default function OperationsPage({
   };
   return (
     <div className="operations-workspace unified-business-page">
-      {!recycle && (
-        <>
-          <PageHeading title={titles[mode]} description={descriptions[mode]} actions={actions} />
-        </>
+      {!recycle && !arrivalView && !deliveryTab && (
+        <PageHeading
+          title={flowTab ? '流水' : titles[mode]}
+          description={descriptions[mode]}
+          actions={flowTab ? undefined : actions}
+        />
       )}
       {recycle && <div className="page-actions recycle-actions">{actions}</div>}
-      {mode === 'warehouse' && (
+      {mode === 'warehouse' && !arrivalView && !deliveryTab && !flowTab && (
         <WarehouseNavigation
           view={
             arrivalView ||

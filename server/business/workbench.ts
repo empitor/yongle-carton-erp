@@ -2,6 +2,7 @@ import type { Store } from '../db.js';
 import { FlowService } from '../flow/service.js';
 import { WarehouseDaily } from '../flow/daily.js';
 import { OperationsRepository } from '../operations/repository.js';
+import { sumMoney } from '../../shared/operations.js';
 
 /** 工作台只读取原服务的有效记录；计划、实物及不同单位分别统计。 */
 export function buildWorkbench(store: Store, date: string) {
@@ -13,12 +14,14 @@ export function buildWorkbench(store: Store, date: string) {
   const activeTasks = tasks.filter(
     (t) => ['draft', 'confirmed'].includes(t.status) && t.progress < 100,
   );
-  const arrivals = daily.get({ kind: 'arrival', date }),
-    deliveries = daily.get({ kind: 'delivery', date });
+  const arrivalRecords = daily.records('arrival'),
+    deliveryRecords = daily.records('delivery'),
+    arrivals = daily.get({ kind: 'arrival', date }, arrivalRecords),
+    deliveries = daily.get({ kind: 'delivery', date }, deliveryRecords);
   return {
     date,
     toOrder: purchases.filter((p) => p.businessStatus === '待订货').length,
-    pendingArrivals: daily.records('arrival').filter((r) => r.pending && !r.cancelled).length,
+    pendingArrivals: arrivalRecords.filter((r) => r.pending && !r.cancelled).length,
     arrivalsToday: arrivals.summary!.completed,
     stockedToday: repo
       .movements({ start: date, end: date })
@@ -39,7 +42,132 @@ export function buildWorkbench(store: Store, date: string) {
       .list('production')
       .filter((p) => p.status === 'confirmed' && p.date === date).length,
     deliveriesToday: deliveries.summary!.completed,
-    pendingDeliveries: daily.records('delivery').filter((r) => r.pending && !r.cancelled).length,
+    pendingDeliveries: deliveryRecords.filter((r) => r.pending && !r.cancelled).length,
+  };
+}
+
+const lineSummary = (names: string[]) =>
+  (names[0] || '') + (names.length > 1 ? ' 等' + names.length + '项' : '');
+const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000);
+
+/** 今日页：把各模块的真实记录整理成待办队列，只读。 */
+export function buildToday(store: Store, date: string) {
+  const flow = new FlowService(store),
+    daily = new WarehouseDaily(store),
+    repo = new OperationsRepository(store);
+  const orders = store.orders(),
+    tasks = flow.list('task'),
+    purchases = repo.purchases(),
+    deliveryRecords = daily.records('delivery'),
+    arrivalRecords = daily.records('arrival');
+  const view = (o: (typeof orders)[number]) => ({
+    id: o.id,
+    number: o.number,
+    customerName: o.customerName,
+    deliveryDate: o.deliveryDate,
+    status: o.status,
+    shippingProgress: o.shippingProgress,
+    materialProgress: o.materialProgress,
+    summary: lineSummary(o.lines.map((l) => l.productName)),
+  });
+  const activeTask = (t: any) => ['draft', 'confirmed'].includes(t.status);
+  const active = orders.filter((o) => ['已确认', '生产中', '待发货'].includes(o.status)),
+    overdue = active.filter((o) => o.deliveryDate < date),
+    overdueIds = new Set(overdue.map((o) => o.id));
+  // 未发完的明细没有任何进行中或已完工的任务，就算未排产。
+  const unscheduled = active.filter(
+    (o) =>
+      o.status !== '待发货' &&
+      o.lines.some(
+        (l) =>
+          (l.remainingQuantity === null || (l.remainingQuantity ?? 0) > 0) &&
+          !tasks.some(
+            (t) => activeTask(t) && t.productId === l.productId && t.orderIds.includes(o.id),
+          ),
+      ),
+  );
+  const byDate = (a: string, b: string) => a.localeCompare(b);
+  const purchaseView = (p: any) => ({
+    id: p.id,
+    number: p.number,
+    supplierName: p.supplierName,
+    expectedDate: p.expectedDate,
+    summary: lineSummary(p.lines.map((l: any) => l.name)),
+  });
+  const monthStart = date.slice(0, 7) + '-01';
+  return {
+    date,
+    summary: {
+      monthOrderCents: orders
+        .filter((o) => o.orderDate >= monthStart && !['草稿', '已取消'].includes(o.status))
+        .reduce((n, o) => n + o.totalCents, 0),
+      // 历史送货可能没有价格快照，这里只累计有快照的部分，不猜测金额。
+      monthShippedAmount:
+        sumMoney(
+          deliveryRecords
+            .filter((d) => d.status === 'confirmed' && d.date >= monthStart)
+            .flatMap((d) => d.lines.map((l: any) => l.amountExact ?? null))
+            .filter((v) => v !== null),
+        ) || '0',
+    },
+    overdue: overdue
+      .map((o) => ({ ...view(o), lateDays: daysBetween(o.deliveryDate, date) }))
+      .sort((a, b) => b.lateDays - a.lateDays),
+    unscheduled: unscheduled
+      .filter((o) => !overdueIds.has(o.id))
+      .map(view)
+      .sort((a, b) => byDate(a.deliveryDate, b.deliveryDate)),
+    ready: active
+      .filter((o) => o.status === '待发货' && !overdueIds.has(o.id))
+      .map(view)
+      .sort((a, b) => byDate(a.deliveryDate, b.deliveryDate)),
+    toOrder: purchases.filter((p) => p.businessStatus === '待订货').map(purchaseView),
+    arrivalsDue: purchases
+      .filter(
+        (p) =>
+          p.businessStatus === '已订货' &&
+          p.expectedDate &&
+          p.expectedDate <= date &&
+          p.lines.some((l: any) => l.remainingUnits > 0),
+      )
+      .map(purchaseView)
+      .sort((a, b) => byDate(a.expectedDate, b.expectedDate)),
+    draftDeliveries: deliveryRecords
+      .filter((d) => d.pending && !d.cancelled)
+      .map((d) => ({
+        id: d.id,
+        number: d.number,
+        customerName: d.customerName,
+        plannedDate: d.plannedDate || d.date,
+      })),
+    schedule: {
+      arrivals: arrivalRecords
+        .filter((r) => r.pending && !r.cancelled && r.plannedDate === date)
+        .map((r) => ({
+          id: r.id,
+          label: (r.supplierName || '') + ' ' + lineSummary(r.lines.map((l: any) => l.item?.name)),
+        })),
+      tasks: tasks
+        .filter(
+          (t) => (t.plannedDate || t.date) === date && activeTask(t) && t.progress < 100,
+        )
+        .map((t) => ({
+          id: t.id,
+          label:
+            (store.product(t.productId, true)?.name || t.number) + ' ' + t.quantity + ' ' + t.unit,
+        })),
+      deliveries: deliveryRecords
+        .filter((d) => !d.cancelled && (d.plannedDate === date || d.actualDate === date))
+        .map((d) => ({
+          id: d.id,
+          label: d.customerName + ' ' + lineSummary(d.lines.map((l: any) => l.productName)),
+        })),
+    },
+    zeroStock: repo
+      .items()
+      .filter((i) => i.kind === 'raw' && i.balanceUnits === 0)
+      .map((i) => ({ id: i.id, name: i.name, onOrder: i.onOrder })),
   };
 }
 

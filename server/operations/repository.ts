@@ -1,6 +1,7 @@
 import type { Store } from '../db.js';
 import {
   quantityString,
+  quantityUnits,
   lineMoney,
   sumMoney,
   formatStockSize,
@@ -192,6 +193,37 @@ export class OperationsRepository {
         .get(id)!.n,
     );
   }
+  /** 已安排：送货草稿和生产登记草稿将要用掉、但尚未确认出库的数量。 */
+  private reservedUnits() {
+    const units = new Map<number, number>();
+    const add = (id: number | null | undefined, quantity: number) => {
+      if (id) units.set(id, (units.get(id) || 0) + quantity);
+    };
+    for (const row of this.store.db
+      .prepare(
+        "SELECT kind,document FROM flow_documents WHERE status='draft' AND kind IN ('delivery','production') AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity IN ('flow_delivery','flow_production'))",
+      )
+      .all()) {
+      const doc = JSON.parse(String(row.document));
+      if (row.kind === 'delivery')
+        for (const l of doc.lines || []) add(l.stockId, quantityUnits(l.quantity));
+      else
+        for (const m of doc.materials || [])
+          add(m.stockId, quantityUnits(m.issued) - quantityUnits(m.returned || '0'));
+    }
+    return units;
+  }
+  /** 在途：已订货采购尚未到齐的数量。 */
+  private onOrderUnits() {
+    return new Map(
+      this.store.db
+        .prepare(
+          "SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='已订货' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases') GROUP BY l.stock_item_id",
+        )
+        .all()
+        .map((r) => [Number(r.id), Number(r.n)]),
+    );
+  }
   items(include = false): any[] {
     const archived = this.store.archivedIds('stock_items'),
       balances = new Map(
@@ -199,7 +231,9 @@ export class OperationsRepository {
           .prepare('SELECT item_id,SUM(delta_units) n FROM stock_movements GROUP BY item_id')
           .all()
           .map((r) => [Number(r.item_id), Number(r.n)]),
-      );
+      ),
+      reserved = this.reservedUnits(),
+      onOrder = this.onOrderUnits();
     return this.store.db
       .prepare(
         'SELECT id,name,kind,unit,document,product_id AS productId,version,created_at AS createdAt FROM stock_items ORDER BY id DESC',
@@ -214,6 +248,12 @@ export class OperationsRepository {
           ...base,
           quantity: quantityString(balance),
           balanceUnits: balance,
+          reservedUnits: reserved.get(Number(r.id)) || 0,
+          reserved: quantityString(reserved.get(Number(r.id)) || 0),
+          // 可用量只用于提示，可能因草稿超排而为负；实际扣减仍在确认时校验。
+          availableUnits: balance - (reserved.get(Number(r.id)) || 0),
+          onOrderUnits: onOrder.get(Number(r.id)) || 0,
+          onOrder: quantityString(onOrder.get(Number(r.id)) || 0),
           archived: archived.has(Number(r.id)),
         };
       });

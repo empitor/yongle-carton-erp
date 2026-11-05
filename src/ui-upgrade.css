@@ -1,9 +1,5 @@
 /* 桌面业务工作台：流程、单据和高频表格共同使用语义主题。 */
-.workbench {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 24px;
-}
+
 .workbench-heading,
 .workflow-chain > header,
 .related-business > header {
@@ -12,9 +8,7 @@
   justify-content: space-between;
   gap: 20px;
 }
-.workbench-heading h2 {
-  font-size: 20px;
-}
+
 .workbench-heading p,
 .related-business header p {
   color: var(--text-secondary);
@@ -45,99 +39,14 @@
   border-color: var(--teal);
   color: var(--on-accent);
 }
-.workflow-chain {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  overflow: hidden;
-}
-.workflow-chain > header {
-  padding: 13px 20px;
-  background: var(--surface-muted);
-  border-bottom: 1px solid var(--border);
-  justify-content: start;
-  gap: 10px;
-}
-.workflow-chain > header svg {
-  color: var(--teal);
-}
-.workflow-chain > header a {
-  margin-left: auto;
-  color: var(--accent-ink);
-  font-size: 12px;
-}
-.workflow-stages {
-  display: flex;
-}
-.workflow-stages > a {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-  position: relative;
-  gap: 11px;
-  padding: 24px 19px;
-  border-right: 1px solid var(--border);
-}
-.workflow-stages > a:last-child {
-  border-right: 0;
-}
-.workflow-stages > a:hover {
-  background: var(--surface-hover);
-}
-.workflow-step {
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  width: 25px;
-  height: 25px;
-  flex-shrink: 0;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-  font-size: 12px;
-}
-.workflow-stages > a > div {
-  display: grid;
-  gap: 5px;
-}
-.workflow-stages strong {
-  font-size: 14px;
-}
-.workflow-stages small {
-  display: block;
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-.workflow-stages b {
-  font-size: 26px;
-  line-height: 1.2;
-  margin-left: auto;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-.workflow-stages b small {
-  font-size: 10px;
-  margin-top: 5px;
-  font-weight: 400;
-}
-.workflow-arrow {
-  position: absolute;
-  right: -10px;
-  top: calc(50% - 9px);
-  background: var(--surface);
-  color: var(--muted);
-  z-index: 1;
-}
+
 .workbench-report > summary {
   cursor: pointer;
   font-size: 14px;
   padding: 14px 0;
   color: var(--text-secondary);
 }
-.workbench .help-text {
-  margin: 0;
-}
+
 .order-line-table {
   margin: 12px 0;
   border: 1px solid var(--border);
@@ -494,24 +403,7 @@
   margin: 14px 0;
 }
 @media (max-width: 1350px) {
-  .workflow-stages > a {
-    flex-wrap: wrap;
-    padding: 18px 14px;
-    gap: 8px;
-  }
-  .workflow-stages b {
-    width: 100%;
-    margin-left: 33px;
-  }
-  .workflow-stages b small {
-    display: inline;
-    margin-left: 6px;
-  }
-  .workbench-heading {
-    align-items: start;
-    flex-direction: column;
-    gap: 14px;
-  }
+
   .template-design-grid {
     grid-template-columns: minmax(340px, 1fr) minmax(370px, 1fr);
     gap: 15px;

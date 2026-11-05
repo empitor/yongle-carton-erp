@@ -34,7 +34,7 @@ test('导航统一到AI设置工具页签，旧插件/工具链接和兼容参�
   assert.equal(aiSettingsTab('#ai-prompts?assistant=1'), 'prompts');
   const nav = readFileSync(new URL('../src/Navigation.tsx', import.meta.url), 'utf8');
   assert(!nav.includes("item('ai-plugins'"));
-  assert(nav.includes("item('ai-settings'"));
+  assert(nav.includes("target: 'ai-settings'"));
   const chat = readFileSync(new URL('../src/GlobalAssistant.tsx', import.meta.url), 'utf8');
   assert(chat.includes('location.hash = assistantManagementHash'));
 });

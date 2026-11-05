@@ -156,94 +156,13 @@ input[type='checkbox'] {
   border-radius: 8px;
   color: #d8e9e6;
 }
-.workspace {
-  margin: 32px 13px 24px;
-  font-size: 12px;
-  color: #d1dfe0;
-  display: grid;
-  grid-template-columns: 6px 1fr;
-  column-gap: 9px;
-  align-items: center;
-}
-.workspace i {
-  background: #8dc3a7;
-  border-radius: 50%;
-  width: 6px;
-  height: 6px;
-}
-.workspace span {
-  grid-column: 2;
-  color: #91aaae;
-  font-size: 10px;
-  margin-top: 2px;
-}
+
 nav {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.nav-item {
-  display: flex;
-  width: 100%;
-  justify-content: flex-start;
-  gap: 13px;
-  color: #bacdd0;
-  border: none;
-  background: transparent;
-  padding: 12px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-}
-.nav-item:hover {
-  background: #2c4b51;
-}
-.nav-item.selected {
-  background: #e6f0ed;
-  color: #215850;
-  font-weight: 600;
-}
-.nav-item small {
-  margin-left: auto;
-  background: #c9ded9;
-  color: #286358;
-  min-width: 22px;
-  line-height: 20px;
-  border-radius: 4px;
-  font-size: 11px;
-}
-.sidebar-bottom {
-  margin-top: auto;
-  padding-top: 55px;
-}
-.phase {
-  padding: 17px 14px;
-  margin-bottom: 22px;
-  border-left: 2px solid #658d90;
-  background: #28474e;
-}
-.phase > span {
-  color: #a8bfc2;
-  font-size: 10px;
-}
-.phase strong {
-  display: block;
-  color: #d9e5e6;
-  font-size: 12px;
-  margin: 7px 0;
-}
-.phase p {
-  font-size: 11px;
-  color: #9eb7bb;
-  line-height: 1.9;
-}
-.database-label {
-  margin: 23px 13px 0;
-  font-size: 10px;
-  color: #8fa9ad;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
+
 .main {
   margin-left: 226px;
   width: calc(100% - 226px);
@@ -262,17 +181,7 @@ nav {
   display: flex;
   align-items: center;
 }
-.breadcrumb {
-  color: var(--muted);
-}
-.breadcrumb span {
-  padding: 0 13px;
-  color: var(--muted);
-}
-.breadcrumb strong {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
+
 .topbar-right {
   gap: 9px;
   color: var(--muted);
@@ -284,12 +193,7 @@ nav {
   padding-left: 23px;
   font-variant-numeric: tabular-nums;
 }
-.local-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--teal);
-}
+
 .mobile-menu {
   display: none !important;
 }
@@ -305,12 +209,7 @@ main {
   margin-bottom: 24px;
   gap: 20px;
 }
-.heading-kicker {
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 6px;
-  letter-spacing: 1px;
-}
+
 .page-heading p {
   color: var(--muted);
   font-size: 12px;
@@ -325,29 +224,7 @@ main {
 .primary:hover {
   background: var(--accent-hover);
 }
-.demo-banner {
-  border: 1px solid var(--border);
-  background: var(--accent-soft);
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 13px;
-  border-radius: 5px;
-  font-size: 11px;
-  margin-bottom: 22px;
-}
-.demo-banner > svg {
-  flex-shrink: 0;
-}
-.demo-banner button {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  margin-left: auto;
-  color: var(--accent-ink);
-  font-size: 11px;
-}
+
 .filter-bar {
   display: flex;
   gap: 10px;
@@ -484,32 +361,7 @@ main {
   font-style: normal;
   margin-left: 6px;
 }
-.workflow-items {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  padding: 0 22px 23px;
-  gap: 16px;
-}
-.workflow-items > button {
-  display: block;
-  padding: 0;
-  border: 0;
-  text-align: left;
-  background: var(--surface);
-  border-radius: 0;
-}
-.workflow-items > button > strong {
-  display: block;
-  font-size: 26px;
-  font-weight: 500;
-  margin: 9px 0 10px;
-  font-variant-numeric: tabular-nums;
-}
-.workflow-items strong small {
-  font-size: 10px;
-  color: var(--muted);
-  margin-left: 7px;
-}
+
 .track {
   height: 4px;
   background: var(--surface-muted);
@@ -1058,9 +910,7 @@ footer span {
   .attention p {
     display: none;
   }
-  .workflow-items {
-    gap: 20px;
-  }
+
   td,
   th {
     padding-left: 15px;
@@ -1097,11 +947,7 @@ footer span {
     flex: 1;
     max-width: 170px;
   }
-  .workflow-items {
-    gap: 12px;
-    padding-left: 16px;
-    padding-right: 16px;
-  }
+
   .badge {
     padding: 3px 5px;
     font-size: 9px;
@@ -1139,9 +985,7 @@ footer span {
     align-items: center;
     margin-bottom: 19px;
   }
-  .heading-kicker {
-    font-size: 9px;
-  }
+
   h1 {
     font-size: 24px;
   }
@@ -1153,14 +997,7 @@ footer span {
     padding: 9px 12px;
     font-size: 12px;
   }
-  .demo-banner {
-    font-size: 10px;
-    align-items: flex-start;
-    line-height: 1.8;
-  }
-  .demo-banner button {
-    display: none;
-  }
+
   .stats {
     gap: 10px;
     margin-bottom: 16px;
@@ -1185,14 +1022,7 @@ footer span {
     gap: 15px;
     margin-bottom: 16px;
   }
-  .workflow-items {
-    grid-template-columns: repeat(3, 1fr);
-    row-gap: 19px;
-  }
-  .workflow-items > button > strong {
-    font-size: 22px;
-    margin: 6px 0;
-  }
+
   .badge {
     font-size: 10px;
   }

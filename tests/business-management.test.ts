@@ -14,6 +14,7 @@ import { docxFixture } from './import-fixtures.js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import BusinessRecords from '../src/BusinessRecords.js';
+import { SalesLines } from '../src/FulfillmentDetails.js';
 function analysis() {
   const header = Object.fromEntries(headerFields.map((k) => [k, blankField()])),
     line = Object.fromEntries(lineFields.map((k) => [k, blankField()]));
@@ -589,7 +590,7 @@ test('同名客户必须人工选择，后端拒绝匿名手动写入；多明�
         totalCents: 2600,
         lines: [line, { ...line, productName: '第二产品名' }],
       };
-    const html = renderToStaticMarkup(
+    const list = renderToStaticMarkup(
       createElement(BusinessRecords, {
         entity: 'orders',
         rows: [row],
@@ -601,6 +602,10 @@ test('同名客户必须人工选择，后端拒绝匿名手动写入；多明�
         setSearch: () => {},
       }),
     );
+    // 列表只显示首项和件数，完整明细在右侧详情面板。
+    assert.match(list, /\+1/);
+    assert.match(list, /第二产品名/);
+    const html = renderToStaticMarkup(createElement(SalesLines, { row }));
     assert.match(html, /产品名称/);
     assert.match(html, /规格型号/);
     assert.match(html, /备注/);
