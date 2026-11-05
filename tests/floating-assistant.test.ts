@@ -11,9 +11,41 @@ import {
   saveFloatingAnchor,
   snapFloatingPosition,
   floatingPositionKey,
+  floatingLauncherModeKey,
+  readFloatingLauncher,
+  clampMascotDragPosition,
+  fitFloatingMascot,
+  floatingMascotPosition,
+  readFloatingMascot,
+  saveFloatingMascot,
+  settleFloatingMascot,
+  floatingMascotKey,
+  moveFloatingMascot,
 } from '../src/floating-assistant.js';
 const desktop = { left: 0, top: 0, width: 1440, height: 950 },
   phone = { left: 0, top: 0, width: 390, height: 844 };
+test('默认及旧版无偏好显示精灵，尊重显式顶栏选择；损坏或禁用存储不隐藏入口', () => {
+  for (const value of [null, 'floating', '', 'unknown', '{broken']) {
+    assert.equal(
+      readFloatingLauncher({
+        getItem: (key) => {
+          assert.equal(key, floatingLauncherModeKey);
+          return value;
+        },
+      }),
+      true,
+    );
+  }
+  assert.equal(readFloatingLauncher({ getItem: () => 'docked' }), false);
+  assert.equal(
+    readFloatingLauncher({
+      getItem: () => {
+        throw Error('disabled');
+      },
+    }),
+    true,
+  );
+});
 test('极小可视区域的锚点也限制在边界内', () => {
   const v = { left: 0, top: 0, width: 50, height: 60 },
     p = fitFloatingAnchor({ x: 1000, y: 1000 }, v);
@@ -112,4 +144,106 @@ test('窗口缩小恢复位置在可见范围；开合以同一右下锚点计�
     x: 290,
     y: 110,
   });
+});
+
+test('仅左右靠边24像素内停靠一半，中间及仅靠上下边保持完整形象', () => {
+  for (const view of [desktop, phone, { left: 30, top: 80, width: 320, height: 260 }]) {
+    for (const [x, dock] of [
+      [view.left + 24, 'dock-left'],
+      [view.left + view.width - mascotSize.width - 24, 'dock-right'],
+    ] as const) {
+      const settled = settleFloatingMascot({ x, y: view.top + 100 }, mascotSize, view);
+      assert.equal(settled.dock, dock);
+      const p = floatingMascotPosition(settled, mascotSize, view);
+      const visible =
+        Math.min(p.x + mascotSize.width, view.left + view.width) - Math.max(p.x, view.left);
+      assert.equal(visible, mascotSize.width / 2);
+      assert(p.y >= view.top + 8);
+      assert(p.y + mascotSize.height <= view.top + view.height - 8);
+    }
+    const x = view.left + (view.width - mascotSize.width) / 2;
+    assert.equal(settleFloatingMascot({ x, y: -100 }, mascotSize, view).dock, 'free');
+    assert.equal(settleFloatingMascot({ x, y: 99999 }, mascotSize, view).dock, 'free');
+  }
+  assert.equal(settleFloatingMascot({ x: 25, y: 200 }, mascotSize, desktop).dock, 'free');
+  assert.equal(settleFloatingMascot({ x: 1327, y: 200 }, mascotSize, desktop).dock, 'free');
+});
+
+test('半隐藏拖回中间不会因全组件边界限制而跳变，始终至少一半可见', () => {
+  const left = { x: -44, y: 300 };
+  for (const dx of [1, 4, 7, 20, 80, 300]) {
+    const p = clampMascotDragPosition({ x: left.x + dx, y: left.y }, mascotSize, desktop);
+    assert.equal(p.x, left.x + dx);
+  }
+  for (const x of [-99999, 99999]) {
+    const p = clampMascotDragPosition({ x, y: 99999 }, mascotSize, desktop);
+    assert(p.x >= -44 && p.x <= desktop.width - 44);
+    assert.equal(p.y, 844);
+  }
+  assert.equal(settleFloatingMascot({ x: 400, y: 300 }, mascotSize, desktop).dock, 'free');
+});
+test('键盘向内连续移动不会被再次吸回边缘，上下移动保留当前三态', () => {
+  for (const dock of ['dock-left', 'dock-right'] as const) {
+    let p = fitFloatingMascot({ x: 600, y: 700, dock }, desktop);
+    assert.equal(moveFloatingMascot(p, mascotSize, desktop, 0, -12).dock, dock);
+    const dx = dock === 'dock-left' ? 12 : -12;
+    for (let i = 0; i < 10; i++) {
+      const next = moveFloatingMascot(p, mascotSize, desktop, dx, 0);
+      assert.equal(next.dock, 'free');
+      assert(dx > 0 ? next.x > p.x : next.x < p.x);
+      p = next;
+    }
+  }
+  const p = { ...defaultFloatingAnchor(desktop), dock: 'free' as const };
+  assert.equal(moveFloatingMascot(p, mascotSize, desktop, 0, 12).dock, 'free');
+});
+
+test('三态独立持久化，旧位置迁移不覆写原配置，窗口缩小保留停靠并修正纵向位置', () => {
+  const map = new Map<string, string>([
+    [floatingPositionKey, JSON.stringify({ version: 1, x: 600, y: 700 })],
+  ]);
+  const storage = {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      map.set(k, v);
+    },
+  };
+  assert.deepEqual(readFloatingMascot(storage, desktop), { x: 600, y: 700, dock: 'free' });
+  for (const dock of ['free', 'dock-left', 'dock-right'] as const) {
+    const placed = fitFloatingMascot({ x: 600, y: 700, dock }, desktop);
+    saveFloatingMascot(storage, placed);
+    assert.deepEqual(readFloatingMascot(storage, desktop), placed);
+    const shrunk = fitFloatingMascot(placed, phone);
+    assert.equal(shrunk.dock, dock);
+    const sprite = floatingMascotPosition(shrunk, mascotSize, phone);
+    assert(sprite.x + mascotSize.width >= 44);
+    assert(sprite.x <= phone.width - 44);
+    const panel = floatingPosition(placed, { width: 374, height: 600 }, phone);
+    assert(panel.x >= 8 && panel.x + 374 <= phone.width - 8);
+    assert(panel.y >= 8 && panel.y + 600 <= phone.height - 8);
+  }
+  assert.equal(map.get(floatingPositionKey), JSON.stringify({ version: 1, x: 600, y: 700 }));
+  for (const raw of [
+    'oops',
+    'null',
+    '{"version":2,"x":1e999,"y":2,"dock":"dock-left"}',
+    '{"version":2,"x":2,"y":3,"dock":"lost"}',
+    '{"version":3,"x":2,"y":3,"dock":"free"}',
+  ]) {
+    map.set(floatingMascotKey, raw);
+    assert.deepEqual(readFloatingMascot(storage, desktop), { x: 600, y: 700, dock: 'free' });
+  }
+  const disabled = {
+    getItem: () => {
+      throw Error('disabled');
+    },
+    setItem: () => {
+      throw Error('disabled');
+    },
+  };
+  assert.deepEqual(readFloatingMascot(disabled, desktop), {
+    ...defaultFloatingAnchor(desktop),
+    dock: 'free',
+  });
+  assert.doesNotThrow(() => saveFloatingMascot(disabled, { x: 600, y: 700, dock: 'dock-right' }));
 });

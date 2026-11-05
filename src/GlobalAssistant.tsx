@@ -26,6 +26,7 @@ import { useAssistantUploads } from './useAssistantUploads';
 import { useAssistantSpeech } from './speech/useAssistantSpeech';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useFloatingAssistant } from './useFloatingAssistant';
+import { floatingLauncherModeKey, readFloatingLauncher } from './floating-assistant';
 import CartonSpirit from './CartonSpirit';
 import { isErpNavigation, assistantManagementHash } from '../shared/assistant-navigation';
 import AssistantOrderTask from './AssistantOrderTask';
@@ -114,9 +115,9 @@ export default function GlobalAssistant() {
   >('with-text');
   const [floatingLauncher, setFloatingLauncher] = useState(() => {
     try {
-      return localStorage.getItem('erp-assistant-launcher-mode-v1') === 'floating';
+      return readFloatingLauncher(window.localStorage);
     } catch {
-      return false;
+      return true;
     }
   });
   const openAssistant = () => {
@@ -493,16 +494,17 @@ export default function GlobalAssistant() {
           <button
             ref={floating.elementRef}
             className={'ga-launcher' + (floating.moving ? ' ga-moving' : '')}
+            data-dock={floating.dock}
             aria-label="打开悬浮AI助手"
             aria-haspopup="dialog"
             aria-expanded={false}
-            title="纸箱精灵 · 点击聊天，拖动换位置；方向键也可移动"
+            title="纸箱精灵 · 点击聊天，拖到左右边缘可半隐藏；方向键也可移动"
             style={floating.style}
             {...floating.bind}
             onClickCapture={floating.onClickCapture}
             onClick={openAssistant}
           >
-            <CartonSpirit />
+            <CartonSpirit pose={floating.dock} />
             {busy && <i aria-label="AI正在处理" />}
           </button>
         ) : null
@@ -563,7 +565,7 @@ export default function GlobalAssistant() {
                   setFloatingLauncher(next);
                   try {
                     localStorage.setItem(
-                      'erp-assistant-launcher-mode-v1',
+                      floatingLauncherModeKey,
                       next ? 'floating' : 'docked',
                     );
                   } catch {}

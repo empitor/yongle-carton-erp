@@ -23,10 +23,26 @@ import {
   readFloatingAnchor,
   saveFloatingAnchor,
   snapFloatingPosition,
+  clampMascotDragPosition,
+  fitFloatingMascot,
+  floatingMascotPosition,
+  readFloatingMascot,
+  saveFloatingMascot,
+  settleFloatingMascot,
+  moveFloatingMascot,
+  type FloatingDock,
+  type FloatingMascot,
   type FloatingPoint,
   type FloatingSize,
   type FloatingViewport,
 } from './floating-assistant';
+type FloatingLayout = { panel: FloatingPoint; mascot: FloatingMascot };
+function persist(layout: FloatingLayout) {
+  try {
+    saveFloatingAnchor(window.localStorage, layout.panel);
+    saveFloatingMascot(window.localStorage, layout.mascot);
+  } catch {}
+}
 function viewport(): FloatingViewport {
   const visual = window.visualViewport;
   return {
@@ -38,11 +54,15 @@ function viewport(): FloatingViewport {
 }
 export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: () => void) {
   const [view, setView] = useState(viewport),
-    [anchor, setAnchor] = useState(() => {
+    [layout, setLayout] = useState<FloatingLayout>(() => {
       try {
-        return readFloatingAnchor(window.localStorage, viewport());
+        return {
+          panel: readFloatingAnchor(window.localStorage, viewport()),
+          mascot: readFloatingMascot(window.localStorage, viewport()),
+        };
       } catch {
-        return defaultFloatingAnchor(viewport());
+        const anchor = defaultFloatingAnchor(viewport());
+        return { panel: anchor, mascot: { ...anchor, dock: 'free' } };
       }
     }),
     [node, setNode] = useState<HTMLElement | null>(null),
@@ -65,11 +85,11 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
   sizeRef.current = panelSize;
   const mode = open ? (large ? 'large' : 'panel') : 'mascot';
   const activeNode = useRef<HTMLElement | null>(null),
-    anchorRef = useRef(anchor),
+    layoutRef = useRef(layout),
     viewRef = useRef(view),
     suppressClick = useRef(false),
     frame = useRef<number | null>(null),
-    pending = useRef<FloatingPoint | null>(null);
+    pending = useRef<FloatingLayout | null>(null);
   const gesture = useRef<{
     id: number;
     start: FloatingPoint;
@@ -82,16 +102,18 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
     activeNode.current = element;
     setNode(element);
   }, []);
-  const commit = useCallback((next: FloatingPoint, immediate = false) => {
-    anchorRef.current = next;
+  const commit = useCallback((point: FloatingPoint, immediate = false, dock?: FloatingDock) => {
+    const next: FloatingLayout =
+      dock === undefined
+        ? { ...layoutRef.current, panel: point }
+        : { ...layoutRef.current, mascot: { ...point, dock } };
+    layoutRef.current = next;
     if (immediate) {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
       frame.current = null;
       pending.current = null;
-      setAnchor(next);
-      try {
-        saveFloatingAnchor(window.localStorage, next);
-      } catch {}
+      setLayout(next);
+      persist(next);
       return;
     }
     pending.current = next;
@@ -99,15 +121,13 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
       frame.current = requestAnimationFrame(() => {
         frame.current = null;
         if (pending.current) {
-          setAnchor(pending.current);
+          setLayout(pending.current);
           pending.current = null;
         }
       });
   }, []);
   useEffect(() => {
-    try {
-      saveFloatingAnchor(window.localStorage, anchorRef.current);
-    } catch {}
+    persist(layoutRef.current);
   }, []);
   useLayoutEffect(() => {
     if (!node) return;
@@ -131,64 +151,77 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
       const next = viewport();
       setView(next);
       resizing.current = null;
+      setMoving(false);
       viewRef.current = next;
       if (gesture.current) {
         gesture.current = null;
         suppressClick.current = true;
-        setMoving(false);
       }
-      commit(fitFloatingAnchor(anchorRef.current, next), true);
+      commit(fitFloatingAnchor(layoutRef.current.panel, next), true);
+      const mascot = fitFloatingMascot(layoutRef.current.mascot, next);
+      commit(mascot, true, mascot.dock);
     };
     const blur = () => {
       if (gesture.current) {
         gesture.current = null;
         suppressClick.current = true;
         setMoving(false);
-        commit(anchorRef.current, true);
+        const mascot = fitFloatingMascot(layoutRef.current.mascot, viewRef.current);
+        commit(mascot, true, mascot.dock);
       }
     };
     window.addEventListener('resize', resize);
     window.addEventListener('blur', blur);
-    const persist = () => {
-      try {
-        saveFloatingAnchor(window.localStorage, anchorRef.current);
-      } catch {}
-    };
-    window.addEventListener('pagehide', persist);
+    const save = () => persist(layoutRef.current);
+    window.addEventListener('pagehide', save);
     window.visualViewport?.addEventListener('resize', resize);
     window.visualViewport?.addEventListener('scroll', resize);
     return () => {
       window.removeEventListener('resize', resize);
       window.removeEventListener('blur', blur);
-      window.removeEventListener('pagehide', persist);
+      window.removeEventListener('pagehide', save);
       window.visualViewport?.removeEventListener('resize', resize);
       window.visualViewport?.removeEventListener('scroll', resize);
       if (frame.current !== null) cancelAnimationFrame(frame.current);
-      persist();
+      save();
     };
   }, [commit]);
   const panel = large
     ? fitFloatingSize({ width: view.width - 16, height: view.height - 16 }, view)
     : fitFloatingSize(panelSize, view);
   const size = open ? panel : measured?.mode === mode ? measured.size : mascotSize;
-  const point = floatingPosition(anchor, size, view);
+  const point = open
+    ? floatingPosition(layout.panel, size, view)
+    : moving
+      ? clampMascotDragPosition(
+          { x: layout.mascot.x - size.width, y: layout.mascot.y - size.height },
+          size,
+          view,
+        )
+      : floatingMascotPosition(layout.mascot, size, view);
+  const clampGesture = open ? clampFloatingPosition : clampMascotDragPosition;
   const finish = (e: PointerEvent<HTMLElement>, cancelled = false) => {
     const g = gesture.current;
     if (!g || g.id !== e.pointerId) return;
     gesture.current = null;
     if (!cancelled && (g.moved || isFloatingDrag(g.start, { x: e.clientX, y: e.clientY }))) {
       g.moved = true;
-      g.last = clampFloatingPosition(
+      g.last = clampGesture(
         { x: g.position.x + e.clientX - g.start.x, y: g.position.y + e.clientY - g.start.y },
         g.size,
         viewRef.current,
       );
     }
     if (g.moved) {
-      const end = cancelled
-        ? clampFloatingPosition(g.last, g.size, viewRef.current)
-        : snapFloatingPosition(g.last, g.size, viewRef.current);
-      commit({ x: end.x + g.size.width, y: end.y + g.size.height }, true);
+      if (open) {
+        const end = cancelled
+          ? clampFloatingPosition(g.last, g.size, viewRef.current)
+          : snapFloatingPosition(g.last, g.size, viewRef.current);
+        commit({ x: end.x + g.size.width, y: end.y + g.size.height }, true);
+      } else {
+        const end = settleFloatingMascot(g.last, g.size, viewRef.current);
+        commit(end, true, end.dock);
+      }
       suppressClick.current = true;
     } else if (cancelled) suppressClick.current = true;
     setMoving(false);
@@ -226,13 +259,13 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
       g.moved = true;
       setMoving(true);
       if (e.cancelable) e.preventDefault();
-      const p = clampFloatingPosition(
+      const p = clampGesture(
         { x: g.position.x + e.clientX - g.start.x, y: g.position.y + e.clientY - g.start.y },
         g.size,
         viewRef.current,
       );
       g.last = p;
-      commit({ x: p.x + g.size.width, y: p.y + g.size.height });
+      commit({ x: p.x + g.size.width, y: p.y + g.size.height }, false, open ? undefined : 'free');
     },
     onPointerUp: (e: PointerEvent<HTMLElement>) => finish(e),
     onPointerCancel: (e: PointerEvent<HTMLElement>) => finish(e, true),
@@ -244,8 +277,14 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
         dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
       if (!dx && !dy) return;
       e.preventDefault();
-      const p = clampFloatingPosition({ x: point.x + dx, y: point.y + dy }, size, viewRef.current);
-      commit({ x: p.x + size.width, y: p.y + size.height }, true);
+      const p = { x: point.x + dx, y: point.y + dy };
+      if (open) {
+        const next = clampFloatingPosition(p, size, viewRef.current);
+        commit({ x: next.x + size.width, y: next.y + size.height }, true);
+      } else {
+        const next = moveFloatingMascot(layoutRef.current.mascot, size, viewRef.current, dx, dy);
+        commit(next, true, next.dock);
+      }
     },
   };
   return {
@@ -284,7 +323,7 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
         if (resizing.current?.id !== e.pointerId) return;
         resizing.current = null;
         setMoving(false);
-        commit(anchorRef.current, true);
+        commit(layoutRef.current.panel, true);
         try {
           window.localStorage.setItem(floatingSizeKey, JSON.stringify(sizeRef.current));
         } catch {}
@@ -302,6 +341,7 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
     }),
     bind,
     moving,
+    dock: layout.mascot.dock,
     compact: view.height < 520,
     style: {
       ...(open ? { width: panel.width, height: panel.height } : {}),
