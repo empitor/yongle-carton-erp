@@ -1,3 +1,597 @@
+/* ---- 原 ui-audit.css ---- */
+.modal-wide {
+  width: min(1000px, calc(100vw - 64px));
+}
+.form-intro {
+  margin: 0 0 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.form-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  margin: 0 0 16px;
+  min-width: 0;
+}
+.form-section legend {
+  padding: 0 8px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.form-section .form-grid {
+  gap: 14px;
+}
+.product-spec-preview {
+  padding: 12px 14px;
+  background: var(--surface-muted);
+  border-left: 3px solid var(--teal);
+  color: var(--ink);
+}
+.field-label-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  justify-content: space-between;
+}
+.field-label-row > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.order-line-options {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  color: var(--text-secondary);
+}
+.order-line-options summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.order-entry .order-business-extra {
+  margin: 18px 0;
+}
+.business-document-workbench {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  background: var(--surface);
+}
+.document-workbench-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: start;
+}
+.document-workbench-heading h3 {
+  margin: 0 0 5px;
+}
+.document-workbench-heading p,
+.formal-order-export span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.formal-order-export {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.formal-order-export label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+.formal-order-export select {
+  min-width: 160px;
+}
+.template-settings form {
+  margin-top: 22px;
+}
+.word-file-preview {
+  max-height: 65vh;
+  overflow: auto;
+  min-width: 0;
+}
+.management-dialog:has(.word-file-preview) {
+  width: min(1240px, calc(100vw - 48px));
+}
+.word-file-preview article {
+  color: #111;
+}
+.business-form-preview {
+  background: #fff;
+  color: #111;
+  padding: 24px;
+  max-height: 65vh;
+  overflow: auto;
+}
+.business-form-preview th,
+.business-form-preview td {
+  color: #111;
+}
+.business-form-preview h3 {
+  text-align: center;
+}
+.business-form-preview thead th {
+  background: transparent;
+  color: inherit;
+}
+.business-form-preview .help-text {
+  color: #52616b;
+}
+.business-status[data-tone='muted'] {
+  color: var(--text-secondary);
+}
+.production-batch-form {
+  gap: 16px;
+  overflow: visible !important;
+}
+.production-batch-form table input:not([type='checkbox']) {
+  width: 100px;
+}
+.production-batch-form table select {
+  min-width: 190px;
+}
+.batch-material-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  margin: 8px 0;
+}
+.batch-material-row > select {
+  flex: 1;
+  min-width: 260px;
+}
+.batch-material-row label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.batch-material-row input {
+  width: 110px;
+}
+.completion-preview {
+  background: var(--surface-muted);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.data-reset-panel {
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+}
+.data-reset-panel summary {
+  cursor: pointer;
+  color: var(--danger);
+}
+.batch-import-preview {
+  margin: 16px 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+
+/* ---- 原 ui-upgrade.css ---- */
+/* 桌面业务工作台：流程、单据和高频表格共同使用语义主题。 */
+
+.related-business > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.related-business header p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.template-preview-actions,
+.related-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+
+.workbench-report > summary {
+  cursor: pointer;
+  font-size: 14px;
+  padding: 14px 0;
+  color: var(--text-secondary);
+}
+
+.order-line-table {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.order-line-table table {
+  min-width: 830px;
+  width: 100%;
+  table-layout: fixed;
+}
+.order-line-table th {
+  font-size: 12px;
+  padding: 10px;
+}
+.order-line-table th:nth-child(1) {
+  width: 24%;
+}
+.order-line-table th:nth-child(2) {
+  width: 20%;
+}
+.order-line-table th:nth-child(3),
+.order-line-table th:nth-child(5) {
+  width: 12%;
+}
+.order-line-table th:nth-child(4),
+.order-line-table th:nth-child(7) {
+  width: 9%;
+}
+.order-line-table td {
+  white-space: normal;
+}
+.order-line-table input,
+.order-line-table select,
+.order-line-table textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  font-size: 12px;
+}
+.order-line-table input + input,
+.order-line-table select + input {
+  margin-top: 6px;
+}
+.order-line-table output {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  padding-top: 8px;
+  color: var(--accent-ink);
+}
+.order-line-extra-row > td {
+  padding-top: 0;
+  background: var(--surface-muted);
+}
+.order-line-table .order-line-options {
+  border: 0;
+  padding: 5px 0 0;
+}
+.order-line-table .form-grid {
+  padding: 16px 0 8px;
+}
+.order-entry .form-section-heading {
+  margin: 20px 0 12px;
+}
+.form-footer,
+.management-dialog-actions {
+  gap: 10px;
+}
+.management-dialog-actions {
+  position: sticky;
+  bottom: -24px;
+  background: var(--surface);
+  z-index: 2;
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+  padding-bottom: 5px;
+}
+.management-dialog {
+  max-height: calc(100vh - 48px);
+}
+.related-business {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.related-next-actions {
+  padding: 18px 0;
+}
+.related-production-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.related-section {
+  margin: 20px 0;
+}
+.related-section h3 {
+  margin: 0 0 10px;
+}
+.related-section h3 span {
+  color: var(--muted);
+  margin-left: 7px;
+  font-size: 12px;
+}
+.related-records {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 9px;
+}
+.related-records > button,
+.related-records > a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  border: 1px solid var(--border);
+  padding: 12px;
+  text-align: left;
+  justify-content: start;
+  border-radius: 7px;
+  background: var(--surface-muted);
+  min-width: 0;
+  white-space: normal;
+}
+.related-records strong {
+  width: 100%;
+}
+.related-records > button > span,
+.related-records > a > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.related-records small {
+  width: 100%;
+}
+.related-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px;
+  background: var(--surface-muted);
+}
+.related-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 0 8px 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.list-sort-control {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.list-sort-control select {
+  width: auto;
+  min-width: 130px;
+}
+.business-selection {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.template-selection-row {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 20px 0;
+}
+.template-selection-row > .field {
+  min-width: 240px;
+}
+.template-selection-row .checkbox {
+  padding: 9px 0;
+}
+.template-design-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.85fr) minmax(440px, 1.15fr);
+  align-items: start;
+  gap: 22px;
+}
+.template-config {
+  min-width: 0;
+}
+.template-preview-panel {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+  padding: 18px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.template-preview-actions {
+  margin: 14px 0 18px;
+}
+.template-preview-actions button {
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.template-preview-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  min-height: 380px;
+  padding: 25px;
+  border: 1px dashed var(--border-strong);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.template-column-list {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.template-column-list > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.template-column-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.template-column-list button {
+  min-height: 26px;
+  padding: 3px 7px;
+}
+.template-hidden-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 13px 0;
+}
+.template-hidden-columns label {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 12px;
+}
+.template-config details summary {
+  cursor: pointer;
+}
+.template-save-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  z-index: 3;
+  margin-top: 20px;
+  padding: 16px 20px;
+}
+.business-form-preview h2 {
+  text-align: center;
+  color: #111;
+  font-size: 15pt;
+}
+.business-form-preview h3 {
+  font-size: 18pt;
+  margin: 8px 0 20px;
+  color: #111;
+}
+.business-form-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.business-form-preview th,
+.business-form-preview td {
+  white-space: normal;
+  padding: 8px;
+  border: 1px solid #9ba9af;
+  font-size: inherit;
+  vertical-align: top;
+  line-height: 1.55;
+}
+.business-form-preview tbody tr:hover td {
+  background: #fff;
+}
+.paper-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  margin-bottom: 20px;
+}
+.paper-fields p,
+.paper-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.paper-total {
+  text-align: right;
+  font-weight: 700;
+  margin: 16px 0;
+}
+.paper-notes {
+  margin: 16px 0;
+}
+.paper-signatures {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 25px;
+  padding: 24px 0 10px;
+}
+.paper-running-text {
+  font-size: 9pt;
+  padding: 10px 0;
+  color: #52616b;
+}
+.document-template-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  margin: 15px 0;
+}
+.document-template-select select {
+  width: 260px;
+}
+.purchase-amount-total {
+  display: flex;
+  justify-content: end;
+  gap: 20px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.purchase-amount-total strong {
+  color: var(--accent-ink);
+  font-size: 21px;
+}
+.op-form:has(.purchase-amount-total) .op-line-card .op-form-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.op-form .form-section-heading {
+  margin: 14px 0;
+}
+@media (max-width: 1350px) {
+
+  .template-design-grid {
+    grid-template-columns: minmax(340px, 1fr) minmax(370px, 1fr);
+    gap: 15px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+}
+
+.template-paper-scroll {
+  max-height: 65vh;
+  overflow: auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.template-paper-scroll .business-form-preview {
+  max-height: none;
+  overflow: visible;
+}
+
+.template-settings nav.record-view-tabs {
+  display: flex;
+  gap: 8px;
+}
+.template-settings nav.record-view-tabs button {
+  width: auto;
+  min-width: 120px;
+}
+
+/* ---- 设计系统 ---- */
 /*
  * 单据流转台：设计系统与外壳。最后加载，统一覆盖旧样式。
  * 字号只用 12/13/14/16/20/24；圆角只用 4/8；间距基于 4；阴影只给悬浮层。
@@ -21,7 +615,6 @@
   --accent-ink: #27407a;
   --on-accent: #ffffff;
   --kraft: #b07d3c;
-  --kraft-soft: #f5ede0;
   --danger: #c0362c;
   --danger-fill: #c0362c;
   --danger-hover: #a32c23;
@@ -32,7 +625,6 @@
   --warning-soft: #fff3dc;
   --warning-border: #eed7a6;
   --success: #1e7b4f;
-  --success-soft: #e6f4ec;
   --info: #1f6fb2;
   --info-soft: #e7f1fa;
   --purple: #6b4fbb;
@@ -71,7 +663,6 @@
   --accent-ink: #a8bcee;
   --on-accent: #141822;
   --kraft: #d2a468;
-  --kraft-soft: #3a2f20;
   --danger: #f0938a;
   --danger-fill: #b8453b;
   --danger-hover: #c9554b;
@@ -81,7 +672,6 @@
   --warning-soft: #3a3020;
   --warning-border: #6b5a36;
   --success: #6fcf9f;
-  --success-soft: #1f3329;
   --info: #84bdec;
   --info-soft: #1f3040;
   --purple: #b9a6ec;
@@ -280,13 +870,6 @@ textarea:focus-visible {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   backdrop-filter: none;
-}
-.topbar-left {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
 }
 .topbar > div {
   gap: 8px;
@@ -507,7 +1090,6 @@ main > footer {
   min-height: 32px;
   font-size: 13px;
 }
-.date-range-filter,
 .list-filters .range-control {
   flex: 0 1 auto;
 }
@@ -634,14 +1216,6 @@ main > footer {
   color: var(--danger);
   font-weight: 600;
 }
-.status-badge,
-.business-records .status-badge {
-  height: 20px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: var(--r-control);
-  font-size: 12px;
-}
 .business-records .unified-table-region > table > tbody > tr > td:last-child:not([colspan]),
 .business-records .unified-table-region > table > thead > tr > th:last-child {
   position: sticky;
@@ -657,7 +1231,6 @@ main > footer {
   padding: 0 8px;
   font-size: 12px;
 }
-.record-actions,
 .record-actions-main {
   display: flex;
   gap: 4px;
@@ -778,8 +1351,7 @@ main > footer {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
 }
-.detail-panel-actions button,
-.detail-panel-actions .action-link {
+.detail-panel-actions button {
   min-height: 28px;
   padding: 2px 8px;
   font-size: 13px;
@@ -1159,12 +1731,10 @@ main > footer {
   padding: 4px 8px;
   vertical-align: middle;
 }
-.flow-actions,
-.record-inline-actions {
+.flow-actions {
   gap: 4px;
 }
 .flow-actions button,
-.record-inline-actions button,
 .arrival-table .record-expand {
   min-height: 24px;
   padding: 0 8px;
@@ -1455,7 +2025,6 @@ main > footer {
   border: 1px solid var(--border);
 }
 .oi-workspace-body {
-  grid-template-columns: minmax(280px, 36%) minmax(0, 1fr);
   gap: 8px;
 }
 .oi-file-list,
@@ -1606,18 +2175,12 @@ main > footer {
 }
 
 /* 收件箱三栏：文件、原件、草稿 */
-.oi-workspace-body {
-  grid-template-columns: 220px minmax(300px, 34%) minmax(0, 1fr);
-}
 .oi-left {
   display: contents;
 }
 .oi-left .oi-file-list {
   max-height: none;
   overflow: auto;
-}
-.oi-file-row {
-  flex-wrap: wrap;
 }
 
 /* 疑点清单 */
@@ -1634,11 +2197,6 @@ main > footer {
 }
 .oi-issues .oi-review-popover small {
   color: var(--text-secondary);
-}
-@media (max-width: 1279px) {
-  .oi-workspace-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* 文件栏窄：名称占一行，类型和操作放第二行 */

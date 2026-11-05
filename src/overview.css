@@ -231,7 +231,6 @@
   white-space: nowrap;
 }
 .business-status[data-tone='muted'] {
-  color: var(--text-secondary);
   background: var(--surface-muted);
 }
 .business-status[data-tone='info'] {
@@ -257,7 +256,6 @@
   white-space: nowrap;
 }
 .table-scroll-hint {
-  display: none;
   padding: 8px 20px;
   color: var(--muted);
   font-size: 11px;
@@ -266,11 +264,6 @@
 .business-records > .table-wrap:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
-}
-@media (max-width: 1180px) {
-  .table-scroll-hint {
-    display: block;
-  }
 }
 .bo-inventory-grid {
   display: grid;
@@ -475,16 +468,6 @@
 .range-dates input {
   width: 145px;
 }
-.filter-bar {
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-.filter-bar > .search-box {
-  flex: 1 1 235px;
-  max-width: 360px;
-  min-width: 180px;
-}
 .filter-bar > select {
   max-width: 225px;
 }
@@ -492,10 +475,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 20px;
 }
-.order-view-controls p,
-.filter-explanation {
+.order-view-controls p {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.8;
@@ -514,7 +495,6 @@
   flex: none;
 }
 .records-empty {
-  padding: 26px 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -537,15 +517,6 @@
 }
 .business-records td {
   overflow-wrap: anywhere;
-}
-.business-records .record-actions {
-  min-width: 152px;
-}
-.record-view-tabs {
-  flex-wrap: wrap;
-}
-.business-selection {
-  gap: 10px 16px;
 }
 @media (max-width: 1180px) {
   .bo-metrics {

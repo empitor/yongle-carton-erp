@@ -33,16 +33,3 @@
 .business-form-preview {
   min-width: 850px;
 }
-.business-form-preview table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.business-form-preview td,
-.business-form-preview th {
-  padding: 9px;
-  border: 1px solid var(--border);
-  white-space: normal;
-}
-.business-form-preview h2 {
-  text-align: center;
-}

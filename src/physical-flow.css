@@ -93,11 +93,6 @@
 .management-dialog:has(.delivery-stock-picker) {
   width: min(1160px, 100%);
 }
-@media (max-width: 1100px) {
-  .warehouse-navigation {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (max-width: 600px) {
   .delivery-stock-heading {
     flex-direction: column;
@@ -106,15 +101,9 @@
     min-width: 0;
     width: 100%;
   }
-  .warehouse-navigation {
-    grid-template-columns: 1fr;
-  }
 }
 .flow-page .page-heading {
   margin: 0;
-}
-.flow-page .table-card {
-  min-width: 0;
 }
 .flow-table {
   width: 100%;
@@ -123,17 +112,11 @@
 }
 .flow-table td,
 .flow-table th {
-  padding: 15px 16px;
   text-align: left;
   vertical-align: top;
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.7;
-}
-.flow-table th {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 600;
 }
 .flow-table td {
   border-top: 1px solid var(--border);
@@ -152,7 +135,6 @@
 .flow-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-width: 156px;
 }
 .flow-actions button {
