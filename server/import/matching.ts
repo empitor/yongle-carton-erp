@@ -1,61 +1,33 @@
 import type { Store } from '../db.js';
 import type { ImportWorkspaceView } from '../../shared/order-draft.js';
-import { normalizedDimensions, normalizeDimensionUnit } from '../../shared/product-details.js';
+import { productCandidatesForLine } from '../../shared/import-matching.js';
 import { resolveImportCustomer } from './customer-resolution.js';
-const key = (v: string) =>
-  v
-    .replace(/[\s·（）()]/g, '')
-    .replace(/有限责任公司|有限公司|宁波市|宁波|浙江省|浙江/g, '')
-    .toLowerCase();
-// 仅本机读取档案、返回候选；不外发档案，不自动确认或创建。
+// Original read-only matching entry point, shared by the manual page and assistant tools.
 export function matchDraft(store: Store, w: ImportWorkspaceView) {
   const d = w.draft,
     customers = store.customers(),
     products = store.products();
+  const customerResolution = resolveImportCustomer(store, d?.header.buyerName.value || '');
   return {
+    revision: w.revision,
     customers,
     products,
-    customerCandidates: d
-      ? resolveImportCustomer(store, d.header.buyerName.value || '').candidates
-      : [],
+    customerRecords: [
+      ...customers.map(({ id, name, version, contact, phone, address }) => ({
+        id,
+        name,
+        version,
+        contact,
+        phone,
+        address,
+        archived: false,
+      })),
+      ...customerResolution.candidates.filter((c) => c.archived),
+    ],
+    customerResolution,
+    customerCandidates: customerResolution.candidates,
     productCandidates: d
-      ? Object.fromEntries(
-          d.lines.map((l) => [
-            l.id,
-            products
-              .map((p) => {
-                const reasons: string[] = [];
-                if (key(p.name) === key(l.fields.productName.value || '')) reasons.push('名称一致');
-                if (p.customerProductCode && p.customerProductCode === l.fields.productCode.value)
-                  reasons.push('物料编码相同，需核对客户归属');
-                if (
-                  normalizeDimensionUnit(p.dimensionUnit) &&
-                  normalizeDimensionUnit(l.fields.dimensionUnit.value) &&
-                  normalizedDimensions(p).every(
-                    (n, i) =>
-                      n !== null &&
-                      n ===
-                        normalizedDimensions({
-                          length: l.fields.length.value ? Number(l.fields.length.value) : null,
-                          width: l.fields.width.value ? Number(l.fields.width.value) : null,
-                          height: l.fields.height.value ? Number(l.fields.height.value) : null,
-                          dimensionUnit: l.fields.dimensionUnit.value,
-                        })[i],
-                  )
-                )
-                  reasons.push('尺寸一致');
-                if (
-                  p.material &&
-                  p.flute &&
-                  p.material === l.fields.material.value &&
-                  p.flute === l.fields.flute.value
-                )
-                  reasons.push('配纸和楞型一致');
-                return { id: p.id, name: p.name, reasons };
-              })
-              .filter((p) => p.reasons.length),
-          ]),
-        )
+      ? Object.fromEntries(d.lines.map((l) => [l.id, productCandidatesForLine(l, products)]))
       : {},
     duplicateOrders: d
       ? store

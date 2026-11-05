@@ -49,6 +49,7 @@ const revisionSchema = z.strictObject({ expectedRevision: z.number().int().nonne
 import { analysisPrompt, chatPrompt, PROMPT_VERSION } from './prompts.js';
 import { blankField } from '../../shared/order-draft.js';
 import { mappingSchema } from '../../shared/import-mapping.js';
+import { invalidateImportMapping } from '../../shared/import-matching.js';
 import { AiConnectionError } from '../ai/connection-error.js';
 import { existsSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { orderSourceMessage, recognitionMode, recognitionScope } from './source-message.js';
@@ -132,6 +133,12 @@ export class ImportManager {
     )
       throw new ImportError('当前服务未连接档案校验器，不能保存未经验证的关联。');
     w.mapping = v.mapping;
+    if (w.mappingInvalidated) {
+      if (v.mapping.customer.mode !== 'pending') delete w.mappingInvalidated.customer;
+      for (const id of Object.keys(w.mappingInvalidated.products))
+        if (v.mapping.products[id]?.mode && v.mapping.products[id].mode !== 'pending')
+          delete w.mappingInvalidated.products[id];
+    }
     w.confirmedRevision = null;
     this.save(w, v.expectedRevision, 'mapping');
     return this.view(w);
@@ -805,6 +812,8 @@ export class ImportManager {
           lines: result.lines.map((fields) => ({ id: randomUUID(), fields })),
           warnings: result.warnings,
         };
+        latest.mapping = undefined;
+        latest.mappingInvalidated = undefined;
         latest.confirmedRevision = null;
         latest.promptPreset = prompt.usage;
         latest.inputMode = recognitionMode(profile.endpoint);
@@ -926,26 +935,9 @@ export class ImportManager {
       w.history.push({ draft: before, changes });
       w.confirmedRevision = null;
       w.changes = changes;
-      // 识别字段变化后，已有档案选择需重新核对，不能沿用旧的隐含确认。
-      if (
-        origin === 'manual' ||
-        operations.some((op) =>
-          [
-            'buyerName',
-            'productName',
-            'productCode',
-            'specification',
-            'length',
-            'width',
-            'height',
-            'dimensionUnit',
-            'material',
-            'flute',
-            'unit',
-          ].includes(op.field),
-        )
-      )
-        w.mapping = undefined;
+      const match = invalidateImportMapping(w.mapping, before, w.draft!, w.mappingInvalidated);
+      w.mapping = match.mapping;
+      w.mappingInvalidated = match.invalidated;
     } else w.changes = [];
     return changes;
   }
@@ -1075,7 +1067,10 @@ export class ImportManager {
     this.check(w, expectedRevision, isLocalAdministrator(who));
     const last = w.history.pop();
     if (!last) throw new ImportError('没有可撤销的草稿修改。');
+    const match = invalidateImportMapping(w.mapping, w.draft!, last.draft, w.mappingInvalidated);
     w.draft = last.draft;
+    w.mapping = match.mapping;
+    w.mappingInvalidated = match.invalidated;
     w.confirmedRevision = null;
     w.changes = last.changes.map((c) => ({
       ...c,

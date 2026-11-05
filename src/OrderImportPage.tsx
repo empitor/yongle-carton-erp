@@ -44,6 +44,7 @@ export default function OrderImportPage() {
     [importError, setImportError] = useState('');
   const [showFailures, setShowFailures] = useState(false);
   const [batchImport, setBatchImport] = useState(false);
+  const [matchingPending, setMatchingPending] = useState(false);
   const w = api.workspace,
     d = api.draft,
     id = api.selected,
@@ -635,12 +636,19 @@ export default function OrderImportPage() {
                       draft={d}
                       locked={busy || (!!w?.imported && !developer)}
                       change={(k, v, line) => api.change(id, k, v, line)}
-                      onMapping={(m) => {
+                      mappingError={api.errors[id]}
+                      onMappingPending={setMatchingPending}
+                      onMapping={async (m) => {
                         if (unsaved) {
-                          api.setFatal('请先保存手工字段修改，再保存关联选择');
-                          return;
+                          const saved = await api.action(
+                            id,
+                            'edit',
+                            { operations: ops },
+                            '保存字段修改',
+                          );
+                          if (!saved) return null;
                         }
-                        void api.action(id, 'mapping', { mapping: m }, '保存关联');
+                        return api.action(id, 'mapping', { mapping: m }, '保存客户与产品选择');
                       }}
                     />
                   ) : (
@@ -736,7 +744,7 @@ export default function OrderImportPage() {
                 <div>
                   {!importAuth?.actor?.localAdministrator && (
                     <button
-                      disabled={!d || busy || unsaved || !!w?.imported}
+                      disabled={!d || busy || unsaved || matchingPending || !!w?.imported}
                       onClick={() => open('review', [id])}
                     >
                       核对并确认
@@ -758,7 +766,7 @@ export default function OrderImportPage() {
                   ) : (
                     <button
                       className="primary"
-                      disabled={!d || busy || unsaved || importBusy}
+                      disabled={!d || busy || unsaved || matchingPending || importBusy}
                       onClick={async () => {
                         setImportBusy(true);
                         setImportError('');

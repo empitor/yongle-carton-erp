@@ -442,7 +442,7 @@ test('产品名称/规格型号/备注独立编辑投影与正式订单持久化
         draft: w.draft!,
         locked: false,
         change: () => {},
-        onMapping: () => {},
+        onMapping: async () => null,
       }),
     );
     assert.match(html, /<th>产品名称<\/th><th>规格型号<\/th><th>备注<\/th>/);

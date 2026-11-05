@@ -227,6 +227,7 @@ export type ImportWorkspaceView = {
     apiStyle?: 'chat-completions' | 'responses';
   } | null;
   mapping?: ImportMapping;
+  mappingInvalidated?: import('./import-matching.js').MappingInvalidations;
   task?: {
     state: 'uploaded' | 'queued' | 'backoff' | 'running' | 'ready' | 'failed' | 'cancelled';
     error?: string;
