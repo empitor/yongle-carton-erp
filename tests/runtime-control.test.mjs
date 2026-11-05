@@ -137,6 +137,8 @@ test(
       directory = join(f.database, '..');
     writeFileSync(join(directory, '停止系统.cmd'), readFileSync('停止系统.cmd'));
     writeFileSync(join(directory, 'npm.cmd'), '@echo off\r\nexit /b 7\r\n');
+    // 测试依赖CMD优先使用当前目录的替身命令；部分运行环境用这个变量禁止该行为。
+    const { NoDefaultCurrentDirectoryInExePath: _ignored, ...env } = process.env;
     try {
       const result = await new Promise((done, reject) => {
         const child = spawn(
@@ -144,6 +146,7 @@ test(
           ['/d', '/s', '/c', 'call "' + join(directory, '停止系统.cmd') + '"'],
           {
             cwd: directory,
+            env,
             windowsHide: true,
             windowsVerbatimArguments: true,
             stdio: 'ignore',
