@@ -231,7 +231,7 @@ test('采购分批收货→领料退料/损耗→分批完工→分批送货→�
     assert.equal(f.flow.get(task.id).progress, 60);
     f.confirm(f.delivery('40'));
     let order = f.store.order(f.order.id)!;
-    assert.equal(order.status, '待发货');
+    assert.equal(order.status, '生产中');
     assert.equal(order.lines[0].shippedQuantity, 40);
     assert.equal(order.lines[0].remainingQuantity, 60);
     f.confirm(

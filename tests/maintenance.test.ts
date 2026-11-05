@@ -38,7 +38,8 @@ test('备份和恢复演练：数据可恢复，旧库保留，运行中恢复�
     assert.equal(store.customers().length, 1);
     assert.equal(store.customers()[0].name, '备份前虚构客户');
     store.close();
-    assert.ok(readdirSync(join(dir, 'data')).some((x) => x.includes('before-restore')));
+    // 完整恢复把原data目录整体另存为同级目录，不覆盖。
+    assert.ok(readdirSync(dir).some((x) => x.includes('before-restore')));
     const broken = join(dir, 'broken.sqlite');
     writeFileSync(broken, 'broken data');
     assert.equal(run('restore', broken).status, 1);

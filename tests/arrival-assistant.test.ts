@@ -338,7 +338,7 @@ test('到货助手HTTP鉴权、CSRF、流式响应、错误档案及订单模式
   const base = 'http://127.0.0.1:' + (server.address() as any).port;
   try {
     const url = base + '/api/ai/imports/' + f.workspace.id + '/arrival/assistant';
-    assert.equal((await fetch(url)).status, 403);
+    assert.equal((await fetch(url)).status, 401);
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },

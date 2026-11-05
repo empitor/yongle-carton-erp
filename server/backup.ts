@@ -1,0 +1,198 @@
+import { DatabaseSync, backup } from 'node:sqlite';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
+import type { Store } from './db.js';
+import { ImportError } from './import/errors.js';
+
+const stamp = () =>
+  new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-') +
+  '-' +
+  randomUUID().slice(0, 6);
+const SNAPSHOT_DIR = 'snapshots';
+const SNAPSHOT_KEEP = 20;
+const SNAPSHOT_THROTTLE_MS = 5 * 60_000;
+const AUTO_BACKUP_KEEP = 14;
+const DAY_MS = 24 * 3600_000;
+/** 运行时文件不进入备份：WAL由一致性备份合并，锁和控制令牌只属于运行中的实例。 */
+const isTransient = (name: string) =>
+  /(-wal|-shm|\.running|\.control)$/.test(name) || /\.(restore|before-restore)-/.test(name);
+
+function newest(dir: string, prefix: string) {
+  if (!existsSync(dir)) return [] as string[];
+  return readdirSync(dir)
+    .filter((name) => name.startsWith(prefix))
+    .sort()
+    .reverse();
+}
+
+/**
+ * 破坏性操作前的业务库快照：用它代替重复确认，让误删可以恢复。
+ * VACUUM INTO 是同步的且得到一致副本；事务内无法执行，由调用方放在事务之外。
+ * 5分钟内已有快照时不重复生成，失败则抛错，由调用方中止破坏性操作。
+ */
+export function snapshotBeforeDestructive(store: Store, reason: string): string | null {
+  if (store.path === ':memory:' || store.db.isTransaction) return null;
+  const dir = join(dirname(store.path), SNAPSHOT_DIR),
+    existing = newest(dir, 'erp-');
+  if (existing[0] && Date.now() - statSync(join(dir, existing[0])).mtimeMs < SNAPSHOT_THROTTLE_MS)
+    return join(dir, existing[0]);
+  try {
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, 'erp-' + stamp() + '-' + reason.replace(/[^\w-]/g, '') + '.sqlite');
+    store.db.exec("VACUUM INTO '" + file.replaceAll("'", "''") + "'");
+    for (const old of newest(dir, 'erp-').slice(SNAPSHOT_KEEP)) unlinkSync(join(dir, old));
+    return file;
+  } catch (error) {
+    throw new ImportError(
+      '无法在操作前生成恢复快照，本次操作未执行：' + (error as Error).message,
+      507,
+    );
+  }
+}
+
+function sha256(file: string) {
+  return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+function walk(dir: string, files: string[] = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== SNAPSHOT_DIR) walk(path, files);
+    } else if (entry.isFile() && !isTransient(entry.name)) files.push(path);
+  }
+  return files;
+}
+async function copySqlite(from: string, to: string) {
+  const db = new DatabaseSync(from, { readOnly: true });
+  try {
+    await backup(db, to);
+  } finally {
+    db.close();
+  }
+}
+export function validateBusinessDatabase(path: string, versions: number[]) {
+  const db = new DatabaseSync(path, { readOnly: true });
+  try {
+    const result = db.prepare('PRAGMA integrity_check').all();
+    if (result.length !== 1 || result[0].integrity_check !== 'ok')
+      throw new Error('数据库完整性校验失败');
+    if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('数据关联校验失败');
+    if (
+      !versions.includes(
+        Number(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()?.version),
+      )
+    )
+      throw new Error('不支持此数据库版本');
+    for (const table of ['customers', 'products', 'orders', 'order_lines'])
+      db.prepare(`SELECT COUNT(*) FROM ${table}`).get();
+  } finally {
+    db.close();
+  }
+}
+export const supportedDatabaseVersions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+
+/** 完整备份：业务库、账号、AI工作区与原件、正式归档、提示词和工具设置，可选附带本机AI配置。 */
+export async function createFullBackup(options: {
+  dataDir: string;
+  backupRoot: string;
+  prefix?: 'full' | 'auto';
+  extraFiles?: Record<string, string>;
+}) {
+  const dir = join(options.backupRoot, (options.prefix || 'full') + '-' + stamp()),
+    staged = dir + '.partial',
+    files: { path: string; sha256: string; bytes: number }[] = [];
+  mkdirSync(staged, { recursive: true });
+  try {
+    const add = async (from: string, name: string) => {
+      const to = join(staged, name);
+      mkdirSync(dirname(to), { recursive: true });
+      if (/\.sqlite$/.test(from)) await copySqlite(from, to);
+      else copyFileSync(from, to);
+      files.push({ path: name.split(sep).join('/'), sha256: sha256(to), bytes: statSync(to).size });
+    };
+    for (const file of walk(options.dataDir)) await add(file, relative(options.dataDir, file));
+    for (const [name, path] of Object.entries(options.extraFiles || {}))
+      if (existsSync(path)) await add(path, join('_extra', name));
+    const business = join(staged, 'erp.sqlite');
+    if (existsSync(business)) validateBusinessDatabase(business, supportedDatabaseVersions);
+    writeFileSync(
+      join(staged, 'manifest.json'),
+      JSON.stringify({ kind: 'erp-full-backup', createdAt: new Date().toISOString(), files }, null, 2),
+    );
+    renameSync(staged, dir);
+    return { dir, files: files.length, bytes: files.reduce((n, f) => n + f.bytes, 0) };
+  } catch (error) {
+    rmSync(staged, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/** 校验清单后恢复整个data目录；原目录改名保留，不覆盖。调用方须已确认服务停止。 */
+export function restoreFullBackup(source: string, dataDir: string) {
+  const manifest = JSON.parse(readFileSync(join(source, 'manifest.json'), 'utf8'));
+  if (manifest.kind !== 'erp-full-backup') throw new Error('不是完整备份目录。');
+  for (const file of manifest.files)
+    if (sha256(join(source, file.path)) !== file.sha256)
+      throw new Error('备份文件校验失败：' + file.path);
+  validateBusinessDatabase(join(source, 'erp.sqlite'), supportedDatabaseVersions);
+  const staged = dataDir + '.restore-' + stamp();
+  mkdirSync(staged, { recursive: true });
+  for (const file of manifest.files)
+    if (!file.path.startsWith('_extra/')) {
+      const to = join(staged, file.path);
+      mkdirSync(dirname(to), { recursive: true });
+      copyFileSync(join(source, file.path), to);
+    }
+  const previous = dataDir + '.before-restore-' + stamp();
+  if (existsSync(dataDir)) cpSync(dataDir, previous, { recursive: true });
+  for (const name of readdirSync(dataDir)) {
+    if (name.endsWith('.running')) continue;
+    rmSync(join(dataDir, name), { recursive: true, force: true });
+  }
+  for (const name of readdirSync(staged)) renameSync(join(staged, name), join(dataDir, name));
+  rmSync(staged, { recursive: true, force: true });
+  return { previous, files: manifest.files.length };
+}
+
+/** 每日自动完整备份：启动后检查，距上次满24小时再做；失败只记录，不影响业务。 */
+export function scheduleDailyBackup(options: {
+  dataDir: string;
+  backupRoot: string;
+  extraFiles?: Record<string, string>;
+  onError?: (error: Error) => void;
+}) {
+  const run = async () => {
+    try {
+      const latest = newest(options.backupRoot, 'auto-').filter((n) => !n.endsWith('.partial'))[0];
+      if (latest && Date.now() - statSync(join(options.backupRoot, latest)).mtimeMs < DAY_MS) return;
+      await createFullBackup({ ...options, prefix: 'auto' });
+      for (const old of newest(options.backupRoot, 'auto-')
+        .filter((n) => !n.endsWith('.partial'))
+        .slice(AUTO_BACKUP_KEEP))
+        rmSync(join(options.backupRoot, old), { recursive: true, force: true });
+    } catch (error) {
+      (options.onError || ((e) => console.error('自动备份失败：', e.message)))(error as Error);
+    }
+  };
+  const first = setTimeout(run, 60_000),
+    timer = setInterval(run, 3600_000);
+  first.unref();
+  timer.unref();
+  return () => {
+    clearTimeout(first);
+    clearInterval(timer);
+  };
+}

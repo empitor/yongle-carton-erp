@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { customerSchema, productSchema, orderSchema } from '../../shared/domain.js';
+import {
+  customerSchema,
+  productSchema,
+  orderSchema,
+  derivedOrderStatuses,
+} from '../../shared/domain.js';
 import { Store, InputError } from '../db.js';
 import { validAssistantGrant } from './assistant-approval.js';
 import { isDeveloperActor, isLocalAdministrator } from '../developer-capability.js';
@@ -73,6 +78,16 @@ export function createBusinessService(store: Store) {
             context.superAdminMode,
           );
         case 'orders': {
+          // 生产中/待发货/已发货由任务和送货单派生。普通账号不能手工改成这些状态，否则会绕过实物流转；
+          // 本机管理员保留数据维护能力，用于补录历史数据。
+          if (context.developerActor && !isLocalAdministrator(context.developerActor)) {
+            const next = orderSchema.parse(command.input).status,
+              previous = id ? store.order(id, true)?.status : undefined;
+            if (next !== previous && derivedOrderStatuses.includes(next))
+              throw new InputError(
+                '“' + next + '”由生产任务和送货单自动更新，不能手工设置。请通过生产或送货记录推进订单。',
+              );
+          }
           if (id && isLocalAdministrator(context.developerActor)) {
             const actor = context.developerActor!,
               before = store.order(id, true)!,

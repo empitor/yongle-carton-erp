@@ -91,7 +91,7 @@ test('不足一分的尾数不静默舍入，必须明确结算规则', () => {
     false,
   );
 });
-test('核对账号加盐哈希存储、Cookie会话、重启需重登，旧业务访问方式不改变', async () => {
+test('核对账号加盐哈希存储、Cookie会话、重启需重登，业务接口要求登录', async () => {
   const auth = new AuthManager(':memory:'),
     store = new Store(':memory:'),
     server = createApp(store, { auth }).listen(0, '127.0.0.1');
@@ -112,7 +112,11 @@ test('核对账号加盐哈希存储、Cookie会话、重启需重登，旧业�
     }).then((r) => r.json());
     assert.equal(state.actor.name, '虚构测试管理员');
     assert.ok(!JSON.stringify(state).includes('password'));
-    assert.equal((await fetch(url + '/customers')).status, 200);
+    assert.equal((await fetch(url + '/customers')).status, 401);
+    assert.equal(
+      (await fetch(url + '/customers', { headers: { cookie: cookie.split(';')[0] } })).status,
+      200,
+    );
     r = await fetch(url + '/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },

@@ -107,7 +107,7 @@ export const operationsMetadata = {
       ['created_at', '建立时间'],
     ],
     [
-      '库存余额=不可变流水delta_units之和；禁止直接写余额。',
+      '库存余额=流水delta_units之和；禁止直接写余额。业务操作只追加流水；本机管理员直接编辑已确认单据时改写对应流水，原值保存在stock_movement_revisions。',
       '已有引用时不能更改实际规格或数量单位。',
     ],
   ),

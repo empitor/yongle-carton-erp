@@ -14,7 +14,7 @@ import { flowMetadata } from '../flow/metadata.js';
 import { uiCapabilities } from '../../shared/ui-capabilities.js';
 import { toolCatalog } from '../assistant/tools.js';
 
-export const CATALOG_VERSION = '33' as const;
+export const CATALOG_VERSION = '34' as const;
 type Field = {
   path: string;
   description: string;
@@ -233,7 +233,13 @@ const modules = {
       field('customerName', '下单时客户名称快照', 'orders.customer_name', { access: 'system' }),
       field('orderDate', '下单日期，YYYY-MM-DD，工厂时区 Asia/Shanghai', 'orders.order_date'),
       field('deliveryDate', '交货日期，不得早于下单日期', 'orders.delivery_date'),
-      field('status', '人工维护状态：' + statuses.join('、'), 'orders.status'),
+      field(
+        'status',
+        '订单状态：' +
+          statuses.join('、') +
+          '。草稿、已确认、已取消人工选择；生产中、待发货、已发货由生产任务和送货单逐行派生，普通账号不能手工设置',
+        'orders.status',
+      ),
       field(
         'shippingProgress',
         '后端按有效送货计算的发货进度，独立于status；历史未知不能当作未发货',

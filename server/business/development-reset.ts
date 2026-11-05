@@ -4,6 +4,7 @@ import type { Actor } from '../auth.js';
 import { requireLocalAdministrator } from '../developer-capability.js';
 import { ImportError } from '../import/errors.js';
 import { audit, rememberDeletedRecord } from './management.js';
+import { snapshotBeforeDestructive } from '../backup.js';
 
 export const developmentResetScope = ['business', 'ai-imports', 'all'] as const;
 export type DevelopmentResetScope = (typeof developmentResetScope)[number];
@@ -19,6 +20,7 @@ const businessTables = [
   'flow_previews',
   'flow_refs',
   'flow_sources',
+  'stock_movement_revisions',
   'stock_movements',
   'purchase_receipts',
   'purchase_lines',
@@ -96,6 +98,7 @@ export class DevelopmentResetService {
       });
       return { scope, count: removed.count };
     }
+    snapshotBeforeDestructive(this.store, 'reset');
     const tables = this.tables(),
       before = this.counts(),
       digest = createHash('sha256').update(JSON.stringify({ scope, tables })).digest('hex');

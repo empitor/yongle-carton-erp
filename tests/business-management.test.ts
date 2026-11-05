@@ -526,7 +526,7 @@ test('旧版数据兼容迁移保留原始业务行，已归档记录仍可审�
     assert.equal(snapshot(), before);
     assert.equal(
       Number(store.db.prepare('SELECT MAX(version) v FROM schema_migrations').get()!.v),
-      12,
+      13,
     );
     assert.equal(store.orders()[0].lines[0].specification, '旧规格保留');
   } finally {
@@ -716,7 +716,7 @@ test('手工修改带真实操作者审计；历史修改可审计；归档按�
         })
       ).json();
     let order = f.store.order(receipt.orderId)!;
-    let response = await f.put('/orders/' + order.id, { ...order, status: '已发货' });
+    let response = await f.put('/orders/' + order.id, { ...order, status: '已取消' });
     assert.equal(response.status, 200);
     order = await response.json();
     response = await f.put('/orders/' + order.id, { ...order, status: '草稿' });
@@ -726,7 +726,7 @@ test('手工修改带真实操作者审计；历史修改可审计；归档按�
       .prepare("SELECT * FROM business_audit WHERE source='manual-ui' ORDER BY id DESC LIMIT 1")
       .get()!;
     assert.equal(audit.actor_name, '测试管理员');
-    assert.equal(JSON.parse(String(audit.document)).before.status, '已发货');
+    assert.equal(JSON.parse(String(audit.document)).before.status, '已取消');
     response = await f.request('/orders/batch', {
       action: 'archive',
       acknowledged: true,

@@ -71,21 +71,21 @@ export class WarehouseDaily {
       ];
     }
     if (kind === 'task') return flow.list('task');
-    const orders = this.store.orders(true),
-      stocks = this.store.stock_items(true);
+    const orders = new Map(this.store.orders(true).map((o) => [o.id, o])),
+      stocks = new Map(this.store.stock_items(true).map((s) => [s.id, s])),
+      customers = new Map(this.store.customers(true).map((c) => [c.id, c.name]));
     return flow.list('delivery').map((d) => ({
       ...d,
-      customerName:
-        this.store.customers(true).find((c) => c.id === d.customerId)?.name || '历史客户',
+      customerName: customers.get(d.customerId) || '历史客户',
       completed: d.status === 'confirmed',
       pending: d.status === 'draft',
       cancelled: ['cancelled', 'reversed'].includes(d.status),
       // 旧单据未保存计划字段时，仅作实际记录，不猜曾有计划。
       plannedDate: d.plannedDateSource === 'explicit' ? d.plannedDate : null,
       lines: d.lines.map((l: any) => {
-        const o = orders.find((o) => o.id === l.orderId),
+        const o = orders.get(l.orderId),
           ol = o?.lines.find((x) => x.id === l.orderLineId),
-          stock = stocks.find((s) => s.id === l.stockId);
+          stock = stocks.get(l.stockId);
         return {
           ...ol,
           ...l,
@@ -106,9 +106,10 @@ export class WarehouseDaily {
       }),
     }));
   }
-  get(raw: unknown) {
+  /** 同一请求已读取过记录时可传入，避免重复组装。 */
+  get(raw: unknown, preloaded?: any[]) {
     const { kind, date, scope } = dailyQuerySchema.parse(raw),
-      all = this.records(kind);
+      all = preloaded ?? this.records(kind);
     if (kind === 'task')
       return { kind, date, records: all.filter((r) => (r.plannedDate || r.date) === date) };
     const dates = new Set(all.flatMap((r) => [r.plannedDate, r.actualDate]).filter(Boolean));

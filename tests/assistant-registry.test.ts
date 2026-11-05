@@ -437,7 +437,7 @@ test('工具管理HTTP真实注册表、超级管理员启停、CSRF及匿名拒
     assert.equal(saved.status, 200);
     const next = await fetch(base + '/api/assistant/tools', { headers }).then((r) => r.json());
     assert(!next.tools.find((t: any) => t.name === 'ui.open').enabled);
-    const metadata = await fetch(base + '/api/business/metadata').then((r) => r.json());
+    const metadata = await fetch(base + '/api/business/metadata', { headers }).then((r) => r.json());
     assert.equal(
       metadata.globalAssistant.tools.find((t: any) => t.name === 'ui.open').aiEnabled,
       false,

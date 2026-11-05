@@ -139,6 +139,20 @@ export function operationsRouter(store: Store, auth?: AuthManager) {
       );
     res.json({ rows, totalRecords: history.length, metrics: summarizeMovements(rows, items) });
   });
+  router.get('/warehouse/movements/:id/revisions', (req, res) => {
+    res.json(
+      store.db
+        .prepare(
+          'SELECT at,actor_name AS actorName,reason,before_document AS before,after_document AS after FROM stock_movement_revisions WHERE movement_id=? ORDER BY id DESC',
+        )
+        .all(z.string().min(1).max(150).parse(req.params.id))
+        .map((r) => ({
+          ...r,
+          before: JSON.parse(String(r.before)),
+          after: r.after ? JSON.parse(String(r.after)) : null,
+        })),
+    );
+  });
   router.get('/warehouse/summary', (req, res) => {
     const kind = z.enum(stockKinds).optional().parse(req.query.kind),
       groups = new Map<string, { unit: string; quantityUnits: number; itemCount: number }>();

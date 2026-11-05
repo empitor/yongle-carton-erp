@@ -11,6 +11,8 @@ import { precisionTotal } from '../../shared/precision.js';
 import { FlowService } from '../flow/service.js';
 import { sheetArea, purchaseLineAmount } from '../../shared/physical-flow.js';
 import { syncReceivedUnits } from '../operations/fulfillment.js';
+import { recordMovementRevision } from '../operations/repository.js';
+import { snapshotBeforeDestructive } from '../backup.js';
 
 const quote = (s: string) => '"' + s.replaceAll('"', '""') + '"';
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -211,7 +213,11 @@ export class DatabaseMaintenanceService {
         total = group.reduce((n, m) => n + Number(m.delta_units), 0),
         target = expected.get(stock) || 0,
         first = group[0];
-      for (const m of group) db.prepare('DELETE FROM stock_movements WHERE id=?').run(m.id);
+      for (const m of group) {
+        if (total !== target)
+          recordMovementRevision(this.store, actor, '调整送货单 ' + d.number, m, null);
+        db.prepare('DELETE FROM stock_movements WHERE id=?').run(m.id);
+      }
       const insert = (id: string, delta: number, source: string, orderId: any) =>
         db
           .prepare('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
@@ -576,6 +582,7 @@ export class DatabaseMaintenanceService {
       if (old.digest !== key) throw new ImportError('请求编号已用于其他操作。', 409);
       return JSON.parse(String(old.result));
     }
+    snapshotBeforeDestructive(this.store, 'delete');
     this.store.db.exec('SAVEPOINT database_delete');
     try {
       const p = this.graph({
@@ -645,6 +652,8 @@ export class DatabaseMaintenanceService {
               }
             }
         }
+        if (table === 'stock_movements')
+          recordMovementRevision(this.store, actor, '随关联记录物理删除', row, null);
         this.store.db.prepare('DELETE FROM ' + quote(table) + ' WHERE rowid=?').run(row.__rowid);
       }
       const orderIds = [...p.deletions, ...p.updates]

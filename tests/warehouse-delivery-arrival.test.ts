@@ -514,7 +514,7 @@ test('双模式HTTP桥接：流式完整结果持久恢复、关联鉴权/来源
           false,
         )
       ).status,
-      403,
+      401,
     );
     assert.equal(
       (

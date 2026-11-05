@@ -15,6 +15,7 @@
     "seed": "tsx server/seed.ts",
     "backup": "tsx server/maintenance.ts backup",
     "restore": "tsx server/maintenance.ts restore",
+    "reset-password": "tsx server/maintenance.ts reset-password",
     "test": "tsx --test tests/*.test.ts tests/*.test.mjs"
   },
   "dependencies": {
