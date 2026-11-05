@@ -18,6 +18,7 @@ import {
   uniqueMessages,
 } from '../../shared/product-details.js';
 import { productFieldsFromDraft } from '../import/product-input.js';
+import { productCandidatesForLine } from '../../shared/import-matching.js';
 type Ref =
   | { mode: 'existing'; id: number; version: number; name: string }
   | { mode: 'new'; key: string; input: any; name: string };
@@ -149,8 +150,20 @@ export class ImportExecutionService {
     const mapping = structuredClone(
       w.mapping || { customer: { mode: 'pending' }, products: {}, roundingPolicy: 'exact-cents' },
     ) as any;
-    const customers = this.store.customers(),
-      products = this.store.products(),
+    if (w.mappingInvalidated?.customer && mapping.customer.mode === 'pending')
+      throw new ImportError(w.mappingInvalidated.customer);
+    for (const line of w.draft.lines)
+      if (
+        w.mappingInvalidated?.products[line.id] &&
+        (!mapping.products[line.id] || mapping.products[line.id].mode === 'pending')
+      )
+        throw new ImportError(
+          '第' +
+            (w.draft.lines.indexOf(line) + 1) +
+            '项：' +
+            w.mappingInvalidated.products[line.id],
+        );
+    const products = this.store.products(),
       name = w.draft.header.buyerName.value || '';
     if (mapping.customer.mode === 'pending' || mapping.customer.mode === 'new') {
       const resolved = resolveImportCustomer(this.store, name);
@@ -162,16 +175,8 @@ export class ImportExecutionService {
       }
     }
     if (mapping.customer.mode === 'pending') {
-      const exact = customers.filter((c) => key(c.name) === key(name));
-      if (exact.length === 1)
-        mapping.customer = { mode: 'existing', id: exact[0].id, version: exact[0].version };
-      else if (
-        exact.length ||
-        customers.some((c) => key(c.name).includes(key(name)) || key(name).includes(key(c.name)))
-      )
-        throw new ImportError(
-          '客户匹配存在歧义，请在客户档案下拉框中明确选择或选择计划新建，再保存选择。',
-        );
+      if (resolveImportCustomer(this.store, name).state === 'ambiguous')
+        throw new ImportError('客户匹配存在歧义，请核对候选后明确选择，再保存客户与产品选择。');
       else mapping.customer = { mode: 'new' };
     }
     for (const l of w.draft.lines) {
@@ -201,19 +206,11 @@ export class ImportExecutionService {
           : [];
         if (exact.length === 1)
           mapping.products[l.id] = { mode: 'existing', id: exact[0].id, version: exact[0].version };
-        else if (
-          exact.length ||
-          products.some(
-            (p) =>
-              key(p.name) === key(definition.name || '') ||
-              (definition.customerProductCode &&
-                p.customerProductCode === definition.customerProductCode),
-          )
-        )
+        else if (exact.length || productCandidatesForLine(l, products).length)
           throw new ImportError(
             '第' +
               (w.draft.lines.indexOf(l) + 1) +
-              '项产品有相似或不完整匹配，请明确选择产品或计划新建并保存选择。',
+              '项已找到产品候选，请确认关联或明确选择计划新建，再保存客户与产品选择。',
           );
         else mapping.products[l.id] = { mode: 'new' };
       }

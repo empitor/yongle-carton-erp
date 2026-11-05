@@ -41,6 +41,7 @@ export function standardOrderDraft(store: Store, w: ImportWorkspaceView) {
     if (!value(f.unit.value))
       issues.push('第' + (d.lines.indexOf(l) + 1) + '项数量单位缺失，请核对原文；系统不自动换算。');
     if (productId && !store.product(productId)) issues.push('关联产品不存在');
+    if (productId && store.product(productId)) optionalProducts.push(store.product(productId)!);
     if (choice?.mode === 'new') {
       try {
         const product = productSchema.safeParse({

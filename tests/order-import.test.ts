@@ -865,7 +865,7 @@ test('取消当前识别保留原件，可重试，其他文件不受影响', as
   }
 });
 
-test('客户产品关联计划仅保存在草稿，修改后确认及关联失效，拒绝跨文件明细ID', async () => {
+test('客户产品关联仅存草稿，数量修改撤销核对但保留关联，拒绝跨文件明细ID', async () => {
   const f = await fixture();
   try {
     let w = await recognized(f);
@@ -890,7 +890,7 @@ test('客户产品关联计划仅保存在草稿，修改后确认及关联失�
       ],
     });
     assert.equal(changed.confirmedRevision, null);
-    assert.equal(changed.mapping, undefined);
+    assert.deepEqual(changed.mapping, mapping);
     assert.throws(() =>
       f.manager.mapping(w.id, {
         expectedRevision: changed.revision,
