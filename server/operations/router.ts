@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
+import { pageRows } from '../paging.js';
 import type { Store } from '../db.js';
 import type { AuthManager } from '../auth.js';
 import { ImportError } from '../import/errors.js';
@@ -43,7 +44,17 @@ export function operationsRouter(store: Store, auth?: AuthManager) {
           rows = scoped.filter((r) => matchesPurchase(r, query));
         return res.json(
           req.query.withMetrics === '1'
-            ? { rows, totalRecords: scoped.length, metrics: purchaseMetrics(rows) }
+            ? {
+                ...pageRows(rows, req.query),
+                totalRecords: scoped.length,
+                metrics: purchaseMetrics(rows),
+                // 分页后当前页不含全部供应商，筛选下拉要用完整范围。
+                suppliers: [
+                  ...new Map(
+                    scoped.map((r) => [r.supplierId, { id: r.supplierId, name: r.supplierName }]),
+                  ).values(),
+                ],
+              }
             : rows,
         );
       }
@@ -107,6 +118,11 @@ export function operationsRouter(store: Store, auth?: AuthManager) {
       res.json(changeLifecycle(store, entity, req.body, actor(req))),
     );
   }
+  router.get('/purchases/:id', (req, res) => {
+    const row = service.repo.purchases(include(req), id(req))[0];
+    if (!row) return res.status(404).json({ message: '采购单不存在' });
+    res.json(row);
+  });
   router.post('/purchases/:id/receive', (req, res) =>
     res.json(service.receive(id(req), req.body, actor(req))),
   );
@@ -137,7 +153,11 @@ export function operationsRouter(store: Store, auth?: AuthManager) {
           (!q.itemId || i.id === q.itemId) &&
           (!q.q || matchesOperationalRecord(i, q.q) || related.has(i.id)),
       );
-    res.json({ rows, totalRecords: history.length, metrics: summarizeMovements(rows, items) });
+    res.json({
+      ...pageRows(rows, req.query),
+      totalRecords: history.length,
+      metrics: summarizeMovements(rows, items),
+    });
   });
   router.get('/warehouse/movements/:id/revisions', (req, res) => {
     res.json(

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { RecordSort } from '../shared/record-sort';
 import { Plus, PackagePlus, RefreshCw } from 'lucide-react';
-import BusinessRecords from './BusinessRecords';
+import BusinessRecords, { PAGE_SIZE } from './BusinessRecords';
 import { managementRequest, useAuthState } from './session';
 import { PurchaseEditor, StockEditor, MovementDialog } from './operations/Editors';
 import { purchaseBusinessStatuses, arrivalProgresses } from '../shared/operations';
@@ -14,9 +15,9 @@ import {
   movementActions,
   movementLabels,
 } from '../shared/movement-filters';
-import { PageHeading, ListFilters, FilterField, ListSummary } from './ui/ListLayout';
+import { PageHeading, ListFilters, FilterField, ListSummary, useResettingPage } from './ui/ListLayout';
 import WarehouseNavigation, { type WarehouseView } from './WarehouseNavigation';
-import MovementRecords from './MovementRecords';
+import MovementRecords, { MOVEMENT_PAGE_SIZE } from './MovementRecords';
 import FlowPage from './FlowPage';
 import WarehouseRecords from './WarehouseRecords';
 import {
@@ -82,15 +83,13 @@ export default function OperationsPage({
           }
         : null,
     ),
-    [flowPage, setFlowPage] = useState(1),
+    [summaryPage, setSummaryPage] = useState(1),
     [movementView, setMovementView] = useState<'details' | 'summary'>('details'),
     [flowItem, setFlowItem] = useState<any>(null);
   const [data, setData] = useState<any>({
       suppliers: [],
       purchases: [],
       items: [],
-      orders: [],
-      products: [],
       movements: [],
       supplierTotal: 0,
       purchaseTotal: 0,
@@ -110,6 +109,27 @@ export default function OperationsPage({
       type: 'purchase' | 'stock' | 'move';
       value?: any;
     } | null>(null);
+  const [purchaseSort, setPurchaseSort] = useState<RecordSort>('recent'),
+    [lookups, setLookups] = useState<{ orders: any[]; products: any[] } | null>(null);
+  const purchaseSignature = [
+    supplierFilter,
+    supplierSearch,
+    status,
+    arrivalProgress,
+    search,
+    start,
+    end,
+    pendingOnly,
+    archived,
+    all,
+  ].join('|');
+  const [purchasePage, setPurchasePage] = useResettingPage(purchaseSignature + '|' + purchaseSort);
+  const [movementPage, setMovementPage] = useResettingPage(
+    [search, start, end, flowKind, flowAction, flowItem?.id, flowTab].join('|'),
+  );
+  // 翻页不改变筛选范围，统计数字不用闪成占位符。
+  const loadedPurchaseSignature = useRef('');
+  const purchaseMetricsPending = busy && loadedPurchaseSignature.current !== purchaseSignature;
   useEffect(() => {
     if (mode === 'purchases' && params.get('create') === '1' && canEdit)
       setEditor({ type: 'purchase' });
@@ -119,6 +139,31 @@ export default function OperationsPage({
     window.addEventListener('erp-business-changed', listener);
     return () => window.removeEventListener('erp-business-changed', listener);
   }, []);
+  // 编辑窗才用得上全部订单和产品，打开时再读。
+  const lookupScope = superMode ? '?archived=all' : '';
+  useEffect(() => {
+    if (!editor) {
+      setLookups(null);
+      return;
+    }
+    let active = true;
+    Promise.all([
+      managementRequest<any[]>('/orders' + lookupScope),
+      managementRequest<any[]>('/products' + lookupScope),
+    ])
+      .then(([orders, products]) => {
+        if (active) setLookups({ orders, products });
+      })
+      .catch((e) => {
+        if (active) {
+          setError(e.message);
+          setEditor(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [!!editor, lookupScope]);
   useEffect(() => {
     let active = true;
     setBusy(true);
@@ -135,6 +180,9 @@ export default function OperationsPage({
       if (start) purchaseQuery.set('start', start);
       if (end) purchaseQuery.set('end', end);
       if (pendingOnly) purchaseQuery.set('pending', '1');
+      purchaseQuery.set('page', String(purchasePage));
+      purchaseQuery.set('pageSize', String(PAGE_SIZE));
+      purchaseQuery.set('sort', purchaseSort);
     }
     const flowQuery = new URLSearchParams();
     if (mode === 'warehouse' && flowTab) {
@@ -146,6 +194,8 @@ export default function OperationsPage({
       if (flowItem) flowQuery.set('itemId', String(flowItem.id));
     }
     flowQuery.set('withMetrics', '1');
+    flowQuery.set('page', String(movementPage));
+    flowQuery.set('pageSize', String(MOVEMENT_PAGE_SIZE));
     const supplierQuery = new URLSearchParams(
       mode === 'suppliers' ? range.slice(1) : superMode ? 'archived=all' : '',
     );
@@ -163,33 +213,48 @@ export default function OperationsPage({
       if (zeroOnly) itemQuery.set('zero', '1');
       if (!flowTab && search) itemQuery.set('q', search);
     }
+    // 每页只读自己显示的列表；没读的保留上一次的值，切回时再刷新。
+    const wantSuppliers = mode !== 'warehouse',
+      wantPurchases = mode === 'purchases',
+      wantMovements = mode === 'warehouse' && flowTab,
+      wantItems = mode !== 'suppliers';
     Promise.all([
-      managementRequest<any>('/suppliers?' + supplierQuery),
-      managementRequest<any>('/purchases?' + purchaseQuery),
-      managementRequest<any>('/warehouse/items?' + itemQuery),
-      managementRequest<any[]>('/orders' + (superMode ? '?archived=all' : '')),
-      managementRequest<any[]>('/products' + (superMode ? '?archived=all' : '')),
-      managementRequest<any>('/warehouse/movements?' + flowQuery),
+      wantSuppliers ? managementRequest<any>('/suppliers?' + supplierQuery) : null,
+      wantPurchases ? managementRequest<any>('/purchases?' + purchaseQuery) : null,
+      wantItems ? managementRequest<any>('/warehouse/items?' + itemQuery) : null,
+      wantMovements ? managementRequest<any>('/warehouse/movements?' + flowQuery) : null,
     ])
-      .then(([suppliers, purchases, items, orders, products, movements]) => {
-        if (![suppliers, purchases, items, movements].every((v) => Array.isArray(v?.rows)))
+      .then(([suppliers, purchases, items, movements]) => {
+        if (
+          ![suppliers, purchases, items, movements].every((v) => !v || Array.isArray(v.rows))
+        )
           throw new Error('后端仍为旧版本，请重启系统后刷新。');
+        if (purchases) loadedPurchaseSignature.current = purchaseSignature;
         if (active)
-          setData({
-            suppliers: suppliers.rows,
-            purchases: purchases.rows,
-            items: items.rows,
-            orders,
-            products,
-            movements: movements.rows,
-            supplierTotal: suppliers.totalRecords,
-            purchaseTotal: purchases.totalRecords,
-            itemTotal: items.totalRecords,
-            movementTotal: movements.totalRecords,
-            movementGroups: movements.metrics,
-            purchaseMetrics: purchases.metrics,
-            inventoryMetrics: items.metrics,
-          });
+          setData((d: any) => ({
+            ...d,
+            ...(suppliers && { suppliers: suppliers.rows, supplierTotal: suppliers.totalRecords }),
+            ...(purchases && {
+              purchases: purchases.rows,
+              purchaseTotal: purchases.totalRecords,
+              purchaseFiltered: purchases.filteredRecords,
+              purchasePage: purchases.page ?? 1,
+              purchaseSuppliers: purchases.suppliers,
+              purchaseMetrics: purchases.metrics,
+            }),
+            ...(items && {
+              items: items.rows,
+              itemTotal: items.totalRecords,
+              inventoryMetrics: items.metrics,
+            }),
+            ...(movements && {
+              movements: movements.rows,
+              movementTotal: movements.totalRecords,
+              movementFiltered: movements.filteredRecords,
+              movementPage: movements.page ?? 1,
+              movementGroups: movements.metrics,
+            }),
+          }));
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -222,13 +287,13 @@ export default function OperationsPage({
     historyFilter,
     kind,
     zeroOnly,
+    purchasePage,
+    purchaseSort,
+    movementPage,
   ]);
   useEffect(() => {
     if (!superMode) setAll(false);
   }, [superMode]);
-  useEffect(() => {
-    setFlowPage(1);
-  }, [search, kind, start, end, flowItem, flowKind, flowAction, flowTab]);
   const done = () => {
     if (editor?.type === 'stock') setFlowTab(false);
     setEditor(null);
@@ -271,26 +336,11 @@ export default function OperationsPage({
       q: search,
     }),
   );
-  useEffect(
-    () =>
-      setFlowPage((p) =>
-        Math.min(
-          p,
-          Math.max(
-            1,
-            Math.ceil(
-              (movementView === 'summary' ? data.movementGroups.length : movements.length) / 25,
-            ),
-          ),
-        ),
-      ),
-    [movements.length, data.movementGroups.length, movementView],
-  );
   const supplierOptions = [
     ...new Map<number, any>(
       [
         ...data.suppliers,
-        ...data.purchases.map((p: any) => ({ id: p.supplierId, name: p.supplierName })),
+        ...(data.purchaseSuppliers || []),
       ].map((s: any) => [s.id, s]),
     ).values(),
   ].filter(
@@ -440,17 +490,17 @@ export default function OperationsPage({
                 items={[
                   {
                     label: '采购订单总数',
-                    value: busy ? '—' : data.purchaseMetrics.total,
+                    value: purchaseMetricsPending ? '—' : data.purchaseMetrics.total,
                     hint: '当前筛选范围',
                   },
                   {
                     label: '待到货采购单',
-                    value: busy ? '—' : data.purchaseMetrics.pending,
+                    value: purchaseMetricsPending ? '—' : data.purchaseMetrics.pending,
                     hint: '未收齐，含部分到货；不含取消',
                   },
                   {
                     label: '逾期未到货采购单',
-                    value: busy ? '—' : data.purchaseMetrics.overdue,
+                    value: purchaseMetricsPending ? '—' : data.purchaseMetrics.overdue,
                     hint: '预计到货日期已过且未收齐',
                   },
                 ]}
@@ -684,12 +734,14 @@ export default function OperationsPage({
                 view={movementView}
                 onView={(v) => {
                   setMovementView(v);
-                  setFlowPage(1);
+                  setSummaryPage(1);
                 }}
                 summary={data.movementGroups}
                 totalRecords={data.movementTotal}
-                page={flowPage}
-                onPage={setFlowPage}
+                filteredRecords={data.movementFiltered ?? 0}
+                pageSize={MOVEMENT_PAGE_SIZE}
+                page={movementView === 'summary' ? summaryPage : (data.movementPage ?? 1)}
+                onPage={movementView === 'summary' ? setSummaryPage : setMovementPage}
                 item={flowItem}
                 onClearItem={() => setFlowItem(null)}
               />
@@ -709,6 +761,17 @@ export default function OperationsPage({
                 hideSearch
                 entity={mode === 'warehouse' ? 'stock_items' : mode}
                 rows={rows}
+                paging={
+                  mode === 'purchases'
+                    ? {
+                        page: data.purchasePage ?? 1,
+                        total: data.purchaseFiltered ?? 0,
+                        onPage: setPurchasePage,
+                        sort: purchaseSort,
+                        onSort: setPurchaseSort,
+                      }
+                    : undefined
+                }
                 totalRecords={
                   mode === 'suppliers'
                     ? data.supplierTotal
@@ -782,29 +845,29 @@ export default function OperationsPage({
           onClose={() => setDeliveryLaunch(null)}
         />
       )}
-      {editor?.type === 'purchase' && (
+      {editor?.type === 'purchase' && lookups && (
         <PurchaseEditor
           value={editor.value}
           suppliers={data.suppliers}
-          orders={data.orders}
+          orders={lookups.orders}
           items={data.items}
           close={() => setEditor(null)}
           saved={done}
         />
       )}{' '}
-      {editor?.type === 'stock' && (
+      {editor?.type === 'stock' && lookups && (
         <StockEditor
           value={editor.value}
           kind={kind}
-          products={data.products}
+          products={lookups.products}
           close={() => setEditor(null)}
           saved={done}
         />
       )}{' '}
-      {editor?.type === 'move' && (
+      {editor?.type === 'move' && lookups && (
         <MovementDialog
           item={editor.value}
-          orders={data.orders}
+          orders={lookups.orders}
           close={() => setEditor(null)}
           saved={done}
         />

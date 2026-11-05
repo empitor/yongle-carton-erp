@@ -1,38 +1,83 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmptyState, Pagination, TableRegion } from './ui/ListLayout';
+import DetailPanel from './ui/DetailPanel';
 import StatusBadge from './StatusBadge';
 import { movementLabels, type movementActions } from '../shared/movement-filters';
 import type { MovementSummary } from '../shared/business-metrics';
 import { quantityString } from '../shared/operations';
 import { managementRequest } from './session';
-/** 流水被管理员改写过时展示原值，点开才读取修订台账。 */
+
+export const MOVEMENT_PAGE_SIZE = 50;
+
+/** 流水被管理员改写过时展示原值，打开面板时才读取修订台账。 */
 function MovementRevisions({ id, count }: { id: string; count: number }) {
   const [list, setList] = useState<any[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    setList(null);
+    void managementRequest<any[]>('/warehouse/movements/' + encodeURIComponent(id) + '/revisions')
+      .then((rows) => {
+        if (active) setList(rows);
+      })
+      .catch(() => {
+        if (active) setList([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
   return (
-    <details
-      className="movement-revisions"
-      onToggle={(e) => {
-        if ((e.target as HTMLDetailsElement).open && !list)
-          void managementRequest<any[]>('/warehouse/movements/' + encodeURIComponent(id) + '/revisions')
-            .then(setList)
-            .catch(() => setList([]));
-      }}
-    >
-      <summary>已修订 {count} 次</summary>
+    <section className="movement-revisions">
+      <h3>修订记录（{count} 次）</h3>
+      {!list && <p className="sub">正在读取…</p>}
       {(list || []).map((r, i) => (
-        <span className="sub" key={i}>
+        <p key={i}>
           {r.at.slice(0, 10)} {r.actorName}：{r.reason}，原变动{' '}
           {quantityString(Math.abs(r.before.delta_units))}（{r.before.date}）
           {r.after ? ' → ' + quantityString(Math.abs(r.after.delta_units)) : ' → 已移除'}
-        </span>
+        </p>
       ))}
-    </details>
+    </section>
   );
 }
+
+const movementType = (m: any) =>
+  m.source_kind === 'flow_production'
+    ? m.kind === 'finished'
+      ? '生产完工入库'
+      : m.direction === '-'
+        ? '生产领料'
+        : '生产退料'
+    : m.source_kind === 'flow_delivery'
+      ? '客户发货'
+      : m.source_kind === 'flow_reversal'
+        ? '单据冲销'
+        : movementLabels[m.action as (typeof movementActions)[number]];
+
+const flowLink = (m: any) =>
+  m.flowKind === 'delivery'
+    ? '#warehouse?kind=finished&deliveries=1&doc=' + m.source_id
+    : '#' + (m.flowKind === 'arrival' ? 'arrivals' : 'production') + '?doc=' + m.source_id;
+
+/** 关联单据：优先可跳转的业务单据，没有关联时明确写出。 */
+function MovementSource({ m }: { m: any }) {
+  if (!m.flowNumber && !m.purchaseNumber && !m.customerOrderNumber)
+    return <span className="sub">未关联单据</span>;
+  return (
+    <>
+      {m.flowNumber && <a href={flowLink(m)}>{m.flowNumber}</a>}
+      {m.purchaseNumber && <span> {m.purchaseNumber}</span>}
+      {m.customerOrderNumber && <span> {m.customerOrderNumber}</span>}
+    </>
+  );
+}
+
 export default function MovementRecords({
   rows,
   summary,
   totalRecords,
+  filteredRecords,
+  pageSize,
   page,
   onPage,
   item,
@@ -43,6 +88,8 @@ export default function MovementRecords({
   rows: any[];
   summary: MovementSummary;
   totalRecords: number;
+  filteredRecords: number;
+  pageSize: number;
   page: number;
   onPage: (page: number) => void;
   item: any;
@@ -50,14 +97,36 @@ export default function MovementRecords({
   view: 'details' | 'summary';
   onView: (view: 'details' | 'summary') => void;
 }) {
-  const records = view === 'summary' ? summary : rows;
+  const [selected, setSelected] = useState<any>(null);
+  // 面板切到页边时先翻页，新一页到达后再选中首行或末行。
+  const pendingEdge = useRef<'first' | 'last' | null>(null);
+  useEffect(() => {
+    if (pendingEdge.current && rows.length) {
+      setSelected(pendingEdge.current === 'first' ? rows[0] : rows[rows.length - 1]);
+      pendingEdge.current = null;
+      return;
+    }
+    setSelected((current: any) => (current ? rows.find((m) => m.id === current.id) || null : null));
+  }, [rows]);
+  const step = (delta: number) => {
+    const index = rows.findIndex((m) => m.id === selected?.id),
+      next = rows[index + delta];
+    if (next) {
+      setSelected(next);
+      return;
+    }
+    const target = page + delta;
+    if (index < 0 || target < 1 || target > Math.ceil(filteredRecords / pageSize)) return;
+    pendingEdge.current = delta > 0 ? 'first' : 'last';
+    onPage(target);
+  };
   return (
     <section className="panel business-records movement-records">
       <div className="section-heading">
         <div>
           <h2>出入库流水</h2>
           <span>
-            筛选 {rows.length} 条 / 全部 {totalRecords} 条
+            筛选 {filteredRecords} 条 / 全部 {totalRecords} 条
             {view === 'summary' ? ` · ${summary.length} 个库存品` : ''}
           </span>
         </div>
@@ -72,7 +141,10 @@ export default function MovementRecords({
           <button
             aria-pressed={view === 'summary'}
             className={view === 'summary' ? 'selected' : ''}
-            onClick={() => onView('summary')}
+            onClick={() => {
+              setSelected(null);
+              onView('summary');
+            }}
           >
             按产品汇总
           </button>
@@ -94,94 +166,57 @@ export default function MovementRecords({
           <table className="op-flow-table">
             <thead>
               <tr>
-                {[
-                  '业务日期 / 记录时间',
-                  '产品名称 / 仓库',
-                  '规格型号',
-                  '出入库类型',
-                  '数量 / 单位',
-                  '关联单据',
-                  '变动前 → 后',
-                  '用途 / 备注',
-                  '操作人员',
-                ].map((t) => (
-                  <th key={t}>{t}</th>
-                ))}
+                <th>业务日期</th>
+                <th>产品</th>
+                <th>类型</th>
+                <th className="numeric">数量</th>
+                <th className="numeric">变动后</th>
+                <th>关联单据</th>
+                <th>操作人</th>
               </tr>
             </thead>
             <tbody>
-              {rows.slice((page - 1) * 25, page * 25).map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    {m.date}
-                    <span className="sub">{new Date(m.created_at).toLocaleString('zh-CN')}</span>
+              {rows.map((m) => (
+                <tr
+                  key={m.id}
+                  tabIndex={0}
+                  className={'record-row' + (selected?.id === m.id ? ' selected' : '')}
+                  aria-selected={selected?.id === m.id}
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest('a,button')) setSelected(m);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target === e.currentTarget) setSelected(m);
+                  }}
+                >
+                  <td className="record-date">{m.date}</td>
+                  <td className="cell-wrap" title={m.itemName}>
+                    {m.itemName}
+                    {m.revisionCount > 0 && <span className="sub"> 已修订</span>}
                   </td>
                   <td>
-                    <strong>{m.itemName}</strong>
-                    <span className="sub">
-                      {m.kind === 'raw' ? '原材料' : '成品'} · 库存品 #{m.item_id}
-                    </span>
+                    <StatusBadge status={movementType(m)} />
                   </td>
-                  <td>
-                    {m.itemSpecification || '待补充'}
-                    <span className="sub">{[m.material, m.flute].filter(Boolean).join(' / ')}</span>
-                  </td>
-                  <td>
-                    <StatusBadge
-                      status={
-                        m.source_kind === 'flow_production'
-                          ? m.kind === 'finished'
-                            ? '生产完工入库'
-                            : m.direction === '-'
-                              ? '生产领料'
-                              : '生产退料'
-                          : m.source_kind === 'flow_delivery'
-                            ? '客户发货'
-                            : m.source_kind === 'flow_reversal'
-                              ? '单据冲销'
-                              : movementLabels[m.action as (typeof movementActions)[number]]
-                      }
-                    />
-                  </td>
-                  <td className={m.direction === '-' ? 'movement-negative' : 'movement-positive'}>
+                  <td
+                    className={
+                      'numeric ' + (m.direction === '-' ? 'movement-negative' : 'movement-positive')
+                    }
+                  >
                     {m.direction}
                     {m.delta} {m.unit}
                   </td>
-                  <td>
-                    {m.purchaseNumber && <span>{m.purchaseNumber}</span>}
-                    {m.flowNumber && (
-                      <a
-                        href={
-                          m.flowKind === 'delivery'
-                            ? '#warehouse?kind=finished&deliveries=1&doc=' + m.source_id
-                            : '#' +
-                              (m.flowKind === 'arrival' ? 'arrivals' : 'production') +
-                              '?doc=' +
-                              m.source_id
-                        }
-                      >
-                        {m.flowNumber}
-                      </a>
-                    )}
-                    {m.customerOrderNumber && <span className="sub">{m.customerOrderNumber}</span>}
-                    {!m.flowNumber && !m.purchaseNumber && !m.customerOrderNumber
-                      ? '未关联单据'
-                      : null}
+                  <td className="numeric">
+                    {m.after} {m.unit}
                   </td>
-                  <td>
-                    {m.before} → {m.after}
-                    <span className="sub">{m.unit}</span>
+                  <td className="cell-wrap">
+                    <MovementSource m={m} />
                   </td>
-                  <td>
-                    {m.notes || '—'}
-                    {m.revisionCount > 0 && <MovementRevisions id={m.id} count={m.revisionCount} />}
-                  </td>
-                  <td>{m.actor_name}</td>
+                  <td className="cell-wrap">{m.actor_name}</td>
                 </tr>
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={7}>
                     <EmptyState
                       title="暂无符合条件的出入库明细"
                       description="可切换全部日期查询历史记录。"
@@ -195,35 +230,32 @@ export default function MovementRecords({
           <table className="movement-summary-table">
             <thead>
               <tr>
-                {[
-                  '产品名称 / 库存品',
-                  '规格型号',
-                  '仓库',
-                  '单位',
-                  '累计入库',
-                  '累计出库',
-                  '当前库存',
-                ].map((t) => (
-                  <th key={t}>{t}</th>
-                ))}
+                <th>产品名称 / 库存品</th>
+                <th>规格型号</th>
+                <th>仓库</th>
+                <th>单位</th>
+                <th className="numeric">累计入库</th>
+                <th className="numeric">累计出库</th>
+                <th className="numeric">当前库存</th>
               </tr>
             </thead>
             <tbody>
-              {summary.slice((page - 1) * 25, page * 25).map((g) => (
+              {summary.slice((page - 1) * pageSize, page * pageSize).map((g) => (
                 <tr key={g.itemId}>
-                  <td>
-                    <strong>{g.name}</strong>
+                  <td className="cell-wrap">
+                    {g.name}
                     <span className="sub">
-                      库存品 #{g.itemId}
+                      {' '}
+                      #{g.itemId}
                       {g.archived ? ' · 已归档' : ''}
                     </span>
                   </td>
-                  <td>{g.specification || '待补充'}</td>
+                  <td className="cell-wrap">{g.specification || '待补充'}</td>
                   <td>{g.kind === 'raw' ? '原材料' : '成品'}</td>
                   <td>{g.unit}</td>
-                  <td className="movement-positive">{g.incoming}</td>
-                  <td className="movement-negative">{g.outgoing}</td>
-                  <td>
+                  <td className="numeric movement-positive">{g.incoming}</td>
+                  <td className="numeric movement-negative">{g.outgoing}</td>
+                  <td className="numeric">
                     <strong>{g.currentQuantity}</strong>
                   </td>
                 </tr>
@@ -242,7 +274,55 @@ export default function MovementRecords({
           </table>
         )}
       </TableRegion>
-      <Pagination page={page} total={records.length} pageSize={25} onChange={onPage} />
+      <Pagination
+        page={page}
+        total={view === 'summary' ? summary.length : filteredRecords}
+        pageSize={pageSize}
+        onChange={onPage}
+      />
+      {selected && view === 'details' && (
+        <DetailPanel
+          title={selected.itemName}
+          status={<StatusBadge status={movementType(selected)} />}
+          close={() => setSelected(null)}
+          previous={() => step(-1)}
+          next={() => step(1)}
+        >
+          <dl className="record-detail-grid">
+            {(
+              [
+                ['业务日期', selected.date],
+                ['记录时间', new Date(selected.created_at).toLocaleString('zh-CN')],
+                [
+                  '数量',
+                  selected.direction + selected.delta + ' ' + selected.unit,
+                ],
+                ['变动前 → 后', selected.before + ' → ' + selected.after + ' ' + selected.unit],
+                ['仓库', selected.kind === 'raw' ? '原材料' : '成品'],
+                ['库存品编号', '#' + selected.item_id],
+                ['规格型号', selected.itemSpecification || '待补充'],
+                ['材质 / 楞型', [selected.material, selected.flute].filter(Boolean).join(' / ')],
+                ['操作人', selected.actor_name],
+                ['备注', selected.notes],
+              ] as [string, string][]
+            ).map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value || '—'}</dd>
+              </div>
+            ))}
+            <div>
+              <dt>关联单据</dt>
+              <dd>
+                <MovementSource m={selected} />
+              </dd>
+            </div>
+          </dl>
+          {selected.revisionCount > 0 && (
+            <MovementRevisions id={selected.id} count={selected.revisionCount} />
+          )}
+        </DetailPanel>
+      )}
     </section>
   );
 }

@@ -12,6 +12,9 @@ import {
   snapFloatingPosition,
   floatingPositionKey,
   floatingLauncherModeKey,
+  assistantPageLabel,
+  assistantPanelModeKey,
+  readAssistantPanelMode,
   readFloatingLauncher,
   clampMascotDragPosition,
   fitFloatingMascot,
@@ -246,4 +249,31 @@ test('三态独立持久化，旧位置迁移不覆写原配置，窗口缩小�
     dock: 'free',
   });
   assert.doesNotThrow(() => saveFloatingMascot(disabled, { x: 600, y: 700, dock: 'dock-right' }));
+});
+
+test('助手默认停靠，只有明确选过才用浮动窗口；存储损坏或禁用时仍停靠', () => {
+  const stored = (value: string | null) => ({
+    getItem: (key: string) => {
+      assert.equal(key, assistantPanelModeKey);
+      return value;
+    },
+  });
+  for (const value of [null, '', 'docked', '{broken'])
+    assert.equal(readAssistantPanelMode(stored(value)), 'docked');
+  assert.equal(readAssistantPanelMode(stored('floating')), 'floating');
+  assert.equal(
+    readAssistantPanelMode({
+      getItem: () => {
+        throw new Error('storage disabled');
+      },
+    }),
+    'docked',
+  );
+});
+
+test('助手上下文提示写出当前页面和正在看的记录', () => {
+  assert.equal(assistantPageLabel('#orders?order=3', 'SH-1'), '订单 · SH-1');
+  assert.equal(assistantPageLabel('', null), '今日');
+  assert.equal(assistantPageLabel('#purchases'), '采购');
+  assert.equal(assistantPageLabel('#ai-settings', null), '');
 });

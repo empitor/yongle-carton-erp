@@ -27,7 +27,7 @@ import {
   productMetrics,
   productIncomplete,
 } from '../shared/business-metrics';
-import { PageHeading, ListFilters, FilterField, ListSummary } from './ui/ListLayout';
+import { PageHeading, ListFilters, FilterField, ListSummary, useResettingPage } from './ui/ListLayout';
 import DateRangeFilter from './DateRangeFilter';
 import DashboardPage from './DashboardPage';
 import { presetRange, monthsBefore, type DatePreset, type OrderView } from '../shared/date-ranges';
@@ -47,6 +47,8 @@ import Combobox from './ui/Combobox';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../shared/product-details';
 import OrderImportPage from './OrderImportPage';
 import OrderLineTable from './OrderLineTable';
+import { PAGE_SIZE } from './BusinessRecords';
+import type { RecordSort } from '../shared/record-sort';
 import { displayAmount } from '../shared/display-amount';
 import {
   statuses,
@@ -314,6 +316,8 @@ export default function App() {
     customersTotal: 0,
     productsTotal: 0,
     ordersTotal: 0,
+    ordersFiltered: 0,
+    ordersPage: 1,
     orders: orderMetrics([]),
     products: productMetrics([]),
   });
@@ -380,6 +384,21 @@ export default function App() {
     const t = setTimeout(() => setNotice(''), 4500);
     return () => clearTimeout(t);
   }, [notice]);
+  const [orderSort, setOrderSort] = useState<RecordSort>('recent');
+  // 筛选范围变化回第一页；统计也只在范围变化时才需要等待。
+  const orderSignature = [
+    page,
+    search,
+    customerId,
+    status,
+    start,
+    end,
+    orderView,
+    archivedView,
+    allRecordsView,
+  ].join('|');
+  const [orderPage, setOrderPage] = useResettingPage(orderSignature + '|' + orderSort);
+  const loadedSignature = useRef('');
   useEffect(() => {
     if (!auth?.actor) return;
     if (
@@ -419,6 +438,11 @@ export default function App() {
     if (page === 'trash')
       for (const key of ['customerId', 'start', 'end', 'status', 'q']) query.delete(key);
     query.set('withMetrics', '1');
+    if (page === 'orders') {
+      query.set('page', String(orderPage));
+      query.set('pageSize', String(PAGE_SIZE));
+      query.set('sort', orderSort);
+    }
     const customerQuery = new URLSearchParams({ withMetrics: '1' }),
       productQuery = new URLSearchParams({ withMetrics: '1' });
     if (superMode && (page !== 'customers' || allRecordsView)) customerQuery.set('archived', 'all');
@@ -452,11 +476,14 @@ export default function App() {
             if (c) setCustomers(c.rows);
             if (p) setProducts(p.rows);
             if (o) setOrders(o.rows);
+            if (o) loadedSignature.current = orderSignature;
             if (d) setDashboard(d);
             setListMetrics((m) => ({
               customersTotal: c ? c.totalRecords : m.customersTotal,
               productsTotal: p ? p.totalRecords : m.productsTotal,
               ordersTotal: o ? o.totalRecords : m.ordersTotal,
+              ordersFiltered: o ? o.filteredRecords : m.ordersFiltered,
+              ordersPage: o ? (o.page ?? 1) : m.ordersPage,
               orders: o ? o.metrics : m.orders,
               products: p ? p.metrics : m.products,
             }));
@@ -489,11 +516,15 @@ export default function App() {
     superMode,
     trashEntity,
     auth?.actor?.id,
+    orderPage,
+    orderSort,
   ]);
   useEffect(() => {
     if (!superMode) setAllRecordsView(false);
   }, [superMode]);
 
+  // 翻页和换排序不改变筛选范围，统计数字不用闪成占位符。
+  const metricsPending = busy && loadedSignature.current !== orderSignature;
   const navigate = (v: Page) => {
     location.hash = v;
     setMenu(false);
@@ -640,6 +671,7 @@ export default function App() {
               className="assistant-topbar-button"
               aria-label="打开全局AI助手"
               aria-haspopup="dialog"
+              title="AI助手（Ctrl+J）"
               onClick={() => window.dispatchEvent(new Event('erp-open-assistant'))}
             >
               <Bot size={16} />
@@ -772,17 +804,17 @@ export default function App() {
                   items={[
                     {
                       label: '订单总数',
-                      value: busy ? '—' : listMetrics.orders.total,
+                      value: metricsPending ? '—' : listMetrics.orders.total,
                       hint: '当前筛选范围',
                     },
                     {
                       label: '待完成订单',
-                      value: busy ? '—' : listMetrics.orders.pending,
+                      value: metricsPending ? '—' : listMetrics.orders.pending,
                       hint: '已确认、生产中、待发货',
                     },
                     {
                       label: '逾期未完成订单',
-                      value: busy ? '—' : listMetrics.orders.overdue,
+                      value: metricsPending ? '—' : listMetrics.orders.overdue,
                       hint: '交货日期早于今天且未交付',
                     },
                   ]}
@@ -957,6 +989,17 @@ export default function App() {
                 '|',
               )}
               hideSearch
+              paging={
+                page === 'orders'
+                  ? {
+                      page: listMetrics.ordersPage,
+                      total: listMetrics.ordersFiltered,
+                      onPage: setOrderPage,
+                      sort: orderSort,
+                      onSort: setOrderSort,
+                    }
+                  : undefined
+              }
               totalRecords={
                 page === 'orders'
                   ? listMetrics.ordersTotal
@@ -1181,6 +1224,7 @@ export default function App() {
       )}
       {editor?.kind === 'orders' && (
         <OrderEditor
+          loading={busy}
           key={editor.value ? editor.value.id + ':' + editor.value.version : 'new'}
           value={editor.value}
           customers={customers}
@@ -1494,8 +1538,10 @@ function OrderEditor({
   products,
   close,
   saved,
+  loading = false,
 }: {
   value?: Order;
+  loading?: boolean;
   customers: Customer[];
   products: Product[];
   close: () => void;
@@ -1660,7 +1706,7 @@ function OrderEditor({
           <p className="form-intro">
             选择客户 → 添加产品与本次数量 → 核对交期和金额。标 * 为必填，其余按实际业务选填。
           </p>
-          {(!availableCustomers.length || !availableProducts.length) && (
+          {!loading && (!availableCustomers.length || !availableProducts.length) && (
             <div className="inline-warning">
               尚无客户或产品时，可使用下方快捷建档，已填写订单内容会保留。
             </div>

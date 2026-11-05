@@ -13,6 +13,33 @@ export function readFloatingLauncher(storage: Pick<Storage, 'getItem'>): boolean
     return true;
   }
 }
+export const assistantPanelModeKey = 'erp-assistant-panel-mode-v1';
+export type AssistantPanelMode = 'docked' | 'floating';
+/** 展开后默认停靠右侧并推开内容；只有明确选过才用浮动窗口。 */
+export function readAssistantPanelMode(storage: Pick<Storage, 'getItem'>): AssistantPanelMode {
+  try {
+    return storage.getItem(assistantPanelModeKey) === 'floating' ? 'floating' : 'docked';
+  } catch {
+    return 'docked';
+  }
+}
+/** 顶部显示当前页面和正在看的记录，说明助手回答时参考的上下文。 */
+const assistantPageNames: Record<string, string> = {
+  dashboard: '今日',
+  'ai-import': '收件箱',
+  orders: '订单',
+  customers: '客户',
+  products: '产品',
+  purchases: '采购',
+  suppliers: '供应商',
+  production: '生产',
+  warehouse: '仓储',
+  trash: '归档',
+};
+export function assistantPageLabel(hash: string, record?: string | null) {
+  const name = assistantPageNames[hash.replace(/^#/, '').split('?')[0] || 'dashboard'];
+  return [name, record].filter(Boolean).join(' · ');
+}
 const margin = 8;
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(n, Math.max(min, max)));

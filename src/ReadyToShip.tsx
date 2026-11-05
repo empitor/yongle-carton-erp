@@ -17,6 +17,27 @@ type Candidate = {
   available: number;
 };
 
+/**
+ * 多行共用一个成品档案时，按勾选先后从同一份可用量里分配。
+ * 返回每行本次数量和每个档案分配后的余量，单位都是千分整数。
+ */
+export function allocateShipments(
+  candidates: Pick<Candidate, 'key' | 'stockId' | 'remaining' | 'available'>[],
+  checked: string[],
+) {
+  const left = new Map(candidates.map((c) => [c.stockId, c.available]));
+  const allocated = new Map<string, number>();
+  for (const key of checked) {
+    const c = candidates.find((row) => row.key === key);
+    if (!c) continue;
+    const quantity = Math.min(quantityUnits(String(c.remaining)), left.get(c.stockId) ?? 0);
+    if (quantity <= 0) continue;
+    allocated.set(key, quantity);
+    left.set(c.stockId, (left.get(c.stockId) ?? 0) - quantity);
+  }
+  return { allocated, left };
+}
+
 /** 可发货清单：列出有成品可发的订单明细，勾选同一客户的多行一起生成送货单。 */
 export default function ReadyToShip({
   revision,
@@ -35,7 +56,7 @@ export default function ReadyToShip({
   useEffect(() => {
     let active = true;
     Promise.all([
-      managementRequest<any[]>('/orders'),
+      managementRequest<any[]>('/orders?view=pending'),
       managementRequest<any[]>('/warehouse/items?kind=finished'),
     ])
       .then(([o, i]) => {
@@ -81,10 +102,12 @@ export default function ReadyToShip({
     return rows.sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
   }, [orders, items]);
   if (!candidates.length) return null;
-  const chosen = candidates.filter((c) => checked.includes(c.key)),
-    customer = chosen[0]?.customerId;
-  const quantityOf = (c: Candidate) =>
-    quantityString(Math.min(quantityUnits(String(c.remaining)), c.available));
+  const { allocated, left } = allocateShipments(candidates, checked);
+  // 按勾选先后建单，分配到数量的行才进入送货单。
+  const chosen = checked
+    .map((key) => candidates.find((c) => c.key === key))
+    .filter((c): c is Candidate => !!c && allocated.has(c.key));
+  const customer = chosen[0]?.customerId;
   return (
     <section className="panel ready-to-ship">
       <header>
@@ -110,7 +133,7 @@ export default function ReadyToShip({
                 orderId: c.orderId,
                 orderLineId: c.orderLineId,
                 stockId: c.stockId,
-                quantity: quantityOf(c),
+                quantity: quantityString(allocated.get(c.key)!),
               })),
             )
           }
@@ -121,17 +144,26 @@ export default function ReadyToShip({
       {open && (
         <div className="ready-list">
           {candidates.map((c) => {
-            const otherCustomer = customer !== undefined && c.customerId !== customer;
+            const otherCustomer = customer !== undefined && c.customerId !== customer,
+              picked = allocated.get(c.key),
+              used = !picked && !(left.get(c.stockId)! > 0),
+              blocked = otherCustomer || used;
             return (
               <label
-                className={'queue-row' + (otherCustomer ? ' disabled' : '')}
+                className={'queue-row' + (blocked ? ' disabled' : '')}
                 key={c.key}
-                title={otherCustomer ? '一张送货单只能发给一个客户' : undefined}
+                title={
+                  otherCustomer
+                    ? '一张送货单只能发给一个客户'
+                    : used
+                      ? '这个成品的可用量已分配给已选的行'
+                      : undefined
+                }
               >
                 <input
                   type="checkbox"
                   aria-label={'选择 ' + c.orderNumber + ' ' + c.productName}
-                  disabled={otherCustomer}
+                  disabled={blocked}
                   checked={checked.includes(c.key)}
                   onChange={(e) =>
                     setChecked((v) =>
@@ -144,7 +176,10 @@ export default function ReadyToShip({
                   {c.customerName} · {c.productName}
                 </span>
                 <span className="queue-note">
-                  待发 {c.remaining} {c.unit} · 可用 {quantityString(c.available)}
+                  待发 {c.remaining} {c.unit} ·{' '}
+                  {picked
+                    ? '本次 ' + quantityString(picked)
+                    : '可用 ' + quantityString(left.get(c.stockId)!)}
                 </span>
                 <span className="queue-note">交期 {c.deliveryDate}</span>
               </label>
