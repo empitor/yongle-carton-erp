@@ -248,13 +248,15 @@ test(
       join(dir, 'fixture-server.mjs'),
       `import{createServer}from'node:http';import{existsSync,writeFileSync,appendFileSync,mkdirSync}from'node:fs';mkdirSync('data',{recursive:true});const s=createServer((q,r)=>{if(q.url==='/stop'){r.end('ok');s.close();return;}const ready=existsSync('ready.signal');appendFileSync('events.txt',ready?'health-ready\\n':'health-pending\\n');r.writeHead(ready?200:503,{'Content-Type':'application/json'});r.end(JSON.stringify({ok:ready,app:'carton-workshop-erp',processId:process.pid}));});s.listen(Number(process.env.PORT),'127.0.0.1',()=>{writeFileSync('data/erp.sqlite.running',String(process.pid));appendFileSync('events.txt','server-listening\\n');});`,
     );
+    // 测试依赖CMD优先使用当前目录的替身命令；部分运行环境用这个变量禁止该行为。
+    const { NoDefaultCurrentDirectoryInExePath: _ignored, ...baseEnv } = process.env;
     try {
       child = spawn(
         process.env.ComSpec || 'cmd.exe',
         ['/d', '/s', '/c', 'call "' + join(dir, '启动系统.cmd') + '"'],
         {
           cwd: dir,
-          env: { ...process.env, PORT: String(port), DB_PATH: '' },
+          env: { ...baseEnv, PORT: String(port), DB_PATH: '' },
           windowsHide: true,
           windowsVerbatimArguments: true,
           stdio: ['ignore', 'pipe', 'pipe'],
