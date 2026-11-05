@@ -1,16 +1,19 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, FileUp, RefreshCw } from 'lucide-react';
 import { managementRequest, useAuthState } from './session';
 import DateSchedule from './DateSchedule';
 import FlowPage from './FlowPage';
+import DetailPanel from './ui/DetailPanel';
+import ReadyToShip from './ReadyToShip';
 import StatusBadge from './StatusBadge';
 import { ArrivalRecordLines } from './ArrivalRecordLines';
 import { ReceiptHistory } from './FulfillmentDetails';
 import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
 import { today, dateSchema } from '../shared/domain';
 import { formatStockSize } from '../shared/operations';
-import BusinessExport, { BusinessDocumentButton } from './BusinessExport';
+import BusinessExport from './BusinessExport';
 import './arrival-warehouse.css';
+const RECORD_PAGE_SIZE = 50;
 export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery' }) {
   const auth = useAuthState(),
     canEdit =
@@ -29,7 +32,7 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
     [q, setQ] = useState(''),
     [state, setState] = useState(params.get('state') || ''),
     [allDates, setAllDates] = useState(params.get('scope') === 'all'),
-    [expanded, setExpanded] = useState<string[]>(focus ? [focus] : []),
+    [selectedKey, setSelectedKey] = useState(focus),
     [launch, setLaunch] = useState<any>(
       params.get('createArrival') ? { purchase: params.get('purchase') || '' } : null,
     ),
@@ -115,7 +118,7 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
   );
   const detail = (r: any) => setLaunch({ doc: String(r.flowId || r.id).replace('flow-', '') });
   useEffect(
-    () => setPage((p) => Math.min(p, Math.max(1, Math.ceil(filtered.length / 12)))),
+    () => setPage((p) => Math.min(p, Math.max(1, Math.ceil(filtered.length / RECORD_PAGE_SIZE)))),
     [filtered.length],
   );
   const act = async (job: () => Promise<void>) => {
@@ -128,6 +131,82 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
     } finally {
       setBusy(false);
     }
+  };
+  const purchaseOf = (l: any) =>
+    purchases.find(
+      (p) => l.purchaseId === p.id || p.lines.some((x: any) => x.id === l.purchaseLineId),
+    );
+  const statusOf = (r: any) =>
+    r.status === 'reversed'
+      ? '已冲销'
+      : r.cancelled
+        ? '已取消'
+        : r.pending
+          ? '待' + name
+          : r.status === 'confirmed'
+            ? '已完成' + name
+            : '历史记录';
+  const selected =
+    filtered.find((r: any) => String(r.id) === selectedKey) ||
+    data.records.find((r: any) => String(r.id) === selectedKey);
+  const selectedPurchase =
+    kind === 'arrival' && selected
+      ? selected.lines.map(purchaseOf).find(Boolean) || null
+      : null;
+  const step = (delta: number) => {
+    const index = filtered.findIndex((r: any) => String(r.id) === selectedKey),
+      next = filtered[index + delta];
+    if (next) setSelectedKey(String(next.id));
+  };
+  const panelActions = (r: any) => {
+    const planId = r.flowId || Number(String(r.id).replace('flow-', ''));
+    return (
+      <>
+        {kind === 'arrival' && r.isPlan && r.pending && (
+          <button
+            className="primary"
+            disabled={!canEdit}
+            onClick={() => setLaunch({ receivePlan: String(planId) })}
+          >
+            登记实际到货
+          </button>
+        )}
+        {!!planId && (
+          <button onClick={() => detail(r)}>
+            {r.pending ? (r.isPlan ? '修改计划' : '修改 / 确认' + name) : '查看正式记录'}
+          </button>
+        )}
+        {kind === 'arrival' && selectedPurchase && r.effective && (
+          <button
+            disabled={!canEdit}
+            onClick={() =>
+              setCorrection({
+                purchase: selectedPurchase,
+                receipt: selectedPurchase.receipts.find((x: any) => x.id === r.id),
+              })
+            }
+          >
+            更正到货单
+          </button>
+        )}
+        {r.pending && (
+          <button
+            disabled={!canEdit || busy}
+            onClick={() =>
+              void act(async () => {
+                await managementRequest('/flow/' + planId + '/cancel', {
+                  version: r.version,
+                  reason: '取消未执行业务计划',
+                  acknowledged: true,
+                });
+              })
+            }
+          >
+            取消计划
+          </button>
+        )}
+      </>
+    );
   };
   return (
     <div className="arrival-warehouse">
@@ -230,224 +309,108 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
           <option value="cancelled">已取消 / 冲销</option>
         </select>
       </div>
+      {kind === 'delivery' && canEdit && (
+        <ReadyToShip
+          revision={revision}
+          create={(customerId, lines) =>
+            setLaunch({ lines: JSON.stringify({ customerId, lines }), plannedDate: date })
+          }
+        />
+      )}
       <section className="panel business-records">
-        <div className="table-wrap unified-table-region">
+        <div className="table-wrap unified-table-region" tabIndex={0}>
           <table className="flow-table arrival-table">
             <thead>
               <tr>
                 {[
-                  '单号 / ' + (kind === 'arrival' ? '供应商' : '客户'),
-                  '关联订单',
-                  '产品 / 本批数量',
-                  '计划日期和时间',
-                  '实际日期和时间',
+                  '单号',
+                  kind === 'arrival' ? '供应商' : '客户',
+                  kind === 'arrival' ? '采购单' : '订单',
+                  '本批内容',
+                  '计划',
+                  '实际',
                   '状态',
-                  '操作',
                 ].map((h) => (
                   <th key={h}>{h}</th>
                 ))}
+                <th aria-label="操作" />
               </tr>
             </thead>
             <tbody>
-              {filtered.slice((page - 1) * 12, page * 12).map((r: any) => {
-                const key = String(r.id),
-                  actual = r.status === 'confirmed',
-                  planId = r.flowId || Number(key.replace('flow-', '')),
-                  purchase =
-                    kind === 'arrival'
-                      ? purchases.find((p) =>
-                          r.lines.some(
-                            (l: any) =>
-                              l.purchaseId === p.id ||
-                              p.lines.some((x: any) => x.id === l.purchaseLineId),
-                          ),
-                        )
-                      : null;
-                return (
-                  <Fragment key={key}>
-                    <tr>
+              {filtered
+                .slice((page - 1) * RECORD_PAGE_SIZE, page * RECORD_PAGE_SIZE)
+                .map((r: any) => {
+                  const key = String(r.id),
+                    actual = r.status === 'confirmed',
+                    numbers = [
+                      ...new Set(
+                        r.lines
+                          .map((l: any) =>
+                            kind === 'arrival'
+                              ? l.purchaseNumber || purchaseOf(l)?.number
+                              : l.orderNumber,
+                          )
+                          .filter(Boolean),
+                      ),
+                    ] as string[],
+                    first = r.lines[0];
+                  return (
+                    <tr
+                      key={key}
+                      tabIndex={0}
+                      className={'record-row' + (selectedKey === key ? ' selected' : '')}
+                      onClick={(e) => {
+                        if (!(e.target as HTMLElement).closest('input,button,a')) setSelectedKey(key);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.target === e.currentTarget) setSelectedKey(key);
+                      }}
+                    >
+                      <td className="record-no">{r.number}</td>
+                      <td className="cell-wrap">{r.supplierName || r.customerName}</td>
                       <td>
-                        <strong>{r.number}</strong>
-                        <span className="sub">{r.supplierName || r.customerName}</span>
-                      </td>
-                      <td>
-                        {[
-                          ...new Set(
-                            r.lines
-                              .map((l: any) =>
-                                kind === 'arrival'
-                                  ? l.purchaseNumber ||
-                                    purchases.find((p) =>
-                                      p.lines.some((x: any) => x.id === l.purchaseLineId),
-                                    )?.number
-                                  : l.orderNumber,
-                              )
-                              .filter(Boolean),
-                          ),
-                        ].map((n: any) => (
+                        {numbers[0] && (
                           <a
-                            className="record-expand"
-                            key={n}
                             href={
                               '#' +
                               (kind === 'arrival' ? 'purchases' : 'orders') +
                               '?q=' +
-                              encodeURIComponent(n)
+                              encodeURIComponent(numbers[0])
                             }
                           >
-                            {n}
+                            {numbers[0]}
                           </a>
-                        ))}
+                        )}
+                        {numbers.length > 1 && <span className="sub">+{numbers.length - 1}</span>}
                       </td>
-                      <td>
-                        {r.lines.map((l: any, i: number) => (
-                          <span className="sub" key={i}>
-                            {l.item?.name || l.productName}：{l.quantity} {l.item?.unit || l.unit}
-                          </span>
-                        ))}
-                      </td>
-                      <td>
-                        {r.plannedDate || '未安排计划'}
-                        <span className="sub">{r.plannedTime || ''}</span>
-                      </td>
-                      <td>
-                        {r.actualDate || (!r.isPlan && actual ? r.date : '尚未完成')}
-                        <span className="sub">{actual ? r.actualTime || '时间未记录' : ''}</span>
-                      </td>
-                      <td>
-                        <StatusBadge
-                          status={
-                            r.status === 'reversed'
-                              ? '已冲销'
-                              : r.cancelled
-                                ? '已取消'
-                                : r.pending
-                                  ? '待' + name
-                                  : actual
-                                    ? '已完成' + name
-                                    : '历史记录'
-                          }
-                        />
-                        {kind === 'arrival' && (
+                      <td className="cell-wrap">
+                        {first && (
                           <>
-                            <span className="sub">{r.inspectionStatus}</span>
-                            <span className="sub">{r.inventoryStatus}</span>
+                            {first.item?.name || first.productName}：{first.quantity}{' '}
+                            {first.item?.unit || first.unit}
                           </>
                         )}
-                        <span className="sub">
-                          {purchase?.arrivalProgress ||
-                            r.lines.find((l: any) => l.shippingStatus === '部分发货')
-                              ?.shippingStatus}
-                        </span>
+                        {r.lines.length > 1 && <span className="sub">+{r.lines.length - 1}</span>}
                       </td>
                       <td>
-                        <div className="record-inline-actions">
-                          <button
-                            onClick={() =>
-                              setExpanded((v) =>
-                                v.includes(key) ? v.filter((x) => x !== key) : [...v, key],
-                              )
-                            }
-                          >
-                            {expanded.includes(key) ? '收起明细' : '展开明细'}
-                          </button>
-                          {!!planId && (
-                            <button onClick={() => detail(r)}>
-                              {r.pending
-                                ? r.isPlan
-                                  ? '查看 / 修改计划'
-                                  : '修改 / 登记实际' + name
-                                : '查看正式记录'}
-                            </button>
-                          )}
-                          {kind === 'delivery' && (
-                            <BusinessDocumentButton
-                              kind="delivery"
-                              id={r.id}
-                              version={r.version}
-                              status={r.status}
-                            />
-                          )}
-                          {kind === 'arrival' && r.isPlan && r.pending && (
-                            <button
-                              disabled={!canEdit}
-                              onClick={() => setLaunch({ receivePlan: String(planId) })}
-                            >
-                              登记实际到货
-                            </button>
-                          )}
-                          {kind === 'arrival' && purchase && r.effective && (
-                            <button
-                              disabled={!canEdit}
-                              onClick={() =>
-                                setCorrection({
-                                  purchase,
-                                  receipt: purchase.receipts.find((x: any) => x.id === r.id),
-                                })
-                              }
-                            >
-                              更正到货单
-                            </button>
-                          )}
-                          {r.pending && (
-                            <button
-                              disabled={!canEdit || busy}
-                              onClick={() =>
-                                void act(async () => {
-                                  await managementRequest('/flow/' + planId + '/cancel', {
-                                    version: r.version,
-                                    reason: '取消未执行业务计划',
-                                    acknowledged: true,
-                                  });
-                                })
-                              }
-                            >
-                              取消计划
-                            </button>
-                          )}
-                        </div>
+                        {r.plannedDate || '—'}
+                        {r.plannedTime && <span className="sub">{r.plannedTime}</span>}
+                      </td>
+                      <td>{r.actualDate || (!r.isPlan && actual ? r.date : '—')}</td>
+                      <td>
+                        <StatusBadge status={statusOf(r)} />
+                      </td>
+                      <td>
+                        <button className="row-open" onClick={() => setSelectedKey(key)}>
+                          查看
+                        </button>
                       </td>
                     </tr>
-                    {expanded.includes(key) && (
-                      <tr className="fulfillment-expanded">
-                        <td colSpan={7}>
-                          {kind === 'arrival' ? (
-                            <>
-                              <ArrivalRecordLines record={r} />
-                              {purchase && (
-                                <details>
-                                  <summary>全部到货批次及更正历史</summary>
-                                  <ReceiptHistory
-                                    row={purchase}
-                                    correct={
-                                      canEdit
-                                        ? (receipt) => setCorrection({ purchase, receipt })
-                                        : undefined
-                                    }
-                                  />
-                                </details>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <DeliveryRecordLines record={r} />
-                              <BusinessExport
-                                kind="delivery"
-                                id={r.id}
-                                version={r.version}
-                                status={r.status}
-                              />
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+                  );
+                })}
               {!filtered.length && (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     {busy ? '正在读取…' : '当前日期暂无记录，可新建计划或登记实际业务。'}
                   </td>
                 </tr>
@@ -461,13 +424,57 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
             上一页
           </button>
           <span>
-            {page} / {Math.max(1, Math.ceil(filtered.length / 12))}
+            {page} / {Math.max(1, Math.ceil(filtered.length / RECORD_PAGE_SIZE))}
           </span>
-          <button disabled={page * 12 >= filtered.length} onClick={() => setPage((p) => p + 1)}>
+          <button disabled={page * RECORD_PAGE_SIZE >= filtered.length} onClick={() => setPage((p) => p + 1)}>
             下一页
           </button>
         </div>
       </section>
+      {selected && (
+        <DetailPanel
+          title={selected.number}
+          status={<StatusBadge status={statusOf(selected)} />}
+          actions={panelActions(selected)}
+          close={() => setSelectedKey('')}
+          previous={() => step(-1)}
+          next={() => step(1)}
+        >
+          {kind === 'arrival' ? (
+            <>
+              {(selected.inspectionStatus || selected.inventoryStatus) && (
+                <p className="sub">
+                  {selected.inspectionStatus} · {selected.inventoryStatus}
+                </p>
+              )}
+              <ArrivalRecordLines record={selected} />
+              {selectedPurchase && (
+                <details>
+                  <summary>全部到货批次及更正历史</summary>
+                  <ReceiptHistory
+                    row={selectedPurchase}
+                    correct={
+                      canEdit
+                        ? (receipt) => setCorrection({ purchase: selectedPurchase, receipt })
+                        : undefined
+                    }
+                  />
+                </details>
+              )}
+            </>
+          ) : (
+            <>
+              <DeliveryRecordLines record={selected} />
+              <BusinessExport
+                kind="delivery"
+                id={selected.id}
+                version={selected.version}
+                status={selected.status}
+              />
+            </>
+          )}
+        </DetailPanel>
+      )}
       {launch && (
         <FlowPage
           key={JSON.stringify(launch)}

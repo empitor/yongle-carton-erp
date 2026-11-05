@@ -54,7 +54,7 @@ export async function managementRequest<T = any>(
   const auth = (await fetch('/api/auth/state', { cache: 'no-store' }).then((r) =>
     r.json(),
   )) as AuthState;
-  if (body !== undefined && !auth.actor) throw new Error('请先在右上角登录管理账号。');
+  if (!auth.actor) throw new Error('请先登录账号。');
   const r = await fetch('/api' + path, {
     method: body === undefined ? 'GET' : method,
     headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },

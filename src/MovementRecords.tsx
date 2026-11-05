@@ -1,7 +1,34 @@
+import { useState } from 'react';
 import { EmptyState, Pagination, TableRegion } from './ui/ListLayout';
 import StatusBadge from './StatusBadge';
 import { movementLabels, type movementActions } from '../shared/movement-filters';
 import type { MovementSummary } from '../shared/business-metrics';
+import { quantityString } from '../shared/operations';
+import { managementRequest } from './session';
+/** 流水被管理员改写过时展示原值，点开才读取修订台账。 */
+function MovementRevisions({ id, count }: { id: string; count: number }) {
+  const [list, setList] = useState<any[] | null>(null);
+  return (
+    <details
+      className="movement-revisions"
+      onToggle={(e) => {
+        if ((e.target as HTMLDetailsElement).open && !list)
+          void managementRequest<any[]>('/warehouse/movements/' + encodeURIComponent(id) + '/revisions')
+            .then(setList)
+            .catch(() => setList([]));
+      }}
+    >
+      <summary>已修订 {count} 次</summary>
+      {(list || []).map((r, i) => (
+        <span className="sub" key={i}>
+          {r.at.slice(0, 10)} {r.actorName}：{r.reason}，原变动{' '}
+          {quantityString(Math.abs(r.before.delta_units))}（{r.before.date}）
+          {r.after ? ' → ' + quantityString(Math.abs(r.after.delta_units)) : ' → 已移除'}
+        </span>
+      ))}
+    </details>
+  );
+}
 export default function MovementRecords({
   rows,
   summary,
@@ -145,7 +172,10 @@ export default function MovementRecords({
                     {m.before} → {m.after}
                     <span className="sub">{m.unit}</span>
                   </td>
-                  <td>{m.notes || '—'}</td>
+                  <td>
+                    {m.notes || '—'}
+                    {m.revisionCount > 0 && <MovementRevisions id={m.id} count={m.revisionCount} />}
+                  </td>
                   <td>{m.actor_name}</td>
                 </tr>
               ))}

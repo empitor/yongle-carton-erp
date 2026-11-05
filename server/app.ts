@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { z, ZodError } from 'zod';
-import { dateSchema, statuses, type Order } from '../shared/domain.js';
+import { dateSchema, statuses, today, type Order } from '../shared/domain.js';
 import { Store, ConflictError, InputError } from './db.js';
 import { createBusinessService, BusinessAccessError, NotFoundError } from './business/service.js';
 import { getBusinessMetadata } from './business/metadata.js';
@@ -31,7 +31,7 @@ import type { AssistantManager } from './assistant/manager.js';
 import { assistantRouter } from './assistant/router.js';
 import { orderInView } from '../shared/date-ranges.js';
 import { buildDashboard } from './business/dashboard.js';
-import { relatedBusiness } from './business/workbench.js';
+import { buildToday, relatedBusiness } from './business/workbench.js';
 import { developerRouter } from './developer-router.js';
 import { isLocalAdministrator } from './developer-capability.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -46,6 +46,7 @@ function filters(req: Request, rows: Order[]) {
   const f = z
     .object({
       customerId: z.coerce.number().int().positive().optional(),
+      productId: z.coerce.number().int().positive().optional(),
       start: dateSchema.optional(),
       end: dateSchema.optional(),
       status: z.enum(statuses).optional(),
@@ -58,6 +59,7 @@ function filters(req: Request, rows: Order[]) {
   return rows.filter(
     (o) =>
       (!f.customerId || o.customerId === f.customerId) &&
+      (!f.productId || o.lines.some((l) => l.productId === f.productId)) &&
       orderInView(o, {
         view: f.view,
         start: f.start,
@@ -461,6 +463,7 @@ export function createApp(
     if (!result) return res.status(404).json({ message: '业务记录不存在。' });
     res.json(result);
   });
+  app.get('/api/business/today', (_req, res) => res.json(buildToday(store, today())));
   app.get('/api/dashboard', (req, res) => {
     const range = z
       .object({ start: dateSchema.optional(), end: dateSchema.optional() })

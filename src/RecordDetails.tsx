@@ -4,6 +4,7 @@ import { formatDimensions } from '../shared/product-details';
 import { useEffect } from 'react';
 import { formatStockSize, type RecordEntity } from '../shared/operations';
 import { ProgressSummary, PurchaseLines, ReceiptHistory, SalesLines } from './FulfillmentDetails';
+import RelatedOrders from './RelatedOrders';
 export default function RecordDetails({
   entity,
   row,
@@ -107,12 +108,13 @@ export default function RecordDetails({
         ))}
       </dl>
       {entity === 'customers' && (
-        <div className="related-next-actions">
-          <a className="action-link" href={'#orders?customerId=' + row.id + '&range=all'}>
-            查看客户全部订单
-          </a>
-        </div>
+        <RelatedOrders
+          key={'c' + row.id}
+          query={'customerId=' + row.id}
+          moreHref={'#orders?customerId=' + row.id + '&range=all'}
+        />
       )}
+      {entity === 'products' && <RelatedOrders key={'p' + row.id} query={'productId=' + row.id} />}
       {entity === 'suppliers' && (
         <>
           <h3>历史采购记录（{row.purchaseHistory?.length || 0}张）</h3>

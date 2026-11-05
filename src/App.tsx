@@ -10,17 +10,16 @@ import {
   X,
   ArrowUpRight,
   PanelLeftClose,
-  CircleHelp,
+  Search,
   Check,
   RefreshCw,
   Save,
-  Database,
   FileUp,
   ShieldCheck,
   Bot,
 } from 'lucide-react';
 import AiSettingsHub from './AiSettingsHub';
-import AuthPanel from './AuthPanel';
+import AuthPanel, { LoginForm } from './AuthPanel';
 import ThemeSwitcher from './ThemeSwitcher';
 import {
   type ListResult,
@@ -28,11 +27,11 @@ import {
   productMetrics,
   productIncomplete,
 } from '../shared/business-metrics';
-import { PageHeading, LocalNotice, ListFilters, FilterField, ListSummary } from './ui/ListLayout';
+import { PageHeading, ListFilters, FilterField, ListSummary } from './ui/ListLayout';
 import DateRangeFilter from './DateRangeFilter';
 import DashboardPage from './DashboardPage';
 import { presetRange, monthsBefore, type DatePreset, type OrderView } from '../shared/date-ranges';
-import { useAuthState } from './session';
+import { authChanged, useAuthState } from './session';
 import BusinessRecords from './BusinessRecords';
 import Navigation from './Navigation';
 import OperationsPage from './OperationsPage';
@@ -41,14 +40,17 @@ import { userError } from '../shared/user-errors';
 import FlowPage from './FlowPage';
 import { warehouseArrivalHash } from '../shared/arrival-navigation';
 import GlobalAssistant from './GlobalAssistant';
+import CommandPalette from './CommandPalette';
 import type { RecordEntity } from '../shared/operations';
 import DimensionUnitSelect from './DimensionUnitSelect';
+import Combobox from './ui/Combobox';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../shared/product-details';
 import OrderImportPage from './OrderImportPage';
 import OrderLineTable from './OrderLineTable';
 import { displayAmount } from '../shared/display-amount';
 import {
   statuses,
+  derivedOrderStatuses,
   specification,
   today,
   type Customer,
@@ -137,6 +139,8 @@ async function api<T>(url: string, body?: unknown, method = 'POST'): Promise<T> 
         },
   );
   if (!res.ok) {
+    // 会话失效时回到登录页，不把401显示成业务错误。
+    if (res.status === 401) authChanged();
     const error = await res.json().catch(() => ({ message: '服务响应异常' }));
     throw new Error(userError(error.message || '操作失败'));
   }
@@ -274,6 +278,38 @@ export default function App() {
     [revision, setRevision] = useState(0),
     [menu, setMenu] = useState(false);
   const [productAttention, setProductAttention] = useState(false);
+  const [palette, setPalette] = useState(false),
+    [newMenu, setNewMenu] = useState(false),
+    [inboxCount, setInboxCount] = useState(0);
+  const canCreate =
+    !!auth?.actor && (superMode || auth.actor.permissions.includes('business:edit'));
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPalette((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  useEffect(() => {
+    if (!auth?.actor) return;
+    const load = () =>
+      fetch('/api/ai/imports', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s) => {
+          if (s?.workspaces) setInboxCount(s.workspaces.filter((w: any) => !w.imported).length);
+        })
+        .catch(() => {});
+    void load();
+    window.addEventListener('erp-business-changed', load);
+    const timer = setInterval(load, 60000);
+    return () => {
+      window.removeEventListener('erp-business-changed', load);
+      clearInterval(timer);
+    };
+  }, [auth?.actor?.id]);
   const [listMetrics, setListMetrics] = useState({
     customersTotal: 0,
     productsTotal: 0,
@@ -286,6 +322,11 @@ export default function App() {
   const [archivedView, setArchivedView] = useState(
     () => new URLSearchParams(location.hash.split('?')[1] || '').get('archived') === '1',
   );
+  // 切换页面时关闭上一页的编辑窗并回到顶部；必须排在下面的 create=1 之前，否则会关掉刚打开的新建窗。
+  useEffect(() => {
+    setEditor(null);
+    window.scrollTo(0, 0);
+  }, [page]);
   useEffect(() => {
     const params = new URLSearchParams(routeKey.split('?')[1] || '');
     if (page === 'orders' && params.get('create') === '1') setEditor({ kind: 'orders' });
@@ -340,6 +381,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [notice]);
   useEffect(() => {
+    if (!auth?.actor) return;
     if (
       page === 'ai-plugins' ||
       page === 'ai-settings' ||
@@ -392,28 +434,32 @@ export default function App() {
     }
     const timer = setTimeout(
       () =>
+        // 每页只读自己需要的数据。订单页和归档页要客户、产品供筛选和编辑窗使用。
         Promise.all([
-          api<ListResult<Customer, null>>('/customers?' + customerQuery),
-          api<ListResult<Product, ReturnType<typeof productMetrics>>>('/products?' + productQuery),
-          api<ListResult<Order, ReturnType<typeof orderMetrics>>>('/orders?' + query),
-          api<Dashboard>('/dashboard?' + query),
+          ['customers', 'orders', 'trash'].includes(page)
+            ? api<ListResult<Customer, null>>('/customers?' + customerQuery)
+            : null,
+          ['products', 'orders', 'trash'].includes(page)
+            ? api<ListResult<Product, ReturnType<typeof productMetrics>>>('/products?' + productQuery)
+            : null,
+          ['orders', 'trash'].includes(page)
+            ? api<ListResult<Order, ReturnType<typeof orderMetrics>>>('/orders?' + query)
+            : null,
+          page === 'dashboard' ? api<Dashboard>('/dashboard?' + query) : null,
         ])
           .then(([c, p, o, d]) => {
-            if (![c, p, o].every((v) => Array.isArray(v?.rows)))
-              throw new Error('后端仍为旧版本，请重启系统后刷新。');
-            if (active) {
-              setCustomers(c.rows);
-              setProducts(p.rows);
-              setOrders(o.rows);
-              setDashboard(d);
-              setListMetrics({
-                customersTotal: c.totalRecords,
-                productsTotal: p.totalRecords,
-                ordersTotal: o.totalRecords,
-                orders: o.metrics,
-                products: p.metrics,
-              });
-            }
+            if (!active) return;
+            if (c) setCustomers(c.rows);
+            if (p) setProducts(p.rows);
+            if (o) setOrders(o.rows);
+            if (d) setDashboard(d);
+            setListMetrics((m) => ({
+              customersTotal: c ? c.totalRecords : m.customersTotal,
+              productsTotal: p ? p.totalRecords : m.productsTotal,
+              ordersTotal: o ? o.totalRecords : m.ordersTotal,
+              orders: o ? o.metrics : m.orders,
+              products: p ? p.metrics : m.products,
+            }));
           })
           .catch((e) => {
             if (active) setError(e.message);
@@ -442,6 +488,7 @@ export default function App() {
     allRecordsView,
     superMode,
     trashEntity,
+    auth?.actor?.id,
   ]);
   useEffect(() => {
     if (!superMode) setAllRecordsView(false);
@@ -459,19 +506,19 @@ export default function App() {
     setNotice('已保存到本机数据库');
   };
   const names: Record<Page, string> = {
-    dashboard: '业务工作台',
-    orders: '客户订单',
-    customers: '客户管理',
-    products: '产品管理',
-    guide: '使用与验收',
+    dashboard: '今日',
+    orders: '订单',
+    customers: '客户',
+    products: '产品',
+    guide: '使用说明',
     'ai-plugins': 'AI 插件',
     'ai-settings': 'AI 设置',
     'ai-import': 'AI 智能订单导入',
     'ai-prompts': 'AI 识别提示词',
     trash: '归档记录',
-    suppliers: '供应商管理',
-    purchases: '采购订货',
-    warehouse: '仓库管理',
+    suppliers: '供应商',
+    purchases: '采购单',
+    warehouse: '仓储',
     'document-templates': '单据模板',
     arrivals: '采购到货',
     production: '生产管理',
@@ -510,40 +557,35 @@ export default function App() {
     setEnd(range.end);
   };
 
-  return (
-    <div className="shell">
-      <aside className={menu ? 'sidebar open' : 'sidebar'}>
-        <a className="brand" href="#dashboard">
+  if (!auth) return <div className="login-screen" />;
+  if (!auth.actor)
+    return (
+      <main className="login-screen">
+        <section className="login-card">
           <span className="brand-mark">
             <Package size={24} />
           </span>
-          <div>
-            宁波甬勒包装制品有限公司<span>管理系统</span>
-          </div>
+          <h1>宁波甬勒包装制品有限公司</h1>
+          <p>{auth.configured ? '登录管理系统' : '首次使用，请建立管理员账号'}</p>
+          <LoginForm configured={auth.configured} csrf={auth.csrf} />
+        </section>
+      </main>
+    );
+  return (
+    <div className="shell">
+      <aside className={menu ? 'sidebar open' : 'sidebar'}>
+        <a className="brand" href="#dashboard" title="宁波甬勒包装制品有限公司">
+          <span className="brand-mark">
+            <Package size={18} />
+          </span>
+          <span className="brand-name">甬勒包装</span>
         </a>
-        <div className="workspace">
-          <i />
-          本机工作台<span>开发验收版 v{APP_VERSION}</span>
-        </div>
-        <Navigation page={page} navigate={(id) => navigate(id as Page)} />
-        <div className="sidebar-bottom">
-          <div className="phase">
-            <span>当前阶段</span>
-            <strong>让每一张订单有据可查</strong>
-            <p>采购、生产、库存与送货，按真实单据衔接。</p>
-          </div>
-          <button
-            className={page === 'guide' ? 'nav-item selected' : 'nav-item'}
-            onClick={() => navigate('guide')}
-          >
-            <CircleHelp size={19} />
-            使用与验收
-          </button>
-          <div className="database-label">
-            <Database size={15} />
-            SQLite 本地持久化
-          </div>
-        </div>
+        <Navigation
+          page={page}
+          route={routeKey}
+          navigate={(target) => navigate(target as Page)}
+          inboxCount={inboxCount}
+        />
       </aside>
       <div className="main">
         <header className="topbar">
@@ -555,11 +597,45 @@ export default function App() {
             >
               <PanelLeftClose size={20} />
             </button>
-            <span className="breadcrumb">
-              工作台 <span>/</span> <strong>{names[page]}</strong>
-            </span>
+            <button
+              className="top-search"
+              aria-label="全局搜索（Ctrl+K）"
+              onClick={() => setPalette(true)}
+            >
+              <Search size={14} />
+              搜索单号、客户、产品…
+              <kbd>Ctrl K</kbd>
+            </button>
           </div>
           <div className="topbar-right">
+            <div className="top-new">
+              <button
+                className="primary"
+                aria-haspopup="menu"
+                aria-expanded={newMenu}
+                disabled={!canCreate}
+                onClick={() => setNewMenu((v) => !v)}
+              >
+                <Plus size={15} />
+                新建
+              </button>
+              {newMenu && (
+                <div className="top-new-menu" role="menu" onClick={() => setNewMenu(false)}>
+                  <a role="menuitem" href="#orders?create=1">
+                    订单
+                  </a>
+                  <a role="menuitem" href="#purchases?create=1">
+                    采购单
+                  </a>
+                  <a role="menuitem" href="#ai-import">
+                    上传客户采购单
+                  </a>
+                  <a role="menuitem" href="#production?create=1">
+                    生产任务
+                  </a>
+                </div>
+              )}
+            </div>
             <button
               className="assistant-topbar-button"
               aria-label="打开全局AI助手"
@@ -571,11 +647,6 @@ export default function App() {
             </button>
             <ThemeSwitcher />
             {page !== 'ai-import' && <AuthPanel />}
-            <span className="local-indicator">
-              <span className="local-dot" />
-              本机模式
-            </span>
-            <span className="top-date">{today()}</span>
           </div>
         </header>
         <main className={page === 'ai-import' ? 'import-main' : ''}>
@@ -625,11 +696,13 @@ export default function App() {
                                       ? '维护纸板供应商，保留每次采购往来。'
                                       : page === 'warehouse'
                                         ? '原材料与成品分开记账，每一笔出入都有来源。'
-                                        : '先验证流程，再逐步接入真实经营。'}
+                                        : page === 'guide'
+                                          ? '日常业务入口和操作顺序。'
+                                          : ''}
                   </>
                 }
                 actions={
-                  ['dashboard', 'orders', 'customers', 'products'].includes(page) ? (
+                  ['orders', 'customers', 'products'].includes(page) ? (
                     <>
                       {page === 'orders' && (
                         <button onClick={() => navigate('ai-import')}>
@@ -641,39 +714,38 @@ export default function App() {
                         <RefreshCw size={15} />
                         刷新
                       </button>
-                      <button
-                        className="primary"
-                        disabled={
-                          busy ||
-                          !!error ||
-                          !auth?.actor ||
-                          (!superMode && !auth.actor.permissions.includes('business:edit'))
-                        }
-                        onClick={() =>
-                          setEditor({
-                            kind:
-                              page === 'customers'
-                                ? 'customers'
-                                : page === 'products'
-                                  ? 'products'
-                                  : 'orders',
-                          })
-                        }
-                      >
-                        <Plus size={17} />
-                        {page === 'customers'
-                          ? '新增客户'
-                          : page === 'products'
-                            ? '新增产品'
-                            : '新建订单'}
-                      </button>
+                      {page !== 'dashboard' && (
+                        <button
+                          className="primary"
+                          disabled={
+                            busy ||
+                            !!error ||
+                            !auth?.actor ||
+                            (!superMode && !auth.actor.permissions.includes('business:edit'))
+                          }
+                          onClick={() =>
+                            setEditor({
+                              kind:
+                                page === 'customers'
+                                  ? 'customers'
+                                  : page === 'products'
+                                    ? 'products'
+                                    : 'orders',
+                            })
+                          }
+                        >
+                          <Plus size={17} />
+                          {page === 'customers'
+                            ? '新增客户'
+                            : page === 'products'
+                              ? '新增产品'
+                              : '新建订单'}
+                        </button>
+                      )}
                     </>
                   ) : undefined
                 }
               />
-              {!auth?.actor && !['orders', 'customers', 'products'].includes(page) && (
-                <LocalNotice onGuide={() => navigate('guide')} />
-              )}
             </>
           )}
           {notice && (
@@ -825,22 +897,6 @@ export default function App() {
               </ListFilters>
             </>
           )}
-          {page === 'dashboard' && (
-            <div className="filter-bar">
-              <DateRangeFilter
-                label="统计日期"
-                preset={datePreset}
-                start={start}
-                end={end}
-                change={(preset, start, end) => {
-                  setDatePreset(preset);
-                  setStart(start);
-                  setEnd(end);
-                }}
-              />
-              <button onClick={reset}>重置筛选</button>
-            </div>
-          )}
           {page === 'orders' && (
             <div className="order-view-controls">
               <div className="record-view-tabs" aria-label="订单日期分类">
@@ -874,7 +930,27 @@ export default function App() {
               </div>
             </div>
           )}
-          {page === 'dashboard' && dashboard && !error && <DashboardPage data={dashboard} />}
+          {page === 'dashboard' && dashboard && !error && (
+            <DashboardPage
+              data={dashboard}
+              rangeFilter={
+                <div className="filter-bar">
+                  <DateRangeFilter
+                    label="统计日期"
+                    preset={datePreset}
+                    start={start}
+                    end={end}
+                    change={(preset, start, end) => {
+                      setDatePreset(preset);
+                      setStart(start);
+                      setEnd(end);
+                    }}
+                  />
+                  <button onClick={reset}>重置筛选</button>
+                </div>
+              }
+            />
+          )}
           {['orders', 'customers', 'products'].includes(page) && !error && (
             <BusinessRecords
               filterKey={[search, customerId, status, start, end, orderView, productAttention].join(
@@ -909,7 +985,6 @@ export default function App() {
             <OperationsPage
               key={page + routeKey}
               mode={page as 'suppliers' | 'purchases' | 'warehouse'}
-              onGuide={() => navigate('guide')}
               openSupplier={(value) => setEditor({ kind: 'suppliers', value })}
             />
           )}
@@ -1030,17 +1105,15 @@ export default function App() {
               <section className="panel prose">
                 <h2>日常操作顺序</h2>
                 <ol>
-                  <li>新增一个虚构客户，填写联系人、电话和地址。</li>
-                  <li>新增一款纸箱产品，填写尺寸、材质、楞型和参考价格。</li>
-                  <li>新建订单，选择客户和产品，填写数量与交期。</li>
-                  <li>添加第二项明细，检查订单合计，再保存。</li>
-                  <li>编辑订单，开启“录入预估成本”，填写费用与估算依据。</li>
-                  <li>按客户、状态和下单日期筛选订单，回到首页核对金额。</li>
-                  <li>关闭服务再启动，确认记录依然存在。</li>
+                  <li>收到客户采购单：上传到“AI 智能订单导入”，核对后导入，或新建订单手工录入。</li>
+                  <li>缺纸板时新建采购单，货到后在“仓库管理 → 到货记录”登记验收。</li>
+                  <li>在订单详情安排生产，完工后登记良品和废品，成品自动入库。</li>
+                  <li>在订单详情安排送货，确认发货时扣减成品库存，并导出送货单。</li>
+                  <li>每天打开“业务工作台”查看待处理事项。</li>
                 </ol>
               </section>
               <section className="panel prose">
-                <h2>本版业务口径</h2>
+                <h2>业务口径</h2>
                 <p>
                   明细金额由后端按数量和实际计价口径计算，单价最多四位小数。数量单位按订单原文填写，不同单位不自动换算。
                 </p>
@@ -1048,23 +1121,19 @@ export default function App() {
                   尺寸可用毫米或厘米，未知时留空。规格为接单时的快照，修改产品档案不会自动修改历史订单。客户更名也不会自动改写历史客户名称。
                 </p>
                 <p>
-                  成本录入的是整张订单的预估总费用，包括材料、加工、损耗和其他费用；请自行说明依据。本版没有内置纸箱面积、配纸或损耗公式。
+                  成本录入的是整张订单的预估总费用，包括材料、加工、损耗和其他费用；请自行说明依据。系统没有内置纸箱面积、配纸或损耗公式。
                 </p>
                 <p>
-                  订单业务状态与实际发货进度独立展示；发货进度来自正式送货记录。生产、到货、送货计划不会提前改变库存，已发货金额不等同于会计销售收入。
+                  生产中、待发货、已发货由生产任务和送货单自动更新，其余状态可手工选择。计划不会提前改变库存，已发货金额不等同于会计销售收入。
                 </p>
               </section>
               <section className="panel prose">
-                <h2>数据与使用范围</h2>
+                <h2>数据与备份</h2>
                 <p>
-                  数据保存在项目 data/erp.sqlite 文件内，关闭网页不会清空。运行 npm run backup
-                  可生成一致性备份，恢复步骤见项目 README。
+                  系统每天自动做一次完整备份到 backups 目录，删除和初始化前还会自动留下业务库快照（data/snapshots）。请定期把备份另存到其他磁盘。
                 </p>
                 <p>
-                  本版服务仅监听本机。已具备本机管理身份、受控导入及业务审计；员工角色管理、自动备份和正式部署仍待完善，手机、平板暂不能连接本机服务。
-                </p>
-                <p>
-                  请先使用虚构数据验收。投入真实业务前，还需确认计价精度、税费、作废规则、客户归属及历史数据修改权限。
+                  账号在右上角账号菜单管理，分管理员、业务人员、只读三级。服务目前只监听本机，其他电脑和手机暂不能连接。
                 </p>
               </section>
               <section className="panel prose exercise">
@@ -1087,7 +1156,7 @@ export default function App() {
           {!dashboard && busy && <div className="empty">正在连接本机数据库…</div>}
           <footer>
             宁波甬勒包装制品有限公司 · 管理系统
-            <span>本机验收版 v{APP_VERSION} · 为纸箱加工的日常工作而建</span>
+            <span>v{APP_VERSION}</span>
           </footer>
         </main>
       </div>
@@ -1100,6 +1169,7 @@ export default function App() {
         />
       )}
       <GlobalAssistant />
+      {palette && <CommandPalette close={() => setPalette(false)} />}
       {editor?.kind === 'customers' && (
         <CustomerEditor value={editor.value} close={closeEditor} saved={saved} />
       )}{' '}
@@ -1611,19 +1681,19 @@ function OrderEditor({
                   新增客户
                 </button>
               </div>
-              <select
-                aria-label="订单客户"
+              <Combobox
                 required
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-              >
-                <option value="">请选择客户</option>
-                {availableCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                ariaLabel="订单客户"
+                placeholder="搜索客户"
+                value={String(customerId || '')}
+                options={availableCustomers.map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  hint: c.contact,
+                  keywords: c.phone,
+                }))}
+                onChange={setCustomerId}
+              />
               {value && <small>下单时客户名称：{value.customerName}</small>}
             </div>
             <Field label="下单日期 *">
@@ -1648,9 +1718,11 @@ function OrderEditor({
                 value={status}
                 onChange={(e) => setStatus(e.target.value as OrderInput['status'])}
               >
-                {statuses.map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
+                {statuses
+                  .filter((s) => !derivedOrderStatuses.includes(s) || s === value?.status)
+                  .map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
               </select>
             </Field>
           </div>

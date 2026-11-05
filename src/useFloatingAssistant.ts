@@ -14,6 +14,8 @@ import {
   readFloatingSize,
   resizeFloatingRect,
   floatingSizeKey,
+  floatingMascotKey,
+  floatingPositionKey,
   clampFloatingPosition,
   defaultFloatingAnchor,
   fitFloatingAnchor,
@@ -42,6 +44,16 @@ function persist(layout: FloatingLayout) {
     saveFloatingAnchor(window.localStorage, layout.panel);
     saveFloatingMascot(window.localStorage, layout.mascot);
   } catch {}
+}
+function hasSavedPosition() {
+  try {
+    return (
+      window.localStorage.getItem(floatingMascotKey) !== null ||
+      window.localStorage.getItem(floatingPositionKey) !== null
+    );
+  } catch {
+    return false;
+  }
 }
 function viewport(): FloatingViewport {
   const visual = window.visualViewport;
@@ -84,6 +96,7 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
   const sizeRef = useRef(panelSize);
   sizeRef.current = panelSize;
   const mode = open ? (large ? 'large' : 'panel') : 'mascot';
+  const placed = useRef(hasSavedPosition());
   const activeNode = useRef<HTMLElement | null>(null),
     layoutRef = useRef(layout),
     viewRef = useRef(view),
@@ -102,7 +115,8 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
     activeNode.current = element;
     setNode(element);
   }, []);
-  const commit = useCallback((point: FloatingPoint, immediate = false, dock?: FloatingDock) => {
+  const commit = useCallback(
+    (point: FloatingPoint, immediate = false, dock?: FloatingDock, remember = true) => {
     const next: FloatingLayout =
       dock === undefined
         ? { ...layoutRef.current, panel: point }
@@ -113,7 +127,10 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
       frame.current = null;
       pending.current = null;
       setLayout(next);
-      persist(next);
+      if (remember) {
+        placed.current = true;
+        persist(next);
+      }
       return;
     }
     pending.current = next;
@@ -125,10 +142,9 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
           pending.current = null;
         }
       });
-  }, []);
-  useEffect(() => {
-    persist(layoutRef.current);
-  }, []);
+    },
+    [],
+  );
   useLayoutEffect(() => {
     if (!node) return;
     const measure = () => {
@@ -157,9 +173,15 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
         gesture.current = null;
         suppressClick.current = true;
       }
-      commit(fitFloatingAnchor(layoutRef.current.panel, next), true);
-      const mascot = fitFloatingMascot(layoutRef.current.mascot, next);
-      commit(mascot, true, mascot.dock);
+      // 窗口尺寸变化只调整显示位置，不写入偏好；用户未摆放过时跟随默认的右下角。
+      const anchor = placed.current
+        ? fitFloatingAnchor(layoutRef.current.panel, next)
+        : defaultFloatingAnchor(next);
+      commit(anchor, true, undefined, false);
+      const mascot: FloatingMascot = placed.current
+        ? fitFloatingMascot(layoutRef.current.mascot, next)
+        : { ...anchor, dock: 'free' };
+      commit(mascot, true, mascot.dock, false);
     };
     const blur = () => {
       if (gesture.current) {
@@ -172,7 +194,9 @@ export function useFloatingAssistant(open: boolean, large: boolean, onTouchTap: 
     };
     window.addEventListener('resize', resize);
     window.addEventListener('blur', blur);
-    const save = () => persist(layoutRef.current);
+    const save = () => {
+      if (placed.current) persist(layoutRef.current);
+    };
     window.addEventListener('pagehide', save);
     window.visualViewport?.addEventListener('resize', resize);
     window.visualViewport?.addEventListener('scroll', resize);

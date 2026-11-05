@@ -27,6 +27,7 @@ import { DraftHeader } from './import/DraftUI';
 import DeveloperEditor from './DeveloperEditor';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime';
 import './order-import.css';
+import ReviewIssues from './import/ReviewIssues';
 export default function OrderImportPage() {
   const [manage, setManage] = useState(false);
   const importAuth = useAuthState(),
@@ -205,7 +206,7 @@ export default function OrderImportPage() {
     >
       <header className="oi-workspace-head">
         <div>
-          <h1>AI 智能订单导入</h1>
+          <h1>收件箱</h1>
           <p>
             {api.status?.active ? (
               <>
@@ -689,33 +690,11 @@ export default function OrderImportPage() {
                         <Undo2 size={14} />
                         撤销
                       </button>
-                      <details>
-                        <summary>
-                          核对事项{' '}
-                          {evaluation?.issues.filter((i) => i.path !== 'products.optional')
-                            .length || 0}
-                          {w.changes.length ? ' / 修改 ' + w.changes.length + ' 项' : ''}
-                        </summary>
-                        <div className="oi-review-popover">
-                          {w.changes.map((c, i) => (
-                            <p key={i}>
-                              <b>{c.label}</b>：{c.before || '空'} → {c.after || '空'}
-                            </p>
-                          ))}
-                          {evaluation?.issues
-                            .filter((i) => i.path !== 'products.optional')
-                            .map((i, n) => (
-                              <p key={n} className={i.severity === 'error' ? 'oi-bad' : ''}>
-                                {i.message}
-                              </p>
-                            ))}
-                          {[...new Set(d.warnings)]
-                            .filter((s) => !evaluation?.issues.some((i) => i.message === s))
-                            .map((s, i) => (
-                              <p key={'w' + i}>{s}</p>
-                            ))}
-                        </div>
-                      </details>
+                      <ReviewIssues
+                        issues={evaluation?.issues || []}
+                        warnings={d.warnings}
+                        changes={w.changes}
+                      />
                     </div>
                   </div>
                 )}

@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { Trash2 } from 'lucide-react';
 import { precisionTotal } from '../shared/precision';
+import Combobox from './ui/Combobox';
 export default function OrderLineTable({
   lines,
   products,
@@ -46,19 +47,19 @@ export default function OrderLineTable({
             <Fragment key={i}>
               <tr>
                 <td>
-                  <select
+                  <Combobox
                     required
-                    aria-label={'明细' + (i + 1) + '产品档案'}
-                    value={l.productId}
-                    onChange={(e) => choose(i, e.target.value)}
-                  >
-                    <option value="">选择产品</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    ariaLabel={'明细' + (i + 1) + '产品档案'}
+                    placeholder="搜索产品"
+                    value={String(l.productId || '')}
+                    options={products.map((p) => ({
+                      value: String(p.id),
+                      label: p.name,
+                      hint: [p.material, p.flute].filter(Boolean).join(' / '),
+                      keywords: p.customerProductCode,
+                    }))}
+                    onChange={(id) => choose(i, id)}
+                  />
                   <input
                     aria-label={'明细' + (i + 1) + '本单产品名称'}
                     required

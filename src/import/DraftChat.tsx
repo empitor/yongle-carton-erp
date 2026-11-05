@@ -24,6 +24,7 @@ export default function DraftChat({
   lockedLabel?: string;
 }) {
   const [message, setMessage] = useState(''),
+    [expanded, setExpanded] = useState(false),
     log = useRef<HTMLDivElement>(null);
   const identityRef = useRef(identity);
   identityRef.current = identity;
@@ -32,19 +33,28 @@ export default function DraftChat({
   }, [identity]);
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [identity, messages.length]);
+  }, [identity, messages.length, expanded]);
   return (
-    <section className="oi-chat">
+    <section className={'oi-chat' + (expanded ? ' expanded' : ' collapsed')}>
       <header>
         <strong>
           <MessageSquare size={15} />
           {title}
         </strong>
         <small>{identity ? '仅作用于当前文件' : '请选择文件'}</small>
+        <button
+          type="button"
+          className="oi-chat-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? '收起' : '记录' + (messages.length ? '（' + messages.length + '）' : '')}
+        </button>
       </header>
       <div
         className="oi-chat-log"
         ref={log}
+        hidden={!expanded}
         aria-label={title === '订单助手' ? '当前订单聊天记录' : '当前到货单聊天记录'}
       >
         {messages.map((m, i) => (
@@ -62,11 +72,12 @@ export default function DraftChat({
           const old = message;
           const owner = identity;
           setMessage('');
+          setExpanded(true);
           if (!(await send(old)) && identityRef.current === owner) setMessage(old);
         }}
       >
         <textarea
-          rows={2}
+          rows={1}
           aria-label={'给' + title + '的消息'}
           disabled={!ready || locked || unsaved}
           placeholder={unsaved ? '请先保存手工修改，再发送消息' : placeholder}

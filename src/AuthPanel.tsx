@@ -3,13 +3,12 @@ import { ShieldCheck, LogOut } from 'lucide-react';
 import ManagementDialog from './ManagementDialog';
 import { authChanged, managementRequest, useAuthState } from './session';
 import DeveloperEditor from './DeveloperEditor';
+import { AccountManagement, ChangePassword } from './AccountManagement';
 export default function AuthPanel() {
   const session = useAuthState();
   const [developerEditor, setDeveloperEditor] = useState(false);
   const [open, setOpen] = useState(false),
-    [name, setName] = useState(''),
     [password, setPassword] = useState(''),
-    [repeat, setRepeat] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
   if (!session) return null;
@@ -18,7 +17,6 @@ export default function AuthPanel() {
   const close = () => {
     setOpen(false);
     setPassword('');
-    setRepeat('');
     setError('');
   };
   const role = actor?.role === 'super_admin' ? '超级管理员' : '管理员';
@@ -186,6 +184,8 @@ export default function AuthPanel() {
                     </form>
                   </div>
                 )}
+              <ChangePassword />
+              {actor.role === 'super_admin' && <AccountManagement selfId={actor.id} />}
               {error && (
                 <p className="operation-error" role="alert">
                   {error}
@@ -215,89 +215,101 @@ export default function AuthPanel() {
               </div>
             </>
           ) : (
-            <form
-              className="auth-form"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!session.configured && password !== repeat) {
-                  setError('两次密码不一致');
-                  return;
-                }
-                setBusy(true);
-                setError('');
-                try {
-                  const r = await fetch('/api/auth/' + (session.configured ? 'login' : 'setup'), {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'X-ERP-Auth-Token': session.csrf,
-                    },
-                    body: JSON.stringify({ name, password }),
-                  });
-                  const d = await r.json();
-                  if (!r.ok) throw new Error(d.message);
-                  setPassword('');
-                  authChanged();
-                  location.reload();
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              <p>沿用原有用户名和密码。密码仅由服务端验证，不会保存在浏览器配置中。</p>
-              <label>
-                用户名
-                <input
-                  autoComplete="username"
-                  aria-label="核对用户名"
-                  required
-                  maxLength={60}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
-              <label>
-                密码
-                <input
-                  type="password"
-                  required
-                  minLength={12}
-                  maxLength={128}
-                  autoComplete={session.configured ? 'current-password' : 'new-password'}
-                  aria-label="核对密码"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              {!session.configured && (
-                <label>
-                  再次输入密码
-                  <input
-                    type="password"
-                    required
-                    minLength={12}
-                    maxLength={128}
-                    autoComplete="new-password"
-                    aria-label="再次输入核对密码"
-                    value={repeat}
-                    onChange={(e) => setRepeat(e.target.value)}
-                  />
-                </label>
-              )}
-              {error && (
-                <p className="operation-error" role="alert">
-                  {error}
-                </p>
-              )}
-              <button className="primary" disabled={busy}>
-                {busy ? '正在验证…' : session.configured ? '登录' : '建立管理账号'}
-              </button>
-            </form>
+            <LoginForm configured={session.configured} csrf={session.csrf} />
           )}
         </ManagementDialog>
       )}
     </>
+  );
+}
+
+/** 登录页与账号菜单共用的登录/首次建号表单。 */
+export function LoginForm({ configured, csrf }: { configured: boolean; csrf: string }) {
+  const [name, setName] = useState(''),
+    [password, setPassword] = useState(''),
+    [repeat, setRepeat] = useState(''),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="auth-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!configured && password !== repeat) {
+          setError('两次密码不一致');
+          return;
+        }
+        setBusy(true);
+        setError('');
+        try {
+          const r = await fetch('/api/auth/' + (configured ? 'login' : 'setup'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-ERP-Auth-Token': csrf,
+            },
+            body: JSON.stringify({ name, password }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.message);
+          setPassword('');
+          authChanged();
+          location.reload();
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label>
+        用户名
+        <input
+          autoComplete="username"
+          aria-label="核对用户名"
+          required
+          autoFocus
+          maxLength={60}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </label>
+      <label>
+        密码
+        <input
+          type="password"
+          required
+          minLength={12}
+          maxLength={128}
+          autoComplete={configured ? 'current-password' : 'new-password'}
+          aria-label="核对密码"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </label>
+      {!configured && (
+        <label>
+          再次输入密码
+          <input
+            type="password"
+            required
+            minLength={12}
+            maxLength={128}
+            autoComplete="new-password"
+            aria-label="再次输入核对密码"
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+          />
+        </label>
+      )}
+      {error && (
+        <p className="operation-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="primary" disabled={busy}>
+        {busy ? '正在验证…' : configured ? '登录' : '建立管理账号'}
+      </button>
+    </form>
   );
 }

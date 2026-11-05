@@ -1,10 +1,5 @@
 /* 全部业务列表共用：标题、统计、两行筛选、表格及分页。颜色沿用主题语义变量。 */
-.local-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
+
 .unified-heading {
   margin: 0 0 22px;
   align-items: center;
@@ -154,9 +149,7 @@
 .business-records .sub {
   font-size: 12px;
 }
-.sidebar .nav-subitem {
-  font-size: 14px;
-}
+
 .list-summary > div {
   padding: 12px 18px;
 }
@@ -557,9 +550,7 @@
   }
 }
 @media (max-width: 700px) {
-  .local-indicator {
-    display: none;
-  }
+
   .topbar {
     padding: 10px 16px;
   }
