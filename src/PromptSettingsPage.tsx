@@ -8,7 +8,6 @@ import {
   RotateCcw,
   Save,
   Check,
-  ListOrdered,
 } from 'lucide-react';
 import type { PromptPreset, PromptSettingsView } from '../shared/prompt-presets';
 import './prompt-settings.css';
@@ -168,19 +167,14 @@ export default function PromptSettingsPage({
   }
   return (
     <div className="prompt-settings">
-      <section className="prompt-active">
-        <ListOrdered size={25} />
-        <div>
-          <small>{assistant ? '当前使用的全局助手预设' : '当前使用的识别预设'}</small>
-          <strong>{active?.name || '正在读取…'}</strong>
-          <p>
-            {assistant
-              ? '保存后应用于下一次全局助手消息；与文件识别预设独立保存。'
-              : '保存后应用于下一次识别和聊天；已有草稿保持原样。'}
-          </p>
-        </div>
-        <a href="#ai-settings">AI 服务设置</a>
-      </section>
+      <p className="prompt-active">
+        当前使用 <strong>{active?.name || '正在读取…'}</strong>
+        <span>
+          {assistant
+            ? '保存后用于下一条助手消息，和文件识别预设分开保存。'
+            : '保存后用于下一次识别和聊天，已有草稿不变。'}
+        </span>
+      </p>
       {error && (
         <div className="prompt-error" role="alert">
           {error}
@@ -342,7 +336,7 @@ export default function PromptSettingsPage({
                   </header>
                   <textarea
                     aria-label={'条目' + (i + 1) + '内容'}
-                    rows={5}
+                    rows={Math.min(14, Math.max(3, e.content.split('\n').length + Math.ceil(e.content.length / 60)))}
                     maxLength={16000}
                     value={e.content}
                     disabled={busy}
@@ -377,14 +371,11 @@ export default function PromptSettingsPage({
               <Plus size={15} />
               添加提示词条目
             </button>
-            <div className="prompt-fixed-note">
-              <b>程序保留的输出与校验规则</b>
-              <p>
-                {assistant
-                  ? '工具白名单、结构化响应、身份权限、人工确认及业务校验由后端独立执行。提示词不能批准自己的方案，也不能越过权限或执行代码。'
-                  : '输出字段、JSON格式、金额重算、人工核对及数据安全限制由程序独立维护。条目内容可自由调整，不能启用正式写入或跳过后端校验。'}
-              </p>
-            </div>
+            <p className="prompt-fixed-note">
+              {assistant
+                ? '工具范围、账号权限、人工确认和业务校验由程序控制，提示词改不了。'
+                : '输出格式、金额重算、人工核对和数据安全限制由程序控制，提示词改不了。'}
+            </p>
             <footer className="prompt-save">
               <small>
                 {current.entries.reduce((n, e) => n + e.content.length, 0)} / 24000 字 · 最多40条

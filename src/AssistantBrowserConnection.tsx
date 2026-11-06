@@ -4,10 +4,18 @@ export default function AssistantBrowserConnection() {
   const user = useAuthState()?.actor?.id;
   const [status, setStatus] = useState<{ installed: boolean; connected: boolean }>(),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [unavailable, setUnavailable] = useState(false);
+  // 部署到服务器后，独立浏览器窗口开在服务器上，员工看不到，不显示这个入口。
+  useEffect(() => {
+    if (user)
+      void managementRequest<any>('/assistant')
+        .then((s) => setUnavailable(s.localFeaturesAvailable === false))
+        .catch(() => {});
+  }, [user]);
   useEffect(() => {
     setStatus(undefined);
-    if (user)
+    if (user && !unavailable)
       void managementRequest('/assistant/browser')
         .then(setStatus)
         .catch((e) => setError(e.message));
@@ -28,13 +36,13 @@ export default function AssistantBrowserConnection() {
       setBusy(false);
     }
   };
+  if (unavailable) return null;
   return (
     <section className="panel ai-browser-connection" aria-label="本地ERP浏览器">
-      <h3>截图与鼠标键盘后备</h3>
-      <p>
-        需要视觉操作时，打开独立的可控 ERP 窗口。沿用当前登录权限，只操作本机
-        ERP；密码和密钥区域仍由人维护。
-      </p>
+      <div>
+        <h3>让助手操作浏览器</h3>
+        <p>打开一个独立窗口供助手截图和点击，只能操作本机 ERP，沿用当前账号权限。</p>
+      </div>
       <button disabled={busy || !user || !status?.installed} onClick={() => void change()}>
         {busy ? '正在处理…' : status?.connected ? '断开可控浏览器' : '打开可控ERP浏览器'}
       </button>

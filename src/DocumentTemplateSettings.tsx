@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, Copy, Eye, Download, Save } from 'lucide-react';
 import { managementRequest, useAuthState } from './session';
-import { PageHeading } from './ui/ListLayout';
 import {
   documentColumns,
   purchaseColumns,
@@ -107,15 +106,12 @@ export default function DocumentTemplateSettings() {
   );
   return (
     <div className="template-settings">
-      <PageHeading
-        title="单据模板"
-        description="人工和AI共用的正式单据样式。先调整配置，用虚构样张核对，再保存供后续导出使用。"
-        actions={
-          <button disabled={busy || dirty} onClick={() => void work(load)}>
-            重新读取模板
-          </button>
-        }
-      />
+      <div className="settings-toolbar">
+        <p className="help-text">人工和 AI 共用的正式单据样式。</p>
+        <button disabled={busy || dirty} onClick={() => void work(load)}>
+          重新读取
+        </button>
+      </div>
       {!auth?.actor && <p>请先登录管理账号。</p>}
       {error && (
         <p role="alert" className="form-error">

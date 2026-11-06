@@ -19,6 +19,8 @@ import { flowReference, shippedUnits } from './flow/service.js';
 import { syncReceivedUnits } from './operations/fulfillment.js';
 import { fulfillmentSummary, shippingLineStatus } from '../shared/fulfillment.js';
 import { quantityUnits } from '../shared/operations.js';
+import { migrateFinance } from './finance/schema.js';
+import { migrateFinance17 } from './finance/migration17.js';
 
 export const defaultDbPath = resolve(process.env.DB_PATH || 'data/erp.sqlite');
 export class Store {
@@ -28,6 +30,14 @@ export class Store {
     this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
+    try {
+      this.initialize();
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
+  }
+  private initialize() {
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS customers(id INTEGER PRIMARY KEY, name TEXT NOT NULL, contact TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
@@ -72,6 +82,40 @@ export class Store {
       }
     }
     this.migrateReadIndexes();
+    this.migrateInbox();
+    this.migrateMarks();
+    migrateFinance(this.db);
+    migrateFinance17(this.db);
+  }
+  private migrateMarks() {
+    if (this.db.prepare('SELECT 1 FROM schema_migrations WHERE version=15').get()) return;
+    this.db.exec('SAVEPOINT marks_migration');
+    try {
+      this.db.exec(`CREATE TABLE mark_files(sha256 TEXT PRIMARY KEY,content BLOB NOT NULL,size INTEGER NOT NULL,mime TEXT NOT NULL,file_name TEXT NOT NULL);
+        CREATE TABLE product_marks(id INTEGER PRIMARY KEY,product_id INTEGER NOT NULL REFERENCES products(id),file_sha256 TEXT NOT NULL REFERENCES mark_files(sha256),page INTEGER NOT NULL DEFAULT 0,title TEXT NOT NULL DEFAULT '',fields TEXT NOT NULL,source_kind TEXT NOT NULL,source_ref TEXT,created_by TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,UNIQUE(product_id,file_sha256,page));
+        CREATE INDEX product_marks_product ON product_marks(product_id);
+        INSERT INTO schema_migrations VALUES(15,datetime('now')); RELEASE marks_migration;`);
+    } catch(e) { this.db.exec('ROLLBACK TO marks_migration; RELEASE marks_migration'); throw e; }
+  }
+  private migrateInbox() {
+    if (this.db.prepare('SELECT 1 FROM schema_migrations WHERE version=14').get()) return;
+    this.db.exec('SAVEPOINT inbox_migration');
+    try {
+      this.db.exec(`CREATE TABLE inbox_items(
+        id INTEGER PRIMARY KEY, channel TEXT NOT NULL, external_id TEXT NOT NULL,
+        sender_id TEXT NOT NULL DEFAULT '', sender_name TEXT NOT NULL DEFAULT '',
+        conversation TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, text TEXT NOT NULL DEFAULT '',
+        file_name TEXT, file_mime TEXT, file_size INTEGER, file_sha256 TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', converted_kind TEXT, converted_ref TEXT,
+        handled_by TEXT, handled_at TEXT, version INTEGER NOT NULL DEFAULT 1,
+        received_at TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(channel,external_id));
+        CREATE INDEX inbox_status_received ON inbox_items(status,received_at);
+        CREATE TABLE inbox_files(sha256 TEXT PRIMARY KEY,content BLOB NOT NULL,size INTEGER NOT NULL);
+        INSERT INTO schema_migrations VALUES(14,datetime('now'));
+        RELEASE inbox_migration;`);
+    } catch(e) {
+      this.db.exec('ROLLBACK TO inbox_migration; RELEASE inbox_migration'); throw e;
+    }
   }
   /** 13：读取索引、补齐送货明细关联、流水修订台账；只新增，不改写业务记录。 */
   private migrateReadIndexes() {
@@ -260,31 +304,35 @@ export class Store {
         .map((r) => Number(r.record_id)),
     );
   }
-  private extensionMap(sql: string, ...params: number[]) {
+  private extensionMap(sql: string, ...params: (number | string)[]) {
     const map = new Map<number, any>();
     for (const row of this.db.prepare(sql).all(...params))
       map.set(Number(row.id), JSON.parse(String(row.document)));
     return map;
   }
-  customers(includeArchived = false): Customer[] {
+  customers(includeArchived = false, ids?: readonly number[]): Customer[] {
     const archived = includeArchived ? null : this.archivedIds('customers');
     return this.db
       .prepare(
-        'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM customers ORDER BY id DESC',
+        'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM customers' +
+          (ids ? ' WHERE id IN (SELECT value FROM json_each(?))' : '') + ' ORDER BY id DESC',
       )
-      .all()
+      .all(...(ids ? [JSON.stringify(ids)] : []))
       .filter((r) => !archived?.has(Number(r.id))) as unknown as Customer[];
   }
-  products(includeArchived = false): Product[] {
+  products(includeArchived = false, ids?: readonly number[]): Product[] {
     const archived = includeArchived ? null : this.archivedIds('products'),
+      params = ids ? [JSON.stringify(ids)] : [],
       extensions = this.extensionMap(
-        'SELECT product_id AS id,document FROM product_extensions',
+        'SELECT product_id AS id,document FROM product_extensions' +
+          (ids ? ' WHERE product_id IN (SELECT value FROM json_each(?))' : ''), ...params,
       );
     return this.db
       .prepare(
-        'SELECT id,name,length,width,height,dimension_unit AS dimensionUnit,material,flute,requirements,price_cents AS priceCents,version,created_at AS createdAt FROM products ORDER BY id DESC',
+        'SELECT id,name,length,width,height,dimension_unit AS dimensionUnit,material,flute,requirements,price_cents AS priceCents,version,created_at AS createdAt FROM products' +
+          (ids ? ' WHERE id IN (SELECT value FROM json_each(?))' : '') + ' ORDER BY id DESC',
       )
-      .all()
+      .all(...params)
       .filter((r) => !archived?.has(Number(r.id)))
       .map((p: any) => ({ ...p, ...extensions.get(p.id) })) as Product[];
   }
@@ -415,15 +463,16 @@ export class Store {
     return this.product(id, includeArchived)!;
   }
   /** 批量组装订单视图：送货、扩展资料与导入回执各读取一次，查询量不随订单数增长。 */
-  private orderViews(id: number | undefined, includeArchived: boolean): Order[] {
-    const one = id !== undefined,
-      params = one ? [id] : [];
+  private orderViews(id: number | readonly number[] | undefined, includeArchived: boolean): Order[] {
+    const one = typeof id === 'number',
+      predicate = one ? '= ?' : id === undefined ? '' : 'IN (SELECT value FROM json_each(?))',
+      params = one ? [id] : id === undefined ? [] : [JSON.stringify(id)];
     if (one && !includeArchived && this.archived('orders', id)) return [];
     const archived = one || includeArchived ? null : this.archivedIds('orders');
     const rows = this.db
       .prepare(
         'SELECT id,number,customer_id AS customerId,customer_name AS customerName,order_date AS orderDate,delivery_date AS deliveryDate,status,notes,costs_json,total_cents AS totalCents,version,created_at AS createdAt,updated_at AS updatedAt FROM orders' +
-          (one ? ' WHERE id=?' : '') +
+          (predicate ? ' WHERE id ' + predicate : '') +
           ' ORDER BY order_date DESC,id DESC',
       )
       .all(...params)
@@ -433,7 +482,7 @@ export class Store {
     for (const l of this.db
       .prepare(
         'SELECT id,order_id AS orderId,product_id AS productId,product_name AS productName,specification,quantity,unit_price_cents AS unitPriceCents FROM order_lines' +
-          (one ? ' WHERE order_id=?' : '') +
+          (predicate ? ' WHERE order_id ' + predicate : '') +
           ' ORDER BY id',
       )
       .all(...params)) {
@@ -443,24 +492,24 @@ export class Store {
     }
     const lineExtensions = this.extensionMap(
         'SELECT line_id AS id,document FROM order_line_extensions' +
-          (one ? ' WHERE line_id IN (SELECT id FROM order_lines WHERE order_id=?)' : ''),
+          (predicate ? ' WHERE line_id IN (SELECT id FROM order_lines WHERE order_id ' + predicate + ')' : ''),
         ...params,
       ),
       orderExtensions = this.extensionMap(
-        'SELECT order_id AS id,document FROM order_extensions' + (one ? ' WHERE order_id=?' : ''),
+        'SELECT order_id AS id,document FROM order_extensions' + (predicate ? ' WHERE order_id ' + predicate : ''),
         ...params,
       ),
       receipts = this.extensionMap(
         'SELECT order_id AS id,document FROM import_executions WHERE order_id IS NOT NULL' +
-          (one ? ' AND order_id=?' : ''),
+          (predicate ? ' AND order_id ' + predicate : ''),
         ...params,
       ),
-      deliveries = deliveryIndex(this, id),
+      deliveries = deliveryIndex(this, predicate, params),
       material = new Map<number, 'pending' | 'partial' | 'done'>();
     for (const row of this.db
       .prepare(
         "SELECT p.customer_order_id AS id,SUM(l.quantity_units) AS ordered,SUM(l.received_units) AS received FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.customer_order_id IS NOT NULL AND p.status!='已取消'" +
-          (one ? ' AND p.customer_order_id=?' : '') +
+          (predicate ? ' AND p.customer_order_id ' + predicate : '') +
           ' GROUP BY p.customer_order_id',
       )
       .all(...params))
@@ -523,8 +572,32 @@ export class Store {
   orders(includeArchived = false): Order[] {
     return this.orderViews(undefined, includeArchived);
   }
+  ordersByIds(ids: readonly number[], includeArchived = false): Order[] {
+    return ids.length ? this.orderViews(ids, includeArchived) : [];
+  }
   order(id: number, includeArchived = false): Order | undefined {
     return this.orderViews(id, includeArchived)[0];
+  }
+  record(entity: 'customers' | 'products' | 'orders' | 'suppliers' | 'purchases' | 'stock_items', id: number, includeArchived = false) {
+    switch (entity) {
+      case 'customers': return this.customer(id, includeArchived);
+      case 'products': return this.product(id, includeArchived);
+      case 'orders': return this.order(id, includeArchived);
+      case 'suppliers': return new OperationsRepository(this).suppliers(includeArchived, id)[0];
+      case 'purchases': return new OperationsRepository(this).purchases(includeArchived, id)[0];
+      case 'stock_items': return new OperationsRepository(this).items(includeArchived, id)[0];
+    }
+  }
+  recordsByIds(entity: 'customers' | 'products' | 'orders' | 'suppliers' | 'purchases' | 'stock_items', ids: readonly number[], includeArchived = false): any[] {
+    if (!ids.length) return [];
+    switch (entity) {
+      case 'customers': return this.customers(includeArchived, ids);
+      case 'products': return this.products(includeArchived, ids);
+      case 'orders': return this.ordersByIds(ids, includeArchived);
+      case 'suppliers': return new OperationsRepository(this).suppliers(includeArchived, ids);
+      case 'purchases': return new OperationsRepository(this).purchases(includeArchived, ids);
+      case 'stock_items': return new OperationsRepository(this).items(includeArchived, ids);
+    }
   }
   saveOrder(
     v: OrderInput,
@@ -790,17 +863,15 @@ export class Store {
 }
 export class InputError extends Error {}
 /** 汇总有效送货量及曾有正式送货的订单；指定订单时经flow_refs索引只读取相关送货单。 */
-function deliveryIndex(store: Store, orderId?: number) {
+function deliveryIndex(store: Store, predicate: string, params: (number | string)[]) {
   const shipped = new Map<number, number>(),
     orders = new Set<number>();
   for (const row of store.db
     .prepare(
       "SELECT status,document FROM flow_documents WHERE kind='delivery' AND status IN ('confirmed','reversed')" +
-        (orderId === undefined
-          ? ''
-          : ' AND id IN (SELECT document_id FROM flow_refs WHERE order_id=?)'),
+        (predicate ? ' AND id IN (SELECT document_id FROM flow_refs WHERE order_id ' + predicate + ')' : ''),
     )
-    .all(...(orderId === undefined ? [] : [orderId]))) {
+    .all(...params)) {
     const doc = JSON.parse(String(row.document)),
       effective = row.status === 'confirmed' && !doc.reversal && !doc.replacedBy;
     for (const line of doc.lines) {

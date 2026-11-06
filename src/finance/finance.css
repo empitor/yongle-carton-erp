@@ -1,0 +1,328 @@
+/* 财务页面：沿用设计系统，只补财务特有的版式。 */
+.fin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.fin-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.fin-period input {
+  width: 150px;
+}
+.fin-tabs {
+  flex-wrap: wrap;
+}
+.fin-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.fin-toolbar .fin-grow {
+  flex: 1;
+}
+.fin-toolbar select,
+.fin-toolbar input[type='date'],
+.fin-toolbar input[type='text'] {
+  width: auto;
+  min-width: 120px;
+}
+.fin-party-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 220px;
+}
+.fin-party-picker > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.fin-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fin-table .num,
+.fin-compare .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fin-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.fin-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.fin-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--warning-border);
+  border-radius: 8px;
+  background: var(--warning-soft);
+  font-size: 13px;
+  color: var(--ink);
+}
+.fin-banner[data-tone='info'] {
+  border-color: var(--border);
+  background: var(--info-soft);
+}
+.fin-banner strong {
+  font-weight: 600;
+}
+.fin-banner .fin-grow {
+  flex: 1;
+}
+/* 理论和实际两行对照，是概览页的主角 */
+.fin-compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.fin-compare th,
+.fin-compare td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-weight: 400;
+}
+.fin-compare thead th {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.fin-compare thead th.num {
+  text-align: right;
+}
+.fin-compare tbody tr:last-child td,
+.fin-compare tbody tr:last-child th {
+  border-bottom: 0;
+}
+.fin-compare tbody th small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.fin-compare button.fin-amount {
+  all: unset;
+  cursor: pointer;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.fin-compare button.fin-amount:hover {
+  color: var(--teal);
+  text-decoration: underline;
+}
+.fin-compare button.fin-amount:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.fin-compare button.fin-amount[aria-pressed='true'] {
+  color: var(--teal);
+  font-weight: 600;
+}
+.fin-compare .fin-profit {
+  font-size: 16px;
+  font-weight: 600;
+}
+.fin-negative {
+  color: var(--danger);
+}
+.fin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.fin-card {
+  padding: 12px;
+  min-width: 0;
+}
+.fin-card > h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fin-card .table-wrap {
+  border: 0;
+}
+.fin-todo {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fin-todo li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.fin-todo li:last-child {
+  border-bottom: 0;
+}
+.fin-todo strong {
+  font-variant-numeric: tabular-nums;
+}
+.fin-lines input,
+.fin-lines select {
+  width: 100%;
+  min-width: 64px;
+}
+.fin-lines th,
+.fin-lines td {
+  padding: 4px 6px;
+  font-size: 13px;
+}
+.fin-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+}
+.fin-check input {
+  width: auto;
+}
+.fin-subform {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.fin-subform h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.fin-subform-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.fin-subform-row input,
+.fin-subform-row select {
+  width: 96px;
+}
+.fin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fin-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fin-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.fin-steps li:last-child {
+  border-bottom: 0;
+}
+.fin-steps .fin-grow {
+  flex: 1;
+}
+.fin-report-group th {
+  background: var(--surface-muted);
+  text-align: left;
+  font-weight: 600;
+}
+.fin-voucher-entries input,
+.fin-voucher-entries select {
+  width: 100%;
+  min-width: 80px;
+}
+.fin-voucher-entries .fin-acct {
+  min-width: 200px;
+}
+.modal:has(.fin-voucher-entries),
+.modal:has(.fin-wide) {
+  width: min(1000px, calc(100vw - 32px));
+  max-width: min(1000px, calc(100vw - 32px));
+}
+.fin-compare thead th {
+  background: var(--surface-muted);
+}
+.fin-compare tbody th {
+  width: 200px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.fin-compare tbody th small {
+  font-weight: 400;
+}
+.fin-todo button.link-button {
+  all: unset;
+  cursor: pointer;
+  color: var(--teal);
+}
+.fin-todo button.link-button:hover {
+  text-decoration: underline;
+}
+.fin-todo button.link-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.fin-toolbar > label.fin-check {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.fin-plain {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.fin-plain {
+  margin-top: 12px;
+}
+.fin-subform-row.fin-check input {
+  width: auto;
+}
+.fin-export {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.fin-export:hover {
+  background: var(--surface-hover);
+}
+.fin-form .table-wrap {
+  margin-top: 12px;
+}
+.fin-card.business-records,
+.fin-card .unified-table-region {
+  min-height: 0;
+}

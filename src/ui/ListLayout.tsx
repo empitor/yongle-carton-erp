@@ -8,21 +8,21 @@ import {
 } from 'lucide-react';
 export function PageHeading({
   title,
-  description,
-  kicker,
   actions,
+  meta,
 }: {
   title: string;
-  description: ReactNode;
+  description?: ReactNode;
   kicker?: string;
   actions?: ReactNode;
+  /** 紧跟标题的统计，和标题同一行。 */
+  meta?: ReactNode;
 }) {
   return (
     <div className="page-heading unified-heading">
-      <div>
-        {kicker && <div className="heading-kicker">{kicker}</div>}
+      <div className="page-title">
         <h1>{title}</h1>
-        <p>{description}</p>
+        {meta}
       </div>
       {actions && <div className="page-actions">{actions}</div>}
     </div>
@@ -61,8 +61,8 @@ export function ListFilters({
 }) {
   const reset = (
     <button className="filter-reset" onClick={onReset}>
-      <RotateCcw size={14} />
-      重置筛选
+      <RotateCcw size={14} aria-hidden="true" />
+      <span className="sr-only">重置筛选</span>
     </button>
   );
   return (

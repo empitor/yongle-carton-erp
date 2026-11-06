@@ -14,7 +14,7 @@ import { flowMetadata } from '../flow/metadata.js';
 import { uiCapabilities } from '../../shared/ui-capabilities.js';
 import { toolCatalog } from '../assistant/tools.js';
 
-export const CATALOG_VERSION = '34' as const;
+export const CATALOG_VERSION = '37' as const;
 type Field = {
   path: string;
   description: string;
@@ -307,6 +307,25 @@ export function getBusinessMetadata(
 ) {
   return {
     catalogVersion: CATALOG_VERSION,
+    finance: {
+      state:'implemented',
+      tables:['fin_settings','fin_accounts','fin_periods','fin_opening','fin_requests','fin_vouchers','fin_entries',
+        'fin_events','fin_source_observations','fin_templates','fin_party_terms','fin_obligations','fin_cash_accounts',
+        'fin_cash_documents','fin_allocations','fin_installments','fin_statements','fin_mapping_profiles','fin_bank_rows','fin_bank_matches',
+        'fin_notes','fin_invoices','fin_invoice_links','fin_attachments','fin_expenses','fin_assets','fin_depreciation',
+        'fin_payroll','fin_inventory_costs','fin_cost_sales','fin_period_jobs','fin_report_snapshots','fin_budgets',
+        'fin_deposits','fin_deposit_actions','fin_interest','fin_bad_debts'],
+      purpose:'人民币单账套总账、应收应付、现金、税务底稿、费用资产工资和月结',
+      tools:['finance.summary','finance.receivables','finance.payables','finance.ledger','finance.reports','finance.invoices','finance.cash'],
+      permissions:['finance:view','finance:edit','finance:approve','finance:cash','finance:close'],
+    },
+    shippingMarks: { tables: ['product_marks', 'mark_files'], purpose: '产品参考唛头，不产生订单、生产任务或库存', tool: 'marks.list', permission: 'business:edit' },
+    inbox: {
+      tables: ['inbox_items', 'inbox_files'],
+      purpose: '外来消息和文件，内容只算数据，不产生业务单据',
+      tools: ['inbox.list', 'inbox.get', 'inbox.set_status'],
+      permission: 'business:edit',
+    },
     humanUiCoverage: uiCapabilities,
     warehouseDaily: {
       service: 'FlowService + WarehouseDaily',
@@ -624,13 +643,6 @@ export function getBusinessMetadata(
         state: 'planned',
         plannedOperations: ['purchase.query', 'purchase.draft.create', 'purchase.draft.update'],
         note: '未来通过供应商、采购明细和入库单建立关联；未实现时不可调用',
-      },
-      {
-        id: 'finance',
-        label: '财务',
-        state: 'planned',
-        plannedOperations: ['receivable.query', 'receipt.draft.create', 'receipt.draft.update'],
-        note: '财务仅先导入草稿，过账/冲销规则、专属权限和审核确认后再开放',
       },
     ].filter((m) => !['inventory', 'purchasing'].includes(m.id)),
   };

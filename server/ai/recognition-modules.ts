@@ -3,6 +3,7 @@ import type { PromptPreset } from '../../shared/prompt-presets.js';
 import { promptModules, type PromptModuleId } from '../../shared/prompt-modules.js';
 import { PromptPresetManager } from './prompt-presets.js';
 import { defaultPromptPreset, legacyDefaultPromptPreset } from '../import/default-prompts.js';
+import { markDefaultPreset } from '../marks/mark-ai.js';
 import { supplierDefaultPreset } from '../flow/receipt-ai.js';
 import { assistantDefaultPreset } from '../assistant/manager.js';
 import { purchaseOrderDefaultPreset } from './default-prompts/purchase-order.js';
@@ -14,6 +15,7 @@ import { customerDeliveryDefaultPreset } from './default-prompts/customer-delive
  * 不会覆盖用户已保存的自定义预设。
  */
 const factories: Record<PromptModuleId, () => PromptPreset> = {
+  'shipping-mark': markDefaultPreset,
   'sales-order': defaultPromptPreset,
   'purchase-order': purchaseOrderDefaultPreset,
   'supplier-delivery': supplierDefaultPreset,

@@ -399,8 +399,8 @@ export default function OperationsPage({
             : setRevision((v) => v + 1)
         }
       >
-        <RefreshCw size={15} />
-        刷新
+        <RefreshCw size={15} aria-hidden="true" />
+        <span className="sr-only">刷新</span>
       </button>
       {!recycle &&
         mode === 'warehouse' &&
@@ -444,47 +444,14 @@ export default function OperationsPage({
         ))}
     </>
   );
-  const titles = { suppliers: '供应商管理', purchases: '采购订货', warehouse: '仓库管理' };
+  const titles = { suppliers: '供应商', purchases: '采购单', warehouse: '库存' };
   const descriptions = {
     suppliers: '集中维护供应商资料，查看每次采购往来。',
     purchases: '外购纸板订货、分批到货与原材料入库。',
     warehouse: '库存查看当前余额，流水追溯每一笔变动。',
   };
-  return (
-    <div className="operations-workspace unified-business-page">
-      {!recycle && !arrivalView && !deliveryTab && (
-        <PageHeading
-          title={flowTab ? '流水' : titles[mode]}
-          description={descriptions[mode]}
-          actions={flowTab ? undefined : actions}
-        />
-      )}
-      {recycle && <div className="page-actions recycle-actions">{actions}</div>}
-      {mode === 'warehouse' && !arrivalView && !deliveryTab && !flowTab && (
-        <WarehouseNavigation
-          view={
-            arrivalView ||
-            (deliveryTab ? 'deliveries' : flowTab ? 'flows' : (kind as WarehouseView))
-          }
-          onChange={selectWarehouseView}
-        />
-      )}
-      <div
-        id={mode === 'warehouse' ? 'warehouse-content' : undefined}
-        role={mode === 'warehouse' ? 'tabpanel' : undefined}
-        aria-labelledby={
-          mode === 'warehouse'
-            ? 'warehouse-tab-' +
-              (arrivalView || (deliveryTab ? 'deliveries' : flowTab ? 'flows' : kind))
-            : undefined
-        }
-      >
-        {arrivalView && mode === 'warehouse' ? (
-          <WarehouseRecords key="arrival" kind="arrival" />
-        ) : deliveryTab && mode === 'warehouse' ? (
-          <WarehouseRecords key="delivery" kind="delivery" />
-        ) : (
-          <>
+  const summaryNode = (
+    <>
             {mode === 'purchases' && !error && (
               <ListSummary
                 items={[
@@ -561,6 +528,44 @@ export default function OperationsPage({
                 }
               />
             )}
+    </>
+  );
+  return (
+    <div className="operations-workspace unified-business-page">
+      {!recycle && !arrivalView && !deliveryTab && (
+        <PageHeading
+          title={flowTab ? '流水' : titles[mode]}
+          description={descriptions[mode]}
+          actions={flowTab ? undefined : actions}
+          meta={summaryNode}
+        />
+      )}
+      {recycle && <div className="page-actions recycle-actions">{actions}</div>}
+      {mode === 'warehouse' && !arrivalView && !deliveryTab && !flowTab && (
+        <WarehouseNavigation
+          view={
+            arrivalView ||
+            (deliveryTab ? 'deliveries' : flowTab ? 'flows' : (kind as WarehouseView))
+          }
+          onChange={selectWarehouseView}
+        />
+      )}
+      <div
+        id={mode === 'warehouse' ? 'warehouse-content' : undefined}
+        role={mode === 'warehouse' ? 'tabpanel' : undefined}
+        aria-labelledby={
+          mode === 'warehouse'
+            ? 'warehouse-tab-' +
+              (arrivalView || (deliveryTab ? 'deliveries' : flowTab ? 'flows' : kind))
+            : undefined
+        }
+      >
+        {arrivalView && mode === 'warehouse' ? (
+          <WarehouseRecords key="arrival" kind="arrival" />
+        ) : deliveryTab && mode === 'warehouse' ? (
+          <WarehouseRecords key="delivery" kind="delivery" />
+        ) : (
+          <>
             <ListFilters
               search={search}
               onSearch={setSearch}

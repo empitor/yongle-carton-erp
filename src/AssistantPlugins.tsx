@@ -56,6 +56,10 @@ export function PluginManagementView({
                 </h3>
                 <p>{p.description}</p>
               </div>
+              <span className="ai-plugin-count">
+                {p.enabled ? '可用 ' + usable + ' / ' + p.tools.length : '已停用'}
+                {!p.enabled && <small>独立工具设置已保留</small>}
+              </span>
               <label className="ai-plugin-switch">
                 <input
                   type="checkbox"
@@ -65,82 +69,83 @@ export function PluginManagementView({
                   disabled={!state.canManage || busy}
                   onChange={() => onPluginToggle(p)}
                 />
-                插件总开关
+                启用
               </label>
             </div>
-            <p className="ai-plugin-status">
-              <span className="record-state">{p.enabled ? '已启用' : '已停用'}</span>
-              <span>
-                共 {p.tools.length} 个工具 · 当前可用 {usable} 个
-              </span>
-              {!p.enabled && <span>独立工具设置已保留</span>}
-            </p>
-            <details className="ai-plugin-tools">
-              <summary>展开或收起工具列表（{p.tools.length}）</summary>
-              {p.tools.map((t) => (
-                <section key={t.name} className="ai-plugin-tool" aria-label={'工具 ' + t.name}>
-                  <div className="ai-plugin-heading">
-                    <div>
-                      <h4>{t.name}</h4>
-                      <p>{t.description}</p>
+            <div className="ai-plugin-more">
+              <details className="ai-plugin-tools">
+                <summary>工具（{p.tools.length}）</summary>
+                {p.tools.map((t) => (
+                  <section key={t.name} className="ai-plugin-tool" aria-label={'工具 ' + t.name}>
+                    <div className="ai-plugin-heading">
+                      <div>
+                        <h4>{t.name}</h4>
+                        <p>{t.description}</p>
+                      </div>
+                      <span
+                        className={t.usable ? 'ai-tool-ready' : 'ai-tool-unavailable'}
+                        role="status"
+                      >
+                        {t.usable ? (t.permissionLimited ? '部分可用' : '可用') : t.status}
+                      </span>
+                      <label className="ai-plugin-switch">
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          aria-label={'单独启用工具 ' + t.name}
+                          checked={t.toolEnabled}
+                          disabled={!state.canManage || busy}
+                          onChange={() => onToolToggle(t)}
+                        />
+                        启用
+                      </label>
                     </div>
-                    <label className="ai-plugin-switch">
-                      <input
-                        type="checkbox"
-                        role="switch"
-                        aria-label={'单独启用工具 ' + t.name}
-                        checked={t.toolEnabled}
-                        disabled={!state.canManage || busy}
-                        onChange={() => onToolToggle(t)}
-                      />
-                      工具独立开关
-                    </label>
-                  </div>
-                  <p className={t.usable ? 'ai-tool-ready' : 'ai-tool-unavailable'} role="status">
-                    {t.usable ? (t.permissionLimited ? '部分操作可用' : '当前可用') : t.status}
-                  </p>
-                  <div className="ai-tool-factors">
-                    <span>插件：{t.pluginEnabled ? '已启用' : '已停用'}</span>
-                    <span>工具：{t.toolEnabled ? '已启用' : '已停用'}</span>
-                    <span>
-                      账号权限：
-                      {t.permitted ? (t.permissionLimited ? '部分操作满足' : '满足') : '不满足'}
-                    </span>
-                    <span>执行服务：{t.available ? '已连接' : '未连接'}</span>
-                  </div>
-                  <p>权限要求：{t.permissions.join('、')}</p>
-                  {t.permissionNote && <p className="ai-plugin-muted">{t.permissionNote}</p>}
-                  <p className="ai-plugin-muted">{t.serviceStatus}</p>
-                  <details>
-                    <summary>参数结构</summary>
-                    <pre>{JSON.stringify(t.parameters, null, 2)}</pre>
-                  </details>
-                  <p className="ai-plugin-muted">
-                    最近执行：
-                    {t.lastExecution
-                      ? new Date(t.lastExecution.at).toLocaleString('zh-CN') +
-                        ' · ' +
-                        t.lastExecution.state
-                      : '暂无执行记录'}
-                  </p>
-                </section>
-              ))}
-              {!p.tools.length && <p>此插件尚未注册工具。</p>}
-            </details>
-            <details className="ai-plugin-logs">
-              <summary>当前账号操作日志</summary>
-              {p.logs.length ? (
-                <ul>
-                  {p.logs.map((l, i) => (
-                    <li key={i}>
-                      {new Date(l.at).toLocaleString('zh-CN')} · {l.tool} · {l.state}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>暂无操作记录</p>
-              )}
-            </details>
+                    <details className="ai-tool-detail">
+                      <summary>详情</summary>
+                      <div className="ai-tool-factors">
+                        <span>插件：{t.pluginEnabled ? '已启用' : '已停用'}</span>
+                        <span>工具：{t.toolEnabled ? '已启用' : '已停用'}</span>
+                        <span>
+                          账号权限：
+                          {t.permitted ? (t.permissionLimited ? '部分操作满足' : '满足') : '不满足'}
+                        </span>
+                        <span>执行服务：{t.available ? '已连接' : '未连接'}</span>
+                      </div>
+                      <p>权限要求：{t.permissions.join('、')}</p>
+                      {t.permissionNote && <p className="ai-plugin-muted">{t.permissionNote}</p>}
+                      <p className="ai-plugin-muted">{t.serviceStatus}</p>
+                      <p className="ai-plugin-muted">
+                        最近执行：
+                        {t.lastExecution
+                          ? new Date(t.lastExecution.at).toLocaleString('zh-CN') +
+                            ' · ' +
+                            t.lastExecution.state
+                          : '暂无执行记录'}
+                      </p>
+                      <details>
+                        <summary>参数结构</summary>
+                        <pre>{JSON.stringify(t.parameters, null, 2)}</pre>
+                      </details>
+                    </details>
+                  </section>
+                ))}
+                {!p.tools.length && <p>此插件尚未注册工具。</p>}
+              </details>
+              <details className="ai-plugin-logs">
+                <summary>当前账号操作日志</summary>
+                {p.logs.length ? (
+                  <ul>
+                    {p.logs.map((l, i) => (
+                      <li key={i}>
+                        {new Date(l.at).toLocaleString('zh-CN')} · {l.tool} · {l.state}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>暂无操作记录</p>
+                )}
+              </details>
+            </div>
           </article>
         );
       })}
@@ -202,19 +207,15 @@ export default function AssistantPlugins() {
   }
   return (
     <section className="ai-plugin-management" aria-label="AI插件与工具管理">
-      <div className="ai-plugin-intro">
-        <h2>AI 插件与工具管理</h2>
-        <p>
-          按真实注册关系管理插件和工具。插件关闭时保留各工具的独立设置；工具是否可用还取决于当前账号权限和执行服务。
-        </p>
-      </div>
+      <p className="ai-plugin-intro">
+        关闭插件时，里面各工具的开关设置会保留；工具能否使用还取决于账号权限和执行服务。
+      </p>
       {error && (
         <p role="alert" className="operation-error">
           {error}
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      <AssistantBrowserConnection />
       {!userId ? <p>请先登录管理账号。</p> : !state && !error ? <p>正在读取插件与工具…</p> : null}
       {state && (
         <PluginManagementView
@@ -239,6 +240,7 @@ export default function AssistantPlugins() {
       {state && !state.canManage && (
         <p>当前账号可以查看状态和日志；仅有管理权限的超级管理员可修改开关。</p>
       )}
+      <AssistantBrowserConnection />
     </section>
   );
 }

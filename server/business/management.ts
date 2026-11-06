@@ -89,7 +89,7 @@ export function changeLifecycle(
   for (const item of input.items) {
     store.db.exec('SAVEPOINT lifecycle');
     try {
-      const row = store[entity](true).find((r) => r.id === item.id) as any;
+      const row = store.record(entity, item.id, true);
       if (!row) throw new ImportError('记录不存在。', 404);
       if (row.version !== item.version) throw new ImportError('记录已修改，请刷新。', 409);
       const archived = store.archived(entity, item.id);

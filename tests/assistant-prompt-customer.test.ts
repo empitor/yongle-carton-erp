@@ -420,12 +420,12 @@ test('轻微排版差异可复用，相似公司不合并，归档客户不重�
     assert.equal(resolveImportCustomer(f.store, '虚构唯一相近客户').state, 'ambiguous');
     assert(resolveImportCustomer(f.store, '虚构唯一相近客户').candidates.some(c=>c.id===uniqueSimilar.id));
     const regionCustomer = f.store.saveCustomer(
-      customerSchema.parse({ name: '宁波巴山信息科技有限公司' }),
+      customerSchema.parse({ name: '宁波示例信息科技有限公司' }),
     );
-    assert.equal(resolveImportCustomer(f.store, '巴山信息科技有限公司').state, 'ambiguous');
-    assert(resolveImportCustomer(f.store, '巴山信息科技有限公司').candidates.some(c=>c.id===regionCustomer.id));
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构巴山包装有限公司' }));
-    assert.notEqual(resolveImportCustomer(f.store, '虚构巴山').state, 'resolved');
+    assert.equal(resolveImportCustomer(f.store, '示例信息科技有限公司').state, 'ambiguous');
+    assert(resolveImportCustomer(f.store, '示例信息科技有限公司').candidates.some(c=>c.id===regionCustomer.id));
+    f.store.saveCustomer(customerSchema.parse({ name: '虚构示例包装有限公司' }));
+    assert.notEqual(resolveImportCustomer(f.store, '虚构示例').state, 'resolved');
     const archived = f.store.saveCustomer(customerSchema.parse({ name: '虚构归档客户有限公司' }));
     f.store.db
       .prepare('INSERT INTO record_lifecycle VALUES(?,?,?,?)')

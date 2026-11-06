@@ -2,7 +2,7 @@ import { APP_VERSION } from '../shared/version';
 import { erpPageIds, normalizeAiSettingsHash } from '../shared/assistant-navigation';
 import { legacyCents, precisionTotal } from '../shared/precision';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
-import { useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Package,
@@ -18,7 +18,6 @@ import {
   ShieldCheck,
   Bot,
 } from 'lucide-react';
-import AiSettingsHub from './AiSettingsHub';
 import AuthPanel, { LoginForm } from './AuthPanel';
 import ThemeSwitcher from './ThemeSwitcher';
 import {
@@ -31,21 +30,25 @@ import { PageHeading, ListFilters, FilterField, ListSummary, useResettingPage } 
 import DateRangeFilter from './DateRangeFilter';
 import DashboardPage from './DashboardPage';
 import { presetRange, monthsBefore, type DatePreset, type OrderView } from '../shared/date-ranges';
-import { authChanged, useAuthState } from './session';
+import { authChanged, managementRequest, useAuthState } from './session';
 import BusinessRecords from './BusinessRecords';
 import Navigation from './Navigation';
-import OperationsPage from './OperationsPage';
 import { uiCapabilities } from '../shared/ui-capabilities';
 import { userError } from '../shared/user-errors';
-import FlowPage from './FlowPage';
 import { warehouseArrivalHash } from '../shared/arrival-navigation';
-import GlobalAssistant from './GlobalAssistant';
 import CommandPalette from './CommandPalette';
 import type { RecordEntity } from '../shared/operations';
 import DimensionUnitSelect from './DimensionUnitSelect';
 import Combobox from './ui/Combobox';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../shared/product-details';
-import OrderImportPage from './OrderImportPage';
+import InboxPage from './InboxPage';
+// 大页面按需加载，首屏只下载用到的部分。
+const FinancePages = lazy(() => import('./finance/FinancePages'));
+const AiSettingsHub = lazy(() => import('./AiSettingsHub'));
+const OperationsPage = lazy(() => import('./OperationsPage'));
+const FlowPage = lazy(() => import('./FlowPage'));
+const GlobalAssistant = lazy(() => import('./GlobalAssistant'));
+const OrderImportPage = lazy(() => import('./OrderImportPage'));
 import OrderLineTable from './OrderLineTable';
 import { PAGE_SIZE } from './BusinessRecords';
 import type { RecordSort } from '../shared/record-sort';
@@ -95,17 +98,26 @@ type Page =
   | 'ai-plugins'
   | 'ai-settings'
   | 'ai-import'
+  | 'inbox'
   | 'ai-prompts'
   | 'trash'
   | 'suppliers'
   | 'purchases'
   | 'warehouse'
   | 'arrivals'
-  | 'production';
+  | 'production'
+  | 'finance'
+  | 'finance-flow'
+  | 'finance-ar'
+  | 'finance-cash'
+  | 'finance-costs'
+  | 'finance-ledger'
+  | 'finance-reports'
+  | 'finance-settings';
 type Editor =
   | { kind: 'customers'; value?: Customer }
   | { kind: 'products'; value?: Product }
-  | { kind: 'orders'; value?: Order }
+  | { kind: 'orders'; value?: Order; inboxId?: number }
   | { kind: 'suppliers'; value?: Customer }
   | null;
 const money = (cents: number) =>
@@ -282,7 +294,8 @@ export default function App() {
   const [productAttention, setProductAttention] = useState(false);
   const [palette, setPalette] = useState(false),
     [newMenu, setNewMenu] = useState(false),
-    [inboxCount, setInboxCount] = useState(0);
+    [inboxCount, setInboxCount] = useState(0),
+    [importCount, setImportCount] = useState(0);
   const canCreate =
     !!auth?.actor && (superMode || auth.actor.permissions.includes('business:edit'));
   useEffect(() => {
@@ -297,13 +310,17 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!auth?.actor) return;
-    const load = () =>
+    const load = () => {
       fetch('/api/ai/imports', { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((s) => {
-          if (s?.workspaces) setInboxCount(s.workspaces.filter((w: any) => !w.imported).length);
+          if (s?.workspaces) setImportCount(s.workspaces.filter((w: any) => !w.imported).length);
         })
         .catch(() => {});
+      api<any>('/inbox?page=1&pageSize=1')
+        .then((v) => setInboxCount(v.counts?.pending || 0))
+        .catch(() => {});
+    };
     void load();
     window.addEventListener('erp-business-changed', load);
     const timer = setInterval(load, 60000);
@@ -333,7 +350,8 @@ export default function App() {
   }, [page]);
   useEffect(() => {
     const params = new URLSearchParams(routeKey.split('?')[1] || '');
-    if (page === 'orders' && params.get('create') === '1') setEditor({ kind: 'orders' });
+    if (page === 'orders' && params.get('create') === '1')
+      setEditor({ kind: 'orders', inboxId: Number(params.get('inbox')) || undefined });
   }, [page, routeKey]);
   useEffect(() => {
     const f = () => {
@@ -405,8 +423,10 @@ export default function App() {
       page === 'ai-plugins' ||
       page === 'ai-settings' ||
       page === 'ai-import' ||
+      page === 'inbox' ||
       page === 'ai-prompts' ||
       page === 'document-templates' ||
+      page.startsWith('finance') ||
       ['suppliers', 'purchases', 'warehouse'].includes(page) ||
       (page === 'trash' && ['suppliers', 'purchases', 'stock_items'].includes(trashEntity))
     ) {
@@ -542,9 +562,18 @@ export default function App() {
     customers: '客户',
     products: '产品',
     guide: '使用说明',
+    finance: '财务概览',
+    'finance-flow': '月度台账',
+    'finance-ar': '应收应付',
+    'finance-cash': '资金发票',
+    'finance-costs': '费用资产工资',
+    'finance-ledger': '凭证账簿',
+    'finance-reports': '报表结账',
+    'finance-settings': '财务设置',
     'ai-plugins': 'AI 插件',
-    'ai-settings': 'AI 设置',
-    'ai-import': 'AI 智能订单导入',
+    'ai-settings': '设置',
+    'ai-import': 'AI 导入',
+    inbox: '收件箱',
     'ai-prompts': 'AI 识别提示词',
     trash: '归档记录',
     suppliers: '供应商',
@@ -598,7 +627,7 @@ export default function App() {
           </span>
           <h1>宁波甬勒包装制品有限公司</h1>
           <p>{auth.configured ? '登录管理系统' : '首次使用，请建立管理员账号'}</p>
-          <LoginForm configured={auth.configured} csrf={auth.csrf} />
+          <LoginForm configured={auth.configured} csrf={auth.csrf} proxyAccess={auth.proxyAccess} />
         </section>
       </main>
     );
@@ -616,6 +645,8 @@ export default function App() {
           route={routeKey}
           navigate={(target) => navigate(target as Page)}
           inboxCount={inboxCount}
+          importCount={importCount}
+          finance={!!auth?.actor?.permissions.includes('finance:view')}
         />
       </aside>
       <div className="main">
@@ -641,7 +672,6 @@ export default function App() {
           <div className="topbar-right">
             <div className="top-new">
               <button
-                className="primary"
                 aria-haspopup="menu"
                 aria-expanded={newMenu}
                 disabled={!canCreate}
@@ -659,7 +689,7 @@ export default function App() {
                     采购单
                   </a>
                   <a role="menuitem" href="#ai-import">
-                    上传客户采购单
+                    AI 导入单据
                   </a>
                   <a role="menuitem" href="#production?create=1">
                     生产任务
@@ -678,10 +708,11 @@ export default function App() {
               AI助手
             </button>
             <ThemeSwitcher />
-            {page !== 'ai-import' && <AuthPanel />}
+            <AuthPanel />
           </div>
         </header>
         <main className={page === 'ai-import' ? 'import-main' : ''}>
+          <Suspense fallback={<p role="status">正在打开页面…</p>}>
           {superMode && !auth?.actor?.localAdministrator && (
             <div className="super-mode-banner" role="status">
               <ShieldCheck size={19} />
@@ -694,18 +725,67 @@ export default function App() {
               </div>
             </div>
           )}
-          {![
+          {!page.startsWith('finance') &&
+            ![
             'suppliers',
             'purchases',
             'warehouse',
             'arrivals',
             'production',
             'document-templates',
+            'inbox',
           ].includes(page) && (
             <>
               <PageHeading
                 title={names[page]}
-                kicker="宁波甬勒包装制品有限公司"
+                meta={
+                  <>
+              {page === 'orders' && !error && (
+                <ListSummary
+                  items={[
+                    {
+                      label: '订单总数',
+                      value: metricsPending ? '—' : listMetrics.orders.total,
+                      hint: '当前筛选范围',
+                    },
+                    {
+                      label: '待完成订单',
+                      value: metricsPending ? '—' : listMetrics.orders.pending,
+                      hint: '已确认、生产中、待发货',
+                    },
+                    {
+                      label: '逾期未完成订单',
+                      value: metricsPending ? '—' : listMetrics.orders.overdue,
+                      hint: '交货日期早于今天且未交付',
+                    },
+                  ]}
+                />
+              )}
+              {page === 'products' && !error && (
+                <ListSummary
+                  items={[
+                    {
+                      label: '产品总数',
+                      value: busy ? '—' : listMetrics.products.total,
+                      hint: '当前档案范围及关键词',
+                    },
+                    {
+                      label: '已启用产品',
+                      value: busy ? '—' : listMetrics.products.enabled,
+                      hint: '未停用/归档的产品',
+                    },
+                    {
+                      label: '档案待完善',
+                      value: busy ? '—' : listMetrics.products.incomplete,
+                      hint: '点击筛选；仅提醒，不阻止导入',
+                      onClick: () => setProductAttention((v) => !v),
+                      active: productAttention,
+                    },
+                  ]}
+                />
+              )}
+                  </>
+                }
                 description={
                   <>
                     {page === 'dashboard'
@@ -739,12 +819,12 @@ export default function App() {
                       {page === 'orders' && (
                         <button onClick={() => navigate('ai-import')}>
                           <FileUp size={16} />
-                          AI 智能导入
+                          AI 导入
                         </button>
                       )}
                       <button disabled={busy} onClick={() => setRevision((v) => v + 1)}>
-                        <RefreshCw size={15} />
-                        刷新
+                        <RefreshCw size={15} aria-hidden="true" />
+                        <span className="sr-only">刷新</span>
                       </button>
                       {page !== 'dashboard' && (
                         <button
@@ -797,52 +877,17 @@ export default function App() {
           )}
           {(page === 'ai-settings' || page === 'ai-prompts') && <AiSettingsHub />}
           {page === 'ai-import' && <OrderImportPage />}
+          {page === 'inbox' && <InboxPage />}
+          {page.startsWith('finance') &&
+            (auth?.actor?.permissions.includes('finance:view') ? (
+              <FinancePages page={page} />
+            ) : (
+              <div className="error" role="alert">
+                当前账号没有财务权限。需要的话请找管理员在“设置 → 账号”里调整。
+              </div>
+            ))}
           {['orders', 'customers', 'products'].includes(page) && (
             <>
-              {page === 'orders' && !error && (
-                <ListSummary
-                  items={[
-                    {
-                      label: '订单总数',
-                      value: metricsPending ? '—' : listMetrics.orders.total,
-                      hint: '当前筛选范围',
-                    },
-                    {
-                      label: '待完成订单',
-                      value: metricsPending ? '—' : listMetrics.orders.pending,
-                      hint: '已确认、生产中、待发货',
-                    },
-                    {
-                      label: '逾期未完成订单',
-                      value: metricsPending ? '—' : listMetrics.orders.overdue,
-                      hint: '交货日期早于今天且未交付',
-                    },
-                  ]}
-                />
-              )}
-              {page === 'products' && !error && (
-                <ListSummary
-                  items={[
-                    {
-                      label: '产品总数',
-                      value: busy ? '—' : listMetrics.products.total,
-                      hint: '当前档案范围及关键词',
-                    },
-                    {
-                      label: '已启用产品',
-                      value: busy ? '—' : listMetrics.products.enabled,
-                      hint: '未停用/归档的产品',
-                    },
-                    {
-                      label: '档案待完善',
-                      value: busy ? '—' : listMetrics.products.incomplete,
-                      hint: '点击筛选；仅提醒，不阻止导入',
-                      onClick: () => setProductAttention((v) => !v),
-                      active: productAttention,
-                    },
-                  ]}
-                />
-              )}
               <ListFilters
                 search={search}
                 onSearch={setSearch}
@@ -884,6 +929,39 @@ export default function App() {
                       : '产品名称、材质、楞型和加工要求可组合关键词搜索。'
                 }
               >
+          {page === 'orders' && (
+            <div className="order-view-controls">
+              <div className="record-view-tabs" aria-label="订单日期分类">
+                {(
+                  [
+                    ['current', '近期与待处理'],
+                    ['pending', '全部待处理'],
+                    ['history', '历史归档'],
+                  ] as const
+                ).map(([view, label]) => (
+                  <button
+                    key={view}
+                    className={
+                      orderView === view && !archivedView && !allRecordsView ? 'selected' : ''
+                    }
+                    onClick={() => {
+                      setOrderView(view);
+                      setArchivedView(false);
+                      setAllRecordsView(false);
+                      const preset = view === 'current' ? '2' : 'all';
+                      history.replaceState(null, '', '#orders?view=' + view + '&range=' + preset);
+                      const range = presetRange(preset);
+                      setDatePreset(preset);
+                      setStart(range.start);
+                      setEnd(range.end);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
                 {page === 'products' && (
                   <FilterField label="档案资料">
                     <select
@@ -928,39 +1006,6 @@ export default function App() {
                 )}
               </ListFilters>
             </>
-          )}
-          {page === 'orders' && (
-            <div className="order-view-controls">
-              <div className="record-view-tabs" aria-label="订单日期分类">
-                {(
-                  [
-                    ['current', '近期与待处理'],
-                    ['pending', '全部待处理'],
-                    ['history', '历史归档'],
-                  ] as const
-                ).map(([view, label]) => (
-                  <button
-                    key={view}
-                    className={
-                      orderView === view && !archivedView && !allRecordsView ? 'selected' : ''
-                    }
-                    onClick={() => {
-                      setOrderView(view);
-                      setArchivedView(false);
-                      setAllRecordsView(false);
-                      const preset = view === 'current' ? '2' : 'all';
-                      history.replaceState(null, '', '#orders?view=' + view + '&range=' + preset);
-                      const range = presetRange(preset);
-                      setDatePreset(preset);
-                      setStart(range.start);
-                      setEnd(range.end);
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
           {page === 'dashboard' && dashboard && !error && (
             <DashboardPage
@@ -1036,7 +1081,7 @@ export default function App() {
             <>
               <div className="recycle-heading">
                 <p>
-                  这里仅显示仍保存在数据库中的归档记录。历史软删除数据继续保留，可编辑、恢复或真正删除；物理删除的数据不会进入此列表。
+                  已归档的记录可以恢复、编辑或删除。
                 </p>
                 <div className="record-view-tabs">
                   {(
@@ -1071,7 +1116,6 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-              </div>
               <div className="record-view-tabs">
                 {(['arrival', 'task', 'production', 'delivery'] as const).map((k) => (
                   <button
@@ -1081,14 +1125,15 @@ export default function App() {
                   >
                     {
                       {
-                        arrival: '采购到货',
+                        arrival: '到货',
                         task: '生产任务',
-                        production: '生产登记',
-                        delivery: '客户送货',
+                        production: '完工记录',
+                        delivery: '送货',
                       }[k]
                     }
                   </button>
                 ))}
+              </div>
               </div>
               {flowTrash ? (
                 <FlowPage key={flowTrash} mode={flowTrash} recycle />
@@ -1134,7 +1179,7 @@ export default function App() {
             <div className="guide-grid">
               <section className="panel prose">
                 <h2>日常业务功能入口</h2>
-                <p>按业务归属打开页面；右上角管理员菜单提供本机数据管理。</p>
+                <p>左侧按业务分组；右上角账号菜单提供本机数据管理。</p>
                 {uiCapabilities
                   .filter((c) => c.kind === 'business')
                   .map((c) => (
@@ -1148,11 +1193,12 @@ export default function App() {
               <section className="panel prose">
                 <h2>日常操作顺序</h2>
                 <ol>
-                  <li>收到客户采购单：上传到“AI 智能订单导入”，核对后导入，或新建订单手工录入。</li>
-                  <li>缺纸板时新建采购单，货到后在“仓库管理 → 到货记录”登记验收。</li>
+                  <li>收到客户采购单：放进“收件箱”转订单，或直接到“AI 导入”上传，核对后入账，或新建订单手工录入。</li>
+                  <li>缺纸板时新建采购单，货到后在“到货”登记验收。</li>
                   <li>在订单详情安排生产，完工后登记良品和废品，成品自动入库。</li>
                   <li>在订单详情安排送货，确认发货时扣减成品库存，并导出送货单。</li>
-                  <li>每天打开“业务工作台”查看待处理事项。</li>
+                  <li>客户发来唛头或样稿：放进“AI 导入”，类型选唛头，逐款对应产品后存入产品档案；也可以在产品详情里直接上传。唛头不产生订单、生产或库存。</li>
+                  <li>每天打开“今日”查看待处理事项。</li>
                 </ol>
               </section>
               <section className="panel prose">
@@ -1183,7 +1229,7 @@ export default function App() {
                 <span className="exercise-time">AI 服务管理</span>
                 <h2>在网页上连接模型服务</h2>
                 <p>
-                  进入左侧“AI 设置”，新建预设并填写地址与密钥，连接 API
+                  进入左侧“设置”，新建预设并填写地址与密钥，连接 API
                   后从列表选择模型，测试成功后保存并启用。
                 </p>
                 <p>
@@ -1191,7 +1237,7 @@ export default function App() {
                   加密保存，重启后无需重填。AI助手沿用当前账号权限，通过与人工页面相同的业务服务执行操作，并返回真实结果。
                 </p>
                 <button className="text-button" onClick={() => navigate('ai-settings')}>
-                  前往 AI 设置 <ArrowUpRight size={15} />
+                  前往设置 <ArrowUpRight size={15} />
                 </button>
               </section>
             </div>
@@ -1201,6 +1247,7 @@ export default function App() {
             宁波甬勒包装制品有限公司 · 管理系统
             <span>v{APP_VERSION}</span>
           </footer>
+          </Suspense>
         </main>
       </div>
       {editor?.value && (
@@ -1211,7 +1258,9 @@ export default function App() {
           style={{ position: 'fixed', width: 1, height: 1, left: 0, top: 0 }}
         />
       )}
-      <GlobalAssistant />
+      <Suspense fallback={null}>
+        <GlobalAssistant />
+      </Suspense>
       {palette && <CommandPalette close={() => setPalette(false)} />}
       {editor?.kind === 'customers' && (
         <CustomerEditor value={editor.value} close={closeEditor} saved={saved} />
@@ -1227,6 +1276,7 @@ export default function App() {
           loading={busy}
           key={editor.value ? editor.value.id + ':' + editor.value.version : 'new'}
           value={editor.value}
+          inboxId={editor.inboxId}
           customers={customers}
           products={products}
           close={closeEditor}
@@ -1285,9 +1335,6 @@ function CustomerEditor({
                 maxLength={100}
                 value={form.name}
                 onChange={(e) => change('name', e.target.value)}
-                placeholder={
-                  entity === 'suppliers' ? '填写外购纸板供应商名称' : '例如：示例客户 · 某某包装'
-                }
               />
             </Field>
             <Field label="联系人">
@@ -1377,13 +1424,10 @@ function ProductEditor({
     <Modal title={value ? '编辑产品' : '新增产品'} close={saving ? () => {} : close}>
       <form onSubmit={submit}>
         <div className="form-body">
-          <p className="form-intro">
-            先填写产品名称或型号即可建档；尺寸、配纸和报价可按实际资料补充。数量单位在订单和库存中单独填写。
-          </p>
-          <fieldset className="form-section">
-            <legend>基本信息</legend>
-            <div className="form-grid">
-              <Field label="产品名称 / 型号 *" wide>
+          <p className="form-intro">只有名称必填，其余可以后补，不影响保存或导入订单。</p>
+          <div className="product-form">
+            <div className="span-4">
+              <Field label="产品名称 / 型号 *">
                 <input
                   required
                   maxLength={100}
@@ -1392,14 +1436,37 @@ function ProductEditor({
                 />
               </Field>
             </div>
-          </fieldset>
-          <fieldset className="form-section">
-            <legend>尺寸与规格（选填）</legend>
-            <div className="form-grid">
-              <Field label="尺寸单位（可后续确认）" wide>
+            <div className="span-2">
+              <Field label="客户料号">
+                <input
+                  maxLength={100}
+                  value={form.customerProductCode || ''}
+                  onChange={(e) => change('customerProductCode', e.target.value)}
+                />
+              </Field>
+            </div>
+            {(['length', 'width', 'height'] as const).map((k, i) => (
+              <div className="span-1" key={k}>
+                <Field label={['长', '宽', '高'][i]}>
+                  <input
+                    type="number"
+                    min={Number.MIN_VALUE}
+                    max={form.dimensionUnit === 'cm' ? 1000 : 10000}
+                    step="any"
+                    value={form[k] || ''}
+                    onChange={(e) =>
+                      change(k, e.target.value === '' ? null : Number(e.target.value))
+                    }
+                  />
+                </Field>
+              </div>
+            ))}
+            <div className="span-3">
+              <Field label="尺寸单位">
                 <DimensionUnitSelect
                   unit={form.dimensionUnit ?? form.dimensionUnitRaw}
-                  hasValues={dimensionKeys.some((k) => form[k] !== null)}
+                  // 只有已保存的旧尺寸才需要确认单位；刚填的数字本来就按所选单位理解。
+                  hasValues={!!value && dimensionKeys.some((k) => value[k] !== null)}
                   onChange={(to) => {
                     const from = normalizeDimensionUnit(form.dimensionUnit);
                     setForm((f) => ({
@@ -1415,45 +1482,18 @@ function ProductEditor({
                   }}
                 />
               </Field>
-              <p className="wide help-text">
-                长、宽、高、配纸和楞型可暂时留空，不影响保存产品或导入订单。
-              </p>
-              <div className="wide dimensions">
-                {(['length', 'width', 'height'] as const).map((k, i) => (
-                  <Field
-                    key={k}
-                    label={
-                      ['长', '宽', '高'][i] +
-                      (form.dimensionUnit ? ' / ' + form.dimensionUnit : '（可后补）')
-                    }
-                  >
-                    <input
-                      type="number"
-                      min={Number.MIN_VALUE}
-                      max={form.dimensionUnit === 'cm' ? 1000 : 10000}
-                      step="any"
-                      value={form[k] || ''}
-                      onChange={(e) =>
-                        change(k, e.target.value === '' ? null : Number(e.target.value))
-                      }
-                    />
-                  </Field>
-                ))}
-              </div>
             </div>
-          </fieldset>
-          <fieldset className="form-section">
-            <legend>材质、加工与报价（选填）</legend>
-            <div className="form-grid">
-              <Field label="材质 / 配纸（可后补）">
+            <div className="span-2">
+              <Field label="材质 / 配纸">
                 <input
                   maxLength={100}
                   value={form.material}
                   onChange={(e) => change('material', e.target.value)}
-                  placeholder="按实际配纸填写"
                 />
               </Field>
-              <Field label="类型 / 楞型（可后补）">
+            </div>
+            <div className="span-2">
+              <Field label="楞型">
                 <input
                   maxLength={50}
                   value={form.flute}
@@ -1466,7 +1506,9 @@ function ProductEditor({
                   ))}
                 </datalist>
               </Field>
-              <Field label="参考单价 / 元（可后补）">
+            </div>
+            <div className="span-2">
+              <Field label="参考单价（元）">
                 <input
                   inputMode="decimal"
                   type="number"
@@ -1477,16 +1519,11 @@ function ProductEditor({
                   onChange={(e) => setPrice(e.target.value)}
                 />
               </Field>
-              <Field label="客户产品编码 / 料号（选填）">
-                <input
-                  maxLength={100}
-                  value={form.customerProductCode || ''}
-                  onChange={(e) => change('customerProductCode', e.target.value)}
-                />
-              </Field>
-              <Field label="加工要求" wide>
+            </div>
+            <div className="span-6">
+              <Field label="加工要求">
                 <textarea
-                  rows={3}
+                  rows={2}
                   maxLength={500}
                   value={form.requirements}
                   onChange={(e) => change('requirements', e.target.value)}
@@ -1494,7 +1531,7 @@ function ProductEditor({
                 />
               </Field>
             </div>
-          </fieldset>
+          </div>
           <p className="product-spec-preview">规格预览：{specification(form)}</p>
         </div>
         <FormFooter error={error} saving={saving} close={close} />
@@ -1525,7 +1562,7 @@ function FormFooter({
         </button>
         <button type="submit" className="primary" disabled={saving}>
           <Save size={16} />
-          {saving ? '正在保存…' : '保存记录'}
+          {saving ? '正在保存…' : '保存'}
         </button>
       </div>
     </>
@@ -1539,14 +1576,28 @@ function OrderEditor({
   close,
   saved,
   loading = false,
+  inboxId,
 }: {
   value?: Order;
   loading?: boolean;
+  inboxId?: number;
   customers: Customer[];
   products: Product[];
   close: () => void;
   saved: () => void;
 }) {
+  // 从收件箱新建时只把原文放在表单上方对照，不解析、不发给模型。
+  const [inboxItem, setInboxItem] = useState<any>(null);
+  useEffect(() => {
+    if (!inboxId) return;
+    let live = true;
+    managementRequest<any>('/inbox/' + inboxId)
+      .then((item) => live && setInboxItem(item))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [inboxId]);
   const [availableCustomers, setAvailableCustomers] = useState(customers),
     [availableProducts, setAvailableProducts] = useState(products),
     [quickCreate, setQuickCreate] = useState<null | {
@@ -1688,6 +1739,13 @@ function OrderEditor({
           : null,
       };
       await api('/orders' + (value ? '/' + value.id : ''), payload, value ? 'PUT' : 'POST');
+      // 订单已保存；收件状态没改成时不影响订单，收件箱里仍可手动标记已处理。
+      if (inboxItem?.status === 'pending')
+        await managementRequest('/inbox/' + inboxItem.id + '/status', {
+          status: 'converted',
+          convertedKind: 'order',
+          expectedVersion: inboxItem.version,
+        }).catch(() => {});
       saved();
     } catch (e) {
       setError((e as Error).message);
@@ -1706,7 +1764,25 @@ function OrderEditor({
           <p className="form-intro">
             选择客户 → 添加产品与本次数量 → 核对交期和金额。标 * 为必填，其余按实际业务选填。
           </p>
-          {!loading && (!availableCustomers.length || !availableProducts.length) && (
+          {inboxItem && (
+            <aside className="order-inbox-source" aria-label="收件箱原文">
+              <header>
+                <strong>收件箱原文</strong>
+                <span>
+                  {[inboxItem.senderName, inboxItem.conversation].filter(Boolean).join(' · ') ||
+                    '手动添加'}
+                </span>
+                {inboxItem.status === 'pending' && <small>保存订单后标记为已转单</small>}
+              </header>
+              {inboxItem.text && <p>{inboxItem.text}</p>}
+              {inboxItem.fileName && (
+                <a href={'/api/inbox/' + inboxItem.id + '/file'} download>
+                  下载 {inboxItem.fileName}
+                </a>
+              )}
+            </aside>
+          )}
+          {!loading &&(!availableCustomers.length || !availableProducts.length) && (
             <div className="inline-warning">
               尚无客户或产品时，可使用下方快捷建档，已填写订单内容会保留。
             </div>

@@ -9,6 +9,8 @@ const domains = (text: string) =>
     ['products', /产品|型号|尺寸单位/],
     ['customers', /客户/],
     ['prompts', /提示词/],
+    ['inbox', /收件箱/],
+    ['marks', /唛头/],
   ]
     .filter(([, re]) => (re as RegExp).test(text))
     .map(([name]) => name as string);

@@ -6,6 +6,7 @@ import { defaultDbPath } from './db.js';
 import { acquireLock } from './lock.js';
 import { AuthManager } from './auth.js';
 import { defaultAiSettingsPath } from './ai/credential-store.js';
+import { defaultWecomBotPath } from './inbox/wecom-bot-settings.js';
 import {
   createFullBackup,
   restoreFullBackup,
@@ -26,7 +27,10 @@ try {
     const result = await createFullBackup({
       dataDir: dirname(defaultDbPath),
       backupRoot: resolve('backups'),
-      extraFiles: { 'ai-settings.sqlite': defaultAiSettingsPath() },
+      extraFiles: {
+        'ai-settings.sqlite': defaultAiSettingsPath(),
+        'wecom-bot.sqlite': defaultWecomBotPath(),
+      },
     });
     console.log(
       '完整备份已生成：' +

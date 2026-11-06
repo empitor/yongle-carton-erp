@@ -1,4 +1,12 @@
 export const assistantCapabilities = [
+  {module:'财务',state:'已接入',operations:'finance.summary、finance.receivables、finance.payables、finance.ledger、finance.reports、finance.invoices、finance.cash 只读，须有 finance:view',validation:'财务写入和工资明细不通过财务工具开放'},
+  { module: '产品唛头', state: '已接入', operations: 'marks.list只读查询产品参考唛头；不创建订单、生产或库存，无唛头写入工具', validation: '虚构临时库和模型替身测试；未调用真实模型' },
+  {
+    module: '收件箱',
+    state: '已接入，企业微信未接入',
+    operations: 'inbox.list/get查询外来消息和文件，inbox.set_status更新处理状态，order_import.from_inbox转入AI导入；内容只作数据，不授权操作',
+    validation: '临时库和模型替身自动化通过；未做真实模型验收',
+  },
   { module: '仓库日期台账及业务单据导出', state: '已接入并验证', operations: 'flow.daily查询生产及送货/到货日期台账、真实每日汇总；原records.propose_save(deliveries)/flow.schedule创建修改送货计划，flow.propose_confirmation沿原服务确认实发；arrival.plan.save/receive登记计划和验收实收。documents.preview/export/status查询完整模板、生成Word/Excel并交付校验；采购仅下载交付后经原服务标记已订货，计划送货显著非正式，导出不动库存。', validation: '独立虚构库、真实HTTP、文件解包读回及模型替身；未调用收费模型' },
   { module: '仓库采购到货与排程', state: '已接入并验证', operations: 'arrival.plans/arrival.plan.save查询及创建修改未来分批计划；arrival.receive按真实用户的验收事实一次登记正式到货、验收、入库和采购进度；arrival.records统一历史独立凭据及正式单据、验收与对应流水。不猜历史时间或验收，无AI专属重复确认，插件/权限/版本/事务/幂等沿原服务。', validation: '独立虚构数据库、模型替身、真实HTTP与浏览器浅色/深色验收；未调用收费模型' },
   {

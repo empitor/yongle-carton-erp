@@ -5,13 +5,19 @@ import { DevelopmentResetService } from './development-reset.js';
 import { developmentResetSchema } from '../../shared/assistant-development-reset.js';
 import { ImportError } from '../import/errors.js';
 import { audit } from './management.js';
+import { z } from 'zod';
 export function executeDevelopmentReset(
   store: Store,
   imports: ImportManager | undefined,
   raw: unknown,
   actor: Actor,
+  includeFinance = true,
 ) {
-  const v = developmentResetSchema.parse(raw),
+  const schema=developmentResetSchema.extend({
+    clearClosedFinance:z.boolean().optional(),
+    financeDigest:z.string().length(64).optional(),
+  });
+  const v = schema.parse(raw),
     clear = imports
       ? () => {
           const r = imports.deleteAllWorkspaces(actor);
@@ -40,5 +46,7 @@ export function executeDevelopmentReset(
       : undefined;
   if ((v.scope === 'all' || v.scope === 'ai-imports') && !clear)
     throw new ImportError('AI导入服务未配置，未执行清理。', 503);
-  return new DevelopmentResetService(store).execute(v.scope, actor, clear);
+  return new DevelopmentResetService(store).execute(v.scope, actor, clear,{
+    includeFinance,clearClosedFinance:v.clearClosedFinance,financeDigest:v.financeDigest,
+  });
 }

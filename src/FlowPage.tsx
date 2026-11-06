@@ -14,8 +14,10 @@ import { quantityString, formatStockSize } from '../shared/operations';
 import { today, dateSchema } from '../shared/domain';
 import { convertDimension, normalizedDimensions } from '../shared/product-details';
 import { managementRequest, useAuthState } from './session';
+import Combobox from './ui/Combobox';
+import ProductMarks from './marks/ProductMarks';
 import ManagementDialog from './ManagementDialog';
-import { PageHeading, ListFilters, FilterField, ListSummary } from './ui/ListLayout';
+import { PageHeading, ListFilters, FilterField, ListSummary, Pagination } from './ui/ListLayout';
 import DateRangeFilter from './DateRangeFilter';
 import { presetRange, type DatePreset } from '../shared/date-ranges';
 import ReceiptRecognition from './ReceiptRecognition';
@@ -75,17 +77,19 @@ function Select({
 }) {
   return (
     <Field label={label}>
-      <select
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-      >
-        <option value="">{empty}</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label || o.name || o.number}
-          </option>
-        ))}
-      </select>
+      <Combobox
+        ariaLabel={label}
+        placeholder={empty}
+        value={value === null || value === undefined ? '' : String(value)}
+        onChange={(v) => onChange(v ? Number(v) : null)}
+        options={[
+          { value: '', label: empty },
+          ...options.map((o) => ({
+            value: String(o.id),
+            label: String(o.label || o.name || o.number),
+          })),
+        ]}
+      />
     </Field>
   );
 }
@@ -324,6 +328,17 @@ export default function FlowPage({
       v.unit = line?.unit || '只';
       // 用户核对待生产数量；不能把订单数量误当作已扣除其他任务的余量。
       v.quantity = '';
+    }
+    if (!value && kind === 'production' && params.get('task')) {
+      const task = data.tasks.find((t: any) => t.id === Number(params.get('task')));
+      if (task) {
+        v.taskId = task.id;
+        v.productId = task.productId;
+        v.finishedStockId =
+          data.items.find(
+            (s: any) => s.kind === 'finished' && s.productId === task.productId && s.unit === task.unit,
+          )?.id || null;
+      }
     }
     if (!value && kind === 'delivery' && params.get('order')) {
       const order = data.orders.find((o: any) => o.id === Number(params.get('order')));
@@ -769,6 +784,35 @@ export default function FlowPage({
           {!embedded && (
             <PageHeading
               title={title(kind)}
+              meta={
+                <>
+          {!showBoard && !archived && !embedded && (
+            <ListSummary
+              items={
+                kind === 'task'
+                  ? [
+                      {
+                        label: '已确认生产任务',
+                        value: filtered.filter((r) => r.status === 'confirmed').length,
+                      },
+                      {
+                        label: '尚未完工任务',
+                        value: filtered.filter((r) => r.status === 'confirmed' && r.progress < 100)
+                          .length,
+                      },
+                    ]
+                  : [
+                      { label: '当前范围单据', value: filtered.length },
+                      {
+                        label: '待核对草稿',
+                        value: filtered.filter((r) => r.status === 'draft').length,
+                      },
+                    ]
+              }
+            />
+          )}
+                </>
+              }
               description={
                 kind === 'arrival'
                   ? '核对供应商送货单，确认实收后入原材料库存。'
@@ -778,12 +822,6 @@ export default function FlowPage({
               }
               actions={
                 <>
-                  <button
-                    className="secondary"
-                    onClick={() => (location.hash = kind === 'arrival' ? 'purchases' : 'warehouse')}
-                  >
-                    查看{kind === 'arrival' ? '采购订货' : '库存'}
-                  </button>
                   {kind === 'arrival' && (
                     <button className="secondary" disabled={!canEdit} onClick={() => setAi(true)}>
                       <FileUp size={16} />
@@ -801,36 +839,20 @@ export default function FlowPage({
                     onClick={() => begin()}
                   >
                     <Plus size={16} />
-                    新建{flowNames[kind]}
+                    新建{kind === 'production' ? '完工记录' : flowNames[kind]}
                   </button>
                 </>
               }
             />
           )}
-          {mode === 'task' && (
-            <div className="record-view-tabs" aria-label="生产管理分类" role="tablist">
-              {(['task', 'production'] as const).map((k) => (
-                <button
-                  key={k}
-                  className={kind === k ? 'selected' : ''}
-                  onClick={() => {
-                    setKind(k);
-                    setStatus('');
-                  }}
-                >
-                  {flowNames[k]}
-                </button>
-              ))}
-              {kind === 'task' && !recycle && (
-                <span className="flow-view-switch">
-                  <button className={showBoard ? 'selected' : ''} onClick={() => setListView(false)}>
-                    排产板
-                  </button>
-                  <button className={showBoard ? '' : 'selected'} onClick={() => setListView(true)}>
-                    列表
-                  </button>
-                </span>
-              )}
+          {mode === 'task' && kind === 'task' && !recycle && (
+            <div className="record-view-tabs" aria-label="生产任务展示方式">
+              <button className={showBoard ? 'selected' : ''} onClick={() => setListView(false)}>
+                排产板
+              </button>
+              <button className={showBoard ? '' : 'selected'} onClick={() => setListView(true)}>
+                列表
+              </button>
             </div>
           )}
           {showBoard && (
@@ -990,31 +1012,6 @@ export default function FlowPage({
               </FilterField>
             )}
           </ListFilters>}
-          {!showBoard && !archived && !embedded && (
-            <ListSummary
-              items={
-                kind === 'task'
-                  ? [
-                      {
-                        label: '已确认生产任务',
-                        value: filtered.filter((r) => r.status === 'confirmed').length,
-                      },
-                      {
-                        label: '尚未完工任务',
-                        value: filtered.filter((r) => r.status === 'confirmed' && r.progress < 100)
-                          .length,
-                      },
-                    ]
-                  : [
-                      { label: '当前范围单据', value: filtered.length },
-                      {
-                        label: '待核对草稿',
-                        value: filtered.filter((r) => r.status === 'draft').length,
-                      },
-                    ]
-              }
-            />
-          )}
           {selected.length > 0 && (
             <div className="flow-bulk">
               <strong>已选 {selected.length} 张</strong>
@@ -1049,11 +1046,16 @@ export default function FlowPage({
           <section className="panel business-records flow-records">
             <div className="section-heading">
               <h3>
-                {flowNames[kind]}（筛选 {filtered.length} / 共 {rows.length} 张）
+                <span className="sr-only">{flowNames[kind]}</span>
+                <span className="record-title-count">
+                  {filtered.length === rows.length
+                    ? '共 ' + rows.length + ' 张'
+                    : '筛选 ' + filtered.length + ' / 共 ' + rows.length + ' 张'}
+                </span>
               </h3>
-              <button className="secondary" onClick={refresh} disabled={busy}>
-                <RefreshCw size={14} />
-                刷新
+              <button onClick={refresh} disabled={busy}>
+                <RefreshCw size={14} aria-hidden="true" />
+                <span className="sr-only">刷新</span>
               </button>
             </div>
             <div className="table-wrap unified-table-region" tabIndex={0}>
@@ -1079,7 +1081,6 @@ export default function FlowPage({
                     {(kind === 'task' || kind === 'delivery') && <th>实际日期</th>}
                     <th>状态</th>
                     <th>登记人</th>
-                    <th aria-label="操作" />
                   </tr>
                 </thead>
                 <tbody>
@@ -1107,7 +1108,11 @@ export default function FlowPage({
                           }
                         />
                       </td>
-                      <td className="record-no">{r.number}</td>
+                      <td className="record-no">
+                        <button className="row-key" aria-label={'查看 ' + r.number} onClick={() => setView(r)}>
+                          {r.number}
+                        </button>
+                      </td>
                       <td className="cell-wrap">{labelRow(r) || '历史档案'}</td>
                       <td>
                         {kind === 'task' ? (
@@ -1139,11 +1144,6 @@ export default function FlowPage({
                         </span>
                       </td>
                       <td>{r.actorName}</td>
-                      <td>
-                        <button className="row-open" onClick={() => setView(r)}>
-                          查看
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1152,25 +1152,12 @@ export default function FlowPage({
             {!sliced.length && (
               <div className="empty-state">{busy ? '正在读取业务数据…' : '当前条件下暂无记录'}</div>
             )}
-            <div className="flow-pagination">
-              <button
-                className="secondary"
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                上一页
-              </button>
-              <span>
-                {page} / {Math.max(1, Math.ceil(filtered.length / FLOW_PAGE_SIZE))}
-              </span>
-              <button
-                className="secondary"
-                disabled={page * FLOW_PAGE_SIZE >= filtered.length}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                下一页
-              </button>
-            </div>
+            <Pagination
+              page={page}
+              total={filtered.length}
+              pageSize={FLOW_PAGE_SIZE}
+              onChange={setPage}
+            />
           </section>
         </>
       )}
@@ -2207,6 +2194,9 @@ function FlowDetails({ doc: d, data }: { doc: any; data: any }) {
       data-agent-record={d.id}
       data-agent-label={d.number}
     >
+      {(d.kind === 'task' || d.kind === 'production') && d.productId && (
+        <ProductMarks productId={d.productId} readOnly />
+      )}
       <dl className="record-detail-grid">
         <div>
           <dt>业务日期 / 状态</dt>

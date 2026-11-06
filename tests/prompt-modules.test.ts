@@ -37,7 +37,7 @@ test('客户订单默认提示词：个/只同义、张单列，缺档默认新�
   const archive = entries.find((e) => e.name === '客户与产品档案');
   assert.ok(archive);
   assert.match(archive!.content, /主体名称完全一致/);
-  assert.match(archive!.content, /宁波巴山/);
+  assert.match(archive!.content, /宁波示例/);
   assert.match(archive!.content, /没有匹配客户档案时，按原件客户名称直接新建/);
 });
 
@@ -83,9 +83,9 @@ test('旧全局助手默认提示词升级到批量导入/一键清空/生产完
 });
 
 test('提示词模块目录：五个模块独立标识，旧存储文件保持兼容', () => {
-  assert.equal(promptModules.length, 5);
-  assert.equal(new Set(promptModules.map((m) => m.id)).size, 5);
-  assert.equal(new Set(promptModules.map((m) => m.apiPath)).size, 5);
+  assert.equal(promptModules.length, 6);
+  assert.equal(new Set(promptModules.map((m) => m.id)).size, 6);
+  assert.equal(new Set(promptModules.map((m) => m.apiPath)).size, 6);
   const storage = Object.fromEntries(promptModules.map((m) => [m.id, m.storageFile]));
   assert.equal(storage['sales-order'], 'presets.sqlite');
   assert.equal(storage['supplier-delivery'], 'receipts.sqlite');
@@ -162,7 +162,7 @@ test('提示词模块接口：目录、模块隔离、旧路径兼容和 CSRF �
     const list = await get('/api/ai/prompt-modules');
     assert.equal(list.status, 200);
     const modules = (await list.json()) as any[];
-    assert.equal(modules.length, 5);
+    assert.equal(modules.length, 6);
     assert.equal(modules.find((m) => m.id === 'purchase-order')!.status, 'generation');
     const purchase = await get('/api/ai/prompt-modules/purchase-order');
     assert.equal(purchase.status, 200);

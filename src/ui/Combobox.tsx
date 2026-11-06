@@ -25,14 +25,14 @@ export default function Combobox({
     [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const selected = options.find((o) => o.value === String(value));
-  const matches = useMemo(() => {
+  const { matches, hidden } = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return options
-      .filter((o) => {
-        const text = (o.label + ' ' + (o.hint || '') + ' ' + (o.keywords || '')).toLowerCase();
-        return terms.every((t) => text.includes(t));
-      })
-      .slice(0, 50);
+    const all = options.filter((o) => {
+      const text = (o.label + ' ' + (o.hint || '') + ' ' + (o.keywords || '')).toLowerCase();
+      return terms.every((t) => text.includes(t));
+    });
+    // 只画前 50 条，选项再多也不卡；其余的靠搜索找到。
+    return { matches: all.slice(0, 50), hidden: Math.max(0, all.length - 50) };
   }, [options, query]);
   const choose = (option?: ComboOption) => {
     if (!option) return;
@@ -101,6 +101,7 @@ export default function Combobox({
             </li>
           ))}
           {!matches.length && <li className="combobox-empty">没有匹配项</li>}
+          {hidden > 0 && <li className="combobox-empty">还有 {hidden} 项，输入关键词缩小范围</li>}
         </ul>
       )}
     </div>

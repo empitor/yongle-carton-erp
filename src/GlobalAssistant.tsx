@@ -1088,6 +1088,8 @@ export default function GlobalAssistant() {
                     }
                   }}
                 />
+                {/* 部署到服务器后录音转写在服务器上跑，不提供 */}
+                {state?.localFeaturesAvailable !== false && (
                 <button
                   type="button"
                   className={'ga-attach-button' + (speech.recording ? ' ga-mic-recording' : '')}
@@ -1115,6 +1117,7 @@ export default function GlobalAssistant() {
                     <Mic size={19} />
                   )}
                 </button>
+                )}
                 {busy ? (
                   <button
                     type="button"

@@ -64,11 +64,10 @@ export class BusinessDocuments {
   }
   private rawForm(kind: 'purchase' | 'delivery', id: number): { form: BusinessForm; record: any } {
     if (kind === 'purchase') {
-      const record = new OperationsService(this.store).repo
-        .purchases(true)
-        .find((p) => p.id === id);
+      const repo = new OperationsService(this.store).repo;
+      const record = repo.purchases(true, id)[0];
       if (!record) throw new ImportError('采购单不存在。', 404);
-      const supplier = this.store.suppliers(true).find((s) => s.id === record.supplierId);
+      const supplier = repo.suppliers(true, record.supplierId)[0];
       return {
         record,
         form: {
@@ -120,8 +119,8 @@ export class BusinessDocuments {
     if (record.kind !== 'delivery') throw new ImportError('请选择送货记录。');
     if (['cancelled', 'reversed'].includes(record.status))
       throw new ImportError('取消或冲销的送货单不能导出为有效送货单。', 409);
-    const customer = this.store.customers(true).find((c) => c.id === record.customerId),
-      orders = this.store.orders(true);
+    const customer = this.store.customer(record.customerId, true),
+      orders = new Map(this.store.ordersByIds(record.lines.map((l: any) => l.orderId), true).map((o) => [o.id, o]));
     return {
       record,
       form: {
@@ -147,7 +146,7 @@ export class BusinessDocuments {
             [
               ...new Set(
                 record.lines.map(
-                  (l: any) => l.orderNumber || orders.find((o) => o.id === l.orderId)?.number,
+                  (l: any) => l.orderNumber || orders.get(l.orderId)?.number,
                 ),
               ),
             ].join(' / '),
@@ -166,7 +165,7 @@ export class BusinessDocuments {
                   .map(
                     (l: any) =>
                       l.externalPurchaseOrder ??
-                      orders.find((o) => o.id === l.orderId)?.externalPurchaseOrder,
+                      orders.get(l.orderId)?.externalPurchaseOrder,
                   )
                   .filter(Boolean),
               ),
@@ -177,7 +176,7 @@ export class BusinessDocuments {
         columnKeys: ['index', 'name', 'specification', 'unit', 'quantity', 'notes'],
         rows: record.lines.map((l: any, i: number) => {
           const ol = orders
-            .find((o) => o.id === l.orderId)
+            .get(l.orderId)
             ?.lines.find((x) => x.id === l.orderLineId);
           return [
             String(i + 1),
@@ -192,7 +191,7 @@ export class BusinessDocuments {
           ];
         }),
         lineData: record.lines.map((l: any) => {
-          const o = orders.find((o) => o.id === l.orderId),
+          const o = orders.get(l.orderId),
             ol = o?.lines.find((x) => x.id === l.orderLineId);
           return {
             orderNumber: l.orderNumber || o?.number || '',

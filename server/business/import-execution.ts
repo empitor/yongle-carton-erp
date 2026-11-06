@@ -68,7 +68,7 @@ function refFromRow(store: Store, row: any): NonNullable<ImportWorkspaceView['im
     sourceId: String(row.source_id),
   };
   if (row.order_id === null) return { ...base, archived: true, permanentlyDeleted: true };
-  const order = store.orders(true).find((o) => o.id === Number(row.order_id));
+  const order = store.order(Number(row.order_id), true);
   return order
     ? {
         ...base,
@@ -119,7 +119,9 @@ export class ImportExecutionService {
     return a;
   }
   private plan(w: ImportWorkspaceView): Plan {
-    if (w.mode === 'arrival')
+    if (w.mode === 'mark')
+      throw new ImportError('唛头只存入产品档案，不能导入为客户订单。', 409);
+    if (w.mode && w.mode !== 'order')
       throw new ImportError('到货单只能通过收货确认进入原材料库存，不能导入为客户订单。', 409);
     if (findOwnImport(this.store, w.id))
       throw new ImportError(
@@ -439,7 +441,7 @@ export class ImportExecutionService {
           .some(
             (row: any) =>
               row.order_id !== null &&
-              this.store.orders(true).some((o) => o.id === Number(row.order_id)),
+              this.store.order(Number(row.order_id), true) !== undefined,
           );
         if (
           liveFingerprint ||
@@ -535,7 +537,7 @@ export class ImportExecutionService {
     if (row.order_id === null)
       throw new ImportError('正式订单已被超级管理员永久删除，不能撤回或恢复。', 409);
     const record = JSON.parse(String(row.document)),
-      order = this.store.orders(true).find((o) => o.id === Number(row.order_id));
+      order = this.store.order(Number(row.order_id), true);
     if (!order || order.version !== record.orderVersion)
       throw new ImportError('正式订单已被后续修改，不能直接撤回，请在订单管理中核对处理。', 409);
     // 仅保留旧“撤回导入”协议的兼容状态；正常页面已移除此入口，delete走物理删除服务。

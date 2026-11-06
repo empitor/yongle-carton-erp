@@ -7,13 +7,15 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { cp, mkdir, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { Store } from './db.js';
 import { ImportError } from './import/errors.js';
 
@@ -102,7 +104,32 @@ export function validateBusinessDatabase(path: string, versions: number[]) {
     db.close();
   }
 }
-export const supportedDatabaseVersions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+export const supportedDatabaseVersions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+
+/** 启动锁内调用，在 Store 执行任何迁移前保存包含 WAL 内容的一致副本。 */
+export function snapshotBeforeUpgrade(path: string) {
+  if (path === ':memory:' || !existsSync(path)) return null;
+  let db: DatabaseSync | undefined;
+  let staged: string | undefined;
+  try {
+    db = new DatabaseSync(path, { readOnly: true });
+    const hasHistory = db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='schema_migrations'").get();
+    const versions = new Set(hasHistory ? db.prepare('SELECT version FROM schema_migrations').all().map((r) => r.version) : []);
+    if (supportedDatabaseVersions.every((version) => versions.has(version))) return null;
+    const dir = join(dirname(path), SNAPSHOT_DIR);
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, 'upgrade-' + stamp() + '.sqlite');
+    staged = file + '.partial';
+    db.prepare('VACUUM INTO ?').run(staged);
+    renameSync(staged, file);
+    return file;
+  } catch (error) {
+    if (staged) try { rmSync(staged, { force: true }); } catch { /* 保留原始错误 */ }
+    throw new Error('升级前业务库快照失败，未启动数据库迁移：' + (error as Error).message);
+  } finally {
+    db?.close();
+  }
+}
 
 /** 完整备份：业务库、账号、AI工作区与原件、正式归档、提示词和工具设置，可选附带本机AI配置。 */
 export async function createFullBackup(options: {
@@ -119,7 +146,17 @@ export async function createFullBackup(options: {
     const add = async (from: string, name: string) => {
       const to = join(staged, name);
       mkdirSync(dirname(to), { recursive: true });
-      if (/\.sqlite$/.test(from)) await copySqlite(from, to);
+      if (/\.sqlite$/.test(from)) {
+        await copySqlite(from, to);
+        if (name.split(sep).join('/') === 'security/users.sqlite') {
+          // 备份恢复应重新登录，已撤销的历史会话不会因恢复而重新生效。
+          const auth = new DatabaseSync(to);
+          try {
+            if (auth.prepare("SELECT 1 FROM sqlite_schema WHERE name='auth_sessions' AND type='table'").get())
+              auth.exec('PRAGMA secure_delete=ON; DELETE FROM auth_sessions;');
+          } finally { auth.close(); }
+        }
+      }
       else copyFileSync(from, to);
       files.push({ path: name.split(sep).join('/'), sha256: sha256(to), bytes: statSync(to).size });
     };
@@ -143,10 +180,25 @@ export async function createFullBackup(options: {
 /** 校验清单后恢复整个data目录；原目录改名保留，不覆盖。调用方须已确认服务停止。 */
 export function restoreFullBackup(source: string, dataDir: string) {
   const manifest = JSON.parse(readFileSync(join(source, 'manifest.json'), 'utf8'));
-  if (manifest.kind !== 'erp-full-backup') throw new Error('不是完整备份目录。');
-  for (const file of manifest.files)
-    if (sha256(join(source, file.path)) !== file.sha256)
+  if (manifest?.kind !== 'erp-full-backup' || !Array.isArray(manifest.files))
+    throw new Error('不是完整备份目录。');
+  const root = realpathSync(source);
+  const paths = new Set<string>();
+  for (const file of manifest.files) {
+    if (typeof file?.path !== 'string' || typeof file.sha256 !== 'string' ||
+        file.path.split('/').some((part: string) => !part || /[\\:\x00-\x1f]/.test(part) || /[. ]$/.test(part)))
+      throw new Error('备份清单包含无效路径。');
+    const key = process.platform === 'win32' ? file.path.toLowerCase() : file.path;
+    if (paths.has(key)) throw new Error('备份清单包含重复路径。');
+    paths.add(key);
+    const resolved = realpathSync(join(root, file.path));
+    const child = relative(root, resolved);
+    if (!child || isAbsolute(child) || child === '..' || child.startsWith('..' + sep))
+      throw new Error('备份清单文件指向备份目录之外。');
+    if (sha256(resolved) !== file.sha256)
       throw new Error('备份文件校验失败：' + file.path);
+  }
+  if (!paths.has('erp.sqlite')) throw new Error('备份清单缺少业务库。');
   validateBusinessDatabase(join(source, 'erp.sqlite'), supportedDatabaseVersions);
   const staged = dataDir + '.restore-' + stamp();
   mkdirSync(staged, { recursive: true });
@@ -158,6 +210,7 @@ export function restoreFullBackup(source: string, dataDir: string) {
     }
   const previous = dataDir + '.before-restore-' + stamp();
   if (existsSync(dataDir)) cpSync(dataDir, previous, { recursive: true });
+  else mkdirSync(dataDir, { recursive: true });
   for (const name of readdirSync(dataDir)) {
     if (name.endsWith('.running')) continue;
     rmSync(join(dataDir, name), { recursive: true, force: true });
@@ -172,25 +225,63 @@ let lastAutoBackupFailure: { at: string; message: string } | null = null;
 /** 最近一次自动备份失败的记录，下一次成功后清除。今日页据此提示。 */
 export const autoBackupFailure = () => lastAutoBackupFailure;
 
+export async function copyAutomaticBackup(source: string, targetRoot: string, keep?: number) {
+  if (resolve(dirname(source)).toLowerCase() === resolve(targetRoot).toLowerCase())
+    throw new Error('备份复制目录须与本地备份目录不同。');
+  await mkdir(targetRoot, { recursive: true });
+  if ((await realpath(dirname(source))).toLowerCase() === (await realpath(targetRoot)).toLowerCase())
+    throw new Error('备份复制目录须与本地备份目录不同。');
+  const target = join(targetRoot, basename(source));
+  const existing = await stat(target).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error;
+  });
+  if (existing && !existing.isDirectory()) throw new Error('备份目标存在同名文件。');
+  if (!existing) {
+    const staged = target + '.' + randomUUID() + '.partial';
+    try {
+      await cp(source, staged, { recursive: true, errorOnExist: true, force: false });
+      await rename(staged, target);
+    } finally {
+      await rm(staged, { recursive: true, force: true });
+    }
+  }
+  if (keep !== undefined)
+    for (const old of (await readdir(targetRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory() && /^auto-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}Z-[\da-f]{6}$/.test(entry.name))
+      .map((entry) => entry.name).sort().reverse()
+      .slice(keep))
+      await rm(join(targetRoot, old), { recursive: true, force: true });
+}
+
 export function scheduleDailyBackup(options: {
   dataDir: string;
   backupRoot: string;
   extraFiles?: Record<string, string>;
+  copyDir?: string;
+  copyKeep?: number;
   onError?: (error: Error) => void;
 }) {
+  let running = false;
   const run = async () => {
+    if (running) return;
+    running = true;
     try {
       const latest = newest(options.backupRoot, 'auto-').filter((n) => !n.endsWith('.partial'))[0];
-      if (latest && Date.now() - statSync(join(options.backupRoot, latest)).mtimeMs < DAY_MS) return;
-      await createFullBackup({ ...options, prefix: 'auto' });
-      lastAutoBackupFailure = null;
+      const latestPath = latest && join(options.backupRoot, latest);
+      const fresh = latestPath && Date.now() - statSync(latestPath).mtimeMs < DAY_MS;
+      if (fresh && !options.copyDir) return;
+      const local = fresh ? latestPath : (await createFullBackup({ ...options, prefix: 'auto' })).dir;
       for (const old of newest(options.backupRoot, 'auto-')
         .filter((n) => !n.endsWith('.partial'))
         .slice(AUTO_BACKUP_KEEP))
         rmSync(join(options.backupRoot, old), { recursive: true, force: true });
+      if (options.copyDir) await copyAutomaticBackup(local, options.copyDir, options.copyKeep);
+      lastAutoBackupFailure = null;
     } catch (error) {
       lastAutoBackupFailure = { at: new Date().toISOString(), message: (error as Error).message };
       (options.onError || ((e) => console.error('自动备份失败：', e.message)))(error as Error);
+    } finally {
+      running = false;
     }
   };
   const first = setTimeout(run, 60_000),

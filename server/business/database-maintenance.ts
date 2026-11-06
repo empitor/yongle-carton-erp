@@ -13,6 +13,7 @@ import { sheetArea, purchaseLineAmount } from '../../shared/physical-flow.js';
 import { syncReceivedUnits } from '../operations/fulfillment.js';
 import { recordMovementRevision } from '../operations/repository.js';
 import { snapshotBeforeDestructive } from '../backup.js';
+import { deletedFinanceSource,retainedFinanceReferences } from '../finance/source-deletion.js';
 
 const quote = (s: string) => '"' + s.replaceAll('"', '""') + '"';
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -349,8 +350,9 @@ export class DatabaseMaintenanceService {
     const changed = (t: string, row: Row) => ({ ...row, ...patches.get(t)?.get(row.__rowid) });
     if (new Set(selection.items.map((r) => r.id)).size !== selection.items.length)
       throw new ImportError('重复选择记录。');
+    const selected = db.prepare('SELECT rowid AS __rowid,* FROM ' + quote(table) + ' WHERE id=?');
     for (const item of selection.items) {
-      const r = rows(table).find((r) => r.id === item.id);
+      const r = selected.get(item.id) as Row | undefined;
       if (
         !r ||
         r.version !== item.version ||
@@ -492,6 +494,9 @@ export class DatabaseMaintenanceService {
           patch(t, row, { document: JSON.stringify(doc) });
         }
       }
+    for (const file of rows('mark_files'))
+      if (!rows('product_marks').some((m) => !gone('product_marks', m) && m.file_sha256 === file.sha256))
+        remove('mark_files', file);
     const deletions = [...removed].flatMap(([t, set]) =>
       rows(t)
         .filter((r) => set.has(r.__rowid))
@@ -558,6 +563,7 @@ export class DatabaseMaintenanceService {
       digest: p.digest,
       impact: p.impact,
       hasIndependentImpact: p.hasIndependentImpact,
+      financeReferencesRetained:retainedFinanceReferences(this.store,p.table,p.selection.items.map(i=>i.id)),
       inventoryEffect:
         p.selection.inventoryPolicy === 'preserve'
           ? '删除目标及必需子记录；解除可空引用。保留其他库存品已有流水数量，被删来源改为独立数据库维护流水。删除库存档案本身会一并删除它的全部流水。'
@@ -612,6 +618,9 @@ export class DatabaseMaintenanceService {
           .run(...fields.map((k) => value[k]), row.__rowid);
       }
       for (const { table, row } of p.deletions) {
+        if (table==='flow_documents') deletedFinanceSource(this.store,actor,String(row.kind),String(row.id));
+        if (table==='purchase_receipts') deletedFinanceSource(this.store,actor,'legacy_arrival',String(row.id));
+        if (table==='stock_movements') deletedFinanceSource(this.store,actor,'stock',String(row.id));
         if (businessTables.has(table)) {
           const entity = table === 'flow_documents' ? 'flow_' + row.kind : table;
           audit(this.store, actor, 'database-maintenance', 'delete', entity, Number(row.id), {
