@@ -8,6 +8,8 @@ import { recordEntities } from '../../shared/operations.js';
 import { flowReference } from '../flow/service.js';
 import { isLocalAdministrator } from '../developer-capability.js';
 import { DatabaseMaintenanceService } from './database-maintenance.js';
+import { retainedFinanceReferences } from '../finance/source-deletion.js';
+import { snapshotBeforeDestructive } from '../backup.js';
 const selectionSchema = z.strictObject({
   entity: z.enum(recordEntities),
   items: z
@@ -30,25 +32,23 @@ export class PermanentDeletionService {
   private plan(selection: Selection) {
     if (new Set(selection.items.map((i) => i.id)).size !== selection.items.length)
       throw new ImportError('重复选择了同一记录。');
-    const all = this.store[selection.entity](true);
+    const selected = new Map(this.store.recordsByIds(selection.entity, selection.items.map((i) => i.id), true).map((r) => [r.id, r]));
     const records = selection.items
       .map((i) => {
-        const row = all.find((r) => r.id === i.id);
+        const row = selected.get(i.id);
         if (!row || row.version !== i.version)
           throw new ImportError('选中记录不存在或已修改，请刷新后重新预览。', 409);
         return { ...row, archived: this.store.archived(selection.entity, row.id) };
       })
       .sort((a, b) => a.id - b.id);
-    const ids = new Set(records.map((r) => r.id));
+    const ids = JSON.stringify(records.map((r) => r.id));
+    const relatedQuery = selection.entity === 'customers'
+      ? 'SELECT id FROM orders WHERE customer_id IN (SELECT value FROM json_each(?))'
+      : selection.entity === 'products'
+        ? 'SELECT DISTINCT order_id AS id FROM order_lines WHERE product_id IN (SELECT value FROM json_each(?))'
+        : null;
     const related = this.store
-      .orders(true)
-      .filter((o) =>
-        selection.entity === 'customers'
-          ? ids.has(o.customerId)
-          : selection.entity === 'products'
-            ? o.lines.some((l) => ids.has(l.productId))
-            : false,
-      )
+      .ordersByIds(relatedQuery ? this.store.db.prepare(relatedQuery).all(ids).map((r) => Number(r.id)) : [], true)
       .map((o) => ({ ...o, archived: this.store.archived('orders', o.id) }))
       .sort((a, b) => a.id - b.id);
     const orders =
@@ -136,6 +136,7 @@ export class PermanentDeletionService {
       },
       warning:
         '永久删除不可在回收站恢复。未选中的其他客户和产品不会删除；订单原件、幂等来源凭据与审计保留。',
+      financeReferencesRetained:retainedFinanceReferences(this.store,selection.entity,records.map(r=>r.id)),
     };
   }
   preview(raw: unknown, who: Actor | null | undefined, binding: string) {
@@ -155,16 +156,10 @@ export class PermanentDeletionService {
         maintenance: true,
         counts,
         blockers: [],
-        records: this.store[selection.entity](true).filter((r) =>
-          selection.items.some((i) => i.id === r.id),
-        ),
-        orders: this.store
-          .orders(true)
-          .filter((o) =>
-            maintenance.impact.some(
-              (r) => r.table === 'orders' && r.action === 'delete' && r.id === o.id,
-            ),
-          ),
+        records: this.store.recordsByIds(selection.entity, selection.items.map((i) => i.id), true),
+        orders: this.store.ordersByIds(maintenance.impact.flatMap((r) =>
+          r.table === 'orders' && r.action === 'delete' ? [r.id] : [],
+        ), true),
         relatedOrders: [],
       };
       const preview = { id: randomUUID(), expiresAt: Date.now() + 10 * 60000, plan };
@@ -217,6 +212,7 @@ export class PermanentDeletionService {
         .run(JSON.stringify(response), input.previewId);
       return response;
     }
+    snapshotBeforeDestructive(this.store,'permanent-delete');
     this.store.db.exec('SAVEPOINT permanent_delete_execute');
     try {
       if (digest(original) !== preview.digest)
@@ -256,8 +252,11 @@ export class PermanentDeletionService {
           this.store.db.prepare('DELETE FROM order_extensions WHERE order_id=?').run(row.id);
         } else if (entity === 'purchases')
           this.store.db.prepare('DELETE FROM purchase_lines WHERE purchase_id=?').run(row.id);
-        else if (entity === 'products')
+        else if (entity === 'products') {
+          this.store.db.prepare('DELETE FROM product_marks WHERE product_id=?').run(row.id);
+          this.store.db.prepare('DELETE FROM mark_files WHERE NOT EXISTS(SELECT 1 FROM product_marks WHERE file_sha256=mark_files.sha256)').run();
           this.store.db.prepare('DELETE FROM product_extensions WHERE product_id=?').run(row.id);
+        }
         this.store.db
           .prepare('DELETE FROM record_lifecycle WHERE entity=? AND record_id=?')
           .run(entity, row.id);

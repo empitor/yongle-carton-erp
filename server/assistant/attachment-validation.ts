@@ -32,7 +32,7 @@ export function attachmentText(bytes: Buffer) {
     return fail('TXT/CSV目前仅支持UTF-8，请另存为UTF-8后上传。');
   }
 }
-async function validateOffice(bytes: Buffer, ext: string) {
+export async function validateOffice(bytes: Buffer, ext: string) {
   return new Promise<void>((resolve, reject) => {
     yauzl.fromBuffer(bytes, { lazyEntries: true, validateEntrySizes: true }, (error, zip) => {
       if (error || !zip) return reject(new ImportError('Office不是有效ZIP文档。', 415));

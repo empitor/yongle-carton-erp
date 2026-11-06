@@ -445,7 +445,9 @@ test('产品名称/规格型号/备注独立编辑投影与正式订单持久化
         onMapping: async () => null,
       }),
     );
-    assert.match(html, /<th>产品名称<\/th><th>规格型号<\/th><th>备注<\/th>/);
+    // 备注收进明细的折叠区，仍可独立编辑。
+    assert.match(html, /<th>产品名称<\/th><th>规格型号<\/th>/);
+    assert.match(html, /aria-label="明细1 备注"/);
     assert.match(html, /textarea[^>]+aria-label="明细1 产品名称"/);
     assert.match(html, /textarea[^>]+aria-label="明细1 规格型号"/);
     assert.match(html, /textarea[^>]+aria-label="明细1 备注"/);

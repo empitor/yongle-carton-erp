@@ -93,6 +93,8 @@ export async function waitForReady({ check, done, timeoutMs = 30000, pollMs = 50
 }
 
 async function openBrowser(url) {
+  // 服务器或自动化检查时不弹浏览器。
+  if (process.env.ERP_NO_BROWSER === '1') return;
   const result = await startProcess(shell, ['/d', '/s', '/c', `start "" "${url}"`], root).done;
   if (result.failed) console.error('ERP 已就绪，但无法自动打开浏览器。请手动访问：' + url);
 }
@@ -140,8 +142,11 @@ export async function runLauncher({
     const result = await start(shell, ['/d', '/s', '/c', 'call npm.cmd ' + args], directory).done;
     if (result.failed) throw new Error(`npm ${args} 执行失败。请检查上方错误；尚未打开浏览器。`);
   };
-  if (!existsSync(resolve(directory, 'node_modules'))) await npm('ci');
-  await npm('run build');
+  // 发布包里页面已构建好，也没有开发依赖；源码目录才需要安装和构建。
+  if (!existsSync(resolve(directory, '.release-package'))) {
+    if (!existsSync(resolve(directory, 'node_modules'))) await npm('ci');
+    await npm('run build');
+  }
   log('正在启动宁波甬勒包装制品有限公司 · 管理系统，等待 /api/health 确认就绪（最多 30 秒）…');
   // spawn 非阻塞启动 npm；不能在 CMD 中直接 call npm start 后再轮询。
   const backend = start(shell, ['/d', '/s', '/c', 'call npm.cmd start'], directory);

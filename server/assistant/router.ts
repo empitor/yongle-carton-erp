@@ -17,6 +17,11 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
     next();
   });
   router.get('/', (req, res) => res.json(manager.state(auth.actor(req))));
+  router.use(['/browser', '/transcribe'], (_req, _res, next) => {
+    if (!manager.localFeaturesAvailable)
+      throw new ImportError('部署模式已关闭服务器浏览器和本机语音识别；当前网页的页面控制可用。', 403);
+    next();
+  });
   router.get('/browser', (req, res) =>
     res.json(manager.localBrowser.status(auth.actor(req)!, auth.sessionBinding(req))),
   );

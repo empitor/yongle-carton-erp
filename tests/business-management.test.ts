@@ -527,7 +527,7 @@ test('旧版数据兼容迁移保留原始业务行，已归档记录仍可审�
     assert.equal(snapshot(), before);
     assert.equal(
       Number(store.db.prepare('SELECT MAX(version) v FROM schema_migrations').get()!.v),
-      13,
+      17,
     );
     assert.equal(store.orders()[0].lines[0].specification, '旧规格保留');
   } finally {

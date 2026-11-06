@@ -181,7 +181,7 @@ test('层级界面展示注册工具、参数/权限/状态/日志和独立开�
     );
     for (const p of state.plugins) {
       assert(html.includes(p.name));
-      assert(html.includes('共 ' + p.tools.length + ' 个工具'));
+      assert(html.includes('工具（' + p.tools.length + '）'));
       for (const t of p.tools) {
         assert(html.includes('工具 ' + t.name));
         assert(html.includes('单独启用工具 ' + t.name));

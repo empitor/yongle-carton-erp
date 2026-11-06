@@ -70,9 +70,7 @@ export default function DateSchedule({
               >
                 <strong>{relative(date)}</strong>
                 <span>{date.slice(5).replace('-', '/')}</span>
-                <small>
-                  {counts[date]?.total || 0} 项 · 已完成 {counts[date]?.completed || 0}
-                </small>
+                <small>{counts[date]?.total || 0} 项</small>
               </button>
             ),
           )}

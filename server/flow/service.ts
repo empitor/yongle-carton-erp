@@ -130,12 +130,20 @@ export class FlowService {
     }
     return groups;
   }
-  list(kind?: FlowKind, includeArchived = false): any[] {
+  list(kind?: FlowKind, includeArchived = false, workbenchDate?: string): any[] {
+    const conditions = kind === 'delivery' && workbenchDate
+      ? " AND (status='draft' OR (status='confirmed' AND date>=?) OR json_extract(document,'$.plannedDate')=?)"
+      : kind === 'arrival' && workbenchDate
+        ? " AND status='draft' AND coalesce(nullif(json_extract(document,'$.planSnapshot.plannedDate'),''),json_extract(document,'$.plannedDate'))=?"
+        : '';
+    const params = kind ? [kind as string] : [];
+    if (workbenchDate && kind === 'delivery') params.push(workbenchDate.slice(0, 7) + '-01', workbenchDate);
+    if (workbenchDate && kind === 'arrival') params.push(workbenchDate);
     const rows = this.store.db
       .prepare(
-        'SELECT * FROM flow_documents' + (kind ? ' WHERE kind=?' : '') + ' ORDER BY date DESC,id DESC',
+        'SELECT * FROM flow_documents' + (kind ? ' WHERE kind=?' + conditions : '') + ' ORDER BY date DESC,id DESC',
       )
-      .all(...(kind ? [kind] : []));
+      .all(...params);
     const archived = new Set(
       this.store.db
         .prepare("SELECT entity,record_id FROM record_lifecycle WHERE entity LIKE 'flow\\_%' ESCAPE '\\'")
@@ -302,7 +310,7 @@ export class FlowService {
     });
   }
   private purchaseArrival(purchaseId: number, expectedVersion: number, items: any[]) {
-    const purchase = this.ops.repo.purchases().find((p) => p.id === purchaseId);
+    const purchase = this.ops.repo.purchases(false, purchaseId)[0];
     if (!purchase) fail('采购单不存在或已归档。', 404);
     if (purchase.version !== expectedVersion) fail('采购单已更新，请重新核对到货数量。', 409);
     if (purchase.businessStatus !== '已订货') fail('只有已订货且未取消的采购单可安排或登记到货。');
@@ -341,15 +349,15 @@ export class FlowService {
       const draft = this.save('arrival', { isPlan: false, date: v.date, actualTime: v.actualTime ?? null, supplierId: purchase.supplierId, reference: v.reference || '内部批次-' + v.requestId, notes: v.notes, lines, requestId: v.requestId, version: v.expectedPlanVersion }, actor, v.planId);
       const preview = this.preview(draft.id, actor, binding);
       const arrival = this.confirm(draft.id, { previewId: preview.previewId, requestId: v.requestId, acknowledged: true }, actor, binding);
-      const result = { receiptId: 'flow-' + arrival.id + '-' + purchase.id, arrivalRecordId: 'flow-' + arrival.id, arrival, purchase: this.ops.repo.purchases(true).find((p) => p.id === purchase.id), movements: arrival.movements, verified: true,
+      const result = { receiptId: 'flow-' + arrival.id + '-' + purchase.id, arrivalRecordId: 'flow-' + arrival.id, arrival, purchase: this.ops.repo.purchases(true, purchase.id)[0], movements: arrival.movements, verified: true,
         summary: '已创建正式到货单' + arrival.number + '，验收、实际入库及采购进度已同步核验。' };
       this.store.db.prepare('INSERT INTO operation_requests VALUES(?,?,?,?)').run('actual-arrival', v.requestId, requestDigest, JSON.stringify(result));
       return result;
     });
   }
-  arrivalPlans(raw: unknown = {}) {
+  arrivalPlans(raw: unknown = {}, workbench = false) {
     const v = arrivalQuerySchema.parse(raw), purchases = this.ops.repo.purchases(true), suppliers = this.ops.repo.suppliers(true);
-    return this.list('arrival').filter((d) => (d.isPlan || d.planSnapshot) && !d.replacedBy &&
+    return this.list('arrival', false, workbench ? v.date : undefined).filter((d) => (d.isPlan || d.planSnapshot) && !d.replacedBy &&
       (!v.date || (d.planSnapshot?.plannedDate || d.plannedDate) === v.date) && (!v.supplierId || d.supplierId === v.supplierId) &&
       (!v.purchaseId || d.lines.some((l: any) => this.store.db.prepare('SELECT 1 FROM purchase_lines WHERE id=? AND purchase_id=?').get(l.purchaseLineId, v.purchaseId!)))
     ).filter((d) => v.includeInactive || !['cancelled', 'reversed'].includes(d.status)).map((d) => ({ ...d, supplierName: d.supplierName || suppliers.find((s) => s.id === d.supplierId)?.name || '历史供应商', plannedDate: d.planSnapshot?.plannedDate || d.plannedDate, plannedTime: d.planSnapshot?.plannedTime ?? d.plannedTime, plannedLines: (d.planSnapshot?.lines || d.lines).map((l: any) => { const p = purchases.find((p) => p.lines.some((x: any) => x.id === l.purchaseLineId)); return { ...l, purchaseId: p?.id ?? null, purchaseNumber: p?.number || '' }; }), receiptId: d.status === 'confirmed' ? 'flow-' + d.id : null }));
@@ -417,13 +425,15 @@ export class FlowService {
       )
         fail('更正须由已验证超级管理员操作，且原单必须已冲销。', 403);
     }
-    const items = kind === 'task' ? [] : this.ops.repo.items(true),
-      purchases = kind === 'arrival' ? this.ops.repo.purchases(true) : [],
+    const stockIds = kind === 'production'
+      ? [v.finishedStockId, ...v.materials.map((m: any) => m.stockId)]
+      : kind === 'task' ? [] : v.lines.flatMap((l: any) => l.stockId ? [l.stockId] : []);
+    const items = new Map(this.ops.repo.items(true, stockIds).map((i) => [i.id, i])),
       changes: any[] = [],
       warnings: string[] = [],
       lines: any[] = [];
     const item = (id: number, k: string) => {
-      const it = items.find((i) => i.id === id);
+      const it = items.get(id);
       if (!it || it.kind !== k || (it.archived && !maintenance))
         fail('请选择正常的' + (k === 'raw' ? '原材料' : '成品') + '库存品。');
       return it;
@@ -460,6 +470,11 @@ export class FlowService {
           .size !== v.lines.filter((l: any) => l.purchaseLineId).length
       )
         fail('同一采购明细不能重复出现，请合并本次到货数量。');
+      const lineIds = v.lines.flatMap((l: any) => l.purchaseLineId ? [l.purchaseLineId] : []);
+      const purchaseIds = lineIds.length ? this.store.db.prepare(
+        'SELECT DISTINCT purchase_id FROM purchase_lines WHERE id IN (SELECT value FROM json_each(?))',
+      ).all(JSON.stringify(lineIds)).map((row) => Number(row.purchase_id)) : [];
+      const purchases = this.ops.repo.purchases(true, purchaseIds);
       for (const l of v.lines) {
         if (v.isPlan && !l.purchaseLineId) fail('到货计划必须关联真实采购明细，请先选择采购单。');
         if (v.isPlan && ['acceptedQuantity', 'rejectedQuantity', 'stockedQuantity'].some((k) => l[k] != null)) fail('到货计划不能预填实际验收或入库结果，请在实际收货时登记。');
@@ -652,7 +667,7 @@ export class FlowService {
       if (c.stockId) grouped.set(c.stockId, (grouped.get(c.stockId) || 0) + c.deltaUnits);
     if (confirm)
       for (const [id, delta] of grouped) {
-        const it = items.find((i) => i.id === id)!;
+        const it = items.get(id)!;
         if (it.balanceUnits + delta < 0) fail(it.name + '库存不足，不能确认。', 409);
         if (
           !Number.isSafeInteger(it.balanceUnits + delta) ||
@@ -910,7 +925,7 @@ export class FlowService {
         lines: plan.lines.length ? plan.lines : v.lines,
         movements,
         supplierName: v.supplierId
-          ? this.ops.repo.suppliers(true).find((s) => s.id === v.supplierId)?.name
+          ? this.ops.repo.supplierName(v.supplierId, true)
           : undefined,
         customerName: v.customerId ? this.store.customer(v.customerId, true)?.name : undefined,
         productName: v.productId ? this.store.product(v.productId, true)?.name : undefined,
@@ -1102,7 +1117,7 @@ export class FlowService {
       const after = {
         ...doc,
         supplierName: doc.supplierId
-          ? this.ops.repo.suppliers(true).find((s) => s.id === doc.supplierId)?.name
+          ? this.ops.repo.supplierName(doc.supplierId, true)
           : undefined,
         customerName: doc.customerId ? this.store.customer(doc.customerId, true)?.name : undefined,
         productName: doc.productId ? this.store.product(doc.productId, true)?.name : undefined,
@@ -1204,7 +1219,7 @@ export class FlowService {
         totals.set(Number(r.item_id), (totals.get(Number(r.item_id)) || 0) - Number(r.delta_units));
       for (const [stockId, delta] of totals)
         if (this.ops.repo.balance(stockId) + delta < 0) {
-          const stock = this.ops.repo.items(true).find((s) => s.id === stockId)!;
+          const stock = this.ops.repo.items(true, stockId)[0]!;
           const recent = this.store.db
             .prepare(
               'SELECT source_kind,source_id,notes FROM stock_movements WHERE item_id=? AND delta_units<0 ORDER BY created_at DESC,id DESC LIMIT 5',

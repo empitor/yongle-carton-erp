@@ -5,6 +5,8 @@ const levelNames: Record<string, string> = {
   admin: '管理员',
   staff: '业务人员',
   viewer: '只读',
+  finance: '财务',
+  cashier: '出纳',
 };
 type Account = { id: string; name: string; level: string; disabled: boolean };
 

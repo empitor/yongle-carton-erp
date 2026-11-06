@@ -4,6 +4,8 @@ import { z, ZodError } from 'zod';
 import { ImportManager } from './manager.js';
 import { FlowService } from '../flow/service.js';
 import { requirePermission } from '../business/management.js';
+import { markImportRouter } from '../marks/import-router.js';
+import type { MarkAi } from '../marks/mark-ai.js';
 import type { ReceiptAi } from '../flow/receipt-ai.js';
 import { ImportError } from './errors.js';
 import { AiConnectionError } from '../ai/connection-error.js';
@@ -14,6 +16,7 @@ export function importRouter(
   manager: ImportManager,
   operator?: (req: express.Request) => { id: string; name: string; permissions?: string[] } | null,
   receiptAi?: ReceiptAi,
+  markAi?: MarkAi,
 ) {
   if (receiptAi) manager.abortArrival = (id) => receiptAi.abort(id);
   const router = Router();
@@ -32,6 +35,7 @@ export function importRouter(
     }
     next();
   });
+  if (markAi) router.use(markImportRouter(manager, markAi, operator));
   const safe =
     (job: (req: express.Request, res: Response) => Promise<unknown> | unknown) =>
     (req: express.Request, res: Response, next: express.NextFunction) => {

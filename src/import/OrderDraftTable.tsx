@@ -132,7 +132,6 @@ export default function OrderDraftTable({
       <div className="oi-match-savebar" aria-label="客户与产品选择保存">
         <div>
           <strong>客户与产品选择</strong>
-          <small>仅保存当前导入草稿，不创建档案或订单</small>
         </div>
         <span
           role="status"
@@ -151,7 +150,7 @@ export default function OrderDraftTable({
         </span>
         <button
           type="button"
-          className="primary"
+          className={match.dirty ? 'primary' : ''}
           disabled={locked || !matches || !match.dirty}
           onClick={() => void match.save()}
         >
@@ -351,7 +350,6 @@ export default function OrderDraftTable({
             <tr>
               <th>产品名称</th>
               <th>规格型号</th>
-              <th>备注</th>
               <th>数量 / 单位</th>
               <th>单价 / 元</th>
               <th>计算金额</th>
@@ -367,7 +365,7 @@ export default function OrderDraftTable({
                       {input('productName', l.fields.productName, l.id)}
                     </div>
                     <details className="oi-line-details">
-                      <summary>编码、配纸与其他字段</summary>
+                      <summary>备注、编码、配纸等</summary>
                       <div className="oi-extra-fields">
                         {lineFields
                           .filter(
@@ -375,7 +373,6 @@ export default function OrderDraftTable({
                               ![
                                 'productName',
                                 'specification',
-                                'notes',
                                 'quantity',
                                 'unit',
                                 'unitPrice',
@@ -391,7 +388,6 @@ export default function OrderDraftTable({
                     </details>
                   </td>
                   <td>{input('specification', l.fields.specification, l.id)}</td>
-                  <td>{input('notes', l.fields.notes, l.id)}</td>
                   <td>
                     {input('quantity', l.fields.quantity, l.id)}
                     {input('unit', l.fields.unit, l.id)}
@@ -406,7 +402,27 @@ export default function OrderDraftTable({
                   </td>
                 </tr>
                 <tr className="oi-product-matching-row">
-                  <td colSpan={6}>
+                  <td colSpan={5}>
+                    <details
+                      className="oi-product-matching-fold"
+                      open={!['existing', 'new'].includes(mapping.products[l.id]?.mode)}
+                    >
+                      <summary
+                        className={
+                          ['existing', 'new'].includes(mapping.products[l.id]?.mode) ? '' : 'needs-attention'
+                        }
+                      >
+                        产品档案 ·{' '}
+                        {mapping.products[l.id]?.mode === 'existing'
+                          ? '已匹配 ' +
+                            (matches?.products.find(
+                              (p) => p.id === (mapping.products[l.id] as any).id,
+                            )?.name || '')
+                          : mapping.products[l.id]?.mode === 'new'
+                            ? '计划新建'
+                            : '待确认' +
+                              (candidates[l.id]?.length ? '（' + candidates[l.id].length + ' 个候选）' : '')}
+                      </summary>
                     <div
                       className="oi-product-matching"
                       aria-label={'明细' + (i + 1) + ' 产品档案匹配'}
@@ -598,6 +614,7 @@ export default function OrderDraftTable({
                           </small>
                         )}
                     </div>
+                    </details>
                   </td>
                 </tr>
               </Fragment>

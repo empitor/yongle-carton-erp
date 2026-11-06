@@ -644,9 +644,8 @@ test('操作区域常规查看编辑与危险更多菜单分离，详情字段�
       setSearch: () => {},
     }),
   );
-  assert.match(html, /record-actions-main/);
   assert.match(html, /查看/);
-  // 编辑、归档、删除等操作放在点开记录后的右侧面板，列表行只留查看，避免误点。
+  // 编辑、归档、删除等操作放在点开记录后的右侧面板；行本身可点，名称是键盘和页面控制的入口。
   assert.doesNotMatch(html, /删除/);
   assert.doesNotMatch(html, /查看 \/ 编辑/);
   const detail = renderToStaticMarkup(createElement(RecordDetails, { entity: 'customers', row }));

@@ -6,6 +6,7 @@
 export type PromptModulePurpose = 'recognition' | 'assistant';
 export type PromptModuleStatus = 'active' | 'planned' | 'generation';
 export type PromptModuleId =
+  | 'shipping-mark'
   | 'sales-order'
   | 'purchase-order'
   | 'supplier-delivery'
@@ -23,6 +24,7 @@ export type PromptModuleDefinition = {
   usage: string;
 };
 export const promptModules: PromptModuleDefinition[] = [
+  { id: 'shipping-mark', name: '唛头识别', description: '识别并归档产品参考唛头，不产生订单、生产或库存。', purpose: 'recognition', apiPath: '/api/ai/prompt-modules/shipping-mark', storageFile: 'shipping-marks.sqlite', status: 'active', documents: '客户唛头、样稿、印刷文件', usage: '入口：AI 导入，类型选唛头（已接入）' },
   {
     id: 'sales-order',
     name: '客户订单识别',
@@ -33,7 +35,7 @@ export const promptModules: PromptModuleDefinition[] = [
     storageFile: 'presets.sqlite',
     status: 'active',
     documents: '客户订货单、客户采购订单、购销合同',
-    usage: '入口：AI 智能订单导入（已接入）',
+    usage: '入口：AI 导入，类型选客户订单（已接入）',
   },
   {
     id: 'purchase-order',
@@ -56,7 +58,7 @@ export const promptModules: PromptModuleDefinition[] = [
     storageFile: 'receipts.sqlite',
     status: 'active',
     documents: '供应商送货单、纸板到货单',
-    usage: '入口：采购到货页面的供应商送货单 AI 识别（已接入）',
+    usage: '入口：AI 导入类型选到货单，或到货页的 AI 收货（已接入）',
   },
   {
     id: 'customer-delivery',
@@ -79,7 +81,7 @@ export const promptModules: PromptModuleDefinition[] = [
     storageFile: 'assistant.sqlite',
     status: 'active',
     documents: '全局 AI 助手对话',
-    usage: '入口：全局 AI 助手（已接入）',
+    usage: '入口：右上角 AI 助手，Ctrl+J（已接入）',
   },
 ];
 export function getPromptModule(id: string) {

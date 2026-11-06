@@ -28,6 +28,7 @@ export default function ReviewIssues({
 }) {
   const groups = groupIssues(issues, warnings),
     errors = groups.filter((g) => g.error).length;
+  if (!groups.length && !changes.length) return null;
   return (
     <details className="oi-issues">
       <summary className={errors ? 'has-errors' : ''}>
@@ -46,7 +47,6 @@ export default function ReviewIssues({
             <b>{c.label}</b>：{String(c.before || '空')} → {String(c.after || '空')}
           </p>
         ))}
-        {!groups.length && !changes.length && <p>没有疑点。</p>}
       </div>
     </details>
   );

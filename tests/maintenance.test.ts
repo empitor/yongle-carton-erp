@@ -13,7 +13,7 @@ test('备份和恢复演练：数据可恢复，旧库保留，运行中恢复�
   const run = (...args: string[]) =>
     spawnSync(process.execPath, ['--import', import.meta.resolve('tsx'), maintenance, ...args], {
       cwd: dir,
-      env: { ...process.env, DB_PATH: dbPath },
+      env: { ...process.env, DB_PATH: dbPath, LOCALAPPDATA: dir },
       encoding: 'utf8',
     });
   try {
@@ -57,7 +57,7 @@ test('示例数据仅允许导入空库，重复执行不会覆盖记录', () =>
     spawnSync(
       process.execPath,
       ['--import', import.meta.resolve('tsx'), resolve('server/seed.ts')],
-      { cwd: dir, env: { ...process.env, DB_PATH: dbPath }, encoding: 'utf8' },
+      { cwd: dir, env: { ...process.env, DB_PATH: dbPath, LOCALAPPDATA: dir }, encoding: 'utf8' },
     );
   try {
     const first = run();

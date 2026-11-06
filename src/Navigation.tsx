@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import {
   CalendarCheck,
+  ChevronDown,
+  ChevronRight,
   Inbox,
   ClipboardList,
   Users,
@@ -16,6 +19,15 @@ import {
   Archive,
   CircleHelp,
   type LucideIcon,
+  FileUp,
+  Landmark,
+  ListChecks,
+  HandCoins,
+  Wallet,
+  Receipt,
+  BookOpen,
+  FileBarChart,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 type NavEntry = {
@@ -29,7 +41,8 @@ const groups: { title?: string; items: NavEntry[] }[] = [
   {
     items: [
       { label: '今日', target: 'dashboard', icon: CalendarCheck },
-      { label: '收件箱', target: 'ai-import', icon: Inbox },
+      { label: '收件箱', target: 'inbox', icon: Inbox },
+      { label: 'AI 导入', target: 'ai-import', icon: FileUp },
     ],
   },
   {
@@ -95,6 +108,20 @@ const groups: { title?: string; items: NavEntry[] }[] = [
     ],
   },
 ];
+/** 只给有财务权限的账号看。 */
+const financeGroup: { title?: string; items: NavEntry[] } = {
+  title: '财务',
+  items: [
+    { label: '财务概览', target: 'finance', icon: Landmark },
+    { label: '月度台账', target: 'finance-flow', icon: ListChecks },
+    { label: '应收应付', target: 'finance-ar', icon: HandCoins },
+    { label: '资金发票', target: 'finance-cash', icon: Wallet },
+    { label: '费用资产工资', target: 'finance-costs', icon: Receipt },
+    { label: '凭证账簿', target: 'finance-ledger', icon: BookOpen },
+    { label: '报表结账', target: 'finance-reports', icon: FileBarChart },
+    { label: '财务设置', target: 'finance-settings', icon: SlidersHorizontal },
+  ],
+};
 const footer: NavEntry[] = [
   { label: '设置', target: 'ai-settings', icon: Settings },
   { label: '归档', target: 'trash', icon: Archive },
@@ -106,13 +133,26 @@ export default function Navigation({
   route = '',
   navigate,
   inboxCount = 0,
+  importCount = 0,
+  finance = false,
 }: {
   page: string;
   route?: string;
   navigate: (target: string) => void;
   inboxCount?: number;
+  importCount?: number;
+  finance?: boolean;
 }) {
   const params = new URLSearchParams(route.split('?')[1] || '');
+  // 财务默认收起，免得左侧要滚动才能看到别的入口；进了财务页面就一直展开。
+  const [financeOpen, setFinanceOpen] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem('erp-nav-finance') === '1',
+  );
+  const onFinance = page.startsWith('finance');
+  const toggleFinance = () => {
+    localStorage.setItem('erp-nav-finance', financeOpen ? '0' : '1');
+    setFinanceOpen(!financeOpen);
+  };
   const item = (entry: NavEntry) => {
     const selected =
       entry.target.split('?')[0] === page && (entry.when ? entry.when(params) : true);
@@ -126,8 +166,11 @@ export default function Navigation({
       >
         <Icon size={16} />
         {entry.label}
-        {entry.target === 'ai-import' && inboxCount > 0 && (
+        {entry.target === 'inbox' && inboxCount > 0 && (
           <span className="nav-count">{inboxCount}</span>
+        )}
+        {entry.target === 'ai-import' && importCount > 0 && (
+          <span className="nav-count">{importCount}</span>
         )}
       </button>
     );
@@ -141,6 +184,24 @@ export default function Navigation({
             {group.items.map(item)}
           </div>
         ))}
+        {finance && (
+          <div className="nav-section">
+            {onFinance ? (
+              <div className="nav-section-title">{financeGroup.title}</div>
+            ) : (
+              <button
+                type="button"
+                className="nav-section-title nav-section-toggle"
+                aria-expanded={financeOpen}
+                onClick={toggleFinance}
+              >
+                {financeGroup.title}
+                {financeOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+            )}
+            {(onFinance || financeOpen) && financeGroup.items.map(item)}
+          </div>
+        )}
       </nav>
       <div className="nav-footer">{footer.map(item)}</div>
     </>

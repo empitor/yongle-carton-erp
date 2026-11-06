@@ -18,6 +18,8 @@ type Group = { id: string; title: string; tone?: 'danger' | 'ai'; rows: Row[] };
 export default function TodayQueue() {
   const [data, setData] = useState<any>(null),
     [inbox, setInbox] = useState<any[]>([]),
+    [mail, setMail] = useState<any[]>([]),
+    [dueRows, setDueRows] = useState<any[]>([]),
     [error, setError] = useState('');
   useEffect(() => {
     const load = () => {
@@ -27,6 +29,13 @@ export default function TodayQueue() {
           setError('');
         })
         .catch((e) => setError(e.message));
+      managementRequest<any>('/inbox?status=pending&page=1&pageSize=5')
+        .then((v) => setMail(v.rows))
+        .catch(() => {});
+      // 没有财务权限会被拒绝，这时今日页就不显示这一组。
+      managementRequest<any>('/finance/due-soon?days=7&pageSize=10')
+        .then((v) => setDueRows(v.rows))
+        .catch(() => setDueRows([]));
       fetch('/api/ai/imports', { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((s) => setInbox((s?.workspaces || []).filter((w: any) => !w.imported)))
@@ -66,15 +75,37 @@ export default function TodayQueue() {
       rows: data.unscheduled.map((o: any) => orderRow(o, '交期 ' + o.deliveryDate, '排产')),
     },
     {
+      id: 'mail',
+      title: '收件箱待处理',
+      rows: mail.map((m: any) => ({
+        key: 'm' + m.id,
+        main: m.fileName || m.text || '（无内容）',
+        note: m.senderName || '手动添加',
+        href: '#inbox',
+        action: '处理',
+      })),
+    },
+    {
       id: 'inbox',
-      title: '收件箱待核对',
+      title: 'AI 导入待核对',
       tone: 'ai',
       rows: inbox.map((w) => ({
         key: 'w' + w.id,
         main: w.fileName,
         note: w.hasDraft ? '已识别，待核对' : '待识别',
-        href: '#ai-import',
+        href: '#ai-import?workspace=' + w.id,
         action: w.hasDraft ? '核对' : '识别',
+      })),
+    },
+    {
+      id: 'financeDue',
+      title: '货款到期',
+      rows: dueRows.map((d: any) => ({
+        key: 'd' + d.id + ':' + d.installment_id,
+        main: d.party_name + ' · ' + (d.kind === 'receivable' ? '应收 ' : '应付 ') + (Number(d.balance) / 100).toFixed(2) + ' 元',
+        note: Number(d.days_to_due) < 0 ? '逾期 ' + -d.days_to_due + ' 天' : d.days_to_due + ' 天后到期',
+        href: '#finance-ar?tab=soon',
+        action: '查看',
       })),
     },
     {

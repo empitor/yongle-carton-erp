@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import helmet from 'helmet';
+import { forwardedClient, hasProxyHeaders, proxyIngress, type Deployment } from './deployment.js';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { z, ZodError } from 'zod';
@@ -25,8 +26,13 @@ import { PermanentDeletionService } from './business/permanent-deletion.js';
 import type { BusinessCommand } from './business/service.js';
 import { ImportExecutionService } from './business/import-execution.js';
 import { fileURLToPath } from 'node:url';
+import { marksRouter } from './marks/router.js';
+import type { MarkAi } from './marks/mark-ai.js';
+import { inboxRouter, type WecomBotControl } from './inbox/router.js';
 import { operationsRouter } from './operations/router.js';
 import { flowRouter } from './flow/router.js';
+import { financeRouter } from './finance/router.js';
+import { FinanceInfoPending } from './finance/reports.js';
 import { documentsRouter } from './documents/router.js';
 import type { ReceiptAi } from './flow/receipt-ai.js';
 import type { AssistantManager } from './assistant/manager.js';
@@ -82,9 +88,12 @@ export function createApp(
     aiSettings?: AiSettingsManager;
     imports?: ImportManager;
     auth?: AuthManager;
+    deployment?: Deployment;
     enableReviewedImports?: boolean;
     importArchiveDirectory?: string;
     receiptAi?: ReceiptAi;
+    markAi?: MarkAi;
+    wecomBot?: WecomBotControl;
     assistant?: AssistantManager;
     promptModules?: Partial<Record<string, PromptPresetManager>>;
   } = {},
@@ -147,9 +156,18 @@ export function createApp(
     }),
   );
   app.use((req, res, next) => {
-    const host = req.headers.host?.split(':')[0];
-    if (!['localhost', '127.0.0.1'].includes(host || ''))
+    const deployment = options.deployment;
+    const viaProxy = proxyIngress(req, deployment);
+    const host = req.headers.host || '';
+    if (deployment && viaProxy) {
+      if (!deployment.hosts.has(host.toLowerCase()) || !forwardedClient(req))
+        return res.status(403).json({ message: '代理域名或访客地址不允许' });
+      res.set('Strict-Transport-Security', 'max-age=31536000');
+    } else if (deployment
+      ? !/^(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(host) || hasProxyHeaders(req)
+      : !['localhost', '127.0.0.1'].includes(host.split(':')[0])) {
       return res.status(403).json({ message: '仅允许本机访问' });
+    }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const origin = req.headers.origin;
       if (origin) {
@@ -159,7 +177,8 @@ export function createApp(
           'http://127.0.0.1:5173',
           'http://localhost:5173',
         ];
-        if (!allowed.includes(origin)) return res.status(403).json({ message: '请求来源不允许' });
+        if (deployment && viaProxy ? !deployment.origins.has(origin) : !allowed.includes(origin))
+          return res.status(403).json({ message: '请求来源不允许' });
       }
       const rawUpload =
         req.method === 'POST' &&
@@ -167,17 +186,21 @@ export function createApp(
           '/api/ai/imports/upload',
           '/api/flow/sources/upload',
           '/api/assistant/transcribe',
+          '/api/finance/bank/upload',
+          '/api/finance/invoices/upload',
+          '/api/finance/attachments/upload',
+          '/api/finance/payroll/upload',
         ].includes(req.path) ||
           /^\/api\/assistant\/threads\/[0-9a-f-]{36}\/attachments$/.test(req.path)) &&
         req.is('application/octet-stream');
-      if (!req.is('application/json') && !rawUpload)
+      if (!req.is('application/json') && !rawUpload && req.path !== '/api/inbox/upload' && !/^\/api\/products\/[1-9]\d*\/marks\/upload$/.test(req.path))
         return res
           .status(415)
           .json({ message: '请使用 JSON 请求；文件仅允许从导入上传入口提交。' });
     }
     next();
   });
-  app.use(express.json({ limit: '128kb' }));
+  app.use((req, res, next) => (req.path === '/api/inbox/upload' || /^\/api\/products\/[1-9]\d*\/marks\/upload$/.test(req.path)) ? next() : express.json({ limit: '128kb' })(req, res, next));
   app.get('/api/health', (_req, res) =>
     res.json({
       ok: true,
@@ -227,8 +250,11 @@ export function createApp(
       promptSettingsRouter(options.assistant.prompts, options.auth.csrf),
     );
   }
+  app.use('/api', marksRouter(store, options.auth));
+  app.use('/api/inbox', inboxRouter(store, options.auth, options.imports, options.wecomBot));
   app.use('/api', operationsRouter(store, options.auth));
   app.use('/api/flow', flowRouter(store, options.auth, options.receiptAi));
+  app.use('/api/finance', financeRouter(store, options.auth));
   app.use('/api/documents', documentsRouter(store, options.auth));
   if (options.receiptAi && options.auth)
     app.use(
@@ -263,6 +289,8 @@ export function createApp(
           ? options.imports?.promptPresets
           : module.id === 'supplier-delivery'
             ? options.receiptAi?.prompts
+            : module.id === 'shipping-mark'
+              ? options.markAi?.prompts
             : module.id === 'assistant'
               ? options.assistant?.prompts
               : undefined);
@@ -281,6 +309,8 @@ export function createApp(
   if (options.auth) {
     const deletion = new PermanentDeletionService(store);
     app.post('/api/admin/permanent-deletions/:action', (req, res) => {
+      if (proxyIngress(req, options.deployment))
+        throw new ImportError('部署模式下请通过服务器本机维护入口执行永久删除。', 403);
       if (req.headers['x-erp-auth-token'] !== options.auth!.csrf)
         throw new ImportError('页面凭证已过期，请刷新。', 403);
       const actor = options.auth!.requireSuperMode(req),
@@ -358,7 +388,7 @@ export function createApp(
   if (options.imports)
     app.use(
       '/api/ai/imports',
-      importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi),
+      importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, options.markAi),
     );
   for (const entity of ['customers', 'products'] as const) {
     app.get(`/api/${entity}`, (req, res) => {
@@ -483,8 +513,17 @@ export function createApp(
   app.use('/api', (_req, res) => res.status(404).json({ message: '接口不存在' }));
   const dist = resolve('dist');
   if (existsSync(dist)) {
-    app.use(express.static(dist));
-    app.get('/{*path}', (_req, res) => res.sendFile(resolve(dist, 'index.html')));
+    app.use(express.static(dist, {
+      setHeaders(res, file) {
+        const relative = file.slice(dist.length + 1).replaceAll('\\', '/');
+        if (relative === 'index.html') res.setHeader('Cache-Control', 'no-cache');
+        else if (/^assets\/(?:[^/]+\/)*[^/]+-[A-Za-z0-9_-]{8}\.[^/]+$/.test(relative))
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    }));
+    app.get('/{*path}', (_req, res) =>
+      res.sendFile(resolve(dist, 'index.html'), { headers: { 'Cache-Control': 'no-cache' } }),
+    );
   }
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof ZodError)
@@ -496,6 +535,8 @@ export function createApp(
       return res.status(403).json({ message: error.message });
     if (error instanceof NotFoundError) return res.status(404).json({ message: error.message });
     if (error instanceof InputError) return res.status(400).json({ message: error.message });
+    if (error instanceof FinanceInfoPending)
+      return res.status(error.status).json({message:error.message,code:error.code,details:error.details});
     if (error instanceof ImportError)
       return res.status(error.status).json({ message: error.message, code: error.code });
     if (error instanceof SyntaxError) return res.status(400).json({ message: 'JSON 格式错误' });

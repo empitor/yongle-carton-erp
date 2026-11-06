@@ -32,7 +32,8 @@ import {
   isLocalAdministrator,
 } from '../developer-capability.js';
 
-type View = ImportWorkspaceView;
+import { markReviewSchema, type MarkReview } from '../../shared/shipping-mark.js';
+type View = ImportWorkspaceView & { markReview?: MarkReview | null };
 type Workspace = View & {
   archived?: boolean;
   arrivalAssistant?: any;
@@ -308,6 +309,8 @@ export class ImportManager {
     const tags = this.tags(w);
     return {
       ...view,
+      markStatus: w.markReview?.committed ? 'committed' : w.markReview ? 'recognized' : 'pending',
+      markCount: w.markReview?.items.length || 0,
       imported: tags.imported ?? view.imported,
       historyImport: tags.historyImport,
       parsed: { ...view.parsed, blocks: [], previews: [], imagePages: [], warnings: [] },
@@ -329,11 +332,20 @@ export class ImportManager {
     this.save(w, expectedRevision, 'arrival-draft-assistant');
     return this.get(id);
   }
+  markReview(id: string) { return structuredClone(this.load(id).markReview || null); }
+  saveMarkReview(id: string, expectedRevision: number, review: unknown) {
+    const w = this.load(id); this.check(w, expectedRevision);
+    if (w.mode !== 'mark') throw new ImportError('请先切换为唛头识别。', 409);
+    if (w.markReview?.committed) throw new ImportError('唛头已归档，不能覆盖。', 409);
+    w.markReview = markReviewSchema.parse(review);
+    this.save(w, expectedRevision, 'mark-review'); return this.get(id);
+  }
   setMode(id: string, raw: unknown) {
-    const input = revisionSchema.extend({ mode: z.enum(['order', 'arrival']) }).parse(raw),
+    const input = revisionSchema.extend({ mode: z.enum(['order', 'arrival', 'mark']) }).parse(raw),
       w = this.load(id);
     this.check(w, input.expectedRevision);
     if (w.mode === input.mode) return this.view(w);
+    if (w.markReview?.committed) throw new ImportError('唛头已归档，不能切换类型。', 409);
     w.mode = input.mode;
     this.save(w, input.expectedRevision, 'mode');
     return this.view(w);
@@ -745,6 +757,7 @@ export class ImportManager {
       async () => {
         const w = this.load(id);
         this.check(w, expectedRevision);
+        if (w.mode && w.mode !== 'order') throw new ImportError('此文件不是客户订单识别模式。', 409);
         if (w.imported)
           throw new ImportError(
             '该文件已正式导入，不能重新识别覆盖；如需重新识别请另建工作区。',

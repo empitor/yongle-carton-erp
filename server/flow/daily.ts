@@ -10,7 +10,7 @@ export const dailyQuerySchema = z.strictObject({
 /** 同一批次按身份合并；计划日与真实完成日分别归属，未计划的实物流转也保留。 */
 export class WarehouseDaily {
   constructor(readonly store: Store) {}
-  records(kind: 'arrival' | 'delivery' | 'task'): any[] {
+  records(kind: 'arrival' | 'delivery' | 'task', workbenchDate?: string): any[] {
     const flow = new FlowService(this.store);
     if (kind === 'arrival') {
       const records = flow.arrivalRecords({ includeInactive: true });
@@ -71,10 +71,13 @@ export class WarehouseDaily {
       ];
     }
     if (kind === 'task') return flow.list('task');
-    const orders = new Map(this.store.orders(true).map((o) => [o.id, o])),
-      stocks = new Map(this.store.stock_items(true).map((s) => [s.id, s])),
-      customers = new Map(this.store.customers(true).map((c) => [c.id, c.name]));
-    return flow.list('delivery').map((d) => ({
+    const deliveries = flow.list('delivery', false, workbenchDate);
+    const orders = new Map(this.store.ordersByIds(deliveries.flatMap((d) => d.lines.map((l: any) => l.orderId)), true).map((o) => [o.id, o]));
+    const stocks = new Map(flow.ops.repo.items(true, deliveries.flatMap((d) => d.lines.map((l: any) => l.stockId))).map((s) => [s.id, s]));
+    const customers = new Map(this.store.db.prepare(
+      'SELECT id,name FROM customers WHERE id IN (SELECT value FROM json_each(?))',
+    ).all(JSON.stringify(deliveries.map((d) => d.customerId))).map((c) => [c.id, c.name]));
+    return deliveries.map((d) => ({
       ...d,
       customerName: customers.get(d.customerId) || '历史客户',
       completed: d.status === 'confirmed',
@@ -97,7 +100,7 @@ export class WarehouseDaily {
           shippedQuantity: ol?.shippedQuantity,
           remainingQuantity: ol?.remainingQuantity,
           shippingStatus: ol?.shippingStatus,
-          movements: this.store.db
+          movements: workbenchDate ? [] : this.store.db
             .prepare(
               "SELECT * FROM stock_movements WHERE source_kind IN ('flow_delivery','flow_reversal') AND source_id=? AND item_id=? ORDER BY created_at,id",
             )

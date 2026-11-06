@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { formatStockSize, type RecordEntity } from '../shared/operations';
 import { ProgressSummary, PurchaseLines, ReceiptHistory, SalesLines } from './FulfillmentDetails';
 import RelatedOrders from './RelatedOrders';
+import ProductMarks from './marks/ProductMarks';
 export default function RecordDetails({
   entity,
   row,
@@ -86,7 +87,7 @@ export default function RecordDetails({
                 ['合同条件', row.terms],
                 ['整单备注', row.notes],
               ];
-  return (
+  const body = (
     <>
       <dl
         data-agent-module={
@@ -114,6 +115,7 @@ export default function RecordDetails({
           moreHref={'#orders?customerId=' + row.id + '&range=all'}
         />
       )}
+      {entity === 'products' && <ProductMarks key={'m' + row.id} productId={row.id} />}
       {entity === 'products' && <RelatedOrders key={'p' + row.id} query={'productId=' + row.id} />}
       {entity === 'suppliers' && (
         <>
@@ -141,9 +143,13 @@ export default function RecordDetails({
         </>
       )}
       {entity === 'orders' && <SalesLines row={row} />}
-      {(entity === 'orders' || entity === 'purchases') && (
-        <RelatedBusiness entity={entity} row={row} />
-      )}
     </>
+  );
+  return entity === 'orders' || entity === 'purchases' ? (
+    <RelatedBusiness entity={entity} row={row}>
+      {body}
+    </RelatedBusiness>
+  ) : (
+    body
   );
 }

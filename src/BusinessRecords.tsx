@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compareRecords, type RecordSort } from '../shared/record-sort';
 import { formatDimensions } from '../shared/product-details';
-import { Trash2, Eye, Pencil, ArchiveRestore } from 'lucide-react';
+import { Trash2, Pencil, ArchiveRestore } from 'lucide-react';
 import { useAuthState, managementRequest } from './session';
 import DetailPanel from './ui/DetailPanel';
+import MoreMenu from './ui/MoreMenu';
 import Chain from './ui/Chain';
 import { BusinessDocumentButton } from './BusinessExport';
 import PermanentDeleteDialog from './PermanentDeleteDialog';
@@ -112,6 +113,16 @@ export default function BusinessRecords({
     setSelected((s) => s.filter((id) => rows.some((r) => r.id === id)));
     setPage((p) => Math.min(p, Math.max(1, Math.ceil(rows.length / PAGE_SIZE))));
   }, [rows.map((r) => r.id).join(',')]);
+  // 单据被生产、送货或确认改变后，面板按主键重读；这张单可能已不在当前筛选结果里。
+  useEffect(() => {
+    if (!view?.id || !['orders', 'purchases'].includes(entity)) return;
+    const refresh = () =>
+      void managementRequest('/' + entity + '/' + view.id)
+        .then((fresh: any) => setView((v: any) => (v?.id === fresh.id ? fresh : v)))
+        .catch(() => {});
+    window.addEventListener('erp-business-changed', refresh);
+    return () => window.removeEventListener('erp-business-changed', refresh);
+  }, [view?.id, entity]);
   useEffect(() => {
     if (pendingEdge.current && rows.length) {
       setView(pendingEdge.current === 'first' ? rows[0] : rows[rows.length - 1]);
@@ -129,6 +140,11 @@ export default function BusinessRecords({
         setSelected((s) => (e.target.checked ? [...s, id] : s.filter((x) => x !== id)))
       }
     />
+  );
+  const rowKey = (row: any, text: string) => (
+    <button className="row-key" aria-label={'查看 ' + text} onClick={() => setView(row)}>
+      {text}
+    </button>
   );
   const money = (c: number) =>
     (c / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -184,7 +200,6 @@ export default function BusinessRecords({
     <>
       {canEdit && (!isArchived(row) || superMode) && (
         <button
-          className="primary"
           onClick={() => {
             edit(row);
             setView(null);
@@ -203,50 +218,54 @@ export default function BusinessRecords({
         />
       )}
       {extraActions?.(row)}
-      <button
-        disabled={!canEdit || busy}
-        onClick={() =>
-          void executeLifecycle({ action: isArchived(row) ? 'restore' : 'archive', rows: [row] })
-        }
-      >
-        {isArchived(row) ? '恢复' : '归档'}
-      </button>
-      {session?.actor?.localAdministrator && (
+      <MoreMenu label={'更多操作 ' + (row.number || row.name)}>
         <button
-          onClick={() => {
-            setContextId(row.id);
-            setView(null);
-          }}
+          disabled={!canEdit || busy}
+          onClick={() =>
+            void executeLifecycle({ action: isArchived(row) ? 'restore' : 'archive', rows: [row] })
+          }
         >
-          修改历史
+          {isArchived(row) ? '恢复' : '归档'}
         </button>
-      )}
-      <button
-        className="danger"
-        disabled={!session?.actor?.localAdministrator || busy}
-        onClick={() => setPermanent([row])}
-      >
-        <Trash2 size={14} />
-        删除
-      </button>
+        {session?.actor?.localAdministrator && (
+          <button
+            onClick={() => {
+              setContextId(row.id);
+              setView(null);
+            }}
+          >
+            修改历史
+          </button>
+        )}
+        <button
+          className="danger-text"
+          disabled={!session?.actor?.localAdministrator || busy}
+          onClick={() => setPermanent([row])}
+        >
+          <Trash2 size={14} />
+          删除
+        </button>
+      </MoreMenu>
     </>
   );
   return (
     <section className="panel business-records" data-entity={entity}>
       <div className="section-heading">
         <h2>
-          {
+          <span className="sr-only">
             {
-              customers: '客户档案',
-              products: '产品档案',
-              orders: '订单台账',
-              suppliers: '供应商档案',
-              purchases: '采购订货',
-              stock_items: '库存台账',
-            }[entity]
-          }{' '}
+              {
+                customers: '客户档案',
+                products: '产品档案',
+                orders: '订单台账',
+                suppliers: '供应商档案',
+                purchases: '采购单',
+                stock_items: '库存台账',
+              }[entity]
+            }
+          </span>
           <span className="record-title-count">
-            （共 {totalRecords ?? rows.length}{' '}
+            共 {totalRecords ?? rows.length}{' '}
             {entity === 'customers' || entity === 'suppliers'
               ? '家'
               : entity === 'products'
@@ -254,7 +273,6 @@ export default function BusinessRecords({
                 : entity === 'orders' || entity === 'purchases'
                   ? '张'
                   : '项'}
-            ）
           </span>
         </h2>
         {totalRecords !== undefined && totalRecords !== filteredTotal && (
@@ -397,7 +415,6 @@ export default function BusinessRecords({
                   <th className="num">参考单价</th>
                 </>
               )}
-              <th aria-label="操作" />
             </tr>
           </thead>
           <tbody>
@@ -417,7 +434,7 @@ export default function BusinessRecords({
                 <td>{check(row.id)}</td>
                 {entity === 'purchases' ? (
                   <>
-                    <td className="record-no">{row.number}</td>
+                    <td className="record-no">{rowKey(row, row.number)}</td>
                     <td className="cell-wrap">{row.supplierName}</td>
                     <td className="cell-wrap" title={row.lines.map((l: any) => l.name).join('、')}>
                       {row.lines[0]?.name}
@@ -455,7 +472,7 @@ export default function BusinessRecords({
                 ) : entity === 'stock_items' ? (
                   <>
                     <td className="cell-wrap">
-                      {row.name}
+                      {rowKey(row, row.name)}
                       {isArchived(row) && <span className="record-state">已归档</span>}
                     </td>
                     <td>{row.specification || formatStockSize(row)}</td>
@@ -474,7 +491,7 @@ export default function BusinessRecords({
                   </>
                 ) : entity === 'orders' ? (
                   <>
-                    <td className="record-no">{row.number}</td>
+                    <td className="record-no">{rowKey(row, row.number)}</td>
                     <td className="cell-wrap">{row.customerName}</td>
                     <td
                       className="cell-wrap"
@@ -521,7 +538,7 @@ export default function BusinessRecords({
                 ) : entity === 'customers' || entity === 'suppliers' ? (
                   <>
                     <td className="cell-wrap">
-                      {row.name}
+                      {rowKey(row, row.name)}
                       {isArchived(row) && <span className="record-state">已停用</span>}
                     </td>
                     <td>{row.contact || '—'}</td>
@@ -532,7 +549,7 @@ export default function BusinessRecords({
                 ) : (
                   <>
                     <td className="cell-wrap">
-                      {row.name}
+                      {rowKey(row, row.name)}
                       {isArchived(row) && <span className="record-state">已停用</span>}
                     </td>
                     <td>{formatDimensions(row)}</td>
@@ -543,14 +560,6 @@ export default function BusinessRecords({
                     <td className="num">{row.priceExact || money(row.priceCents)}</td>
                   </>
                 )}
-                <td>
-                  <div className="record-actions-main">
-                    <button className="row-open" onClick={() => setView(row)}>
-                      <Eye size={14} />
-                      查看
-                    </button>
-                  </div>
-                </td>
               </tr>
             ))}
             {!rows.length && (

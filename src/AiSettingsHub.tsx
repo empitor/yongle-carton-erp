@@ -2,12 +2,21 @@ import { aiSettingsTab } from '../shared/assistant-navigation';
 import './assistant-plugins.css';
 import { useEffect, useState } from 'react';
 import AiSettingsPage from './AiSettingsPage';
+import { useAuthState } from './session';
+import { AccountManagement } from './AccountManagement';
 import PromptSettingsPage from './PromptSettingsPage';
 import { promptModules } from '../shared/prompt-modules';
 import AssistantPlugins from './AssistantPlugins';
 import DocumentTemplateSettings from './DocumentTemplateSettings';
+import ChannelSettings from './ChannelSettings';
 export default function AiSettingsHub() {
-  const read = () => aiSettingsTab(location.hash);
+  const auth = useAuthState();
+  const read = () =>
+    location.hash.includes('tab=accounts')
+      ? 'accounts'
+      : location.hash.includes('tab=channels')
+        ? 'channels'
+        : aiSettingsTab(location.hash);
   const [tab, setTab] = useState(read);
   const [promptKind, setPromptKind] = useState(() =>
     location.hash.includes('assistant=1') ? 'assistant' : 'sales-order',
@@ -23,7 +32,7 @@ export default function AiSettingsHub() {
   const module = promptModules.find((item) => item.id === promptKind) ?? promptModules[0];
   return (
     <div>
-      <nav className="ai-settings-tabs" aria-label="AI设置分类" role="tablist">
+      <nav className="ai-settings-tabs" aria-label="设置分类" role="tablist">
         <button
           role="tab"
           aria-selected={tab === 'api'}
@@ -36,14 +45,14 @@ export default function AiSettingsHub() {
           aria-selected={tab === 'prompts'}
           onClick={() => (location.hash = 'ai-settings?tab=prompts')}
         >
-          AI 提示词
+          提示词
         </button>
         <button
           role="tab"
           aria-selected={tab === 'tools'}
           onClick={() => (location.hash = 'ai-settings?tab=tools')}
         >
-          AI 插件与工具管理
+          插件与工具
         </button>
         <button
           role="tab"
@@ -52,7 +61,35 @@ export default function AiSettingsHub() {
         >
           单据模板
         </button>
+        {auth?.actor?.role === 'super_admin' && (
+          <button
+            role="tab"
+            aria-selected={tab === 'channels'}
+            onClick={() => (location.hash = 'ai-settings?tab=channels')}
+          >
+            消息接入
+          </button>
+        )}
+        {auth?.actor?.role === 'super_admin' && (
+          <button
+            role="tab"
+            aria-selected={tab === 'accounts'}
+            onClick={() => (location.hash = 'ai-settings?tab=accounts')}
+          >
+            账号
+          </button>
+        )}
       </nav>
+      {tab === 'channels' && auth?.actor?.role === 'super_admin' && (
+        <section role="tabpanel" aria-label="消息接入">
+          <ChannelSettings />
+        </section>
+      )}
+      {tab === 'accounts' && auth?.actor?.role === 'super_admin' && (
+        <section role="tabpanel" aria-label="账号">
+          <AccountManagement selfId={auth.actor.id} />
+        </section>
+      )}
       {tab === 'templates' && (
         <section role="tabpanel" aria-label="单据模板">
           <DocumentTemplateSettings />
@@ -79,7 +116,7 @@ export default function AiSettingsHub() {
             </button>
           ))}
         </div>
-        <p style={{ margin: '8px 0 10px', fontSize: 12, color: 'var(--muted)' }} role="note">
+        <p className="help-text" role="note">
           {module.description}
           {' · '}
           {module.usage}

@@ -61,6 +61,10 @@ export const supplierDefaultPreset = () => ({
     },
   ],
 });
+const sourceColumns = 'SELECT id,file_name AS fileName,hash,format,document,created_at AS createdAt FROM flow_sources';
+function sourceView({ document, ...row }: Record<string, unknown>) {
+  return { ...row, ...JSON.parse(String(document)) };
+}
 export class ReceiptAi {
   readonly draftAssistant = new ArrivalDraftAssistant(this);
   private busy = new Map<string, AbortController>();
@@ -74,16 +78,14 @@ export class ReceiptAi {
   ) {}
   sources() {
     return this.store.db
-      .prepare(
-        'SELECT id,file_name AS fileName,hash,format,document,created_at AS createdAt FROM flow_sources ORDER BY created_at DESC',
-      )
+      .prepare(sourceColumns + ' ORDER BY created_at DESC')
       .all()
-      .map(({ document, ...r }) => ({ ...r, ...JSON.parse(String(document)) }));
+      .map(sourceView);
   }
   source(id: string) {
-    const source = this.sources().find((s) => s.id === z.string().uuid().parse(id));
-    if (!source) throw new ImportError('供应商原件或识别结果不存在。', 404);
-    return source;
+    const row = this.store.db.prepare(sourceColumns + ' WHERE id=?').get(z.string().uuid().parse(id));
+    if (!row) throw new ImportError('供应商原件或识别结果不存在。', 404);
+    return sourceView(row);
   }
   upload(bytes: Buffer, name: string, who: Actor | null | undefined) {
     const actor = requirePermission(who, 'business:edit');
@@ -111,7 +113,7 @@ export class ReceiptAi {
       hash: fileHash,
       fileName: name,
     });
-    return this.sources().find((s) => s.id === id);
+    return this.source(id);
   }
   abort(id: string) {
     this.busy.get(id)?.abort();
@@ -200,7 +202,7 @@ export class ReceiptAi {
         promptUsage: preset.usage,
         model: input.profile.model,
       });
-      return this.sources().find((s) => s.id === id);
+      return this.source(id);
     } catch (error) {
       try {
         this.store.db.prepare('UPDATE flow_sources SET document=? WHERE id=?').run(

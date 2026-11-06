@@ -207,7 +207,10 @@ export type ImportWorkspaceView = {
   parsed: ParsedFile;
   draft: OrderDraft | null;
   /** 每个导入文件独立的识别模式；默认订单识别。 */
-  mode?: 'order' | 'arrival';
+  mode?: 'order' | 'arrival' | 'mark';
+  /** 唛头模式的识别和存档进度 */
+  markStatus?: 'pending' | 'recognized' | 'committed';
+  markCount?: number;
   /** 已关联的供应商到货草稿（正式入库仍走 FlowService）。 */
   arrivalDocId?: number | null;
   arrivalSourceId?: string | null;

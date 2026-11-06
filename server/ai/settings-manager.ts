@@ -515,6 +515,18 @@ export class AiSettingsManager {
     this.connection = { presetId: null, status: 'idle', message: '已停用 API，预设仍然保留。' };
     return this.view();
   }
+  /** 只验证本机解密权限，不输出预设标识或密钥。 */
+  credentialWarning() {
+    if (this.storageError) return this.storageError;
+    for (const preset of this.document.presets) {
+      if (!preset.encryptedKey) continue;
+      try {
+        this.protector.unprotect(preset.encryptedKey);
+      } catch {
+        return '当前 Windows 服务账号无法解密已保存的 AI 密钥，请在此账号下重新填写。';
+      }
+    }
+  }
   async startup() {
     if (!this.document.autoConnect || !this.document.lastPresetId || this.storageError) return;
     const p = this.document.presets.find((p) => p.id === this.document.lastPresetId);

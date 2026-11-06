@@ -215,7 +215,7 @@ export default function AuthPanel() {
               </div>
             </>
           ) : (
-            <LoginForm configured={session.configured} csrf={session.csrf} />
+            <LoginForm configured={session.configured} csrf={session.csrf} proxyAccess={session.proxyAccess} />
           )}
         </ManagementDialog>
       )}
@@ -224,12 +224,22 @@ export default function AuthPanel() {
 }
 
 /** 登录页与账号菜单共用的登录/首次建号表单。 */
-export function LoginForm({ configured, csrf }: { configured: boolean; csrf: string }) {
+export function LoginForm({
+  configured,
+  csrf,
+  proxyAccess,
+}: {
+  configured: boolean;
+  csrf: string;
+  proxyAccess?: boolean;
+}) {
   const [name, setName] = useState(''),
     [password, setPassword] = useState(''),
     [repeat, setRepeat] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
+  if (!configured && proxyAccess)
+    return <p role="status">系统还没有管理员。请到服务器本机打开系统，建立第一个管理员账号。</p>;
   return (
     <form
       className="auth-form"

@@ -1,6 +1,7 @@
 import { productionCompletionSchema } from '../../shared/assistant-production.js';
 import { pageActionSchema, pageObserveSchema } from '../../shared/assistant-page.js';
 import { browserActionSchema } from '../../shared/assistant-browser.js';
+import { inboxChannels, inboxStatuses } from '../../shared/inbox.js';
 import {
   builtinPlugins,
   builtinPluginFor,
@@ -13,7 +14,8 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { toolCatalog, assistantModules } from './tools.js';
-import { navigationTargets, erpPageIds } from '../../shared/assistant-navigation.js';
+import { financeReadQuery,financeReadTools } from '../../shared/finance-tools.js';
+import { navigationTargets, registeredErpPageIds } from '../../shared/assistant-navigation.js';
 import { patchOperationSchema } from '../../shared/order-draft.js';
 import { ImportError } from '../import/errors.js';
 import type { Actor } from '../auth.js';
@@ -37,6 +39,21 @@ const positive = z.number().int().positive(),
 const task = { taskId: uuid.optional() },
   module = z.enum(assistantModules);
 const schemas: Record<string, z.ZodType> = {
+  'marks.list': z.strictObject({ productId: z.number().int().positive() }),
+  ...Object.fromEntries(financeReadTools.map(name=>[name,financeReadQuery])),
+  'inbox.list': z.strictObject({
+    status: z.enum(inboxStatuses).optional(),
+    channel: z.enum(inboxChannels).optional(),
+    q: z.string().max(200).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  }),
+  'inbox.get': z.strictObject({ id: positive }),
+  'inbox.set_status': z.strictObject({
+    id: positive,
+    status: z.enum(inboxStatuses),
+    expectedVersion: positive,
+    previewOnly: z.boolean().optional(),
+  }),
   'documents.templates':z.strictObject({}),
   'flow.daily': dailyQuerySchema,
   'documents.preview': z.strictObject({kind:z.enum(['purchase','delivery']),id:positive,templateId:z.string().regex(/^(purchase|delivery)-[a-z0-9-]{1,60}$/).optional()}),
@@ -88,7 +105,7 @@ const schemas: Record<string, z.ZodType> = {
     attachmentIds: z.array(uuid).min(1).max(6).optional(),
   }),
   'ui.open': z.strictObject({
-    page: z.enum(erpPageIds as [string, ...string[]]).optional(),
+    page: z.enum(registeredErpPageIds as [string, ...string[]]).optional(),
     module: z.enum(navigationTargets as [string, ...string[]]).optional(),
     id: positive.optional(),
     q: z.string().max(100).optional(),
@@ -164,6 +181,11 @@ const schemas: Record<string, z.ZodType> = {
   }),
   'order_import.list': z.strictObject({}),
   'order_import.attach': z.strictObject({ workspaceId: uuid }),
+  'order_import.from_inbox': z.strictObject({
+    inboxId: positive,
+    expectedVersion: positive,
+    recognitionType: z.enum(['order', 'arrival']).default('order'),
+  }),
   'order_import.execute_many': z.strictObject({ workspaceIds: z.array(uuid).min(1).max(6) }),
   'order_import.start': z.strictObject({
     attachmentIds: z.array(uuid).max(6).optional(),
@@ -205,6 +227,7 @@ export class AssistantToolRegistry {
         {
           ...t,
           ...(t.name.startsWith('prompts.') ? { permissions: ['business:edit'] } : {}),
+          ...(t.name.startsWith('finance.') ? { permissions: ['finance:view'] } : {}),
           ...(t.name === 'browser.act' ? { capability: 'page' as const } : {}),
           pluginId: builtinPluginFor(t.name),
           kind: (t.risk === 'workflow'
@@ -378,7 +401,7 @@ export class AssistantToolRegistry {
             !pluginEnabled ? '插件已停用' : '',
             !toolEnabled ? '工具已停用' : '',
             !access.permitted ? access.permissionReason : '',
-            !available ? '执行服务未连接' : '',
+            !available ? this.availabilityReasons.get(t.name) ?? '执行服务未连接' : '',
           ].filter(Boolean);
           return {
             ...t,
@@ -397,7 +420,7 @@ export class AssistantToolRegistry {
                 ? '部分操作可用'
                 : '可用',
             serviceStatus: !available
-              ? '执行服务未连接'
+              ? this.availabilityReasons.get(t.name) ?? '执行服务未连接'
               : t.pluginId === 'erp-page'
                 ? '页面桥接服务已接入；执行时核验当前标签页连接'
                 : '已接入原业务服务',
@@ -412,16 +435,20 @@ export class AssistantToolRegistry {
   definition(name: string) {
     return this.definitions.get(name);
   }
-  setAvailability(name: string, available: (actor?: Actor | null) => boolean) {
+  private readonly availabilityReasons = new Map<string, string>();
+  setAvailability(name: string, available: (actor?: Actor | null) => boolean, reason?: string) {
     const tool = this.definitions.get(name);
     if (tool) tool.available = available;
+    if (reason) this.availabilityReasons.set(name, reason);
+    else this.availabilityReasons.delete(name);
   }
   assertAvailable(name: string) {
     const t = this.definitions.get(name);
     if (!t) throw new ImportError('工具未注册。', 403);
     if (!this.enabled('plugin:' + t.pluginId)) throw new ImportError('此AI插件已停用。', 403);
     if (!this.enabled(name)) throw new ImportError('此AI工具已停用，请在AI工具管理中启用。', 403);
-    if (!this.serviceReady(t)) throw new ImportError('执行服务未连接。', 503);
+    if (!this.serviceReady(t))
+      throw new ImportError(this.availabilityReasons.get(name) ?? '执行服务未连接。', 503);
     return t;
   }
   set(raw: unknown, actor: Actor) {
