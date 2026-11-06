@@ -66,14 +66,6 @@ function Readiness({ period }: { period: string }) {
 
 function FormalReport({ kind, period }: { kind: 'balance' | 'profit' | 'cashflow'; period: string }) {
   const readiness = useFin('/reports/readiness', { period });
-  const enabled = useFinanceEnabled();
-  if (!enabled)
-    return (
-      <div className="fin-page">
-        <PageHeading title="报表结账" />
-        <NeedEnable what="正式报表和结账" />
-      </div>
-    );
   const ready = !!readiness.data?.ready;
   const { data, error } = useFin(ready ? '/reports/' + kind : null, { period });
   if (readiness.data && !ready) return null;
@@ -420,6 +412,14 @@ export default function ReportsPage() {
   const formal = tab === 'balance' || tab === 'profit' || tab === 'cashflow';
   // 缺资料时正式报表导不出来，不给会失败的按钮，下面的提示会说明要补什么。
   const readiness = useFin('/reports/readiness', { period });
+  const enabled = useFinanceEnabled();
+  if (!enabled)
+    return (
+      <div className="fin-page">
+        <PageHeading title="报表结账" />
+        <NeedEnable what="正式报表和结账" />
+      </div>
+    );
   return (
     <div className="fin-page">
       <PageHeading
