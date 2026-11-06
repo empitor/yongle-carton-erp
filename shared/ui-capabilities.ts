@@ -1,5 +1,23 @@
 /** 用户业务能力与真实人工入口。技术编排不单独生成业务按钮。新增工具必须纳入覆盖检查。 */
 export const uiCapabilities = [
+  { id: 'finance-summary', name: '财务概览', page: '#finance', entry: '左侧财务→财务概览：按月对照理论盈亏（送货单减到货单）和实际盈亏（实收减实付），点金额看明细，看实收来自哪个月的单子', api: ['/api/finance/summary', '/api/finance/monthly-report'], tools: ['finance.summary'], kind: 'business' },
+  { id: 'finance-flow', name: '月度台账', page: '#finance-flow', entry: '左侧财务→月度台账：当月每一条接单、送货、到货、收付；缺税率的单张或按单位批量补，不改原单', api: ['/api/finance/flow', '/api/finance/tax-completion/batch'], tools: [], kind: 'business' },
+  { id: 'finance-ar', name: '应收应付', page: '#finance-ar', entry: '左侧财务→应收应付：往来单、压货款、收付计划、到期提醒、现结优惠、账龄、对账单、账期设置、保证金、压款利息', api: ['/api/finance/obligations', '/api/finance/held', '/api/finance/party-terms'], tools: ['finance.receivables', 'finance.payables'], kind: 'business' },
+  { id: 'finance-cash', name: '资金发票', page: '#finance-cash', entry: '左侧财务→资金发票：收付款的录入、确认、核销和撤销，资金账户，银行流水，承兑票据，发票，开票对比，税务底稿', api: ['/api/finance/cash/accounts', '/api/finance/invoices'], tools: ['finance.invoices', 'finance.cash'], kind: 'business' },
+  { id: 'finance-costs', name: '费用资产工资', page: '#finance-costs', entry: '左侧财务→费用资产工资：费用报销、固定资产折旧、工资导入、库存成本、毛利', api: ['/api/finance/expenses', '/api/finance/assets', '/api/finance/payroll', '/api/finance/costing'], tools: [], kind: 'business' },
+  { id: 'finance-ledger', name: '凭证账簿', page: '#finance-ledger', entry: '左侧财务→凭证账簿：凭证录入、审核、记账和红字冲销，财务事件，账簿，记账模板，修改记录', api: ['/api/finance/vouchers', '/api/finance/books'], tools: ['finance.ledger'], kind: 'business' },
+  { id: 'finance-reports', name: '报表结账', page: '#finance-reports', entry: '左侧财务→报表结账：三张正式报表（缺资料时先提示补完）、试算平衡、结账向导、管理看板、预算', api: ['/api/finance/reports/readiness', '/api/finance/closing'], tools: ['finance.reports'], kind: 'business' },
+  { id: 'finance-settings', name: '财务设置', page: '#finance-settings', entry: '左侧财务→财务设置：启用月份和期初、税率、科目、会计期间', api: ['/api/finance/settings', '/api/finance/accounts'], tools: [], kind: 'business' },
+  { id: 'marks', name: '产品唛头', page: '#products', entry: '产品详情中的唛头参考文件；AI 导入类型选择唛头后核对归档', api: ['/api/products/:id/marks', '/api/marks/:id/file'], tools: ['marks.list'], kind: 'business' },
+  {
+    id: 'inbox',
+    name: '收件箱',
+    page: '#inbox',
+    entry: '外来消息和文件一条条显示，可转订单、转到货、转唛头、标记已处理或忽略；可手动上传和粘贴；企业微信机器人在设置→消息接入连接',
+    api: ['/api/inbox', '/api/inbox/channels', '/api/inbox/wecom-bot', '/api/inbox/upload', '/api/inbox/:id/convert', '/api/inbox/:id/status'],
+    tools: ['inbox.list', 'inbox.get', 'inbox.set_status', 'order_import.from_inbox'],
+    kind: 'business',
+  },
   {
     id: 'records',
     name: '客户、产品、供应商及订单维护',

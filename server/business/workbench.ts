@@ -1,4 +1,5 @@
 import type { Store } from '../db.js';
+import { MarkService } from '../marks/service.js';
 import { FlowService } from '../flow/service.js';
 import { WarehouseDaily } from '../flow/daily.js';
 import { OperationsRepository } from '../operations/repository.js';
@@ -59,8 +60,8 @@ export function buildToday(store: Store, date: string) {
   const orders = store.orders(),
     tasks = flow.list('task'),
     purchases = repo.purchases(),
-    deliveryRecords = daily.records('delivery'),
-    arrivalRecords = daily.records('arrival');
+    deliveryRecords = daily.records('delivery', date),
+    arrivalPlans = flow.arrivalPlans({ date }, true);
   const view = (o: (typeof orders)[number]) => ({
     id: o.id,
     number: o.number,
@@ -142,10 +143,9 @@ export function buildToday(store: Store, date: string) {
         plannedDate: d.plannedDate || d.date,
       })),
     schedule: {
-      arrivals: arrivalRecords
-        .filter((r) => r.pending && !r.cancelled && r.plannedDate === date)
+      arrivals: arrivalPlans
         .map((r) => ({
-          id: r.id,
+          id: 'flow-' + r.id,
           label: (r.supplierName || '') + ' ' + lineSummary(r.lines.map((l: any) => l.item?.name)),
         })),
       tasks: tasks
@@ -175,7 +175,7 @@ export function relatedBusiness(store: Store, entity: 'orders' | 'purchases', id
   const flow = new FlowService(store),
     repo = new OperationsRepository(store);
   if (entity === 'purchases') {
-    const purchase = repo.purchases(true).find((p) => p.id === id);
+    const purchase = repo.purchases(true, id)[0];
     if (!purchase) return null;
     const arrivals = new WarehouseDaily(store)
       .records('arrival')
@@ -186,29 +186,29 @@ export function relatedBusiness(store: Store, entity: 'orders' | 'purchases', id
             purchase.lines.some((pl: any) => pl.id === l.purchaseLineId || pl.id === l.lineId),
         ),
       );
+    const order = purchase.customerOrderId ? store.order(purchase.customerOrderId, true) : undefined;
     return {
       arrivals,
-      stocks: repo
-        .items(true)
-        .filter((s) => purchase.lines.some((l: any) => l.stockItemId === s.id)),
-      orders: purchase.customerOrderId
-        ? store.orders(true).filter((o) => o.id === purchase.customerOrderId)
-        : [],
+      stocks: repo.items(true, purchase.lines.flatMap((l: any) => l.stockItemId ? [l.stockItemId] : [])),
+      orders: order ? [order] : [],
     };
   }
-  const order = store.orders(true).find((o) => o.id === id);
+  const order = store.order(id, true);
   if (!order) return null;
   const tasks = flow.list('task', true).filter((t) => t.orderIds.includes(id));
   const productions = flow
     .list('production', true)
     .filter((p) => tasks.some((t) => t.id === p.taskId));
+  const purchaseIds = store.db.prepare('SELECT id FROM purchases WHERE customer_order_id=?')
+    .all(id).map((row) => Number(row.id));
   return {
+    marks: new MarkService(store).listForProducts(order.lines.map((l) => l.productId)),
     tasks,
     productions,
     deliveries: flow
       .list('delivery', true)
       .filter((d) => d.lines.some((l: any) => l.orderId === id)),
-    purchases: repo.purchases(true).filter((p) => p.customerOrderId === id),
+    purchases: repo.purchases(true, purchaseIds),
     stocks: repo
       .items()
       .filter((s) => s.kind === 'finished' && order.lines.some((l) => l.productId === s.productId)),

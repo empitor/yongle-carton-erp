@@ -58,7 +58,7 @@ export class OperationsService {
     actor: Actor,
   ) {
     if (!id) return null;
-    const row = this.store[entity](isSuperMode(actor)).find((r) => r.id === id);
+    const row = this.store.record(entity, id, isSuperMode(actor));
     if (!row) throw new ImportError('记录不存在或已归档，编辑归档记录须进入超级管理员模式。', 404);
     const { version } = z.object({ version: z.number().int().positive() }).parse(raw);
     if (row.version !== version) throw new ImportError('记录已被修改，请刷新后重试。', 409);
@@ -81,7 +81,7 @@ export class OperationsService {
           .prepare('INSERT INTO suppliers VALUES(?,?,?,?,?,?,1,?)')
           .run(id, v.name, v.contact, v.phone, v.address, v.notes, new Date().toISOString());
       }
-      const after = this.repo.suppliers(true).find((r) => r.id === id);
+      const after = this.repo.suppliers(true, id)[0];
       audit(this.store, actor, 'business-ui', before ? 'update' : 'create', 'suppliers', id!, {
         before,
         after,
@@ -128,7 +128,7 @@ export class OperationsService {
           .prepare('INSERT INTO stock_items VALUES(?,?,?,?,?,?,1,?)')
           .run(id, name, kind, unit, JSON.stringify(document), productId, new Date().toISOString());
       }
-      const after = this.repo.items(true).find((r) => r.id === id);
+      const after = this.repo.items(true, id)[0];
       if (before && isLocalAdministrator(actor))
         new DatabaseMaintenanceService(this.store).alignStock(before, after, actor);
       audit(this.store, actor, 'business-ui', before ? 'update' : 'create', 'stock_items', id!, {
@@ -143,11 +143,9 @@ export class OperationsService {
       v = purchaseSchema.parse(raw);
     return this.tx(() => {
       const before = this.prior('purchases', id, raw, actor);
-      const supplier = this.repo
-        .suppliers(isSuperMode(actor) || !!before)
-        .find((r) => r.id === v.supplierId);
-      if (!supplier) throw new ImportError('供应商不存在或已停用。');
-      if (supplier.archived && !isSuperMode(actor) && before?.supplierId !== v.supplierId)
+      const supplierName = this.repo.supplierName(v.supplierId, isSuperMode(actor) || !!before);
+      if (supplierName === undefined) throw new ImportError('供应商不存在或已停用。');
+      if (this.store.archived('suppliers', v.supplierId) && !isSuperMode(actor) && before?.supplierId !== v.supplierId)
         throw new ImportError('供应商已停用，请选择正常供应商。');
       if (
         v.customerOrderId &&
@@ -157,9 +155,10 @@ export class OperationsService {
         )
       )
         throw new ImportError('关联客户订单不存在或已归档。');
+      const stock = new Map(this.repo.items(true, v.lines.flatMap((l) => l.stockItemId ? [l.stockItemId] : [])).map((item) => [item.id, item]));
       for (const l of v.lines)
         if (l.stockItemId) {
-          const item = this.repo.items(true).find((i) => i.id === l.stockItemId);
+          const item = stock.get(l.stockItemId);
           const retaining =
             before?.lines.some(
               (old: any) => old.id === l.id && old.stockItemId === l.stockItemId,
@@ -248,7 +247,7 @@ export class OperationsService {
           )
           .run(
             v.supplierId,
-            before.supplierId === v.supplierId ? before.supplierName : supplier.name,
+            before.supplierId === v.supplierId ? before.supplierName : supplierName,
             v.customerOrderId,
             v.orderDate,
             v.expectedDate,
@@ -265,7 +264,7 @@ export class OperationsService {
             id,
             'CG-' + v.orderDate.replaceAll('-', '') + '-' + String(id).padStart(4, '0'),
             v.supplierId,
-            supplier.name,
+            supplierName,
             v.customerOrderId,
             v.orderDate,
             v.expectedDate,
@@ -335,7 +334,7 @@ export class OperationsService {
             .run(id, stockItemId, JSON.stringify(document), quantityUnits(quantity));
         }
       }
-      const after = this.repo.purchases(true).find((r) => r.id === id);
+      const after = this.repo.purchases(true, id)[0];
       audit(this.store, actor, 'business-ui', before ? 'update' : 'create', 'purchases', id!, {
         before,
         after,
@@ -373,7 +372,7 @@ export class OperationsService {
       .get(receiptId, purchaseId);
     const flowId = mirror ? JSON.parse(String(mirror.document)).flowId : null;
     const original = events.find((e) => e.id === receiptId || (flowId && e.flowId === flowId));
-    const purchases = this.repo.purchases(true),
+    const purchases = this.repo.purchases(true, [purchaseId, ...(original?.lines.flatMap((l) => l.purchaseId ? [l.purchaseId] : []) ?? [])]),
       purchase = purchases.find((p) => p.id === purchaseId);
     if (
       !purchase ||
@@ -432,7 +431,7 @@ export class OperationsService {
       (input.mode === 'data-edit' || !original.discrepancies?.length)
     )
       throw new ImportError('更正数量与原登记相同，无需提交。');
-    const stock = this.repo.items(true),
+    const stock = this.repo.items(true, lines.flatMap((l) => l.stockId ? [l.stockId] : [])),
       stockDeltas = new Map<number, number>();
     for (const [index, l] of lines.entries()) {
       const it = stock.find((s) => s.id === l.stockId);
@@ -604,8 +603,8 @@ export class OperationsService {
         });
         syncReceivedUnits(this.store);
         for (const p of plan.purchaseImpact) this.store.db.prepare('UPDATE purchases SET version=version+1,updated_at=? WHERE id=?').run(at, p.id);
-        const purchases = this.repo.purchases(true).filter((p) => plan.purchaseImpact.some((i) => i.id === p.id));
-        const stock = this.repo.items(true).filter((s) => plan.stockImpact.some((i) => i.stockId === s.id));
+        const purchases = this.repo.purchases(true, plan.purchaseImpact.map((i) => i.id));
+        const stock = this.repo.items(true, plan.stockImpact.map((i) => i.stockId));
         if (plan.purchaseImpact.some((p) => p.lines.some((l: any) => purchases.find((x) => x.id === p.id)?.lines.find((x: any) => x.id === l.lineId)?.receivedQuantity !== l.after)) ||
           plan.stockImpact.some((s) => stock.find((x) => x.id === s.stockId)?.quantity !== s.before))
           throw new ImportError('数据纠偏读回核验失败，事务已回滚。', 409);
@@ -686,7 +685,7 @@ export class OperationsService {
         if (quantityUnits(l.stockedQuantity ?? l.quantity))
           replacements.push(
             this.addMovement(
-              this.repo.items(true).find((s) => s.id === l.stockId),
+              l.stockId === null ? undefined : this.repo.items(true, l.stockId)[0],
               quantityUnits(l.stockedQuantity ?? l.quantity),
               actor,
               {
@@ -695,7 +694,7 @@ export class OperationsService {
                 id: replacementFlowId ? String(replacementFlowId) : replacementId!,
                 lineId: l.lineId || undefined,
                 orderId: l.purchaseId
-                  ? this.repo.purchases(true).find((p) => p.id === l.purchaseId)?.customerOrderId
+                  ? this.repo.purchases(true, l.purchaseId)[0]?.customerOrderId
                   : null,
                 date: old.date,
                 notes: '到货更正替代：' + old.reference + '；' + input.reason,
@@ -706,7 +705,7 @@ export class OperationsService {
         if (quantityUnits(l.stockedQuantity ?? l.recordedQuantity!))
           reversals.push(
             this.addMovement(
-              this.repo.items(true).find((s) => s.id === l.stockId),
+              l.stockId === null ? undefined : this.repo.items(true, l.stockId)[0],
               -quantityUnits(l.stockedQuantity ?? l.recordedQuantity!),
               actor,
               {
@@ -799,12 +798,8 @@ export class OperationsService {
         stockImpact: plan.stockImpact,
         beforeAmount: plan.beforeAmount,
         afterAmount: plan.afterAmount,
-        purchases: this.repo
-          .purchases(true)
-          .filter((p) => plan.purchaseImpact.some((impact) => impact.id === p.id)),
-        stock: this.repo
-          .items(true)
-          .filter((s) => plan.stockImpact.some((impact) => impact.stockId === s.id)),
+        purchases: this.repo.purchases(true, plan.purchaseImpact.map((impact) => impact.id)),
+        stock: this.repo.items(true, plan.stockImpact.map((impact) => impact.stockId)),
         movements: { reversal: reversals, replacement: replacements },
       };
       for (const p of plan.purchaseImpact) {
@@ -952,7 +947,7 @@ export class OperationsService {
     return this.tx(() => {
       const prior = this.replay('movement', v.requestId, input);
       if (prior) return prior;
-      const item = this.repo.items().find((i) => i.id === id);
+      const item = this.repo.items(false, id)[0];
       if (!item) throw new ImportError('库存品不存在或已归档。', 404);
       if (item.version !== v.expectedVersion)
         throw new ImportError('库存已变化，请刷新数量后重新确认。', 409);
@@ -969,7 +964,7 @@ export class OperationsService {
         notes: v.notes,
         orderId: v.customerOrderId,
       });
-      const result = { movementId, item: this.repo.items(true).find((i) => i.id === id) };
+      const result = { movementId, item: this.repo.items(true, id)[0] };
       this.remember('movement', v.requestId, input, result);
       return result;
     });

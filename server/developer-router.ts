@@ -30,6 +30,7 @@ export function developerRouter(store: Store, auth: AuthManager, imports?: Impor
       new DevelopmentResetService(store).preview(
         z.enum(developmentResetScope).parse(req.query.scope),
         auth.actor(req)!,
+        z.enum(['0','1']).optional().parse(req.query.clearClosedFinance)==='1',
       ),
     ),
   );

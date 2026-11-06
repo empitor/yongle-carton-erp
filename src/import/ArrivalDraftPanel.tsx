@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, FileText, LoaderCircle, Save, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, FileText, LoaderCircle, Save, ShieldCheck, Undo2 } from 'lucide-react';
 import { managementRequest, useAuthState } from '../session';
 import { officialDeepSeekEndpoint } from '../../shared/assistant-attachments';
 import {
@@ -11,6 +11,7 @@ import { DraftHeader, DraftNotice } from './DraftUI';
 import ArrivalDraftForm from './ArrivalDraftForm';
 import ManagementDialog from '../ManagementDialog';
 import DraftChat from './DraftChat';
+import ReviewIssues from './ReviewIssues';
 import { arrivalReviewSchema } from '../../shared/arrival-assistant';
 import { flowInput } from '../../shared/physical-flow';
 const reviewValue = (v: any) => {
@@ -60,7 +61,8 @@ export default function ArrivalDraftPanel({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [assistant, setAssistant] = useState<any>(null),
-    [chatProgress, setChatProgress] = useState('');
+    [chatProgress, setChatProgress] = useState(''),
+    [chatOpen, setChatOpen] = useState(false);
   const mounted = useRef(true),
     pending = useRef(false),
     chatController = useRef<AbortController | null>(null),
@@ -341,7 +343,7 @@ export default function ArrivalDraftPanel({
   return (
     <>
       <section className="oi-draft oi-arrival-draft">
-        <DraftHeader title={'到货单草稿' + (workspace ? ' · ' + workspace.fileName : '')}>
+        <DraftHeader title="到货单草稿">
           {confirmed && (
             <span className="oi-reviewed">
               <CheckCircle2 size={13} />
@@ -361,7 +363,6 @@ export default function ArrivalDraftPanel({
               {busy ? '正在处理…' : editor ? '重新识别' : '识别到货单'}
             </button>
           )}
-          {workspace && <small>修订 {workspace.revision}</small>}
         </DraftHeader>
         {error && <DraftNotice error>{error}</DraftNotice>}
         {source?.lastError && source?.result && (
@@ -372,39 +373,7 @@ export default function ArrivalDraftPanel({
         {!canEdit && auth && (
           <DraftNotice>请使用有业务编辑权限的账号进行到货识别和入库。</DraftNotice>
         )}
-        {warnings.length > 0 && (
-          <details className="oi-standard-check">
-            <summary>原件识别待核对 {warnings.length} 项</summary>
-            {[...new Set(warnings)].map((w) => (
-              <p key={w}>{w}</p>
-            ))}
-          </details>
-        )}
-        {issues.length > 0 && (
-          <details className="oi-standard-check">
-            <summary>草稿仍需完善 {issues.length} 项</summary>
-            {issues.map((w) => (
-              <p key={w}>{w}</p>
-            ))}
-          </details>
-        )}
         <div className="oi-draft-content">
-          {assistant?.changes?.length > 0 && (
-            <details className="oi-arrival-changes">
-              <summary>
-                本次助手修改 {assistant.changes.length} 项{' '}
-                <small>{assistant.changes.map((c: any) => c.field).join('、')}</small>
-              </summary>
-              {assistant.changes.map((c: any, i: number) => (
-                <p key={i}>
-                  <strong>{c.field}</strong>
-                  <del>{String(c.before ?? '未填写')}</del>
-                  <span>→</span>
-                  <ins>{String(c.after ?? '未填写')}</ins>
-                </p>
-              ))}
-            </details>
-          )}
           {editor ? (
             <ArrivalDraftForm
               value={editor}
@@ -419,100 +388,107 @@ export default function ArrivalDraftPanel({
                 {loading
                   ? '正在读取已保存的到货草稿…'
                   : workspace
-                    ? '等待识别供应商到货单'
+                    ? '还没有识别'
                     : '选择左侧文件开始'}
               </p>
-              <span>供应商、纸板、面积和采购关联独立核对；识别和保存草稿不改变库存。</span>
+              <span>{workspace ? '识别和保存草稿都不会改变库存。' : ''}</span>
             </div>
           )}
         </div>
-        {editor && (
-          <div className="oi-draft-bottom">
-            <div className="oi-order-totals">
-              <span>
-                实收 <b>{totals?.quantity || '待确认'} 张</b>
-              </span>
-              <span>
-                计算面积 <strong>{totals?.area} m²</strong>
-              </span>
-              <small>
-                {totals?.unknownArea
-                  ? totals.unknownArea + ' 行面积待确认，未计入'
-                  : '根据尺寸计算；保留原单面积供核对'}
-              </small>
-            </div>
-            <div className="oi-draft-actions">
-              <button
-                disabled={busy || loading || !dirty || !editable || !canEdit}
-                onClick={() => void save()}
-              >
-                <Save size={14} />
-                保存修改
-              </button>
-              {assistant?.canUndo && editable && (
-                <button disabled={busy || !canEdit} onClick={() => void undoAssistant()}>
-                  撤销助手修改
-                </button>
-              )}
-              {dirty && doc && (
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    setEditor(structuredClone(doc));
-                    setPreview(null);
-                  }}
-                >
-                  撤销未保存修改
-                </button>
-              )}
-              <small>{source?.fileName || workspace?.fileName} · 原件已保留</small>
-            </div>
-          </div>
-        )}
       </section>
-      <DraftChat
-        identity={fileId || undefined}
-        ready={!!editor && !!source?.result}
-        messages={assistant?.messages || []}
-        title="到货单助手"
-        emptyText="识别到货单后，可核对张数、面积、匹配供应商与原材料档案。"
-        placeholder="例如：第二项实收改成500张；查询并匹配供应商"
-        locked={busy || loading || !canEdit || !editable}
-        lockedLabel={confirmed ? '已入库' : !canEdit ? '需登录' : !editable ? '只读' : '处理中'}
-        unsaved={false}
-        send={chat}
-      />
+      {editor && chatOpen && (
+        <DraftChat
+          identity={fileId || undefined}
+          ready={!!editor && !!source?.result}
+          messages={assistant?.messages || []}
+          title="到货单助手"
+          emptyText="识别到货单后，可核对张数、面积、匹配供应商与原材料档案。"
+          placeholder="例如：第二项实收改成500张；查询并匹配供应商"
+          locked={busy || loading || !canEdit || !editable}
+          lockedLabel={confirmed ? '已入库' : !canEdit ? '需登录' : !editable ? '只读' : '处理中'}
+          unsaved={false}
+          send={chat}
+        />
+      )}
       {chatProgress && (
         <div className="oi-arrival-chat-status" role="status">
           {chatProgress}
         </div>
       )}
-      <footer className="oi-review-bar oi-arrival-review">
-        <div>
-          <ShieldCheck size={15} />
-          <span>
-            {confirmed
-              ? '已确认入库 · ' + doc.number
-              : dirty
-                ? '核对草稿待保存为到货记录'
-                : doc
-                  ? '当前到货草稿已保存，待人工核对'
-                  : '识别后核对到货信息'}
-          </span>
-        </div>
-        <div>
-          {doc && <a href={'#arrivals?doc=' + doc.id}>查看到货记录</a>}
-          {editable && (
+      {editor && (
+        <footer className="oi-action-bar">
+          <div className="oi-action-summary">
+            <span>
+              实收 <b>{totals?.quantity || '待确认'} 张</b>
+            </span>
+            <span>
+              面积 <strong>{totals?.area} m²</strong>
+            </span>
+            {!!totals?.unknownArea && <small>{totals.unknownArea} 行面积待确认，未计入</small>}
+            <ReviewIssues
+              issues={issues.map((message) => ({ path: 'draft', message, severity: 'error' }))}
+              warnings={warnings}
+              changes={(assistant?.changes || []).map((c: any) => ({
+                label: c.field,
+                before: c.before,
+                after: c.after,
+              }))}
+            />
+          </div>
+          <div className="oi-action-buttons">
+            {assistant?.canUndo && editable && (
+              <button disabled={busy || !canEdit} onClick={() => void undoAssistant()}>
+                <Undo2 size={14} />
+                撤销助手修改
+              </button>
+            )}
+            {dirty && doc && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setEditor(structuredClone(doc));
+                  setPreview(null);
+                }}
+              >
+                撤销未保存修改
+              </button>
+            )}
             <button
-              className="primary"
-              disabled={busy || loading || !doc || dirty || issues.length > 0 || !canEdit}
-              onClick={() => void review()}
+              className="oi-ai-button"
+              aria-pressed={chatOpen}
+              onClick={() => setChatOpen((v) => !v)}
             >
-              核对并确认入库
+              让 AI 改
             </button>
-          )}
-        </div>
-      </footer>
+            {confirmed ? (
+              <a className="oi-imported-link" href={'#arrivals?doc=' + doc.id}>
+                <ShieldCheck size={14} />
+                已入库 {doc.number}
+              </a>
+            ) : dirty || !doc ? (
+              <button
+                className="primary"
+                disabled={busy || loading || !dirty || !editable || !canEdit}
+                onClick={() => void save()}
+              >
+                <Save size={14} />
+                保存草稿
+              </button>
+            ) : (
+              editable && (
+                <button
+                  className="primary"
+                  disabled={busy || loading || issues.length > 0 || !canEdit}
+                  title={issues.length ? '还有 ' + issues.length + ' 项待处理' : undefined}
+                  onClick={() => void review()}
+                >
+                  核对并确认入库
+                </button>
+              )
+            )}
+          </div>
+        </footer>
+      )}
       {preview && (
         <ManagementDialog title="确认实际到货并入库" close={() => setPreview(null)} busy={busy}>
           <div className="arrival-import-preview">

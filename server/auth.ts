@@ -5,6 +5,8 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { ImportError } from './import/errors.js';
+import { financePermissions } from '../shared/finance.js';
+import { forwardedClient, hasProxyHeaders, proxyIngress, type Deployment } from './deployment.js';
 import {
   developerActor,
   localDevelopmentEnabled,
@@ -25,27 +27,36 @@ const account = z.strictObject({
   name: z.string().trim().min(1).max(60),
   password: z.string().min(12).max(128),
 });
-type Session = { actor: Actor; expires: number; superUntil?: number; developer?: boolean };
+type Session = { userId: string; expires: number; superUntil?: number; developer?: boolean };
 const newPassword = z.string().min(12, '密码至少12位').max(128);
-export const accountLevels = ['admin', 'staff', 'viewer'] as const;
+export const accountLevels = ['admin', 'staff', 'viewer', 'finance', 'cashier'] as const;
 /** 账号级别映射到现有的角色和权限：只读账号没有写权限，各业务服务的校验自然拒绝。 */
 const levelGrant: Record<(typeof accountLevels)[number], { role: string; permissions: string[] }> = {
   admin: { role: 'super_admin', permissions: ['business:edit', 'import:execute', 'import:restore'] },
   staff: { role: 'admin', permissions: ['business:edit', 'import:execute'] },
   viewer: { role: 'admin', permissions: [] },
+  finance: { role: 'admin', permissions: ['business:edit', 'finance:view', 'finance:edit', 'finance:approve', 'finance:close'] },
+  cashier: { role: 'admin', permissions: ['finance:view', 'finance:cash'] },
 };
 function accountLevel(role: string, permissions: string[]) {
+  if (role !== 'super_admin' && permissions.includes('finance:close')) return 'finance';
+  if (role !== 'super_admin' && permissions.includes('finance:cash')) return 'cashier';
   return role === 'super_admin' ? 'admin' : permissions.includes('business:edit') ? 'staff' : 'viewer';
+}
+function accountPermissions(role: unknown, encoded: unknown): string[] {
+  const permissions = JSON.parse(String(encoded)) as string[];
+  return role === 'super_admin' ? [...new Set([...permissions, ...financePermissions])] : permissions;
 }
 export class AuthManager {
   private db: DatabaseSync;
   readonly csrf = randomBytes(32).toString('hex');
   private sessions = new Map<string, Session>();
   private attempts = new Map<string, { count: number; until: number }>();
+  private cleanup?: NodeJS.Timeout;
   constructor(
     file: string,
     private now: () => number = Date.now,
-    private options: { localDevelopment?: boolean; localAdministration?: boolean } = {},
+    private options: { localDevelopment?: boolean; localAdministration?: boolean; deployment?: Deployment } = {},
   ) {
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
@@ -81,6 +92,18 @@ export class AuthManager {
       }
     }
     this.migrateAccounts();
+    if (options.deployment) {
+      this.db.exec(`PRAGMA busy_timeout=5000;
+        CREATE TABLE IF NOT EXISTS auth_sessions(
+        token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS auth_sessions_user ON auth_sessions(user_id);
+        CREATE INDEX IF NOT EXISTS auth_sessions_expires ON auth_sessions(expires);`);
+      this.pruneSessions();
+      this.cleanup = setInterval(() => {
+        try { this.pruneSessions(); } catch { console.warn('未能清理过期登录会话，将在下次检查时重试。'); }
+      }, 3600_000);
+      this.cleanup.unref();
+    }
   }
   private migrateAccounts() {
     if (
@@ -94,11 +117,50 @@ export class AuthManager {
   /** 改密或停用后让该账号的其他会话立即失效。 */
   private revokeSessions(userId: string, except?: string) {
     for (const [key, session] of this.sessions)
-      if (session.actor.id === userId && key !== except) this.sessions.delete(key);
+      if (session.userId === userId && key !== except) this.sessions.delete(key);
+    // 本机找回密码脚本也须让部署进程中的旧令牌失效。
+    if (this.options.deployment || this.db.prepare("SELECT 1 FROM sqlite_schema WHERE name='auth_sessions' AND type='table'").get())
+      this.db
+        .prepare('DELETE FROM auth_sessions WHERE user_id=? AND token_hash<>?')
+        .run(userId, except ?? '');
+  }
+  private pruneSessions() {
+    const now = this.now();
+    this.db.prepare('DELETE FROM auth_sessions WHERE expires<=?').run(now);
+    for (const [key, session] of this.sessions)
+      if (session.expires <= now) this.sessions.delete(key);
+  }
+  private session(key: string): Session | undefined {
+    const session = this.sessions.get(key);
+    if (!this.options.deployment) return session;
+    // 每次核验持久记录，以识别另一个进程撤销的令牌。
+    const row = this.db.prepare('SELECT user_id,expires FROM auth_sessions WHERE token_hash=?').get(key);
+    if (!row || Number(row.expires) <= this.now()) {
+      this.sessions.delete(key);
+      if (row) this.pruneSessions();
+      return;
+    }
+    if (session) return session;
+    const restored = { userId: String(row.user_id), expires: Number(row.expires) };
+    this.sessions.set(key, restored);
+    return restored;
+  }
+  private clientAddress(req: Request) {
+    return proxyIngress(req, this.options.deployment) ? forwardedClient(req) || 'proxy' : req.ip || 'local';
   }
   private hashPassword(password: string) {
     const salt = randomBytes(24).toString('hex');
     return { salt, hash: scryptSync(password, salt, 64).toString('hex') };
+  }
+  private changeCredentials(action: () => void) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      action();
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
   private requireAccountAdmin(req: Request) {
     if (req.headers['x-erp-auth-token'] !== this.csrf)
@@ -109,10 +171,9 @@ export class AuthManager {
     return actor;
   }
   private activeAdmins(excluding?: string) {
-    return this.db
-      .prepare("SELECT id FROM users WHERE role='super_admin' AND disabled_at IS NULL")
-      .all()
-      .filter((u) => u.id !== excluding).length;
+    return Number(this.db
+      .prepare("SELECT COUNT(*) AS n FROM users WHERE role='super_admin' AND disabled_at IS NULL AND (? IS NULL OR id<>?)")
+      .get(excluding ?? null, excluding ?? null)!.n);
   }
   listAccounts() {
     return this.db
@@ -130,11 +191,11 @@ export class AuthManager {
     const user = this.db.prepare('SELECT id FROM users WHERE name=?').get(name);
     if (!user) throw new ImportError('账号不存在。', 404);
     const { salt, hash } = this.hashPassword(password);
-    this.db
-      .prepare('UPDATE users SET salt=?,password_hash=? WHERE id=?')
-      .run(salt, hash, user.id);
-    this.revokeSessions(String(user.id));
-    this.event(String(user.id), 'password-reset-cli');
+    this.changeCredentials(() => {
+      this.db.prepare('UPDATE users SET salt=?,password_hash=? WHERE id=?').run(salt, hash, user.id);
+      this.revokeSessions(String(user.id));
+      this.event(String(user.id), 'password-reset-cli');
+    });
   }
   private event(id: string, action: string) {
     this.db
@@ -157,14 +218,14 @@ export class AuthManager {
   actor(req: Request): Actor | null {
     const key = this.sessionBinding(req);
     if (!key) return null;
-    const s = this.sessions.get(key);
+    const s = this.session(key);
     if (!s || s.expires < this.now()) {
       this.sessions.delete(key);
       return null;
     }
     const row = this.db
       .prepare('SELECT name,permissions,role,disabled_at FROM users WHERE id=?')
-      .get(s.actor.id);
+      .get(s.userId);
     const user = row && row.disabled_at === null ? row : undefined;
     const dev =
       !!user && !!s.developer && this.developerAvailable(req) && user.role === 'super_admin';
@@ -175,9 +236,9 @@ export class AuthManager {
       this.localRequest(req);
     const result: Actor | null = user
       ? {
-          id: s.actor.id,
+          id: s.userId,
           name: String(user.name),
-          permissions: JSON.parse(String(user.permissions)),
+          permissions: accountPermissions(user.role, user.permissions),
           role: user.role as 'admin' | 'super_admin',
           superAdminMode:
             owner || dev || (user.role === 'super_admin' && (s.superUntil || 0) > this.now()),
@@ -196,6 +257,7 @@ export class AuthManager {
         : result;
   }
   private localRequest(req: Request) {
+    if (this.options.deployment && (proxyIngress(req, this.options.deployment) || hasProxyHeaders(req))) return false;
     const remote = req.socket.remoteAddress || '';
     const host = (req.headers.host || '').toLowerCase();
     return (
@@ -223,7 +285,7 @@ export class AuthManager {
   verifyPassword(req: Request, password: unknown) {
     const actor = this.actor(req);
     if (!actor) throw new ImportError('请先登录管理账号。', 401);
-    const attemptKey = 'step:' + actor.id + ':' + req.ip;
+    const attemptKey = 'step:' + actor.id + ':' + this.clientAddress(req);
     const throttle = this.attempts.get(attemptKey);
     if (throttle && throttle.until > this.now() && throttle.count >= 5)
       throw new ImportError('密码验证次数过多，请5分钟后重试。', 429);
@@ -252,6 +314,7 @@ export class AuthManager {
         actor: this.actor(req),
         csrf: this.csrf,
         developerAvailable: this.developerAvailable(req),
+        ...(this.options.deployment ? { deploymentMode: true, proxyAccess: proxyIngress(req, this.options.deployment) } : {}),
       }),
     );
     router.post('/developer-mode', (req, res) => {
@@ -306,10 +369,21 @@ export class AuthManager {
       if (!parsed.success) return res.status(400).json({ message: '请输入用户名和12–128位密码。' });
       const v = parsed.data,
         setup = req.path === '/setup';
+      const secure = proxyIngress(req, this.options.deployment);
+      if (setup && secure)
+        return res.status(403).json({ message: '请在服务器本机建立首个管理员账号。' });
       if (setup && this.configured())
         return res.status(409).json({ message: '管理员已经建立，请登录。' });
-      const throttle = this.attempts.get(req.ip || 'local');
-      if (throttle && throttle.until > Date.now() && throttle.count >= 5)
+      // 办公室共用一个公网 IP，按“IP + 账号”限流，一个人输错不影响同事；
+      // 同一 IP 另设总上限，防止换账号名撞密码。
+      const client = this.clientAddress(req);
+      const accountKey = 'login:' + client + ':' + v.name,
+        ipKey = 'login-ip:' + client;
+      const over = (key: string, limit: number) => {
+        const item = this.attempts.get(key);
+        return !!item && item.until > Date.now() && item.count >= limit;
+      };
+      if (over(accountKey, 5) || over(ipKey, 30))
         return res.status(429).json({ message: '尝试次数过多，请5分钟后重试。' });
       if (setup) {
         const salt = randomBytes(24).toString('hex');
@@ -330,27 +404,38 @@ export class AuthManager {
       const salt = String(user?.salt || 'invalid-account-salt'),
         hash = scryptSync(v.password, salt, 64);
       if (!user || !timingSafeEqual(hash, Buffer.from(String(user.password_hash), 'hex'))) {
-        const prev = throttle && throttle.until > Date.now() ? throttle.count : 0;
-        this.attempts.set(req.ip || 'local', { count: prev + 1, until: Date.now() + 300000 });
+        for (const key of [accountKey, ipKey]) {
+          const item = this.attempts.get(key);
+          const prev = item && item.until > Date.now() ? item.count : 0;
+          this.attempts.set(key, { count: prev + 1, until: Date.now() + 300000 });
+        }
+        // 公网上会有大量陌生地址，过期记录要清掉。
+        if (this.attempts.size > 10000)
+          for (const [key, item] of this.attempts)
+            if (item.until <= Date.now()) this.attempts.delete(key);
         return res.status(401).json({ message: '用户名或密码错误。' });
       }
       if (user.disabled_at !== null)
         return res.status(403).json({ message: '该账号已停用，请联系管理员。' });
-      this.attempts.delete(req.ip || 'local');
+      this.attempts.delete(accountKey);
       const token = randomBytes(32).toString('hex'),
         actor = {
           id: String(user.id),
           name: String(user.name),
-          permissions: JSON.parse(String(user.permissions)),
+          permissions: accountPermissions(user.role, user.permissions),
           role: user.role as 'admin' | 'super_admin',
         };
-      this.sessions.set(createHash('sha256').update(token).digest('hex'), {
-        actor,
-        expires: Date.now() + 8 * 3600000,
-      });
+      const key = createHash('sha256').update(token).digest('hex');
+      const expires = (this.options.deployment ? this.now() : Date.now()) + 8 * 3600000;
+      if (this.options.deployment) {
+        this.pruneSessions();
+        this.db.prepare('INSERT INTO auth_sessions(token_hash,user_id,expires) VALUES(?,?,?)').run(key, actor.id, expires);
+      }
+      this.sessions.set(key, { userId: actor.id, expires });
       res.cookie('erp_session', token, {
         httpOnly: true,
         sameSite: 'strict',
+        ...(secure ? { secure } : {}),
         path: '/',
         maxAge: 8 * 3600000,
       });
@@ -358,13 +443,14 @@ export class AuthManager {
     });
     router.post('/logout', (req, res) => {
       if (req.headers['x-erp-auth-token'] !== this.csrf) return res.sendStatus(403);
-      const token = req.headers.cookie
-        ?.split(';')
-        .map((x) => x.trim())
-        .find((x) => x.startsWith('erp_session='))
-        ?.slice(12);
-      if (token) this.sessions.delete(createHash('sha256').update(token).digest('hex'));
-      res.clearCookie('erp_session', { path: '/' }).json({ ok: true });
+      const key = this.sessionBinding(req);
+      if (key) {
+        this.sessions.delete(key);
+        if (this.options.deployment)
+          this.db.prepare('DELETE FROM auth_sessions WHERE token_hash=?').run(key);
+      }
+      res.clearCookie('erp_session', proxyIngress(req, this.options.deployment)
+        ? { path: '/', secure: true, httpOnly: true, sameSite: 'strict' } : { path: '/' }).json({ ok: true });
     });
     router.post('/password', (req, res) => {
       if (req.headers['x-erp-auth-token'] !== this.csrf)
@@ -374,11 +460,11 @@ export class AuthManager {
         .parse(req.body);
       const actor = this.verifyPassword(req, input.current),
         { salt, hash } = this.hashPassword(input.password);
-      this.db
-        .prepare('UPDATE users SET salt=?,password_hash=? WHERE id=?')
-        .run(salt, hash, actor.id);
-      this.revokeSessions(actor.id, this.sessionBinding(req));
-      this.event(actor.id, 'password-changed');
+      this.changeCredentials(() => {
+        this.db.prepare('UPDATE users SET salt=?,password_hash=? WHERE id=?').run(salt, hash, actor.id);
+        this.revokeSessions(actor.id, this.sessionBinding(req));
+        this.event(actor.id, 'password-changed');
+      });
       res.json({ ok: true });
     });
     router.get('/users', (req, res) => {
@@ -428,10 +514,11 @@ export class AuthManager {
           .run(grant.role, JSON.stringify(grant.permissions), id);
       }
       if (input.disabled !== undefined) {
-        this.db
-          .prepare('UPDATE users SET disabled_at=? WHERE id=?')
-          .run(input.disabled ? new Date(this.now()).toISOString() : null, id);
-        if (input.disabled) this.revokeSessions(id);
+        this.changeCredentials(() => {
+          this.db.prepare('UPDATE users SET disabled_at=? WHERE id=?')
+            .run(input.disabled ? new Date(this.now()).toISOString() : null, id);
+          if (input.disabled) this.revokeSessions(id);
+        });
       }
       this.event(actor.id, 'account-updated:' + id);
       res.json({ users: this.listAccounts() });
@@ -443,16 +530,17 @@ export class AuthManager {
       if (!this.db.prepare('SELECT 1 FROM users WHERE id=?').get(id))
         throw new ImportError('账号不存在。', 404);
       const { salt, hash } = this.hashPassword(input.password);
-      this.db
-        .prepare('UPDATE users SET salt=?,password_hash=? WHERE id=?')
-        .run(salt, hash, id);
-      this.revokeSessions(id, this.sessionBinding(req));
-      this.event(actor.id, 'password-reset:' + id);
+      this.changeCredentials(() => {
+        this.db.prepare('UPDATE users SET salt=?,password_hash=? WHERE id=?').run(salt, hash, id);
+        this.revokeSessions(id, this.sessionBinding(req));
+        this.event(actor.id, 'password-reset:' + id);
+      });
       res.json({ ok: true });
     });
     return router;
   }
   close() {
+    clearInterval(this.cleanup);
     this.sessions.clear();
     this.db.close();
   }

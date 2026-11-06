@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { userError } from '../shared/user-errors';
 export type AuthState = {
   configured: boolean;
+  deploymentMode?: boolean;
+  proxyAccess?: boolean;
   developerAvailable?: boolean;
   actor: {
     id: string;

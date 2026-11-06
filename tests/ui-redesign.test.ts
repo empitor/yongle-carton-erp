@@ -7,6 +7,7 @@ import { Store } from '../server/db.js';
 import { OperationsService } from '../server/operations/service.js';
 import { buildToday } from '../server/business/workbench.js';
 import { orderChain } from '../shared/order-chain.js';
+import { orderNextSteps, purchaseNextSteps } from '../shared/order-next-step.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/domain.js';
 import Navigation from '../src/Navigation.js';
 import Combobox from '../src/ui/Combobox.js';
@@ -307,6 +308,58 @@ test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿
     await new Promise((r) => server.close(r));
     store.close();
   }
+});
+
+test('下一步按事实判断：草稿先确认，库存够先送货，有任务先完工，没排产才安排生产', () => {
+  const line = (id: number, productId: number, remainingQuantity: number) => ({
+    id,
+    productId,
+    productName: '虚构箱' + id,
+    quantity: remainingQuantity,
+    remainingQuantity,
+    unit: '只',
+  });
+  const order = (lines: any[], status = '已确认') => ({ id: 9, status, lines });
+  const stock = (productId: number, availableUnits: number) => ({ productId, unit: '只', availableUnits });
+  const kinds = (o: any, r: any) => orderNextSteps(o, r).steps.map((s) => s.kind);
+  const empty = { tasks: [], stocks: [], deliveries: [], purchases: [] };
+
+  assert.deepEqual(kinds(order([line(1, 1, 10)], '草稿'), null), ['confirm']);
+  assert.equal(orderNextSteps(order([line(1, 1, 10)], '已取消'), empty).done, '订单已取消');
+  assert.equal(orderNextSteps(order([line(1, 1, 0)]), empty).done, '已全部发货');
+  assert.deepEqual(kinds(order([line(1, 1, 10)]), empty), ['schedule']);
+  // 库存够发：先建送货单，不再要求排产
+  assert.deepEqual(kinds(order([line(1, 1, 10)]), { ...empty, stocks: [stock(1, 10000)] }), ['delivery']);
+  // 库存只够一部分：先排产，送货排在后面
+  assert.deepEqual(kinds(order([line(1, 1, 10)]), { ...empty, stocks: [stock(1, 4000)] }), ['schedule', 'delivery']);
+  // 单位不同的库存不算
+  assert.deepEqual(
+    kinds(order([line(1, 1, 10)]), { ...empty, stocks: [{ productId: 1, unit: '张', availableUnits: 99000 }] }),
+    ['schedule'],
+  );
+  const task = { id: 5, number: 'SC-1', productId: 1, quantity: '10', completed: '4', unit: '只', status: 'confirmed' };
+  assert.deepEqual(kinds(order([line(1, 1, 10)]), { ...empty, tasks: [task] }), ['complete']);
+  assert.deepEqual(orderNextSteps(order([line(1, 1, 10)]), { ...empty, tasks: [task] }).steps[0].params, { task: '5' });
+  // 已取消的任务不算排产；草稿任务要先确认
+  assert.deepEqual(kinds(order([line(1, 1, 10)]), { ...empty, tasks: [{ ...task, status: 'cancelled' }] }), ['schedule']);
+  assert.deepEqual(kinds(order([line(1, 1, 10)]), { ...empty, tasks: [{ ...task, status: 'draft' }] }), ['confirm_task']);
+  // 送货草稿最优先
+  const draft = { id: 7, number: 'SH-1', status: 'draft' };
+  assert.equal(kinds(order([line(1, 1, 10)]), { ...empty, deliveries: [draft] })[0], 'confirm_delivery');
+  const noted = orderNextSteps(order([line(1, 1, 10)]), {
+    ...empty,
+    purchases: [
+      { number: 'CG-1', businessStatus: '待订货' },
+      { number: 'CG-2', businessStatus: '已订货', arrivalProgress: '部分到货' },
+      { number: 'CG-3', businessStatus: '已订货', arrivalProgress: '全部到货' },
+      { number: 'CG-4', businessStatus: '已取消' },
+    ],
+  }).notes;
+  assert.deepEqual(noted, ['采购 CG-1 还没有下单', '采购 CG-2 还没到齐']);
+
+  assert.equal(purchaseNextSteps({ businessStatus: '待订货' }).steps[0].kind, 'export');
+  assert.equal(purchaseNextSteps({ id: 1, businessStatus: '已订货', arrivalProgress: '部分到货' }).steps[0].kind, 'arrival');
+  assert.equal(purchaseNextSteps({ businessStatus: '已订货', arrivalProgress: '全部到货' }).done, '已全部到货');
 });
 
 test('疑点清单合并相同提示，必须处理的排在前面', () => {

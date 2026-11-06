@@ -72,6 +72,11 @@
   transform-box: fill-box;
   transform-origin: right bottom;
 }
+.ga-spirit-spark {
+  transform-box: fill-box;
+  transform-origin: 40% 55%;
+  animation: ga-spirit-twinkle 3.6s ease-in-out infinite;
+}
 .ga-launcher:hover .ga-spirit {
   transform: translateY(-3px);
   filter: drop-shadow(0 6px 6px #031b184d) brightness(1.035);
@@ -194,6 +199,17 @@
     transform: scaleY(0.08);
   }
 }
+@keyframes ga-spirit-twinkle {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(0.92) rotate(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08) rotate(8deg);
+  }
+}
 @keyframes ga-spirit-wave {
   0%,
   100% {
@@ -213,6 +229,7 @@
   .ga-spirit,
   .ga-spirit-body,
   .ga-spirit-eyes,
+  .ga-spirit-spark,
   .ga-launcher:hover .ga-spirit-hand {
     animation: none;
     transition: none;

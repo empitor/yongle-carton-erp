@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import ManagementDialog from '../ManagementDialog';
+import Combobox from '../ui/Combobox';
 import QuickPartyDialog from '../QuickPartyDialog';
 import DimensionUnitSelect from '../DimensionUnitSelect';
 import { managementRequest, useAuthState } from '../session';
@@ -192,51 +193,50 @@ export function PurchaseEditor({
         </div>
         <div className="op-form-grid">
           <OpField label="供应商 *">
-            <select
+            <Combobox
+              ariaLabel="供应商"
               required
               disabled={locked && !flexible}
-              value={form.supplierId}
-              onChange={(e) => patch({ supplierId: e.target.value })}
+              placeholder="搜索供应商"
+              value={String(form.supplierId ?? '')}
+              onChange={(v) => patch({ supplierId: v })}
+              options={[
+                ...(!suppliers.some((s) => s.id === Number(form.supplierId)) && value
+                  ? [{ value: String(value.supplierId), label: value.supplierName + '（历史档案）' }]
+                  : []),
+                ...supplierOptions.map((s) => ({
+                  value: String(s.id),
+                  label: s.name + (s.archived ? '（停用）' : ''),
+                })),
+              ]}
+            />
+            <button
+              type="button"
+              className="text-link"
+              disabled={locked && !flexible}
+              onClick={() => setQuickSupplier(true)}
             >
-              <option value="">请选择供应商</option>
-              {!suppliers.some((s) => s.id === Number(form.supplierId)) && value && (
-                <option value={value.supplierId}>{value.supplierName}（历史档案）</option>
-              )}
-              {supplierOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.archived ? '（停用）' : ''}
-                </option>
-              ))}
-            </select>
+              新增供应商
+            </button>
           </OpField>
-          <button
-            type="button"
-            disabled={locked && !flexible}
-            onClick={() => setQuickSupplier(true)}
-          >
-            新增供应商，保留当前采购单
-          </button>
           <OpField label="关联客户订单（可不选）">
-            <select
-              value={form.customerOrderId ?? ''}
-              onChange={(e) =>
-                patch({ customerOrderId: e.target.value ? Number(e.target.value) : null })
-              }
-            >
-              <option value="">独立采购，不关联客户订单</option>
-              {value?.customerOrderId && !orders.some((o) => o.id === value.customerOrderId) && (
-                <option value={value.customerOrderId}>
-                  {value.customerOrderNumber}（历史订单）
-                </option>
-              )}
-              {orders.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.number} · {o.customerName}
-                  {o.archived ? '（归档）' : ''}
-                </option>
-              ))}
-            </select>
+            <Combobox
+              ariaLabel="关联客户订单"
+              placeholder="独立采购，不关联客户订单"
+              value={form.customerOrderId ? String(form.customerOrderId) : ''}
+              onChange={(v) => patch({ customerOrderId: v ? Number(v) : null })}
+              options={[
+                { value: '', label: '独立采购，不关联客户订单' },
+                ...(value?.customerOrderId && !orders.some((o) => o.id === value.customerOrderId)
+                  ? [{ value: String(value.customerOrderId), label: value.customerOrderNumber + '（历史订单）' }]
+                  : []),
+                ...orders.map((o) => ({
+                  value: String(o.id),
+                  label: o.number + (o.archived ? '（归档）' : ''),
+                  hint: o.customerName,
+                })),
+              ]}
+            />
           </OpField>
           <OpField label="采购日期 *">
             <input
@@ -279,10 +279,12 @@ export function PurchaseEditor({
             <legend>采购明细 {i + 1}</legend>
             <div className="op-form-grid">
               <OpField label="原材料档案" wide>
-                <select
-                  value={l.stockItemId ?? ''}
-                  onChange={(e) => {
-                    const stock = items.find((s) => s.id === Number(e.target.value));
+                <Combobox
+                  ariaLabel={'采购明细' + (i + 1) + ' 原材料档案'}
+                  placeholder="到货时新建独立库存品"
+                  value={l.stockItemId ? String(l.stockItemId) : ''}
+                  onChange={(v) => {
+                    const stock = items.find((s) => s.id === Number(v));
                     line(
                       i,
                       stock
@@ -296,16 +298,17 @@ export function PurchaseEditor({
                         : { stockItemId: null },
                     );
                   }}
-                >
-                  <option value="">到货时新建独立库存品</option>
-                  {items
-                    .filter((s) => s.kind === 'raw' && !s.archived)
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} · {s.specification || formatStockSize(s)} · {s.unit}
-                      </option>
-                    ))}
-                </select>
+                  options={[
+                    { value: '', label: '到货时新建独立库存品' },
+                    ...items
+                      .filter((s) => s.kind === 'raw' && !s.archived)
+                      .map((s) => ({
+                        value: String(s.id),
+                        label: s.name,
+                        hint: (s.specification || formatStockSize(s)) + ' · ' + s.unit,
+                      })),
+                  ]}
+                />
               </OpField>
               <OpField label="纸板名称 *">
                 <input
@@ -524,10 +527,12 @@ export function StockEditor({
           </OpField>
           {kind === 'finished' && (
             <OpField label="关联纸箱产品" wide>
-              <select
-                value={form.productId ?? ''}
-                onChange={(e) => {
-                  const p = products.find((p) => p.id === Number(e.target.value));
+              <Combobox
+                ariaLabel="关联纸箱产品"
+                placeholder="不关联产品档案"
+                value={form.productId ? String(form.productId) : ''}
+                onChange={(v) => {
+                  const p = products.find((p) => p.id === Number(v));
                   patch(
                     p
                       ? {
@@ -543,14 +548,11 @@ export function StockEditor({
                       : { productId: null },
                   );
                 }}
-              >
-                <option value="">不关联产品档案</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: '', label: '不关联产品档案' },
+                  ...products.map((p) => ({ value: String(p.id), label: p.name })),
+                ]}
+              />
             </OpField>
           )}
           <OpField label="规格说明" wide>
@@ -683,14 +685,16 @@ export function MovementDialog({
             <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </OpField>
           <OpField label="关联客户订单（可不选）">
-            <select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
-              <option value="">不关联</option>
-              {orders.map((o) => (
-                <option value={o.id} key={o.id}>
-                  {o.number}
-                </option>
-              ))}
-            </select>
+            <Combobox
+              ariaLabel="关联客户订单"
+              placeholder="不关联"
+              value={String(orderId)}
+              onChange={setOrderId}
+              options={[
+                { value: '', label: '不关联' },
+                ...orders.map((o) => ({ value: String(o.id), label: o.number, hint: o.customerName })),
+              ]}
+            />
           </OpField>
           <OpField label="出入库用途 / 盘点原因 *" wide>
             <textarea

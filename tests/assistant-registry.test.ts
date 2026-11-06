@@ -195,8 +195,14 @@ test('同一导航工具接受不同自然语言，不以固定词语拒绝；�
         effects.some((x) => x.e === 'effect' && x.d.type === 'navigate' && x.d.url === '#' + page),
       );
     }
-    for (const page of erpPageIds)
-      assert.equal(f.manager.tools.read('ui.open', { page }, actor).url, pageLink(page));
+    const financeActor = { ...actor, permissions: [...actor.permissions, 'finance:view'] };
+    for (const page of erpPageIds) {
+      assert.equal(f.manager.tools.read('ui.open', { page }, financeActor).url, pageLink(page));
+      // 财务页面只有持财务权限的账号才能让助手打开。
+      if (page.startsWith('finance'))
+        assert.throws(() => f.manager.tools.read('ui.open', { page }, actor), /权限/);
+      else assert.equal(f.manager.tools.read('ui.open', { page }, actor).url, pageLink(page));
+    }
     for (const url of [
       'https://example.com',
       '#unknown',

@@ -15,6 +15,10 @@ export type DevelopmentResetScope = (typeof developmentResetScope)[number];
  * 该操作不可撤销，因此仅限本机最高管理员。
  */
 const businessTables = [
+  'product_marks',
+  'mark_files',
+  'inbox_items',
+  'inbox_files',
   'flow_file_uses',
   'flow_receipt_keys',
   'flow_previews',
@@ -42,22 +46,30 @@ const businessTables = [
   'operation_requests',
 ] as const;
 
+export const financeResetTables = [
+  'fin_report_snapshots','fin_budgets','fin_period_jobs','fin_cost_sales','fin_inventory_costs',
+  'fin_payroll','fin_depreciation','fin_assets','fin_expenses','fin_invoice_links','fin_invoices',
+  'fin_attachments','fin_notes','fin_bank_matches','fin_bank_rows','fin_statements','fin_interest','fin_deposit_actions',
+  'fin_deposits','fin_installments','fin_allocations','fin_bad_debts','fin_cash_documents','fin_obligations',
+  'fin_source_observations','fin_entries','fin_vouchers','fin_events','fin_opening','fin_periods','fin_requests',
+] as const;
+
 export class DevelopmentResetService {
   constructor(readonly store: Store) {}
 
-  private tables(): string[] {
+  private tables(includeFinance: boolean): string[] {
     const existing = new Set(
       this.store.db
         .prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         .all()
         .map((r: any) => String(r.name)),
     );
-    return businessTables.filter((name) => existing.has(name));
+    return [...businessTables,...(includeFinance?financeResetTables:[])].filter((name) => existing.has(name));
   }
 
-  private counts(): Record<string, number> {
+  private counts(includeFinance: boolean): Record<string, number> {
     return Object.fromEntries(
-      this.tables().map((name) => [
+      this.tables(includeFinance).map((name) => [
         name,
         Number(
           this.store.db
@@ -75,18 +87,23 @@ export class DevelopmentResetService {
     );
   }
 
-  preview(scope: DevelopmentResetScope, who: Actor) {
+  preview(scope: DevelopmentResetScope, who: Actor, clearClosedFinance = false, includeFinance = true) {
     requireLocalAdministrator(who);
-    return {
-      scope,
-      tables: scope === 'ai-imports' ? [] : this.counts(),
-    };
+    const tables=scope==='ai-imports'?[]:this.counts(includeFinance);
+    const closed=scope==='ai-imports'||!includeFinance?[]:this.store.db.prepare(
+      "SELECT period,version FROM fin_periods WHERE status='closed' ORDER BY period").all();
+    const finance=includeFinance && scope!=='ai-imports'?{
+      closed,allowed:!closed.length||clearClosedFinance,clearClosedFinance,
+      digest:createHash('sha256').update(JSON.stringify({scope,actor:who.id,tables,closed,clearClosedFinance})).digest('hex'),
+    }:null;
+    return {scope,tables,...(finance?{finance}:{})};
   }
 
   execute(
     scope: DevelopmentResetScope,
     who: Actor,
     clearImports?: () => { count: number; ids: string[] },
+    options: {includeFinance?:boolean;clearClosedFinance?:boolean;financeDigest?:string} = {},
   ) {
     const actor = requireLocalAdministrator(who);
     if (scope === 'ai-imports') {
@@ -98,9 +115,13 @@ export class DevelopmentResetService {
       });
       return { scope, count: removed.count };
     }
+    const includeFinance=options.includeFinance!==false;
+    const preview=this.preview(scope,actor,options.clearClosedFinance,includeFinance);
+    if (preview.finance?.closed.length && (!preview.finance.allowed||preview.finance.digest!==options.financeDigest))
+      throw new ImportError('存在已结账财务数据，请在初始化预览中明确勾选并提交对应范围。',409,'finance-reset-preview');
     snapshotBeforeDestructive(this.store, 'reset');
-    const tables = this.tables(),
-      before = this.counts(),
+    const tables = this.tables(includeFinance),
+      before = this.counts(includeFinance),
       digest = createHash('sha256').update(JSON.stringify({ scope, tables })).digest('hex');
     const db = this.store.db;
     db.exec('PRAGMA defer_foreign_keys=ON');
@@ -123,6 +144,10 @@ export class DevelopmentResetService {
             '"' +
             (name === 'operation_requests' ? " WHERE kind <> 'document-template-settings'" : ''),
         );
+      if (includeFinance) {
+        db.exec('UPDATE fin_settings SET start_period=NULL,version=version+1 WHERE start_period IS NOT NULL');
+        db.exec('UPDATE fin_accounts SET used=0 WHERE used=1');
+      }
       // 审计、正式归档与持久任务仍保留旧记录身份，清空业务不能让新记录复用旧ID。
       if (db.prepare('PRAGMA foreign_key_check').all().length)
         throw new ImportError('初始化后的业务关联检查未通过，已回滚。', 409);

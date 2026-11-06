@@ -15,7 +15,9 @@ export type FileItem = {
   task?: Workspace['task'];
   reviewed?: boolean;
   hasDraft?: boolean;
-  mode?: 'order' | 'arrival';
+  mode?: 'order' | 'arrival' | 'mark';
+  markStatus?: 'pending' | 'recognized' | 'committed';
+  markCount?: number;
   arrivalDocId?: number | null;
   arrivalSourceId?: string | null;
   arrivalStatus?: string;
@@ -554,7 +556,7 @@ export function useOrderWorkspace() {
   async function reanalyze(id: string) {
     return action(id, 'analyze', { force: true }, '重新识别中');
   }
-  async function setMode(id: string, mode: 'order' | 'arrival') {
+  async function setMode(id: string, mode: 'order' | 'arrival' | 'mark') {
     return action(id, 'mode', { mode }, '切换识别类型');
   }
   async function linkArrival(id: string, docId: number | null, sourceId?: string | null) {

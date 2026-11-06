@@ -14,6 +14,9 @@ import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/developer-capability.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { DevelopmentResetService } from '../server/business/development-reset.js';
+import { InboxService } from '../server/inbox/service.js';
+import { PermanentDeletionService } from '../server/business/permanent-deletion.js';
+import { WecomBotSettings } from '../server/inbox/wecom-bot-settings.js';
 import {
   createFullBackup,
   restoreFullBackup,
@@ -28,6 +31,13 @@ const superActor = (): Actor => ({
   superAdminMode: true,
   superAdminUntil: Date.now() + 60000,
 });
+const inboxFile = { name: '虚构附件.bin', mime: 'application/octet-stream', bytes: new Uint8Array([1, 2, 3]) };
+function seedInbox(inbox: InboxService) {
+  return Number(inbox.ingest({
+    channel: 'manual', externalId: 'fictional-inbox', kind: 'file',
+    receivedAt: '2026-11-05T10:00:00Z', file: inboxFile,
+  }).id);
+}
 const rawInput = {
   name: '虚构五层纸板',
   kind: 'raw',
@@ -277,6 +287,8 @@ test('读取次数不随订单量增长：单条查询不扫描全部送货单',
   const all = f.store.orders();
   const list = performance.now() - listStart;
   assert.equal(all.length, 3000);
+  const selectedIds = [1, 1500, 3000];
+  assert.deepEqual(f.store.ordersByIds(selectedIds, true), all.filter((o) => selectedIds.includes(o.id)));
   // 旧实现在此规模下单条约17秒、列表约17秒；放宽阈值避免机器差异造成误报。
   assert.ok(single < 100, '单条订单读取耗时 ' + single + 'ms');
   assert.ok(list < 1500, '全部订单读取耗时 ' + list + 'ms');
@@ -331,6 +343,44 @@ test('物理删除前同样生成快照，内存库和事务内安全跳过', ()
   }
 });
 
+test('业务删除保留独立收件及附件，业务初始化清理两张表并保留机器人设置', () => {
+  const store = new Store(':memory:'), inbox = new InboxService(store),
+    settings = new WecomBotSettings(':memory:', { protect: (s) => s, unprotect: (s) => s });
+  try {
+    const id = seedInbox(inbox);
+    settings.save({ botId: 'fictional-bot', secret: 'fictional-secret', enabled: true });
+    const before = settings.view();
+    const permanent = new PermanentDeletionService(store);
+    const customer = store.saveCustomer(customerSchema.parse({ name: '待删除虚构客户' }));
+    const product = store.saveProduct(productSchema.parse({ name: '待删除虚构产品' }));
+    for (const [entity, record, who] of [
+      ['customers', customer, localAdministratorActor(superActor())],
+      ['products', product, superActor()],
+    ] as const) {
+      const { id: previewId } = permanent.preview({ entity, items: [{ id: record.id, version: record.version }] }, who, 'session');
+      permanent.execute({ previewId, acknowledged: true, confirmation: '永久删除' }, who, 'session');
+      assert.equal(inbox.get(id).status, 'pending');
+      assert.deepEqual(inbox.file(id).content, inboxFile.bytes);
+    }
+    assert.equal(store.customer(customer.id, true), undefined);
+    assert.equal(store.product(product.id, true), undefined);
+    const reset = new DevelopmentResetService(store), who = localAdministratorActor(superActor());
+    const counts = reset.preview('business', who).tables as Record<string, number>;
+    assert.equal(counts.inbox_items, 1);
+    assert.equal(counts.inbox_files, 1);
+    reset.execute('ai-imports', who, () => ({ count: 0, ids: [] }));
+    assert.deepEqual(inbox.file(id).content, inboxFile.bytes);
+    reset.execute('business', who);
+    assert.equal(inbox.list().totalRecords, 0);
+    assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM inbox_files').get()!.n, 0);
+    assert.deepEqual(settings.view(), before);
+    assert.equal(settings.credentials()?.secret, 'fictional-secret');
+  } finally {
+    settings.close();
+    store.close();
+  }
+});
+
 test('完整备份含账号、工作区与原件并可校验恢复；篡改后拒绝', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-p0-backup-')),
     data = join(dir, 'data'),
@@ -338,6 +388,7 @@ test('完整备份含账号、工作区与原件并可校验恢复；篡改后�
   try {
     const f = fixture(join(data, 'erp.sqlite')),
       auth = new AuthManager(join(data, 'security', 'users.sqlite'));
+    const inboxId = seedInbox(new InboxService(f.store));
     mkdirSync(join(data, 'ai-imports', 'files'), { recursive: true });
     writeFileSync(join(data, 'ai-imports', 'files', 'a.bin'), 'fictional-original');
     writeFileSync(join(data, 'erp.sqlite.running'), '1');
@@ -355,6 +406,9 @@ test('完整备份含账号、工作区与原件并可校验恢复；篡改后�
     assert.ok(existsSync(restored.previous));
     const back = new Store(join(data, 'erp.sqlite'));
     assert.equal(back.customers(true).length, 1);
+    const inbox = new InboxService(back);
+    assert.equal(inbox.get(inboxId).externalId, 'fictional-inbox');
+    assert.deepEqual(inbox.file(inboxId).content, inboxFile.bytes);
     back.close();
     writeFileSync(join(result.dir, 'ai-imports', 'files', 'a.bin'), 'tampered');
     assert.throws(() => restoreFullBackup(result.dir, data), /校验失败/);

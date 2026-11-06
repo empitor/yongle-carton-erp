@@ -11,7 +11,6 @@ import {
   Plus,
   RefreshCw,
   Save,
-  ShieldCheck,
   Trash2,
   Wifi,
 } from 'lucide-react';
@@ -345,7 +344,6 @@ export default function AiSettingsPage() {
           <i />
           {topConnection ? statuses[topConnection.status] : '尚未连接'}
         </div>
-        {topConnection && <p className="ai-overview-message">{topConnection.message}</p>}
       </section>
       {view?.storageError && (
         <div role="alert" className="ai-feedback failed">
@@ -413,11 +411,7 @@ export default function AiSettingsPage() {
               </p>
             )}
           </div>
-          <button className="ai-new-preset" disabled={locked} onClick={() => select()}>
-            <Plus size={15} />
-            新建预设
-          </button>
-          <label className="ai-auto">
+          <label className="ai-auto" title="只检查服务与凭据，不执行可能收费的模型推理。">
             <input
               type="checkbox"
               role="switch"
@@ -425,235 +419,233 @@ export default function AiSettingsPage() {
               disabled={locked}
               onChange={(e) => toggleAuto(e.target.checked)}
             />
-            <span>
-              启动时自动连接
-              <br />
-              上次使用的 API
-            </span>
+            <span>启动时自动连接</span>
           </label>
-          <p className="ai-side-help">
-            只检查服务与凭据，不执行可能收费的模型推理。配置恢复不等于验证成功。
-          </p>
           <label className="ai-auto"><span>同时识别文件数</span><select aria-label="AI识别并发数量" value={view?.recognitionConcurrency||3} disabled={locked} onChange={async e=>{setBusy('preferences');try{setView(await request<AiSettingsView>('/preferences',{expectedRevision:view!.revision,recognitionConcurrency:Number(e.target.value)}));setNotice({ok:true,message:'并发上限已保存；限流时会自动退回串行。'});}catch(error){setNotice(errorMessage(error));}finally{setBusy('');}}}>{[1,2,3,4,5,6].map(n=><option key={n} value={n}>{n===1?'1（串行回退）':n+' 个'}</option>)}</select></label>
-          <div className="ai-storage-note">
-            <LockKeyhole size={18} />
-            <strong>Windows 加密保管</strong>
-            <p>密钥由当前 Windows 用户的 DPAPI 加密，关闭程序或重启电脑后仍保留。</p>
-            <p>保存的密钥不会传回浏览器。眼睛按钮只显示本次新输入的内容。</p>
-          </div>
+          <p className="ai-storage-note">
+            <LockKeyhole size={14} />
+            密钥用 Windows 加密保存，不会传回浏览器。
+          </p>
         </aside>
         <section className="panel ai-editor" aria-label="API 连接配置">
           <div className="ai-editor-heading">
             <h2>{form.id ? '编辑连接预设' : '新建连接预设'}</h2>
-            <span>连接 API → 选择模型 → 测试并保存</span>
-          </div>
-          <div className="ai-name-field">
-            <label htmlFor="ai-preset-name">预设名称</label>
-            <input
-              id="ai-preset-name"
-              value={form.name}
-              disabled={locked}
-              maxLength={60}
-              onChange={(e) => change({ name: e.target.value })}
-            />
           </div>
           <fieldset disabled={locked} className="ai-workflow">
-            <label className="ai-field">
-              接口类型
-              <input value="自定义兼容 API" readOnly />
-            </label>
-            <label className="ai-field">
-              兼容协议
-              <select
-                aria-label="兼容协议"
-                value={form.apiStyle}
-                onChange={(e) => change({ apiStyle: e.target.value as ApiStyle })}
-              >
-                <option value="chat-completions">Chat Completions（聊天补全）</option>
-                <option value="responses">Responses API</option>
-              </select>
-              {form.apiStyle === 'responses' && (
-                <small>
-                  可直接提交Word、Excel、PDF原件；实际能力取决于该服务和模型。连接测试不上传业务文件。
-                </small>
-              )}
-            </label>
-            <label className="ai-field">
-              API 地址
-              <input
-                type="url"
-                value={form.endpoint}
-                placeholder="https://api.example.com/v1"
-                autoComplete="off"
-                onChange={(e) => change({ endpoint: e.target.value })}
-              />
-              <small>
-                支持根域名、/v1 或对应协议的完整{' '}
-                {form.apiStyle === 'responses' ? '/responses' : '/chat/completions'} 地址；仅支持
-                HTTPS 公网服务。
-              </small>
-            </label>
-            <div className="ai-field">
-              <label htmlFor="ai-api-key">
-                API Key{' '}
-                <span className={savedKey ? 'ai-key-badge configured' : 'ai-key-badge'}>
-                  {savedKey ? '•••••••• 已加密配置' : '尚未保存密钥'}
-                </span>
-              </label>
-              <div className="ai-secret-input">
+            <section className="ai-step" aria-label="连接 API">
+              <h3>
+                <i>1</i>连接 API
+              </h3>
+              <div className="ai-row">
+                <label className="ai-field">
+                  预设名称
+                  <input
+                    id="ai-preset-name"
+                    value={form.name}
+                    maxLength={60}
+                    onChange={(e) => change({ name: e.target.value })}
+                  />
+                </label>
+                <label className="ai-field">
+                  兼容协议
+                  <select
+                    aria-label="兼容协议"
+                    value={form.apiStyle}
+                    onChange={(e) => change({ apiStyle: e.target.value as ApiStyle })}
+                  >
+                    <option value="chat-completions">Chat Completions（聊天补全）</option>
+                    <option value="responses">Responses API</option>
+                  </select>
+                </label>
+              </div>
+              <label className="ai-field">
+                API 地址
                 <input
-                  id="ai-api-key"
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKey}
-                  autoComplete="new-password"
-                  spellCheck={false}
-                  placeholder={savedKey ? '留空继续使用已保存密钥；输入可更换' : '输入 API Key'}
-                  onChange={(e) => {
-                    setApiKey(e.target.value);
-                    setReceipt('');
-                    setConnection(null);
-                    setTestResult(null);
-                  }}
+                  type="url"
+                  value={form.endpoint}
+                  placeholder="https://api.example.com/v1"
+                  autoComplete="off"
+                  onChange={(e) => change({ endpoint: e.target.value })}
                 />
+                <small>
+                  支持根域名、/v1 或完整的{' '}
+                  {form.apiStyle === 'responses' ? '/responses' : '/chat/completions'} 地址，仅支持
+                  HTTPS 公网服务。
+                  {form.apiStyle === 'responses' &&
+                    ' 可直接提交 Word、Excel、PDF 原件，实际能力取决于服务和模型。'}
+                </small>
+              </label>
+              <div className="ai-inline">
+                <div className="ai-field">
+                  <label htmlFor="ai-api-key">
+                    API Key{' '}
+                    <span className={savedKey ? 'ai-key-badge configured' : 'ai-key-badge'}>
+                      {savedKey ? '已加密保存' : '尚未保存'}
+                    </span>
+                  </label>
+                  <div className="ai-secret-input">
+                    <input
+                      id="ai-api-key"
+                      type={showKey ? 'text' : 'password'}
+                      value={apiKey}
+                      autoComplete="new-password"
+                      spellCheck={false}
+                      placeholder={savedKey ? '不改就留空' : '输入 API Key'}
+                      onChange={(e) => {
+                        setApiKey(e.target.value);
+                        setReceipt('');
+                        setConnection(null);
+                        setTestResult(null);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      aria-label={showKey ? '隐藏本次输入的密钥' : '显示本次输入的密钥'}
+                      onClick={() => setShowKey(!showKey)}
+                    >
+                      {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
                 <button
-                  type="button"
-                  aria-label={showKey ? '隐藏本次输入的密钥' : '显示本次输入的密钥'}
-                  onClick={() => setShowKey(!showKey)}
+                  className="ai-connect-button"
+                  disabled={locked || !form.endpoint || (!apiKey && !savedKey)}
+                  onClick={connect}
                 >
-                  {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {busy === 'connect' ? (
+                    <LoaderCircle size={15} className="ai-spin" />
+                  ) : (
+                    <Cable size={15} />
+                  )}
+                  连接 API
                 </button>
               </div>
-            </div>
-            <button
-              className="ai-connect-button"
-              disabled={locked || !form.endpoint || (!apiKey && !savedKey)}
-              onClick={connect}
-            >
-              {busy === 'connect' ? (
-                <LoaderCircle size={17} className="ai-spin" />
-              ) : (
-                <Cable size={17} />
-              )}
-              连接 API
-            </button>
-            <div className={`ai-connection-state ${connection?.status || 'idle'}`} role="status">
-              <Wifi size={18} />
-              <div>
-                <strong>{connection ? statuses[connection.status] : '等待连接 API'}</strong>
-                <p>{connection?.message || '填写地址和密钥后连接。此步骤不进行模型推理。'}</p>
-                {connection?.code && <small>{labels[connection.code] || connection.code}</small>}
-              </div>
-            </div>
-            <button
-              className="ai-refresh-models"
-              disabled={locked || !form.endpoint || (!apiKey && !savedKey)}
-              onClick={async () => {
-                setBusy('models');
-                await loadModels();
-                setBusy('');
-              }}
-            >
-              {busy === 'models' ? (
-                <LoaderCircle size={16} className="ai-spin" />
-              ) : (
-                <RefreshCw size={16} />
-              )}{' '}
-              {modelsLoaded ? '刷新模型列表' : '读取可用模型'}
-            </button>
-            <div className="ai-field ai-model-field">
-              <label htmlFor="ai-model-list">可用模型</label>
-              <select
-                id="ai-model-list"
-                value={manual ? '__manual' : form.model}
-                onChange={(e) => {
-                  if (e.target.value === '__manual') {
-                    setManual(true);
-                    change({ model: '' });
-                  } else {
-                    setManual(false);
-                    change({ model: e.target.value });
-                  }
-                }}
-              >
-                <option value="">请选择模型</option>
-                {!manual && form.model && !models.includes(form.model) && (
-                  <option value={form.model}>{form.model}（已保存）</option>
-                )}
-                {models.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-                <option value="__manual">手动输入模型 ID…</option>
-              </select>
-              <small>{modelNotice}</small>
-            </div>
-            {manual && (
-              <label className="ai-field">
-                模型 ID（手动输入）
-                <input
-                  value={form.model}
-                  autoComplete="off"
-                  placeholder="填写服务商提供的准确模型 ID"
-                  onChange={(e) => change({ model: e.target.value })}
-                />
-              </label>
-            )}
-            <button
-              className="ai-model-test"
-              onClick={test}
-              disabled={locked || !form.model || !form.endpoint || (!apiKey && !savedKey)}
-            >
-              {busy === 'test' ? (
-                <LoaderCircle size={17} className="ai-spin" />
-              ) : (
-                <Wifi size={17} />
-              )}{' '}
-              {busy === 'test'
-                ? '正在测试模型…'
-                : form.apiStyle === 'responses'
-                  ? '测试 Responses 连接'
-                  : '测试连接'}
-            </button>
-            <small className="ai-test-help">
-              通过所选协议发送一次无业务数据的最小请求，可能产生少量API费用。文本测试成功不代表文件输入一定受支持。
-            </small>
-            {testResult && (
-              <div
-                role={testResult.ok ? 'status' : 'alert'}
-                className={`ai-feedback ${testResult.ok ? 'passed' : 'failed'}`}
-              >
-                {testResult.ok ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}
+              <div className={`ai-connection-state ${connection?.status || 'idle'}`} role="status">
+                <Wifi size={15} />
                 <p>
-                  {testResult.code && <strong>{labels[testResult.code] || '测试失败'}： </strong>}
-                  {testResult.message}
+                  <strong>{connection ? statuses[connection.status] : '等待连接'}</strong>{' '}
+                  {connection?.message || '这一步不调用模型，不产生费用。'}
+                  {connection?.code && (
+                    <small> {labels[connection.code] || connection.code}</small>
+                  )}
                 </p>
               </div>
-            )}
-            <div className="ai-save-row">
-              <button
-                className="primary"
-                disabled={locked || !receipt || !form.name.trim()}
-                onClick={() => save(true)}
-              >
-                <Save size={17} />
-                {busy === 'save' ? '正在保存…' : '保存并启用'}
-              </button>
-              <button
-                disabled={locked || !form.name.trim() || !form.endpoint || (!apiKey && !savedKey)}
-                onClick={() => save(false)}
-              >
-                仅保存预设
-              </button>
-            </div>
-            <small className="ai-test-help">
-              “保存并启用”需要模型测试通过。“仅保存预设”可保存尚未测试的连接。
-            </small>
+            </section>
+            <section className="ai-step" aria-label="选择模型">
+              <h3>
+                <i>2</i>选择模型
+              </h3>
+              <div className="ai-inline">
+                <div className="ai-field ai-model-field">
+                  <label htmlFor="ai-model-list">可用模型</label>
+                  <select
+                    id="ai-model-list"
+                    value={manual ? '__manual' : form.model}
+                    onChange={(e) => {
+                      if (e.target.value === '__manual') {
+                        setManual(true);
+                        change({ model: '' });
+                      } else {
+                        setManual(false);
+                        change({ model: e.target.value });
+                      }
+                    }}
+                  >
+                    <option value="">请选择模型</option>
+                    {!manual && form.model && !models.includes(form.model) && (
+                      <option value={form.model}>{form.model}（已保存）</option>
+                    )}
+                    {models.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                    <option value="__manual">手动输入模型 ID…</option>
+                  </select>
+                </div>
+                <button
+                  className="ai-refresh-models"
+                  disabled={locked || !form.endpoint || (!apiKey && !savedKey)}
+                  onClick={async () => {
+                    setBusy('models');
+                    await loadModels();
+                    setBusy('');
+                  }}
+                >
+                  {busy === 'models' ? (
+                    <LoaderCircle size={15} className="ai-spin" />
+                  ) : (
+                    <RefreshCw size={15} />
+                  )}{' '}
+                  {modelsLoaded ? '刷新模型列表' : '读取可用模型'}
+                </button>
+              </div>
+              {modelNotice && <small className="ai-test-help">{modelNotice}</small>}
+              {manual && (
+                <label className="ai-field">
+                  模型 ID（手动输入）
+                  <input
+                    value={form.model}
+                    autoComplete="off"
+                    placeholder="填写服务商提供的准确模型 ID"
+                    onChange={(e) => change({ model: e.target.value })}
+                  />
+                </label>
+              )}
+            </section>
+            <section className="ai-step" aria-label="测试并保存">
+              <h3>
+                <i>3</i>测试并保存
+              </h3>
+              {testResult && (
+                <div
+                  role={testResult.ok ? 'status' : 'alert'}
+                  className={`ai-feedback ${testResult.ok ? 'passed' : 'failed'}`}
+                >
+                  {testResult.ok ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}
+                  <p>
+                    {testResult.code && <strong>{labels[testResult.code] || '测试失败'}： </strong>}
+                    {testResult.message}
+                  </p>
+                </div>
+              )}
+              <div className="ai-save-row">
+                <button
+                  className="ai-model-test"
+                  onClick={test}
+                  disabled={locked || !form.model || !form.endpoint || (!apiKey && !savedKey)}
+                >
+                  {busy === 'test' ? (
+                    <LoaderCircle size={15} className="ai-spin" />
+                  ) : (
+                    <Wifi size={15} />
+                  )}{' '}
+                  {busy === 'test'
+                    ? '正在测试模型…'
+                    : form.apiStyle === 'responses'
+                      ? '测试 Responses 连接'
+                      : '测试连接'}
+                </button>
+                <button
+                  className="primary"
+                  disabled={locked || !receipt || !form.name.trim()}
+                  onClick={() => save(true)}
+                >
+                  <Save size={15} />
+                  {busy === 'save' ? '正在保存…' : '保存并启用'}
+                </button>
+                <button
+                  disabled={locked || !form.name.trim() || !form.endpoint || (!apiKey && !savedKey)}
+                  onClick={() => save(false)}
+                >
+                  仅保存预设
+                </button>
+              </div>
+              <small className="ai-test-help">
+                测试会发一次不含业务数据的请求，可能产生少量费用；文字测试通过不代表支持文件。“保存并启用”需要先测试通过。
+              </small>
+            </section>
           </fieldset>
-          <footer className="ai-editor-footer">
-            <ShieldCheck size={16} />
-            <p>可前往“AI 智能订单导入”识别文件、聊天修改与核对草稿；正式 ERP 写入保持关闭。</p>
-          </footer>
         </section>
       </div>
       {deleting && (

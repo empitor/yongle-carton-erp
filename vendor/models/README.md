@@ -1,5 +1,10 @@
-# 本地语音资源（不进入Git）
+# 本地语音模型
 
-现有SenseVoice模型与VAD、tokens资源保留在本机`vendor/models/sensevoice/`，不随源码仓库上传，未改名或删除。
+语音输入是可选功能，模型文件较大，不进 Git，也不随安装包提供。没有模型时其他功能不受影响。
 
-在另一台电脑恢复语音功能时，从自己的离线备份复制完整`sensevoice`目录到这里，保持`model.int8.onnx`、`silero_vad.onnx`、`tokens.txt`原名。未复制资源时，ERP和AI文字聊天仍可用，语音会明确提示资源缺失。模型来自第三方，复制与分发应遵守其许可。
+需要这两个文件，放在 `vendor/models/sensevoice/`，文件名不要改：
+
+- `model.int8.onnx`
+- `tokens.txt`
+
+下载 [sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2)（约 1 GB）后解压取出，或到 [Hugging Face](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tree/main) 只下载这两个文件。模型的使用条款以上游项目为准。

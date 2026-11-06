@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Upload,
-  Trash2,
   RefreshCw,
   Undo2,
   CheckCircle2,
@@ -20,10 +19,11 @@ import FilePreview from './import/FilePreview';
 import OrderDraftTable from './import/OrderDraftTable';
 import BatchImportDialog from './BatchImportDialog';
 import OrderChat from './import/OrderChat';
-import AuthPanel from './AuthPanel';
+import MoreMenu from './ui/MoreMenu';
+import MarkDraftPanel from './import/MarkDraftPanel';
+import MarkPreview from './marks/MarkPreview';
 import ImportFailures from './import/ImportFailures';
 import ArrivalDraftPanel from './import/ArrivalDraftPanel';
-import { DraftHeader } from './import/DraftUI';
 import DeveloperEditor from './DeveloperEditor';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime';
 import './order-import.css';
@@ -46,6 +46,22 @@ export default function OrderImportPage() {
   const [showFailures, setShowFailures] = useState(false);
   const [batchImport, setBatchImport] = useState(false);
   const [matchingPending, setMatchingPending] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [markPage, setMarkPage] = useState(0);
+  const [showPreview, setShowPreview] = useState(() => {
+    try {
+      return localStorage.getItem('erp-import-preview') !== 'hidden';
+    } catch {
+      return true;
+    }
+  });
+  const togglePreview = () =>
+    setShowPreview((v) => {
+      try {
+        localStorage.setItem('erp-import-preview', v ? 'hidden' : 'shown');
+      } catch {}
+      return !v;
+    });
   const w = api.workspace,
     d = api.draft,
     id = api.selected,
@@ -54,6 +70,7 @@ export default function OrderImportPage() {
     busy = !!api.jobs[id],
     files = api.status?.workspaces || [],
     currentMode = w?.mode || 'order',
+    current = files.find((f) => f.id === id),
     pending = files.filter(
       (f) =>
         (f.mode || 'order') === 'order' &&
@@ -107,20 +124,7 @@ export default function OrderImportPage() {
     }
     if (confirmReanalyze()) void api.reanalyze(f.id);
   };
-  const reanalyzeCurrent = () => {
-    if (!api.status?.active) {
-      api.setFatal('请先在AI设置中启用一个预设');
-      return;
-    }
-    if (!id) return;
-    // 已识别成功但外发授权被撤销时，先重新授权。
-    if (w && !w.consent) {
-      open('authorize', [id]);
-      return;
-    }
-    if (confirmReanalyze()) void api.reanalyze(id);
-  };
-  const switchFilingMode = async (f: (typeof files)[number], mode: 'order' | 'arrival') => {
+  const switchFilingMode = async (f: (typeof files)[number], mode: 'order' | 'arrival' | 'mark') => {
     if ((f.mode || 'order') === mode) return;
     if (
       !window.confirm('切换识别类型会保留已保存的草稿/关联，但未保存的识别内容会丢弃；确认切换吗？')
@@ -138,6 +142,12 @@ export default function OrderImportPage() {
         (f.imported.permanentlyDeleted ? '原正式订单已永久删除 · ' : '已导入 · ') +
         f.imported.orderNumber
       );
+    if (f.mode === 'mark')
+      return f.markStatus === 'committed'
+        ? '已存入产品档案 · ' + (f.markCount || 0) + ' 款'
+        : f.markStatus === 'recognized'
+          ? '唛头待核对 · ' + (f.markCount || 0) + ' 款'
+          : '待识别唛头';
     if ((f.mode || 'order') === 'arrival') {
       return (
         api.jobs[f.id] ||
@@ -187,10 +197,14 @@ export default function OrderImportPage() {
     );
   };
   const totalDone = files.filter((f) =>
-      f.mode === 'arrival'
-        ? ['recognized', 'draft', 'confirmed'].includes(f.arrivalStatus || '')
-        : f.hasDraft,
+      f.mode === 'mark'
+        ? f.markStatus !== 'pending'
+        : f.mode === 'arrival'
+          ? ['recognized', 'draft', 'confirmed'].includes(f.arrivalStatus || '')
+          : f.hasDraft,
     ).length,
+    markPending = files.filter((f) => f.mode === 'mark' && f.markStatus === 'pending').length,
+    markReviewing = files.filter((f) => f.mode === 'mark' && f.markStatus === 'recognized').length,
     failed =
       files.filter((f) =>
         f.mode === 'arrival' ? f.arrivalStatus === 'failed' : f.task?.state === 'failed',
@@ -205,38 +219,67 @@ export default function OrderImportPage() {
       }}
     >
       <header className="oi-workspace-head">
-        <div>
-          <h1>收件箱</h1>
-          <p>
-            {api.status?.active ? (
-              <>
-                <span className="oi-status-dot" />
-                {api.status.active.name} <b>{api.status.active.model}</b>
-                <span>
-                  {api.status?.inputMode === 'deepseek-compatible'
-                    ? 'DeepSeek 文档兼容'
-                    : '原件直读'}
-                </span>
-              </>
-            ) : (
-              <a href="#ai-settings">尚未启用AI，请配置服务</a>
+        <div className="page-title">
+          <h1>AI 导入</h1>
+          <div className="oi-head-counts">
+            <span>
+              待核对{' '}
+              <strong>{files.filter((f) => f.hasDraft && !f.reviewed).length + markReviewing}</strong>
+            </span>
+            <span>
+              待识别 <strong>{pending.length + markPending}</strong>
+            </span>
+            {Object.keys(api.jobs).length > 0 && (
+              <span>
+                <LoaderCircle className="spin" size={13} />
+                识别中 <strong>{Object.keys(api.jobs).length}</strong>
+              </span>
             )}
-          </p>
+            {!!failed && (
+              <button className="oi-link-danger" onClick={() => setShowFailures(true)}>
+                失败 <strong>{failed}</strong>
+              </button>
+            )}
+            {!!api.status?.queue?.waiting && (
+              <span>
+                排队 <strong>{api.status.queue.waiting}</strong>
+              </span>
+            )}
+          </div>
         </div>
-        <div>
-          <label className="oi-stream-toggle">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="流式传输"
-              checked={api.streamEnabled}
-              disabled={Object.keys(api.jobs).length > 0}
-              onChange={(e) => api.setStreamEnabled(e.target.checked)}
-            />
-            流式传输<small>Responses</small>
-          </label>
-          <AuthPanel />
-          {developer && <button onClick={() => setManage(true)}>管理原件 / 任务 / 归档</button>}
+        <div className="page-actions">
+          {api.status?.active ? (
+            <a className="oi-model-chip" href="#ai-settings" title={api.status.active.name}>
+              <span className="oi-status-dot" />
+              {api.status.active.model}
+            </a>
+          ) : (
+            <a className="oi-model-chip is-off" href="#ai-settings">
+              尚未启用 AI
+            </a>
+          )}
+          <button onClick={() => void api.refresh()}>
+            <RefreshCw size={15} aria-hidden="true" />
+            <span className="sr-only">刷新任务</span>
+          </button>
+          <MoreMenu label="AI 导入更多操作">
+            <label className="more-menu-check">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="流式传输"
+                checked={api.streamEnabled}
+                disabled={Object.keys(api.jobs).length > 0}
+                onChange={(e) => api.setStreamEnabled(e.target.checked)}
+              />
+              流式传输
+            </label>
+            <button onClick={() => open('trash', [])}>
+              归档记录{api.status?.archives?.length ? ' (' + api.status.archives!.length + ')' : ''}
+            </button>
+            <button onClick={() => setShowFailures(true)}>错误档案</button>
+            {developer && <button onClick={() => setManage(true)}>管理原件 / 任务 / 归档</button>}
+          </MoreMenu>
           {manage && (
             <DeveloperEditor
               initialModule="workspaces"
@@ -246,32 +289,6 @@ export default function OrderImportPage() {
               }}
             />
           )}
-          {developer && id && (
-            <button
-              disabled={busy}
-              onClick={async () => {
-                try {
-                  const r = await managementRequest<any>('/management/workspaces', {
-                    action: 'fork',
-                    items: [{ id }],
-                  });
-                  if (!r.results[0]?.success) throw Error(r.results[0]?.message || '复制失败');
-                  await api.refresh();
-                  api.choose(r.results[0].result.id);
-                  api.setNotice(
-                    '已复制为独立测试任务，可修改草稿或重新识别；有效正式订单仍有重复校验。',
-                  );
-                } catch (e) {
-                  api.setNotice((e as Error).message);
-                }
-              }}
-            >
-              复制为新识别任务
-            </button>
-          )}
-          <button onClick={() => void api.refresh()} title="刷新任务">
-            <RefreshCw size={15} />
-          </button>
           <button className="primary" onClick={() => input.current?.click()}>
             <Upload size={16} />
             上传文件
@@ -290,41 +307,15 @@ export default function OrderImportPage() {
           />
         </div>
       </header>
-      <div className="oi-batch-bar">
-        <div>
-          <label>
-            <input
-              type="checkbox"
-              aria-label="全选工作区文件"
-              checked={!!files.length && files.every((f) => checked.includes(f.id))}
-              onChange={(e) => setChecked(e.target.checked ? files.map((f) => f.id) : [])}
-            />
-            全选
-          </label>
-          <strong>{files.length + api.uploads.length}份文件</strong>
-          <span>已识别 {totalDone}</span>
-          <span>待识别 {pending.length}</span>
-          <span>待核对 {files.filter((f) => f.hasDraft && !f.reviewed).length}</span>
-          {api.status?.queue && (
-            <span>
-              识别并发 {api.status.queue.active}/{api.status.queue.limit} · 排队{' '}
-              {api.status.queue.waiting}
-            </span>
-          )}
-          <span className={failed ? 'oi-bad' : ''}>失败 {failed}</span>
-          {Object.keys(api.jobs).length > 0 && (
-            <span>
-              <LoaderCircle className="spin" size={13} />
-              处理中 {Object.keys(api.jobs).length}
-            </span>
-          )}
-        </div>
-        <div>
-          {!!checked.length && (
-            <button className="danger" onClick={() => open('delete', checked)}>
-              批量删除（已选{checked.length}份）
-            </button>
-          )}
+      {!!checked.length && (
+        <div className="oi-batch-bar" role="toolbar" aria-label="批量操作">
+          <strong>已选 {checked.length} 份</strong>
+          <button
+            disabled={!batchTargets.length}
+            onClick={() => recognize(checked.filter((id) => pending.some((f) => f.id === id)))}
+          >
+            批量识别
+          </button>
           <button
             disabled={
               !importAuth?.actor ||
@@ -340,24 +331,12 @@ export default function OrderImportPage() {
           >
             批量核对并导入
           </button>
-          <button
-            disabled={!batchTargets.length}
-            onClick={() =>
-              recognize(
-                checked.length
-                  ? checked.filter((id) => pending.some((f) => f.id === id))
-                  : pending.map((f) => f.id),
-              )
-            }
-          >
-            批量识别{checked.length ? '所选 ' + checked.length + ' 份' : ''}
+          <button className="danger" onClick={() => open('delete', checked)}>
+            删除
           </button>
-          <button onClick={() => open('trash', [])}>
-            归档记录{api.status?.archives?.length ? ' (' + api.status.archives!.length + ')' : ''}
-          </button>
-          <button onClick={() => setShowFailures(true)}>错误档案</button>
+          <button onClick={() => setChecked([])}>取消选择</button>
         </div>
-      </div>
+      )}
       {(api.fatal || api.errors[id]) && (
         <div className="oi-alert" role="alert">
           {api.fatal || api.errors[id]}
@@ -395,12 +374,20 @@ export default function OrderImportPage() {
           <small>完整响应校验通过后才保存</small>
         </div>
       )}
-      <div className="oi-workspace-body">
+      <div className={'oi-workspace-body' + (showPreview ? '' : ' no-preview')}>
         <aside className="oi-left">
           <div className="oi-file-list">
             <header>
-              <strong>订单文件</strong>
-              <span>XLS / Word / PDF / 图片</span>
+              <label>
+                <input
+                  type="checkbox"
+                  aria-label="全选工作区文件"
+                  checked={!!files.length && files.every((f) => checked.includes(f.id))}
+                  onChange={(e) => setChecked(e.target.checked ? files.map((f) => f.id) : [])}
+                />
+                <strong>文件 {files.length + api.uploads.length}</strong>
+              </label>
+              <small>已识别 {totalDone}</small>
             </header>
             {!files.length && !api.uploads.length && (
               <button className="oi-upload-empty" onClick={() => input.current?.click()}>
@@ -460,6 +447,7 @@ export default function OrderImportPage() {
                 >
                   <b title={f.fileName}>{f.fileName}</b>
                   <small
+                    data-mode={f.mode || 'order'}
                     className={
                       (
                         f.mode === 'arrival'
@@ -473,22 +461,6 @@ export default function OrderImportPage() {
                     {fileStatus(f)}
                   </small>
                 </button>
-                <select
-                  className="oi-mode-select"
-                  aria-label={'识别类型 ' + f.fileName}
-                  value={f.mode || 'order'}
-                  disabled={
-                    (f.mode === 'arrival' &&
-                      !!f.arrivalDocId &&
-                      ['confirmed', 'cancelled', 'reversed'].includes(f.arrivalStatus || '')) ||
-                    !!api.jobs[f.id] ||
-                    ['running', 'queued', 'backoff'].includes(f.task?.state || '')
-                  }
-                  onChange={(e) => void switchFilingMode(f, e.target.value as 'order' | 'arrival')}
-                >
-                  <option value="order">订单识别</option>
-                  <option value="arrival">到货单识别</option>
-                </select>
                 {(f.mode || 'order') === 'order' &&
                   (api.jobs[f.id] ||
                     ['running', 'queued', 'backoff'].includes(f.task?.state || '')) && (
@@ -500,53 +472,159 @@ export default function OrderImportPage() {
                       <X size={14} />
                     </button>
                   )}
-                {!f.imported &&
-                  !(
-                    f.mode === 'arrival' &&
-                    !!f.arrivalDocId &&
-                    ['confirmed', 'cancelled', 'reversed'].includes(f.arrivalStatus || '')
-                  ) &&
-                  !api.jobs[f.id] &&
-                  !['running', 'queued', 'backoff'].includes(f.task?.state || '') && (
-                    <button
-                      aria-label={'重新识别 ' + f.fileName}
-                      title={
-                        f.hasDraft
-                          ? '重新识别（会覆盖当前草稿和人工修改）'
-                          : '重新识别该文件（会重新请求API）'
-                      }
-                      onClick={() => reanalyzeFile(f)}
-                    >
-                      <RefreshCw size={14} />
-                    </button>
-                  )}
-                <button
-                  disabled={!developer}
-                  onClick={async () => {
-                    const current = await api.request<any>('/' + f.id);
-                    await api.request('/' + f.id + '/archive', {
-                      expectedRevision: current.revision,
-                    });
-                    await api.refresh();
-                  }}
-                >
-                  归档
-                </button>
-                <button
-                  className="oi-delete"
-                  aria-label={'删除文件 ' + f.fileName}
-                  title="删除工作区文件"
-                  onClick={() => open('delete', [f.id])}
-                >
-                  <Trash2 size={14} />
-                </button>
               </div>
             ))}
           </div>
-          <FilePreview workspace={w} compatible={api.status?.inputMode === 'deepseek-compatible'} />
+          {showPreview &&
+            (currentMode === 'mark' && w ? (
+              <section className="oi-preview">
+                <header>
+                  <strong>{markPage ? '原件第 ' + markPage + ' 页' : '原件'}</strong>
+                </header>
+                <div className="oi-preview-content">
+                  <MarkPreview url={'/api/ai/imports/' + w.id + '/file'} page={markPage} alt={w.fileName} />
+                </div>
+              </section>
+            ) : (
+              <FilePreview workspace={w} compatible={api.status?.inputMode === 'deepseek-compatible'} />
+            ))}
         </aside>
         <div className="oi-right">
-          {currentMode === 'arrival' ? (
+          {w && current && (
+            <div className="oi-doc-head">
+              <div className="oi-doc-kind" role="group" aria-label="单据类型">
+                {(
+                  [
+                    ['order', '客户订单'],
+                    ['arrival', '到货单'],
+                    ['mark', '唛头'],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    className={currentMode === mode ? 'selected' : ''}
+                    aria-pressed={currentMode === mode}
+                    aria-label={'识别类型 ' + label + ' ' + current.fileName}
+                    disabled={
+                      (current.mode === 'arrival' &&
+                        !!current.arrivalDocId &&
+                        ['confirmed', 'cancelled', 'reversed'].includes(
+                          current.arrivalStatus || '',
+                        )) ||
+                      !!api.jobs[current.id] ||
+                      ['running', 'queued', 'backoff'].includes(current.task?.state || '')
+                    }
+                    onClick={() => void switchFilingMode(current, mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <strong title={w.fileName}>{w.fileName}</strong>
+              {w.confirmedRevision === w.revision && (
+                <span className="oi-reviewed">
+                  <CheckCircle2 size={13} />
+                  已核对
+                </span>
+              )}
+              <span className="oi-doc-head-actions">
+                {currentMode === 'order' && !w.draft && !w.imported && (
+                  <button className="primary" disabled={busy} onClick={() => recognize([id])}>
+                    {busy
+                      ? '正在识别…'
+                      : w.task?.state === 'failed'
+                        ? '重试识别'
+                        : '开始识别'}
+                  </button>
+                )}
+                <button
+                  aria-pressed={showPreview}
+                  className={showPreview ? 'selected' : ''}
+                  onClick={() => togglePreview()}
+                >
+                  原件
+                </button>
+                <MoreMenu label="当前文件更多操作">
+                  {currentMode === 'order' && !w.imported && !api.jobs[id] && (
+                    <button aria-label={'重新识别 ' + w.fileName} onClick={() => reanalyzeFile(current)}>
+                      重新识别
+                    </button>
+                  )}
+                  {currentMode === 'order' && !w.imported && (
+                    <button onClick={() => recognize([id])} disabled={busy}>
+                      外发授权
+                    </button>
+                  )}
+                  {w.consent && (
+                    <button
+                      onClick={() => void api.action(id, 'revoke-consent', {}, '撤销授权')}
+                      disabled={busy}
+                    >
+                      撤销授权
+                    </button>
+                  )}
+                  {developer && (
+                    <button
+                      disabled={busy}
+                      onClick={async () => {
+                        try {
+                          const r = await managementRequest<any>('/management/workspaces', {
+                            action: 'fork',
+                            items: [{ id }],
+                          });
+                          if (!r.results[0]?.success) throw Error(r.results[0]?.message || '复制失败');
+                          await api.refresh();
+                          api.choose(r.results[0].result.id);
+                          api.setNotice('已复制为独立测试任务，可修改草稿或重新识别。');
+                        } catch (e) {
+                          api.setNotice((e as Error).message);
+                        }
+                      }}
+                    >
+                      复制为新识别任务
+                    </button>
+                  )}
+                  {developer && (
+                    <button
+                      onClick={async () => {
+                        const latest = await api.request<any>('/' + id);
+                        await api.request('/' + id + '/archive', {
+                          expectedRevision: latest.revision,
+                        });
+                        await api.refresh();
+                      }}
+                    >
+                      归档
+                    </button>
+                  )}
+                  <button
+                    className="danger-text"
+                    aria-label={'删除文件 ' + w.fileName}
+                    onClick={() => open('delete', [id])}
+                  >
+                    删除
+                  </button>
+                  <small>修订 {w.revision}</small>
+                </MoreMenu>
+              </span>
+            </div>
+          )}
+          {currentMode === 'mark' && w ? (
+            <MarkDraftPanel
+              key={id}
+              fileId={id}
+              aiStatus={api.status}
+              request={api.request}
+              stream={api.streamEnabled}
+              reload={async () => {
+                await api.load(id);
+                await api.refresh();
+              }}
+              setNotice={api.setNotice}
+              page={markPage}
+              onPage={setMarkPage}
+            />
+          ) : currentMode === 'arrival' ? (
             <ArrivalDraftPanel
               key={id}
               workspace={w}
@@ -571,42 +649,6 @@ export default function OrderImportPage() {
           ) : (
             <>
               <section className="oi-draft">
-                <DraftHeader title={'订单草稿' + (w ? ' · ' + w.fileName : '')}>
-                  {w?.confirmedRevision === w?.revision && w && (
-                    <span className="oi-reviewed">
-                      <CheckCircle2 size={13} />
-                      已核对
-                    </span>
-                  )}
-                  {w && !w.draft && !w.imported && (
-                    <button className="primary" disabled={busy} onClick={() => recognize([id])}>
-                      {busy
-                        ? '正在识别…'
-                        : w.task?.state === 'failed'
-                          ? '重试识别'
-                          : '识别当前文件'}
-                    </button>
-                  )}
-                  {w && w.draft && !w.imported && (
-                    <button disabled={busy} onClick={reanalyzeCurrent}>
-                      {busy ? '正在识别…' : '重新识别'}
-                    </button>
-                  )}
-                  {w && !w.imported && (
-                    <button onClick={() => recognize([id])} disabled={busy}>
-                      外发授权
-                    </button>
-                  )}
-                  {w?.consent && (
-                    <button
-                      onClick={() => void api.action(id, 'revoke-consent', {}, '撤销授权')}
-                      disabled={busy}
-                    >
-                      撤销授权
-                    </button>
-                  )}
-                  {w && <small>修订 {w.revision}</small>}
-                </DraftHeader>
                 {w?.historyImport && (
                   <div className="oi-notice" role="status">
                     该文件此前处理过：订单 {w.historyImport.orderNumber}
@@ -655,118 +697,118 @@ export default function OrderImportPage() {
                   ) : (
                     <div className="oi-empty">
                       <FileText size={30} />
-                      <p>{w ? '等待识别订单' : '选择左侧文件开始'}</p>
-                      <span>AI识别后直接填写标准订单草稿，所有修改都可核对。</span>
+                      <p>{w ? '还没有识别' : '选择左侧文件开始'}</p>
+                      <span>{w ? '点右上角“开始识别”，结果会填到这里，所有内容都可以改。' : ''}</span>
                     </div>
                   )}
                 </div>
-                {w && d && (
-                  <div className="oi-draft-bottom">
-                    <div className="oi-order-totals">
-                      <span>
-                        数量 <b>{evaluation?.totalQuantity || '待确认'}</b>
-                      </span>
-                      <span>
-                        {unsaved ? '金额预览' : '精确金额'}{' '}
-                        <strong>{evaluation?.totalAmount || '待确认'}</strong>
-                      </span>
-                      <small>
-                        {d.header.currency.value || '币种待确认'} ·{' '}
-                        {d.header.taxMode.value || '税费待确认'}
-                      </small>
-                    </div>
-                    <div className="oi-draft-actions">
+              </section>
+              {w && d && chatOpen && (
+                <OrderChat
+                  workspace={w}
+                  locked={busy || (!!w?.imported && !developer)}
+                  unsaved={unsaved}
+                  send={(message) => api.action(id, 'chat', { message }, '聊天核对中')}
+                />
+              )}
+              {w && d && (
+                <footer className="oi-action-bar">
+                  <div className="oi-action-summary">
+                    <span>
+                      数量 <b>{evaluation?.totalQuantity || '待确认'}</b>
+                    </span>
+                    <span>
+                      {unsaved ? '金额预览' : '金额'}{' '}
+                      <strong>{evaluation?.totalAmount || '待确认'}</strong>
+                    </span>
+                    <small>
+                      {d.header.currency.value || '币种待确认'} ·{' '}
+                      {d.header.taxMode.value || '税费待确认'}
+                    </small>
+                    <ReviewIssues
+                      issues={evaluation?.issues || []}
+                      warnings={d.warnings}
+                      changes={w.changes}
+                    />
+                  </div>
+                  <div className="oi-action-buttons">
+                    <button
+                      disabled={!w.canUndo || busy || unsaved}
+                      onClick={() => void api.action(id, 'undo', {}, '撤销修改')}
+                    >
+                      <Undo2 size={14} />
+                      撤销
+                    </button>
+                    <button
+                      className="oi-ai-button"
+                      aria-pressed={chatOpen}
+                      onClick={() => setChatOpen((v) => !v)}
+                    >
+                      让 AI 改
+                    </button>
+                    {unsaved && (
                       <button
-                        disabled={!unsaved || busy}
+                        className="primary"
+                        disabled={busy}
                         onClick={() => void api.action(id, 'edit', { operations: ops }, '保存修改')}
                       >
                         <Save size={14} />
-                        保存修改{unsaved ? ' (' + ops.length + ')' : ''}
+                        保存修改 ({ops.length})
                       </button>
+                    )}
+                    {!importAuth?.actor?.localAdministrator && !w.imported && !unsaved && (
                       <button
-                        disabled={!w.canUndo || busy || unsaved}
-                        onClick={() => void api.action(id, 'undo', {}, '撤销修改')}
+                        disabled={busy || matchingPending}
+                        onClick={() => open('review', [id])}
                       >
-                        <Undo2 size={14} />
-                        撤销
+                        核对并确认
                       </button>
-                      <ReviewIssues
-                        issues={evaluation?.issues || []}
-                        warnings={d.warnings}
-                        changes={w.changes}
-                      />
-                    </div>
-                  </div>
-                )}
-              </section>
-              <OrderChat
-                workspace={w}
-                locked={busy || (!!w?.imported && !developer)}
-                unsaved={unsaved}
-                send={(message) => api.action(id, 'chat', { message }, '聊天核对中')}
-              />
-              <footer className="oi-review-bar">
-                <div>
-                  <ShieldCheck size={15} />
-                  <span>
-                    {w?.imported
-                      ? (w.imported.permanentlyDeleted
-                          ? '正式订单已永久删除，来源凭据保留：'
-                          : '已导入正式订单 ') + w.imported.orderNumber
-                      : unsaved
-                        ? '有未保存修改'
-                        : w?.confirmedRevision === w?.revision && w
-                          ? '当前草稿已核对'
-                          : '人工核对后确认草稿'}
-                  </span>
-                </div>
-                <div>
-                  {!importAuth?.actor?.localAdministrator && (
-                    <button
-                      disabled={!d || busy || unsaved || matchingPending || !!w?.imported}
-                      onClick={() => open('review', [id])}
-                    >
-                      核对并确认
-                    </button>
-                  )}
-                  {w?.imported?.permanentlyDeleted ? (
-                    <span>不可从归档记录恢复</span>
-                  ) : w?.imported ? (
-                    <a
-                      href={
-                        w.imported.archived
-                          ? '#orders?archived=1'
-                          : '#orders?order=' + w.imported.orderId
-                      }
-                    >
-                      查看正式订单 {w.imported.orderNumber}
-                      {w.imported.archived ? '（已归档）' : ''}
-                    </a>
-                  ) : (
-                    <button
-                      className="primary"
-                      disabled={!d || busy || unsaved || matchingPending || importBusy}
-                      onClick={async () => {
-                        setImportBusy(true);
-                        setImportError('');
-                        try {
-                          const preview = await api.request<any>('/' + id + '/preview', {
-                            expectedRevision: w!.revision,
-                          });
-                          setImportPreview(preview);
-                          open('import', [id]);
-                        } catch (error) {
-                          api.setFatal((error as Error).message);
-                        } finally {
-                          setImportBusy(false);
+                    )}
+                    {w.imported?.permanentlyDeleted ? (
+                      <span>
+                        正式订单 {w.imported.orderNumber} 已永久删除，不可恢复
+                      </span>
+                    ) : w.imported ? (
+                      <a
+                        className="oi-imported-link"
+                        href={
+                          w.imported.archived
+                            ? '#orders?archived=1'
+                            : '#orders?order=' + w.imported.orderId
                         }
-                      }}
-                    >
-                      {importBusy ? '生成导入预览…' : '确认并导入 ERP'}
-                    </button>
-                  )}
-                </div>
-              </footer>
+                      >
+                        <ShieldCheck size={14} />
+                        查看正式订单 {w.imported.orderNumber}
+                        {w.imported.archived ? '（已归档）' : ''}
+                      </a>
+                    ) : (
+                      !unsaved && (
+                        <button
+                          className="primary"
+                          disabled={busy || matchingPending || importBusy}
+                          onClick={async () => {
+                            setImportBusy(true);
+                            setImportError('');
+                            try {
+                              const preview = await api.request<any>('/' + id + '/preview', {
+                                expectedRevision: w!.revision,
+                              });
+                              setImportPreview(preview);
+                              open('import', [id]);
+                            } catch (error) {
+                              api.setFatal((error as Error).message);
+                            } finally {
+                              setImportBusy(false);
+                            }
+                          }}
+                        >
+                          {importBusy ? '生成导入预览…' : '确认并导入 ERP'}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </footer>
+              )}
             </>
           )}
         </div>

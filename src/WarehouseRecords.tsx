@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Plus, FileUp, RefreshCw } from 'lucide-react';
 import { managementRequest, useAuthState } from './session';
+import { PageHeading, Pagination } from './ui/ListLayout';
 import DateSchedule from './DateSchedule';
 import FlowPage from './FlowPage';
 import DetailPanel from './ui/DetailPanel';
+import FinanceRelated from './finance/FinanceRelated';
 import ReadyToShip from './ReadyToShip';
 import StatusBadge from './StatusBadge';
 import { ArrivalRecordLines } from './ArrivalRecordLines';
@@ -210,20 +212,29 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
   };
   return (
     <div className="arrival-warehouse">
-      <div className="section-heading">
-        <div>
-          <h2>
-            {name}记录 · {date}
-          </h2>
-          <p className="sub">
-            计划与实际按日期统一管理，确认实际{kind === 'arrival' ? '验收入库' : '发货'}
-            后才更新库存。
-          </p>
-        </div>
-        <div className="arrival-toolbar">
+      <PageHeading
+        title={name}
+        meta={
+          <div className="list-summary" aria-label={'每日' + name + '汇总'}>
+            <div>
+              <span>计划</span>
+              <strong>{data.summary.planned || 0}</strong>
+            </div>
+            <div>
+              <span>已完成</span>
+              <strong>{data.summary.completed || 0}</strong>
+            </div>
+            <div>
+              <span>待{name}</span>
+              <strong>{data.summary.pending || 0}</strong>
+            </div>
+          </div>
+        }
+        actions={
+        <>
           <button onClick={() => setRevision((v) => v + 1)} disabled={busy}>
-            <RefreshCw size={15} />
-            刷新
+            <RefreshCw size={15} aria-hidden="true" />
+            <span className="sr-only">刷新</span>
           </button>
           {kind === 'arrival' && (
             <button disabled={!canEdit} onClick={() => setLaunch({ ai: '1' })}>
@@ -257,21 +268,10 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
             <Plus size={15} />
             新建{name}计划
           </button>
-        </div>
-      </div>
+        </>
+        }
+      />
       <DateSchedule value={date} onChange={changeDate} label={name} counts={data.counts} />
-      <div className="schedule-daily-summary" aria-label={'每日' + name + '汇总'}>
-        <span>
-          计划{name} <strong>{data.summary.planned || 0}</strong> 批
-        </span>
-        <span>
-          已完成{name} <strong>{data.summary.completed || 0}</strong> 批
-        </span>
-        <span>
-          待{name} <strong>{data.summary.pending || 0}</strong> 批
-        </span>
-        <span>实际完成按实际日期统计，未计划批次同样显示</span>
-      </div>
       {error && (
         <p role="alert" className="form-error">
           {error}
@@ -333,7 +333,6 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
                 ].map((h) => (
                   <th key={h}>{h}</th>
                 ))}
-                <th aria-label="操作" />
               </tr>
             </thead>
             <tbody>
@@ -366,7 +365,15 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
                         if (e.key === 'Enter' && e.target === e.currentTarget) setSelectedKey(key);
                       }}
                     >
-                      <td className="record-no">{r.number}</td>
+                      <td className="record-no">
+                        <button
+                          className="row-key"
+                          aria-label={'查看 ' + r.number}
+                          onClick={() => setSelectedKey(key)}
+                        >
+                          {r.number}
+                        </button>
+                      </td>
                       <td className="cell-wrap">{r.supplierName || r.customerName}</td>
                       <td>
                         {numbers[0] && (
@@ -400,11 +407,6 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
                       <td>
                         <StatusBadge status={statusOf(r)} />
                       </td>
-                      <td>
-                        <button className="row-open" onClick={() => setSelectedKey(key)}>
-                          查看
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}
@@ -418,18 +420,12 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
             </tbody>
           </table>
         </div>
-        <div className="flow-pagination">
-          <span>共 {filtered.length} 批</span>
-          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            上一页
-          </button>
-          <span>
-            {page} / {Math.max(1, Math.ceil(filtered.length / RECORD_PAGE_SIZE))}
-          </span>
-          <button disabled={page * RECORD_PAGE_SIZE >= filtered.length} onClick={() => setPage((p) => p + 1)}>
-            下一页
-          </button>
-        </div>
+        <Pagination
+          page={page}
+          total={filtered.length}
+          pageSize={RECORD_PAGE_SIZE}
+          onChange={setPage}
+        />
       </section>
       {selected && (
         <DetailPanel
@@ -465,6 +461,7 @@ export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery
           ) : (
             <>
               <DeliveryRecordLines record={selected} />
+              <FinanceRelated kind="delivery" id={selected.id} />
               <BusinessExport
                 kind="delivery"
                 id={selected.id}

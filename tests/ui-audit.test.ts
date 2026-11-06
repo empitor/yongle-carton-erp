@@ -8,7 +8,7 @@ import ExcelJS from 'exceljs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { uiCapabilities } from '../shared/ui-capabilities.js';
-import { erpPageIds } from '../shared/assistant-navigation.js';
+import { registeredErpPageIds } from '../shared/assistant-navigation.js';
 import { userError } from '../shared/user-errors.js';
 import { Store } from '../server/db.js';
 import { OperationsService } from '../server/operations/service.js';
@@ -103,7 +103,7 @@ test('当前注册工具逐项具备人工业务入口或明确技术分类，�
     assert.ok(coverage[0].api.length);
   }
   for (const capability of uiCapabilities)
-    assert.ok((erpPageIds as string[]).includes(capability.page.split('?')[0].slice(1)));
+    assert.ok(registeredErpPageIds.includes(capability.page.split('?')[0].slice(1)));
   assert.match(
     renderToStaticMarkup(
       createElement(BusinessDocumentButton, {

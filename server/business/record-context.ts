@@ -15,11 +15,12 @@ export function recordContext(
   who: Actor | null | undefined,
 ) {
   requirePermission(who, 'business:edit');
-  z.enum(developerModules).parse(module);
+  const recordModule = z.enum(developerModules).parse(module);
   const flow = new FlowService(store),
     physical = ['arrival', 'task', 'production', 'delivery'].includes(module),
     entity = physical ? 'flow_' + module : module,
-    record = physical ? flow.get(id) : (store as any)[module](true).find((r: any) => r.id === id);
+    record = recordModule === 'arrival' || recordModule === 'task' || recordModule === 'production' || recordModule === 'delivery'
+      ? flow.get(id) : store.record(recordModule, id, true);
   if (!record || (physical && record.kind !== module)) throw new ImportError('记录不存在。', 404);
   const related: any[] = [];
   const add = (m: string, r: any, direction = 'related') => {
@@ -80,17 +81,17 @@ export function recordContext(
   for (const d of docs) if (docIds.has(d.id)) add(d.kind, d);
   if (physical)
     for (const ref of refs.filter((r) => Number(r.document_id) === id)) {
-      const parents: Record<string, string> = {
+      const parents = {
         order_id: 'orders',
         customer_id: 'customers',
         product_id: 'products',
         supplier_id: 'suppliers',
         stock_id: 'stock_items',
         purchase_id: 'purchases',
-      };
+      } as const;
       for (const [column, parent] of Object.entries(parents))
         if (ref[column]) {
-          const row = (store as any)[parent](true).find((r: any) => r.id === Number(ref[column]));
+          const row = store.record(parent, Number(ref[column]), true);
           if (row) add(parent, row, 'upstream');
         }
       if (ref.task_id) {

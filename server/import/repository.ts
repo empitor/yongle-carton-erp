@@ -131,6 +131,8 @@ export class ImportRepository {
           reviewed: w.confirmedRevision === w.revision,
           hasDraft: !!w.draft,
           mode: w.mode || 'order',
+          markStatus: w.markReview?.committed ? 'committed' : w.markReview ? 'recognized' : 'pending',
+          markCount: w.markReview?.items?.length || 0,
           arrivalDocId: w.arrivalDocId ?? null,
           arrivalSourceId: w.arrivalSourceId ?? null,
         };

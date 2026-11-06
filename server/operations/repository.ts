@@ -10,6 +10,13 @@ import { matchesMovement, type MovementFilters } from '../../shared/movement-fil
 import { purchaseLineAmount } from '../../shared/physical-flow.js';
 import { receiptEvents, effectiveReceiptUnits } from './fulfillment.js';
 import { fulfillmentSummary, arrivalLineStatus } from '../../shared/fulfillment.js';
+
+function recordScope(ids: number | readonly number[] | undefined) {
+  if (ids === undefined) return { predicate: '', params: [] };
+  return typeof ids === 'number'
+    ? { predicate: '= ?', params: [ids] }
+    : { predicate: 'IN (SELECT value FROM json_each(?))', params: [JSON.stringify(ids)] };
+}
 /** 流水被管理员直接改写或删除前留下原值：余额仍由当前流水派生，修订台账负责追溯。 */
 export function recordMovementRevision(
   store: Store,
@@ -36,9 +43,11 @@ export function recordMovementRevision(
 }
 export class OperationsRepository {
   constructor(readonly store: Store) {}
-  suppliers(include = false): any[] {
+  suppliers(include = false, ids?: number | readonly number[]): any[] {
+    if (Array.isArray(ids) && !ids.length) return [];
+    const { predicate, params } = recordScope(ids);
     const history = new Map<number, any[]>();
-    for (const p of this.purchases(true)) {
+    for (const p of this.purchases(true, undefined, ids)) {
       const group = history.get(p.supplierId) || [];
       group.push({
         id: p.id,
@@ -53,9 +62,10 @@ export class OperationsRepository {
     const archived = this.store.archivedIds('suppliers');
     return this.store.db
       .prepare(
-        'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM suppliers ORDER BY id DESC',
+        'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM suppliers' +
+          (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC',
       )
-      .all()
+      .all(...params)
       .filter((r) => include || !archived.has(Number(r.id)))
       .map((r) => ({
         ...r,
@@ -69,8 +79,14 @@ export class OperationsRepository {
     const row = this.store.db.prepare('SELECT name FROM suppliers WHERE id=?').get(id);
     return row ? String(row.name) : undefined;
   }
-  /** 传 onlyId 时只组装这一张，供按主键读取。 */
-  purchases(include = false, onlyId?: number): any[] {
+  /** 可按主键或一批 ID 组装采购视图；到货事件仍共用完整历史。 */
+  purchases(include = false, ids?: number | readonly number[], supplierIds?: number | readonly number[]): any[] {
+    if (Array.isArray(ids) && !ids.length) return [];
+    const scope = recordScope(ids);
+    const suppliers = recordScope(supplierIds);
+    const conditions = [scope.predicate && 'id ' + scope.predicate, suppliers.predicate && 'supplier_id ' + suppliers.predicate].filter(Boolean);
+    const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    const params = [...scope.params, ...suppliers.params];
     const events = receiptEvents(this.store),
       receivedUnits = effectiveReceiptUnits(events),
       archived = this.store.archivedIds('purchases');
@@ -96,28 +112,25 @@ export class OperationsRepository {
     const linesByPurchase = new Map<number, any[]>();
     for (const l of this.store.db
       .prepare(
-        'SELECT id,purchase_id AS purchaseId,stock_item_id AS stockItemId,document,quantity_units AS quantityUnits,received_units AS receivedUnits FROM purchase_lines ORDER BY id',
+        'SELECT id,purchase_id AS purchaseId,stock_item_id AS stockItemId,document,quantity_units AS quantityUnits,received_units AS receivedUnits FROM purchase_lines' +
+          (where ? ' WHERE purchase_id IN (SELECT id FROM purchases' + where + ')' : '') + ' ORDER BY id',
       )
-      .all())
+      .all(...params))
       push(linesByPurchase, Number(l.purchaseId), l);
     const orderNumbers = new Map(
       this.store.db
         .prepare(
-          'SELECT id,number FROM orders WHERE id IN (SELECT customer_order_id FROM purchases WHERE customer_order_id IS NOT NULL)',
+          'SELECT id,number FROM orders WHERE id IN (SELECT customer_order_id FROM purchases' + where + ')',
         )
-        .all()
+        .all(...params)
         .map((o) => [Number(o.id), String(o.number)]),
     );
     return this.store.db
       .prepare(
-        'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases ORDER BY id DESC',
+        'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases' + where + ' ORDER BY id DESC',
       )
-      .all()
-      .filter(
-        (r) =>
-          (onlyId === undefined || Number(r.id) === onlyId) &&
-          (include || !archived.has(Number(r.id))),
-      )
+      .all(...params)
+      .filter((r) => include || !archived.has(Number(r.id)))
       .map((r) => {
         const lines = (linesByPurchase.get(Number(r.id)) || [])
           .map((l) => ({
@@ -229,21 +242,25 @@ export class OperationsRepository {
         .map((r) => [Number(r.id), Number(r.n)]),
     );
   }
-  items(include = false): any[] {
+  items(include = false, ids?: number | readonly number[]): any[] {
+    if (Array.isArray(ids) && !ids.length) return [];
+    const { predicate, params } = recordScope(ids);
     const archived = this.store.archivedIds('stock_items'),
       balances = new Map(
         this.store.db
-          .prepare('SELECT item_id,SUM(delta_units) n FROM stock_movements GROUP BY item_id')
-          .all()
+          .prepare('SELECT item_id,SUM(delta_units) n FROM stock_movements' +
+            (predicate ? ' WHERE item_id ' + predicate : '') + ' GROUP BY item_id')
+          .all(...params)
           .map((r) => [Number(r.item_id), Number(r.n)]),
       ),
       reserved = this.reservedUnits(),
       onOrder = this.onOrderUnits();
     return this.store.db
       .prepare(
-        'SELECT id,name,kind,unit,document,product_id AS productId,version,created_at AS createdAt FROM stock_items ORDER BY id DESC',
+        'SELECT id,name,kind,unit,document,product_id AS productId,version,created_at AS createdAt FROM stock_items' +
+          (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC',
       )
-      .all()
+      .all(...params)
       .filter((r) => include || !archived.has(Number(r.id)))
       .map((r) => {
         const { document, ...base } = r;
