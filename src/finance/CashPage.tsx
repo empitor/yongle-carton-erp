@@ -979,8 +979,8 @@ function InvoiceDetail({ id, close }: { id: number; close: () => void }) {
                   obligationId: l.obligation_id,
                   amount: l.amount_cents,
                   estimateAmount: l.estimate_cents ?? undefined,
-                  quantity: l.quantity ?? undefined,
-                  unit: l.unit ?? undefined,
+                  // 数量和单位要么一起带上，要么都不带，否则后端会拒绝
+                  ...(l.quantity != null && l.unit ? { quantity: l.quantity, unit: l.unit } : {}),
                 })),
                 v,
               ],

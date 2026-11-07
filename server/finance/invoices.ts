@@ -217,7 +217,13 @@ export class FinanceInvoices {
       FROM fin_invoice_links l JOIN fin_obligations o ON o.id=l.obligation_id LEFT JOIN fin_events e ON e.id=o.event_id
       WHERE invoice_id=? ORDER BY obligation_id`,
       )
-      .all(key);
+      .all(key)
+      // 库里存千分位整数 quantity_units；页面回传关联时用的是 quantity 文字，两边要对得上。
+      .map((l) =>
+        Object.assign(l, {
+          quantity: l.quantity_units == null ? null : quantityString(Number(l.quantity_units)),
+        }),
+      );
     return { invoice: row(this.db, 'fin_invoices', key), links };
   }
 

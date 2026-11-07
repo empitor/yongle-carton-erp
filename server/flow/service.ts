@@ -852,6 +852,10 @@ export class FlowService {
         .run(status, new Date().toISOString(), id);
     }
   }
+  /** 这张单的这个产品（同单位）是否已经做够，今日页按产品判断要不要提醒排产时用。 */
+  productionCovered(orderId: number, productId: number, unit: string) {
+    return this.producedEnough(orderId, productId, unit, this.confirmedTasksOf(orderId));
+  }
   private confirmedTasksOf(orderId: number) {
     return this.store.db
       .prepare(
@@ -1407,12 +1411,22 @@ export class FlowService {
       if (quantityUnits(v.quantity) < quantityUnits(before.completed || '0'))
         fail('计划数量不能少于实际合格完工数量。');
       this.validate('task', v, actor, true);
+      // 确认时写进单据的产品名、确认人、确认时间不在输入里，要从原单据带过来，不能被改丢。
+      const stored = JSON.parse(
+        String(this.store.db.prepare('SELECT document FROM flow_documents WHERE id=?').get(id)!.document),
+      );
+      const next = {
+        ...stored,
+        ...v,
+        plannedDate: raw.plannedDate === undefined ? stored.plannedDate : v.plannedDate,
+        productName: this.store.product(v.productId, true)?.name ?? stored.productName,
+      };
       this.store.db
         .prepare(
           'UPDATE flow_documents SET document=?,date=?,version=version+1,updated_at=? WHERE id=?',
         )
-        .run(JSON.stringify(v), v.date, new Date().toISOString(), id);
-      this.refs(id, v, 'task');
+        .run(JSON.stringify(next), v.date, new Date().toISOString(), id);
+      this.refs(id, next, 'task');
       this.updateOrders([...(before.orderIds || []), ...(v.orderIds || [])]);
       audit(this.store, actor, 'local-developer', 'correct-task', 'flow_task', id, {
         before,

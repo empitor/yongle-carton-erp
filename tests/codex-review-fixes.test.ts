@@ -424,3 +424,100 @@ test('升级时按新规则把老订单状态重算一次：只改变了的，�
     f.store.close();
   }
 });
+
+test('第二轮审查：发票再加一条关联时，原来带数量和单位的关联原样保留', () => {
+  const store = new Store(':memory:');
+  try {
+    const maker = {
+      id: 'maker',
+      name: '虚构制单员',
+      role: 'super_admin' as const,
+      permissions: [...financePermissions, 'business:edit'],
+    };
+    new FinanceSettings(store).enable(maker, { period: '2026-02', taxpayer: 'general', version: 1, requestId: 'e', rows: [] });
+    store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
+    const obligation = () =>
+      Number(
+        store.db
+          .prepare(
+            "INSERT INTO fin_obligations(kind,party_id,party_name,date,amount_cents,description) VALUES('receivable','1','虚构客户','2026-02-10',5000,'虚构送货')",
+          )
+          .run().lastInsertRowid,
+      );
+    const first = obligation(),
+      second = obligation();
+    const invoices = new FinanceInvoices(store);
+    const blue = invoices.create(maker, {
+      requestId: 'b', direction: 'sale', type: '虚构数电票', partyId: 1, rate: '0', tax: 0,
+      number: 'B-1', date: '2026-02-10', net: 10000, gross: 10000,
+    } as any);
+    invoices.link(maker, blue.id, {
+      version: 1, requestId: 'l1', links: [{ obligationId: first, amount: 5000, quantity: '12.5', unit: '只' }],
+    });
+    const view: any = invoices.get(maker, blue.id);
+    assert.equal(view.links[0].quantity, '12.5', '返回给页面的是数量文字');
+    // 照页面的做法：原有关联原样带回，再加一条
+    invoices.link(maker, blue.id, {
+      version: view.invoice.version,
+      requestId: 'l2',
+      links: [
+        ...view.links.map((l: any) => ({
+          obligationId: l.obligation_id,
+          amount: l.amount_cents,
+          ...(l.quantity != null && l.unit ? { quantity: l.quantity, unit: l.unit } : {}),
+        })),
+        { obligationId: second, amount: 5000 },
+      ],
+    });
+    const after: any = invoices.get(maker, blue.id);
+    assert.equal(after.links.length, 2);
+    assert.equal(after.links[0].quantity, '12.5');
+    assert.equal(after.links[0].unit, '只');
+  } finally {
+    store.close();
+  }
+});
+
+test('第二轮审查：维护已确认的生产任务，产品名和确认信息不丢', () => {
+  const f = flowFixture();
+  try {
+    const o = f.order([100]);
+    const task = f.make([o.id], '100');
+    const flow = new FlowService(f.store);
+    const before: any = flow.get(task.id);
+    assert.ok(before.confirmedBy && before.productName);
+    flow.developerUpdateTask(
+      task.id,
+      {
+        version: before.version, date: before.date, productId: before.productId, quantity: '120',
+        unit: before.unit, orderIds: before.orderIds, plannedDate: before.plannedDate,
+      },
+      admin,
+    );
+    const after: any = flow.get(task.id);
+    assert.equal(after.quantity, '120');
+    assert.equal(after.productName, before.productName);
+    assert.equal(after.confirmedBy, before.confirmedBy);
+    assert.equal(after.confirmedAt, before.confirmedAt);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('第二轮审查：多产品订单里，已经做好且库存够的产品不再提醒排产', () => {
+  const line = (id: number, productId: number, remainingQuantity: number) => ({
+    id, productId, productName: '虚构箱' + id, quantity: remainingQuantity, remainingQuantity, unit: '只',
+  });
+  const order = { id: 9, status: '生产中', lines: [line(1, 1, 100), line(2, 2, 50)] };
+  const next = orderNextSteps(order, {
+    tasks: [
+      { id: 1, number: 'SC-1', productId: 1, quantity: '100', completed: '100', unit: '只', status: 'confirmed' },
+      { id: 2, number: 'SC-2', productId: 2, quantity: '50', completed: '10', unit: '只', status: 'confirmed' },
+    ],
+    stocks: [{ productId: 1, unit: '只', availableUnits: 100000 }],
+    deliveries: [],
+    purchases: [],
+  });
+  assert.equal(next.steps.some((s) => s.kind === 'schedule'), false, 'A 已做好够发，B 还在做');
+  assert.ok(next.steps.some((s) => s.kind === 'delivery'));
+});

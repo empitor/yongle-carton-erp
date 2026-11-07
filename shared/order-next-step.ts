@@ -109,8 +109,8 @@ export function orderNextSteps(order: any, related: any): NextSteps {
     const working = own.some(
       (t: any) => t.status === 'draft' || units(t.completed) < units(t.quantity),
     );
-    const gap = remaining - available;
-    const shortage = own.length ? (gap > 0 ? gap : remaining) : gap;
+    // 订单状态是整单的：别的产品还在做时整单也是“生产中”。这个产品库存已经够发，就不再提醒排产。
+    const shortage = remaining - available;
     if (notYetMade && !working && shortage > 0)
       schedule.push({
         key: 'schedule-' + line.id,

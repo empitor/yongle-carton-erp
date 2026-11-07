@@ -17,6 +17,10 @@ import {
 } from '../shared/document-templates';
 import BusinessFormPreview from './BusinessFormPreview';
 import { WordFilePreview } from './BusinessExport';
+const cleanSignatures = <T extends { signatures: string[] }>(t: T): T => ({
+  ...t,
+  signatures: t.signatures.map((s) => s.trim()).filter(Boolean),
+});
 export default function DocumentTemplateSettings() {
   const auth = useAuthState(),
     canEdit =
@@ -75,7 +79,7 @@ export default function DocumentTemplateSettings() {
     const response = await fetch('/api/documents/templates/sample', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth!.csrf },
-      body: JSON.stringify({ template, format }),
+      body: JSON.stringify({ template: template && cleanSignatures(template), format }),
     });
     if (!response.ok) throw new Error((await response.json()).message || '样张生成失败');
     const bytes = await response.arrayBuffer();
@@ -150,7 +154,8 @@ export default function DocumentTemplateSettings() {
               const result = await managementRequest<DocumentTemplateState>(
                 '/documents/templates',
                 {
-                  templates: state.templates,
+                  // 签名栏末尾多打一个逗号会多出空项，保存前去掉，后端不收空签名。
+                  templates: state.templates.map(cleanSignatures),
                   defaults: state.defaults,
                   expectedRevision: state.revision,
                 },

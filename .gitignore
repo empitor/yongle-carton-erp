@@ -120,5 +120,6 @@ test-results/
 !docs/history/acceptance/单据固定版式验收-2026-11-07.md
 
 !docs/releases/发布说明-v0.8.1.md
+!docs/releases/发布说明-v0.8.2.md
 !docs/history/acceptance/Linux兼容与0.8.1发布验收-2026-11-07.md
 *.tar.gz

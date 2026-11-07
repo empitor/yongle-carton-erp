@@ -109,6 +109,8 @@ export function buildToday(store: Store, date: string) {
       if (own.length || o.shippingProgress !== '部分发货' || l.remainingQuantity == null) return false;
       return Math.round(l.remainingQuantity * 1000) > stockOf(l as any);
     }
+    // 整单“生产中”可能只是别的产品还在做；这个产品已经做够的，不算未排产。
+    if (own.length && flow.productionCovered(o.id, l.productId, l.unit || '')) return false;
     return true;
   };
   const unscheduled = active.filter((o) => o.lines.some((l) => unplanned(o, l)));

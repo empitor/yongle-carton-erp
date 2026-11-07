@@ -381,11 +381,16 @@ export function useOrderWorkspace() {
     cancelled.current.add(id);
     setUploads((x) => x.filter((y) => y.id !== id));
   }
+  // 工作区里的文件移进回收站（业务编辑权限即可，能恢复）；已在归档、回收站里的才永久删除（仅本机管理员）。
+  const archived = (id: string) => !!statusRef.current?.archives?.some((r) => r.id === id);
   async function remove(id: string) {
     const w = cacheRef.current[id] || (await request<Workspace>('/' + id));
     cancelled.current.add(id);
     try {
-      await request('/' + id + '/delete', { expectedRevision: w.revision, acknowledged: true });
+      await request('/' + id + (archived(id) ? '/delete' : '/remove'), {
+        expectedRevision: w.revision,
+        acknowledged: true,
+      });
       setCache((c) => {
         const n = { ...c };
         delete n[id];
@@ -402,7 +407,11 @@ export function useOrderWorkspace() {
         select(s.workspaces[0]?.id || '');
         if (s.workspaces[0]) await load(s.workspaces[0].id);
       }
-      setNotice('已物理删除工作区、识别任务和草稿；正式业务数据未改动');
+      setNotice(
+        archived(id)
+          ? '已永久删除工作区、识别任务和草稿；正式业务数据未改动'
+          : '已移入回收站，可在归档里恢复；正式业务数据未改动',
+      );
     } catch (e) {
       cancelled.current.delete(id);
       setErrors((x) => ({ ...x, [id]: (e as Error).message }));
@@ -425,12 +434,15 @@ export function useOrderWorkspace() {
       const items = prepared
         .filter((p) => p.revision !== null)
         .map((p) => ({ id: p.id, expectedRevision: p.revision! }));
-      const result = items.length
-        ? await request<{ results: { id: string; removed: boolean; message: string }[] }>(
-            '/delete-many',
-            { items, acknowledged: true },
-          )
-        : { results: [] as { id: string; removed: boolean; message: string }[] };
+      type Results = { results: { id: string; removed: boolean; message: string }[] };
+      const purge = items.filter((i) => archived(i.id)),
+        trash = items.filter((i) => !archived(i.id));
+      const result: Results = { results: [] };
+      for (const [path, batch] of [['/remove-many', trash], ['/delete-many', purge]] as const)
+        if (batch.length)
+          result.results.push(
+            ...(await request<Results>(path, { items: batch, acknowledged: true })).results,
+          );
       result.results.push(
         ...prepared
           .filter((p) => p.revision === null)
