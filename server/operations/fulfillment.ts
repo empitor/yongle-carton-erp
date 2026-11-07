@@ -42,25 +42,42 @@ export type ReceiptEvent = {
 /** arrival 是正式事件，purchase_receipts.flowId 是其采购投影，永不再次相加。
  * 无 flowId 的旧入口记录仍是独立正式事件；缺少投影的历史 arrival 也能读取。
  */
-export function receiptEvents(store: Store): ReceiptEvent[] {
+export function receiptEvents(store: Store, purchaseIds?: readonly number[]): ReceiptEvent[] {
   const db = store.db;
+  if (purchaseIds && !purchaseIds.length) return [];
+  const scope = JSON.stringify(purchaseIds || []);
+  const flowRows = db.prepare(
+    "SELECT * FROM flow_documents WHERE kind='arrival'" + (purchaseIds ? ` AND (
+      id IN (SELECT document_id FROM flow_refs WHERE purchase_id IN (SELECT value FROM json_each(?)))
+      OR id IN (SELECT json_extract(document,'$.flowId') FROM purchase_receipts WHERE purchase_id IN (SELECT value FROM json_each(?)))
+      OR EXISTS(SELECT 1 FROM json_each(flow_documents.document,'$.lines') l JOIN purchase_lines pl
+        ON pl.id=json_extract(l.value,'$.purchaseLineId') WHERE pl.purchase_id IN (SELECT value FROM json_each(?))))` : '') + ' ORDER BY id',
+  ).all(...(purchaseIds ? [scope, scope, scope] : []));
+  const legacyRows = db.prepare('SELECT * FROM purchase_receipts' +
+    (purchaseIds ? ' WHERE purchase_id IN (SELECT value FROM json_each(?))' : '') + ' ORDER BY created_at,id')
+    .all(...(purchaseIds ? [scope] : []));
+  // 同一到货单可能跨采购单；保留该单的完整明细，不能截掉 correctionLines。
+  const linkedLineIds = [
+    ...flowRows.flatMap((r) => (JSON.parse(String(r.document)).lines || []).map((l: any) => l.purchaseLineId)),
+    ...legacyRows.flatMap((r) => (JSON.parse(String(r.document)).items || []).map((l: any) => l.lineId)),
+  ].filter((id) => id != null);
   const purchaseLines = new Map(
     db
-      .prepare('SELECT * FROM purchase_lines')
-      .all()
+      .prepare('SELECT * FROM purchase_lines' + (purchaseIds ?
+        ' WHERE purchase_id IN (SELECT value FROM json_each(?)) OR id IN (SELECT value FROM json_each(?))' : ''))
+      .all(...(purchaseIds ? [scope, JSON.stringify(linkedLineIds)] : []))
       .map((l) => [Number(l.id), l]),
   );
   const purchases = new Map(
     db
-      .prepare('SELECT id,supplier_id FROM purchases')
-      .all()
+      .prepare('SELECT id,supplier_id FROM purchases' + (purchaseIds ?
+        ' WHERE id IN (SELECT value FROM json_each(?))' : ''))
+      .all(...(purchaseIds ? [JSON.stringify([...purchaseIds, ...[...purchaseLines.values()].map((l) => Number(l.purchase_id))])] : []))
       .map((p) => [Number(p.id), p]),
   );
   const events: ReceiptEvent[] = [],
     flowIds = new Set<number>();
-  for (const row of db
-    .prepare("SELECT * FROM flow_documents WHERE kind='arrival' ORDER BY id")
-    .all()) {
+  for (const row of flowRows) {
     const doc = JSON.parse(String(row.document));
     if (doc.isPlan) continue;
     flowIds.add(Number(row.id));
@@ -104,7 +121,7 @@ export function receiptEvents(store: Store): ReceiptEvent[] {
       }),
     });
   }
-  for (const row of db.prepare('SELECT * FROM purchase_receipts ORDER BY created_at,id').all()) {
+  for (const row of legacyRows) {
     const doc = JSON.parse(String(row.document));
     if (doc.flowId && flowIds.has(doc.flowId)) continue;
     const auditRow = db
@@ -174,18 +191,39 @@ export function receiptEvents(store: Store): ReceiptEvent[] {
   }
   // 管理员统计纠偏使用原不可变审计台账；原到货和原库存流水保持原样。
   const editsByReceipt = new Map<string, any[]>();
-  for (const r of store.db.prepare("SELECT * FROM business_audit WHERE action='receipt-data-edit' ORDER BY id").all()) {
+  for (const r of db.prepare("SELECT * FROM business_audit WHERE action='receipt-data-edit'" +
+    (purchaseIds ? " AND json_extract(document,'$.receiptId') IN (SELECT value FROM json_each(?))" : '') + ' ORDER BY id')
+    .all(...(purchaseIds ? [JSON.stringify(events.map((e) => e.id))] : []))) {
     const edit = { ...JSON.parse(String(r.document)), auditId: Number(r.id), at: r.at, actorName: r.actor_name };
     const group = editsByReceipt.get(edit.receiptId);
     if (group) group.push(edit);
     else editsByReceipt.set(edit.receiptId, [edit]);
   }
   for (const event of events) {
+    const groups = new Map<string, ReceiptLine[]>();
+    const groupKey = (stockId: unknown, lineId: unknown) => JSON.stringify([stockId, lineId ?? null]);
     for (const line of event.lines) {
-      if (line.stockedQuantity == null && line.stockId) {
-        const movements = db.prepare('SELECT delta_units FROM stock_movements WHERE source_kind=? AND source_id=? AND item_id=? AND purchase_line_id IS ?').all(
-          event.flowId || event.missingFlow ? 'flow_arrival' : 'purchase_receipt', event.flowId || event.missingFlow ? String(event.flowId || event.missingFlow) : event.id, line.stockId, line.lineId);
-        if (movements.length) line.stockedQuantity = quantityString(movements.reduce((n, m) => n + Number(m.delta_units), 0));
+      const key = groupKey(line.stockId, line.lineId);
+      const group = groups.get(key) || [];
+      group.push(line); groups.set(key, group);
+    }
+    if (event.lines.some((l) => l.stockedQuantity == null && l.stockId)) {
+      const movements = db.prepare(
+        'SELECT item_id,purchase_line_id,delta_units FROM stock_movements WHERE source_kind=? AND source_id=? ORDER BY rowid',
+      ).all(event.flowId || event.missingFlow ? 'flow_arrival' : 'purchase_receipt',
+        event.flowId || event.missingFlow ? String(event.flowId || event.missingFlow) : event.id);
+      for (const lines of groups.values()) {
+        if (!lines[0].stockId) continue;
+        const matching = movements.filter((m) => groupKey(Number(m.item_id), m.purchase_line_id) ===
+          groupKey(lines[0].stockId, lines[0].lineId));
+        // 数量无法一一对应时保留未知，不按申报数量或总量猜分配。
+        // 已记明入库 0 的行（比如全部不合格）没有流水，不参与配对。
+        const counted = lines.filter((line) => line.stockedQuantity !== '0');
+        if (matching.length !== counted.length) continue;
+        counted.forEach((line, index) => {
+          if (line.stockedQuantity == null)
+            line.stockedQuantity = quantityString(Number(matching[index].delta_units));
+        });
       }
     }
     event.dataEdits = editsByReceipt.get(event.id) || [];

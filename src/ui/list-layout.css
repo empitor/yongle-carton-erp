@@ -1,14 +1,7 @@
 /* 全部业务列表共用：标题、统计、两行筛选、表格及分页。颜色沿用主题语义变量。 */
 
-.unified-heading {
-  gap: 22px;
-}
 .unified-heading > div:first-child {
-  min-width: 0;
   flex: 1;
-}
-.unified-heading h1 {
-  line-height: 1.5;
 }
 .unified-heading p {
   max-width: none;
@@ -17,16 +10,11 @@
   margin-top: 6px;
 }
 .page-actions {
-  display: flex;
-  align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
 }
 .page-actions > button {
-  height: 40px;
-  min-height: 40px;
   padding: 8px 14px;
-  font-size: 12px;
 }
 .operations-workspace.unified-business-page {
   display: block;
@@ -35,7 +23,7 @@
   margin-bottom: 18px;
 }
 .list-summary {
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
 }
 .list-summary > div {
@@ -43,29 +31,16 @@
 }
 .list-summary strong {
   line-height: 1.4;
-  color: var(--ink);
   overflow-wrap: anywhere;
 }
 .list-summary small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .metric-select {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: transparent;
   text-align: left;
-  color: var(--ink);
   white-space: normal;
-}
-.metric-select > span {
-  font-size: 12px;
-  color: var(--text-secondary);
 }
 .metric-select[aria-pressed='true'] > strong {
   color: var(--accent-ink);
@@ -73,15 +48,6 @@
 .metric-select:hover:not(:disabled) {
   background: transparent;
   border-color: transparent;
-}
-.record-title-count {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--muted);
-}
-.record-filter-count {
-  font-size: 12px;
-  color: var(--accent-ink);
 }
 .quantity-groups {
   display: flex;
@@ -113,7 +79,7 @@
   min-height: 32px;
 }
 .list-filters {
-  border-radius: 10px;
+  border-radius: 8px;
 }
 .list-filters-primary {
   align-items: flex-end;
@@ -124,11 +90,10 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  min-width: 0;
 }
 .list-search > span,
 .list-filter-field > span {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 18px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -143,9 +108,6 @@
   color: var(--muted);
   pointer-events: none;
 }
-.list-search input {
-  padding-left: 35px;
-}
 .list-filter-field {
   flex-direction: column;
   gap: 7px;
@@ -156,11 +118,8 @@
 .list-filters input:not([type='checkbox']),
 .list-filters select {
   border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--input-bg);
-  color: var(--ink);
+  border-radius: 8px;
   padding: 8px 11px;
-  width: 100%;
   min-width: 0;
 }
 .list-filters .list-search input {
@@ -198,29 +157,21 @@
 .list-filters .range-control select {
   width: 174px;
 }
-.list-filters .range-control small {
-  font-size: 11px;
-}
 .list-filters .range-dates input {
   width: 145px;
 }
 .list-filters .filter-checkbox {
-  font-size: 12px;
   gap: 8px;
   min-height: 40px;
 }
 .list-filters .filter-checkbox input {
   margin: 0;
-  flex: none;
 }
 .list-filters .filter-reset {
-  height: 40px;
-  min-height: 40px;
   font-size: 12px;
   padding: 8px 13px;
 }
 .list-filter-note {
-  display: flex;
   justify-content: space-between;
   gap: 14px;
   line-height: 1.8;
@@ -233,16 +184,9 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .warehouse-navigation > button {
-  display: flex;
   justify-content: flex-start;
   text-align: left;
-  align-items: center;
   gap: 13px;
-  min-height: 78px;
-  padding: 16px 19px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
   white-space: normal;
 }
 .warehouse-navigation > button > span {
@@ -251,12 +195,8 @@
   flex-direction: column;
   gap: 4px;
 }
-.warehouse-navigation strong {
-  font-size: 14px;
-  line-height: 1.5;
-}
 .warehouse-navigation small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
 }
@@ -265,7 +205,6 @@
   color: var(--muted);
 }
 .warehouse-navigation > button[aria-selected='true'] {
-  background: var(--accent-soft);
   border-color: var(--border-strong);
   box-shadow: inset 0 -2px var(--teal);
 }
@@ -274,28 +213,11 @@
   color: var(--accent-ink);
 }
 .business-records .section-heading > div > span {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
   margin-top: 5px;
   line-height: 1.8;
 }
-.business-records .business-selection {
-  min-height: 57px;
-}
 .business-selection label {
-  font-size: 12px;
   line-height: 1.8;
-}
-.business-selection button,
-.record-view-tabs button {
-  min-height: 34px;
-  padding: 7px 11px;
-  font-size: 12px;
-}
-.business-records > .unified-table-region > table {
-  min-width: 1050px;
-  width: 100%;
 }
 .business-records[data-entity='customers'] > .unified-table-region > table,
 .business-records[data-entity='suppliers'] > .unified-table-region > table {
@@ -307,40 +229,23 @@
 .business-records .unified-table-region > table > tbody > tr > td {
   line-height: 1.75;
   font-size: 12px;
-  overflow-wrap: anywhere;
 }
 .business-records .unified-table-region > table > thead > tr > th:first-child,
 .business-records .unified-table-region > table > tbody > tr > td:first-child {
   width: 54px;
 }
 .business-records .sub {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
-  margin-top: 4px;
-}
-.business-records .record-actions-main {
-  gap: 8px;
-}
-.business-records[data-entity='purchases'] .record-actions-main {
-  grid-column: 1/-1;
-}
-.business-records .record-actions-main button {
-  height: 34px;
-  padding: 6px 10px;
-  font-size: 11px;
 }
 .unified-pager {
-  min-height: 64px;
   gap: 12px;
   flex-wrap: wrap;
-  border-top: 1px solid var(--border);
 }
 .unified-pager > span {
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 12px;
 }
 .unified-pager > div {
-  display: flex;
   gap: 12px;
   align-items: center;
   font-size: 12px;
@@ -361,27 +266,22 @@
   border-bottom: 1px solid var(--border);
   color: var(--text-secondary);
 }
-.movement-records .unified-table-region > table {
-  min-width: 1120px;
-}
 .movement-records .unified-table-region > table > thead > tr > th:first-child {
   width: 170px;
 }
 .movement-positive {
   color: var(--accent-ink);
-  font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 .movement-negative {
   color: var(--danger);
-  font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 .record-detail-grid > div {
   padding: 13px 15px;
 }
 .record-detail-grid dt {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 5px;
 }
@@ -395,19 +295,14 @@
   padding: 27px 20px;
 }
 .records-empty svg {
-  color: var(--muted);
   opacity: 0.7;
-}
-.table-scroll-hint {
-  margin: 0;
 }
 @media (max-width: 1100px) {
   .warehouse-navigation > button {
-    padding: 14px 13px;
     gap: 9px;
   }
   .warehouse-navigation small {
-    font-size: 10px;
+    font-size: 12px;
   }
   .page-actions {
     max-width: 55%;
@@ -428,7 +323,6 @@
 @media (max-width: 700px) {
   .unified-heading {
     flex-wrap: wrap;
-    gap: 14px;
   }
   .unified-heading > div:first-child {
     flex-basis: 100%;
@@ -442,8 +336,6 @@
     justify-content: flex-start;
   }
   .page-actions > button {
-    height: 38px;
-    min-height: 38px;
     padding: 7px 12px;
   }
   .list-summary > div {
@@ -455,12 +347,8 @@
   .warehouse-navigation {
     grid-template-columns: 1fr;
   }
-  .warehouse-navigation > button {
-    min-height: 64px;
-    padding: 12px 16px;
-  }
   .warehouse-navigation small {
-    font-size: 11px;
+    font-size: 12px;
   }
   .list-filter-field,
   .list-filter-field:last-of-type:not(:first-child) {
@@ -468,9 +356,6 @@
   }
   .list-filters-secondary {
     gap: 12px;
-  }
-  .list-filters .range-control {
-    width: 100%;
   }
   .list-filters .range-control > label {
     width: 100%;
@@ -487,14 +372,7 @@
     width: 120px;
   }
   .list-filters .range-control small {
-    display: block;
     width: 100%;
-  }
-  .list-filters .filter-reset {
-    margin-left: auto;
-  }
-  .list-filters-primary > .filter-reset {
-    margin-left: 0;
   }
   .list-filter-extras {
     width: 100%;

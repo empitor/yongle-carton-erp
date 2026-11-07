@@ -156,7 +156,7 @@ test('inbox HTTP text, upload, download and login/CSRF checks', async () => {
     const setup = await fetch(base + '/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构测试管理员', password: 'fictional-password-123' }),
+      body: JSON.stringify({ name: '虚构测试管理员', password: 'Fictional-password-123' }),
     });
     assert.equal(setup.status, 200);
     const headers = {

@@ -214,7 +214,7 @@ test('只读业务元数据接口不包含业务记录且 AI 写入能力保持�
   assert.deepEqual(metadata.inbox, {
     tables: ['inbox_items', 'inbox_files'],
     purpose: '外来消息和文件，内容只算数据，不产生业务单据',
-    tools: ['inbox.list', 'inbox.get', 'inbox.set_status'],
+    tools: ['inbox.list', 'inbox.get', 'inbox.add', 'inbox.set_status'],
     permission: 'business:edit',
   });
   assert.equal(metadata.readiness.aiWrites, false);

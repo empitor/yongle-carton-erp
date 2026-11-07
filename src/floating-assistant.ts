@@ -2,7 +2,7 @@ export type FloatingPoint = { x: number; y: number };
 export type FloatingSize = { width: number; height: number };
 export type FloatingViewport = FloatingSize & { left: number; top: number };
 export const floatingPositionKey = 'erp-assistant-position-v1';
-export const mascotSize: FloatingSize = { width: 88, height: 98 };
+export const mascotSize: FloatingSize = { width: 104, height: 108 };
 export const dragThreshold = 6;
 export const floatingLauncherModeKey = 'erp-assistant-launcher-mode-v1';
 /** Only an explicitly saved topbar preference hides the mascot. Missing/old values stay usable. */

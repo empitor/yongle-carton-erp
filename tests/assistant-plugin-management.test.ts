@@ -218,7 +218,7 @@ test('HTTP统一分组保留账号日志和服务权限状态，旧工具查询�
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
       body: JSON.stringify({
         name: '虚构统一管理测试',
-        password: 'fictional-unified-plugin-password',
+        password: 'Fictional-unified-plugin-password',
       }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];

@@ -92,12 +92,12 @@ export function validateBusinessDatabase(path: string, versions: number[]) {
     if (result.length !== 1 || result[0].integrity_check !== 'ok')
       throw new Error('数据库完整性校验失败');
     if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('数据关联校验失败');
-    if (
-      !versions.includes(
-        Number(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()?.version),
-      )
-    )
-      throw new Error('不支持此数据库版本');
+    const applied = db.prepare('SELECT version FROM schema_migrations ORDER BY version')
+      .all().map((row) => Number(row.version));
+    const latest = applied.at(-1);
+    if (latest === undefined || !versions.includes(latest)) throw new Error('不支持此数据库版本');
+    if (applied.length !== latest || applied.some((version, index) => version !== index + 1))
+      throw new Error('数据库迁移版本不连续，拒绝恢复');
     for (const table of ['customers', 'products', 'orders', 'order_lines'])
       db.prepare(`SELECT COUNT(*) FROM ${table}`).get();
   } finally {
@@ -177,7 +177,7 @@ export async function createFullBackup(options: {
   }
 }
 
-/** 校验清单后恢复整个data目录；原目录改名保留，不覆盖。调用方须已确认服务停止。 */
+/** 校验后恢复数据目录，保留原目录副本；切换失败自动退回。调用方须已确认服务停止。 */
 export function restoreFullBackup(source: string, dataDir: string) {
   const manifest = JSON.parse(readFileSync(join(source, 'manifest.json'), 'utf8'));
   if (manifest?.kind !== 'erp-full-backup' || !Array.isArray(manifest.files))
@@ -201,23 +201,48 @@ export function restoreFullBackup(source: string, dataDir: string) {
   if (!paths.has('erp.sqlite')) throw new Error('备份清单缺少业务库。');
   validateBusinessDatabase(join(source, 'erp.sqlite'), supportedDatabaseVersions);
   const staged = dataDir + '.restore-' + stamp();
-  mkdirSync(staged, { recursive: true });
-  for (const file of manifest.files)
-    if (!file.path.startsWith('_extra/')) {
-      const to = join(staged, file.path);
-      mkdirSync(dirname(to), { recursive: true });
-      copyFileSync(join(source, file.path), to);
-    }
   const previous = dataDir + '.before-restore-' + stamp();
-  if (existsSync(dataDir)) cpSync(dataDir, previous, { recursive: true });
-  else mkdirSync(dataDir, { recursive: true });
-  for (const name of readdirSync(dataDir)) {
-    if (name.endsWith('.running')) continue;
-    rmSync(join(dataDir, name), { recursive: true, force: true });
+  const existed = existsSync(dataDir);
+  const clear = () => {
+    for (const name of readdirSync(dataDir)) {
+      if (name.endsWith('.running')) continue;
+      rmSync(join(dataDir, name), { recursive: true, force: true });
+    }
+  };
+  try {
+    mkdirSync(staged, { recursive: true });
+    for (const file of manifest.files)
+      if (!file.path.startsWith('_extra/')) {
+        const to = join(staged, file.path);
+        mkdirSync(dirname(to), { recursive: true });
+        copyFileSync(join(source, file.path), to);
+      }
+    // 副本完整复制成功后才开始破坏性切换，副本一直保留供人工恢复。
+    if (existed) cpSync(dataDir, previous, { recursive: true });
+    else mkdirSync(dataDir, { recursive: true });
+    try {
+      clear();
+      for (const name of readdirSync(staged)) renameSync(join(staged, name), join(dataDir, name));
+    } catch (error) {
+      try {
+        clear();
+        if (existed) cpSync(previous, dataDir, { recursive: true });
+        else rmSync(dataDir, { recursive: true, force: true });
+      } catch {
+        const detail = existed ? '原数据副本保留在：' + previous : '原目标目录不存在，请清理未完成的目录：' + dataDir;
+        if (error instanceof Error) {
+          error.message += '；自动回退失败，' + detail;
+          throw error;
+        }
+        throw new Error('恢复备份及自动回退失败，' + detail, { cause: error });
+      }
+      throw error;
+    }
+    return { previous, files: manifest.files.length };
+  } finally {
+    // 清理暂存失败不能盖住切换/回退的原始错误。
+    try { rmSync(staged, { recursive: true, force: true }); } catch { /* 副本仍保留 */ }
   }
-  for (const name of readdirSync(staged)) renameSync(join(staged, name), join(dataDir, name));
-  rmSync(staged, { recursive: true, force: true });
-  return { previous, files: manifest.files.length };
 }
 
 /** 每日自动完整备份：启动后检查，距上次满24小时再做；失败只记录，不影响业务。 */

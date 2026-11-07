@@ -100,7 +100,7 @@ async function fixture(response = analysis()) {
     });
   const login = await request('/auth/setup', {
     name: '测试管理员',
-    password: 'test-password-at-least-12',
+    password: 'Test-password-at-least-12',
   });
   cookie = login.headers.get('set-cookie')!.split(';')[0];
   let w = (await manager.upload(docxFixture(), '可选资料测试.docx')).workspace;

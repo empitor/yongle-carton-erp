@@ -1,4 +1,5 @@
 import BusinessExport from './BusinessExport';
+import { displayAmount } from '../shared/display-amount';
 import RelatedBusiness from './RelatedBusiness';
 import { formatDimensions } from '../shared/product-details';
 import { useEffect } from 'react';
@@ -6,6 +7,7 @@ import { formatStockSize, type RecordEntity } from '../shared/operations';
 import { ProgressSummary, PurchaseLines, ReceiptHistory, SalesLines } from './FulfillmentDetails';
 import RelatedOrders from './RelatedOrders';
 import ProductMarks from './marks/ProductMarks';
+import { orderDisplayStatus } from '../shared/domain';
 export default function RecordDetails({
   entity,
   row,
@@ -49,7 +51,7 @@ export default function RecordDetails({
             ['预计到货', row.expectedDate],
             ['业务状态', row.businessStatus],
             ['到货进度', row.arrivalProgress],
-            ['程序计算金额 / 元', row.totalAmount ?? '待定价'],
+            ['程序计算金额 / 元', row.totalAmount == null ? '待定价' : displayAmount(row.totalAmount)],
             ['有效到货金额 / 元', row.receivedAmount ?? '待定价'],
             ['备注', row.notes],
           ]
@@ -79,10 +81,10 @@ export default function RecordDetails({
                 ['客户采购单号', row.externalPurchaseOrder],
                 ['订单日期', row.orderDate],
                 ['交货日期', row.deliveryDate],
-                ['订单状态', row.status],
+                ['订单状态', orderDisplayStatus(row)],
                 ['发货进度', row.shippingProgress],
                 ['币种', row.currency || 'CNY'],
-                ['金额 / 元', row.totalAmountExact ?? String(row.totalCents / 100)],
+                ['金额 / 元', row.totalAmountExact ? displayAmount(row.totalAmountExact) : String(row.totalCents / 100)],
                 ['税费说明', (row.taxRate || '') + ' ' + (row.taxMode || '未明确')],
                 ['合同条件', row.terms],
                 ['整单备注', row.notes],

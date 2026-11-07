@@ -12,7 +12,31 @@ import { orderSourceMessage, recognitionMode } from '../import/source-message.js
 import type { ChatMessage } from '../ai/compatible-chat.js';
 import type { AiProgress } from '../../shared/ai-runtime.js';
 import { ArrivalDraftAssistant } from './arrival-assistant.js';
+import { retryBadModelOutput } from '../ai/model-retry.js';
+import { isPlainObject, pickKeys, scalarText, textList } from '../../shared/model-output.js';
 const nullableText = z.string().max(2000).nullable().default(null);
+const supplierKeys = ['supplierName', 'reference', 'purchaseNumber', 'date', 'notes'] as const;
+const supplierLineKeys = ['name', 'specification', 'material', 'flute', 'length', 'width', 'dimensionUnit', 'quantity', 'unit', 'area', 'unitPrice', 'notes'] as const;
+const textFields = (raw: Record<string, unknown>, keys: readonly string[]) =>
+  Object.fromEntries(Object.entries(pickKeys(raw, keys)).map(([k, v]) => [k, scalarText(v)]));
+/** 校验模型的到货单结果之前先整理：丢掉多余字段，数字转文字。计价方式不认识就当未知，不猜。 */
+export function tidySupplierAnalysis(raw: unknown) {
+  if (!isPlainObject(raw)) return raw;
+  return {
+    ...textFields(raw, supplierKeys),
+    warnings: textList(raw.warnings, 100, 1000),
+    lines: Array.isArray(raw.lines)
+      ? raw.lines.map((line) =>
+          isPlainObject(line)
+            ? {
+                ...textFields(line, supplierLineKeys),
+                priceBasis: ['area', 'quantity'].includes(String(line.priceBasis)) ? line.priceBasis : null,
+              }
+            : line,
+        )
+      : raw.lines,
+  };
+}
 export const supplierAnalysisSchema = z.strictObject({
   supplierName: nullableText,
   reference: nullableText,
@@ -61,7 +85,9 @@ export const supplierDefaultPreset = () => ({
     },
   ],
 });
-const sourceColumns = 'SELECT id,file_name AS fileName,hash,format,document,created_at AS createdAt FROM flow_sources';
+// flow_sources 同时存到货和唛头的识别记录；不分开的话，同一文件换个模式会拿到对方的结果。
+const sourceColumns =
+  "SELECT id,file_name AS fileName,hash,format,document,created_at AS createdAt FROM flow_sources WHERE json_extract(document,'$.kind') IS NOT 'shipping-mark'";
 function sourceView({ document, ...row }: Record<string, unknown>) {
   return { ...row, ...JSON.parse(String(document)) };
 }
@@ -83,7 +109,7 @@ export class ReceiptAi {
       .map(sourceView);
   }
   source(id: string) {
-    const row = this.store.db.prepare(sourceColumns + ' WHERE id=?').get(z.string().uuid().parse(id));
+    const row = this.store.db.prepare(sourceColumns + ' AND id=?').get(z.string().uuid().parse(id));
     if (!row) throw new ImportError('供应商原件或识别结果不存在。', 404);
     return sourceView(row);
   }
@@ -175,15 +201,16 @@ export class ReceiptAi {
         },
         sourceMessage,
       ];
-      const result = supplierAnalysisSchema.parse(
-        await this.settings.completeOrderJson(messages, input.profile, controller.signal, {
+      const result = await retryBadModelOutput(async () => supplierAnalysisSchema.parse(
+        tidySupplierAnalysis(await this.settings.completeOrderJson(messages, input.profile, controller.signal, {
+          lenientJson: true,
           stream: input.stream,
           onProgress,
           ...(recognitionMode(input.profile.endpoint) === 'deepseek-compatible'
             ? { maxOutputTokens: 16000, disableThinking: true }
             : {}),
-        }),
-      );
+        })),
+      ), controller.signal);
       if (controller.signal.aborted) throw new ImportError('识别已取消，未保存不完整结果。', 409);
       if (!result.lines.some((l) => l.name || l.quantity || l.specification))
         throw new ImportError('模型未识别到可用纸板明细，请核对原文件和模型文件能力。', 422);

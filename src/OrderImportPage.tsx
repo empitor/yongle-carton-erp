@@ -26,7 +26,6 @@ import ImportFailures from './import/ImportFailures';
 import ArrivalDraftPanel from './import/ArrivalDraftPanel';
 import DeveloperEditor from './DeveloperEditor';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime';
-import './order-import.css';
 import ReviewIssues from './import/ReviewIssues';
 export default function OrderImportPage() {
   const [manage, setManage] = useState(false);
@@ -144,9 +143,9 @@ export default function OrderImportPage() {
       );
     if (f.mode === 'mark')
       return f.markStatus === 'committed'
-        ? '已存入产品档案 · ' + (f.markCount || 0) + ' 款'
+        ? '已挂到产品 · ' + (f.markCount || 0) + ' 款'
         : f.markStatus === 'recognized'
-          ? '唛头待核对 · ' + (f.markCount || 0) + ' 款'
+          ? '唛头待选产品 · ' + (f.markCount || 0) + ' 款'
           : '待识别唛头';
     if ((f.mode || 'order') === 'arrival') {
       return (
@@ -224,7 +223,7 @@ export default function OrderImportPage() {
           <div className="oi-head-counts">
             <span>
               待核对{' '}
-              <strong>{files.filter((f) => f.hasDraft && !f.reviewed).length + markReviewing}</strong>
+              <strong>{files.filter((f) => f.hasDraft && !f.reviewed && !f.imported && (f.mode || 'order') === 'order').length + markReviewing}</strong>
             </span>
             <span>
               待识别 <strong>{pending.length + markPending}</strong>
@@ -732,6 +731,9 @@ export default function OrderImportPage() {
                     />
                   </div>
                   <div className="oi-action-buttons">
+                    {matchingPending && !w.imported && !unsaved && (
+                      <small className="oi-action-hint">先确认上面的客户和产品候选</small>
+                    )}
                     <button
                       disabled={!w.canUndo || busy || unsaved}
                       onClick={() => void api.action(id, 'undo', {}, '撤销修改')}
@@ -945,10 +947,15 @@ export default function OrderImportPage() {
                       </p>
                       {importPreview.plan.products[i].mode === 'new' && (
                         <p>
-                          新档案：{formatDimensions(importPreview.plan.products[i].input)}；
-                          {importPreview.plan.products[i].input.material}；
-                          {importPreview.plan.products[i].input.flute}；
-                          {importPreview.plan.products[i].input.requirements || '无额外加工要求'}
+                          新档案：
+                          {[
+                            formatDimensions(importPreview.plan.products[i].input),
+                            importPreview.plan.products[i].input.material,
+                            importPreview.plan.products[i].input.flute,
+                            importPreview.plan.products[i].input.requirements,
+                          ]
+                            .filter(Boolean)
+                            .join('；')}
                         </p>
                       )}
                     </article>

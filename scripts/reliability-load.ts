@@ -73,7 +73,7 @@ try {
   }
   const login = await call('/auth/setup', 'POST', {
     name: '虚构压测用户',
-    password: 'fictional-load-password',
+    password: 'Fictional-load-password',
   });
   cookie = login.response.headers.get('set-cookie')!.split(';')[0];
   await call('/finance/opening/enable', 'POST', {

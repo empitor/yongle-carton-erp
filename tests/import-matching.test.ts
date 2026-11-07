@@ -1,3 +1,4 @@
+import { blocksNewProduct, resolveCustomerCandidates } from '../shared/import-matching.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -61,7 +62,7 @@ test('客户完全一致唯一解析，同名及唯一相似均只返回候选�
       customerSchema.parse({ name: '虚构精确客户有限公司', contact: '张甲' }),
     );
     assert.equal(resolveImportCustomer(store, c.name).customer?.id, c.id);
-    assert.equal(resolveImportCustomer(store, '虚构精确客户').state, 'ambiguous');
+    assert.equal(resolveImportCustomer(store, '虚构精确客户').state, 'resolved', '只差公司后缀就并入');
     assert.equal(store.customers().length, 1);
     const twin = store.saveCustomer(customerSchema.parse({ name: c.name, contact: '李乙' }));
     const same = resolveImportCustomer(store, c.name);
@@ -360,4 +361,71 @@ test('正式预览也读取同一候选规则，尺寸相同但名称不同不�
   } finally {
     f.close();
   }
+});
+
+test('尺寸相同但名称不同的产品不拦新建；同名或尺寸材质楞型都相同才要先确认', () => {
+  const c = (...reasons: string[]) =>
+    ({ id: 1, name: '虚构', reasons, conflicts: [], recommended: false, missing: [] }) as any;
+  assert.equal(blocksNewProduct(c('尺寸一致')), false);
+  assert.equal(blocksNewProduct(c('规格尺寸一致（单位明确）', '尺寸一致')), false);
+  assert.equal(blocksNewProduct(c('尺寸一致', '材质一致')), false);
+  assert.equal(blocksNewProduct(c('名称一致')), true);
+  assert.equal(blocksNewProduct(c('客户料号一致（需核对客户归属）')), true);
+  assert.equal(blocksNewProduct(c('尺寸一致', '材质一致', '楞型一致')), true);
+});
+
+test('名称相近的客户：只差后缀并入，错别字问一下，不静默新建', () => {
+  const list = [
+    { id: 1, name: '宁波虚构信息科技有限公司', version: 1, contact: '', phone: '', address: '' },
+    { id: 2, name: '上海别的纸业有限公司', version: 1, contact: '', phone: '', address: '' },
+  ] as any[];
+  const state = (n: string) => resolveCustomerCandidates(list, n);
+  for (const n of ['宁波虚构信息科技有限公司 ', '宁波虚构信息科技', '宁波虚构信息科技(有限公司)', '宁波虚构信息科技有限公司（盖章）'])
+    assert.equal(state(n).customer?.id, 1, n);
+  for (const n of ['宁波虚够信息科技有限公司', '宁波虚构科技有限公司', '宁波市虚构信息科技有限公司', '虚构信息科技', '宁波虚构信息技术有限公司']) {
+    assert.equal(state(n).state, 'ambiguous', n);
+    assert.deepEqual(state(n).candidates.map((c) => c.id), [1], n);
+  }
+  assert.equal(state('杭州完全不同包装厂').state, 'new');
+  // 两家都只差后缀时不能替用户选
+  const two = resolveCustomerCandidates([...list, { id: 3, name: '宁波虚构信息科技', version: 1, contact: '', phone: '', address: '' }] as any, '宁波虚构信息科技公司');
+  assert.equal(two.state, 'ambiguous');
+});
+
+test('名称相近的产品：同名同数字并入，名称包含并入，错别字问一下，尺寸不同不混', () => {
+  const field = (value: any) => ({ value, sources: [], quote: '', certainty: 'recognized', note: '' });
+  const line = (name: string, l: any, w: any, h: any, unit: any, requirements: any = null) =>
+    ({
+      id: 'x',
+      fields: {
+        productName: field(name), productCode: field(null), specification: field(null),
+        length: field(l), width: field(w), height: field(h), dimensionUnit: field(unit),
+        material: field(null), flute: field(null), requirements: field(requirements),
+      },
+    }) as any;
+  const products = [
+    { id: 1, name: '虚构方形箱', length: 62, width: 26, height: 9, dimensionUnit: 'cm', requirements: '按虚构文件打印', version: 1 },
+    { id: 2, name: '虚构外箱（双瓦楞）（电商）', length: 71, width: 41, height: 44, dimensionUnit: null, version: 1 },
+    { id: 3, name: '虚构彩箱甲（电商）', length: 59, width: 36, height: 8, dimensionUnit: 'cm', version: 1 },
+    { id: 4, name: '虚构彩箱乙（电商）', length: 59, width: 36, height: 8, dimensionUnit: 'cm', version: 1 },
+  ] as any[];
+  const auto = (l: any) => productCandidatesForLine(l, products).filter((c) => c.recommended).map((c) => c.id);
+  const blocks = (l: any) => productCandidatesForLine(l, products).filter(blocksNewProduct).map((c) => c.id);
+  assert.deepEqual(auto(line('虚构方形箱', '62', '26', '9', 'cm', '另一种写法')), [1], '加工要求不同');
+  assert.deepEqual(auto(line('虚构方形箱', '62', '26', '9', null)), [1], '这次没写单位');
+  assert.deepEqual(auto(line('虚构外箱（双瓦楞）（电商）', '71', '41', '44', null)), [2], '都没写单位');
+  assert.deepEqual(auto(line('虚构外箱（双瓦楞）（电商）', '71', '41', '44', 'cm')), [2], '这次写了单位');
+  assert.deepEqual(auto(line('虚构外箱（双瓦楞）', '71', '41', '44', null)), [2], '少了后缀');
+  assert.deepEqual(auto(line('虚构彩箱甲（电商）', '59', '36', '8', 'cm')), [3], '同名优先，同尺寸的另一款不算');
+  assert.deepEqual(auto(line('虚构方形相', '62', '26', '9', 'cm')), [], '错别字不自动');
+  assert.deepEqual(blocks(line('虚构方形相', '62', '26', '9', 'cm')), [1], '错别字要问');
+  assert.deepEqual(auto(line('虚构方形箱', '70', '26', '9', 'cm')), [], '同名不同尺寸不并');
+  assert.deepEqual(blocks(line('另一款纸箱', '59', '36', '8', 'cm')), [], '同尺寸不同名可以新建');
+  assert.deepEqual(auto(line('虚构方形箱', '620', '260', '90', 'mm')), [1], '换算后相同');
+});
+
+test('名字里的数字不同就不算相近', () => {
+  const list = [{ id: 1, name: '虚构纸箱1厂', version: 1, contact: '', phone: '', address: '' }] as any[];
+  assert.equal(resolveCustomerCandidates(list, '虚构纸箱2厂').state, 'new');
+  assert.equal(resolveCustomerCandidates(list, '虚构纸箱1厂有限公司').state, 'resolved');
 });

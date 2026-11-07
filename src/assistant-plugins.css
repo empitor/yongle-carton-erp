@@ -1,53 +1,31 @@
-.ai-plugin-management {
-  max-width: 1180px;
-}
-.ai-plugin-intro {
-  margin: 20px 0;
-  color: var(--text-secondary);
-}
 .ai-plugin-intro h2 {
   color: var(--ink);
 }
 .ai-plugin-list {
   display: grid;
-  gap: 16px;
 }
 .ai-plugin-card {
-  padding: 20px;
   min-width: 0;
 }
 .ai-plugin-heading {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
-}
-.ai-plugin-heading > div {
-  min-width: 0;
 }
 .ai-plugin-heading h3,
 .ai-plugin-heading h4 {
-  margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
 .ai-plugin-heading small {
-  font-size: 12px;
   font-weight: normal;
   color: var(--muted);
 }
 .ai-plugin-heading p {
-  margin: 0;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .ai-plugin-switch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   white-space: nowrap;
-  flex-shrink: 0;
 }
-.ai-plugin-status,
 .ai-tool-factors {
   display: flex;
   flex-wrap: wrap;
@@ -63,9 +41,7 @@
   font-size: 13px;
 }
 .ai-plugin-tool {
-  padding: 18px 0;
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
 }
 .ai-plugin-tool:last-child {
   border-bottom: 0;
@@ -98,24 +74,14 @@
 @media (max-width: 600px) {
   .ai-plugin-heading {
     flex-direction: column;
-    gap: 12px;
-  }
-  .ai-plugin-card {
-    padding: 14px;
   }
 }
 
 .ai-browser-connection {
-  padding: 20px;
   margin-bottom: 16px;
 }
-.ai-browser-connection h3 {
-  margin: 0 0 8px;
-}
 .ai-browser-connection p {
-  margin: 0 0 14px;
   line-height: 1.7;
-  color: var(--text-secondary);
 }
 .ai-browser-connection [role='status'] {
   margin-left: 12px;

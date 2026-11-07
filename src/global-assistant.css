@@ -15,13 +15,13 @@
 }
 .global-assistant .ga-launcher {
   position: fixed;
-  width: 88px;
-  height: 98px;
+  width: 104px;
+  height: 108px;
   min-height: 0;
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 24px;
+  border-radius: 8px;
   background: transparent;
   box-shadow: none;
   display: block;
@@ -47,207 +47,32 @@
   outline: 2px solid var(--teal);
   outline-offset: 3px;
 }
-.ga-spirit {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-  filter: drop-shadow(0 4px 5px #031b1838);
-  transition:
-    transform 0.18s ease,
-    filter 0.18s ease;
+.ga-duo {
+  flex: none;
+  width: 30px;
+  height: 31px;
 }
-.ga-spirit-body {
-  transform-box: fill-box;
-  transform-origin: 50% 85%;
-  animation: ga-spirit-breathe 4.8s ease-in-out infinite;
+.ga-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
-.ga-spirit-eyes {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: ga-spirit-blink 6.4s linear infinite;
-}
-.ga-spirit-hand {
-  transform-box: fill-box;
-  transform-origin: right bottom;
-}
-.ga-spirit-spark {
-  transform-box: fill-box;
-  transform-origin: 40% 55%;
-  animation: ga-spirit-twinkle 3.6s ease-in-out infinite;
-}
-.ga-launcher:hover .ga-spirit {
-  transform: translateY(-3px);
-  filter: drop-shadow(0 6px 6px #031b184d) brightness(1.035);
-}
-.ga-launcher:hover .ga-spirit-hand {
-  animation: ga-spirit-wave 0.7s ease-in-out;
+.ga-relay {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 .global-assistant .ga-moving,
 .ga-moving .ga-header {
   cursor: grabbing;
 }
-.ga-moving .ga-spirit {
-  transform: none;
-}
-.ga-moving .ga-spirit-body,
-.ga-moving .ga-spirit-eyes {
-  animation-play-state: paused;
-}
-/* A single box leans and looks inward. The grip stays attached to the viewport seam. */
-.ga-spirit-pose {
-  transform-box: view-box;
-  transform-origin: 50px 90px;
-  transition: transform 0.34s cubic-bezier(0.22, 1.12, 0.36, 1);
-}
-.ga-spirit-face,
-.ga-spirit-gaze {
-  transform-box: view-box;
-  transform-origin: 50px 68px;
-  transition: transform 0.28s ease;
-}
-.ga-spirit-hand,
-.ga-spirit-rest-hand,
-.ga-spirit-shadow {
-  transition: opacity 0.2s ease;
-}
-.ga-spirit-grip {
-  opacity: 0;
-  transform: translateY(4px);
-  transition:
-    opacity 0.22s ease,
-    transform 0.3s ease;
-}
-.ga-spirit[data-pose='dock-left'] {
-  --ga-inward: 1;
-}
-.ga-spirit[data-pose='dock-right'] {
-  --ga-inward: -1;
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-pose {
-  transform: translate(calc(var(--ga-inward) * 4px), -2px) rotate(calc(var(--ga-inward) * 8deg));
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-body {
-  animation: none;
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-peek {
-  transform-box: view-box;
-  transform-origin: 50px 90px;
-  animation: ga-spirit-peek 11s ease-in-out infinite;
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-face {
-  transform: translateX(calc(var(--ga-inward) * 8px)) scaleX(0.9);
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-gaze {
-  transform: translateX(calc(var(--ga-inward) * 1.4px));
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-eyes {
-  animation-duration: 9.8s;
-}
-.ga-spirit[data-pose^='dock-'] .ga-spirit-hand,
-.ga-spirit[data-pose^='dock-'] .ga-spirit-rest-hand,
-.ga-spirit[data-pose^='dock-'] .ga-spirit-shadow {
-  opacity: 0;
-  animation: none;
-}
-.ga-spirit[data-pose='dock-left'] .ga-spirit-grip-left,
-.ga-spirit[data-pose='dock-right'] .ga-spirit-grip-right {
-  opacity: 1;
-  transform: translateY(0);
-}
-.ga-launcher[data-dock^='dock-']:hover .ga-spirit {
-  transform: none;
-}
-.ga-launcher[data-dock^='dock-']:hover .ga-spirit-pose {
-  transform: translate(calc(var(--ga-inward) * 7px), -2px) rotate(calc(var(--ga-inward) * 10deg));
-}
-.ga-moving .ga-spirit-peek {
-  animation-play-state: paused;
-}
-@keyframes ga-spirit-peek {
-  0%,
-  78%,
-  96%,
-  100% {
-    transform: translateX(0);
-  }
-  85% {
-    transform: translateX(calc(var(--ga-inward) * 1.8px));
-  }
-  90% {
-    transform: translateX(calc(var(--ga-inward) * 0.6px));
-  }
-}
-@keyframes ga-spirit-breathe {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0);
-  }
-  50% {
-    transform: translateY(-1.7px) rotate(-0.6deg);
-  }
-}
-@keyframes ga-spirit-blink {
-  0%,
-  92%,
-  96%,
-  100% {
-    transform: scaleY(1);
-  }
-  94% {
-    transform: scaleY(0.08);
-  }
-}
-@keyframes ga-spirit-twinkle {
-  0%,
-  100% {
-    opacity: 0.85;
-    transform: scale(0.92) rotate(0);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.08) rotate(8deg);
-  }
-}
-@keyframes ga-spirit-wave {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  30%,
-  70% {
-    transform: rotate(-16deg);
-  }
-  50% {
-    transform: rotate(5deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .global-assistant .ga-launcher,
-  .global-assistant .ga-launcher .ga-spirit *,
-  .ga-spirit,
-  .ga-spirit-body,
-  .ga-spirit-eyes,
-  .ga-spirit-spark,
-  .ga-launcher:hover .ga-spirit-hand {
-    animation: none;
-    transition: none;
-  }
-  .ga-launcher:hover .ga-spirit {
-    transform: none;
-  }
-}
+/* 忙碌状态由小甬和小勒的动作表现，这里只留给读屏软件 */
 .ga-launcher i {
   position: absolute;
-  right: 7px;
-  bottom: 15px;
-  width: 8px;
-  height: 8px;
-  background: #79d8b8;
-  border: 2px solid var(--surface);
-  border-radius: 50%;
-  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .ga-panel {
   position: fixed;
@@ -312,7 +137,7 @@
   background: var(--surface-muted);
   color: var(--ink);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   min-height: 30px;
 }
 .ga-header button,
@@ -329,10 +154,6 @@
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
-.ga-toolbar select {
-  width: 100%;
-  min-width: 0;
-}
 .ga-history {
   flex: 1;
   min-height: 85px;
@@ -347,7 +168,7 @@
   padding: 12px;
 }
 .ga-empty h3 {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--ink);
 }
 .ga-message {
@@ -357,7 +178,7 @@
 }
 .ga-message > small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .ga-text {
   white-space: pre-wrap;
@@ -367,10 +188,10 @@
   margin-left: 26px;
   padding: 10px 13px;
   background: var(--accent-soft);
-  border-radius: 10px;
+  border-radius: 8px;
 }
 .ga-tool-result {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   border-left: 2px solid var(--teal);
   padding-left: 8px;
@@ -381,7 +202,7 @@
   display: inline-block;
   border: 1px solid var(--border);
   padding: 2px 7px;
-  border-radius: 5px;
+  border-radius: 4px;
   margin: 4px 5px 0 0;
   font-size: 12px;
 }
@@ -412,25 +233,18 @@
   min-height: 54px;
   max-height: 100px;
   flex: 1;
-  min-width: 0;
   font-size: 13px;
 }
 .ga-compose button {
-  width: 42px;
   min-width: 42px;
   flex: 0 0 42px;
   padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   align-self: flex-end;
   height: 40px;
 }
 .ga-compose button > svg {
-  width: 20px;
   height: 20px;
   flex: 0 0 20px;
-  stroke-width: 2;
 }
 .ga-compose button:focus-visible {
   outline: 2px solid var(--teal);
@@ -447,12 +261,6 @@
 }
 .ga-mic-recording {
   color: var(--danger);
-}
-.ga-compose .ga-attach-button {
-  color: var(--ink);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
 }
 .ga-compose .ga-attach-button:hover:not(:disabled) {
   border-color: var(--teal);
@@ -557,9 +365,6 @@
   .ga-panel.ga-large {
     height: calc(100dvh - 16px);
   }
-  .ga-header {
-    padding: 10px;
-  }
   .ga-history {
     padding: 12px;
   }
@@ -598,7 +403,7 @@
 .ga-business-task {
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px;
   margin: 10px 0;
   font-size: 12px;
@@ -620,7 +425,7 @@
 }
 .ga-business-task small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   display: block;
 }
 .ga-business-task ol {
@@ -658,7 +463,7 @@
   margin-top: 8px;
 }
 .ga-task-actions button {
-  font-size: 11px;
+  font-size: 12px;
   padding: 5px 8px;
 }
 

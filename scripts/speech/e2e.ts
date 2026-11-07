@@ -37,7 +37,7 @@ try {
   const setup = await fetch(base + '/api/auth/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-    body: JSON.stringify({ name: '语音端到端验收', password: 'fictional-speech-e2e-123' }),
+    body: JSON.stringify({ name: '语音端到端验收', password: 'Fictional-speech-e2e-123' }),
   });
   const cookie = setup.headers.get('set-cookie')!.split(';')[0];
   const started = Date.now();

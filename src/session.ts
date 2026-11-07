@@ -14,8 +14,20 @@ export type AuthState = {
     superAdminUntil?: number;
     developerMode?: boolean;
     localAdministrator?: boolean;
+    mustChangePassword?: boolean;
   } | null;
   csrf: string;
+  /** 账号级别，见 accountLevelNames。 */
+  level?: string;
+  /** 待管理员处理的账号申请和忘记密码申请，只有管理员能看到。 */
+  pendingRequests?: number;
+};
+export const accountLevelNames: Record<string, string> = {
+  admin: '管理员',
+  staff: '业务人员',
+  viewer: '只读',
+  finance: '财务',
+  cashier: '出纳',
 };
 export function authChanged() {
   window.dispatchEvent(new Event('erp-auth-changed'));
@@ -47,6 +59,12 @@ export function useAuthState() {
     };
   }, []);
   return state;
+}
+/** 退出当前账号。下一个登录的人可能没有当前页面的权限，所以回到首页。 */
+export async function signOut() {
+  await managementRequest('/auth/logout', {});
+  history.replaceState(null, '', '#dashboard');
+  location.reload();
 }
 export async function managementRequest<T = any>(
   path: string,

@@ -455,7 +455,7 @@ test('D/F：真实HTTP插件启停、版本冲突、CSRF、匿名拒绝及账号
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '插件HTTP虚构账号', password: 'fictional-plugin-password-123' }),
+      body: JSON.stringify({ name: '插件HTTP虚构账号', password: 'Fictional-plugin-password-123' }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];
     const headers = {

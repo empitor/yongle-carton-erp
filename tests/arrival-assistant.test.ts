@@ -342,7 +342,7 @@ test('到货助手HTTP鉴权、CSRF、流式响应、错误档案及订单模式
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构到货助手验收', password: 'fictional-arrival-chat-123' }),
+      body: JSON.stringify({ name: '虚构到货助手验收', password: 'Fictional-arrival-chat-123' }),
     });
     const headers = {
       Cookie: setup.headers.get('set-cookie')!.split(';')[0],

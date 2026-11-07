@@ -74,7 +74,6 @@ textarea {
 input[type='checkbox'] {
   width: 16px;
   height: 16px;
-  accent-color: var(--teal);
 }
 .shell {
   display: flex;
@@ -90,20 +89,6 @@ input[type='checkbox'] {
 .brand {
   display: flex;
   align-items: center;
-}
-.brand span:not(.brand-mark) {
-  display: block;
-}
-.brand-mark {
-  flex-shrink: 0;
-  width: 40px;
-  height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #6d8f92;
-  border-radius: 8px;
-  color: #d8e9e6;
 }
 
 nav {
@@ -124,7 +109,7 @@ nav {
 
 .topbar-right {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .mobile-menu {
@@ -132,11 +117,6 @@ nav {
 }
 main {
   margin: auto;
-}
-.page-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
 }
 
 .page-heading p {
@@ -159,7 +139,6 @@ main {
   flex-wrap: wrap;
 }
 .filter-bar select {
-  width: auto;
   max-width: 230px;
   min-width: 120px;
   font-size: 12px;
@@ -177,14 +156,13 @@ main {
 }
 .section-heading span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .section-heading > div > span {
   display: block;
-  margin-top: 4px;
 }
 .section-heading em {
-  font-size: 11px;
+  font-size: 12px;
   background: var(--accent-soft);
   color: var(--muted);
   padding: 3px 7px;
@@ -199,10 +177,7 @@ main {
   padding: 3px 8px;
   border-radius: 4px;
   white-space: nowrap;
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 12px;
 }
 .badge i {
   width: 4px;
@@ -249,7 +224,7 @@ td strong {
 }
 .sub {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
 }
@@ -266,7 +241,7 @@ td strong {
   padding: 3px 0;
   color: var(--accent-ink);
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
 }
 .text-button:hover {
   background: transparent;
@@ -275,28 +250,17 @@ td strong {
 }
 .muted {
   color: var(--muted);
-  font-size: 11px;
-}
-.overdue {
-  color: var(--danger) !important;
+  font-size: 12px;
 }
 .pager {
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-top: 1px solid var(--border);
-  padding: 15px 22px;
-  font-size: 11px;
   color: var(--muted);
 }
 .pager > div {
   display: flex;
-  align-items: center;
-  gap: 13px;
-}
-.pager button {
-  padding: 5px;
-  border-radius: 4px;
 }
 footer {
   display: flex;
@@ -305,11 +269,11 @@ footer {
   border-top: 1px solid var(--border);
   margin-top: 32px;
   padding: 19px 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 footer span {
-  font-size: 10px;
+  font-size: 12px;
 }
 .empty {
   padding: 65px 20px;
@@ -335,7 +299,7 @@ footer span {
   color: var(--danger);
   font-size: 12px;
   border: 1px solid var(--danger-border);
-  border-radius: 5px;
+  border-radius: 4px;
   margin: 0 0 20px;
   display: flex;
   justify-content: space-between;
@@ -343,7 +307,7 @@ footer span {
   align-items: center;
 }
 .error button {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--danger);
 }
 .toast {
@@ -381,7 +345,7 @@ footer span {
   flex-shrink: 0;
 }
 .modal-head small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 2px;
 }
@@ -417,8 +381,7 @@ footer span {
   color: var(--muted);
 }
 .field > small {
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 12px;
 }
 .wide {
   grid-column: 1/-1;
@@ -440,7 +403,7 @@ footer span {
 .form-footer > span {
   margin-right: auto;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .form-error {
   margin: 0 26px 15px;
@@ -452,15 +415,11 @@ footer span {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 25px 0 13px;
   gap: 15px;
 }
 .form-section-heading > span {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
-}
-.danger {
-  color: var(--danger);
 }
 .add-line {
   width: 100%;
@@ -479,7 +438,7 @@ footer span {
   color: var(--muted);
 }
 .order-total strong {
-  font-size: 25px;
+  font-size: 24px;
   color: var(--accent-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -491,7 +450,7 @@ footer span {
   color: var(--muted);
 }
 .help-text {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin: 0 0 18px;
 }
@@ -502,7 +461,7 @@ footer span {
   margin: 16px 0 23px;
   background: var(--accent-soft);
   padding: 12px;
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--text-secondary);
   font-size: 12px;
 }
@@ -512,7 +471,7 @@ footer span {
   color: var(--warning);
   font-size: 12px;
   margin-bottom: 18px;
-  border-radius: 5px;
+  border-radius: 4px;
 }
 .guide-grid {
   display: grid;
@@ -540,10 +499,9 @@ footer span {
 }
 .exercise {
   background: var(--accent-soft);
-  border-color: var(--border);
 }
 .exercise-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   display: block;
   margin-bottom: 8px;
@@ -574,12 +532,10 @@ footer span {
 
   .badge {
     padding: 3px 5px;
-    font-size: 9px;
   }
 }
 @media (max-width: 700px) {
   .sidebar {
-    transform: translateX(-100%);
     transition: transform 0.15s ease;
   }
   .sidebar.open {
@@ -588,10 +544,9 @@ footer span {
   }
   .mobile-menu {
     display: inline-flex !important;
-    margin-right: 10px;
   }
   .page-heading p {
-    font-size: 10px;
+    font-size: 12px;
     max-width: 220px;
   }
   .page-heading > .primary {
@@ -600,20 +555,7 @@ footer span {
   }
 
   .badge {
-    font-size: 10px;
-  }
-  .pager {
-    padding: 13px 15px;
-    font-size: 10px;
-  }
-  .pager > div {
-    gap: 8px;
-  }
-  .overlay {
-    padding: 10px;
-  }
-  .modal {
-    max-height: calc(100dvh - 20px);
+    font-size: 12px;
   }
   .form-body {
     padding: 18px;
@@ -631,7 +573,7 @@ footer span {
     margin: 0 18px 12px;
   }
   .field > span {
-    font-size: 11px;
+    font-size: 12px;
   }
   .field input,
   .field select,
@@ -639,24 +581,24 @@ footer span {
     font-size: 13px;
   }
   .cost-summary {
-    font-size: 10px;
+    font-size: 12px;
   }
   .form-section-heading > span {
-    font-size: 9px;
+    font-size: 12px;
   }
   .prose {
     padding: 20px;
   }
   .prose p,
   .prose li {
-    font-size: 11px;
+    font-size: 12px;
   }
   footer {
-    font-size: 10px;
+    font-size: 12px;
   }
   footer span {
     max-width: 210px;
-    font-size: 9px;
+    font-size: 12px;
     text-align: right;
   }
 }
@@ -667,28 +609,8 @@ footer span {
   }
 }
 
-.ai-settings-tabs {
-  display: flex;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.business-selection {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  padding: 10px 14px;
-  font-size: 12px;
-}
 .business-selection label {
-  display: flex;
-  align-items: center;
   gap: 5px;
-}
-.business-records > .table-wrap td {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  vertical-align: top;
 }
 .business-result {
   margin: 12px;
@@ -699,19 +621,11 @@ footer span {
 }
 
 /* 业务维护：常规操作行内，危险操作单独分区。 */
-.record-actions-main {
-  align-items: center;
-}
-.record-actions-main button:first-child {
-  color: var(--teal);
-}
 .record-view-tabs {
   flex-wrap: wrap;
 }
 .record-view-tabs .selected {
-  background: var(--accent-soft);
   border-color: var(--border-strong);
-  color: var(--accent-ink);
 }
 .business-selection .permanent-batch {
   margin-left: auto;
@@ -719,22 +633,16 @@ footer span {
   color: var(--danger);
 }
 .record-state {
-  display: inline-block;
   margin: 5px 7px;
   padding: 1px 7px;
   color: var(--muted);
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 400;
+  font-size: 12px;
 }
 .recycle-heading {
   padding: 0 0 18px;
-}
-.recycle-heading p {
-  margin: 0 0 14px;
-  color: var(--muted);
 }
 .super-mode-banner {
   display: flex;
@@ -744,7 +652,7 @@ footer span {
   margin-bottom: 24px;
   background: var(--warning-soft);
   border: 1px solid var(--warning-border);
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--warning);
 }
 .super-mode-banner span {
@@ -761,7 +669,7 @@ footer span {
   background: var(--accent-soft);
   padding: 18px;
   border: 1px solid var(--warning-border);
-  border-radius: 7px;
+  border-radius: 8px;
   margin: 20px 0;
 }
 .super-access-panel h3 {
@@ -798,7 +706,7 @@ footer span {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 4px;
   padding: 8px 11px;
 }
 .management-dialog-actions {
@@ -829,7 +737,6 @@ button.danger-solid:hover {
   margin: 0 0 22px;
 }
 .record-detail-grid div {
-  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 .record-detail-grid dd {
@@ -916,14 +823,10 @@ input[type='checkbox'] {
   align-items: center;
   gap: 5px;
   border: 1px solid var(--border);
-  color: var(--text-secondary);
-  min-height: 36px;
 }
 .theme-switcher select {
-  min-height: 32px;
   border: 0;
   background: transparent;
-  color: var(--ink);
   cursor: pointer;
 }
 .theme-switcher svg {
@@ -932,7 +835,6 @@ input[type='checkbox'] {
 }
 .theme-switcher option {
   background: var(--surface);
-  color: var(--ink);
 }
 .sidebar .brand,
 .sidebar .brand span,
@@ -945,7 +847,7 @@ input[type='checkbox'] {
 .ai-editor,
 .prompt-list,
 .prompt-editor {
-  border-radius: 10px;
+  border-radius: 8px;
 }
 .modal,
 .management-dialog,
@@ -962,7 +864,7 @@ input[type='checkbox'] {
   box-shadow: var(--shadow);
 }
 th {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -976,56 +878,29 @@ output,
 .op-flow-table tbody tr:hover {
   background: var(--surface-hover);
 }
-.record-actions-main button {
-  min-height: 33px;
-  border-radius: 7px;
-}
-.record-view-tabs button.selected {
-  border-color: var(--border-strong);
-}
-.business-selection {
-  background: var(--surface-muted);
-}
 .business-selection b {
   color: var(--accent-ink);
 }
 .ai-settings-tabs {
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 7px;
-  padding: 0 0 12px;
 }
 .ai-settings-tabs button {
-  padding: 9px 22px;
   min-width: 118px;
 }
 .ai-settings-tabs button[aria-selected='true'] {
-  background: var(--accent-soft);
   border-color: var(--border-strong);
-  color: var(--accent-ink);
 }
 .order-import {
   --oi-border: var(--border);
   --oi-muted: var(--muted);
   --oi-teal: var(--teal);
 }
-.order-import .primary {
-  color: var(--on-accent);
-  background: var(--teal);
-}
 .order-import .primary:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 .order-import button {
-  border-radius: 6px;
-}
-.oi-file-list,
-.oi-preview,
-.oi-draft,
-.oi-chat,
-.oi-batch-bar,
-.oi-review-bar {
-  border-radius: 8px;
+  border-radius: 4px;
 }
 .oi-file-list > header,
 .oi-preview > header,
@@ -1041,81 +916,9 @@ output,
   color: var(--ink);
 }
 @media (max-width: 760px) {
-  .topbar-right {
-    flex-wrap: wrap;
-  }
   .theme-switcher select {
     max-width: 96px;
   }
-}
-.login-screen {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--page-bg);
-}
-.login-card {
-  width: min(400px, 100%);
-  padding: 32px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-}
-.login-card h1 {
-  margin-top: 16px;
-  font-size: 20px;
-}
-.login-card > p {
-  margin: 4px 0 16px;
-  color: var(--text-secondary);
-}
-.login-card .brand-mark {
-  display: inline-flex;
-  width: 40px;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--teal);
-}
-.login-card .auth-form button {
-  width: 100%;
-}
-.account-section {
-  margin: 12px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.account-section summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-.account-table {
-  width: 100%;
-  margin-top: 8px;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.account-table th,
-.account-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-.account-actions {
-  display: flex;
-  gap: 6px;
-}
-.account-actions button {
-  padding: 4px 8px;
-  min-height: 28px;
-}
-.account-create {
-  margin-top: 10px;
 }
 .movement-revisions {
   margin-top: 4px;
@@ -1136,7 +939,4 @@ output,
 }
 .business-records .unified-table-region > table > thead > tr > th:last-child {
   background: var(--surface-muted);
-}
-.sidebar nav {
-  margin-top: 16px;
 }

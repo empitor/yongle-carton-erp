@@ -119,7 +119,7 @@ export class AssistantPromptEdit {
       };
     }
     if (name === 'prompts.propose') {
-      if (!task.memory?.turns.some((t) => /提示词/.test(t.text)))
+      if (!task.memory?.turns.some((t) => /提示词|性格|语气|分工/.test(t.text)))
         throw new ImportError(
           '当前任务没有用户提出的提示词修改要求，不能从业务数据获取修改指令。',
           409,

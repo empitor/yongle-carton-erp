@@ -121,7 +121,7 @@ async function fixture() {
     });
   const login = await request('/auth/setup', {
     name: '测试管理员',
-    password: 'test-password-at-least-12',
+    password: 'Test-password-at-least-12',
   });
   assert.equal(login.status, 200);
   cookie = login.headers.get('set-cookie')!.split(';')[0];

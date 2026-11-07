@@ -75,9 +75,9 @@ test('悬浮图标与大小窗口始终限制在屏内，键盘缩小的可视�
 });
 test('只有靠近边缘才吸附，中间位置保持自由放置', () => {
   assert.deepEqual(snapFloatingPosition({ x: 11, y: 10 }, mascotSize, desktop), { x: 8, y: 8 });
-  assert.deepEqual(snapFloatingPosition({ x: 1332, y: 839 }, mascotSize, desktop), {
-    x: 1344,
-    y: 844,
+  assert.deepEqual(snapFloatingPosition({ x: 1316, y: 829 }, mascotSize, desktop), {
+    x: 1328,
+    y: 834,
   });
   assert.deepEqual(snapFloatingPosition({ x: 410, y: 312 }, mascotSize, desktop), {
     x: 410,
@@ -169,19 +169,20 @@ test('仅左右靠边24像素内停靠一半，中间及仅靠上下边保持完
     assert.equal(settleFloatingMascot({ x, y: 99999 }, mascotSize, view).dock, 'free');
   }
   assert.equal(settleFloatingMascot({ x: 25, y: 200 }, mascotSize, desktop).dock, 'free');
-  assert.equal(settleFloatingMascot({ x: 1327, y: 200 }, mascotSize, desktop).dock, 'free');
+  assert.equal(settleFloatingMascot({ x: 1311, y: 200 }, mascotSize, desktop).dock, 'free');
 });
 
 test('半隐藏拖回中间不会因全组件边界限制而跳变，始终至少一半可见', () => {
-  const left = { x: -44, y: 300 };
+  const half = mascotSize.width / 2;
+  const left = { x: -half, y: 300 };
   for (const dx of [1, 4, 7, 20, 80, 300]) {
     const p = clampMascotDragPosition({ x: left.x + dx, y: left.y }, mascotSize, desktop);
     assert.equal(p.x, left.x + dx);
   }
   for (const x of [-99999, 99999]) {
     const p = clampMascotDragPosition({ x, y: 99999 }, mascotSize, desktop);
-    assert(p.x >= -44 && p.x <= desktop.width - 44);
-    assert.equal(p.y, 844);
+    assert(p.x >= -half && p.x <= desktop.width - half);
+    assert.equal(p.y, desktop.height - mascotSize.height - 8);
   }
   assert.equal(settleFloatingMascot({ x: 400, y: 300 }, mascotSize, desktop).dock, 'free');
 });

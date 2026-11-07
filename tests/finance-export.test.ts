@@ -26,7 +26,7 @@ const reviewer = { ...maker, id: 'export-reviewer' };
 const period = '2026-10',
   next = '2026-11';
 const request = () => ({ requestId: randomUUID() });
-const password = 'fictional-export-password';
+const password = 'Fictional-export-password';
 
 async function workbook(bytes: Buffer) {
   const book = new ExcelJS.Workbook();

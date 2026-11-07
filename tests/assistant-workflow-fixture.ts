@@ -75,7 +75,7 @@ export function createOrderWorkflowFixture(databasePath?: string) {
   };
   const settings = makeSettings(async (req) => {
     requests.push(req);
-    const global = JSON.stringify(req.body).includes('你是受控ERP助手');
+    const global = JSON.stringify(req.body).includes('ERP 里的业务助手小甬和小勒');
     if (!global) {
       recognitionCalls++;
       if (broken) return { status: 503, body: { error: { message: 'fictional unavailable' } } };

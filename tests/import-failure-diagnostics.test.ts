@@ -326,7 +326,7 @@ test('诊断HTTP仅有业务管理权限的登录账号可查询下载，上传�
     f.close();
   }
 });
-test('SSE限流/HTTP524/网络断线/错误字段分别归档且未知计费结果不自动重发', async () => {
+test('SSE限流/HTTP524/网络断线/错误字段分别归档；未知计费结果不自动重发，模型结果不合格只重试一次', async () => {
   for (const kind of ['sse-rate', 'gateway', 'network', 'schema']) {
     let count = 0;
     const f = fixture(async (r) => {
@@ -353,7 +353,7 @@ test('SSE限流/HTTP524/网络断线/错误字段分别归档且未知计费结�
     try {
       const w = f.grant((await f.manager.upload(docxFixture(), '虚构.docx')).workspace);
       await assert.rejects(f.manager.analyze(w.id, { expectedRevision: w.revision, stream: true }));
-      assert.equal(count, 1);
+      assert.equal(count, kind === 'schema' ? 2 : 1);
       const records = f.manager.failures();
       assert.equal(records.total, 1);
       assert(!JSON.stringify(records).includes(key));

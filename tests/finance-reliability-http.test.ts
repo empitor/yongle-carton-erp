@@ -64,19 +64,19 @@ test('财务 HTTP 从期初和辅助账走通票据、预算、员工借还款�
   try {
     const root = await call('/auth/setup', 'POST', {
       name: '虚构制单',
-      password: 'fictional-http-owner',
+      password: 'Fictional-http-owner',
     });
     owner = root.response.headers.get('set-cookie')!.split(';')[0];
     await call(
       '/auth/users',
       'POST',
-      { name: '虚构审核', password: 'fictional-http-reviewer', level: 'finance' },
+      { name: '虚构审核', password: 'Fictional-http-reviewer', level: 'finance' },
       owner,
       201,
     );
     const review = await call('/auth/login', 'POST', {
       name: '虚构审核',
-      password: 'fictional-http-reviewer',
+      password: 'Fictional-http-reviewer',
     });
     reviewer = review.response.headers.get('set-cookie')!.split(';')[0];
     await call('/finance/opening/enable', 'POST', {}, owner, 403, 'invalid');

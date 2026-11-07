@@ -407,7 +407,7 @@ test('五份正式订单：第一份新建客户、后四份真实ID复用，重
   }
 });
 
-test('轻微排版差异可复用，相似公司不合并，归档客户不重复创建，部分失败按真实回执汇报', async () => {
+test('轻微排版和公司后缀差异可复用，相似公司不合并，归档客户不重复创建，部分失败按真实回执汇报', async () => {
   const f = createOrderWorkflowFixture();
   try {
     const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构 晨星（宁波）有限公司' }));
@@ -417,7 +417,7 @@ test('轻微排版差异可复用，相似公司不合并，归档客户不重�
     const uniqueSimilar = f.store.saveCustomer(
       customerSchema.parse({ name: '虚构唯一相近客户有限公司' }),
     );
-    assert.equal(resolveImportCustomer(f.store, '虚构唯一相近客户').state, 'ambiguous');
+    assert.equal(resolveImportCustomer(f.store, '虚构唯一相近客户').state, 'resolved', '只差公司后缀的唯一档案直接并入');
     assert(resolveImportCustomer(f.store, '虚构唯一相近客户').candidates.some(c=>c.id===uniqueSimilar.id));
     const regionCustomer = f.store.saveCustomer(
       customerSchema.parse({ name: '宁波示例信息科技有限公司' }),

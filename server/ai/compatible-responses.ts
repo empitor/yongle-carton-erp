@@ -8,6 +8,7 @@ import { responsesUpstreamError, safeConnectionError } from './adapters.js';
 import { ResponsesStream } from './responses-stream.js';
 import { AI_REQUEST_TIMEOUT_MS, type AiProgress } from '../../shared/ai-runtime.js';
 import { officialDeepSeekEndpoint } from '../../shared/assistant-attachments.js';
+import { dropModelPreamble, parseModelJson } from './model-retry.js';
 import { ProtocolDiagnostics, hasDsml, type ProviderDiagnostic } from './protocol-diagnostics.js';
 export type ResponseOptions = {
   onUsage?: (usage: ProviderTokenUsage) => void;
@@ -21,6 +22,8 @@ export type ResponseOptions = {
   onProgress?: (event: AiProgress) => void;
   onQueue?: (state: import('./work-queue.js').QueueState) => void;
   onTextDelta?: (text: string) => void;
+  /** 识别类调用：容忍 JSON 前后夹的说明文字。助手回复不能开。 */
+  lenientJson?: boolean;
 };
 const MAX_NOTE_CHARS = 200_000;
 const noteText = (text: string, key: string): string | undefined =>
@@ -113,7 +116,7 @@ export async function completeResponses(
     notify('validating', text.length);
     options.onTextDelta?.(pending);
     try {
-      const parsed = JSON.parse(text);
+      const parsed = parseModelJson(text, options.lenientJson);
       diagnostics.emit('complete');
       return parsed;
     } catch {
@@ -127,7 +130,7 @@ export async function completeResponses(
               kind: 'protocol',
               text: '模型返回DSML控制文本，与当前JSON信封协议不兼容；未从文本提取或执行工具。',
             }
-          : note('invalid-json', text, key),
+          : note('invalid-json', dropModelPreamble(text), key),
       );
     }
   } catch (error) {

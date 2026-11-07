@@ -79,7 +79,7 @@ export class OperationsRepository {
     const row = this.store.db.prepare('SELECT name FROM suppliers WHERE id=?').get(id);
     return row ? String(row.name) : undefined;
   }
-  /** 可按主键或一批 ID 组装采购视图；到货事件仍共用完整历史。 */
+  /** 主记录、明细和到货历史均按同一范围组装；列表仍批量读取。 */
   purchases(include = false, ids?: number | readonly number[], supplierIds?: number | readonly number[]): any[] {
     if (Array.isArray(ids) && !ids.length) return [];
     const scope = recordScope(ids);
@@ -87,9 +87,12 @@ export class OperationsRepository {
     const conditions = [scope.predicate && 'id ' + scope.predicate, suppliers.predicate && 'supplier_id ' + suppliers.predicate].filter(Boolean);
     const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
     const params = [...scope.params, ...suppliers.params];
-    const events = receiptEvents(this.store),
-      receivedUnits = effectiveReceiptUnits(events),
-      archived = this.store.archivedIds('purchases');
+    const archived = this.store.archivedIds('purchases');
+    const rows = this.store.db.prepare(
+      'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases' + where + ' ORDER BY id DESC',
+    ).all(...params).filter((r) => include || !archived.has(Number(r.id)));
+    const events = receiptEvents(this.store, rows.map((r) => Number(r.id))),
+      receivedUnits = effectiveReceiptUnits(events);
     // 按明细和采购单预先分组，避免“每条明细×全部到货事件”的重复扫描。
     const discrepanciesByLine = new Map<number, any[]>(),
       amountsByLine = new Map<number, (string | null)[]>(),
@@ -125,13 +128,7 @@ export class OperationsRepository {
         .all(...params)
         .map((o) => [Number(o.id), String(o.number)]),
     );
-    return this.store.db
-      .prepare(
-        'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases' + where + ' ORDER BY id DESC',
-      )
-      .all(...params)
-      .filter((r) => include || !archived.has(Number(r.id)))
-      .map((r) => {
+    return rows.map((r) => {
         const lines = (linesByPurchase.get(Number(r.id)) || [])
           .map((l) => ({
             ...JSON.parse(String(l.document)),
@@ -212,16 +209,20 @@ export class OperationsRepository {
     );
   }
   /** 已安排：送货草稿和生产登记草稿将要用掉、但尚未确认出库的数量。 */
-  private reservedUnits() {
+  private reservedUnits(ids?: number | readonly number[]) {
     const units = new Map<number, number>();
     const add = (id: number | null | undefined, quantity: number) => {
       if (id) units.set(id, (units.get(id) || 0) + quantity);
     };
     for (const row of this.store.db
       .prepare(
-        "SELECT kind,document FROM flow_documents WHERE status='draft' AND kind IN ('delivery','production') AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity IN ('flow_delivery','flow_production'))",
+        "SELECT kind,document FROM flow_documents WHERE status='draft' AND kind IN ('delivery','production') AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity IN ('flow_delivery','flow_production'))" +
+          (ids === undefined ? '' : ` AND (EXISTS(SELECT 1 FROM json_each(flow_documents.document,'$.lines') l
+            WHERE json_extract(l.value,'$.stockId') IN (SELECT value FROM json_each(?)))
+            OR EXISTS(SELECT 1 FROM json_each(flow_documents.document,'$.materials') m
+            WHERE json_extract(m.value,'$.stockId') IN (SELECT value FROM json_each(?))))`),
       )
-      .all()) {
+      .all(...(ids === undefined ? [] : Array(2).fill(JSON.stringify(typeof ids === 'number' ? [ids] : ids))))) {
       const doc = JSON.parse(String(row.document));
       if (row.kind === 'delivery')
         for (const l of doc.lines || []) add(l.stockId, quantityUnits(l.quantity));
@@ -232,13 +233,15 @@ export class OperationsRepository {
     return units;
   }
   /** 在途：已订货采购尚未到齐的数量。 */
-  private onOrderUnits() {
+  private onOrderUnits(ids?: number | readonly number[]) {
+    const { predicate, params } = recordScope(ids);
     return new Map(
       this.store.db
         .prepare(
-          "SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='已订货' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases') GROUP BY l.stock_item_id",
+          "SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='已订货' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases')" +
+          (predicate ? ' AND l.stock_item_id ' + predicate : '') + ' GROUP BY l.stock_item_id',
         )
-        .all()
+        .all(...params)
         .map((r) => [Number(r.id), Number(r.n)]),
     );
   }
@@ -253,8 +256,8 @@ export class OperationsRepository {
           .all(...params)
           .map((r) => [Number(r.item_id), Number(r.n)]),
       ),
-      reserved = this.reservedUnits(),
-      onOrder = this.onOrderUnits();
+      reserved = this.reservedUnits(ids),
+      onOrder = this.onOrderUnits(ids);
     return this.store.db
       .prepare(
         'SELECT id,name,kind,unit,document,product_id AS productId,version,created_at AS createdAt FROM stock_items' +

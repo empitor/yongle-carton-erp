@@ -6,8 +6,9 @@ export function priceUnits(value: string): bigint {
   return BigInt(a) * 10000n + BigInt(b.padEnd(4, '0'));
 }
 export function exactText(units: bigint, scale = 4) {
-  const s = units.toString().padStart(scale + 1, '0');
-  return s.slice(0, -scale) + '.' + s.slice(-scale);
+  const sign = units < 0n ? '-' : '',
+    s = (units < 0n ? -units : units).toString().padStart(scale + 1, '0');
+  return sign + s.slice(0, -scale) + '.' + s.slice(-scale);
 }
 export function precisionTotal(
   lines: { quantity: number; unitPriceCents: number; unitPriceExact?: string }[],

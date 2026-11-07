@@ -12,7 +12,6 @@ import {
 import { financeReportTemplates } from '../../shared/finance-report-templates';
 import { today } from '../../shared/domain';
 import { centsText, toCents, yuan } from './money';
-import './finance.css';
 
 export { yuan, toCents, centsText, percentOf } from './money';
 

@@ -75,7 +75,7 @@ export const promptModules: PromptModuleDefinition[] = [
   {
     id: 'assistant',
     name: '全局助手提示词',
-    description: '全局业务助手的独立提示词与回复规则；工具、权限和业务校验仍由后端固定控制。',
+    description: '小甬和小勒的性格、分工和业务规则；回复格式、工具、权限和业务校验由后端固定控制。',
     purpose: 'assistant',
     apiPath: '/api/ai/prompt-modules/assistant',
     storageFile: 'assistant.sqlite',

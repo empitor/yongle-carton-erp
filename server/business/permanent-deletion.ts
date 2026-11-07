@@ -303,6 +303,7 @@ export class PermanentDeletionService {
       'order_extensions.order_id',
       'order_line_extensions.line_id',
       'import_executions.order_id',
+      'product_marks.product_id',
     ]);
     const quote = (s: string) => '"' + s.replaceAll('"', '""') + '"';
     for (const table of this.store.db

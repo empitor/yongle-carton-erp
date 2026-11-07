@@ -1,0 +1,1602 @@
+/* 小甬和小勒。只用 transform 和 opacity，不用滤镜，长期显示也不占 CPU。
+   坐标都是 SVG 的 viewBox 单位（0 0 108 112）。 */
+.yl-duo {
+  --yl-y-ink: #fff;
+  --yl-y-open: #ffd7c8;
+  --yl-l-ink: #4a2f12;
+  --yl-gaze-y: 0.9px;
+  --yl-gaze-l: -0.9px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+[data-theme='dark'] .yl-duo {
+  --yl-y-ink: #1b2a55;
+  --yl-y-open: #1b2a55;
+}
+.yl-duo * {
+  transform-box: view-box;
+}
+
+/* 身体 */
+.yl-y-body path {
+  fill: var(--teal);
+  stroke: var(--teal);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.yl-l-stem {
+  fill: var(--kraft);
+  stroke: var(--kraft);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.yl-foot-board {
+  fill: var(--kraft-deep);
+  stroke: var(--kraft-deep);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.yl-box-body {
+  fill: #e9c691;
+  stroke: #7a5530;
+  stroke-width: 1.4;
+}
+.yl-box-tape {
+  fill: #f8ebcf;
+  stroke: #c49a63;
+  stroke-width: 0.8;
+}
+.yl-star path {
+  fill: #7c3aed;
+}
+.yl-star circle {
+  fill: #a78bfa;
+}
+.yl-white {
+  fill: #fff;
+}
+.yl-pupil {
+  fill: #1b1a22;
+}
+.yl-glint {
+  fill: #fff;
+}
+.yl-cheeks ellipse {
+  fill: #ef9273;
+  opacity: 0.75;
+}
+.yl-smile {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.yl-smile-y {
+  stroke: var(--yl-y-ink);
+}
+.yl-smile-l {
+  stroke: var(--yl-l-ink);
+}
+.yl-open {
+  opacity: 0;
+}
+.yl-open-y {
+  fill: var(--yl-y-open);
+}
+.yl-open-l {
+  fill: var(--yl-l-ink);
+}
+.yl-shadow {
+  fill: #1c1208;
+  opacity: 0.18;
+  transition: opacity 0.2s ease;
+}
+.yl-shadow-y {
+  transform-origin: 35px 105px;
+}
+.yl-shadow-l {
+  transform-origin: 78px 105px;
+}
+
+/* 转轴 */
+.yl-duo {
+  transition: transform 0.3s ease;
+}
+.yl-y-pose,
+.yl-l-pose {
+  transition: transform 0.44s cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+.yl-y-pose {
+  transform-origin: 35px 60px;
+}
+.yl-l-pose {
+  transform-origin: 63px 56px;
+  transition-delay: 0.08s;
+}
+.yl-y-act,
+.yl-y-breathe {
+  transform-origin: 35px 98px;
+}
+.yl-l-act,
+.yl-l-breathe {
+  transform-origin: 63px 97px;
+}
+.yl-arm-l {
+  transform-origin: 30px 46px;
+  transition: transform 0.2s ease;
+}
+.yl-arm-r {
+  transform-origin: 40px 46px;
+  transition: transform 0.2s ease;
+}
+.yl-foot {
+  transform-origin: 62px 92px;
+  transition: transform 0.24s cubic-bezier(0.22, 1.3, 0.36, 1);
+}
+.yl-cargo {
+  transition: transform 0.36s cubic-bezier(0.22, 1.12, 0.36, 1);
+}
+.yl-box {
+  transform-origin: 90px 67px;
+}
+.yl-star {
+  transform-origin: 90px 42px;
+}
+.yl-eyes-y {
+  transform-origin: 35px 55px;
+}
+.yl-eyes-l {
+  transform-origin: 63px 56px;
+}
+/* 平时两个人互相看；鼠标靠近时看鼠标 */
+.yl-pupils-y {
+  transform: translate(var(--yl-track-x, var(--yl-gaze-y)), var(--yl-track-y, 0));
+  transition: transform 0.18s ease;
+}
+.yl-pupils-l {
+  transform: translate(var(--yl-track-x, var(--yl-gaze-l)), var(--yl-track-y, 0));
+  transition: transform 0.18s ease;
+}
+
+/* 平时：错开节奏呼吸、眨眼，小星闪 */
+.yl-y-breathe {
+  animation: yl-breathe 4.4s ease-in-out infinite;
+}
+.yl-l-breathe {
+  animation: yl-breathe 5.4s ease-in-out -1.6s infinite;
+}
+.yl-eyes-y {
+  animation: yl-blink 6.2s linear infinite;
+}
+.yl-eyes-l {
+  animation: yl-blink 7.7s linear -2.4s infinite;
+}
+.yl-star {
+  animation: yl-twinkle 3.4s ease-in-out infinite;
+}
+@keyframes yl-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.012, 0.982);
+  }
+}
+@keyframes yl-blink {
+  0%,
+  92%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  94% {
+    transform: scaleY(0.08);
+  }
+}
+@keyframes yl-twinkle {
+  0%,
+  100% {
+    transform: scale(0.88) rotate(0);
+    opacity: 0.86;
+  }
+  50% {
+    transform: scale(1.1) rotate(10deg);
+    opacity: 1;
+  }
+}
+
+/* 重新出现时依次跳出来 */
+.yl-y-enter {
+  transform-origin: 35px 98px;
+}
+.yl-l-enter {
+  transform-origin: 63px 97px;
+}
+.yl-duo[data-fresh] .yl-y-enter {
+  animation: yl-enter 0.6s cubic-bezier(0.22, 1.3, 0.36, 1) backwards;
+}
+.yl-duo[data-fresh] .yl-l-enter {
+  animation: yl-enter 0.6s cubic-bezier(0.22, 1.3, 0.36, 1) 0.12s backwards;
+}
+@keyframes yl-enter {
+  0% {
+    transform: translateY(14px) scale(0.7, 0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: translateY(-4px) scale(0.98, 1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* 鼠标移上去：小甬挥手，小勒把箱子往上托 */
+.ga-launcher:hover .yl-duo:not([data-scene]):not([data-busy]) .yl-arm-l {
+  animation: yl-wave-l 0.9s ease-in-out 2;
+}
+.ga-launcher:hover .yl-duo:not([data-scene]):not([data-busy]) .yl-arm-r {
+  animation: yl-wave-r 0.9s ease-in-out 2;
+}
+.ga-launcher:hover .yl-duo:not([data-scene]) .yl-foot {
+  transform: rotate(-7deg);
+}
+.ga-launcher:hover .yl-duo:not([data-scene]) .yl-box {
+  animation: yl-box-hop 0.6s ease-in-out infinite;
+}
+.ga-launcher:hover .yl-open {
+  opacity: 1;
+}
+.ga-launcher:hover .yl-smile {
+  opacity: 0;
+}
+.ga-launcher:active .yl-y-act,
+.ga-launcher:active .yl-l-act {
+  transform: scale(1.04, 0.92);
+}
+@keyframes yl-wave-l {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-11deg);
+  }
+  55% {
+    transform: rotate(4deg);
+  }
+  80% {
+    transform: rotate(-7deg);
+  }
+}
+@keyframes yl-wave-r {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(11deg);
+  }
+  55% {
+    transform: rotate(-4deg);
+  }
+  80% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes yl-box-hop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-3px) rotate(-3deg);
+  }
+}
+
+/* 拖动：手臂张开，脚抬起，箱子晃 */
+.ga-moving .yl-arm-l {
+  transform: rotate(-13deg);
+}
+.ga-moving .yl-arm-r {
+  transform: rotate(13deg);
+}
+.ga-moving .yl-foot {
+  transform: rotate(-10deg);
+}
+.ga-moving .yl-y-act {
+  transform: rotate(-3deg);
+  animation: none;
+}
+.ga-moving .yl-l-act {
+  transform: rotate(3deg);
+  animation: none;
+}
+.ga-moving .yl-box {
+  animation: yl-box-shake 0.4s ease-in-out infinite;
+}
+.ga-moving .yl-open {
+  opacity: 1;
+}
+.ga-moving .yl-smile {
+  opacity: 0;
+}
+.ga-moving .yl-y-breathe,
+.ga-moving .yl-l-breathe {
+  animation-play-state: paused;
+}
+@keyframes yl-box-shake {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+/* AI 处理中：两个人轮流点头干活，小星绕着箱子转，头上冒点点 */
+.yl-duo[data-busy]:not([data-speaker='le']) .yl-y-act {
+  animation: yl-work 1.2s ease-in-out infinite;
+}
+.yl-duo[data-busy]:not([data-speaker='yong']) .yl-l-act {
+  animation: yl-work 1.2s ease-in-out -0.6s infinite;
+}
+.yl-duo[data-busy]:not([data-speaker='yong']) .yl-foot {
+  animation: yl-work-foot 1.2s ease-in-out -0.6s infinite;
+}
+.yl-duo[data-busy] .yl-star {
+  animation: yl-think 1.6s ease-in-out infinite;
+}
+.yl-duo[data-busy] .yl-look {
+  transform: translate(0.8px, -1.2px);
+}
+.yl-duo[data-busy] .yl-dots {
+  opacity: 1;
+}
+.yl-duo[data-busy] .yl-dots circle:nth-child(1) {
+  animation: yl-dot 1.2s ease-in-out infinite;
+}
+.yl-duo[data-busy] .yl-dots circle:nth-child(2) {
+  animation: yl-dot 1.2s ease-in-out 0.2s infinite;
+}
+.yl-duo[data-busy] .yl-dots circle:nth-child(3) {
+  animation: yl-dot 1.2s ease-in-out 0.4s infinite;
+}
+@keyframes yl-work {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(1.04, 0.94);
+  }
+  60% {
+    transform: scale(0.98, 1.03) translateY(-1.5px);
+  }
+}
+@keyframes yl-work-foot {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  60% {
+    transform: rotate(-5deg);
+  }
+}
+@keyframes yl-think {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(0.9);
+  }
+  25% {
+    transform: translate(7px, 4px) scale(1.15) rotate(30deg);
+  }
+  50% {
+    transform: translate(0, 7px) scale(0.85) rotate(60deg);
+  }
+  75% {
+    transform: translate(-7px, 3px) scale(1.15) rotate(90deg);
+  }
+}
+@keyframes yl-dot {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-2.5px);
+    opacity: 1;
+  }
+}
+
+/* 效果默认不显示 */
+.yl-dots {
+  opacity: 0;
+}
+.yl-dots circle {
+  fill: var(--text-secondary);
+}
+.yl-heart {
+  fill: #ef6f5e;
+  opacity: 0;
+  transform-origin: 62px 8px;
+}
+.yl-burst {
+  opacity: 0;
+  transform-origin: 70px 12px;
+}
+.yl-burst path {
+  fill: none;
+  stroke: var(--kraft);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.yl-burst circle {
+  fill: var(--kraft);
+}
+
+/* ---- 小剧场：传箱子 ---- */
+.yl-duo[data-scene='pass'] .yl-foot {
+  animation: yl-pass-foot 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-cargo {
+  animation: yl-pass-cargo 3.6s both;
+}
+.yl-duo[data-scene='pass'] .yl-box {
+  animation: yl-pass-spin 3.6s both;
+}
+.yl-duo[data-scene='pass'] .yl-y-act {
+  animation: yl-pass-y 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-l-act {
+  animation: yl-pass-l 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-arm-l {
+  animation: yl-pass-arm-l 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-arm-r {
+  animation: yl-pass-arm-r 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-eyes-y .yl-look {
+  animation: yl-pass-look-y 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-eyes-l .yl-look {
+  animation: yl-pass-look-l 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-open {
+  animation: yl-pass-mouth 3.6s step-end both;
+}
+.yl-duo[data-scene='pass'] .yl-smile {
+  animation: yl-pass-smile 3.6s step-end both;
+}
+@keyframes yl-pass-foot {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  10% {
+    transform: rotate(4deg);
+  }
+  14% {
+    transform: rotate(-15deg);
+  }
+  24%,
+  78% {
+    transform: rotate(0);
+  }
+  83% {
+    transform: rotate(6deg);
+  }
+  90% {
+    transform: rotate(-2deg);
+  }
+}
+@keyframes yl-pass-cargo {
+  0%,
+  12% {
+    transform: translate(0, 0);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.5, 1);
+  }
+  22% {
+    transform: translate(-28px, -64px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.5);
+  }
+  32%,
+  64% {
+    transform: translate(-55px, -46px);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.5, 1);
+  }
+  73% {
+    transform: translate(-27px, -66px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.5);
+  }
+  83%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+@keyframes yl-pass-spin {
+  0%,
+  12% {
+    transform: rotate(0);
+  }
+  32%,
+  64% {
+    transform: rotate(-360deg);
+  }
+  83%,
+  100% {
+    transform: rotate(-720deg);
+  }
+}
+@keyframes yl-pass-y {
+  0%,
+  28%,
+  58%,
+  100% {
+    transform: scale(1, 1);
+  }
+  34% {
+    transform: scale(1.07, 0.92);
+  }
+  42% {
+    transform: scale(0.99, 1.02);
+  }
+  62% {
+    transform: scale(1.06, 0.94);
+  }
+  67% {
+    transform: scale(0.95, 1.06) translateY(-2px);
+  }
+  74% {
+    transform: scale(1, 1);
+  }
+}
+@keyframes yl-pass-l {
+  0%,
+  16%,
+  78%,
+  100% {
+    transform: scale(1, 1);
+  }
+  10% {
+    transform: scale(1.05, 0.93);
+  }
+  14% {
+    transform: scale(0.96, 1.05) translateY(-2px);
+  }
+  84% {
+    transform: scale(1.06, 0.93);
+  }
+  91% {
+    transform: scale(0.99, 1.02);
+  }
+}
+@keyframes yl-pass-arm-l {
+  0%,
+  22%,
+  72%,
+  100% {
+    transform: rotate(0);
+  }
+  32%,
+  60% {
+    transform: rotate(5deg);
+  }
+  66% {
+    transform: rotate(-9deg);
+  }
+}
+@keyframes yl-pass-arm-r {
+  0%,
+  22%,
+  72%,
+  100% {
+    transform: rotate(0);
+  }
+  32%,
+  60% {
+    transform: rotate(-5deg);
+  }
+  66% {
+    transform: rotate(9deg);
+  }
+}
+@keyframes yl-pass-look-y {
+  0%,
+  10%,
+  90%,
+  100% {
+    transform: translate(0, 0);
+  }
+  22%,
+  73% {
+    transform: translate(0.6px, -1.4px);
+  }
+  32%,
+  64% {
+    transform: translate(-0.9px, -1.5px);
+  }
+}
+@keyframes yl-pass-look-l {
+  0%,
+  8%,
+  90%,
+  100% {
+    transform: translate(0, 0);
+  }
+  22%,
+  73% {
+    transform: translate(0.6px, -1.4px);
+  }
+  32%,
+  64% {
+    transform: translate(-0.4px, -1.5px);
+  }
+}
+@keyframes yl-pass-mouth {
+  0%,
+  22%,
+  44%,
+  70%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  32%,
+  83% {
+    opacity: 1;
+  }
+}
+@keyframes yl-pass-smile {
+  0%,
+  22%,
+  44%,
+  70%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  32%,
+  83% {
+    opacity: 0;
+  }
+}
+
+/* ---- 小剧场：说悄悄话，说完一起笑 ---- */
+.yl-duo[data-scene='whisper'] .yl-y-act {
+  animation: yl-whisper-y 3s ease-in-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-l-act {
+  animation: yl-whisper-l 3s ease-in-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-dots {
+  opacity: 1;
+}
+.yl-duo[data-scene='whisper'] .yl-dots circle:nth-child(1) {
+  animation: yl-whisper-dot 3s ease-in-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-dots circle:nth-child(2) {
+  animation: yl-whisper-dot 3s ease-in-out 0.14s both;
+}
+.yl-duo[data-scene='whisper'] .yl-dots circle:nth-child(3) {
+  animation: yl-whisper-dot 3s ease-in-out 0.28s both;
+}
+.yl-duo[data-scene='whisper'] .yl-heart {
+  animation: yl-whisper-heart 3s ease-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-open {
+  animation: yl-whisper-mouth 3s step-end both;
+}
+.yl-duo[data-scene='whisper'] .yl-smile {
+  animation: yl-whisper-smile 3s step-end both;
+}
+@keyframes yl-whisper-y {
+  0%,
+  100% {
+    transform: none;
+  }
+  14%,
+  56% {
+    transform: rotate(5deg) translateX(2px);
+  }
+  62%,
+  72%,
+  82% {
+    transform: rotate(2deg) translateY(-2.5px);
+  }
+  67%,
+  77%,
+  88% {
+    transform: rotate(2deg) translateY(0);
+  }
+}
+@keyframes yl-whisper-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  18%,
+  56% {
+    transform: rotate(-5deg) translateX(-1px);
+  }
+  64%,
+  74%,
+  84% {
+    transform: rotate(-2deg) translateY(-2.5px);
+  }
+  69%,
+  79%,
+  90% {
+    transform: rotate(-2deg) translateY(0);
+  }
+}
+@keyframes yl-whisper-dot {
+  0%,
+  16%,
+  58%,
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  24%,
+  48% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes yl-whisper-heart {
+  0%,
+  58% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.3);
+  }
+  68% {
+    opacity: 1;
+    transform: translateY(0) scale(1.1);
+  }
+  86% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-9px) scale(0.9);
+  }
+}
+@keyframes yl-whisper-mouth {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+}
+@keyframes yl-whisper-smile {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+}
+
+/* ---- 小剧场：击掌。AI 做完时也演这段 ---- */
+.yl-duo[data-scene='highfive'] .yl-y-act {
+  animation: yl-five-y 1.7s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.yl-duo[data-scene='highfive'] .yl-l-act {
+  animation: yl-five-l 1.7s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.yl-duo[data-scene='highfive'] .yl-arm-r {
+  animation: yl-five-arm 1.7s ease-in-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-foot {
+  animation: yl-five-foot 1.7s ease-in-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-burst {
+  animation: yl-five-burst 1.7s ease-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-shadow {
+  animation: yl-hop-shadow 1.7s ease-in-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-open {
+  opacity: 1;
+}
+.yl-duo[data-scene='highfive'] .yl-smile {
+  opacity: 0;
+}
+@keyframes yl-five-y {
+  0%,
+  100% {
+    transform: none;
+  }
+  14% {
+    transform: scale(1.08, 0.88);
+  }
+  32%,
+  42% {
+    transform: translateY(-11px) rotate(4deg) scale(0.97, 1.05);
+  }
+  60% {
+    transform: scale(1.08, 0.9);
+  }
+  72% {
+    transform: translateY(-3px) scale(0.99, 1.02);
+  }
+  84% {
+    transform: scale(1.02, 0.98);
+  }
+}
+@keyframes yl-five-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  16% {
+    transform: scale(1.08, 0.88);
+  }
+  34%,
+  44% {
+    transform: translateY(-11px) rotate(-4deg) scale(0.97, 1.05);
+  }
+  62% {
+    transform: scale(1.08, 0.9);
+  }
+  74% {
+    transform: translateY(-3px) scale(0.99, 1.02);
+  }
+  86% {
+    transform: scale(1.02, 0.98);
+  }
+}
+@keyframes yl-five-arm {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  32%,
+  42% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes yl-five-foot {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  34% {
+    transform: rotate(-8deg);
+  }
+  62% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes yl-five-burst {
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  38% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  56% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes yl-hop-shadow {
+  0%,
+  20%,
+  60%,
+  100% {
+    transform: scale(1);
+    opacity: 0.18;
+  }
+  36% {
+    transform: scale(0.72);
+    opacity: 0.1;
+  }
+}
+
+/* ---- 小剧场：你顶我一下，我顶你一下 ---- */
+.yl-duo[data-scene='nudge'] .yl-y-act {
+  animation: yl-nudge-y 2.4s ease-in-out both;
+}
+.yl-duo[data-scene='nudge'] .yl-l-act {
+  animation: yl-nudge-l 2.4s ease-in-out both;
+}
+.yl-duo[data-scene='nudge'] .yl-box {
+  animation: yl-nudge-box 2.4s ease-in-out both;
+}
+.yl-duo[data-scene='nudge'] .yl-open {
+  animation: yl-nudge-mouth 2.4s step-end both;
+}
+.yl-duo[data-scene='nudge'] .yl-smile {
+  animation: yl-nudge-smile 2.4s step-end both;
+}
+@keyframes yl-nudge-y {
+  0%,
+  14%,
+  48%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: rotate(-6deg) translateX(-3px);
+  }
+  28% {
+    transform: rotate(3deg);
+  }
+  36% {
+    transform: rotate(-1.5deg);
+  }
+  54% {
+    transform: rotate(-4deg);
+  }
+  62% {
+    transform: rotate(6deg) translateX(3px);
+  }
+  72% {
+    transform: none;
+  }
+}
+@keyframes yl-nudge-l {
+  0%,
+  28%,
+  58%,
+  100% {
+    transform: none;
+  }
+  10% {
+    transform: rotate(4deg);
+  }
+  18% {
+    transform: rotate(-8deg) translateX(-4px);
+  }
+  64% {
+    transform: rotate(7deg) translateX(3px);
+  }
+  72% {
+    transform: rotate(-3deg);
+  }
+  80% {
+    transform: rotate(1.5deg);
+  }
+  88% {
+    transform: none;
+  }
+}
+@keyframes yl-nudge-box {
+  0%,
+  60%,
+  86%,
+  100% {
+    transform: none;
+  }
+  66% {
+    transform: translateY(-5px) rotate(10deg);
+  }
+  74% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  80% {
+    transform: translateY(-1.5px) rotate(2deg);
+  }
+}
+@keyframes yl-nudge-mouth {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  18%,
+  62% {
+    opacity: 1;
+  }
+  40%,
+  84% {
+    opacity: 0;
+  }
+}
+@keyframes yl-nudge-smile {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  18%,
+  62% {
+    opacity: 0;
+  }
+  40%,
+  84% {
+    opacity: 1;
+  }
+}
+
+/* ---- 小剧场：小星飞起来，两个人伸手够 ---- */
+.yl-duo[data-scene='stargaze'] .yl-star {
+  animation: yl-gaze-star 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-arm-l {
+  animation: yl-gaze-arm-l 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-arm-r {
+  animation: yl-gaze-arm-r 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-y-act {
+  animation: yl-gaze-y 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-l-act {
+  animation: yl-gaze-l 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-eyes-y .yl-look {
+  animation: yl-gaze-look-y 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-eyes-l .yl-look {
+  animation: yl-gaze-look-l 3.4s ease-in-out both;
+}
+.yl-duo[data-scene='stargaze'] .yl-open {
+  animation: yl-gaze-mouth 3.4s step-end both;
+}
+.yl-duo[data-scene='stargaze'] .yl-smile {
+  animation: yl-gaze-smile 3.4s step-end both;
+}
+@keyframes yl-gaze-star {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1);
+  }
+  22% {
+    transform: translate(-22px, -30px) rotate(70deg) scale(1.15);
+  }
+  46% {
+    transform: translate(-55px, -30px) rotate(150deg) scale(1.25);
+  }
+  62% {
+    transform: translate(-70px, -14px) rotate(210deg) scale(1);
+  }
+  80% {
+    transform: translate(-30px, -36px) rotate(300deg) scale(1.15);
+  }
+}
+@keyframes yl-gaze-arm-l {
+  0%,
+  30%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(-9deg);
+  }
+  62% {
+    transform: rotate(-14deg);
+  }
+  74% {
+    transform: rotate(0);
+  }
+}
+@keyframes yl-gaze-arm-r {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  24% {
+    transform: rotate(9deg);
+  }
+  46% {
+    transform: rotate(-4deg);
+  }
+  80% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes yl-gaze-y {
+  0%,
+  100% {
+    transform: none;
+  }
+  46% {
+    transform: translateY(-4px) scale(0.98, 1.03);
+  }
+  56% {
+    transform: none;
+  }
+  62% {
+    transform: translateY(-3px) rotate(-3deg);
+  }
+  72% {
+    transform: none;
+  }
+}
+@keyframes yl-gaze-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  22% {
+    transform: translateY(-4px) scale(0.98, 1.03);
+  }
+  32% {
+    transform: none;
+  }
+  46% {
+    transform: rotate(-4deg);
+  }
+  80% {
+    transform: translateY(-4px) rotate(-2deg);
+  }
+  90% {
+    transform: none;
+  }
+}
+@keyframes yl-gaze-look-y {
+  0%,
+  100% {
+    transform: none;
+  }
+  22% {
+    transform: translate(1.2px, -1.2px);
+  }
+  46% {
+    transform: translate(-0.2px, -1.6px);
+  }
+  62% {
+    transform: translate(-1.4px, -1px);
+  }
+  80% {
+    transform: translate(1px, -1.4px);
+  }
+}
+@keyframes yl-gaze-look-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  22% {
+    transform: translate(0.9px, -1.6px);
+  }
+  46% {
+    transform: translate(0, -1.6px);
+  }
+  62% {
+    transform: translate(-0.6px, -1.4px);
+  }
+  80% {
+    transform: translate(0.6px, -1.6px);
+  }
+}
+@keyframes yl-gaze-mouth {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  22%,
+  62% {
+    opacity: 1;
+  }
+  34%,
+  76% {
+    opacity: 0;
+  }
+}
+@keyframes yl-gaze-smile {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  22%,
+  62% {
+    opacity: 0;
+  }
+  34%,
+  76% {
+    opacity: 1;
+  }
+}
+
+/* ---- 小剧场：一起蹦，轮流跳 ---- */
+.yl-duo[data-scene='dance'] .yl-y-act {
+  animation: yl-dance 1.2s ease-in-out 2 both;
+}
+.yl-duo[data-scene='dance'] .yl-l-act {
+  animation: yl-dance 1.2s ease-in-out -0.6s 2 both;
+}
+.yl-duo[data-scene='dance'] .yl-arm-l {
+  animation: yl-wave-l 0.6s ease-in-out 4;
+}
+.yl-duo[data-scene='dance'] .yl-arm-r {
+  animation: yl-wave-r 0.6s ease-in-out -0.3s 4;
+}
+.yl-duo[data-scene='dance'] .yl-box {
+  animation: yl-box-hop 0.6s ease-in-out 4;
+}
+.yl-duo[data-scene='dance'] .yl-open {
+  opacity: 1;
+}
+.yl-duo[data-scene='dance'] .yl-smile {
+  opacity: 0;
+}
+@keyframes yl-dance {
+  0%,
+  50%,
+  100% {
+    transform: scale(1.05, 0.93);
+  }
+  25% {
+    transform: translateY(-8px) rotate(-3deg) scale(0.97, 1.04);
+  }
+  75% {
+    transform: translateY(0) rotate(2deg) scale(1, 1);
+  }
+}
+
+/* ---- 说话的人跳出来，另一个转头看他 ---- */
+.yl-duo[data-speak='yong-0'] .yl-y-act {
+  animation: yl-speak-0 0.8s ease-out;
+}
+.yl-duo[data-speak='yong-1'] .yl-y-act {
+  animation: yl-speak-1 0.8s ease-out;
+}
+.yl-duo[data-speak='le-0'] .yl-l-act {
+  animation: yl-speak-0 0.8s ease-out;
+}
+.yl-duo[data-speak='le-1'] .yl-l-act {
+  animation: yl-speak-1 0.8s ease-out;
+}
+.yl-duo[data-speak='yong-0'] .yl-open-y,
+.yl-duo[data-speak='yong-1'] .yl-open-y,
+.yl-duo[data-speak='le-0'] .yl-open-l,
+.yl-duo[data-speak='le-1'] .yl-open-l {
+  opacity: 1;
+}
+.yl-duo[data-speak='yong-0'] .yl-smile-y,
+.yl-duo[data-speak='yong-1'] .yl-smile-y,
+.yl-duo[data-speak='le-0'] .yl-smile-l,
+.yl-duo[data-speak='le-1'] .yl-smile-l {
+  opacity: 0;
+}
+.yl-duo[data-speaker='yong'] .yl-eyes-l .yl-look {
+  transform: translate(-0.8px, -0.4px);
+}
+.yl-duo[data-speaker='le'] .yl-eyes-y .yl-look {
+  transform: translate(0.8px, -0.4px);
+}
+@keyframes yl-speak-0 {
+  0%,
+  100% {
+    transform: none;
+  }
+  18% {
+    transform: scale(1.07, 0.9);
+  }
+  45% {
+    transform: translateY(-12px) scale(0.96, 1.06);
+  }
+  72% {
+    transform: scale(1.06, 0.93);
+  }
+  88% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes yl-speak-1 {
+  0%,
+  100% {
+    transform: none;
+  }
+  18% {
+    transform: scale(1.07, 0.9);
+  }
+  45% {
+    transform: translateY(-12px) scale(0.96, 1.06);
+  }
+  72% {
+    transform: scale(1.06, 0.93);
+  }
+  88% {
+    transform: translateY(-2px);
+  }
+}
+
+/* ---- 贴边：按钮只露出一半，两个人上下错开，身子斜着探出来，只露头和脸 ---- */
+.yl-duo[data-pose^='dock-'] {
+  --yl-gaze-y: -1.1px;
+  --yl-gaze-l: -1.1px;
+}
+.yl-duo[data-pose='dock-left'] {
+  transform: scaleX(-1);
+}
+.yl-duo[data-pose^='dock-'] .yl-shadow {
+  opacity: 0;
+}
+.yl-duo[data-pose^='dock-'] .yl-y-pose {
+  transform: translate(5px, -16px) rotate(-32deg) scale(0.84);
+}
+.yl-duo[data-pose^='dock-'] .yl-l-pose {
+  transform: translate(-26px, 28px) rotate(-38deg) scale(0.92);
+}
+/* 脸转回接近正的，放大一点，这时候主要看脸 */
+.yl-face {
+  transition: transform 0.36s ease;
+}
+.yl-face-y {
+  transform-origin: 35px 58px;
+}
+.yl-face-l {
+  transform-origin: 63px 59px;
+}
+.yl-duo[data-pose^='dock-'] .yl-face-y {
+  transform: rotate(18deg) scale(1.1);
+}
+.yl-duo[data-pose^='dock-'] .yl-face-l {
+  transform: rotate(24deg) scale(1.14);
+}
+/* 纸箱、脚和小星先收起来，只露头和脸 */
+.yl-duo[data-pose^='dock-'] .yl-box,
+.yl-duo[data-pose^='dock-'] .yl-foot-board,
+.yl-duo[data-pose^='dock-'] .yl-star {
+  opacity: 0;
+  animation: none;
+  transition: opacity 0.2s ease;
+}
+.yl-duo[data-pose^='dock-'] .yl-dots,
+.yl-duo[data-pose^='dock-'] .yl-burst,
+.yl-duo[data-pose^='dock-'] .yl-heart {
+  display: none;
+}
+/* 轮流缩回去又探出来 */
+.yl-duo[data-pose^='dock-']:not([data-scene]):not([data-busy]) .yl-y-act {
+  animation: yl-dock-y 9s ease-in-out infinite;
+}
+.yl-duo[data-pose^='dock-']:not([data-scene]):not([data-busy]) .yl-l-act {
+  animation: yl-dock-l 9s ease-in-out infinite;
+}
+.yl-duo[data-pose^='dock-']:not([data-scene]):not([data-busy]) .yl-eyes-y .yl-look {
+  animation: yl-dock-look-y 9s ease-in-out infinite;
+}
+.yl-duo[data-pose^='dock-']:not([data-scene]):not([data-busy]) .yl-eyes-l .yl-look {
+  animation: yl-dock-look-l 9s ease-in-out infinite;
+}
+/* 鼠标移上去多探出来一点 */
+.ga-launcher:hover .yl-duo[data-pose^='dock-'] .yl-y-pose {
+  transform: translate(0, -18px) rotate(-30deg) scale(0.88);
+}
+.ga-launcher:hover .yl-duo[data-pose^='dock-'] .yl-l-pose {
+  transform: translate(-32px, 28px) rotate(-36deg) scale(0.96);
+}
+@keyframes yl-dock-y {
+  0%,
+  34%,
+  60%,
+  100% {
+    transform: none;
+  }
+  42%,
+  52% {
+    transform: translate(13px, 3px) rotate(4deg);
+  }
+  8% {
+    transform: rotate(-3deg);
+  }
+  16% {
+    transform: rotate(2deg);
+  }
+  24% {
+    transform: none;
+  }
+}
+@keyframes yl-dock-l {
+  0%,
+  64%,
+  90%,
+  100% {
+    transform: none;
+  }
+  72%,
+  82% {
+    transform: translate(13px, 3px) rotate(4deg);
+  }
+}
+@keyframes yl-dock-look-y {
+  0%,
+  6%,
+  28%,
+  100% {
+    transform: none;
+  }
+  10%,
+  22% {
+    transform: translate(0.4px, 1.4px);
+  }
+  70%,
+  84% {
+    transform: translate(0.6px, 1.5px);
+  }
+}
+@keyframes yl-dock-look-l {
+  0%,
+  6%,
+  28%,
+  100% {
+    transform: none;
+  }
+  10%,
+  22% {
+    transform: translate(1.2px, -1.3px);
+  }
+  40%,
+  54% {
+    transform: translate(1.2px, -1.4px);
+  }
+}
+/* 钻进去：挤一下再弹开 */
+.yl-duo[data-arrive='dock'] .yl-y-enter {
+  animation: yl-slip 0.62s ease-out;
+}
+.yl-duo[data-arrive='dock'] .yl-l-enter {
+  animation: yl-slip 0.62s ease-out 0.08s;
+}
+/* 蹦出来：拉长，落地压扁，纸箱落回脚上 */
+.yl-duo[data-arrive='free'] .yl-y-enter {
+  animation: yl-pop 0.66s ease-out;
+}
+.yl-duo[data-arrive='free'] .yl-l-enter {
+  animation: yl-pop 0.66s ease-out 0.1s;
+}
+.yl-duo[data-arrive='free'] .yl-box {
+  animation: yl-box-land 0.7s ease-out 0.14s backwards;
+}
+.yl-duo[data-arrive='free'] .yl-star {
+  animation: yl-star-back 0.7s ease-out 0.24s backwards;
+}
+@keyframes yl-star-back {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-90deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.25) rotate(10deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes yl-slip {
+  0% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(0.86, 1.14);
+  }
+  62% {
+    transform: scale(1.08, 0.93);
+  }
+  84% {
+    transform: scale(0.98, 1.02);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes yl-pop {
+  0% {
+    transform: translateY(0) scale(0.92, 1.1);
+  }
+  36% {
+    transform: translateY(-10px) scale(0.95, 1.07);
+  }
+  66% {
+    transform: translateY(0) scale(1.09, 0.9);
+  }
+  84% {
+    transform: translateY(-2px) scale(0.99, 1.02);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes yl-box-land {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) rotate(-14deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0) rotate(3deg);
+  }
+  70% {
+    transform: translateY(-3px) rotate(-2deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* 聊天窗口顶部的小图 */
+.yl-duo[data-compact] .yl-shadow,
+.yl-duo[data-compact] .yl-dots {
+  display: none;
+}
+/* 消息前的头像 */
+.yl-avatar {
+  display: inline-block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+/* 收起时的气泡，点它和点精灵一样 */
+.yl-bubble {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  display: block;
+  width: max-content;
+  max-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  animation: yl-bubble-in 0.3s cubic-bezier(0.22, 1.3, 0.36, 1) both;
+}
+.yl-bubble b {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ga-launcher[data-dock='dock-right'] .yl-bubble {
+  right: calc(100% + 6px);
+  bottom: 30%;
+}
+.ga-launcher[data-dock='dock-left'] .yl-bubble {
+  right: auto;
+  left: calc(100% + 6px);
+  bottom: 30%;
+}
+@keyframes yl-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 小图标和“减少动效”：完全不动 */
+.yl-duo[data-still] *,
+.yl-duo[data-still] {
+  animation: none !important;
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .yl-duo,
+  .yl-duo * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

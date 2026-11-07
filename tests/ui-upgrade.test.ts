@@ -210,7 +210,7 @@ test('有客户料号的纸箱从整批完工到部分送货闭环，规格与�
     );
     const priced = new BusinessDocuments(f.store).form('delivery', doc.id).form;
     assert.equal(priced.rows[0][3], '1.00');
-    assert.equal(priced.rows[0][4], '40.0000000');
+    assert.equal(priced.rows[0][4], '40.00');
     const work = buildWorkbench(f.store, date);
     assert.equal(work.activeTasks, 0);
     assert.equal(work.productionToday, 1);

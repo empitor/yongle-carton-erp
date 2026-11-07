@@ -632,7 +632,7 @@ test('正式HTTP收货、排程、历史查询登录/CSRF/版本和别名入口�
     const setup = await fetch(base + '/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构统一收货管理员', password: 'fictional-arrival-pass-123' }),
+      body: JSON.stringify({ name: '虚构统一收货管理员', password: 'Fictional-arrival-pass-123' }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];
     const post = (path: string, input: any, csrf = auth.csrf) =>

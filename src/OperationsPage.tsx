@@ -5,7 +5,6 @@ import BusinessRecords, { PAGE_SIZE } from './BusinessRecords';
 import { managementRequest, useAuthState } from './session';
 import { PurchaseEditor, StockEditor, MovementDialog } from './operations/Editors';
 import { purchaseBusinessStatuses, arrivalProgresses } from '../shared/operations';
-import './operations.css';
 import DateRangeFilter from './DateRangeFilter';
 import { presetRange, type DatePreset } from '../shared/date-ranges';
 import { matchesPurchase } from '../shared/purchase-filters';

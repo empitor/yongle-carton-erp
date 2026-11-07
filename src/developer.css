@@ -86,7 +86,7 @@
 .dev-records small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .dev-records th:first-child {
   width: 35px;

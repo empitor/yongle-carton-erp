@@ -730,7 +730,7 @@ test('正式HTTP更正接口验证CSRF、登录及版本并返回同步结果', 
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
       body: JSON.stringify({
         name: '虚构HTTP管理员',
-        password: 'fictional-correction-password-123',
+        password: 'Fictional-correction-password-123',
       }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];

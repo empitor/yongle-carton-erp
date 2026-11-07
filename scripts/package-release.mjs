@@ -72,12 +72,25 @@ for (const item of [
   copy(item);
 
 step('构建页面');
-const built = spawnSync(
-  process.execPath,
-  [join(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', join(stage, 'dist'), '--emptyOutDir'],
-  { cwd: root, stdio: 'inherit' },
-);
-if (built.status !== 0) throw new Error('页面构建失败');
+// 和 build.mjs 一样放项目内临时目录：Windows 的 %TEMP% 可能没有权限，vite 会在编译阶段失败。
+const buildTemp = mkdtempSync(join(root, '.build-tmp-'));
+const buildEnv = { ...process.env, TMP: buildTemp, TEMP: buildTemp };
+try {
+  const checked = spawnSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '--noEmit'], {
+    cwd: root,
+    stdio: 'inherit',
+    env: buildEnv,
+  });
+  if (checked.status !== 0) throw new Error('类型检查失败');
+  const built = spawnSync(
+    process.execPath,
+    [join(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', join(stage, 'dist'), '--emptyOutDir'],
+    { cwd: root, stdio: 'inherit', env: buildEnv },
+  );
+  if (built.status !== 0) throw new Error('页面构建失败');
+} finally {
+  rmSync(buildTemp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
 
 step('安装生产依赖');
 execFileSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm.cmd ci --omit=dev --no-audit --no-fund'], {

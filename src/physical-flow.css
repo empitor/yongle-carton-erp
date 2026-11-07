@@ -1,6 +1,5 @@
 .flow-page {
   display: grid;
-  gap: 20px;
 }
 .management-dialog .modal-actions {
   display: flex;
@@ -8,7 +7,6 @@
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
-  margin-top: 20px;
 }
 .delivery-stock-heading {
   display: flex;
@@ -30,12 +28,7 @@
   gap: 8px;
   min-width: 280px;
 }
-.delivery-stock-filters input {
-  min-width: 130px;
-  width: 100%;
-}
 .delivery-stock-table {
-  min-width: 850px;
   table-layout: fixed;
 }
 .delivery-stock-table th:first-child {
@@ -51,9 +44,7 @@
   width: 13%;
 }
 .delivery-stock-table input[type='checkbox'] {
-  width: 16px;
   height: 16px;
-  accent-color: var(--teal);
 }
 .delivery-allocation {
   display: grid;
@@ -106,23 +97,14 @@
   margin: 0;
 }
 .flow-table {
-  width: 100%;
   min-width: 780px;
-  border-collapse: collapse;
 }
 .flow-table td,
 .flow-table th {
   text-align: left;
-  vertical-align: top;
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.7;
-}
-.flow-table td {
-  border-top: 1px solid var(--border);
-}
-.flow-table strong {
-  font-weight: 600;
 }
 .flow-table progress {
   display: block;
@@ -142,7 +124,7 @@
 }
 .flow-line {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 20px;
   margin: 16px 0;
   background: var(--surface);
@@ -161,7 +143,7 @@
 .flow-bulk {
   border: 1px solid var(--border);
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
 }
 .flow-pagination {
@@ -173,7 +155,7 @@
   background: var(--warning-soft);
   color: var(--warning);
   border-left: 3px solid var(--warning-border);
-  border-radius: 5px;
+  border-radius: 4px;
   line-height: 1.8;
 }
 .flow-editor,
@@ -196,14 +178,8 @@
   width: auto;
   margin-right: 8px;
 }
-.flow-editor textarea {
-  min-height: 68px;
-  resize: vertical;
-}
 .flow-editor output {
   padding: 10px 0;
-  display: block;
-  overflow-wrap: anywhere;
 }
 .flow-order-options {
   display: grid;
@@ -214,7 +190,7 @@
 }
 .flow-upload {
   border: 1px dashed var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 24px;
   display: grid;
   gap: 12px;
@@ -254,30 +230,6 @@
 }
 .flow-details > a {
   margin: 8px 0 18px;
-}
-.flow-details .record-detail-grid dd {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.flow-editor + .modal-actions {
-  position: sticky;
-  bottom: 0;
-  background: var(--surface);
-  padding-top: 18px;
-}
-@media (max-width: 900px) {
-  .flow-page {
-    gap: 16px;
-  }
-  .flow-line {
-    padding: 14px;
-  }
-  .flow-editor .op-form-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  .flow-page .page-actions {
-    flex-wrap: wrap;
-  }
 }
 @media (max-width: 600px) {
   .flow-editor .op-form-grid {

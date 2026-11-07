@@ -29,10 +29,24 @@ export const builtinPlugins: PluginManifest[] = [
   },
   {
     id: 'order-import',
-    name: '订单工作区',
+    name: 'AI 导入工作区',
     description: '复用人工或聊天创建的工作区、草稿、匹配、正式导入及真实回执。',
     version: '1.0.0',
     capabilities: ['跨页面工作区关联', '草稿编辑与匹配', '多文件幂等导入'],
+  },
+  {
+    id: 'system-maintenance',
+    name: '系统维护',
+    description: '查看系统状态、数据库体检、马上备份、清空前预览和一键清空。仅本机最高管理员。恢复备份要停机，不在这里。',
+    version: '1.0.0',
+    capabilities: ['系统状态', '数据库体检', '手动完整备份', '一键清空及影响预览'],
+  },
+  {
+    id: 'chat-records',
+    name: '聊天记录',
+    description: '查看和删除当前账号自己的聊天会话。必须是用户本人明确要求，不动业务数据。',
+    version: '1.0.0',
+    capabilities: ['查看会话', '删除会话'],
   },
   {
     id: 'erp-page',
@@ -65,7 +79,13 @@ export function builtinPluginFor(name: string) {
     ? 'erp-page'
     : name.startsWith('order_import.') || name === 'management.workspaces'
       ? 'order-import'
-      : name.startsWith('task.')
+      : name.startsWith('system.') || name === 'management.reset' || name === 'management.reset_preview'
+        ? 'system-maintenance'
+        : name.startsWith('chat.')
+          ? 'chat-records'
+          : name === 'arrival.recognize'
+            ? 'order-import'
+            : name.startsWith('task.')
         ? 'task-ledger'
         : name === 'attachments.read'
           ? 'attachment-reader'

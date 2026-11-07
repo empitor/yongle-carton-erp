@@ -390,7 +390,8 @@ export class FinanceInvoices {
               JOIN fin_invoices i ON i.id=l.invoice_id WHERE l.obligation_id=? AND i.status='normal'`,
                 )
                 .get(o.id)?.n,
-            );
+              // 被红冲掉的部分不再占开票额度，否则全额红冲后没法重新开票。
+            ) - (this.redReleased([Number(o.id)], true).get(Number(o.id)) || 0);
             if (prior + Number(l.amount_cents) > Number(o.amount_cents))
               financeError('累计开票超过送货价税金额。');
             adjustments.set(Number(o.id), {
@@ -552,6 +553,41 @@ export class FinanceInvoices {
     });
   }
 
+  /**
+   * 红票冲掉的开票额度落到原蓝票关联的哪些往来上。按关联累计分摊，
+   * 每笔都是整数分，合计正好等于红票额，不会逐笔截断丢掉尾差。
+   */
+  private redReleased(obligationIds: number[], onlyNormal = false) {
+    const out = new Map<number, number>();
+    if (!obligationIds.length) return out;
+    const blues = this.db
+      .prepare(
+        `SELECT DISTINCT i.id,i.gross,coalesce((SELECT sum(-r.gross) FROM fin_invoices r
+          WHERE r.original_id=i.id AND r.status NOT IN ('draft','void')),0) AS red
+        FROM fin_invoice_links l JOIN fin_invoices i ON i.id=l.invoice_id
+        WHERE l.obligation_id IN (SELECT value FROM json_each(?)) AND i.gross>0 AND ` +
+          (onlyNormal ? "i.status='normal'" : "i.status NOT IN ('draft','void')"),
+      )
+      .all(JSON.stringify(obligationIds));
+    const links = this.db.prepare(
+      'SELECT obligation_id,amount_cents FROM fin_invoice_links WHERE invoice_id=? ORDER BY obligation_id',
+    );
+    for (const blue of blues) {
+      const gross = Number(blue.gross),
+        red = Math.min(Number(blue.red), gross);
+      if (red <= 0) continue;
+      let cumulative = 0,
+        used = 0;
+      for (const l of links.all(blue.id)) {
+        cumulative += Number(l.amount_cents);
+        const upto = proportion(red, cumulative, gross);
+        out.set(Number(l.obligation_id), (out.get(Number(l.obligation_id)) || 0) + upto - used);
+        used = upto;
+      }
+    }
+    return out;
+  }
+
   unmatched(actor: Actor | null, raw: unknown) {
     financeActor(actor);
     const q = z.object({ kind: z.enum(['receivable', 'payable']) }).parse(raw);
@@ -566,7 +602,15 @@ export class FinanceInvoices {
       raw,
       'date,id',
     );
-    if (q.kind === 'receivable') return list;
+    const released = this.redReleased(list.rows.map((r) => Number(r.id)));
+    const net = (id: unknown, value: number) => value - (released.get(Number(id)) || 0);
+    if (q.kind === 'receivable')
+      return {
+        ...list,
+        rows: list.rows.map((o) =>
+          o.invoiced == null ? o : { ...o, invoiced: net(o.id, Number(o.invoiced)) },
+        ),
+      };
     const ids = JSON.stringify(list.rows.map((r) => r.id));
     const linked = this.db
       .prepare(
@@ -637,7 +681,7 @@ export class FinanceInvoices {
             ? purchases.reduce((n, p) => n + Number(p.amount), 0)
             : null;
         const invoiced = invoices.length
-          ? invoices.reduce((n, r) => n + Number(r.amount_cents), 0)
+          ? net(o.id, invoices.reduce((n, r) => n + Number(r.amount_cents), 0))
           : null;
         return {
           ...o,

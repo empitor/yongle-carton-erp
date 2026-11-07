@@ -33,7 +33,7 @@ async function setup() {
   const login = await fetch(base + '/auth/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-    body: JSON.stringify({ name: '虚构测试管理员', password: 'fictional-marks-coverage-only' }),
+    body: JSON.stringify({ name: '虚构测试管理员', password: 'Fictional-marks-coverage-only' }),
   });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie')!.split(';')[0];

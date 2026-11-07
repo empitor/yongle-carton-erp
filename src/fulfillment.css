@@ -10,11 +10,9 @@
 }
 .fulfillment-lines > table {
   min-width: 1060px;
-  width: 100%;
 }
 .fulfillment-lines td {
   vertical-align: top;
-  font-variant-numeric: tabular-nums;
 }
 .fulfillment-lines td:nth-child(3),
 .fulfillment-lines td:nth-child(4),
@@ -33,7 +31,6 @@
   min-width: 450px;
 }
 .receipt-history table {
-  width: 100%;
   min-width: 550px;
 }
 .receipt-history td {
@@ -86,32 +83,6 @@
   font-size: 12px;
   color: var(--accent-ink);
 }
-.business-records[data-entity='purchases']
-  > .unified-table-region
-  > table
-  > tbody
-  > tr:not(.fulfillment-expanded)
-  > td:nth-child(4),
-.business-records[data-entity='purchases']
-  > .unified-table-region
-  > table
-  > tbody
-  > tr:not(.fulfillment-expanded)
-  > td:nth-child(5),
-.business-records[data-entity='orders']
-  > .unified-table-region
-  > table
-  > tbody
-  > tr:not(.fulfillment-expanded)
-  > td:nth-child(5),
-.business-records[data-entity='orders']
-  > .unified-table-region
-  > table
-  > tbody
-  > tr:not(.fulfillment-expanded)
-  > td:nth-child(6) {
-  white-space: nowrap;
-}
 @media (max-width: 700px) {
   .receipt-correction .management-dialog-actions {
     flex-wrap: wrap;
@@ -161,7 +132,7 @@
   border: 1px solid var(--warning-border);
   background: var(--warning-soft);
   color: var(--warning);
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 12px;
 }
 .data-edit-history summary {

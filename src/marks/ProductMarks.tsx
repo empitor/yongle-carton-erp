@@ -45,8 +45,13 @@ export function MarkCards({
             >
               <MarkPreview url={fileUrl(mark)} page={mark.page} alt={markTitle(mark)} />
             </button>
-            <strong title={markTitle(mark)}>{markTitle(mark)}</strong>
-            {markSummary(mark) && <small>{markSummary(mark)}</small>}
+            <button
+              className="text-link mark-file-link"
+              title={mark.fileName || markTitle(mark)}
+              onClick={() => setOpen(mark)}
+            >
+              {mark.fileName || markTitle(mark)}
+            </button>
             {remove && (
               <button className="text-link danger-text" onClick={() => remove(mark)}>
                 移除
@@ -56,11 +61,12 @@ export function MarkCards({
         ))}
       </div>
       {open && (
-        <ManagementDialog title={markTitle(open)} close={() => setOpen(null)}>
-          <MarkPreview url={fileUrl(open)} page={open.page} alt={markTitle(open)} />
-          {open.fields?.printText && <p className="inbox-text">{open.fields.printText}</p>}
-          {markSummary(open) && <p className="help-text">{markSummary(open)}</p>}
-          <div className="modal-actions">
+        <ManagementDialog title={open.fileName || markTitle(open)} close={() => setOpen(null)}>
+          <MarkPreview url={fileUrl(open)} page={open.page} alt={markTitle(open)} pager />
+          <div className="mark-dialog-actions">
+            <a className="button" href={fileUrl(open)} target="_blank" rel="noreferrer">
+              新窗口打开
+            </a>
             <a className="button" href={fileUrl(open)} download>
               下载原件
             </a>

@@ -48,7 +48,7 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     handle = createApp(store, { auth, deployment, assistant });
   };
   init();
-  const owner = { name: '虚构维护员', password: 'fictional-owner-password' };
+  const owner = { name: '虚构维护员', password: 'Fictional-owner-password' };
   async function call(
     port: number,
     path: string,
@@ -133,7 +133,7 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     );
     for (let i = 0; i < 6; i++) {
       const response = await call(proxyPort, '/auth/login', {
-        body: { ...owner, password: 'fictional-wrong-password' },
+        body: { ...owner, password: 'Fictional-wrong-password' },
         headers: { ...remote, 'x-forwarded-for': '198.51.100.' + i },
       });
       assert.equal(response.code, i < 5 ? 401 : 429);
@@ -142,7 +142,7 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     assert.equal(
       (
         await call(proxyPort, '/auth/login', {
-          body: { name: '虚构同事', password: 'fictional-wrong-password' },
+          body: { name: '虚构同事', password: 'Fictional-wrong-password' },
           headers: remote,
         })
       ).code,
@@ -222,12 +222,12 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     const staffCookie = staffLogin.headers['set-cookie']![0].split(';')[0];
     const account = await call(localPort, '/auth/users', {
       cookie: localCookie,
-      body: { name: '虚构员工', password: 'fictional-employee-password', level: 'staff' },
+      body: { name: '虚构员工', password: 'Fictional-employee-password', level: 'staff' },
     });
     const employee = account.value.users.find((user: { name: string }) => user.name === '虚构员工');
     const staff = await call(proxyPort, '/auth/login', {
       headers: remote,
-      body: { name: employee.name, password: 'fictional-employee-password' },
+      body: { name: employee.name, password: 'Fictional-employee-password' },
     });
     const employeeCookie = staff.headers['set-cookie']![0].split(';')[0];
     for (const disabled of [true, false]) {
@@ -248,8 +248,9 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
       );
     }
     const cli = new AuthManager(file);
+    let temporary = '';
     try {
-      cli.resetPassword(owner.name, 'fictional-updated-password');
+      temporary = cli.resetPassword(owner.name);
     } finally {
       cli.close();
     }
@@ -259,12 +260,12 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     );
     const updated = await call(proxyPort, '/auth/login', {
       headers: remote,
-      body: { ...owner, password: 'fictional-updated-password' },
+      body: { ...owner, password: temporary },
     });
     const updatedCookie = updated.headers['set-cookie']![0].split(';')[0];
     const otherDevice = await call(proxyPort, '/auth/login', {
       headers: remote,
-      body: { ...owner, password: 'fictional-updated-password' },
+      body: { ...owner, password: temporary },
     });
     const otherCookie = otherDevice.headers['set-cookie']![0].split(';')[0];
     assert.equal(
@@ -272,7 +273,7 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
         await call(proxyPort, '/auth/password', {
           headers: remote,
           cookie: updatedCookie,
-          body: { current: 'fictional-updated-password', password: 'fictional-final-password' },
+          body: { current: temporary, password: 'Fictional-final-password' },
         })
       ).code,
       200,
@@ -289,7 +290,7 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     );
     const current = await call(proxyPort, '/auth/login', {
       headers: remote,
-      body: { ...owner, password: 'fictional-final-password' },
+      body: { ...owner, password: 'Fictional-final-password' },
     });
     const expiredCookie = current.headers['set-cookie']![0].split(';')[0];
     now += 9 * 3600_000;
@@ -297,6 +298,32 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
       (await call(proxyPort, '/auth/state', { headers: remote, cookie: expiredCookie })).value
         .actor,
       null,
+    );
+    // 申请账号和忘记密码走公网入口，记录的是访客地址，不是代理地址。
+    assert.equal(
+      (
+        await call(proxyPort, '/auth/apply', {
+          headers: remote,
+          body: { name: '虚构申请人', password: 'Fictional-applicant-1', note: '虚构仓库' },
+        })
+      ).code,
+      202,
+    );
+    assert.equal(
+      (await call(proxyPort, '/auth/forgot', { headers: remote, body: { name: '查无此人' } })).code,
+      202,
+    );
+    const reviewer = await call(proxyPort, '/auth/login', {
+      headers: remote,
+      body: { ...owner, password: 'Fictional-final-password' },
+    });
+    const pending = await call(proxyPort, '/auth/requests', {
+      headers: remote,
+      cookie: reviewer.headers['set-cookie']![0].split(';')[0],
+    });
+    assert.deepEqual(
+      pending.value.requests.map((r: any) => [r.name, r.client]),
+      [['虚构申请人', remote['x-erp-client-ip']]],
     );
   } finally {
     await Promise.all(

@@ -77,6 +77,43 @@ export class PromptPresetManager {
       throw e;
     }
   }
+  /** 给用户改过的预设补上缺少的默认条目（按名字判断），不动已有内容。改动前的内容留在升级记录里。 */
+  addMissingDefaultEntries(version: string) {
+    this.db.exec(
+      'CREATE TABLE IF NOT EXISTS prompt_default_upgrades(version TEXT PRIMARY KEY,applied_at TEXT NOT NULL,document TEXT NOT NULL)',
+    );
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      if (this.db.prepare('SELECT 1 FROM prompt_default_upgrades WHERE version=?').get(version)) {
+        this.db.exec('COMMIT');
+        return;
+      }
+      const state = this.view(),
+        before = structuredClone(state),
+        latest = this.defaultPreset();
+      let count = 0;
+      for (const p of state.presets) {
+        const names = new Set(p.entries.map((e) => e.name));
+        const missing = latest.entries.filter((e) => !names.has(e.name));
+        if (!missing.length) continue;
+        p.entries = [...p.entries, ...missing.map((e) => ({ ...e, id: randomUUID() }))];
+        count++;
+      }
+      if (count) {
+        state.revision++;
+        this.db
+          .prepare('UPDATE prompt_settings SET revision=?,document=? WHERE id=1')
+          .run(state.revision, JSON.stringify(promptStateSchema.parse(state)));
+      }
+      this.db
+        .prepare('INSERT INTO prompt_default_upgrades VALUES(?,?,?)')
+        .run(version, new Date().toISOString(), JSON.stringify({ count, before, after: state }));
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
   view(): PromptState {
     const row = this.db.prepare('SELECT document FROM prompt_settings WHERE id=1').get()!;
     return promptStateSchema.parse(JSON.parse(String(row.document)));

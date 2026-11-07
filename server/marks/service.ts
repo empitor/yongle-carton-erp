@@ -4,11 +4,13 @@ import type { Store } from '../db.js';
 import type { Actor } from '../auth.js';
 import { requirePermission, audit } from '../business/management.js';
 import { ImportError } from '../import/errors.js';
+import { snapshotBeforeDestructive } from '../backup.js';
 import { markFieldsSchema } from '../../shared/shipping-mark.js';
 
 const columns = `id,product_id AS productId,file_sha256 AS fileSha256,page,title,fields,
 source_kind AS sourceKind,source_ref AS sourceRef,created_by AS createdBy,
-created_at AS createdAt,updated_at AS updatedAt,version`;
+created_at AS createdAt,updated_at AS updatedAt,version,
+(SELECT file_name FROM mark_files WHERE sha256=file_sha256) AS fileName`;
 const versionSchema = z.number().int().positive();
 export class MarkService {
   constructor(readonly store: Store) {}
@@ -156,6 +158,7 @@ export class MarkService {
     const v = z.strictObject({ expectedVersion: versionSchema }).parse(raw);
     if (before.version !== v.expectedVersion) throw new ImportError('唛头已修改，请刷新。', 409);
     const db = this.store.db;
+    snapshotBeforeDestructive(this.store, 'mark-remove');
     db.exec('SAVEPOINT mark_remove');
     try {
       db.prepare('DELETE FROM product_marks WHERE id=?').run(id);

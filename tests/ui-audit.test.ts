@@ -383,7 +383,7 @@ test('人工模板、生产批量入口使用真实HTTP登录及CSRF，预览不
         headers: { 'Content-Type': 'application/json', 'x-erp-auth-token': auth.csrf },
         body: JSON.stringify({
           name: '虚构界面验收管理员',
-          password: 'fictional-ui-audit-pass-123',
+          password: 'Fictional-ui-audit-pass-123',
         }),
       }),
       cookie = setup.headers.get('set-cookie')!.split(';')[0],

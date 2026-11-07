@@ -1,9 +1,7 @@
 import { aiSettingsTab } from '../shared/assistant-navigation';
-import './assistant-plugins.css';
 import { useEffect, useState } from 'react';
 import AiSettingsPage from './AiSettingsPage';
 import { useAuthState } from './session';
-import { AccountManagement } from './AccountManagement';
 import PromptSettingsPage from './PromptSettingsPage';
 import { promptModules } from '../shared/prompt-modules';
 import AssistantPlugins from './AssistantPlugins';
@@ -12,12 +10,13 @@ import ChannelSettings from './ChannelSettings';
 export default function AiSettingsHub() {
   const auth = useAuthState();
   const read = () =>
-    location.hash.includes('tab=accounts')
-      ? 'accounts'
-      : location.hash.includes('tab=channels')
-        ? 'channels'
-        : aiSettingsTab(location.hash);
-  const [tab, setTab] = useState(read);
+    location.hash.includes('tab=channels') ? 'channels' : aiSettingsTab(location.hash);
+  const [hashTab, setTab] = useState(read);
+  // 渠道页只有管理员有，别人从链接点进来退回默认页签，不留白屏。
+  const tab =
+    hashTab === 'channels' && auth?.actor?.role !== 'super_admin'
+      ? aiSettingsTab('#ai-settings')
+      : hashTab;
   const [promptKind, setPromptKind] = useState(() =>
     location.hash.includes('assistant=1') ? 'assistant' : 'sales-order',
   );
@@ -70,24 +69,10 @@ export default function AiSettingsHub() {
             消息接入
           </button>
         )}
-        {auth?.actor?.role === 'super_admin' && (
-          <button
-            role="tab"
-            aria-selected={tab === 'accounts'}
-            onClick={() => (location.hash = 'ai-settings?tab=accounts')}
-          >
-            账号
-          </button>
-        )}
       </nav>
       {tab === 'channels' && auth?.actor?.role === 'super_admin' && (
         <section role="tabpanel" aria-label="消息接入">
           <ChannelSettings />
-        </section>
-      )}
-      {tab === 'accounts' && auth?.actor?.role === 'super_admin' && (
-        <section role="tabpanel" aria-label="账号">
-          <AccountManagement selfId={auth.actor.id} />
         </section>
       )}
       {tab === 'templates' && (
@@ -96,7 +81,13 @@ export default function AiSettingsHub() {
         </section>
       )}
       <section role="tabpanel" aria-label="API配置" hidden={tab !== 'api'}>
-        <AiSettingsPage />
+        {auth?.actor && auth.actor.role !== 'super_admin' ? (
+          <p className="help-text" role="note">
+            API 配置只有管理员可以查看和修改。聊天和识别用的是管理员配好的模型，你不用设置。
+          </p>
+        ) : (
+          <AiSettingsPage />
+        )}
       </section>
       {tab === 'tools' && (
         <section role="tabpanel" aria-label="AI插件与工具管理">

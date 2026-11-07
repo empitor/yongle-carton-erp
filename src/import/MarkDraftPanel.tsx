@@ -145,7 +145,7 @@ export default function MarkDraftPanel({
         expectedRevision: current.revision,
         requestId: requestId.current,
       });
-      setNotice('已存入产品档案，共 ' + saving + ' 款。');
+      setNotice('原文件已挂到产品下，共 ' + saving + ' 款。');
       window.dispatchEvent(new Event('erp-business-changed'));
       await reload();
       await load();
@@ -169,7 +169,7 @@ export default function MarkDraftPanel({
           <div className="oi-empty">
             <FileText size={30} />
             <p>还没有识别</p>
-            <span>一份文件可以有多款。识别后逐款对应产品，唛头不产生订单、生产或库存。</span>
+            <span>识别名称和尺寸，自动对应产品并把原文件挂上去。对不上的再选一下。唛头不产生订单、生产或库存。</span>
             <button className="primary" disabled={busy || !canEdit} onClick={recognize}>
               {busy ? '正在识别…' : '开始识别'}
             </button>
@@ -212,6 +212,19 @@ export default function MarkDraftPanel({
                   >
                     {item.page ? 'P' + item.page : '图'}
                   </button>
+                  <details className="oi-mark-fields">
+                    <summary>
+                      识别内容（用来对应产品）：
+                      {[
+                        item.fields.itemCode,
+                        item.fields.productName,
+                        [item.fields.cartonLength, item.fields.cartonWidth, item.fields.cartonHeight]
+                          .filter(Boolean)
+                          .join('×') + (item.fields.dimensionUnit ? ' ' + item.fields.dimensionUnit : ''),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '没有识别到'}
+                    </summary>
                   <label>
                     料号 / 款号
                     <input
@@ -255,6 +268,7 @@ export default function MarkDraftPanel({
                       </select>
                     </div>
                   </div>
+                  </details>
                   <label className="oi-mark-product">
                     对应产品
                     <Combobox
@@ -304,7 +318,7 @@ export default function MarkDraftPanel({
                       checked={!!item.skip}
                       onChange={(e) => patch(item.key, { skip: e.target.checked })}
                     />
-                    不存
+                    不挂
                   </label>
                   <p
                     className={
@@ -314,9 +328,9 @@ export default function MarkDraftPanel({
                     }
                   >
                     {item.skip
-                      ? '这一款不存档'
+                      ? '这一款不挂'
                       : value === 'new'
-                        ? '存档时新建产品，只带料号，不写入尺寸'
+                        ? '新建产品，只带料号，不写入尺寸'
                         : value
                           ? (list.find((c) => String(c.id) === value)?.reasons.join('、') ||
                               '人工选择') +
@@ -324,7 +338,7 @@ export default function MarkDraftPanel({
                               ? '；' + list.find((c) => String(c.id) === value)!.conflicts.join('、')
                               : '')
                           : list.length
-                            ? '有 ' + list.length + ' 个候选，请确认'
+                            ? '有 ' + list.length + ' 个候选，请选一下'
                             : '没有找到对应产品，可搜索或新建'}
                     {item.fields.quantityPerCarton ? ' · ' + item.fields.quantityPerCarton : ''}
                     {item.fields.requirements ? ' · ' + item.fields.requirements : ''}
@@ -342,11 +356,11 @@ export default function MarkDraftPanel({
               共 <b>{items.length}</b> 款
             </span>
             {committed ? (
-              <small>已存入产品档案，不再修改</small>
+              <small>原文件已挂到产品下，产品详情里可以预览</small>
             ) : pending > 0 ? (
-              <span className="oi-mark-pending">还有 {pending} 款待确认</span>
+              <span className="oi-mark-pending">还有 {pending} 款没对应上产品，请选一下</span>
             ) : (
-              <small>将存入 {saving} 款</small>
+              <small>将挂到产品下 {saving} 款</small>
             )}
           </div>
           <div className="oi-action-buttons">
@@ -362,7 +376,7 @@ export default function MarkDraftPanel({
                 title={pending ? '还有 ' + pending + ' 款没有确认对应的产品' : undefined}
                 onClick={commit}
               >
-                {busy ? '处理中…' : '存入产品档案'}
+                {busy ? '处理中…' : '挂到产品下'}
               </button>
             )}
           </div>

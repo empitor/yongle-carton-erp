@@ -64,11 +64,28 @@ export function orderNextSteps(order: any, related: any): NextSteps {
   const ready: string[] = [],
     partial: string[] = [],
     schedule: NextStep[] = [];
-  for (const { line, remaining } of lines) {
-    const available = stocks
+  const availableFor = (line: any) =>
+    stocks
       .filter((s: any) => s.productId === line.productId && s.unit === line.unit)
       .reduce((n: number, s: any) => n + Math.max(0, Number(s.availableUnits) || 0), 0);
-    const own = tasks.filter((t: any) => t.productId === line.productId);
+  // 同一产品同一单位分几行的，库存和任务合起来算，不能每行都把同一批货算一遍。
+  const groups = new Map<string, { line: any; remaining: number }>();
+  for (const { line, remaining } of lines) {
+    const key = line.productId + '|' + line.unit,
+      group = groups.get(key);
+    if (group) group.remaining += Math.max(0, remaining);
+    else groups.set(key, { line, remaining: Math.max(0, remaining) });
+  }
+  const notYetMade = ['已确认', '生产中'].includes(order.status);
+  for (const { line, remaining } of lines) {
+    const available = availableFor(line);
+    const all = tasks.filter((t: any) => t.productId === line.productId),
+      own = all.filter((t: any) => t.unit === line.unit);
+    const otherUnits = [...new Set(all.filter((t: any) => t.unit !== line.unit).map((t: any) => t.unit))];
+    if (otherUnits.length)
+      result.notes.push(
+        line.productName + ' 的生产任务单位是' + otherUnits.join('、') + '，和订单的' + line.unit + '不同，没算作这张单的生产量',
+      );
     result.lines.push({
       id: line.id,
       name: line.productName,
@@ -81,10 +98,20 @@ export function orderNextSteps(order: any, related: any): NextSteps {
           quantityString(own.reduce((n: number, t: any) => n + units(t.quantity), 0))
         : 'none',
     });
+  }
+  for (const { line, remaining } of groups.values()) {
     if (remaining <= 0) continue;
+    const available = availableFor(line),
+      own = tasks.filter((t: any) => t.productId === line.productId && t.unit === line.unit);
     if (available >= remaining) ready.push(line.productName);
     else if (available > 0) partial.push(line.productName);
-    if (!own.length && available < remaining)
+    // 分批做的订单，已排的做完了还差就要接着排。还在做的先等它做完。
+    const working = own.some(
+      (t: any) => t.status === 'draft' || units(t.completed) < units(t.quantity),
+    );
+    const gap = remaining - available;
+    const shortage = own.length ? (gap > 0 ? gap : remaining) : gap;
+    if (notYetMade && !working && shortage > 0)
       schedule.push({
         key: 'schedule-' + line.id,
         kind: 'schedule',
@@ -97,7 +124,12 @@ export function orderNextSteps(order: any, related: any): NextSteps {
           '，库存可用 ' +
           quantityString(available),
         label: '安排生产',
-        params: { order: String(order.id), product: String(line.productId) },
+        // 还缺多少就预填多少，用户可以改。
+        params: {
+          order: String(order.id),
+          product: String(line.productId),
+          quantity: quantityString(shortage),
+        },
       });
   }
   const delivery = (names: string[]): NextStep => ({

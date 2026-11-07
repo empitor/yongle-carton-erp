@@ -1,3 +1,4 @@
+import { blocksNewProduct } from '../../shared/import-matching';
 import { Fragment, useState, useEffect } from 'react';
 import { DraftText as WrappedText } from './DraftUI';
 import {
@@ -38,6 +39,12 @@ export default function OrderDraftTable({
   const match = useImportMatching(workspace, draft, onMapping);
   const { matches, mapping, invalidated, customerResolution, candidates } = match;
   const locked = externallyLocked || match.saveState === 'saving';
+  const imported = !!workspace.imported;
+  // 选了就保存。以前要多点一次“保存选择”，否则导入按钮是灰的，用户不知道为什么。
+  useEffect(() => {
+    if (!locked && !imported && matches && match.dirty && match.saveState === 'idle')
+      void match.save();
+  }, [mapping, !!matches, locked, imported, match.dirty, match.saveState]);
   useEffect(
     () => onMappingPending?.(!matches || match.dirty || match.unresolved),
     [!!matches, match.dirty, match.unresolved, onMappingPending],
@@ -58,6 +65,8 @@ export default function OrderDraftTable({
       live = false;
     };
   }, [workspace.id, workspace.revision]);
+  // 没选产品时导入会新建，不算没处理完
+  const standardIssues = (standard?.issues || []).filter((s) => !s.startsWith('产品尚未选择'));
   function input(k: string, f: DraftField, line?: string) {
     if (k === 'dimensionUnit' && line) {
       const l = draft.lines.find((l) => l.id === line)!;
@@ -129,7 +138,7 @@ export default function OrderDraftTable({
     (!selectedCustomer || selectedCustomer.version !== mapping.customer.version);
   return (
     <>
-      <div className="oi-match-savebar" aria-label="客户与产品选择保存">
+      <div className="oi-match-savebar" aria-label="客户与产品选择保存" hidden={imported}>
         <div>
           <strong>客户与产品选择</strong>
         </div>
@@ -167,8 +176,9 @@ export default function OrderDraftTable({
         ))}
       </div>
       <div className="oi-customer-match">
-        <span>客户档案</span>
+        <span hidden={imported}>客户档案</span>
         <select
+          hidden={imported}
           aria-label="客户匹配"
           disabled={locked || !matches}
           value={choiceValue(mapping.customer)}
@@ -216,7 +226,7 @@ export default function OrderDraftTable({
           </div>
         </details>
       </div>
-      <div className="oi-customer-candidates" aria-label="客户匹配状态">
+      <div className="oi-customer-candidates" aria-label="客户匹配状态" hidden={imported}>
         {invalidated.customer && mapping.customer.mode === 'pending' && (
           <p className="oi-match-invalid" role="alert">
             {invalidated.customer}
@@ -272,7 +282,7 @@ export default function OrderDraftTable({
               ? '找到客户候选，等待确认'
               : !matches
                 ? '正在读取客户候选…'
-                : '未找到匹配档案，请核对客户名称或明确选择计划新建。'}
+                : '没有匹配档案，导入时新建客户。'}
           </p>
         )}
         {mapping.customer.mode !== 'existing' &&
@@ -329,15 +339,15 @@ export default function OrderDraftTable({
           ))}
         </details>
       )}
-      {!!standard?.issues.length && workspace.mapping && (
+      {!!standardIssues.length && workspace.mapping && !imported && (
         <details className="oi-standard-check">
-          <summary>标准订单资料仍需处理 {standard.issues.length} 项</summary>
-          {[...new Set(standard.issues)].map((s, i) => (
+          <summary>标准订单资料仍需处理 {standardIssues.length} 项</summary>
+          {[...new Set(standardIssues)].map((s, i) => (
             <p key={i}>{s}</p>
           ))}
         </details>
       )}
-      {!!matches?.duplicateOrders.length && (
+      {!!matches?.duplicateOrders.length && !imported && (
         <div className="oi-inline-error">
           发现相同采购单号：
           {matches.duplicateOrders.map((o) => o.number + '（' + o.customerName + '）').join('、')}
@@ -403,7 +413,7 @@ export default function OrderDraftTable({
                 </tr>
                 <tr className="oi-product-matching-row">
                   <td colSpan={5}>
-                    <details
+                    <details hidden={imported}
                       className="oi-product-matching-fold"
                       open={!['existing', 'new'].includes(mapping.products[l.id]?.mode)}
                     >
@@ -420,8 +430,10 @@ export default function OrderDraftTable({
                             )?.name || '')
                           : mapping.products[l.id]?.mode === 'new'
                             ? '计划新建'
-                            : '待确认' +
-                              (candidates[l.id]?.length ? '（' + candidates[l.id].length + ' 个候选）' : '')}
+                            : candidates[l.id]?.some(blocksNewProduct)
+                              ? '待确认（' + candidates[l.id].length + ' 个候选）'
+                              : '导入时新建' +
+                                (candidates[l.id]?.length ? '，有尺寸相同的产品可选' : '')}
                       </summary>
                     <div
                       className="oi-product-matching"
@@ -507,11 +519,13 @@ export default function OrderDraftTable({
                       ) : (
                         <div className="oi-match-pending">
                           <strong>
-                            {candidates[l.id]?.length
+                            {candidates[l.id]?.some(blocksNewProduct)
                               ? '匹配候选 · 等待确认'
                               : !matches
                                 ? '正在读取产品候选…'
-                                : '未找到匹配档案'}
+                                : candidates[l.id]?.length
+                                  ? '没有同名档案，导入时新建；如果是下面这款，请点确认'
+                                  : '没有匹配档案，导入时新建'}
                           </strong>
                           {candidates[l.id]?.length > 1 && (
                             <small>有多个候选，请按规格、料号及差异核对。</small>

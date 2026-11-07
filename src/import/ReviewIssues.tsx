@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 /** 把散落的核对事项整理成疑点清单：必须处理的在前，相同提示合并计数。 */
 export function groupIssues(
   issues: { path: string; message: string; severity?: string }[],
@@ -28,9 +30,18 @@ export default function ReviewIssues({
 }) {
   const groups = groupIssues(issues, warnings),
     errors = groups.filter((g) => g.error).length;
+  const box = useRef<HTMLDetailsElement>(null);
+  // 点别处就收起，否则会盖在后面打开的确认窗口上
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (box.current?.open && !box.current.contains(e.target as Node)) box.current.open = false;
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
   if (!groups.length && !changes.length) return null;
   return (
-    <details className="oi-issues">
+    <details className="oi-issues" ref={box}>
       <summary className={errors ? 'has-errors' : ''}>
         {errors ? '待处理 ' + errors + ' 项' : '疑点 ' + groups.length + ' 项'}
         {changes.length ? ' · 已改 ' + changes.length + ' 处' : ''}

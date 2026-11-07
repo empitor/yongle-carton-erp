@@ -28,6 +28,7 @@ import {
   BookOpen,
   FileBarChart,
   SlidersHorizontal,
+  UserCog,
 } from 'lucide-react';
 
 type NavEntry = {
@@ -122,6 +123,8 @@ const financeGroup: { title?: string; items: NavEntry[] } = {
     { label: '财务设置', target: 'finance-settings', icon: SlidersHorizontal },
   ],
 };
+/** 只给管理员看。 */
+const accountsEntry: NavEntry = { label: '账号管理', target: 'accounts', icon: UserCog };
 const footer: NavEntry[] = [
   { label: '设置', target: 'ai-settings', icon: Settings },
   { label: '归档', target: 'trash', icon: Archive },
@@ -135,6 +138,8 @@ export default function Navigation({
   inboxCount = 0,
   importCount = 0,
   finance = false,
+  accounts = false,
+  accountRequests = 0,
 }: {
   page: string;
   route?: string;
@@ -142,6 +147,8 @@ export default function Navigation({
   inboxCount?: number;
   importCount?: number;
   finance?: boolean;
+  accounts?: boolean;
+  accountRequests?: number;
 }) {
   const params = new URLSearchParams(route.split('?')[1] || '');
   // 财务默认收起，免得左侧要滚动才能看到别的入口；进了财务页面就一直展开。
@@ -171,6 +178,9 @@ export default function Navigation({
         )}
         {entry.target === 'ai-import' && importCount > 0 && (
           <span className="nav-count">{importCount}</span>
+        )}
+        {entry.target === 'accounts' && accountRequests > 0 && (
+          <span className="nav-count">{accountRequests}</span>
         )}
       </button>
     );
@@ -203,7 +213,10 @@ export default function Navigation({
           </div>
         )}
       </nav>
-      <div className="nav-footer">{footer.map(item)}</div>
+      <div className="nav-footer">
+        {accounts && item(accountsEntry)}
+        {footer.map(item)}
+      </div>
     </>
   );
 }

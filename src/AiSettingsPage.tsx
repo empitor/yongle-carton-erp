@@ -21,7 +21,6 @@ import type {
   PublicPreset,
   ApiStyle,
 } from '../shared/ai-settings';
-import './ai-settings.css';
 
 type Form = { id?: string; name: string; endpoint: string; model: string; apiStyle: ApiStyle };
 type Message = { ok: boolean; message: string; code?: string };

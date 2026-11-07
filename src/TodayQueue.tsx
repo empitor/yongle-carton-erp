@@ -1,3 +1,4 @@
+import { importStillOpen } from '../shared/order-draft';
 import { useEffect, useState } from 'react';
 import { displayAmount } from '../shared/display-amount';
 import { managementRequest } from './session';
@@ -38,7 +39,7 @@ export default function TodayQueue() {
         .catch(() => setDueRows([]));
       fetch('/api/ai/imports', { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
-        .then((s) => setInbox((s?.workspaces || []).filter((w: any) => !w.imported)))
+        .then((s) => setInbox((s?.workspaces || []).filter(importStillOpen)))
         .catch(() => {});
     };
     load();
@@ -92,9 +93,9 @@ export default function TodayQueue() {
       rows: inbox.map((w) => ({
         key: 'w' + w.id,
         main: w.fileName,
-        note: w.hasDraft ? '已识别，待核对' : '待识别',
+        note: w.mode === 'mark' && w.markStatus === 'recognized' ? '唛头待选产品' : w.hasDraft ? '已识别，待核对' : '待识别',
         href: '#ai-import?workspace=' + w.id,
-        action: w.hasDraft ? '核对' : '识别',
+        action: w.hasDraft || w.markStatus === 'recognized' ? '核对' : '识别',
       })),
     },
     {

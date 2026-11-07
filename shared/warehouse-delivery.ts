@@ -1,4 +1,5 @@
 import { quantityUnits } from './operations.js';
+import { sameSpecification } from './domain.js';
 
 export function deliveryCandidates(
   stock: any,
@@ -6,10 +7,6 @@ export function deliveryCandidates(
   orders: any[],
   allowOverdelivery = false,
 ) {
-  const spec = (v: string) =>
-    String(v || '')
-      .replace(/\s+/g, '')
-      .replaceAll('×', 'x');
   return orders
     .filter(
       (o) =>
@@ -28,7 +25,7 @@ export function deliveryCandidates(
             (allowOverdelivery || (l.remainingQuantity ?? l.quantity) > 0) &&
             (!stock.specification ||
               !l.specification ||
-              spec(stock.specification) === spec(l.specification)),
+              sameSpecification(stock.specification, l.specification)),
         )
         .map((line: any) => ({
           orderId: o.id,

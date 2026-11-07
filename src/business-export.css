@@ -12,7 +12,7 @@
 .business-export-actions select {
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--ink);
 }

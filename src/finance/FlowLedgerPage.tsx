@@ -41,7 +41,7 @@ function ResolvePanel({ row, done }: { row: any; done: () => void }) {
     lines0.map((l) => ({
       exact: String(l.exact ?? ''),
       rate: String(l.rate ?? l.taxRate ?? '').replace(/%$/, ''),
-      mode: ['含税', '未税'].includes(l.mode ?? l.taxMode) ? (l.mode ?? l.taxMode) : '',
+      mode: (l.mode ?? l.taxMode) === '不含税' ? '未税' : ['含税', '未税'].includes(l.mode ?? l.taxMode) ? (l.mode ?? l.taxMode) : '',
     })),
   );
   const [evidence, setEvidence] = useState('');

@@ -89,6 +89,7 @@ test-results/
 !docs/releases/发布说明-v0.6.0.md
 !docs/releases/发布说明-v0.6.1.md
 !docs/releases/发布说明-v0.7.0.md
+!docs/releases/发布说明-v0.8.0.md
 !docs/history/acceptance/PowerShell兼容修复与0.6.0验收-2026-10-30.md
 !docs/history/acceptance/全局助手恢复与精灵贴边验收-2026-10-30.md
 !docs/history/acceptance/智能订单导入匹配与保存交互验收-2026-10-30.md
@@ -106,3 +107,13 @@ test-results/
 !docs/history/架构说明-至0.6.1.md
 !docs/history/acceptance/部署与可靠性验收-2026-11-06.md
 !docs/history/acceptance/财务导出验收-2026-11-06.md
+!docs/brand/
+!docs/brand/**
+!docs/history/acceptance/账号与登录验收-2026-11-06.md
+!docs/history/acceptance/商标与双精灵验收-2026-11-06.md
+!docs/history/acceptance/贴边与双智能体验收-2026-11-06.md
+!docs/history/acceptance/真实模型试聊验收-2026-11-07.md
+
+!docs/history/acceptance/真实文件全面测试验收-2026-11-07.md
+!docs/history/acceptance/代码审查修复与回归验收-2026-11-07.md
+!docs/history/acceptance/0.8.0发布前收尾验收-2026-11-07.md

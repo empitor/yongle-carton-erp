@@ -2,6 +2,7 @@ import { observeErpPage, executePageCommand } from './assistant-page';
 import { useEffect, useRef, useState } from 'react';
 import { deliverBusinessFile, ExportFileCard } from './BusinessExport';
 import {
+  ArrowLeft,
   Bot,
   Plug,
   Eraser,
@@ -21,10 +22,10 @@ import {
 import { managementRequest, useAuthState } from './session';
 import { SseParser } from '../shared/sse';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime';
-import './global-assistant.css';
 import { AttachmentCards, AttachmentPreview, attachmentSlots } from './AssistantAttachments';
 import { useAssistantUploads } from './useAssistantUploads';
 import { useAssistantSpeech } from './speech/useAssistantSpeech';
+import { useIsPhone } from './mobile/MobileNav';
 import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { useFloatingAssistant } from './useFloatingAssistant';
 import {
@@ -35,7 +36,13 @@ import {
   readFloatingLauncher,
   type AssistantPanelMode,
 } from './floating-assistant';
-import CartonSpirit from './CartonSpirit';
+import YlSpirits, { SpeakerAvatar } from './YlSpirits';
+import {
+  readSpeaker,
+  speakerNames,
+  speakerPairName,
+  type AssistantSpeaker,
+} from '../shared/assistant-personas';
 import { isErpNavigation, assistantManagementHash } from '../shared/assistant-navigation';
 import AssistantOrderTask from './AssistantOrderTask';
 import AssistantBusinessTaskPanel from './AssistantBusinessTask';
@@ -104,6 +111,9 @@ export default function GlobalAssistant() {
     [message, setMessage] = useState(''),
     [newBusinessTask, setNewBusinessTask] = useState(false),
     [busy, setBusy] = useState(false),
+    [working, setWorking] = useState<AssistantSpeaker | undefined>(undefined),
+    [speak, setSpeak] = useState<{ speaker?: AssistantSpeaker; tick: number }>({ tick: 0 }),
+    [bubble, setBubble] = useState<{ speaker: AssistantSpeaker; text: string } | null>(null),
     [error, setError] = useState(''),
     [progress, setProgress] = useState(''),
     [draft, setDraft] = useState(''),
@@ -135,7 +145,9 @@ export default function GlobalAssistant() {
       return 'docked';
     }
   });
-  const docked = open && panelMode === 'docked';
+  // 手机上一律全屏，不用浮动窗口，也不改用户在电脑上的选择。
+  const phone = useIsPhone();
+  const docked = open && (panelMode === 'docked' || phone);
   const [pageLabel, setPageLabel] = useState('');
   useEffect(() => {
     if (!open) return;
@@ -290,6 +302,29 @@ export default function GlobalAssistant() {
   useEffect(() => {
     if (atBottom.current) history.current?.scrollTo({ top: history.current.scrollHeight });
   }, [thread, draft, progress, open]);
+  // 新回复来了：说话的人跳一下；窗口收起时再冒个气泡。刚打开的旧会话不算。
+  const seenMessage = useRef<{ thread?: string; id?: string }>({});
+  useEffect(() => {
+    const last = thread?.messages?.at(-1);
+    if (!last) return;
+    const seen = seenMessage.current;
+    seenMessage.current = { thread: thread.id, id: last.id };
+    if (seen.thread !== thread.id || seen.id === last.id || last.role !== 'assistant') return;
+    const part = last.relay?.at(-1);
+    const who = readSpeaker(part?.speaker) ?? readSpeaker(last.speaker);
+    if (!who) return;
+    setSpeak((current) => ({ speaker: who, tick: current.tick + 1 }));
+    if (!open) {
+      const line = String(part?.text ?? last.text).split('\n')[0];
+      setBubble({ speaker: who, text: line.length > 28 ? line.slice(0, 28) + '…' : line });
+    }
+  }, [thread, open]);
+  useEffect(() => {
+    if (open) setBubble(null);
+    if (!bubble) return;
+    const timer = window.setTimeout(() => setBubble(null), 7000);
+    return () => window.clearTimeout(timer);
+  }, [bubble, open]);
   const newThread = async () => {
     speech.cancel();
     try {
@@ -443,6 +478,7 @@ export default function GlobalAssistant() {
             window.dispatchEvent(new Event('erp-ai-workspace-list-changed'));
           if (d.type === 'navigate' && isErpNavigation(d.url)) location.hash = d.url;
         }
+        if (event === 'speaker') setWorking(readSpeaker(d.speaker));
         if (event === 'draft') {
           setDraft(d.text);
           draftRef.current = d.text;
@@ -462,6 +498,9 @@ export default function GlobalAssistant() {
           setThread(d);
           uploads.restore(d.pendingAttachments || []);
           if (d.messages?.at(-1)?.executed) window.dispatchEvent(new Event('erp-business-changed'));
+          // 助手删了聊天记录，左边的会话列表要跟着变
+          if (d.messages?.at(-1)?.executions?.some((e: any) => e.tool === 'chat.delete'))
+            void loadState().catch(() => {});
           const activeTask = d.orderWorkflow?.tasks?.find(
             (t: any) => t.id === d.orderWorkflow.activeId,
           );
@@ -522,6 +561,7 @@ export default function GlobalAssistant() {
         sending.current = false;
         setBusy(false);
         setProgress('');
+        setWorking(undefined);
         controller.current = null;
       }
     }
@@ -545,6 +585,7 @@ export default function GlobalAssistant() {
       setExecuting(false);
     }
   }
+  const activeSpeaker = working ?? speak.speaker;
   return (
     <aside data-global-assistant="true" className="global-assistant">
       {!open ? (
@@ -556,13 +597,25 @@ export default function GlobalAssistant() {
             aria-label="打开悬浮AI助手"
             aria-haspopup="dialog"
             aria-expanded={false}
-            title="纸箱精灵 · 点击聊天，拖到左右边缘可半隐藏；方向键也可移动"
+            title={speakerPairName + ' · 点击聊天，拖到左右边缘可半隐藏；方向键也可移动'}
             style={floating.style}
             {...floating.bind}
             onClickCapture={floating.onClickCapture}
             onClick={openAssistant}
           >
-            <CartonSpirit pose={floating.dock} />
+            <YlSpirits
+              pose={floating.dock}
+              busy={busy}
+              moving={floating.moving}
+              speaker={activeSpeaker}
+              speakTick={speak.tick}
+            />
+            {bubble && (
+              <span className="yl-bubble" role="status">
+                <b>{speakerNames[bubble.speaker]}</b>
+                {bubble.text}
+              </span>
+            )}
             {busy && <i aria-label="AI正在处理" />}
           </button>
         ) : null
@@ -617,8 +670,13 @@ export default function GlobalAssistant() {
                   ...floating.bind,
                 })}
           >
-            <Bot size={20} />
-            <strong>全局业务助手</strong>
+            <button className="ga-back" aria-label="返回" onClick={() => setOpen(false)}>
+              <ArrowLeft size={20} />
+            </button>
+            <span className="ga-duo">
+              <YlSpirits compact busy={busy} speaker={activeSpeaker} speakTick={speak.tick} />
+            </span>
+            <strong>{speakerPairName}</strong>
             {!docked && <GripHorizontal size={16} />}
             <div>
               <button
@@ -629,8 +687,8 @@ export default function GlobalAssistant() {
                 {docked ? <PictureInPicture2 size={16} /> : <PanelRight size={16} />}
               </button>
               <button
-                aria-label={floatingLauncher ? '收起后停靠顶栏' : '收起后显示悬浮精灵'}
-                title={floatingLauncher ? '收起后停靠顶栏' : '收起后显示悬浮精灵'}
+                aria-label={floatingLauncher ? '收起后停靠顶栏' : '收起后显示小甬和小勒'}
+                title={floatingLauncher ? '收起后停靠顶栏' : '收起后显示小甬和小勒'}
                 onClick={() => {
                   const next = !floatingLauncher;
                   setFloatingLauncher(next);
@@ -754,15 +812,33 @@ export default function GlobalAssistant() {
               >
                 {!thread?.messages.length && (
                   <div className="ga-empty">
-                    <h3>查询实际业务，处理日常工作</h3>
-                    <p>例如：查找最近两个月未完成的订单，或查询某个型号的库存。</p>
+                    <h3>我是{speakerNames.yong}，这位是{speakerNames.le}</h3>
+                    <p>
+                      订单、客户、收件箱找{speakerNames.yong}；采购、仓库、生产、财务找{speakerNames.le}。例如：查找最近两个月未完成的订单，或查询某个型号的库存。
+                    </p>
                     <a href="#ai-settings?tab=prompts&assistant=1">管理全局助手提示词</a>
                   </div>
                 )}
                 {thread?.messages.map((m: any) => (
                   <article className={'ga-message ga-' + m.role} key={m.id}>
-                    <small>{m.role === 'user' ? '你' : 'AI业务助手'}</small>
+                    <small className="ga-who">
+                      {m.role !== 'user' && readSpeaker(m.speaker) && (
+                        <SpeakerAvatar speaker={readSpeaker(m.speaker)!} />
+                      )}
+                      {m.role === 'user'
+                        ? '你'
+                        : speakerNames[readSpeaker(m.speaker)!] || 'AI业务助手'}
+                    </small>
                     <div className="ga-text">{m.text}</div>
+                    {m.relay?.map((part: any, index: number) => (
+                      <div className="ga-relay" key={index}>
+                        <small className="ga-who">
+                          <SpeakerAvatar speaker={part.speaker} />
+                          {speakerNames[part.speaker as AssistantSpeaker]}
+                        </small>
+                        <div className="ga-text">{part.text}</div>
+                      </div>
+                    ))}
                     {m.executions
                       ?.filter((e: any) => e.tool === 'documents.export' && e.result?.exportId)
                       .map((e: any) => (
@@ -793,7 +869,7 @@ export default function GlobalAssistant() {
                         }}
                       />
                     )}
-                    {m.events?.map((e: any, i: number) => (
+                    {auth?.actor?.developerMode && m.events?.map((e: any, i: number) => (
                       <div className="ga-tool-result" key={i}>
                         {e.tool} · {e.state}
                         {e.message ? ' · ' + e.message : ''}
@@ -853,7 +929,8 @@ export default function GlobalAssistant() {
                   workflow={thread?.orderWorkflow}
                   businessTask={thread?.businessTask}
                 />
-                <AssistantBusinessTaskPanel
+                {/* 执行进度、预算和协议诊断是开发排查用的，只在开发者模式显示 */}
+                {auth?.actor?.developerMode && <AssistantBusinessTaskPanel
                   task={thread?.businessTask}
                   history={thread?.businessTaskHistory}
                   busy={busy}
@@ -892,7 +969,7 @@ export default function GlobalAssistant() {
                       setError((e as Error).message);
                     }
                   }}
-                />
+                />}
                 {partial && (
                   <article className="ga-message ga-assistant">
                     <small>AI业务助手 · 回复未完整接收</small>
@@ -904,7 +981,10 @@ export default function GlobalAssistant() {
                 )}
                 {busy && (
                   <article className="ga-message ga-assistant">
-                    <small>正在处理</small>
+                    <small className="ga-who">
+                      {working && <SpeakerAvatar speaker={working} />}
+                      {working ? speakerNames[working] + ' 正在处理' : '正在处理'}
+                    </small>
                     <div className="ga-text">{draft || progress}</div>
                   </article>
                 )}

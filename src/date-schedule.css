@@ -2,20 +2,11 @@
   background: var(--surface);
 }
 .schedule-heading {
-  gap: 12px;
-  align-items: center;
   flex-wrap: wrap;
-  margin-bottom: 12px;
 }
 .schedule-heading > span {
   color: var(--text-secondary);
   flex: 1;
-  font-size: 12px;
-}
-.schedule-heading label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
   font-size: 12px;
 }
 .schedule-heading input {
@@ -31,17 +22,6 @@
   grid-template-columns: repeat(7, minmax(85px, 1fr));
   flex: 1;
   overflow-x: auto;
-}
-.schedule-day {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 6px;
-}
-.schedule-day span,
-.schedule-day small {
-  color: var(--text-secondary);
-  font-size: 11px;
 }
 .schedule-day.today strong {
   color: var(--accent-ink);

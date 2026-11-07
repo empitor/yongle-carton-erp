@@ -135,20 +135,20 @@ test('HTTP 财务路由拒绝无财务权限的账号和已记账凭证修改、
       });
     const response = await request('/auth/setup', 'POST', {
       name: '虚构管理员',
-      password: 'test-only-password',
+      password: 'Test-only-password',
     });
     assert.equal(response.status, 200);
     const cookie = response.headers.get('set-cookie')!.split(';')[0];
     const newUser = await request(
       '/auth/users',
       'POST',
-      { name: '虚构业务员', password: 'test-only-password', level: 'staff' },
+      { name: '虚构业务员', password: 'Test-only-password', level: 'staff' },
       cookie,
     );
     assert.equal(newUser.status, 201);
     const login = await request('/auth/login', 'POST', {
       name: '虚构业务员',
-      password: 'test-only-password',
+      password: 'Test-only-password',
     });
     const staffCookie = login.headers.get('set-cookie')!.split(';')[0];
     const routes = financeRouter(store, auth).stack as {

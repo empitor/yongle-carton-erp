@@ -201,7 +201,7 @@ test('模型流式增量期间不写草稿，仅completed加EOF后校验并一�
     assert.equal(request!.timeoutMs, 600000);
     assert.equal((request!.body as any).stream, true);
     assert.deepEqual(w.draft!.header.buyerName.sources, []);
-    assert.equal(w.draft!.header.buyerName.certainty, 'needs-review');
+    assert.equal(w.draft!.header.buyerName.certainty, 'recognized');
     assert.equal(w.revision, 2);
   } finally {
     f.close();

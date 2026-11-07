@@ -14,7 +14,6 @@ import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
 import { today, dateSchema } from '../shared/domain';
 import { formatStockSize } from '../shared/operations';
 import BusinessExport from './BusinessExport';
-import './arrival-warehouse.css';
 const RECORD_PAGE_SIZE = 50;
 export default function WarehouseRecords({ kind }: { kind: 'arrival' | 'delivery' }) {
   const auth = useAuthState(),

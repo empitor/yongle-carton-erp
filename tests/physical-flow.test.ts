@@ -589,7 +589,7 @@ test('HTTP写入必须登录/CSRF，服务真实联通且原始文件上传无�
     const setup = await fetch(base + '/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-        body: JSON.stringify({ name: '虚构账号', password: 'fictional-flow-password-123' }),
+        body: JSON.stringify({ name: '虚构账号', password: 'Fictional-flow-password-123' }),
       }),
       cookie = setup.headers.get('set-cookie')!.split(';')[0];
     assert.equal(setup.status, 200);

@@ -22,7 +22,6 @@ import DateRangeFilter from './DateRangeFilter';
 import { presetRange, type DatePreset } from '../shared/date-ranges';
 import ReceiptRecognition from './ReceiptRecognition';
 import { ZodError } from 'zod';
-import './physical-flow.css';
 import { StockEditor } from './operations/Editors';
 import DeliveryStockPicker from './operations/DeliveryStockPicker';
 import { deliveryCandidates } from '../shared/warehouse-delivery';
@@ -33,7 +32,7 @@ import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
 import DateSchedule from './DateSchedule';
 import ProductionBoard from './ProductionBoard';
 import DetailPanel from './ui/DetailPanel';
-import './date-schedule.css';
+import { isPhoneNow } from './mobile/MobileNav';
 import BusinessExport from './BusinessExport';
 import ProductionBatchDialog from './ProductionBatchDialog';
 import { planDate, scheduleSummary } from '../shared/schedule';
@@ -142,7 +141,8 @@ export default function FlowPage({
   const [allDates, setAllDates] = useState(routeParams.get('scope') === 'all');
   const [pendingOnly, setPendingOnly] = useState(routeParams.get('pending') === '1');
   const [scheduling, setScheduling] = useState<any>(null);
-  const [listView, setListView] = useState(routeParams.get('scope') === 'all' || routeParams.get('pending') === '1');
+  // 排产板靠拖动，手机上默认用列表。
+  const [listView, setListView] = useState(isPhoneNow() || routeParams.get('scope') === 'all' || routeParams.get('pending') === '1');
   const [newPlanDate, setNewPlanDate] = useState('');
   const [newPlanTime, setNewPlanTime] = useState('');
   const scheduleRequest = useRef(crypto.randomUUID());
@@ -326,8 +326,8 @@ export default function FlowPage({
       v.orderIds = order ? [order.id] : [];
       v.productId = line?.productId || null;
       v.unit = line?.unit || '只';
-      // 用户核对待生产数量；不能把订单数量误当作已扣除其他任务的余量。
-      v.quantity = '';
+      // 只用“下一步”算好的缺口。不能把订单数量误当作已扣除其他任务的余量，所以其他入口仍留空。
+      v.quantity = params.get('quantity') || '';
     }
     if (!value && kind === 'production' && params.get('task')) {
       const task = data.tasks.find((t: any) => t.id === Number(params.get('task')));

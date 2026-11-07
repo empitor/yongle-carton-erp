@@ -4,6 +4,8 @@
  */
 import { createDecipheriv, randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
+import https from 'node:https';
+import { Readable } from 'node:stream';
 // Node 自带的 WebSocket 连企业微信会被返回 404（2026-11 实测），官方 SDK 也用 ws。
 import NodeWebSocket from 'ws';
 import { isPublicIPv4, resolvePublicAddress } from '../ai/endpoint.js';
@@ -50,7 +52,8 @@ export function safeFileName(name: string, fallback: string) {
   const clean = name
     .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '_')
     .replace(/^[.\s]+|[.\s]+$/g, '');
-  return (clean || fallback).slice(-200);
+  // 下游识别限 180 字；从尾部截，扩展名还在。
+  return (clean || fallback).slice(-180);
 }
 
 const mimeByExtension: Record<string, string> = {
@@ -80,24 +83,57 @@ function mimeOf(name: string) {
 class FileTooLarge extends Error {}
 
 type MediaDeps = {
-  fetchImpl: typeof fetch;
-  checkHost: (hostname: string) => Promise<unknown>;
+  /** 仅供替身测试；生产下载使用下方固定 IP 的 HTTPS 传输。 */
+  fetchImpl?: typeof fetch;
+  checkHost: (hostname: string) => Promise<string>;
+  requestImpl?: typeof https.request;
 };
+function pinnedMediaResponse(target: URL, address: string, signal: AbortSignal, request = https.request) {
+  return new Promise<Response>((resolve, reject) => {
+    const req = request({
+      hostname: address,
+      port: target.port || 443,
+      path: target.pathname + target.search,
+      method: 'GET',
+      headers: { Host: target.host },
+      servername: isIP(target.hostname) ? undefined : target.hostname,
+      rejectUnauthorized: true,
+      agent: false,
+      signal,
+    }, (res) => {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(res.headers))
+        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+      const status = res.statusCode || 502;
+      if ([204, 205, 304].includes(status)) {
+        res.resume();
+        resolve(new Response(null, { status, headers }));
+      } else resolve(new Response(Readable.toWeb(res) as ReadableStream<Uint8Array>, { status, headers }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
 /** 地址来自企业微信下发，仍只接受 https 和公网地址；跳转的每一跳都检查。 */
-async function downloadMedia(url: string, deps: MediaDeps) {
+export async function downloadMedia(url: string, deps: MediaDeps) {
   let current = url;
   for (let hop = 0; hop < 4; hop++) {
     const target = new URL(current);
     if (target.protocol !== 'https:') throw new Error('下载地址不是 https');
-    if (isIP(target.hostname)) {
-      if (!isPublicIPv4(target.hostname)) throw new Error('下载地址不是公网地址');
-    } else await deps.checkHost(target.hostname);
-    const response = await deps.fetchImpl(current, {
+    if (target.username || target.password) throw new Error('下载地址不能包含账号密码');
+    const literal = target.hostname.replace(/^\[|\]$/g, '');
+    const address = isIP(literal) ? literal : await deps.checkHost(target.hostname);
+    if (!isPublicIPv4(address)) throw new Error('下载地址不是公网地址');
+    const init = {
       redirect: 'manual',
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    });
+    } as const;
+    const response = deps.fetchImpl
+      ? await deps.fetchImpl(current, init)
+      : await pinnedMediaResponse(target, address, init.signal, deps.requestImpl);
     if (response.status >= 300 && response.status < 400) {
       const next = response.headers.get('location');
+      await response.body?.cancel().catch(() => {});
       if (!next) throw new Error('下载地址跳转无效');
       current = new URL(next, current).toString();
       continue;
@@ -175,7 +211,7 @@ export type WecomBotOptions = {
   url?: string;
   WebSocketImpl?: typeof WebSocket;
   fetchImpl?: typeof fetch;
-  checkHost?: (hostname: string) => Promise<unknown>;
+  checkHost?: (hostname: string) => Promise<string>;
   sleep?: (ms: number) => Promise<void>;
   heartbeatMs?: number;
 };
@@ -368,7 +404,7 @@ export class WecomBotConnection {
   private async fetchMedia(media: { url?: string; aeskey?: string }) {
     if (!media.url || !media.aeskey) throw new Error('消息里没有下载信息');
     const deps: MediaDeps = {
-      fetchImpl: this.options.fetchImpl || fetch,
+      fetchImpl: this.options.fetchImpl,
       checkHost: this.options.checkHost || resolvePublicAddress,
     };
     const sleep = this.options.sleep || ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));

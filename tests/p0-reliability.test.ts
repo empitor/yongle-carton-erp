@@ -452,21 +452,21 @@ test('HTTP：未登录读取一律401；账号建立、改密、停用、只读�
     assert.equal((await send('/auth/state')).status, 200);
 
     const admin = cookieOf(
-      await send('/auth/setup', { name: '虚构管理员', password: 'fictional-admin-123' }),
+      await send('/auth/setup', { name: '虚构管理员', password: 'Fictional-admin-123' }),
     );
     assert.equal((await send('/orders', undefined, admin)).status, 200);
     assert.equal((await send('/auth/users', undefined, admin)).status, 200);
 
     const created = await send(
       '/auth/users',
-      { name: '虚构只读', password: 'fictional-viewer-123', level: 'viewer' },
+      { name: '虚构只读', password: 'Fictional-viewer-123', level: 'viewer' },
       admin,
     );
     assert.equal(created.status, 201);
     const viewerRow = (await created.json()).users.find((u: any) => u.name === '虚构只读');
     assert.equal(viewerRow.level, 'viewer');
     const viewer = cookieOf(
-      await send('/auth/login', { name: '虚构只读', password: 'fictional-viewer-123' }),
+      await send('/auth/login', { name: '虚构只读', password: 'Fictional-viewer-123' }),
     );
     assert.equal((await send('/orders', undefined, viewer)).status, 200);
     assert.equal((await send('/auth/users', undefined, viewer)).status, 403);
@@ -474,25 +474,36 @@ test('HTTP：未登录读取一律401；账号建立、改密、停用、只读�
 
     const reset = await send(
       '/auth/users/' + viewerRow.id + '/password',
-      { password: 'fictional-viewer-456' },
+      {},
       admin,
     );
     assert.equal(reset.status, 200);
+    const temporary = (await reset.json()).temporaryPassword;
     assert.equal((await send('/orders', undefined, viewer)).status, 401, '旧会话失效');
     assert.equal(
-      (await send('/auth/login', { name: '虚构只读', password: 'fictional-viewer-123' })).status,
+      (await send('/auth/login', { name: '虚构只读', password: 'Fictional-viewer-123' })).status,
       401,
     );
-    const viewer2 = cookieOf(
-      await send('/auth/login', { name: '虚构只读', password: 'fictional-viewer-456' }),
+    const viewer2 = cookieOf(await send('/auth/login', { name: '虚构只读', password: temporary }));
+    assert.equal((await send('/orders', undefined, viewer2)).status, 401, '临时密码要先改掉');
+    assert.equal(
+      (
+        await send(
+          '/auth/password',
+          { current: temporary, password: 'Fictional-viewer-456' },
+          viewer2,
+        )
+      ).status,
+      200,
     );
+    assert.equal((await send('/orders', undefined, viewer2)).status, 200, '改完就能用');
     assert.equal(
       (await send('/auth/users/' + viewerRow.id, { disabled: true }, admin, 'PUT')).status,
       200,
     );
     assert.equal((await send('/orders', undefined, viewer2)).status, 401, '停用后立即下线');
     assert.equal(
-      (await send('/auth/login', { name: '虚构只读', password: 'fictional-viewer-456' })).status,
+      (await send('/auth/login', { name: '虚构只读', password: 'Fictional-viewer-456' })).status,
       403,
     );
 
@@ -505,7 +516,7 @@ test('HTTP：未登录读取一律401；账号建立、改密、停用、只读�
       '不能停用最后一个管理员',
     );
     assert.equal(
-      (await send('/auth/password', { current: '错误密码', password: 'fictional-admin-456' }, admin))
+      (await send('/auth/password', { current: '错误密码', password: 'Fictional-admin-456' }, admin))
         .status,
       401,
     );
@@ -513,7 +524,7 @@ test('HTTP：未登录读取一律401；账号建立、改密、停用、只读�
       (
         await send(
           '/auth/password',
-          { current: 'fictional-admin-123', password: 'fictional-admin-456' },
+          { current: 'Fictional-admin-123', password: 'Fictional-admin-456' },
           admin,
         )
       ).status,

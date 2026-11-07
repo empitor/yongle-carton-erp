@@ -372,7 +372,7 @@ test('附件HTTP上传、查看、下载、删除、CSRF及匿名隔离实际联
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
         body: JSON.stringify({
           name: '虚构附件验收',
-          password: 'fictional-attachment-password-123',
+          password: 'Fictional-attachment-password-123',
         }),
       }),
       cookie = setup.headers.get('set-cookie')!.split(';')[0],

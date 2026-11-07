@@ -34,7 +34,7 @@ function setup(fetchImpl: typeof fetch = async () => assert.fail('不应尝试�
     credentials: () => ({ botId: 'fictional-bot', secret: 'fictional-secret' }),
     ingest: (input) => inbox.ingest(input), exists: (channel, id) => inbox.has(channel, id),
     WebSocketImpl: Socket as unknown as typeof WebSocket,
-    fetchImpl, checkHost: async () => {}, sleep: async () => {}, heartbeatMs: 25,
+    fetchImpl, checkHost: async () => '203.0.114.1', sleep: async () => {}, heartbeatMs: 25,
   });
   const text = (socket: Socket, id: string) => socket.frame({
     cmd: 'aibot_msg_callback', headers: { req_id: id },

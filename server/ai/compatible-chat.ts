@@ -1,4 +1,5 @@
 import { usageCollector } from './usage.js';
+import { dropModelPreamble, parseModelJson } from './model-retry.js';
 import type { AiProfile } from '../../shared/ai-settings.js';
 import { AiConnectionError, type AiResponseNote } from './connection-error.js';
 import { safeConnectionError, upstreamError } from './adapters.js';
@@ -203,7 +204,7 @@ export async function completeCompatible(
       throw new AiConnectionError('response', '模型输出包含敏感凭据，结果已丢弃。', 422);
     options.onTextDelta?.(pending);
     try {
-      const parsed = JSON.parse(content);
+      const parsed = parseModelJson(content, options.lenientJson);
       diagnostics.emit('complete');
       return parsed;
     } catch {
@@ -217,7 +218,7 @@ export async function completeCompatible(
               kind: 'protocol',
               text: '模型返回DSML控制文本，与当前JSON信封协议不兼容；未从文本提取或执行工具。',
             }
-          : note('invalid-json', content, key),
+          : note('invalid-json', dropModelPreamble(content), key),
       );
     }
   } catch (error) {

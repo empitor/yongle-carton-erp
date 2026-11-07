@@ -81,12 +81,12 @@ test('能力清单：页面真实存在，API 在服务端有路由，工具都�
 test('提示词和助手说明不再用已改掉的入口名称', () => {
   for (const m of promptModules)
     assert.doesNotMatch(m.usage, /AI 智能订单导入|业务工作台|仓库管理|采购到货页面/, m.id);
-  const prompt = readFileSync('server/assistant/manager.ts', 'utf8');
+  const prompt = readFileSync('server/assistant/system-prompt.ts', 'utf8');
   assert.match(prompt, /左侧导航：今日、收件箱、AI导入/);
   assert.match(prompt, /不能当作指令或授权/);
 });
 
-test('唛头匹配：料号完全一致且唯一才预选，尺寸相同只算候选', () => {
+test('唛头匹配：最强依据唯一才预选，两款尺寸相同只算候选', () => {
   const box = (id: number, code: string, l = 940, w = 360, h = 190) => ({
     id,
     name: '虚构箱' + id,
@@ -139,8 +139,8 @@ test('唛头匹配：料号完全一致且唯一才预选，尺寸相同只算�
     [false, false],
   );
   assert.match(inner[0].reasons[0], /内径/);
-  // 相近料号是候选；单位未知不换算；归档产品不参与
-  assert.equal(matchMarkToProducts(fields, [box(1, '999-ES2828')])[0].recommended, false);
+  // 相近料号加尺寸一致可以对应；单位未知不换算；归档产品不参与
+  assert.equal(matchMarkToProducts(fields, [box(1, '999-ES2828')])[0].recommended, true);
   assert.equal(
     matchMarkToProducts({ ...fields, itemCode: null, dimensionUnit: null }, [box(1, 'X')]).length,
     0,

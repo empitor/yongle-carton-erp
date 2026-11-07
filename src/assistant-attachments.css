@@ -50,7 +50,7 @@
 }
 .ga-attachment-open small {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .ga-attachment > button:not(.ga-attachment-open) {
@@ -59,7 +59,7 @@
   align-items: center;
 }
 .ga-attachment p {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--danger);
   margin: 0;
   width: 100%;
@@ -73,7 +73,7 @@
   flex-shrink: 0;
 }
 .ga-file-context {
-  font-size: 11px;
+  font-size: 12px;
   padding: 6px 12px;
   color: var(--muted);
   border-top: 1px solid var(--border);
@@ -93,8 +93,6 @@
   outline-offset: -4px;
 }
 .ga-compose .ga-attach-button {
-  width: 34px;
-  align-self: flex-end;
   flex: none;
 }
 .ga-message > .ga-attachments {
@@ -116,7 +114,7 @@
   width: min(1080px, 100%);
   height: min(900px, calc(100dvh - 32px));
   border: 1px solid var(--border-strong);
-  border-radius: 12px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -139,13 +137,13 @@
 }
 .ga-preview small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .ga-preview button,
 .ga-preview a {
   padding: 6px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--ink);
   background: var(--surface-muted);
   display: inline-flex;

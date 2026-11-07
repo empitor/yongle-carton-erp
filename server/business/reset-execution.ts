@@ -6,6 +6,15 @@ import { developmentResetSchema } from '../../shared/assistant-development-reset
 import { ImportError } from '../import/errors.js';
 import { audit } from './management.js';
 import { z } from 'zod';
+/** 只清业务不清财务会留下指向空单据的财务记录；助手又不能写财务，所以交回给页面。 */
+export function refuseWithFinanceData(store: Store) {
+  const rows = new DevelopmentResetService(store).financeRows();
+  if (rows)
+    throw new ImportError(
+      '财务里已有 ' + rows + ' 条记录，只清业务会留下对不上的财务数据。请到“系统维护”页面操作，那里会连财务一起清。',
+      409,
+    );
+}
 export function executeDevelopmentReset(
   store: Store,
   imports: ImportManager | undefined,
@@ -17,8 +26,9 @@ export function executeDevelopmentReset(
     clearClosedFinance:z.boolean().optional(),
     financeDigest:z.string().length(64).optional(),
   });
-  const v = schema.parse(raw),
-    clear = imports
+  const v = schema.parse(raw);
+  if (!includeFinance && v.scope !== 'ai-imports') refuseWithFinanceData(store);
+  const clear = imports
       ? () => {
           const r = imports.deleteAllWorkspaces(actor);
           if (r.failed.length) {

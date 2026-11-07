@@ -49,9 +49,11 @@ const businessTables = [
 export const financeResetTables = [
   'fin_report_snapshots','fin_budgets','fin_period_jobs','fin_cost_sales','fin_inventory_costs',
   'fin_payroll','fin_depreciation','fin_assets','fin_expenses','fin_invoice_links','fin_invoices',
-  'fin_attachments','fin_notes','fin_bank_matches','fin_bank_rows','fin_statements','fin_interest','fin_deposit_actions',
-  'fin_deposits','fin_installments','fin_allocations','fin_bad_debts','fin_cash_documents','fin_obligations',
+  'fin_attachments','fin_notes','fin_bank_matches','fin_bank_rows','fin_mapping_profiles','fin_statements','fin_interest','fin_deposit_actions',
+  'fin_deposits','fin_installments','fin_allocations','fin_bad_debts','fin_cash_documents','fin_cash_accounts','fin_obligations',
   'fin_source_observations','fin_entries','fin_vouchers','fin_events','fin_opening','fin_periods','fin_requests',
+  // 账期和税率按往来单位 ID 记。业务清空后新客户可能复用旧 ID，不清就会串到别人头上。
+  'fin_party_terms',
 ] as const;
 
 export class DevelopmentResetService {
@@ -87,6 +89,14 @@ export class DevelopmentResetService {
     );
   }
 
+  /** 财务里还有多少条记录。助手不做财务写入，有记录就不能替用户清空业务。 */
+  financeRows() {
+    return financeResetTables.reduce(
+      (n, name) =>
+        n + Number(this.store.db.prepare('SELECT count(*) AS n FROM "' + name + '"').get()!.n),
+      0,
+    );
+  }
   preview(scope: DevelopmentResetScope, who: Actor, clearClosedFinance = false, includeFinance = true) {
     requireLocalAdministrator(who);
     const tables=scope==='ai-imports'?[]:this.counts(includeFinance);

@@ -4,6 +4,7 @@ import { join, resolve, dirname } from 'node:path';
 import { z } from 'zod';
 import {
   analysisSchema,
+  tidyAnalysis,
   chatReplySchema,
   patchOperationSchema,
   lineFields,
@@ -24,6 +25,7 @@ import { storeOriginal, detectFormat } from './file-store.js';
 import type { parseUpload } from './parse-file.js';
 import type { AiProgress } from '../../shared/ai-runtime.js';
 import { ImportRepository } from './repository.js';
+import { retryBadModelOutput } from '../ai/model-retry.js';
 import { ImportError } from './errors.js';
 import type { Actor } from '../auth.js';
 import {
@@ -722,7 +724,7 @@ export class ImportManager {
           error:
             e instanceof ImportError || e instanceof AiConnectionError
               ? e.message
-              : 'AI响应结构或处理结果不符合约定，未修改草稿。请重试或检查模型。',
+              : '模型连续两次没有返回可用结果，原草稿没有变化。可以再试一次，或换一个模型。',
           failureId,
           ...(!controller.signal.aborted && !failureId
             ? { diagnosticStorageError: '错误档案写入失败，请检查磁盘空间和目录权限。' }
@@ -771,17 +773,21 @@ export class ImportManager {
         const profile = await this.external(w);
         attempt.stage = 'preparing-file';
         const prompt = this.promptPresets.snapshot();
+        const source = await this.sourceMessage(w);
+        const result = await retryBadModelOutput(async () => {
+        attempt.stage = 'recognizing';
         const response = await this.options.settings.completeOrderJson(
           [
             {
               role: 'system',
               content: analysisPrompt(prompt.preset),
             },
-            await this.sourceMessage(w),
+            source,
           ],
           profile,
           this.busy.get(id)?.signal,
           {
+            lenientJson: true,
             stream: profile.apiStyle === 'responses' && stream,
             onUsage,
             ...(officialDeepSeekEndpoint(profile.endpoint)
@@ -796,13 +802,15 @@ export class ImportManager {
           },
         );
         attempt.stage = 'schema-validation';
-        const result = analysisSchema.parse(response);
-        if (!result.lines.some((l) => l.productName.value || l.quantity.value || l.unitPrice.value))
+        const parsed = analysisSchema.parse(tidyAnalysis(response));
+        if (!parsed.lines.some((l) => l.productName.value || l.quantity.value || l.unitPrice.value))
           throw new ImportError(
             '没有识别到可用订单明细，请核对原文件、模型和文件输入能力。',
             422,
             'model-schema',
           );
+        return parsed;
+        }, this.busy.get(id)?.signal);
         for (const field of [
           ...Object.values(result.header),
           ...result.lines.flatMap((l) => Object.values(l)),
@@ -811,10 +819,8 @@ export class ImportManager {
             throw new ImportError('AI不得伪造人工修改状态。', 422, 'model-schema');
           // 原件级来源由后端UUID/哈希绑定；不依赖OCR文本或模型编造的本地来源编号。
           field.sources = [];
-          if (field.value !== null) {
-            field.certainty = 'needs-review';
+          if (field.value !== null && field.certainty === 'needs-review')
             field.note = (field.note + '；请对照原文件人工核对').slice(0, 600);
-          }
         }
         if (this.busy.get(id)?.signal.aborted)
           throw new ImportError('任务已取消。', 409, 'cancelled');

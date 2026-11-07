@@ -1,3 +1,4 @@
+import { MarkImportService } from './marks/mark-import.js';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import helmet from 'helmet';
 import { forwardedClient, hasProxyHeaders, proxyIngress, type Deployment } from './deployment.js';
@@ -5,8 +6,8 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { z, ZodError } from 'zod';
 import { pageRows } from './paging.js';
-import { autoBackupFailure } from './backup.js';
-import { dateSchema, statuses, today, type Order } from '../shared/domain.js';
+import { autoBackupFailure, snapshotBeforeDestructive } from './backup.js';
+import { dateSchema, displayOrderStatuses, orderDisplayStatus, today, type Order } from '../shared/domain.js';
 import { Store, ConflictError, InputError } from './db.js';
 import { createBusinessService, BusinessAccessError, NotFoundError } from './business/service.js';
 import { getBusinessMetadata } from './business/metadata.js';
@@ -57,7 +58,7 @@ function filters(req: Request, rows: Order[]) {
       productId: z.coerce.number().int().positive().optional(),
       start: dateSchema.optional(),
       end: dateSchema.optional(),
-      status: z.enum(statuses).optional(),
+      status: z.enum(displayOrderStatuses).optional(),
       q: z.string().max(200).optional(),
       view: z.enum(['current', 'pending', 'history']).optional(),
       retainPending: z.enum(['1', '0']).optional(),
@@ -74,7 +75,7 @@ function filters(req: Request, rows: Order[]) {
         end: f.end,
         retainPending: f.retainPending === '1',
       }) &&
-      (!f.status || o.status === f.status) &&
+      (!f.status || orderDisplayStatus(o) === f.status) &&
       (!f.q ||
         [o.number, o.customerName, ...o.lines.map((l) => l.productName)]
           .join(' ')
@@ -118,7 +119,16 @@ export function createApp(
       throw new ImportError('页面凭证已过期，请刷新。', 403);
     const elevated = isSuperMode(actor);
     const id = 'id' in command ? Number(command.id) : null,
-      before = id ? store[command.entity](elevated).find((r) => r.id === id) : null;
+      before = id
+        ? command.entity === 'customers'
+          ? store.customer(id, elevated)
+          : command.entity === 'products'
+            ? store.product(id, elevated)
+            : store.order(id, elevated)
+        : null;
+    // 管理员改订单可能连带改写或删除已确认单据；开了 SAVEPOINT 就拍不了快照，要在这之前。
+    if (elevated && command.entity === 'orders' && command.action === 'update')
+      snapshotBeforeDestructive(store, 'order-maintenance-edit');
     store.db.exec('SAVEPOINT manual_business');
     try {
       const result = business.execute(command, {
@@ -338,6 +348,10 @@ export function createApp(
         fileURLToPath(new URL('../data/import-archive/', import.meta.url)),
     );
     options.assistant?.connectImports(options.imports, execution);
+    options.assistant?.connectExtras({
+      ...(options.markAi ? { marks: new MarkImportService(options.imports, options.markAi) } : {}),
+      ...(options.receiptAi ? { receiptAi: options.receiptAi } : {}),
+    });
     for (const action of ['preview', 'execute', 'undo-import'] as const)
       app.post('/api/ai/imports/:id/' + action, async (req, res, next) => {
         try {
@@ -358,6 +372,12 @@ export function createApp(
         }
       });
   }
+  /** 识别要花钱、工作区里是客户文件，写操作都要业务编辑权限；读取放开。 */
+  const writeGuard = (req: Request, _res: Response, next: NextFunction) => {
+    if (options.auth && req.method !== 'GET')
+      requirePermission(options.auth.actor(req), 'business:edit');
+    next();
+  };
   for (const entity of ['customers', 'products', 'orders'] as const) {
     app.post('/api/' + entity + '/batch', (req, res, next) => {
       try {
@@ -372,6 +392,7 @@ export function createApp(
   if (options.imports)
     app.use(
       '/api/ai/prompts',
+      writeGuard,
       promptSettingsRouter(options.imports.promptPresets, options.imports.csrfToken),
     );
   if (options.imports)
@@ -384,10 +405,23 @@ export function createApp(
       res.set('Cache-Control', 'no-store');
       res.json(standardOrderDraft(store, options.imports!.get(String(req.params.id))));
     });
-  app.use('/api/ai/settings', aiSettingsRouter(options.aiSettings || new AiSettingsManager()));
+  // 模型配置关系到密钥和对外发送，只有管理员能改；读取放开，聊天和识别要用。
+  app.use(
+    '/api/ai/settings',
+    (req, res, next) => {
+      if (options.auth && req.method !== 'GET' && options.auth.actor(req)?.role !== 'super_admin')
+        return res.status(403).json({
+          message: '只有管理员可以修改 AI 设置。',
+          error: { code: 'permission', message: '只有管理员可以修改 AI 设置。' },
+        });
+      next();
+    },
+    aiSettingsRouter(options.aiSettings || new AiSettingsManager()),
+  );
   if (options.imports)
     app.use(
       '/api/ai/imports',
+      writeGuard,
       importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, options.markAi),
     );
   for (const entity of ['customers', 'products'] as const) {
@@ -397,9 +431,10 @@ export function createApp(
         .max(200)
         .parse(req.query.q || '')
         .toLowerCase();
+      const archivedIds = store.archivedIds(entity);
       const scoped = store[entity](includeArchived(req))
-        .filter((x) => req.query.archived !== '1' || store.archived(entity, x.id))
-        .map((row) => ({ ...row, archived: store.archived(entity, row.id) }));
+        .filter((x) => req.query.archived !== '1' || archivedIds.has(x.id))
+        .map((row) => ({ ...row, archived: archivedIds.has(row.id) }));
       if (req.query.withMetrics === '1') {
         const matched = scoped.filter((row) =>
           entity === 'products'

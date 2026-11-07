@@ -28,6 +28,7 @@ import {
   usePeriod,
   useTab,
   yuan,
+  useParties,
 } from './kit';
 
 const tabs = [
@@ -46,8 +47,66 @@ const voucherStates = [
   ['void', '已作废'],
 ] as const;
 
-type Line = { accountCode: string; description: string; debit: string; credit: string; cashFlow: string };
-const blank = (): Line => ({ accountCode: '', description: '', debit: '', credit: '', cashFlow: '' });
+type Line = {
+  accountCode: string;
+  description: string;
+  debit: string;
+  credit: string;
+  cashFlow: string;
+  auxId: string;
+  auxName: string;
+};
+const auxLabels: Record<string, string> = {
+  customer: '客户',
+  supplier: '供应商',
+  department: '部门',
+  employee: '员工',
+  project: '项目',
+};
+/** 科目要求辅助核算时才要填。客户和供应商从档案选，其他照填名称。 */
+function AuxiliaryCell({
+  kind,
+  line,
+  label,
+  onChange,
+}: {
+  kind: string;
+  line: Line;
+  label: string;
+  onChange: (patch: Partial<Line>) => void;
+}) {
+  const party = kind === 'customer' || kind === 'supplier' ? kind : null;
+  const options = useParties(party);
+  if (party)
+    return (
+      <Combobox
+        ariaLabel={label}
+        placeholder={'选择' + auxLabels[kind]}
+        value={line.auxId}
+        options={options}
+        onChange={(v) =>
+          onChange({ auxId: v, auxName: options.find((o) => o.value === v)?.label || '' })
+        }
+      />
+    );
+  return (
+    <input
+      aria-label={label}
+      placeholder={auxLabels[kind]}
+      value={line.auxName}
+      onChange={(e) => onChange({ auxId: e.target.value.trim(), auxName: e.target.value })}
+    />
+  );
+};
+const blank = (): Line => ({
+  accountCode: '',
+  description: '',
+  debit: '',
+  credit: '',
+  cashFlow: '',
+  auxId: '',
+  auxName: '',
+});
 
 function VoucherEditor({ voucher, close, saved }: { voucher?: any; close: () => void; saved: (id: number) => void }) {
   const accounts = useFin<any[]>('/accounts');
@@ -55,6 +114,9 @@ function VoucherEditor({ voucher, close, saved }: { voucher?: any; close: () => 
     .filter((a) => a.leaf && a.enabled)
     .map((a) => ({ value: String(a.code), label: a.code + ' ' + a.name, keywords: a.name }));
   const cashCodes = new Set((accounts.data || []).filter((a) => a.cash_kind).map((a) => String(a.code)));
+  const auxKinds = new Map(
+    (accounts.data || []).filter((a) => a.auxiliary).map((a) => [String(a.code), String(a.auxiliary)]),
+  );
   const [date, setDate] = useState(voucher?.header.date || todayText());
   const [description, setDescription] = useState(voucher?.header.description || '');
   const [attachmentCount, setAttachmentCount] = useState(String(voucher?.header.attachment_count ?? 0));
@@ -66,6 +128,8 @@ function VoucherEditor({ voucher, close, saved }: { voucher?: any; close: () => 
           debit: e.debit ? yuan(e.debit).replace(/,/g, '') : '',
           credit: e.credit ? yuan(e.credit).replace(/,/g, '') : '',
           cashFlow: e.cash_flow || '',
+          auxId: e.auxiliary_id ? String(e.auxiliary_id) : '',
+          auxName: e.auxiliary_name || '',
         }))
       : [blank(), blank()],
   );
@@ -83,14 +147,19 @@ function VoucherEditor({ voucher, close, saved }: { voucher?: any; close: () => 
   const balanced = total('debit') === total('credit') && total('debit') > 0;
   const submit = () =>
     action.run(async () => {
-      const entries = lines.map((l) => ({
-        accountCode: l.accountCode,
-        description: l.description,
-        debit: l.debit.trim() ? toCents(l.debit) : 0,
-        credit: l.credit.trim() ? toCents(l.credit) : 0,
-        auxiliary: null,
-        cashFlow: l.cashFlow || null,
-      }));
+      const entries = lines.map((l, i) => {
+        const kind = auxKinds.get(l.accountCode);
+        if (kind && !l.auxName.trim())
+          throw new Error('第 ' + (i + 1) + ' 行的科目要填' + auxLabels[kind] + '。');
+        return {
+          accountCode: l.accountCode,
+          description: l.description,
+          debit: l.debit.trim() ? toCents(l.debit) : 0,
+          credit: l.credit.trim() ? toCents(l.credit) : 0,
+          auxiliary: kind ? { kind, id: l.auxId, name: l.auxName.trim() } : null,
+          cashFlow: l.cashFlow || null,
+        };
+      });
       const body = { date, description, attachmentCount: Number(attachmentCount) || 0, entries };
       const result = voucher
         ? await finSend('PUT', '/vouchers/' + voucher.header.id, { ...body, version: voucher.header.version })
@@ -125,6 +194,7 @@ function VoucherEditor({ voucher, close, saved }: { voucher?: any; close: () => 
             <thead>
               <tr>
                 <th>科目</th>
+                <th>辅助项</th>
                 <th>摘要</th>
                 <th>借方 / 元</th>
                 <th>贷方 / 元</th>
@@ -140,8 +210,27 @@ function VoucherEditor({ voucher, close, saved }: { voucher?: any; close: () => 
                       ariaLabel={'第 ' + (i + 1) + ' 行科目'}
                       value={l.accountCode}
                       options={options}
-                      onChange={(v) => update(i, { accountCode: v })}
+                      onChange={(v) =>
+                        update(
+                          i,
+                          auxKinds.get(v) === auxKinds.get(l.accountCode)
+                            ? { accountCode: v }
+                            : { accountCode: v, auxId: '', auxName: '' },
+                        )
+                      }
                     />
+                  </td>
+                  <td>
+                    {auxKinds.get(l.accountCode) ? (
+                      <AuxiliaryCell
+                        kind={auxKinds.get(l.accountCode)!}
+                        line={l}
+                        label={'第 ' + (i + 1) + ' 行辅助项'}
+                        onChange={(patch) => update(i, patch)}
+                      />
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td>
                     <input

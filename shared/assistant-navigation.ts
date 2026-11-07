@@ -2,6 +2,8 @@ export const assistantManagementHash = '#ai-settings?tab=tools';
 export function normalizeAiSettingsHash(hash: string) {
   const [page, query = ''] = hash.split('?');
   const params = new URLSearchParams(query);
+  // 账号管理原来是设置里的页签，旧链接转到新页面。
+  if (page === '#ai-settings' && params.get('tab') === 'accounts') return '#accounts';
   if (page === '#document-templates') {
     params.set('tab', 'templates');
     return '#ai-settings?' + params.toString();
@@ -49,6 +51,7 @@ export const erpPages = {
   inbox: '收件箱',
   'ai-import': 'AI 导入（AI智能订单导入）',
   'ai-settings': '设置（AI设置）',
+  accounts: '账号管理（建账号、审批申请、重置密码）',
   trash: '归档',
   guide: '使用说明',
   arrivals: '到货',

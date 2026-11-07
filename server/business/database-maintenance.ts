@@ -163,6 +163,13 @@ export class DatabaseMaintenanceService {
             row.id,
           );
         else {
+          for (const m of db
+            .prepare("SELECT * FROM stock_movements WHERE source_kind='purchase_receipt' AND source_id=?")
+            .all(row.id))
+            recordMovementRevision(this.store, actor, '解除采购关联', m, {
+              source_kind: 'database-maintenance',
+              source_id: null,
+            });
           db.prepare(
             "UPDATE stock_movements SET source_kind='database-maintenance',source_id=NULL WHERE source_kind='purchase_receipt' AND source_id=?",
           ).run(row.id);
@@ -171,6 +178,8 @@ export class DatabaseMaintenanceService {
       }
     }
     for (const id of lineIds) {
+      for (const m of db.prepare('SELECT * FROM stock_movements WHERE purchase_line_id=?').all(id))
+        recordMovementRevision(this.store, actor, '解除采购关联', m, { purchase_line_id: null });
       db.prepare('UPDATE stock_movements SET purchase_line_id=NULL WHERE purchase_line_id=?').run(
         id,
       );
@@ -213,10 +222,18 @@ export class DatabaseMaintenanceService {
       const group = movements.filter((m) => m.item_id === stock),
         total = group.reduce((n, m) => n + Number(m.delta_units), 0),
         target = expected.get(stock) || 0,
-        first = group[0];
+        first = group[0],
+        orderId = lines.find((l: any) => l.stockId === stock)?.orderId || null;
       for (const m of group) {
-        if (total !== target)
-          recordMovementRevision(this.store, actor, '调整送货单 ' + d.number, m, null);
+        // 数量没变也可能是几条并成一条，或者换了关联订单，都算改写。
+        if (total !== target || group.length > 1 || m.customer_order_id !== orderId)
+          recordMovementRevision(
+            this.store,
+            actor,
+            '调整送货单 ' + d.number,
+            m,
+            m === first && target ? { delta_units: target, customer_order_id: orderId } : null,
+          );
         db.prepare('DELETE FROM stock_movements WHERE id=?').run(m.id);
       }
       const insert = (id: string, delta: number, source: string, orderId: any) =>
@@ -240,12 +257,7 @@ export class DatabaseMaintenanceService {
             first.created_at,
           );
       if (target)
-        insert(
-          String(first.id),
-          target,
-          'flow_delivery',
-          lines.find((l: any) => l.stockId === stock)?.orderId || null,
-        );
+        insert(String(first.id), target, 'flow_delivery', orderId);
       if (total - target) {
         const id = randomUUID();
         insert(id, total - target, 'database-maintenance', null);
@@ -262,8 +274,10 @@ export class DatabaseMaintenanceService {
   alignOrder(before: any, after: any, actor: Actor) {
     const flow = new FlowService(this.store),
       db = this.store.db;
+    let detachedTask = false;
     for (const task of flow.list('task', true).filter((t) => t.orderIds.includes(after.id)))
       if (!after.lines.some((l: any) => l.productId === task.productId)) {
+        detachedTask = true;
         db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(
           JSON.stringify({
             ...task,
@@ -305,17 +319,31 @@ export class DatabaseMaintenanceService {
           );
           db.prepare('UPDATE flow_documents SET status=?,document=? WHERE id=?').run(
             d.status,
-            JSON.stringify({ ...created, customerName: after.customerName }),
+            JSON.stringify({
+              ...created,
+              customerName: after.customerName,
+              // 新单据经过草稿校验会丢字段，已确认单据的明细快照要原样留着。
+              lines: created.lines.map((l: any, i: number) => ({ ...l, ...affected[i] })),
+            }),
             created.id,
           );
-          for (const movementId of detached)
+          for (const movementId of detached) {
+            const moved = db.prepare('SELECT * FROM stock_movements WHERE id=?').get(movementId);
+            if (moved)
+              recordMovementRevision(this.store, actor, '拆分送货单 ' + d.number, moved, {
+                source_kind: 'flow_delivery',
+                source_id: String(created.id),
+                customer_order_id: after.id,
+              });
             db.prepare(
               "UPDATE stock_movements SET source_kind='flow_delivery',source_id=?,customer_order_id=? WHERE id=?",
             ).run(String(created.id), after.id, movementId);
+          }
           flow.maintenanceReferences(created.id);
         }
       }
     if (
+      detachedTask ||
       this.store.db.prepare('SELECT 1 FROM flow_refs WHERE order_id=?').get(after.id) ||
       before.lines.some((l: any) => l.shippedQuantity > 0)
     )
@@ -606,6 +634,8 @@ export class DatabaseMaintenanceService {
       for (const { table, row, value } of p.updates) {
         const fields = Object.keys(value);
         if (!fields.length) continue;
+        if (table === 'stock_movements')
+          recordMovementRevision(this.store, actor, '关联记录删除后保留库存', row, value);
         this.store.db
           .prepare(
             'UPDATE ' +
@@ -665,6 +695,13 @@ export class DatabaseMaintenanceService {
           recordMovementRevision(this.store, actor, '随关联记录物理删除', row, null);
         this.store.db.prepare('DELETE FROM ' + quote(table) + ' WHERE rowid=?').run(row.__rowid);
       }
+      // 完工单不直接挂订单，要从它的生产任务找回去。
+      const taskOrderIds = (taskId: number) => {
+        const task = this.store.db
+          .prepare("SELECT document FROM flow_documents WHERE id=? AND kind='task'")
+          .get(taskId);
+        return task ? JSON.parse(String(task.document)).orderIds || [] : [];
+      };
       const orderIds = [...p.deletions, ...p.updates]
         .filter((r) => r.table === 'flow_documents')
         .flatMap((r) => {
@@ -673,7 +710,9 @@ export class DatabaseMaintenanceService {
             ? d.orderIds
             : r.row.kind === 'delivery'
               ? d.lines.map((l: any) => l.orderId)
-              : [];
+              : r.row.kind === 'production' && d.taskId
+                ? taskOrderIds(d.taskId)
+                : [];
         });
       this.recompute(orderIds);
       if (this.store.db.prepare('PRAGMA foreign_key_check').all().length)

@@ -149,7 +149,7 @@ test('恢复任务和协议诊断HTTP按真实账号隔离，切换需CSRF且刷
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构恢复HTTP', password: 'fictional-recovery-http-123' }),
+      body: JSON.stringify({ name: '虚构恢复HTTP', password: 'Fictional-recovery-http-123' }),
     });
     const owner = (await setup.json()).actor,
       headers = {

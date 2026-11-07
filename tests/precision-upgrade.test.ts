@@ -101,7 +101,7 @@ test('核对账号加盐哈希存储、Cookie会话、重启需重登，业务�
     let r = await fetch(url + '/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构测试管理员', password: 'fictional-password-12345' }),
+      body: JSON.stringify({ name: '虚构测试管理员', password: 'Fictional-password-12345' }),
     });
     assert.equal(r.status, 200);
     const cookie = r.headers.get('set-cookie')!;
@@ -120,13 +120,13 @@ test('核对账号加盐哈希存储、Cookie会话、重启需重登，业务�
     r = await fetch(url + '/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '另一个管理员', password: 'fictional-password-12345' }),
+      body: JSON.stringify({ name: '另一个管理员', password: 'Fictional-password-12345' }),
     });
     assert.equal(r.status, 409);
     r = await fetch(url + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构测试管理员', password: 'wrong-password-12345' }),
+      body: JSON.stringify({ name: '虚构测试管理员', password: 'Wrong-password-12345' }),
     });
     assert.equal(r.status, 401);
   } finally {

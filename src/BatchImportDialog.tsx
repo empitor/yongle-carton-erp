@@ -75,7 +75,7 @@ export default function BatchImportDialog({
                 </p>
                 <p>
                   税费：{r.preview.plan.order.taxRate || '未明确'}{' '}
-                  {r.preview.plan.order.taxMode || ''} · 结算 {r.preview.plan.order.roundingPolicy}
+                  {r.preview.plan.order.taxMode || ''} · {r.preview.plan.order.roundingPolicy === 'half-up-cent' ? '整单四舍五入到分' : '精确到分'}
                 </p>
                 <div className="table-wrap">
                   <table className="flow-table">

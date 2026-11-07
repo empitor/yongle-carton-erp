@@ -461,7 +461,7 @@ test('双模式HTTP桥接：流式完整结果持久恢复、关联鉴权/来源
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
       body: JSON.stringify({
         name: '双模式虚构验收',
-        password: 'fictional-warehouse-password-123',
+        password: 'Fictional-warehouse-password-123',
       }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];

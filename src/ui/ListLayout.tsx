@@ -59,6 +59,8 @@ export function ListFilters({
   note?: ReactNode;
   busy?: boolean;
 }) {
+  // 手机上筛选默认收起，先看到数据。
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const reset = (
     <button className="filter-reset" onClick={onReset}>
       <RotateCcw size={14} aria-hidden="true" />
@@ -66,7 +68,10 @@ export function ListFilters({
     </button>
   );
   return (
-    <section className="list-filters" aria-label="列表筛选">
+    <section
+      className={'list-filters collapsible' + (filtersOpen ? ' filters-open' : '')}
+      aria-label="列表筛选"
+    >
       <div className="list-filters-primary">
         <label className="list-search">
           <span>关键词</span>
@@ -80,6 +85,16 @@ export function ListFilters({
             />
           </div>
         </label>
+        {(children || dates) && (
+          <button
+            type="button"
+            className="list-filter-toggle"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((v) => !v)}
+          >
+            {filtersOpen ? '收起筛选' : '筛选'}
+          </button>
+        )}
         {children}
         {!dates && reset}
       </div>

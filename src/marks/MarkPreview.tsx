@@ -36,15 +36,21 @@ export default function MarkPreview({
   url,
   page = 0,
   alt = '唛头预览',
+  pager = false,
 }: {
   url: string;
   page?: number;
   alt?: string;
+  /** 大预览里可以翻看整份文件的每一页 */
+  pager?: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null),
     box = useRef<HTMLDivElement>(null);
   const [kind, setKind] = useState<'pdf' | 'image' | ''>(''),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [current, setCurrent] = useState(Math.max(page, 1)),
+    [pages, setPages] = useState(0);
+  useEffect(() => setCurrent(Math.max(page, 1)), [page]);
   useEffect(() => {
     let live = true,
       render: any;
@@ -55,7 +61,8 @@ export default function MarkPreview({
         if (!live) return;
         setKind(file.kind);
         if (file.kind !== 'pdf') return;
-        const pdfPage = await file.doc.getPage(Math.min(Math.max(page, 1), file.doc.numPages));
+        setPages(file.doc.numPages);
+        const pdfPage = await file.doc.getPage(Math.min(current, file.doc.numPages));
         const target = canvas.current;
         if (!live || !target) return;
         const width = box.current?.clientWidth || 320;
@@ -76,7 +83,7 @@ export default function MarkPreview({
       live = false;
       render?.cancel();
     };
-  }, [url, page]);
+  }, [url, current]);
   return (
     <div className="mark-preview" ref={box}>
       {error ? (
@@ -85,6 +92,19 @@ export default function MarkPreview({
         <img src={url} alt={alt} />
       ) : (
         <canvas ref={canvas} aria-label={alt} />
+      )}
+      {pager && pages > 1 && (
+        <div className="mark-pager">
+          <button disabled={current <= 1} onClick={() => setCurrent((p) => p - 1)}>
+            上一页
+          </button>
+          <span>
+            {current} / {pages}
+          </span>
+          <button disabled={current >= pages} onClick={() => setCurrent((p) => p + 1)}>
+            下一页
+          </button>
+        </div>
       )}
     </div>
   );

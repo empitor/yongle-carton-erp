@@ -1,7 +1,7 @@
 import { DatabaseSync, backup } from 'node:sqlite';
 import { copyFileSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { defaultDbPath } from './db.js';
 import { acquireLock } from './lock.js';
 import { AuthManager } from './auth.js';
@@ -97,9 +97,8 @@ try {
     if (!name) throw new Error('用法：npm run reset-password -- "用户名"');
     const auth = new AuthManager(join(dirname(defaultDbPath), 'security', 'users.sqlite'));
     try {
-      const password = randomBytes(12).toString('base64url');
-      auth.resetPassword(name, password);
-      console.log('临时密码（只显示这一次）：' + password + '\n登录后请在账号菜单修改密码。');
+      const password = auth.resetPassword(name);
+      console.log('临时密码（只显示这一次，24 小时内有效）：' + password + '\n登录后必须先改密码才能使用系统。');
     } finally {
       auth.close();
     }

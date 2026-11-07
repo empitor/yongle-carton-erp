@@ -826,7 +826,7 @@ test('真实HTTP交付需登录与CSRF，文件完整返回且完整交付回执
         Origin: allowedOrigin,
         'x-erp-auth-token': auth.csrf,
       },
-      body: JSON.stringify({ name: '虚构导出管理员', password: 'fictional-export-pass-123' }),
+      body: JSON.stringify({ name: '虚构导出管理员', password: 'Fictional-export-pass-123' }),
     });
     assert.equal(setupResponse.status, 200, await setupResponse.clone().text());
     const cookie = setupResponse.headers.get('set-cookie')!.split(';')[0];

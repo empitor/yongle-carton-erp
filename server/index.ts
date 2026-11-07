@@ -15,6 +15,7 @@ import { createPromptManagers } from './ai/recognition-modules.js';
 import { findImport } from './business/import-execution.js';
 import { MarkAi } from './marks/mark-ai.js';
 import { ReceiptAi } from './flow/receipt-ai.js';
+import { FlowService } from './flow/service.js';
 import { defaultAssistantToolsPath } from './assistant/tool-registry.js';
 import { AssistantManager } from './assistant/manager.js';
 import { localDevelopmentEnabled } from './developer-capability.js';
@@ -38,6 +39,14 @@ process.on('exit', unlock);
 const snapshot = snapshotBeforeUpgrade(defaultDbPath);
 if (snapshot) console.log('已生成升级前业务库快照：', snapshot);
 const store = new Store();
+// 0.8.0 改了“待发货”的判断（做够订单数量才算）。老订单要等下次有单据才重算，
+// 所以第一次启动时按新规则全部重算一次；只改状态变了的，跑过就不再跑。失败不挡启动，下次再试。
+try {
+  const changed = new FlowService(store).recomputeOrderStatusesOnce('produced-enough-2026-11-07');
+  if (changed) console.log('已按新规则核对订单状态，有 ' + changed.length + ' 张订单的状态更新。');
+} catch (error) {
+  console.warn('订单状态重算没有完成，下次启动会再试：' + (error as Error).message);
+}
 const auth = new AuthManager(join(dirname(defaultDbPath), 'security', 'users.sqlite'), Date.now, {
   localDevelopment: localDevelopmentEnabled(),
   localAdministration: true,
@@ -144,6 +153,16 @@ try {
   await shutdown(false).finally(() => control.close());
   process.exit(1);
 }
+assistant.connectExtras({
+  backup: {
+    dataDir: dirname(defaultDbPath),
+    backupRoot: resolve('backups'),
+    extraFiles: {
+      'ai-settings.sqlite': defaultAiSettingsPath(),
+      'wecom-bot.sqlite': defaultWecomBotPath(),
+    },
+  },
+});
 stopBackup = scheduleDailyBackup({
   dataDir: dirname(defaultDbPath),
   backupRoot: resolve('backups'),

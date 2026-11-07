@@ -3,7 +3,8 @@ import { MarkService } from '../marks/service.js';
 import { FlowService } from '../flow/service.js';
 import { WarehouseDaily } from '../flow/daily.js';
 import { OperationsRepository } from '../operations/repository.js';
-import { sumMoney } from '../../shared/operations.js';
+import { quantityUnits, sumMoney } from '../../shared/operations.js';
+import { orderDisplayStatus } from '../../shared/domain.js';
 
 /** 工作台只读取原服务的有效记录；计划、实物及不同单位分别统计。 */
 export function buildWorkbench(store: Store, date: string) {
@@ -67,7 +68,7 @@ export function buildToday(store: Store, date: string) {
     number: o.number,
     customerName: o.customerName,
     deliveryDate: o.deliveryDate,
-    status: o.status,
+    status: orderDisplayStatus(o),
     shippingProgress: o.shippingProgress,
     materialProgress: o.materialProgress,
     summary: lineSummary(o.lines.map((l) => l.productName)),
@@ -76,18 +77,41 @@ export function buildToday(store: Store, date: string) {
   const active = orders.filter((o) => ['已确认', '生产中', '待发货'].includes(o.status)),
     overdue = active.filter((o) => o.deliveryDate < date),
     overdueIds = new Set(overdue.map((o) => o.id));
-  // 未发完的明细没有任何进行中或已完工的任务，就算未排产。
-  const unscheduled = active.filter(
-    (o) =>
-      o.status !== '待发货' &&
-      o.lines.some(
-        (l) =>
-          (l.remainingQuantity === null || (l.remainingQuantity ?? 0) > 0) &&
-          !tasks.some(
-            (t) => activeTask(t) && t.productId === l.productId && t.orderIds.includes(o.id),
-          ),
-      ),
-  );
+  const finished = repo.items().filter((i) => i.kind === 'finished');
+  const stockOf = (l: { productId: number; unit: string }) =>
+    finished
+      .filter((i) => i.productId === l.productId && i.unit === l.unit)
+      .reduce((n, i) => n + Math.max(0, Number(i.availableUnits) || 0), 0);
+  const stillOpen = (l: { remainingQuantity?: number | null }) =>
+    l.remainingQuantity === null || (l.remainingQuantity ?? 0) > 0;
+  // 分批做的订单只要有货就能先发一批，不用等全部做完。
+  const canShip = (o: (typeof orders)[number]) =>
+    o.lines.some((l) => stillOpen(l) && stockOf(l as any) > 0);
+  /**
+   * 这一行要不要提醒排产。订单状态已经按“做够没有”算好了：还没做够、
+   * 又没有正在做的同单位任务，就要接着排。单位不同的任务不算这张单的生产。
+   */
+  const unplanned = (o: (typeof orders)[number], l: (typeof orders)[number]['lines'][number]) => {
+    if (!stillOpen(l)) return false;
+    const own = tasks.filter(
+      (t) =>
+        activeTask(t) &&
+        t.productId === l.productId &&
+        t.unit === l.unit &&
+        t.orderIds.includes(o.id),
+    );
+    const working = own.some(
+      (t) => t.status === 'draft' || quantityUnits(t.completed || '0') < quantityUnits(t.quantity),
+    );
+    if (working) return false;
+    if (o.status === '待发货') {
+      // 做够了的不用再排；从库存发了一批、没有任务的，要看库存够不够剩下的。
+      if (own.length || o.shippingProgress !== '部分发货' || l.remainingQuantity == null) return false;
+      return Math.round(l.remainingQuantity * 1000) > stockOf(l as any);
+    }
+    return true;
+  };
+  const unscheduled = active.filter((o) => o.lines.some((l) => unplanned(o, l)));
   const byDate = (a: string, b: string) => a.localeCompare(b);
   const purchaseView = (p: any) => ({
     id: p.id,
@@ -120,7 +144,7 @@ export function buildToday(store: Store, date: string) {
       .map(view)
       .sort((a, b) => byDate(a.deliveryDate, b.deliveryDate)),
     ready: active
-      .filter((o) => o.status === '待发货' && !overdueIds.has(o.id))
+      .filter((o) => (o.status === '待发货' || canShip(o)) && !overdueIds.has(o.id))
       .map(view)
       .sort((a, b) => byDate(a.deliveryDate, b.deliveryDate)),
     toOrder: purchases.filter((p) => p.businessStatus === '待订货').map(purchaseView),

@@ -42,6 +42,6 @@ export function formatZodIssues(error: ZodError, prefix = '字段不完整或不
     '：' +
     labels.slice(0, 8).join('、') +
     (labels.length > 8 ? '等字段' : '') +
-    '。请核对原文件后重新识别或人工补录。'
+    '。请核对内容后重试或人工补录。'
   );
 }

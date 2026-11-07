@@ -19,7 +19,7 @@ import { blankField } from '../shared/order-draft.js';
 import { docxFixture } from './import-fixtures.js';
 import BusinessRecords from '../src/BusinessRecords.js';
 import RecordDetails from '../src/RecordDetails.js';
-const password = 'fictional-admin-password-123';
+const password = 'Fictional-admin-password-123';
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-super-')),
     file = join(dir, 'erp.sqlite'),
@@ -278,7 +278,7 @@ test('各权限层级、密码验证、CSRF、会话绑定和模式超时由后�
     assert.equal((await f.admin.enter()).status, 403);
     assert.equal((await f.owner.request('/customers?archived=all')).status, 403);
     assert.equal(
-      (await f.owner.request('/auth/super-admin/enter', { password: 'wrong-password' })).status,
+      (await f.owner.request('/auth/super-admin/enter', { password: 'Wrong-password' })).status,
       401,
     );
     assert.equal(
@@ -400,7 +400,7 @@ test('永久删除关联默认拦截，展示整张订单影响；显式确认�
     assert.equal(f.store.customers().length, 1);
     const p = await f.preview(f.owner, 'customers', [f.customer], true);
     assert.deepEqual(p.data.plan.counts, { customers: 1, products: 0, orders: 1, lines: 1 });
-    assert.equal((await f.execute(f.owner, p.data.id, { password: 'incorrect' })).status, 401);
+    assert.equal((await f.execute(f.owner, p.data.id, { password: 'Incorrect' })).status, 401);
     assert.equal((await f.execute(f.owner, p.data.id, { acknowledged: false })).status, 400);
     assert.equal((await f.execute(f.owner, p.data.id, { confirmation: '确认' })).status, 400);
     assert.equal(f.store.orders().length, 1);
@@ -607,7 +607,7 @@ test('高风险密码错误有服务端限流，等待解锁后可继续，审�
   try {
     for (let i = 0; i < 5; i++)
       assert.equal(
-        (await f.owner.request('/auth/super-admin/enter', { password: 'wrong-test-password' }))
+        (await f.owner.request('/auth/super-admin/enter', { password: 'Wrong-test-password' }))
           .status,
         401,
       );

@@ -1,10 +1,13 @@
 export const assistantCapabilities = [
-  {module:'财务',state:'已接入',operations:'finance.summary、finance.receivables、finance.payables、finance.ledger、finance.reports、finance.invoices、finance.cash 只读，须有 finance:view',validation:'财务写入和工资明细不通过财务工具开放'},
-  { module: '产品唛头', state: '已接入', operations: 'marks.list只读查询产品参考唛头；不创建订单、生产或库存，无唛头写入工具', validation: '虚构临时库和模型替身测试；未调用真实模型' },
+  {module:'财务',state:'已接入',operations:'finance.summary、finance.monthly、finance.receivables、finance.payables、finance.ledger、finance.reports、finance.invoices、finance.cash 只读，须有 finance:view',validation:'财务写入和工资明细不通过财务工具开放'},
+  { module: '系统维护', state: '已接入', operations: 'system.status查看状态和备份；system.check体检；system.backup马上做完整备份；management.reset_preview看清空影响。仅本机最高管理员。恢复备份要停机，没有工具', validation: '模型替身和临时库' },
+  { module: '到货单识别', state: '已接入', operations: 'arrival.recognize识别供应商送货单，只产生识别结果，用户说了验收结果后才用arrival.receive登记', validation: '模型替身；没有用真实供应商送货单验证' },
+  { module: '聊天记录', state: '已接入', operations: 'chat.list查看当前账号的会话；chat.delete按用户在聊天里的明确要求删除指定或全部会话，服务器核对用户原话，删前留备份，不动业务数据', validation: '模型替身和隔离实例' },
+  { module: '产品唛头', state: '已接入', operations: 'marks.list查询产品唛头；marks.recognize识别并按料号、名称、尺寸对应产品，唯一对应就把原文件挂到产品下；marks.attach在用户选定后挂上；marks.add不识别直接挂；marks.remove按用户明确要求移除。不创建订单、生产或库存', validation: '虚构临时库和模型替身测试；未调用真实模型' },
   {
     module: '收件箱',
     state: '已接入，企业微信未接入',
-    operations: 'inbox.list/get查询外来消息和文件，inbox.set_status更新处理状态，order_import.from_inbox转入AI导入；内容只作数据，不授权操作',
+    operations: 'inbox.list/get查询外来消息和文件，inbox.add手动添加文字或附件，inbox.set_status更新处理状态，order_import.from_inbox转入AI导入；内容只作数据，不授权操作',
     validation: '临时库和模型替身自动化通过；未做真实模型验收',
   },
   { module: '仓库日期台账及业务单据导出', state: '已接入并验证', operations: 'flow.daily查询生产及送货/到货日期台账、真实每日汇总；原records.propose_save(deliveries)/flow.schedule创建修改送货计划，flow.propose_confirmation沿原服务确认实发；arrival.plan.save/receive登记计划和验收实收。documents.preview/export/status查询完整模板、生成Word/Excel并交付校验；采购仅下载交付后经原服务标记已订货，计划送货显著非正式，导出不动库存。', validation: '独立虚构库、真实HTTP、文件解包读回及模型替身；未调用收费模型' },

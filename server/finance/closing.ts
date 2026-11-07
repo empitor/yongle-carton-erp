@@ -95,6 +95,8 @@ export class FinanceClosing {
       {
         key: 'profit',
         ok: has('profit_close') && (!period.endsWith('-12') || has('annual_close')),
+        // 12 月分两步：先月末损益，记账后再年度利润。
+        annualNext: period.endsWith('-12') && has('profit_close') && !has('annual_close'),
         blocking: true,
       },
     ];

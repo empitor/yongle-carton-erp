@@ -86,6 +86,12 @@ const schemas: Record<string, z.ZodType> = {
   'task.get': z.strictObject({}),
   'task.activate': z.strictObject({ taskId: uuid }),
   'task.finish': z.strictObject({}),
+  'chat.list': z.strictObject({}),
+  'chat.delete': z.strictObject({
+    threadIds: z.array(uuid).min(1).max(200).optional(),
+    all: z.boolean().optional(),
+    includeCurrent: z.boolean().optional(),
+  }),
   'developer.execute': developerCommandSchema,
   'management.execute': assistantManagementSchema,
   'management.reset': developmentResetSchema,
@@ -184,7 +190,44 @@ const schemas: Record<string, z.ZodType> = {
   'order_import.from_inbox': z.strictObject({
     inboxId: positive,
     expectedVersion: positive,
-    recognitionType: z.enum(['order', 'arrival']).default('order'),
+    recognitionType: z.enum(['order', 'arrival', 'mark']).default('order'),
+  }),
+  'marks.recognize': z.strictObject({
+    attachmentId: uuid.optional(),
+    workspaceId: uuid.optional(),
+    force: z.boolean().optional(),
+  }),
+  'arrival.recognize': z.strictObject({
+    attachmentId: uuid.optional(),
+    workspaceId: uuid.optional(),
+    force: z.boolean().optional(),
+  }),
+  'marks.add': z.strictObject({
+    productId: positive,
+    attachmentId: uuid.optional(),
+    title: z.string().trim().max(200).optional(),
+  }),
+  'marks.remove': z.strictObject({ id: positive, expectedVersion: positive }),
+  'inbox.add': z.strictObject({
+    text: z.string().trim().min(1).max(20000).optional(),
+    attachmentId: uuid.optional(),
+  }),
+  'system.status': z.strictObject({}),
+  'system.check': z.strictObject({}),
+  'system.backup': z.strictObject({}),
+  'management.reset_preview': z.strictObject({ scope: z.enum(['business', 'ai-imports', 'all']) }),
+  'marks.attach': z.strictObject({
+    workspaceId: uuid,
+    choices: z
+      .array(
+        z.strictObject({
+          key: z.string(),
+          productId: positive.optional(),
+          newName: z.string().min(1).max(200).optional(),
+          skip: z.boolean().optional(),
+        }),
+      )
+      .min(1),
   }),
   'order_import.execute_many': z.strictObject({ workspaceIds: z.array(uuid).min(1).max(6) }),
   'order_import.start': z.strictObject({
@@ -316,7 +359,8 @@ export class AssistantToolRegistry {
       t.name.startsWith('management.') ||
       t.name.startsWith('purchase.receipt.data_edit') ||
       (t.name.startsWith('purchase.receipt.') && args?.mode === 'data-edit') ||
-      t.name === 'records.delete';
+      t.name === 'records.delete' ||
+      t.name.startsWith('system.');
     // 风险标签不另外提升权限，真实业务服务与人工接口采用相同Actor校验。
     // 声明只能增加权限，不能覆盖能力类别对应的系统最低权限。
     const required = [

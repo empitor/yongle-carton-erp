@@ -65,7 +65,7 @@ test('本机超级管理员启停需真实身份，生产环境/代理/缺CSRF�
   const server = createApp(store, { auth }).listen(0, '127.0.0.1');
   await new Promise<void>((r) => server.once('listening', r));
   const url = 'http://127.0.0.1:' + (server.address() as any).port,
-    password = 'fictional-developer-pass-123';
+    password = 'Fictional-developer-pass-123';
   let cookie = '';
   const request = (path: string, body?: any, headers: any = {}) =>
     fetch(url + '/api' + path, {
@@ -440,7 +440,7 @@ test('AI工作区可独立复制、恢复及永久清理；原件与识别草稿
   }
 });
 test('版本号的包、锁文件与界面来源一致', () => {
-  assert.equal(APP_VERSION, '0.7.0');
+  assert.equal(APP_VERSION, '0.8.0');
   for (const file of ['package.json', 'package-lock.json'])
     assert.equal(JSON.parse(readFileSync(file, 'utf8')).version, APP_VERSION);
   assert.match(readFileSync('src/App.tsx', 'utf8'), /APP_VERSION/);
@@ -526,7 +526,8 @@ test('开发者生产更正、分批送货与订单数量纠错同步库存和�
       date: '2026-10-27',
       lines: [{ orderId: order.id, orderLineId: line.id, stockId: finished.id, quantity: '40' }],
     });
-    assert.equal(f.store.order(order.id)!.status, '生产中');
+    // 订单要 100，已完工 120：任务计划还没做满，但这张订单的货已经够了。
+    assert.equal(f.store.order(order.id)!.status, '待发货');
     confirm('delivery', {
       customerId: f.customer.id,
       date: '2026-10-27',

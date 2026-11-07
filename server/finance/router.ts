@@ -70,7 +70,7 @@ export function financeRouter(store: Store, auth?: AuthManager) {
     res.json(ledger.update(res.locals.financeActor, req.params.id, req.body)),
   );
   router.delete('/vouchers/:id', (req, res) =>
-    ledger.remove(res.locals.financeActor, req.params.id),
+    res.json(ledger.remove(res.locals.financeActor, req.params.id)),
   );
   for (const action of ['submit', 'approve', 'post', 'void'] as const)
     router.post('/vouchers/:id/' + action, (req, res) =>

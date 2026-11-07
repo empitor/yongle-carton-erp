@@ -10,7 +10,6 @@ import {
 import type { ReactNode } from 'react';
 import type { Dashboard } from '../shared/domain';
 import type { UnitBalance } from '../shared/overview';
-import './overview.css';
 import StatusBadge from './StatusBadge';
 import TodayQueue from './TodayQueue';
 import { displayAmount as exactMoney } from '../shared/display-amount';

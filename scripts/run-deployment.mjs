@@ -8,8 +8,10 @@ import {
   rmSync,
   statSync,
 } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [configFile, logDirectory] = process.argv.slice(2);
 if (!configFile || !logDirectory || ![configFile, logDirectory].every(isAbsolute))
   throw new Error('请指定部署配置和日志的绝对路径。');
@@ -56,6 +58,7 @@ try {
   Object.assign(env, config);
   env.NODE_ENV = 'production';
   const child = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
+    cwd: root,
     env,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],

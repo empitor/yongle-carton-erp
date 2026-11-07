@@ -142,7 +142,7 @@ test('真实本机最高管理员登录即获完整能力；超15分钟仍有效
   const server = createApp(store, { auth }).listen(0, '127.0.0.1');
   await new Promise<void>((r) => server.once('listening', r));
   const url = 'http://127.0.0.1:' + (server.address() as any).port,
-    password = 'fictional-local-admin-123';
+    password = 'Fictional-local-admin-123';
   let cookie = '';
   const req = (path: string, body?: any, extra: any = {}, method = body ? 'POST' : 'GET') =>
     fetch(url + '/api' + path, {

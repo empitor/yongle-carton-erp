@@ -508,18 +508,15 @@ export class Store {
       material = new Map<number, 'pending' | 'partial' | 'done'>();
     for (const row of this.db
       .prepare(
-        "SELECT p.customer_order_id AS id,SUM(l.quantity_units) AS ordered,SUM(l.received_units) AS received FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.customer_order_id IS NOT NULL AND p.status!='已取消'" +
+        // 张、公斤不能相加，一行超收也不能盖住另一行没到，所以按明细行数。
+        "SELECT p.customer_order_id AS id,SUM(l.received_units<l.quantity_units) AS open,SUM(l.received_units>0) AS touched FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.customer_order_id IS NOT NULL AND p.status!='已取消'" +
           (predicate ? ' AND p.customer_order_id ' + predicate : '') +
           ' GROUP BY p.customer_order_id',
       )
       .all(...params))
       material.set(
         Number(row.id),
-        Number(row.received) >= Number(row.ordered)
-          ? 'done'
-          : Number(row.received) > 0
-            ? 'partial'
-            : 'pending',
+        !Number(row.open) ? 'done' : Number(row.touched) ? 'partial' : 'pending',
       );
     return rows.map((r) => {
       const { costs_json, ...rest } = r;

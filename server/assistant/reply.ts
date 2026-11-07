@@ -1,4 +1,5 @@
 import type { AgentExecutionState, AgentQuestion } from '../../shared/assistant-task.js';
+import { readSpeaker, type AssistantSpeaker } from '../../shared/assistant-personas.js';
 import { toolCatalog } from './tools.js';
 export const MAX_MESSAGE_CHARS = 16000;
 export const MAX_TOOL_CALLS = Number(process.env.ERP_AGENT_CALLS_PER_REPLY ?? 0);
@@ -17,6 +18,8 @@ export type NormalizedAssistantReply = {
   status?: AgentExecutionState;
   questions?: AgentQuestion[];
   taskControl?: { mode: 'new' | 'continue'; goal?: string };
+  speaker?: AssistantSpeaker;
+  relay?: { speaker: AssistantSpeaker; text: string }[];
 };
 const registered = new Set(toolCatalog.map((t) => t.name));
 // 常见兼容模型会使用别名或包裹字段；按顺序取第一个非空文本，不猜测其他业务字段。
@@ -24,6 +27,19 @@ const textKeys = ['message', 'answer', 'reply', 'text', 'content', '回复', '�
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 const clip = (v: string, max = MAX_MESSAGE_CHARS) => (v.length > max ? v.slice(0, max) : v);
+const MAX_RELAY = 2;
+/** 接力只是给用户看的文字，不合格的直接丢掉，不影响主回复。 */
+function readRelay(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const relay: { speaker: AssistantSpeaker; text: string }[] = [];
+  for (const item of value.slice(0, MAX_RELAY)) {
+    if (!isPlainObject(item)) continue;
+    const speaker = readSpeaker(item.speaker);
+    const text = typeof item.message === 'string' ? item.message.trim() : '';
+    if (speaker && text) relay.push({ speaker, text: clip(text, 2000) });
+  }
+  return relay;
+}
 const keyLabel = (v: string) => v.slice(0, 40).replace(/[^\w.\-\u4e00-\u9fff]/g, '');
 function textOf(value: unknown): { text: string | null; converted: boolean } {
   if (typeof value === 'string') return { text: value, converted: false };
@@ -179,6 +195,8 @@ export function normalizeAssistantReply(
       toolCalls.push({ name, args, ...(stepId ? { stepId } : {}) });
     });
   }
+  const speaker = readSpeaker(raw.speaker);
+  const relay = readRelay(raw.relay);
   const mode: NormalizedAssistantReply['mode'] = toolCalls.length
     ? 'envelope'
     : message
@@ -191,6 +209,8 @@ export function normalizeAssistantReply(
     mode,
     issues,
     keys,
+    ...(speaker ? { speaker } : {}),
+    ...(relay.length ? { relay } : {}),
     ...(['working', 'needs_input', 'completed', 'blocked'].includes(String(raw.status))
       ? { status: raw.status as AgentExecutionState }
       : {}),

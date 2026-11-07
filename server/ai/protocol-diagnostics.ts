@@ -12,7 +12,8 @@ export type ProviderDiagnostic = {
   at: string;
 };
 export const hasDsml = (text: string) =>
-  text.includes('<|DSML|') || text.includes('<｜DSML｜') || text.includes('<DSML');
+  // 这是模型自己的工具调用标记，真实返回里竖线数量和全半角都见过，只认 DSML 这几个字。
+  text.includes('DSML');
 const safeEnum = (v: unknown, allowed: string[]) =>
   typeof v === 'string' && allowed.includes(v) ? v : 'other';
 /** 只保留白名单参数/形状/计数；不序列化消息、文件、密钥、上游错误正文或思考。 */

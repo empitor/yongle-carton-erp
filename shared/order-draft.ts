@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { dateSchema, lineSchema } from './domain.js';
+import { dropFormatEcho, isPlainObject, pickKeys, scalarText, textList } from './model-output.js';
 import type { ImportMapping } from './import-mapping.js';
 import type { PromptPresetUsage } from './prompt-presets.js';
 import { parseDimension, normalizeDimensionUnit, productNotices } from './product-details.js';
@@ -142,6 +143,39 @@ const lineShape = Object.fromEntries(lineFields.map((k) => [k, draftInputFieldSc
   LineField,
   typeof draftInputFieldSchema
 >;
+const certainties = ['recognized', 'needs-review', 'user-modified'];
+/** 把模型的一个字段整理成约定形状。缺的交给 Schema 补“未知”，这里不编造值。 */
+function tidyField(raw: unknown) {
+  if (raw === null || raw === undefined) return raw;
+  if (!isPlainObject(raw)) {
+    const value = scalarText(raw);
+    return typeof value === 'string'
+      ? { value: value.slice(0, 2000), sources: [], quote: '', certainty: 'needs-review', note: '' }
+      : raw;
+  }
+  const value = scalarText(raw.value);
+  return {
+    value: typeof value === 'string' ? value.slice(0, 2000) : (value ?? null),
+    sources: Array.isArray(raw.sources) ? raw.sources.filter((s) => typeof s === 'string').slice(0, 30) : [],
+    quote: typeof raw.quote === 'string' ? raw.quote.slice(0, 1000) : '',
+    certainty: certainties.includes(String(raw.certainty)) ? raw.certainty : 'needs-review',
+    note: typeof raw.note === 'string' ? raw.note.slice(0, 600) : '',
+  };
+}
+const tidyFields = (raw: unknown, keys: readonly string[]) =>
+  isPlainObject(raw)
+    ? Object.fromEntries(Object.entries(pickKeys(raw, keys)).map(([k, v]) => [k, tidyField(v)]))
+    : raw;
+/** 校验模型的订单识别结果之前先整理：丢掉多余字段，修正类型。真正缺内容的仍由校验拦下。 */
+export function tidyAnalysis(raw: unknown) {
+  const body = dropFormatEcho(raw);
+  if (!isPlainObject(body)) return body;
+  return {
+    header: tidyFields(body.header, headerFields),
+    lines: Array.isArray(body.lines) ? body.lines.map((line) => tidyFields(line, lineFields)) : body.lines,
+    warnings: textList(body.warnings, 60, 1000),
+  };
+}
 export const analysisSchema = z.strictObject({
   header: z.strictObject(headerShape),
   lines: z.array(z.strictObject(lineShape)).min(1).max(50),
@@ -284,7 +318,11 @@ export function evaluateDraft(draft: OrderDraft): DraftEvaluation {
     issues.push({ path, message, severity });
   for (const k of headerFields) {
     const f = draft.header[k];
-    if (f.certainty === 'needs-review' && k !== 'currency')
+    if (
+      f.certainty === 'needs-review' &&
+      k !== 'currency' &&
+      (!!f.value || !['notes', 'terms', 'statedTotalQuantity', 'statedTotalAmount'].includes(k))
+    )
       issue('header.' + k, fieldLabels[k] + '待确认：' + (f.note || '请对照原件'));
   }
   for (const k of ['buyerName', 'orderDate', 'deliveryDate'] as const)
@@ -312,7 +350,22 @@ export function evaluateDraft(draft: OrderDraft): DraftEvaluation {
     for (const k of lineFields)
       if (
         f[k].certainty === 'needs-review' &&
-        (!['length', 'width', 'height', 'dimensionUnit', 'material', 'flute'].includes(k) ||
+        // 原件本来就没写的选填项不算疑点
+        (![
+          'length',
+          'width',
+          'height',
+          'dimensionUnit',
+          'material',
+          'flute',
+          'productCode',
+          'requirements',
+          'notes',
+          'statedAmount',
+          'taxRate',
+          'taxMode',
+          'deliveryDate',
+        ].includes(k) ||
           !!f[k].value)
       )
         issue(prefix + k, fieldLabels[k] + '待确认：' + (f[k].note || '请对照原件'));
@@ -429,3 +482,16 @@ export function evaluateDraft(draft: OrderDraft): DraftEvaluation {
   };
 }
 export const blankField = (): DraftField => missingField();
+
+/** AI 导入里这份文件还要不要人处理。订单导入了、唛头挂到产品了、到货入库了，就算办完。 */
+export function importStillOpen(w: {
+  imported?: unknown;
+  mode?: string;
+  markStatus?: string;
+  arrivalStatus?: string;
+}) {
+  if (w.imported) return false;
+  if (w.mode === 'mark') return w.markStatus !== 'committed';
+  if (w.mode === 'arrival') return w.arrivalStatus !== 'confirmed';
+  return true;
+}

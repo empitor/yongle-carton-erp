@@ -284,7 +284,7 @@ test('供应商文件上传HTTP入口、流式识别与原件下载实际联通�
     const setup = await fetch(base + '/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-        body: JSON.stringify({ name: '虚构验收', password: 'fictional-receipt-password-123' }),
+        body: JSON.stringify({ name: '虚构验收', password: 'Fictional-receipt-password-123' }),
       }),
       cookie = setup.headers.get('set-cookie')!.split(';')[0],
       bytes = docxFixture();

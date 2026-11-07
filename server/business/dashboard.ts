@@ -1,6 +1,6 @@
 import type { Store } from '../db.js';
 import { buildWorkbench } from './workbench.js';
-import { statuses, today, type Dashboard, type Order } from '../../shared/domain.js';
+import { displayOrderStatuses, orderDisplayStatus, today, type Dashboard, type Order } from '../../shared/domain.js';
 import { monthsBefore, closedOrder } from '../../shared/date-ranges.js';
 import { quantityString, sumMoney } from '../../shared/operations.js';
 import { OperationsRepository } from '../operations/repository.js';
@@ -93,9 +93,9 @@ export function buildDashboard(
     costedCount: costed.length,
     uncostedCount: valid.length - costed.length,
     overdueCount: valid.filter((o) => o.status !== '已发货' && o.deliveryDate < date).length,
-    byStatus: statuses.map((status) => ({
+    byStatus: displayOrderStatuses.map((status) => ({
       status,
-      count: rows.filter((o) => o.status === status).length,
+      count: rows.filter((o) => orderDisplayStatus(o) === status).length,
     })),
     recentOrders,
     overview: {

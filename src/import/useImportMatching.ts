@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ImportMapping } from '../../shared/import-mapping';
 import type { ImportWorkspaceView, OrderDraft } from '../../shared/order-draft';
 import {
+  blocksNewProduct,
   emptyImportMapping,
   importNameKey,
   invalidateImportMapping,
@@ -37,7 +38,8 @@ export function useImportMatching(
     priorDraft = useRef(draft),
     live = useRef(true),
     saving = useRef(false),
-    customerTouched = useRef(false);
+    customerTouched = useRef(false),
+    productTouched = useRef(new Set<string>());
   const savedRef = useRef(normalized(workspace.mapping, draft));
   const candidateCache = useRef(
     new Map<
@@ -152,12 +154,46 @@ export function useImportMatching(
       ),
     [draft, matches],
   );
+  // 名称、尺寸都相同又没有冲突的唯一档案，和客户一样直接选中。每月重复下单时不用一行行点确认。
+  useEffect(() => {
+    if (!matches) return;
+    let next = mappingRef.current,
+      changed = false;
+    for (const l of draft.lines) {
+      const choice = next.products[l.id];
+      if (
+        (choice && choice.mode !== 'pending') ||
+        invalidRef.current.products[l.id] ||
+        productTouched.current.has(l.id)
+      )
+        continue;
+      const best = candidates[l.id]?.filter((c) => c.recommended) || [];
+      const product =
+        best.length === 1 ? matches.products.find((p) => p.id === best[0].id) : undefined;
+      if (!product) continue;
+      next = {
+        ...next,
+        products: {
+          ...next.products,
+          [l.id]: { mode: 'existing', id: product.id, version: product.version },
+        },
+      };
+      changed = true;
+    }
+    if (changed) {
+      update(next);
+      setSaveState('idle');
+    }
+  }, [candidates, matches]);
   const select = (next: ImportMapping, kind: 'customer' | string) => {
     const notices = structuredClone(invalidRef.current);
     if (kind === 'customer') {
       customerTouched.current = true;
       delete notices.customer;
-    } else delete notices.products[kind];
+    } else {
+      productTouched.current.add(kind);
+      delete notices.products[kind];
+    }
     update(next, notices);
     setSaveState('idle');
     setSaveError('');
@@ -208,7 +244,7 @@ export function useImportMatching(
     draft.lines.some(
       (l) =>
         (!mapping.products[l.id] || mapping.products[l.id].mode === 'pending') &&
-        candidates[l.id]?.length > 0,
+        candidates[l.id]?.some(blocksNewProduct),
     );
   return {
     matches,

@@ -1,6 +1,7 @@
 /**
- * 唛头对应产品的匹配规则。原则和订单导入一致：只有料号完全一致且唯一才预选，
- * 其余只列为候选，由人确认。尺寸相同的箱子很多，不能单凭尺寸对应。
+ * 唛头对应产品的匹配规则。识别出来的料号、名称、尺寸都是依据，按这个顺序取最强的一档：
+ * 料号一致 > 名称一致 > 尺寸一致。这一档只有一个产品、又没有冲突，就自动对应；
+ * 同一档有多个（比如两款尺寸相同的箱子）就列为候选，由人选。挂错了可以在产品里移除。
  */
 export type MarkMatchFields = {
   itemCode?: string | null;
@@ -20,11 +21,13 @@ export type MarkMatchProduct = {
   height?: number | null;
   dimensionUnit?: string | null;
   archived?: boolean;
+  /** 这个产品以前挂过的唛头料号 */
+  markCodes?: (string | null | undefined)[];
 };
 export type MarkCandidate = {
   id: number;
   name: string;
-  /** 只有料号完全一致且唯一时为 true */
+  /** 最强的一档只有它一个、又没有冲突时为 true，可以自动对应 */
   recommended: boolean;
   reasons: string[];
   conflicts: string[];
@@ -49,6 +52,10 @@ const toMm = (value: unknown, unit: unknown) => {
   return null;
 };
 const sameMm = (a: number, b: number) => Math.abs(a - b) < 0.01;
+const plainSize = (values: unknown[]) => {
+  const out = values.map((v) => (v === null || v === undefined || v === '' ? NaN : Number(v)));
+  return out.every((n) => Number.isFinite(n) && n > 0) ? out : null;
+};
 
 export function matchMarkToProducts(fields: MarkMatchFields, products: MarkMatchProduct[]) {
   const code = normalizeCode(fields.itemCode),
@@ -56,26 +63,38 @@ export function matchMarkToProducts(fields: MarkMatchFields, products: MarkMatch
     size = ['cartonLength', 'cartonWidth', 'cartonHeight'].map((k) =>
       toMm((fields as any)[k], fields.dimensionUnit),
     );
-  const results: MarkCandidate[] = [];
+  const plain = plainSize([fields.cartonLength, fields.cartonWidth, fields.cartonHeight]);
+  const results: (MarkCandidate & { level: number })[] = [];
   for (const p of products) {
     if (p.archived) continue;
     const reasons: string[] = [],
       conflicts: string[] = [];
     const pCode = normalizeCode(p.customerProductCode),
       pName = normalizeCode(p.name);
-    let exact = false;
+    let level = 0;
     if (code && (code === pCode || code === pName)) {
-      exact = true;
+      level = 3;
       reasons.push(code === pCode ? '料号完全一致' : '料号和产品名称一致');
-    } else if (code && pCode && baseCode(code) === baseCode(pCode)) {
+    } else if (code && p.markCodes?.some((c) => normalizeCode(c) === code)) {
+      level = 3;
+      reasons.push('和这个产品以前的唛头料号一致');
+    } else if (code && pCode && baseCode(code) && baseCode(code) === baseCode(pCode)) {
       reasons.push('料号相近，套装标记不同');
-    } else if (code && pName && baseCode(code) === baseCode(pName)) {
+    } else if (code && pName && baseCode(code) && baseCode(code) === baseCode(pName)) {
       reasons.push('料号和产品名称相近');
     }
-    if (!exact && name && name === pName) reasons.push('产品名称一致');
+    const relatedCode =
+      !!code && !!pCode && (code === pCode || (!!baseCode(code) && baseCode(code) === baseCode(pCode)));
+    if (code && pCode && !relatedCode)
+      conflicts.push(level === 3 ? '以前的唛头用过这个料号，但和档案料号不同' : '料号不同');
+    if (level < 3 && name && name === pName) {
+      level = 2;
+      reasons.push('产品名称一致');
+    }
     const psize = [p.length, p.width, p.height].map((v) => toMm(v, p.dimensionUnit));
     if (size.every((v) => v !== null) && psize.every((v) => v !== null)) {
       if (size.every((v, i) => sameMm(v!, psize[i]!))) {
+        level ||= 1;
         reasons.push(
           fields.dimensionBasis === 'inner'
             ? '内径和产品尺寸一致'
@@ -86,17 +105,25 @@ export function matchMarkToProducts(fields: MarkMatchFields, products: MarkMatch
       } else if (reasons.length) {
         conflicts.push('尺寸不同，请核对');
       }
+    } else if (plain) {
+      // 真实订单常有一边没写单位。数字完全一样也算依据，但不做换算。
+      const other = plainSize([p.length, p.width, p.height]);
+      if (other && !(fields.dimensionUnit && p.dimensionUnit) && other.every((n, i) => n === plain[i])) {
+        level ||= 1;
+        reasons.push('尺寸数字一致（有一边没写单位）');
+      }
     }
     if (reasons.length)
-      results.push({ id: p.id, name: p.name, recommended: exact, reasons, conflicts });
+      results.push({ id: p.id, name: p.name, recommended: false, reasons, conflicts, level });
   }
-  const exact = results.filter((r) => r.recommended);
-  // 多个产品料号都一致就是歧义，一个都不预选。尺寸冲突也不预选。
-  for (const r of exact) r.recommended = exact.length === 1 && r.conflicts.length === 0;
-  return results.sort(
-    (a, b) =>
-      Number(b.recommended) - Number(a.recommended) ||
-      Number(/料号/.test(b.reasons[0])) - Number(/料号/.test(a.reasons[0])) ||
-      a.id - b.id,
-  );
+  // 最强的一档有多个就是歧义，一个都不自动选。有冲突也不自动选。
+  const top = Math.max(0, ...results.map((r) => r.level)),
+    best = results.filter((r) => r.level === top);
+  for (const r of best) r.recommended = top > 0 && best.length === 1 && r.conflicts.length === 0;
+  return results
+    .sort(
+      (a, b) =>
+        Number(b.recommended) - Number(a.recommended) || b.level - a.level || a.id - b.id,
+    )
+    .map(({ level: _level, ...candidate }) => candidate as MarkCandidate);
 }

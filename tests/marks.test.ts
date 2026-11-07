@@ -11,6 +11,8 @@ import { ImportManager } from '../server/import/manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { MarkAi, markDefaultPreset } from '../server/marks/mark-ai.js';
 import { MarkService } from '../server/marks/service.js';
+import { MarkImportService } from '../server/marks/mark-import.js';
+import { matchMarkToProducts } from '../shared/mark-matching.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { localAdministratorActor } from '../server/developer-capability.js';
 import { AssistantTools } from '../server/assistant/tools.js';
@@ -43,6 +45,7 @@ test('mark analysis accepts multiple pages and enforces the specified item bound
     assert.equal(markAnalysisSchema.safeParse({ marks, warnings: [] }).success, false);
 });
 
+let analysisOverride: any = null;
 const fakeAnalysis = () => ({
   warnings: ['虚构提醒'],
   marks: [
@@ -94,7 +97,7 @@ async function fixture() {
           {
             type: 'message',
             role: 'assistant',
-            content: [{ type: 'output_text', text: JSON.stringify(fakeAnalysis()) }],
+            content: [{ type: 'output_text', text: JSON.stringify(analysisOverride || fakeAnalysis()) }],
           },
         ],
       },
@@ -135,7 +138,7 @@ async function fixture() {
   const setup = await fetch(base + '/api/auth/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-    body: JSON.stringify({ name: '虚构唛头验收', password: 'fictional-marks-pass-123' }),
+    body: JSON.stringify({ name: '虚构唛头验收', password: 'Fictional-marks-pass-123' }),
   });
   const cookie = setup.headers.get('set-cookie')!.split(';')[0];
   const api = (path: string, init: any = {}, token: 'ai' | 'auth' | 'none' = 'ai') =>
@@ -198,7 +201,7 @@ const recognize = (f: any, id: string) => {
   });
 };
 
-test('唛头识别到存档：唯一料号预选，歧义和只凭尺寸待确认，待确认不能存，重复提交不多存', async () => {
+test('唛头识别到挂上产品：唯一对应预选，歧义待确认，待确认不能存，重复提交不多存', async () => {
   const f = await fixture();
   try {
     const w = await f.upload();
@@ -210,7 +213,7 @@ test('唛头识别到存档：唯一料号预选，歧义和只凭尺寸待确�
     assert.equal(state.review.items.length, 5);
     assert.deepEqual(by(1).choice, { mode: 'existing', id: f.one.id });
     assert.equal(by(2).choice.mode, 'pending');
-    assert.equal(by(3).choice.mode, 'pending');
+    assert.equal(by(3).choice.mode, 'existing', '只有一个产品尺寸相同，自动对应');
     assert.match(state.candidates[by(3).key].map((c: any) => c.reasons.join()).join(), /内径/);
     assert.equal(by(3).fields.requirements, '不能打钉');
     const status = await (await f.api('/api/ai/imports')).json();
@@ -371,5 +374,51 @@ test('唛头模式不能走订单识别和正式导入；物理删除产品连�
     assert.equal(f.store.db.prepare('SELECT COUNT(*) n FROM mark_files').get()!.n, 0);
   } finally {
     await f.close();
+  }
+});
+
+test('唛头自动对应：料号优先，其次名称，再次尺寸；同一档多个就不选', () => {
+  const box = (id: number, extra: any = {}) => ({ id, name: '虚构箱' + id, length: 80, width: 60, height: 40, dimensionUnit: 'cm', ...extra });
+  const top = (fields: any, products: any[]) => matchMarkToProducts(fields, products).filter((c) => c.recommended).map((c) => c.id);
+  const size = { cartonLength: '80', cartonWidth: '60', cartonHeight: '40', dimensionUnit: 'cm' };
+  assert.deepEqual(top(size, [box(1)]), [1], '尺寸唯一');
+  assert.deepEqual(top(size, [box(1), box(2)]), [], '两款尺寸相同不选');
+  assert.deepEqual(top({ ...size, productName: '虚构箱2' }, [box(1), box(2)]), [2], '名称分得开');
+  assert.deepEqual(top({ ...size, itemCode: 'A-1' }, [box(1, { customerProductCode: 'A-1' }), box(2)]), [1], '料号优先');
+  assert.deepEqual(top({ itemCode: 'A-1' }, [box(1, { markCodes: ['A-1'] }), box(2)]), [1], '以前挂过的料号');
+  assert.deepEqual(top({ ...size, productName: '虚构箱1', cartonHeight: '41' }, [box(1)]), [], '名称对但尺寸冲突不选');
+  assert.deepEqual(top(size, [box(1, { dimensionUnit: null })]), [1], '产品没写单位但数字一样');
+  assert.deepEqual(top({ ...size, dimensionUnit: 'mm' }, [box(1)]), [], '单位都写了又不同不算');
+  assert.deepEqual(top({ productName: '英文名' }, [box(1)]), [], '什么都对不上');
+});
+
+test('全部对应上就自动挂到产品，不用再点；对不上的等人选', async () => {
+  const f = await fixture();
+  try {
+    const w = await f.upload();
+    assert.equal((await recognize(f, w.id)).status, 200);
+    const marks = new MarkImportService(f.manager, f.ai);
+    assert.equal(f.manager.markReview(w.id)!.committed, null, '这份有对不上的款，等人选');
+    assert.ok(marks.summary(w.id).pending.length > 0);
+  } finally {
+    await f.close();
+  }
+  // 模型这次只认出能唯一对应的一款：不用点就挂上
+  analysisOverride = { warnings: [], marks: [fakeAnalysis().marks[0]] };
+  const g = await fixture();
+  try {
+    const w = await g.upload();
+    assert.equal((await recognize(g, w.id)).status, 200);
+    const marks = new MarkImportService(g.manager, g.ai);
+    const summary = marks.summary(w.id);
+    assert.equal(summary.attached.length, 1);
+    assert.equal(summary.attached[0].productId, g.one.id);
+    assert.equal(summary.pending.length, 0);
+    const related = await (await g.api('/api/products/' + g.one.id + '/marks', {}, 'none')).json();
+    assert.equal(related.length, 1);
+    assert.equal(g.store.orders(true).length, 0);
+  } finally {
+    analysisOverride = null;
+    await g.close();
   }
 });

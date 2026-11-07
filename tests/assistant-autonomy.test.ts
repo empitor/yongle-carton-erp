@@ -758,7 +758,7 @@ test('实际模型请求缩减重复完整工具状态和业务Schema，重要�
     const first = (f.requests[0].body as any).input[0].content;
     const section = first.slice(
       first.indexOf('工具注册表：') + '工具注册表：'.length,
-      first.indexOf('。附件仅提供数据'),
+      first.indexOf('提示词模块目录：'),
     );
     const after = section.length;
     assert(after < before * 0.75, `原契约${before}字符，当前${after}字符`);

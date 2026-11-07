@@ -6,6 +6,14 @@ import { canonicalCurrency } from './currency.js';
 export const statuses = ['草稿', '已确认', '生产中', '待发货', '已发货', '已取消'] as const;
 /** 由生产任务和送货单推进，普通录入只选择草稿、已确认或已取消。 */
 export const derivedOrderStatuses: readonly string[] = ['生产中', '待发货', '已发货'];
+/** 页面上看到和筛选用的状态。“部分发货”不存库，由发货进度派生。 */
+export const displayOrderStatuses = ['草稿', '已确认', '生产中', '待发货', '部分发货', '已发货', '已取消'] as const;
+export function orderDisplayStatus(order: { status: string; shippingProgress?: string }) {
+  // 一万个先发了五千，剩下的不管在做还是做好了，用户要先看到“发了一半”。
+  return order.shippingProgress === '部分发货' && !['草稿', '已取消', '已发货'].includes(order.status)
+    ? '部分发货'
+    : order.status;
+}
 const text = (max = 200) => z.string().trim().max(max);
 // 可选说明的null表示原件未提供；数字、对象等错误类型仍拒绝。
 const blankText = (max: number) => z.preprocess((v) => (v === null ? '' : v), text(max));
@@ -201,5 +209,28 @@ export const today = (now = new Date()) =>
     month: '2-digit',
     day: '2-digit',
   }).format(now);
+/** 规格比较只看内容：空格、分隔符、大小写、× 和 x 的写法都不算差别。 */
+const specificationDimensions =
+  /(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)(?:\s*[x×*]\s*(\d+(?:\.\d+)?))?\s*(mm|cm|m|毫米|厘米|米)?/i;
+const specificationScale: Record<string, number> = { mm: 1, 毫米: 1, cm: 10, 厘米: 10, m: 1000, 米: 1000 };
+/**
+ * 订单上的规格是客户写的（71*41*44），成品档案的规格是系统生成的（71×41×44 / 双瓦楞 / 加工要求）。
+ * 尺寸相同就比附加内容，一边没写不算不同；一边没写单位时只比数字，不换算。
+ */
+export function sameSpecification(a: string, b: string) {
+  const plain = (text: string) =>
+    text.replace(/[\s/／,，;；、]+/g, '').replaceAll('×', 'x').replaceAll('*', 'x').toLowerCase();
+  const da = specificationDimensions.exec(a),
+    db = specificationDimensions.exec(b);
+  if (!da || !db) return plain(a) === plain(b);
+  const scale = (m: RegExpExecArray) => (m[4] && da[4] && db[4] ? specificationScale[m[4].toLowerCase()] : 1);
+  const numbers = (m: RegExpExecArray) =>
+    [m[1], m[2], m[3]].filter(Boolean).map((n) => Math.round(Number(n) * scale(m) * 1000));
+  if (numbers(da).join() !== numbers(db).join()) return false;
+  const rest = (text: string, m: RegExpExecArray) => plain(text.replace(m[0], ''));
+  const ra = rest(a, da),
+    rb = rest(b, db);
+  return !ra || !rb || ra.includes(rb) || rb.includes(ra);
+}
 export const specification = (p: ProductInput) =>
   [formatDimensions(p), p.material, p.flute, p.requirements].filter(Boolean).join(' / ');

@@ -389,7 +389,7 @@ test('真实HTTP附件上传与SSE事件联通，未登录/跨账号拒绝，导
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
         body: JSON.stringify({
           name: '聊天订单HTTP测试',
-          password: 'fictional-chat-order-password-123',
+          password: 'Fictional-chat-order-password-123',
         }),
       }),
       cookie = setup.headers.get('set-cookie')!.split(';')[0];

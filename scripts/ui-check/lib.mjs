@@ -9,13 +9,14 @@ export const BASE = 'http://127.0.0.1:3199/';
 export const SP = process.env.UI_CHECK_DIR;
 export const SERVER_SOURCE = new URL('./server.mts', import.meta.url);
 
-export async function openChrome({ width = 1440, height = 900, deviceScaleFactor = 1 } = {}) {
+export async function openChrome({ width = 1440, height = 900, deviceScaleFactor = 1, ...device } = {}) {
   const profile = mkdtempSync(join(tmpdir(), 'erp-chrome-'));
   const context = await chromium.launchPersistentContext(profile, {
     executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
     headless: true,
     viewport: { width, height },
     deviceScaleFactor,
+    ...device,
     locale: 'zh-CN',
     timezoneId: 'Asia/Shanghai',
   });

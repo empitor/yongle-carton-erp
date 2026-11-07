@@ -73,8 +73,9 @@ test('旧全局助手默认提示词升级到批量导入/一键清空/生产完
     manager.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-assistant-default-upgrade');
     const upgraded = manager.view();
     assert.equal(upgraded.presets[0].entries.length, assistantDefaultPreset().entries.length);
-    assert.match(upgraded.presets[0].entries[1].content, /management\.reset/);
-    assert.match(upgraded.presets[0].entries[1].content, /order_import\.start/);
+    const rules = upgraded.presets[0].entries.map((e) => e.content).join('\n');
+    assert.match(rules, /management\.reset/);
+    assert.match(rules, /order_import\.start/);
     manager.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-assistant-default-upgrade');
     assert.equal(manager.view().revision, upgraded.revision);
   } finally {
@@ -154,7 +155,7 @@ test('提示词模块接口：目录、模块隔离、旧路径兼容和 CSRF �
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '提示词验收', password: 'fictional-prompt-password-123' }),
+      body: JSON.stringify({ name: '提示词验收', password: 'Fictional-prompt-password-123' }),
     });
     assert.equal(setup.status, 200);
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];

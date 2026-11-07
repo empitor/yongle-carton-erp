@@ -3,7 +3,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-width: 0;
 }
 .fin-period {
   display: inline-flex;
@@ -14,9 +13,6 @@
 }
 .fin-period input {
   width: 150px;
-}
-.fin-tabs {
-  flex-wrap: wrap;
 }
 .fin-toolbar {
   display: flex;
@@ -45,8 +41,6 @@
   min-width: 0;
 }
 .fin-export {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
 }
 .fin-table .num,
@@ -56,11 +50,9 @@
   white-space: nowrap;
 }
 .fin-hint {
-  font-size: 12px;
   color: var(--text-secondary);
 }
 .fin-note {
-  margin: 0;
   font-size: 13px;
   color: var(--text-secondary);
 }
@@ -72,9 +64,7 @@
   padding: 8px 12px;
   border: 1px solid var(--warning-border);
   border-radius: 8px;
-  background: var(--warning-soft);
   font-size: 13px;
-  color: var(--ink);
 }
 .fin-banner[data-tone='info'] {
   border-color: var(--border);
@@ -88,23 +78,15 @@
 }
 /* 理论和实际两行对照，是概览页的主角 */
 .fin-compare {
-  width: 100%;
-  border-collapse: collapse;
   font-size: 14px;
 }
 .fin-compare th,
 .fin-compare td {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
   font-weight: 400;
 }
 .fin-compare thead th {
   font-size: 12px;
-  color: var(--text-secondary);
-}
-.fin-compare thead th.num {
-  text-align: right;
 }
 .fin-compare tbody tr:last-child td,
 .fin-compare tbody tr:last-child th {
@@ -112,7 +94,6 @@
 }
 .fin-compare tbody th small {
   display: block;
-  font-size: 12px;
   color: var(--text-secondary);
 }
 .fin-compare button.fin-amount {
@@ -153,9 +134,9 @@
 .fin-card > h2 {
   margin: 0 0 8px;
   font-size: 14px;
-  font-weight: 600;
 }
-.fin-card .table-wrap {
+.fin-card .table-wrap,
+.fin-card.business-records .unified-table-region {
   border: 0;
 }
 .fin-todo {
@@ -210,8 +191,6 @@
 .fin-subform-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   margin-bottom: 8px;
   font-size: 13px;
 }
@@ -244,11 +223,6 @@
 }
 .fin-steps .fin-grow {
   flex: 1;
-}
-.fin-report-group th {
-  background: var(--surface-muted);
-  text-align: left;
-  font-weight: 600;
 }
 .fin-voucher-entries input,
 .fin-voucher-entries select {
@@ -309,11 +283,7 @@
 .fin-export {
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
   font-size: 13px;
-  color: var(--ink);
-  text-decoration: none;
   white-space: nowrap;
 }
 .fin-export:hover {
@@ -322,7 +292,56 @@
 .fin-form .table-wrap {
   margin-top: 12px;
 }
+/* 财务卡片内容多少就占多高，不要通用列表的最小高度 */
 .fin-card.business-records,
+.fin-card.business-records .unified-table-region,
 .fin-card .unified-table-region {
   min-height: 0;
+}
+
+/* 手机：对照表放下三列金额，工具条换行 */
+@media (max-width: 700px) {
+  .fin-compare {
+    table-layout: fixed;
+  }
+  .fin-compare th,
+  .fin-compare td,
+  .fin-compare thead th {
+    padding: 8px 4px;
+  }
+  .fin-compare thead th:first-child,
+  .fin-compare tbody th {
+    width: 44px;
+  }
+  .fin-compare thead th:first-child {
+    font-size: 0;
+  }
+  .fin-compare tbody th {
+    font-size: 13px;
+  }
+  .fin-compare tbody th small {
+    display: none;
+  }
+  .fin-compare button.fin-amount,
+  .fin-compare .fin-profit {
+    font-size: 13px;
+  }
+  .fin-party-picker {
+    width: 100%;
+  }
+  .fin-toolbar > * {
+    max-width: 100%;
+  }
+  .fin-toolbar .fin-grow {
+    display: none;
+  }
+  .fin-period {
+    flex: 1 1 100%;
+  }
+  .fin-period input {
+    flex: 1;
+  }
+  .fin-banner a {
+    flex: none;
+  }
 }

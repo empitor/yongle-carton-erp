@@ -8,17 +8,20 @@ import { requirePermission, audit } from '../business/management.js';
 import { ImportError } from '../import/errors.js';
 import { documentExportSchema } from '../../shared/business-export.js';
 import { formatStockSize } from '../../shared/operations.js';
+import { sameSpecification } from '../../shared/domain.js';
+import { displayAmount } from '../../shared/display-amount.js';
 import { renderBusinessForm, applyDocumentTemplate, type BusinessForm } from './templates.js';
 import { DocumentTemplateSettings } from './settings.js';
 const hash = (v: string | Buffer) => createHash('sha256').update(v).digest('hex');
-const joinSpecification = (...values: (string | null | undefined)[]) => {
+/** 规格、尺寸、材质常常说的是同一件事（60*40*30cm 和 60 × 40 × 30 cm），单据上只留一份。 */
+export const joinSpecification = (...values: (string | null | undefined)[]) => {
   const parts = values.filter(Boolean).flatMap((v) => v!.split(' / '));
-  const seen = new Set<string>();
+  const kept: string[] = [];
+  const key = (p: string) => p.replace(/\s+/g, '').replaceAll('×', 'x').toLowerCase();
   return parts
     .filter((p) => {
-      const key = p.replace(/\s+/g, '').replaceAll('×', 'x');
-      if (seen.has(key)) return false;
-      seen.add(key);
+      if (kept.some((k) => sameSpecification(k, p) || key(k).includes(key(p)))) return false;
+      kept.push(p);
       return true;
     })
     .join(' / ');
@@ -96,11 +99,16 @@ export class BusinessDocuments {
           rows: record.lines.map((l: any, i: number) => [
             String(i + 1),
             l.name,
-            joinSpecification(l.specification, formatStockSize(l), l.material, l.flute),
+            joinSpecification(
+              l.specification,
+              formatStockSize(l),
+              l.material === l.name ? '' : l.material,
+              l.flute,
+            ),
             l.unit,
             l.quantity,
             (l.unitPrice ?? '待核价') + (l.priceBasis === 'area' ? ' 元/㎡' : ' 元/' + l.unit),
-            l.amount ?? '待核价',
+            l.amount == null ? '待核价' : displayAmount(l.amount),
           ]),
           lineData: record.lines.map((l: any) => ({
             material: l.material,
@@ -109,7 +117,7 @@ export class BusinessDocuments {
             notes: l.notes,
             productCode: '',
           })),
-          total: record.totalAmount,
+          total: record.totalAmount == null ? record.totalAmount : displayAmount(record.totalAmount),
           notes: record.notes,
           signatures: ['采购方确认', '供应商确认'],
         },
@@ -133,13 +141,9 @@ export class BusinessDocuments {
           ['收货地址', record.address || customer?.address || '未记录'],
           [
             '客户联系信息',
-            [
-              record.contact || customer?.contact,
-              record.phone || customer?.phone,
-              record.address || customer?.address,
-            ]
+            [record.contact || customer?.contact, record.phone || customer?.phone]
               .filter(Boolean)
-              .join(' · '),
+              .join(' · ') || '未记录',
           ],
           [
             '关联销售订单',
@@ -154,8 +158,8 @@ export class BusinessDocuments {
           [
             record.status === 'confirmed' ? '实际送货日期' : '预计送货日期',
             record.status === 'confirmed'
-              ? record.date + ' ' + (record.actualTime || '时间未记录')
-              : (record.plannedDate || record.date) + ' ' + (record.plannedTime || ''),
+              ? [record.date, record.actualTime].filter(Boolean).join(' ')
+              : [record.plannedDate || record.date, record.plannedTime].filter(Boolean).join(' '),
           ],
           [
             '客户采购订单号',
@@ -198,7 +202,10 @@ export class BusinessDocuments {
             customerOrderNumber: l.externalPurchaseOrder ?? o?.externalPurchaseOrder ?? '',
             productCode: l.customerProductCode ?? ol?.customerProductCode ?? '',
             unitPrice: l.unitPriceExact || l.unitPrice || '未记录',
-            amount: l.amountExact || l.amount || '未记录',
+            amount: (() => {
+              const value = String(l.amountExact || l.amount || '');
+              return /^-?\d+(\.\d+)?$/.test(value) ? displayAmount(value) : value || '未记录';
+            })(),
             dimensions: l.length != null || l.width != null ? formatStockSize(l) : '',
             material: l.material || '',
             flute: l.flute || '',

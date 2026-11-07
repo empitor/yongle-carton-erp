@@ -108,6 +108,25 @@ export function formatDimensions(p: {
   return values.join(' × ') + (unit ? ' ' + unit : '（尺寸单位待确认）');
 }
 // 与正式导入相同的完整身份；仅移动共用比较，不改变既有指纹内容。
+/**
+ * 同一批导入里，后面的文件能不能复用前面刚建的产品。真实订单经常不写材质，加工要求每份也不一样，
+ * 所以只看名称和尺寸相同、材质楞型料号没有冲突。没有尺寸的不算，不猜。
+ */
+export function sameProductInBatch(a: any, b: any) {
+  const nameA = productIdentityParts(a)[0];
+  if (!nameA || nameA !== productIdentityParts(b)[0]) return false;
+  // 原件没写单位时，两边都没写、数字又一样才算
+  if (!normalizeDimensionUnit(a.dimensionUnit) !== !normalizeDimensionUnit(b.dimensionUnit)) return false;
+  if (!dimensionKeys.every((k) => typeof a[k] === 'number' && a[k] > 0 && typeof b[k] === 'number' && b[k] > 0))
+    return false;
+  if (normalizedDimensions(a).join() !== normalizedDimensions(b).join()) return false;
+  const text = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, '').toLowerCase();
+  return ['material', 'flute', 'customerProductCode'].every((k) => {
+    const x = text(a[k]),
+      y = text(b[k]);
+    return !x || !y || x === y;
+  });
+}
 export function productIdentityParts(p: any) {
   const key = (s: string) => s.trim().replace(/\s+/g, '').toLowerCase();
   return [

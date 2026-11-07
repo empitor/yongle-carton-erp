@@ -409,7 +409,7 @@ test('工具管理HTTP真实注册表、超级管理员启停、CSRF及匿名拒
     const response = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构工具验收', password: 'fictional-tool-test-123' }),
+      body: JSON.stringify({ name: '虚构工具验收', password: 'Fictional-tool-test-123' }),
     });
     const cookie = response.headers.get('set-cookie')!.split(';')[0],
       headers = {

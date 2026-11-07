@@ -30,7 +30,7 @@ test('G：真实本地浏览器截图、视觉坐标点击Canvas、键盘和附�
     const response = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构浏览器用户', password: 'fictional-browser-only-2026' }),
+      body: JSON.stringify({ name: '虚构浏览器用户', password: 'Fictional-browser-only-2026' }),
     });
     assert.equal(response.status, 200);
     const who = (await response.json()).actor;

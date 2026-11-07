@@ -12,7 +12,7 @@ import { stockItemSchema, quantityString, quantityUnits, lineMoney } from '../sh
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import Navigation from '../src/Navigation.js';
-const password = 'fictional-operations-password-123';
+const password = 'Fictional-operations-password-123';
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-operations-')),
     file = join(dir, 'erp.sqlite'),

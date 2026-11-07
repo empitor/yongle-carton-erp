@@ -1,3 +1,4 @@
+import { sameSpecification } from '../../shared/domain.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Store } from '../db.js';
@@ -374,7 +375,12 @@ export class FlowService {
         const purchase = purchases.find((p) => p.id === l.purchaseId), pl = purchase?.lines.find((p: any) => p.id === l.lineId);
         const linkedMovements = movements.filter((m) => Number(m.item_id) === l.stockId && (m.purchase_line_id == null ? l.lineId == null : Number(m.purchase_line_id) === l.lineId));
         const inbound = linkedMovements.filter((m) => ['flow_arrival', 'purchase_receipt'].includes(String(m.source_kind)));
-        const stockedQuantity = e.status === 'draft' ? '0' : inbound.length ? quantityString(inbound.reduce((n, m) => n + Number(m.delta_units), 0)) : l.stockedQuantity === '0' ? '0' : null;
+        // 同物料、同采购行的多条历史明细只能按流水顺序一一对应，不能各自重复拿总量。
+        // 已记明入库 0 的行没有流水，不参与配对，否则同物料的另一行也会被误判成待核对。
+        const peers = e.lines.filter((line) => line.stockId === l.stockId && line.lineId === l.lineId && line.stockedQuantity !== '0');
+        const balanced = inbound.length === peers.length;
+        const assigned = balanced && l.stockedQuantity !== '0' ? inbound[peers.indexOf(l)] : undefined;
+        const stockedQuantity = e.status === 'draft' ? '0' : assigned ? quantityString(Number(assigned.delta_units)) : balanced && l.stockedQuantity === '0' ? '0' : null;
         return { ...l, stockedQuantity, inventoryMismatch: e.status !== 'draft' && l.stockedQuantity != null && stockedQuantity !== l.stockedQuantity, purchaseNumber: purchase?.number || '未关联采购', orderedQuantity: pl?.quantity ?? null, receivedQuantity: pl?.receivedQuantity ?? null,
           remainingQuantity: pl?.remainingQuantity ?? null, arrivalStatus: pl?.arrivalStatus ?? null,
           movements: linkedMovements,
@@ -629,8 +635,7 @@ export class FlowService {
         if (
           it.specification &&
           ol.specification &&
-          it.specification.replace(/\s+/g, '').replaceAll('×', 'x') !==
-            ol.specification.replace(/\s+/g, '').replaceAll('×', 'x')
+          !sameSpecification(it.specification, ol.specification)
         )
           fail('成品库存型号与订单规格不同，请选择正确的成品档案，不按产品名称混合出库。');
         const qty = quantityUnits(l.quantity),
@@ -776,24 +781,62 @@ export class FlowService {
     this.store.db.prepare('UPDATE stock_items SET version=version+1 WHERE id=?').run(stockId);
     return id;
   }
-  private updateOrders(ids: number[]) {
+  /**
+   * 派生规则改了以后，把全部订单按现行规则重算一次。同一个标记只跑一次；
+   * 只写状态真的变了的订单，没变的连版本号都不动；改了哪些记一条审计。
+   */
+  recomputeOrderStatusesOnce(marker: string) {
+    const db = this.store.db;
+    if (
+      db
+        .prepare("SELECT 1 FROM operation_requests WHERE kind='order-status-recompute' AND request_id=?")
+        .get(marker)
+    )
+      return null;
+    db.exec('SAVEPOINT order_status_recompute');
+    try {
+      const before = new Map(
+        db.prepare('SELECT id,status FROM orders').all().map((r) => [Number(r.id), String(r.status)]),
+      );
+      this.updateOrders([...before.keys()], true);
+      const changed = db
+        .prepare('SELECT id,number,status FROM orders')
+        .all()
+        .filter((r) => before.get(Number(r.id)) !== String(r.status))
+        .map((r) => ({
+          id: Number(r.id),
+          number: String(r.number),
+          from: before.get(Number(r.id))!,
+          to: String(r.status),
+        }));
+      if (changed.length)
+        audit(this.store, { id: 'system', name: '系统启动' } as any, 'startup', 'recompute-order-status', 'orders', null, {
+          marker,
+          changed,
+        });
+      db.prepare('INSERT INTO operation_requests VALUES(?,?,?,?)').run(
+        'order-status-recompute',
+        marker,
+        marker,
+        JSON.stringify({ at: new Date().toISOString(), checked: before.size, changed: changed.length }),
+      );
+      db.exec('RELEASE order_status_recompute');
+      return changed;
+    } catch (error) {
+      db.exec('ROLLBACK TO order_status_recompute; RELEASE order_status_recompute');
+      throw error;
+    }
+  }
+  private updateOrders(ids: number[], onlyChanged = false) {
     for (const id of new Set(ids)) {
       const order = this.store.order(id, true);
       // 取消和草稿是人工决定，不被后续单据的重算覆盖。
       if (!order || order.status === '已取消' || order.status === '草稿') continue;
       const open = order.lines.filter((l) => shippedUnits(this.store, l.id!) < l.quantity * 1000),
         any = order.lines.some((l) => shippedUnits(this.store, l.id!) > 0);
-      const tasks = this.store.db
-        .prepare(
-          "SELECT DISTINCT d.id FROM flow_documents d JOIN flow_refs r ON r.document_id=d.id WHERE r.order_id=? AND d.kind='task' AND d.status='confirmed'",
-        )
-        .all(id)
-        .map((r) => this.get(Number(r.id)));
-      // 未发完的每一行都要有任务且其任务全部完工，才算生产完毕；只做完部分产品不能算待发货。
-      const produced = open.every((l) => {
-        const own = tasks.filter((t) => t.productId === l.productId);
-        return own.length > 0 && own.every((t) => t.progress >= 100);
-      });
+      const tasks = this.confirmedTasksOf(id);
+      // 未发完的每个产品都要做够，才算生产完毕；只做完部分产品不能算待发货。
+      const produced = open.every((l) => this.producedEnough(order.id, l.productId, l.unit || "", tasks));
       const status = !open.length
         ? '已发货'
         : tasks.length
@@ -803,10 +846,53 @@ export class FlowService {
           : any
             ? '待发货'
             : '已确认';
+      if (onlyChanged && status === order.status) continue;
       this.store.db
         .prepare('UPDATE orders SET status=?,version=version+1,updated_at=? WHERE id=?')
         .run(status, new Date().toISOString(), id);
     }
+  }
+  private confirmedTasksOf(orderId: number) {
+    return this.store.db
+      .prepare(
+        "SELECT DISTINCT d.id FROM flow_documents d JOIN flow_refs r ON r.document_id=d.id WHERE r.order_id=? AND d.kind='task' AND d.status='confirmed'",
+      )
+      .all(orderId)
+      .map((r) => this.get(Number(r.id)));
+  }
+  /**
+   * 这张单的这个产品做够了没有。同一产品分几行的合起来算；一张任务挂了几张单，
+   * 不知道各分多少，就把这几张单合起来算，总量做够才算。单位不同的任务不能换算，不算数。
+   */
+  private producedEnough(orderId: number, productId: number, unit: string, own: any[]) {
+    const matches = (t: any) => t.productId === productId && t.unit === unit;
+    if (!own.some(matches)) return false;
+    const orders = new Set<number>([orderId]),
+      tasks = new Map<number, any>();
+    let pending = [orderId];
+    while (pending.length && orders.size <= 50) {
+      const next: number[] = [];
+      for (const oid of pending)
+        for (const t of oid === orderId ? own : this.confirmedTasksOf(oid))
+          if (matches(t) && !tasks.has(t.id)) {
+            tasks.set(t.id, t);
+            for (const other of t.orderIds || [])
+              if (!orders.has(other)) {
+                orders.add(other);
+                next.push(other);
+              }
+          }
+      pending = next;
+    }
+    let need = 0;
+    for (const oid of orders) {
+      const o = this.store.order(oid, true);
+      if (!o || o.status === '已取消') continue;
+      for (const l of o.lines)
+        if (l.productId === productId && l.unit === unit) need += Math.round(l.quantity * 1000);
+    }
+    const made = [...tasks.values()].reduce((n, t) => n + quantityUnits(t.completed || '0'), 0);
+    return made >= need;
   }
   refreshOrderProgress(ids?: number[]) {
     this.updateOrders(
@@ -1327,6 +1413,7 @@ export class FlowService {
         )
         .run(JSON.stringify(v), v.date, new Date().toISOString(), id);
       this.refs(id, v, 'task');
+      this.updateOrders([...(before.orderIds || []), ...(v.orderIds || [])]);
       audit(this.store, actor, 'local-developer', 'correct-task', 'flow_task', id, {
         before,
         after: this.get(id),

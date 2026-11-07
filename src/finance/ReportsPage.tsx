@@ -226,6 +226,7 @@ function ClosingTab({ period }: { period: string }) {
   const { data, error } = useFin('/closing', { period });
   const action = useAction();
   const [dialog, setDialog] = useState(false);
+  const profitStep = data?.steps?.find((s: any) => s.key === 'profit');
   const run = (job: string) =>
     action.run(() => {
       const path = {
@@ -236,7 +237,8 @@ function ClosingTab({ period }: { period: string }) {
       }[job]!;
       return finSend('POST', path, {
         period,
-        ...(job === 'profit' && period.endsWith('-12') ? { annual: true } : {}),
+        // 12 月先月末损益，记账后这一步还没完成时才是年度利润。
+        ...(job === 'profit' && profitStep?.annualNext ? { annual: true } : {}),
       });
     });
   const closed = data?.record?.status === 'closed';
@@ -266,7 +268,7 @@ function ClosingTab({ period }: { period: string }) {
             {s.key === 'bank' && !s.ok && <a href="#finance-cash?tab=bank">去匹配</a>}
             {s.key === 'profit' && !s.ok && perms.close && !closed && (
               <button disabled={action.busy} onClick={() => run('profit')}>
-                结转损益
+                {s.annualNext ? '结转年度利润' : '结转损益'}
               </button>
             )}
           </li>

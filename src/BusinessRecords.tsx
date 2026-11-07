@@ -14,7 +14,7 @@ import StatusBadge from './StatusBadge';
 import ReceiptCorrectionDialog from './ReceiptCorrectionDialog';
 import RecordContextDialog from './RecordContext';
 import { displayAmount } from '../shared/display-amount';
-import { today } from '../shared/domain';
+import { orderDisplayStatus, today } from '../shared/domain';
 import { formatStockSize, quantityString, type RecordEntity } from '../shared/operations';
 type Entity = RecordEntity;
 export const PAGE_SIZE = 50;
@@ -516,7 +516,9 @@ export default function BusinessRecords({
                         </span>
                       ))}
                     </td>
-                    <td className="num">{row.totalAmountExact || money(row.totalCents)}</td>
+                    <td className="num">
+                      {row.totalAmountExact ? displayAmount(row.totalAmountExact) : money(row.totalCents)}
+                    </td>
                     <td
                       className={
                         row.deliveryDate < today() &&
@@ -528,7 +530,7 @@ export default function BusinessRecords({
                       {row.deliveryDate}
                     </td>
                     <td>
-                      <StatusBadge status={row.status} />
+                      <StatusBadge status={orderDisplayStatus(row)} />
                       {isArchived(row) && <span className="record-state">已归档</span>}
                     </td>
                     <td>
@@ -628,7 +630,9 @@ export default function BusinessRecords({
           title={view.number || view.name}
           status={
             view.status || view.businessStatus ? (
-              <StatusBadge status={view.status || view.businessStatus} />
+              <StatusBadge
+                status={entity === 'orders' ? orderDisplayStatus(view) : view.status || view.businessStatus}
+              />
             ) : undefined
           }
           summary={entity === 'orders' ? <Chain order={view} large /> : undefined}

@@ -596,7 +596,7 @@ test('HTTP聊天与显式预览联通；当前真实权限无需AI重复密码�
     const setup = await fetch(base + '/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-        body: JSON.stringify({ name: '全局验收', password: 'fictional-assistant-password-123' }),
+        body: JSON.stringify({ name: '全局验收', password: 'Fictional-assistant-password-123' }),
       }),
       cookie = setup.headers.get('set-cookie')!.split(';')[0],
       req = (path: string, body?: unknown, csrf = true) =>
@@ -634,7 +634,7 @@ test('HTTP聊天与显式预览联通；当前真实权限无需AI重复密码�
       200,
     );
     assert.equal(f.store.customers()[0].name, '待审核客户');
-    const password = 'fictional-assistant-password-123';
+    const password = 'Fictional-assistant-password-123';
     await req('/auth/super-admin/enter', { password });
     const item = new OperationsService(f.store).saveItem(
       { name: '高风险HTTP验收纸板', kind: 'raw', unit: '张' },

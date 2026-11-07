@@ -18,7 +18,7 @@ import {
   uniqueMessages,
 } from '../../shared/product-details.js';
 import { productFieldsFromDraft } from '../import/product-input.js';
-import { productCandidatesForLine } from '../../shared/import-matching.js';
+import { blocksNewProduct, productCandidatesForLine } from '../../shared/import-matching.js';
 type Ref =
   | { mode: 'existing'; id: number; version: number; name: string }
   | { mode: 'new'; key: string; input: any; name: string };
@@ -206,13 +206,25 @@ export class ImportExecutionService {
               (p) => hasCompleteProductIdentity(p) && productKey(p) === productKey(definition),
             )
           : [];
-        if (exact.length === 1)
-          mapping.products[l.id] = { mode: 'existing', id: exact[0].id, version: exact[0].version };
-        else if (exact.length || productCandidatesForLine(l, products).length)
+        const candidates = productCandidatesForLine(l, products);
+        // 真实订单常不写材质。名称、尺寸都相同又没有冲突的唯一档案就是它，
+        // 比如同一批里前一份刚建的产品，或者每月重复下单的老产品。
+        const best = candidates.filter((c) => c.recommended);
+        const same =
+          exact.length === 1 && !best.length
+            ? exact[0]
+            : best.length === 1
+              ? products.find((p) => p.id === best[0].id)
+              : undefined;
+        if (same)
+          mapping.products[l.id] = { mode: 'existing', id: same.id, version: same.version };
+        else if (exact.length || candidates.some(blocksNewProduct))
           throw new ImportError(
             '第' +
               (w.draft.lines.indexOf(l) + 1) +
-              '项已找到产品候选，请确认关联或明确选择计划新建，再保存客户与产品选择。',
+              '项“' +
+              definition.name +
+              '”已找到产品候选，请确认关联或明确选择计划新建，再保存客户与产品选择。',
           );
         else mapping.products[l.id] = { mode: 'new' };
       }
@@ -540,6 +552,11 @@ export class ImportExecutionService {
       order = this.store.order(Number(row.order_id), true);
     if (!order || order.version !== record.orderVersion)
       throw new ImportError('正式订单已被后续修改，不能直接撤回，请在订单管理中核对处理。', 409);
+    if (
+      this.store.db.prepare('SELECT 1 FROM flow_refs WHERE order_id=? LIMIT 1').get(order.id) ||
+      this.store.db.prepare('SELECT 1 FROM purchases WHERE customer_order_id=? LIMIT 1').get(order.id)
+    )
+      throw new ImportError('这张订单已有采购、生产或送货，不能撤回导入。', 409);
     // 仅保留旧“撤回导入”协议的兼容状态；正常页面已移除此入口，delete走物理删除服务。
     this.store.db
       .prepare('INSERT OR IGNORE INTO record_lifecycle VALUES(?,?,?,?)')

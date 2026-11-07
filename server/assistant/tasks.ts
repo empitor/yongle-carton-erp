@@ -10,6 +10,7 @@ import {
 } from '../../shared/assistant-task.js';
 import type { AssistantTools } from './tools.js';
 import { mergeDecisions, userDecisions } from './task-memory.js';
+import { asksAboutState } from './task-routing.js';
 const now = () => new Date().toISOString();
 const byteLimit = (name: string, fallback: number) => {
   const value = Number(process.env[name] ?? fallback);
@@ -306,13 +307,18 @@ export class AssistantTaskLedger {
         throw new ImportError('已尝试页面步骤不能更换核验目标。', 409);
       if (step.state === 'completed') throw new ImportError('已完成步骤不能更换参数重放。', 409);
     }
-    if (!step)
-      step = task.steps.find(
+    if (!step) {
+      // 模型列计划时常不带 requestId，执行时才带。认不出是同一步的话，计划那步就永远挂着，
+      // 做完了也显示“尚有事项待处理”。
+      const planned = task.steps.filter((x) => x.tool === call.name && x.state === 'planned');
+      const withoutRequest = (a: any) => ({ ...a, requestId: undefined });
+      step = planned.find(
         (x) =>
-          x.tool === call.name &&
-          x.state === 'planned' &&
-          (!x.args || durableCallKey(call.name, x.args, scope) === key),
+          !x.args ||
+          durableCallKey(call.name, withoutRequest(x.args), scope) ===
+            durableCallKey(call.name, withoutRequest(call.args), scope),
       );
+    }
     if (!step) {
       const target = (a: any) =>
         JSON.stringify(
@@ -443,6 +449,15 @@ export class AssistantTaskLedger {
       error: error.slice(0, 600),
     });
   }
+  /** 计划里列了、最后用不上的只读步骤不算没做完，否则做完了也一直显示“尚有事项待处理”。写入步骤不动。 */
+  dropPlannedReads(threadId: string, actor: Actor, isRead: (tool: string) => boolean) {
+    const task = this.get(threadId, actor);
+    if (!task) return;
+    const stale = task.steps.filter((s) => s.state === 'planned' && isRead(s.tool));
+    if (!stale.length) return;
+    for (const step of stale) step.state = 'superseded';
+    this.put(threadId, actor, task);
+  }
   needsBusinessProof(threadId: string, actor: Actor) {
     const task = this.get(threadId, actor);
     if (!task) return false;
@@ -451,6 +466,7 @@ export class AssistantTaskLedger {
       /能.*修改.*提示词.*[吗?？]/.test(task.goal)
     )
       return false;
+    if (asksAboutState(task.goal)) return false; // “你会照做吗？”是在问，不是让系统做
     if (
       !/保存|创建|新建|新增|修改|更新|删除|清空|归档|恢复|导入|确认|入库|出库|领料|完工|发货|发出|送货|采购|下单/.test(
         task.goal,

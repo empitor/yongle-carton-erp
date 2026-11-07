@@ -10,7 +10,6 @@ import {
   Check,
 } from 'lucide-react';
 import type { PromptPreset, PromptSettingsView } from '../shared/prompt-presets';
-import './prompt-settings.css';
 
 export default function PromptSettingsPage({
   baseUrl = '/api/ai/prompts',

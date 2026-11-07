@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import type { AssistantAttachment } from '../shared/assistant-attachments';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import './assistant-attachments.css';
 export const attachmentUrl = (a: AssistantAttachment, download = false) =>
   '/api/assistant/attachments/' +
   encodeURIComponent(a.id) +

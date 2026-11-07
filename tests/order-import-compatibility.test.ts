@@ -100,7 +100,7 @@ async function fixture(response = minimal()) {
     });
   const login = await request('/auth/setup', {
     name: '测试管理员',
-    password: 'test-compatibility-password-123',
+    password: 'Test-compatibility-password-123',
   });
   assert.equal(login.status, 200);
   cookie = login.headers.get('set-cookie')!.split(';')[0];

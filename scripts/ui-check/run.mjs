@@ -63,6 +63,9 @@ for (const batch of [
   ['flow-basics.mjs', 'flow-ledger.mjs', 'flow-closing.mjs'],
   ['flow-other.mjs'],
   ['flow-permission.mjs'],
+  ['flow-mobile.mjs'],
+  ['flow-account.mjs'],
+  ['flow-spirits.mjs'],
 ]) {
   const server = await startServer();
   try {

@@ -224,7 +224,7 @@ function AllocateDialog({
                           onClick={() =>
                             update(i, {
                               discountText: centsText(l.offer.amount),
-                              amountText: centsText(l.amount + l.offer.amount),
+                              amountText: centsText(Math.min(l.balance, l.amount + l.offer.amount)),
                             })
                           }
                         >
@@ -873,7 +873,8 @@ function NotesTab() {
 
 const invoiceStates: Record<string, string> = {
   draft: '草稿',
-  confirmed: '已确认',
+  normal: '已确认',
+  red: '红字已确认',
   certified: '已认证',
   nondeductible: '不可抵扣',
   void: '已作废',
@@ -882,10 +883,12 @@ function InvoiceDetail({ id, close }: { id: number; close: () => void }) {
   const perms = useFinPerms();
   const { data } = useFin('/invoices/' + id);
   const action = useAction();
-  const [dialog, setDialog] = useState<'link' | 'status' | null>(null);
+  const [dialog, setDialog] = useState<'link' | 'status' | 'red' | null>(null);
   if (!data) return null;
   const inv = data.invoice;
   const draft = inv.status === 'draft';
+  // 红字发票冲的是原蓝票，不关联往来单，也就不能拿“没关联”挡确认。
+  const red = Number(inv.gross) < 0;
   return (
     <DetailPanel
       title={'发票 ' + inv.number}
@@ -894,15 +897,19 @@ function InvoiceDetail({ id, close }: { id: number; close: () => void }) {
       actions={
         perms.edit ? (
           <div className="fin-actions">
-            {draft && <button onClick={() => setDialog('link')}>关联往来单</button>}
+            {draft && !red && <button onClick={() => setDialog('link')}>关联往来单</button>}
             {draft && (
               <button
                 className="primary"
-                disabled={action.busy || !data.links.length}
+                disabled={action.busy || (!red && !data.links.length)}
                 onClick={() =>
-                  action.run(() =>
-                    finSend('POST', '/invoices/' + inv.id + '/confirm', { version: inv.version }),
-                  )
+                  red
+                    ? setDialog('red')
+                    : action.run(() =>
+                        finSend('POST', '/invoices/' + inv.id + '/confirm', {
+                          version: inv.version,
+                        }),
+                      )
                 }
               >
                 确认
@@ -933,7 +940,7 @@ function InvoiceDetail({ id, close }: { id: number; close: () => void }) {
         label="发票关联"
         rowKey={(l) => l.obligation_id}
         rows={data.links}
-        empty="还没有关联。确认前要先关联往来单。"
+        empty={red ? '红字发票冲的是原蓝票，不用关联往来单。' : '还没有关联。确认前要先关联往来单。'}
         cols={[
           col('source_number', '单据', { render: (l) => l.source_number || '手工往来' }),
           col('date', '单据日'),
@@ -971,9 +978,28 @@ function InvoiceDetail({ id, close }: { id: number; close: () => void }) {
                 ...data.links.map((l: any) => ({
                   obligationId: l.obligation_id,
                   amount: l.amount_cents,
+                  estimateAmount: l.estimate_cents ?? undefined,
+                  quantity: l.quantity ?? undefined,
+                  unit: l.unit ?? undefined,
                 })),
                 v,
               ],
+            })
+          }
+        />
+      )}
+      {dialog === 'red' && (
+        <FormDialog
+          title="确认红字发票"
+          submitLabel="确认"
+          fields={[
+            { name: 'counterAccount', label: '对方科目（部分红冲且原票已生成凭证时必填）', type: 'account', wide: true },
+          ]}
+          close={() => setDialog(null)}
+          submit={(v) =>
+            finSend('POST', '/invoices/' + inv.id + '/confirm', {
+              version: inv.version,
+              ...(v.counterAccount ? { counterAccount: v.counterAccount } : {}),
             })
           }
         />

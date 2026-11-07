@@ -1,3 +1,4 @@
+import { importStillOpen } from '../shared/order-draft';
 import { APP_VERSION } from '../shared/version';
 import { erpPageIds, normalizeAiSettingsHash } from '../shared/assistant-navigation';
 import { legacyCents, precisionTotal } from '../shared/precision';
@@ -5,11 +6,10 @@ import { warehouseDeliveryHash } from '../shared/warehouse-delivery';
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Package,
   Plus,
   X,
   ArrowUpRight,
-  PanelLeftClose,
+  Menu,
   Search,
   Check,
   RefreshCw,
@@ -18,7 +18,9 @@ import {
   ShieldCheck,
   Bot,
 } from 'lucide-react';
-import AuthPanel, { LoginForm } from './AuthPanel';
+import AuthPanel from './AuthPanel';
+import BrandLogo from './ui/BrandLogo';
+import LoginScreen, { ForcedPasswordChange } from './LoginScreen';
 import ThemeSwitcher from './ThemeSwitcher';
 import {
   type ListResult,
@@ -33,6 +35,7 @@ import { presetRange, monthsBefore, type DatePreset, type OrderView } from '../s
 import { authChanged, managementRequest, useAuthState } from './session';
 import BusinessRecords from './BusinessRecords';
 import Navigation from './Navigation';
+import { MobileSubNav, MobileTabBar, useMobileTables } from './mobile/MobileNav';
 import { uiCapabilities } from '../shared/ui-capabilities';
 import { userError } from '../shared/user-errors';
 import { warehouseArrivalHash } from '../shared/arrival-navigation';
@@ -45,6 +48,7 @@ import InboxPage from './InboxPage';
 // 大页面按需加载，首屏只下载用到的部分。
 const FinancePages = lazy(() => import('./finance/FinancePages'));
 const AiSettingsHub = lazy(() => import('./AiSettingsHub'));
+const AccountManagement = lazy(() => import('./AccountManagement'));
 const OperationsPage = lazy(() => import('./OperationsPage'));
 const FlowPage = lazy(() => import('./FlowPage'));
 const GlobalAssistant = lazy(() => import('./GlobalAssistant'));
@@ -55,6 +59,7 @@ import type { RecordSort } from '../shared/record-sort';
 import { displayAmount } from '../shared/display-amount';
 import {
   statuses,
+  displayOrderStatuses,
   derivedOrderStatuses,
   specification,
   today,
@@ -99,6 +104,7 @@ type Page =
   | 'ai-settings'
   | 'ai-import'
   | 'inbox'
+  | 'accounts'
   | 'ai-prompts'
   | 'trash'
   | 'suppliers'
@@ -255,8 +261,19 @@ function Modal({
 }
 
 export default function App() {
-  const auth = useAuthState(),
+  const session = useAuthState();
+  // 还没改掉临时密码时当作未登录，下面的数据加载都不会发起。
+  const passwordLocked = !!session?.actor?.mustChangePassword;
+  const auth = passwordLocked ? { ...session!, actor: null } : session,
     superMode = !!auth?.actor?.superAdminMode;
+  // 另一个标签页切换了账号：这里的页面和表单还是上一个账号的，重新加载。
+  const shownActor = useRef<string | null>(null);
+  useEffect(() => {
+    const id = auth?.actor?.id || null;
+    if (shownActor.current && id && id !== shownActor.current) location.reload();
+    if (id) shownActor.current = id;
+  }, [auth?.actor?.id]);
+  useMobileTables();
   const [allRecordsView, setAllRecordsView] = useState(false),
     [trashEntity, setTrashEntity] = useState<RecordEntity>('orders');
   const [flowTrash, setFlowTrash] = useState<null | 'arrival' | 'task' | 'production' | 'delivery'>(
@@ -294,6 +311,7 @@ export default function App() {
   const [productAttention, setProductAttention] = useState(false);
   const [palette, setPalette] = useState(false),
     [newMenu, setNewMenu] = useState(false),
+    newMenuRef = useRef<HTMLDivElement>(null),
     [inboxCount, setInboxCount] = useState(0),
     [importCount, setImportCount] = useState(0);
   const canCreate =
@@ -309,12 +327,27 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   useEffect(() => {
+    if (!newMenu) return;
+    const outside = (e: PointerEvent) => {
+      if (!newMenuRef.current?.contains(e.target as Node)) setNewMenu(false);
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNewMenu(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [newMenu]);
+  useEffect(() => {
     if (!auth?.actor) return;
     const load = () => {
       fetch('/api/ai/imports', { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((s) => {
-          if (s?.workspaces) setImportCount(s.workspaces.filter((w: any) => !w.imported).length);
+          if (s?.workspaces) setImportCount(s.workspaces.filter(importStillOpen).length);
         })
         .catch(() => {});
       api<any>('/inbox?page=1&pageSize=1')
@@ -424,6 +457,7 @@ export default function App() {
       page === 'ai-settings' ||
       page === 'ai-import' ||
       page === 'inbox' ||
+      page === 'accounts' ||
       page === 'ai-prompts' ||
       page === 'document-templates' ||
       page.startsWith('finance') ||
@@ -562,6 +596,7 @@ export default function App() {
     customers: '客户',
     products: '产品',
     guide: '使用说明',
+    accounts: '账号管理',
     finance: '财务概览',
     'finance-flow': '月度台账',
     'finance-ar': '应收应付',
@@ -618,26 +653,13 @@ export default function App() {
   };
 
   if (!auth) return <div className="login-screen" />;
-  if (!auth.actor)
-    return (
-      <main className="login-screen">
-        <section className="login-card">
-          <span className="brand-mark">
-            <Package size={24} />
-          </span>
-          <h1>宁波甬勒包装制品有限公司</h1>
-          <p>{auth.configured ? '登录管理系统' : '首次使用，请建立管理员账号'}</p>
-          <LoginForm configured={auth.configured} csrf={auth.csrf} proxyAccess={auth.proxyAccess} />
-        </section>
-      </main>
-    );
+  if (passwordLocked) return <ForcedPasswordChange name={session!.actor!.name} />;
+  if (!auth.actor) return <LoginScreen auth={auth} />;
   return (
     <div className="shell">
       <aside className={menu ? 'sidebar open' : 'sidebar'}>
         <a className="brand" href="#dashboard" title="宁波甬勒包装制品有限公司">
-          <span className="brand-mark">
-            <Package size={18} />
-          </span>
+          <BrandLogo size={28} />
           <span className="brand-name">甬勒包装</span>
         </a>
         <Navigation
@@ -647,8 +669,11 @@ export default function App() {
           inboxCount={inboxCount}
           importCount={importCount}
           finance={!!auth?.actor?.permissions.includes('finance:view')}
+          accounts={auth.actor.role === 'super_admin'}
+          accountRequests={auth.pendingRequests || 0}
         />
       </aside>
+      {menu && <div className="mobile-backdrop" onClick={() => setMenu(false)} />}
       <div className="main">
         <header className="topbar">
           <div>
@@ -657,7 +682,8 @@ export default function App() {
               aria-label="切换导航"
               onClick={() => setMenu(!menu)}
             >
-              <PanelLeftClose size={20} />
+              <Menu size={20} />
+              {inboxCount > 0 && <span className="nav-count">{inboxCount}</span>}
             </button>
             <button
               className="top-search"
@@ -670,7 +696,7 @@ export default function App() {
             </button>
           </div>
           <div className="topbar-right">
-            <div className="top-new">
+            <div className="top-new" ref={newMenuRef}>
               <button
                 aria-haspopup="menu"
                 aria-expanded={newMenu}
@@ -712,6 +738,7 @@ export default function App() {
           </div>
         </header>
         <main className={page === 'ai-import' ? 'import-main' : ''}>
+          <MobileSubNav page={page} route={routeKey} navigate={(target) => navigate(target as Page)} />
           <Suspense fallback={<p role="status">正在打开页面…</p>}>
           {superMode && !auth?.actor?.localAdministrator && (
             <div className="super-mode-banner" role="status">
@@ -734,6 +761,7 @@ export default function App() {
             'production',
             'document-templates',
             'inbox',
+            'accounts',
           ].includes(page) && (
             <>
               <PageHeading
@@ -878,12 +906,19 @@ export default function App() {
           {(page === 'ai-settings' || page === 'ai-prompts') && <AiSettingsHub />}
           {page === 'ai-import' && <OrderImportPage />}
           {page === 'inbox' && <InboxPage />}
+          {page === 'accounts' && (
+            <AccountManagement
+              selfId={auth.actor.id}
+              isAdmin={auth.actor.role === 'super_admin'}
+              pending={auth.pendingRequests || 0}
+            />
+          )}
           {page.startsWith('finance') &&
             (auth?.actor?.permissions.includes('finance:view') ? (
               <FinancePages page={page} />
             ) : (
               <div className="error" role="alert">
-                当前账号没有财务权限。需要的话请找管理员在“设置 → 账号”里调整。
+                当前账号没有财务权限。需要的话请找管理员在“账号管理”里调整。
               </div>
             ))}
           {['orders', 'customers', 'products'].includes(page) && (
@@ -997,7 +1032,7 @@ export default function App() {
                         onChange={(e) => setStatus(e.target.value)}
                       >
                         <option value="">全部状态</option>
-                        {statuses.map((s) => (
+                        {displayOrderStatuses.map((s) => (
                           <option key={s}>{s}</option>
                         ))}
                       </select>
@@ -1179,7 +1214,7 @@ export default function App() {
             <div className="guide-grid">
               <section className="panel prose">
                 <h2>日常业务功能入口</h2>
-                <p>左侧按业务分组；右上角账号菜单提供本机数据管理。</p>
+                <p>左侧按业务分组；右上角账号菜单可以切换账号、修改密码。</p>
                 {uiCapabilities
                   .filter((c) => c.kind === 'business')
                   .map((c) => (
@@ -1197,7 +1232,7 @@ export default function App() {
                   <li>缺纸板时新建采购单，货到后在“到货”登记验收。</li>
                   <li>在订单详情安排生产，完工后登记良品和废品，成品自动入库。</li>
                   <li>在订单详情安排送货，确认发货时扣减成品库存，并导出送货单。</li>
-                  <li>客户发来唛头或样稿：放进“AI 导入”，类型选唛头，逐款对应产品后存入产品档案；也可以在产品详情里直接上传。唛头不产生订单、生产或库存。</li>
+                  <li>客户发来唛头或样稿：放进“AI 导入”，类型选唛头并识别，系统自动对应产品并把原文件挂到产品下，对不上的选一下；也可以在产品详情里直接上传。唛头不产生订单、生产或库存。</li>
                   <li>每天打开“今日”查看待处理事项。</li>
                 </ol>
               </section>
@@ -1222,7 +1257,7 @@ export default function App() {
                   系统每天自动做一次完整备份到 backups 目录，删除和初始化前还会自动留下业务库快照（data/snapshots）。请定期把备份另存到其他磁盘。
                 </p>
                 <p>
-                  账号在右上角账号菜单管理，分管理员、业务人员、只读三级。服务目前只监听本机，其他电脑和手机暂不能连接。
+                  账号由管理员在“账号管理”页面管理，分管理员、业务人员、只读、财务、出纳五种。登录页可以申请账号和提交忘记密码，都要管理员处理。
                 </p>
               </section>
               <section className="panel prose exercise">
@@ -1258,6 +1293,7 @@ export default function App() {
           style={{ position: 'fixed', width: 1, height: 1, left: 0, top: 0 }}
         />
       )}
+      <MobileTabBar page={page} navigate={(target) => navigate(target as Page)} />
       <Suspense fallback={null}>
         <GlobalAssistant />
       </Suspense>

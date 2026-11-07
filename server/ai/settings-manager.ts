@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { dropFormatEcho } from '../../shared/model-output.js';
 import {
   presetInputSchema,
   profileSchema,
@@ -188,7 +189,7 @@ export class AiSettingsManager {
       throw new AiConnectionError('stale', '当前 AI 预设已变化，请重新确认外发范围。', 409);
     if ((p.apiStyle || 'chat-completions') !== (expected.apiStyle || 'chat-completions'))
       throw new AiConnectionError('stale', '当前API协议已变化，请重新确认外发范围。', 409);
-    return this.workQueue.run(
+    const result = await this.workQueue.run(
       () => {
         const active = this.view().active;
         if (
@@ -213,6 +214,7 @@ export class AiSettingsManager {
       signal,
       options.onQueue,
     );
+    return dropFormatEcho(result);
   }
   view(): AiSettingsView {
     const presets = this.document.presets.map(publicPreset);

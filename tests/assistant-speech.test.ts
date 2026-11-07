@@ -95,7 +95,7 @@ test('语音识别接口要求登录和页面凭证，成功返回文字', async
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '语音验收', password: 'fictional-speech-password-123' }),
+      body: JSON.stringify({ name: '语音验收', password: 'Fictional-speech-password-123' }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];
     const send = (body: Buffer, csrf = true) =>
@@ -155,7 +155,7 @@ test('语音识别等待中退出登录，后端不再返回原账号的识别�
     const setup = await fetch(base + '/api/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '语音隔离验收', password: 'fictional-speech-isolation-123' }),
+      body: JSON.stringify({ name: '语音隔离验收', password: 'Fictional-speech-isolation-123' }),
     });
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];
     const pending = fetch(base + '/api/assistant/transcribe', {

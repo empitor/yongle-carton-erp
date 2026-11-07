@@ -668,7 +668,7 @@ test('HTTP管理员纠偏与排程复用真实身份、CSRF和原服务；远程
     const setup = await fetch(base + '/auth/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构排程管理员', password: 'fictional-schedule-password-123' }),
+      body: JSON.stringify({ name: '虚构排程管理员', password: 'Fictional-schedule-password-123' }),
     });
     assert.equal(setup.status, 200);
     const cookie = setup.headers.get('set-cookie')!.split(';')[0];

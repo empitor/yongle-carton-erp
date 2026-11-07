@@ -3,7 +3,6 @@ import { Plus, Save, Trash2, RotateCcw, Code2 } from 'lucide-react';
 import ManagementDialog from './ManagementDialog';
 import { managementRequest } from './session';
 import { developerModules, developerNames, developerFieldNames } from '../shared/developer';
-import './developer.css';
 import DatabaseDeleteDialog from './DatabaseDeleteDialog';
 import DataResetPanel from './DataResetPanel';
 const numberFields = new Set([

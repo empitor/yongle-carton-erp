@@ -21,6 +21,7 @@ import { ImportError } from './import/errors.js';
 
 import { DatabaseMaintenanceService } from './business/database-maintenance.js';
 import { isLocalAdministrator } from './developer-capability.js';
+import { snapshotBeforeDestructive } from './backup.js';
 const digest = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const schemas: any = {
   customers: customerSchema,
@@ -103,6 +104,9 @@ export class DeveloperService {
       if (prior.digest !== key) throw new ImportError('请求编号已用于其他内容。', 409);
       return JSON.parse(String(prior.result));
     }
+    // 开了 SAVEPOINT 就拍不了快照，要在这之前。
+    if (['delete', 'permanent-delete'].includes(v.action))
+      snapshotBeforeDestructive(this.store, 'developer-delete');
     this.store.db.exec('SAVEPOINT developer_edit');
     try {
       const all = this.list(v.module, actor).records,
