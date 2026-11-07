@@ -2,11 +2,11 @@ import { Store, defaultDbPath } from './db.js';
 import { createApp } from './app.js';
 import { acquireLock } from './lock.js';
 import { AiSettingsManager } from './ai/settings-manager.js';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { scheduleDailyBackup, snapshotBeforeUpgrade } from './backup.js';
-import { defaultAiSettingsPath } from './ai/credential-store.js';
+import { defaultAiSettingsPath, initializeCredentialProtection } from './ai/credential-store.js';
 import { ImportManager } from './import/manager.js';
-import { fileURLToPath } from 'node:url';
+import { backupDirectory } from './config-paths.js';
 import { AuthManager } from './auth.js';
 import { ImportError } from './import/errors.js';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime.js';
@@ -25,10 +25,13 @@ import { InboxService } from './inbox/service.js';
 import { WecomBotConnection } from './inbox/wecom-bot.js';
 import { WecomBotSettings, defaultWecomBotPath } from './inbox/wecom-bot-settings.js';
 import { readDeployment } from './deployment.js';
+import { checkDocumentFonts } from './documents/templates.js';
+initializeCredentialProtection();
+checkDocumentFonts();
 const port = Number(process.env.PORT || 3001);
 const deployment = readDeployment(process.env, port);
 if (deployment?.backupCopyDir) {
-  for (const root of [dirname(defaultDbPath), resolve('backups')]) {
+  for (const root of [dirname(defaultDbPath), backupDirectory()]) {
     const path = relative(root, deployment.backupCopyDir);
     if (!path || (!isAbsolute(path) && path !== '..' && !path.startsWith('..' + sep)))
       throw new Error('备份复制目录必须位于业务数据和本地备份目录之外。');
@@ -70,7 +73,7 @@ const assistant = new AssistantManager(store, aiSettings, assistantPrompts, {
   disableLocalFeatures: !!deployment,
 });
 const imports = new ImportManager({
-  directory: fileURLToPath(new URL('../data/ai-imports/', import.meta.url)),
+  directory: join(dirname(defaultDbPath), 'ai-imports'),
   settings: aiSettings,
   promptPresets,
   findImport: (id, hash) => findImport(store, id, hash),
@@ -156,7 +159,7 @@ try {
 assistant.connectExtras({
   backup: {
     dataDir: dirname(defaultDbPath),
-    backupRoot: resolve('backups'),
+    backupRoot: backupDirectory(),
     extraFiles: {
       'ai-settings.sqlite': defaultAiSettingsPath(),
       'wecom-bot.sqlite': defaultWecomBotPath(),
@@ -165,7 +168,7 @@ assistant.connectExtras({
 });
 stopBackup = scheduleDailyBackup({
   dataDir: dirname(defaultDbPath),
-  backupRoot: resolve('backups'),
+  backupRoot: backupDirectory(),
   copyDir: deployment?.backupCopyDir,
   copyKeep: deployment?.backupCopyKeep,
   extraFiles: {

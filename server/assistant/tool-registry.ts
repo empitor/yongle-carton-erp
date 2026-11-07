@@ -10,8 +10,8 @@ import {
 } from './plugins.js';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { defaultDbPath } from '../db.js';
 import { z } from 'zod';
 import { toolCatalog, assistantModules } from './tools.js';
 import { financeReadQuery,financeReadTools } from '../../shared/finance-tools.js';
@@ -255,7 +255,7 @@ const schemas: Record<string, z.ZodType> = {
   'order_import.undo': z.strictObject(task),
 };
 export const defaultAssistantToolsPath = () =>
-  fileURLToPath(new URL('../../data/ai-tools/tools.sqlite', import.meta.url));
+  join(dirname(defaultDbPath), 'ai-tools', 'tools.sqlite');
 export type ToolKind = 'read' | 'business' | 'workflow';
 /** 注册定义、持久启停与调度共用同一目录；业务规则仍由原服务验证。 */
 export class AssistantToolRegistry {

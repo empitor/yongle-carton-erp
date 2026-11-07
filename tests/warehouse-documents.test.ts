@@ -402,10 +402,10 @@ test('生成失败、并发版本变化、交付后版本冲突及已取消采�
     f.store.close();
   }
 });
-test('采购Word和Excel完整多行、长中文、原单位尺寸和精度可读回，标题与打印布局合法', async () => {
+test('采购Word和Excel完整多行、可容纳中文规格、原单位尺寸和精度可读回，标题与打印布局合法', async () => {
   const f = setup();
   try {
-    const long = '虚构长规格说明'.repeat(14),
+    const long = '虚构规格说明',
       p = f.ops.savePurchase(
         {
           ...f.current(),
@@ -438,18 +438,30 @@ test('采购Word和Excel完整多行、长中文、原单位尺寸和精度可�
         assert.match(xml, /1.2345/);
         assert.match(xml, /采购订货单/);
         assert.match(xml, /tblHeader/);
-        assert.match(xml, /landscape/);
+        assert.ok((xml.match(/<w:pageBreakBefore\/>/g) || []).length >= 1, '明细超过一张时应续页');
+        assert.doesNotMatch(xml, /w:orient="landscape"/);
         const page = xml.match(/<w:pgSz[^>]*w:w="(\d+)"[^>]*w:h="(\d+)"/);
-        assert.ok(page && Number(page[1]) > Number(page[2]), '打印页实际宽度应大于高度');
+        assert.ok(page && Number(page[1]) < Number(page[2]), '默认订货单是 A4 竖版');
       } else {
         const book = new ExcelJS.Workbook();
         await book.xlsx.load(bytes as any);
         const sheet = book.worksheets[0];
-        const header = sheet.getRows(1, sheet.rowCount)!.find(r => r.getCell(2).value === '产品名称')!;
+        const header = sheet
+          .getRows(1, sheet.rowCount)!
+          .find((r) => r.getCell(2).value === '产品名称')!;
         assert.ok(header);
-        assert.equal(sheet.getRow(header.number + 32).getCell(2).value, '虚构纸板31');
-        assert.equal(sheet.pageSetup.orientation, 'landscape');
-        assert.ok(sheet.pageSetup.printTitlesRow);
+        // 固定版式：明细按每张行数续页，每张都有自己的表头，张与张之间手动分页。
+        const rows = sheet.getRows(1, sheet.rowCount)!,
+          headers = rows.filter((r) => r.getCell(2).value === '产品名称'),
+          names = rows
+            .map((r) => String(r.getCell(2).value ?? ''))
+            .filter((v) => v.startsWith('虚构纸板'));
+        assert.ok(headers.length > 1, '明细超过一张时应续页');
+        assert.equal(names.length, new Set(names).size);
+        assert.ok(names.includes('虚构纸板31'));
+        const sheetXml = (await zipEntries(bytes)).get('xl/worksheets/sheet1.xml')!;
+        assert.equal((sheetXml.match(/<brk /g) || []).length, headers.length - 1);
+        assert.equal(sheet.pageSetup.orientation, 'portrait');
         assert.match(JSON.stringify(sheet.getSheetValues()), /1.2345/);
       }
       if (process.env.ERP_EXPORT_QA_DIR) {
@@ -488,7 +500,10 @@ test('正式送货单导出本批4000与6000，计划文件显式非正式，重
         } else {
           const book = new ExcelJS.Workbook();
           await book.xlsx.load(bytes as any);
-          const sheet = book.worksheets[0], header = sheet.getRows(1, sheet.rowCount)!.find(r => r.getCell(5).value === '本批送货数量')!;
+          const sheet = book.worksheets[0],
+            header = sheet
+              .getRows(1, sheet.rowCount)!
+              .find((r) => r.getCell(5).value === '本批送货数量')!;
           assert.ok(header);
           assert.equal(sheet.getRow(header.number + 1).getCell(5).value, Number(q));
         }
@@ -598,6 +613,75 @@ test('AI查询日期汇总、采购导出交付与状态核验和人工共用同
     a.close();
   }
 });
+test('助手导出遇到超长规格保留具体中文原因，不生成文件、不改变采购状态', async () => {
+  const a = assistantFixture(),
+    f = setup(a.store);
+  try {
+    const p = f.ops.savePurchase(
+      {
+        ...f.current(),
+        version: f.current().version,
+        lines: f
+          .current()
+          .lines.map((l: any) => ({
+            ...l,
+            stockItemId: null,
+            specification: '虚构长规格说明'.repeat(14),
+          })),
+      },
+      actor,
+      f.purchase.id,
+    );
+    const request = f.exp('purchase', p.id),
+      t = a.manager.create(actor);
+    a.replies.push(
+      {
+        state: 'working',
+        message: '导出',
+        toolCalls: [{ name: 'documents.export', args: request }],
+      },
+      { state: 'completed', message: '请按工具结果处理。', toolCalls: [] },
+    );
+    const toolResults: any[] = [];
+    await a.manager.chat(
+      t.id,
+      a.input('导出这张采购单。', randomUUID()),
+      actor,
+      'test',
+      (event, data: any) => {
+        if (event === 'tool' && data.name === 'documents.export' && data.state === 'completed')
+          toolResults.push(data.result);
+      },
+      () => actor,
+    );
+    assert.equal(toolResults.length, 1);
+    assert.equal(toolResults[0].ok, false);
+    assert.match(toolResults[0].message, new RegExp(p.number));
+    assert.match(toolResults[0].message, /第 1 行明细“规格及尺寸”.*缩短内容或换更大的纸张/);
+    assert.match(
+      a.manager.tasks.get(t.id, actor)!.steps.find((s) => s.tool === 'documents.export')!.error!,
+      /第 1 行明细“规格及尺寸”/,
+    );
+    assert.equal(f.current().businessStatus, '待订货');
+    assert.equal(
+      f.store.db
+        .prepare("SELECT COUNT(*) n FROM operation_requests WHERE kind='document-export'")
+        .get()!.n,
+      0,
+    );
+    assert.equal(
+      f.store.db
+        .prepare(
+          "SELECT COUNT(*) n FROM business_audit WHERE source='business-documents' AND action='generate'",
+        )
+        .get()!.n,
+      0,
+    );
+  } finally {
+    a.close();
+  }
+});
+
 test('AI送货计划、改期、实际发货及本批Excel导出共用原服务，旧排程链接回到统一台账', async () => {
   const a = assistantFixture(),
     f = setup(a.store);
@@ -716,9 +800,13 @@ test('Excel超15位有效数按原文保留，用户文本不会被解释为公�
     );
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(bytes as any);
-  assert.equal(book.worksheets[0].getRow(3).getCell(1).value, exact);
-  assert.equal(book.worksheets[0].getRow(3).getCell(2).value, '=1+1');
-  assert.equal(book.worksheets[0].getRow(3).getCell(2).type, ExcelJS.ValueType.String);
+  const sheet = book.worksheets[0],
+    data = sheet.getRow(
+      sheet.getRows(1, sheet.rowCount)!.find((r) => r.getCell(1).value === '数值')!.number + 1,
+    );
+  assert.equal(data.getCell(1).value, exact);
+  assert.equal(data.getCell(2).value, '=1+1');
+  assert.equal(data.getCell(2).type, ExcelJS.ValueType.String);
 });
 test('并发同请求仅保存一份完整文件，生成期间改动版本时拒绝旧文件交付', async () => {
   const f = setup();
@@ -873,6 +961,43 @@ test('真实HTTP交付需登录与CSRF，文件完整返回且完整交付回执
     });
     assert.equal(r.status, 200);
     assert.equal(((await r.json()) as any).summary.pending, 0);
+    const longPurchase = f.ops.savePurchase(
+      {
+        ...f.current(),
+        version: f.current().version,
+        lines: f
+          .current()
+          .lines.map((l: any) => ({
+            ...l,
+            stockItemId: null,
+            specification: '虚构长规格说明'.repeat(14),
+          })),
+      },
+      actor,
+      f.purchase.id,
+    );
+    const exportsBefore = f.store.db
+      .prepare("SELECT COUNT(*) n FROM operation_requests WHERE kind='document-export'")
+      .get()!.n;
+    for (const format of ['docx', 'xlsx']) {
+      r = await fetch(origin + '/api/documents', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(f.exp('purchase', longPurchase.id, { format })),
+      });
+      assert.equal(r.status, 400);
+      const error = (await r.json()) as any;
+      assert.equal(error.code, 'document_layout_overflow');
+      assert.match(error.message, new RegExp(longPurchase.number));
+      assert.match(error.message, /第 1 行明细“规格及尺寸”.*缩短内容或换更大的纸张/);
+    }
+    assert.equal(
+      f.store.db
+        .prepare("SELECT COUNT(*) n FROM operation_requests WHERE kind='document-export'")
+        .get()!.n,
+      exportsBefore,
+    );
+    assert.equal(f.current().version, longPurchase.version);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

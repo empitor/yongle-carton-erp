@@ -1,0 +1,27 @@
+[Unit]
+Description=Yongle Carton ERP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yongle-erp
+Group=yongle-erp
+WorkingDirectory=/opt/yongle-carton-erp
+EnvironmentFile=/etc/yongle-carton-erp/erp.env
+ExecStart=/opt/yongle-carton-erp/scripts/linux/erp.sh start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/yongle-carton-erp
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

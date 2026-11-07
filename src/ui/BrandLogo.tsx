@@ -1,6 +1,7 @@
 /**
  * 甬勒包装商标：Y 和 L，L 的转角是纸板折痕，折过来的一段颜色深一档。
- * 所有斜边都和 Y 的右臂平行。改这里要同步 public/favicon.svg 和 docs/brand/。
+ * 所有斜边都和 Y 的右臂平行。改这里要同步 public/favicon.svg、docs/brand/ 和单据里用的
+ * server/documents/brand-logo.ts。
  */
 export default function BrandLogo({ size }: { size: number }) {
   return (

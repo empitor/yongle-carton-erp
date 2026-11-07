@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ArrowUp, ArrowDown, Copy, Eye, Download, Save } from 'lucide-react';
+import { ArrowUp, ArrowDown, Copy, Eye, Download, Save, RotateCcw } from 'lucide-react';
 import { managementRequest, useAuthState } from './session';
 import {
   documentColumns,
-  purchaseColumns,
-  deliveryColumns,
   optionalDocumentFields,
+  documentPapers,
+  templatePaper,
+  defaultTemplateColumns,
+  templateColumnsAreDefault,
+  resetTemplateColumns,
+  templateCopyLabels,
+  type DocumentPaper,
   type DocumentTemplate,
   type DocumentTemplateState,
   type DocumentColumn,
@@ -87,7 +92,21 @@ export default function DocumentTemplateSettings() {
       setMessage('虚构测试样张已导出，业务记录和状态未改变。');
     }
   };
-  const columns = template?.columns || (kind === 'purchase' ? purchaseColumns : deliveryColumns);
+  const columns = template?.columns || defaultTemplateColumns(kind);
+  /** 明细列恢复默认：只改待保存内容，点“保存模板设置”才写入。 */
+  const resetColumns = () => {
+    setState(
+      (s) =>
+        s && {
+          ...s,
+          templates: s.templates.map((t) => (t.id === template?.id ? resetTemplateColumns(t) : t)),
+        },
+    );
+    setDirty(true);
+    setMessage('明细字段已恢复默认，保存后生效。');
+    setPreview(null);
+    setWord(null);
+  };
   const move = (i: number, offset: number) => {
     const order = [...columns];
     [order[i], order[i + offset]] = [order[i + offset], order[i]];
@@ -242,8 +261,22 @@ export default function DocumentTemplateSettings() {
                 </div>
               </fieldset>
               <fieldset disabled={!canEdit || busy} className="form-section">
-                <legend>A4与基本排版</legend>
+                <legend>纸张与排版</legend>
                 <div className="form-grid">
+                  <label className="field">
+                    <span>纸张</span>
+                    <select
+                      aria-label="纸张"
+                      value={templatePaper(template)}
+                      onChange={(e) => edit({ paper: e.target.value as DocumentPaper })}
+                    >
+                      {(Object.keys(documentPapers) as DocumentPaper[]).map((k) => (
+                        <option key={k} value={k}>
+                          {documentPapers[k].label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="field">
                     <span>字体</span>
                     <select
@@ -269,6 +302,12 @@ export default function DocumentTemplateSettings() {
                   <label className="field">
                     <span>A4纸张方向</span>
                     <select
+                      disabled={templatePaper(template) !== 'a4'}
+                      title={
+                        templatePaper(template) === 'a4'
+                          ? undefined
+                          : '针式联单和 A5 的方向随纸张固定'
+                      }
                       value={template.orientation}
                       onChange={(e) => edit({ orientation: e.target.value as any })}
                     >
@@ -304,15 +343,46 @@ export default function DocumentTemplateSettings() {
                       <option value="xlsx">Excel (.xlsx)</option>
                     </select>
                   </label>
+                  <label className="field wide">
+                    <span>联次说明（选填，印在右侧竖排；清空则不印）</span>
+                    <input
+                      maxLength={80}
+                      value={templateCopyLabels(template)}
+                      onChange={(e) => edit({ copyLabels: e.target.value })}
+                    />
+                  </label>
+                  <label className="checkbox wide">
+                    <input
+                      type="checkbox"
+                      checked={template.showLogo}
+                      onChange={(e) => edit({ showLogo: e.target.checked })}
+                    />
+                    抬头显示公司商标
+                  </label>
                   {textField('headerText', '页眉文字（选填）', 300, true)}
                   {textField('footerText', '页脚文字（选填，自动附页码）', 300, true)}
                 </div>
               </fieldset>
               <fieldset disabled={!canEdit || busy} className="form-section">
                 <legend>明细字段与顺序</legend>
-                <p className="help-text">
-                  产品名称、数量与数量单位始终保留。尺寸单位保持原记录。上下箭头调整已显示列的顺序。
-                </p>
+                <div className="template-column-head">
+                  <p className="help-text">
+                    产品名称、数量与数量单位始终保留。尺寸单位保持原记录。上下箭头调整已显示列的顺序。
+                  </p>
+                  <button
+                    type="button"
+                    disabled={templateColumnsAreDefault(template)}
+                    title={
+                      templateColumnsAreDefault(template)
+                        ? '已经是默认的明细字段和顺序'
+                        : '明细字段和顺序改回默认，其他设置不变；保存后生效'
+                    }
+                    onClick={resetColumns}
+                  >
+                    <RotateCcw size={14} />
+                    恢复默认
+                  </button>
+                </div>
                 <div className="template-column-list">
                   {columns.map((key, i) => (
                     <div key={key}>

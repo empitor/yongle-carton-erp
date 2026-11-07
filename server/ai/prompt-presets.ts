@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { defaultDbPath } from '../db.js';
 import { randomUUID, createHash } from 'node:crypto';
 import { z } from 'zod';
 import {
@@ -13,7 +13,7 @@ import { defaultPromptPreset } from '../import/default-prompts.js';
 import { ImportError } from '../import/errors.js';
 
 export const defaultPromptSettingsPath = () =>
-  fileURLToPath(new URL('../../data/ai-prompts/presets.sqlite', import.meta.url));
+  join(dirname(defaultDbPath), 'ai-prompts', 'presets.sqlite');
 const revision = z.object({ expectedRevision: z.number().int().nonnegative() });
 export class PromptPresetManager {
   private db: DatabaseSync;

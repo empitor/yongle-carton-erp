@@ -1,0 +1,6 @@
+erp.example.invalid {
+    encode /assets/* gzip
+    reverse_proxy 127.0.0.1:3002 {
+        header_up X-ERP-Client-IP {remote_host}
+    }
+}

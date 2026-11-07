@@ -1,10 +1,12 @@
-// 生成可下载的 Windows 发布包：解压后双击“启动系统.cmd”即可使用。
+// 同一脚本在目标平台打包，依赖和 Node 随对应平台安装，禁止跨平台复制 node_modules。
 // 用法：npm run package [-- --out 输出目录]。默认输出到系统临时目录。
 // 只复制白名单里的文件，绝不把 data/、backups/、密钥和语音模型打进去。
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   cpSync,
+  chmodSync,
+  symlinkSync,
   createReadStream,
   existsSync,
   mkdirSync,
@@ -21,7 +23,12 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const name = `yongle-carton-erp-v${pkg.version}-win-x64`;
+const targetFlag = process.argv.indexOf('--target');
+const target = targetFlag > 0 ? process.argv[targetFlag + 1] : (process.platform === 'win32' ? 'win-x64' : 'linux-x64');
+if (!['win-x64', 'linux-x64'].includes(target) || process.arch !== 'x64' || (target === 'win-x64' ? process.platform !== 'win32' : process.platform !== 'linux'))
+  throw new Error('请在对应目标平台的 Node 24 x64 中运行 --target win-x64 或 --target linux-x64；不要复制异平台原生依赖。');
+const windows = target === 'win-x64';
+const name = `yongle-carton-erp-v${pkg.version}-${target}`;
 const outFlag = process.argv.indexOf('--out');
 const out = outFlag > 0 ? resolve(process.argv[outFlag + 1]) : mkdtempSync(join(tmpdir(), 'erp-release-'));
 const stage = join(mkdtempSync(join(tmpdir(), 'erp-stage-')), name);
@@ -38,9 +45,9 @@ const copy = (from, to = from) => {
 step('检查环境');
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major !== 24 || minor < 15) throw new Error('打包要用 Node.js 24.15 或更高的 24.x。');
-if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('发布包只支持在 Windows x64 上生成。');
-const nodeDir = dirname(process.execPath);
-for (const item of ['node.exe', 'npm.cmd', 'node_modules/npm'])
+
+const nodeDir = windows ? dirname(process.execPath) : resolve(dirname(process.execPath), '..');
+for (const item of (windows ? ['node.exe', 'npm.cmd', 'node_modules/npm'] : ['bin/node', 'bin/npm', 'lib/node_modules/npm']))
   if (!existsSync(join(nodeDir, item))) throw new Error('Node 安装目录不完整：' + item);
 
 step('复制程序文件');
@@ -53,6 +60,7 @@ for (const item of [
   '.env.example',
   '启动系统.cmd',
   '停止系统.cmd',
+  'scripts/linux',
   'README.md',
   'LICENSE',
   'vendor/xlsx-0.20.3.tgz',
@@ -84,7 +92,7 @@ try {
   if (checked.status !== 0) throw new Error('类型检查失败');
   const built = spawnSync(
     process.execPath,
-    [join(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', join(stage, 'dist'), '--emptyOutDir'],
+    [join(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', join(stage, 'dist'), '--emptyOutDir', '--configLoader', 'runner'],
     { cwd: root, stdio: 'inherit', env: buildEnv },
   );
   if (built.status !== 0) throw new Error('页面构建失败');
@@ -93,30 +101,41 @@ try {
 }
 
 step('安装生产依赖');
-execFileSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm.cmd ci --omit=dev --no-audit --no-fund'], {
-  cwd: stage,
-  stdio: 'inherit',
-});
+const npmCommand = windows ? process.env.ComSpec || 'cmd.exe' : process.execPath;
+const npmArgs = windows ? ['/d', '/s', '/c', 'npm.cmd ci --omit=dev --no-audit --no-fund'] : [join(nodeDir, 'lib/node_modules/npm/bin/npm-cli.js'), 'ci', '--omit=dev', '--no-audit', '--no-fund'];
+execFileSync(npmCommand, npmArgs, { cwd: stage, stdio: 'inherit' });
 rmSync(join(stage, 'vendor/xlsx-0.20.3.tgz'));
 
 step('内置 Node.js ' + process.version);
 const runtime = join(stage, 'runtime/node');
 mkdirSync(runtime, { recursive: true });
-for (const item of ['node.exe', 'npm', 'npm.cmd', 'npx', 'npx.cmd', 'node_modules/npm'])
+for (const item of (windows ? ['node.exe', 'npm', 'npm.cmd', 'npx', 'npx.cmd', 'node_modules/npm'] : ['bin/node', 'lib/node_modules/npm']))
   cpSync(join(nodeDir, item), join(runtime, item), { recursive: true });
+if (!windows) {
+  symlinkSync('../lib/node_modules/npm/bin/npm-cli.js', join(runtime, 'bin/npm'));
+  symlinkSync('../lib/node_modules/npm/bin/npx-cli.js', join(runtime, 'bin/npx'));
+  chmodSync(join(runtime, 'bin/node'), 0o755);
+  for (const f of ['erp.sh', 'install-service.sh']) chmodSync(join(stage, 'scripts/linux', f), 0o755);
+}
 if (existsSync(join(nodeDir, 'LICENSE'))) cpSync(join(nodeDir, 'LICENSE'), join(runtime, 'LICENSE'));
 
 step('写入发布标记');
-let commit = 'unknown';
+let baseCommit = process.env.ERP_RELEASE_BASE_COMMIT || 'unknown';
 try {
-  commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  baseCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 } catch {
   /* 没有 git 时不影响打包 */
+}
+// 发布前验收必须先打包，baseCommit 只表示基线；两平台相同的源文件摘要用于核对实际包内容。
+const sourceHash = createHash('sha256');
+for (const file of listFiles(stage).filter((f) => !/^(node_modules|dist|runtime)\//.test(f)).sort()) {
+  sourceHash.update(file + '\0');
+  sourceHash.update(readFileSync(join(stage, file)));
 }
 // 有这个文件，启动器就直接用构建好的页面，不再安装依赖和构建。
 writeFileSync(
   join(stage, '.release-package'),
-  JSON.stringify({ version: pkg.version, node: process.version, commit }, null, 2) + '\n',
+  JSON.stringify({ version: pkg.version, node: process.version, baseCommit, sourceSha256: sourceHash.digest('hex') }, null, 2) + '\n',
 );
 writeFileSync(
   join(stage, '维护命令行.cmd'),
@@ -156,10 +175,17 @@ const walk = (dir) => {
 walk(stage);
 if (problems.length) throw new Error('发布包内容不合格：\n' + problems.join('\n'));
 
+function listFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name);
+    return entry.isDirectory() ? listFiles(full) : [relative(stage, full).replaceAll('\\', '/')];
+  });
+}
 step('压缩');
-const zip = join(out, name + '.zip');
+const zip = join(out, name + (windows ? '.zip' : '.tar.gz'));
+writeFileSync(zip + '.files.txt', listFiles(stage).sort().join('\n') + '\n');
 rmSync(zip, { force: true });
-execFileSync(
+if (windows) execFileSync(
   'powershell.exe',
   [
     '-NoProfile',
@@ -168,6 +194,7 @@ execFileSync(
   ],
   { stdio: 'inherit', env: { ...process.env, ERP_STAGE: stage, ERP_ZIP: zip } },
 );
+else execFileSync('tar', ['-czf', zip, '-C', dirname(stage), basename(stage)], { stdio: 'inherit' });
 const hash = createHash('sha256');
 for await (const chunk of createReadStream(zip)) hash.update(chunk);
 const digest = hash.digest('hex');

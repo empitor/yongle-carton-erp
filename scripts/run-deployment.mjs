@@ -39,6 +39,9 @@ const allowed = new Set([
   'ERP_ALLOWED_ORIGINS',
   'ERP_BACKUP_COPY_DIR',
   'ERP_BACKUP_COPY_KEEP',
+  'ERP_CONFIG_DIR',
+  'ERP_BACKUP_DIR',
+  'DB_PATH',
 ]);
 try {
   const config = JSON.parse(readFileSync(configFile, 'utf8').replace(/^\uFEFF/, ''));

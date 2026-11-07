@@ -1,3 +1,4 @@
+import { masterKeyName } from './config-paths.js';
 import { DatabaseSync, backup } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -30,7 +31,7 @@ const AUTO_BACKUP_KEEP = 14;
 const DAY_MS = 24 * 3600_000;
 /** 运行时文件不进入备份：WAL由一致性备份合并，锁和控制令牌只属于运行中的实例。 */
 const isTransient = (name: string) =>
-  /(-wal|-shm|\.running|\.control)$/.test(name) || /\.(restore|before-restore)-/.test(name);
+  name === masterKeyName || /(-wal|-shm|\.running|\.control)$/.test(name) || /\.(restore|before-restore)-/.test(name);
 
 function newest(dir: string, prefix: string) {
   if (!existsSync(dir)) return [] as string[];
@@ -162,7 +163,8 @@ export async function createFullBackup(options: {
     };
     for (const file of walk(options.dataDir)) await add(file, relative(options.dataDir, file));
     for (const [name, path] of Object.entries(options.extraFiles || {}))
-      if (existsSync(path)) await add(path, join('_extra', name));
+      if (basename(path) === masterKeyName || basename(name) === masterKeyName) throw new Error('主密钥不能进入业务备份，请单独保管。');
+      else if (existsSync(path)) await add(path, join('_extra', name));
     const business = join(staged, 'erp.sqlite');
     if (existsSync(business)) validateBusinessDatabase(business, supportedDatabaseVersions);
     writeFileSync(
@@ -251,10 +253,11 @@ let lastAutoBackupFailure: { at: string; message: string } | null = null;
 export const autoBackupFailure = () => lastAutoBackupFailure;
 
 export async function copyAutomaticBackup(source: string, targetRoot: string, keep?: number) {
-  if (resolve(dirname(source)).toLowerCase() === resolve(targetRoot).toLowerCase())
+  const pathKey = (path: string) => process.platform === 'win32' ? path.toLowerCase() : path;
+  if (pathKey(resolve(dirname(source))) === pathKey(resolve(targetRoot)))
     throw new Error('备份复制目录须与本地备份目录不同。');
   await mkdir(targetRoot, { recursive: true });
-  if ((await realpath(dirname(source))).toLowerCase() === (await realpath(targetRoot)).toLowerCase())
+  if (pathKey(await realpath(dirname(source))) === pathKey(await realpath(targetRoot)))
     throw new Error('备份复制目录须与本地备份目录不同。');
   const target = join(targetRoot, basename(source));
   const existing = await stat(target).catch((error: NodeJS.ErrnoException) => {

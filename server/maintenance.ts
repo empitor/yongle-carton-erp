@@ -1,3 +1,4 @@
+import { backupDirectory } from './config-paths.js';
 import { DatabaseSync, backup } from 'node:sqlite';
 import { copyFileSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -26,7 +27,7 @@ try {
     if (!existsSync(defaultDbPath)) throw new Error('数据库尚未创建，请先启动服务或导入示例。');
     const result = await createFullBackup({
       dataDir: dirname(defaultDbPath),
-      backupRoot: resolve('backups'),
+      backupRoot: backupDirectory(),
       extraFiles: {
         'ai-settings.sqlite': defaultAiSettingsPath(),
         'wecom-bot.sqlite': defaultWecomBotPath(),
@@ -41,7 +42,7 @@ try {
     );
   } else if (action === 'backup-db') {
     if (!existsSync(defaultDbPath)) throw new Error('数据库尚未创建，请先启动服务或导入示例。');
-    const file = resolve('backups', `erp-${stamp()}.sqlite`);
+    const file = join(backupDirectory(), `erp-${stamp()}.sqlite`);
     mkdirSync(dirname(file), { recursive: true });
     const db = new DatabaseSync(defaultDbPath, { readOnly: true });
     try {

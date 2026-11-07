@@ -103,6 +103,16 @@
 .word-file-preview article {
   color: #111;
 }
+/* docx-preview 不支持浮动表格：页眉里竖排的联次说明按 Word 的效果钉在正文右侧，不挤占正文。 */
+.word-file-preview header {
+  position: relative;
+}
+.word-file-preview header > table[style*='float'] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  float: none !important;
+}
 .business-form-preview {
   background: #fff;
   color: #111;
@@ -421,6 +431,15 @@
   font-size: 12px;
   text-align: center;
 }
+.template-column-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.template-column-head button {
+  flex: none;
+}
 .template-column-list {
   display: grid;
   gap: 5px;
@@ -470,63 +489,186 @@
   margin-top: 20px;
   padding: 16px 20px;
 }
-.business-form-preview h2 {
-  text-align: center;
-  color: #111;
-  font-size: 15pt;
+.business-form-preview {
+  display: flex;
+  gap: 4mm;
+  line-height: 1.45;
 }
-.business-form-preview h3 {
-  font-size: 18pt;
-  margin: 8px 0 20px;
+.business-form-preview.paper-a4.paper-portrait {
+  width: 210mm;
+  min-width: 0;
+}
+.business-form-preview.paper-a4.paper-landscape {
+  width: 297mm;
+}
+.business-form-preview.paper-continuous-241x140,
+.business-form-preview.paper-continuous-241x93 {
+  width: 241mm;
+}
+.business-form-preview.paper-a5 {
+  width: 210mm;
+}
+.business-form-pages {
+  display: grid;
+  gap: 16px;
+  max-height: 65vh;
+  overflow: auto;
+  background: #fff;
+}
+.template-paper-scroll .business-form-pages,
+.business-form-pages .business-form-preview {
+  max-height: none;
+  overflow: visible;
+}
+.business-form-pages .business-form-preview + .business-form-preview {
+  border-top: 1px dashed #8c979c;
+}
+.paper-capacity {
+  margin: 0;
+  padding: 8px 24px 0;
+  font-size: 12px;
+  color: #52616b;
+}
+.business-form-preview .paper-body {
+  flex: 1;
+  min-width: 0;
+}
+.paper-head {
+  display: grid;
+  grid-template-columns: 36% 28% 36%;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.paper-company > .brand-logo {
+  --teal: #27407a;
+  --kraft: #b07d3c;
+  --kraft-deep: #8f6229;
+}
+.paper-company {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.paper-company strong {
+  font-family: '黑体', 'Microsoft YaHei', sans-serif;
+  font-size: 1.4em;
+  color: #1f3566;
+}
+.paper-company span,
+.paper-number span {
+  font-size: 0.85em;
+  color: #4a5559;
+}
+.business-form-preview .paper-title {
+  text-align: center;
+}
+.business-form-preview .paper-title h3 {
+  margin: 0;
+  padding-bottom: 2px;
+  border-bottom: 3px double #111;
+  font-family: '黑体', 'Microsoft YaHei', sans-serif;
+  font-size: 1.8em;
   color: #111;
+}
+.business-form-preview .paper-title h3.spaced {
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+}
+.paper-title em {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.85em;
+  font-style: normal;
+  font-weight: 700;
+  color: #b3261e;
+}
+.paper-number {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+.paper-number b {
+  font-size: 1.2em;
+  color: #b3261e;
 }
 .business-form-preview table {
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
+  border: 1.5px solid #3c4448;
 }
 .business-form-preview th,
 .business-form-preview td {
-  white-space: normal;
-  padding: 8px;
-  border: 1px solid #9ba9af;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 4px 6px;
+  border: 1px solid #8c979c;
   font-size: inherit;
-  vertical-align: top;
-  line-height: 1.55;
+  vertical-align: middle;
+  line-height: 1.45;
 }
 .business-form-preview tbody tr:hover td {
   background: #fff;
 }
-.paper-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
-  margin-bottom: 20px;
+.business-form-preview .paper-info {
+  margin-bottom: 8px;
 }
-.paper-fields p,
-.paper-notes {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.7;
+.business-form-preview .paper-info {
+  table-layout: fixed;
 }
-.paper-total {
-  text-align: right;
+.business-form-preview .paper-info-label {
+  color: #5a666b;
+  font-size: 0.9em;
+}
+.business-form-preview .paper-notes th {
+  background: #f1f4f5;
+  color: #3c4448;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.business-form-preview .paper-lines thead th {
   font-weight: 700;
-  margin: 16px 0;
+  text-align: center;
 }
-.paper-notes {
-  margin: 16px 0;
+.business-form-preview .paper-notes th {
+  font-weight: 700;
+}
+.business-form-preview .paper-total td {
+  font-weight: 700;
+  text-align: right;
+}
+.paper-terms {
+  margin: 6px 0 0;
+  padding-left: 1.6em;
+  font-size: 0.9em;
+  color: #333;
 }
 .paper-signatures {
   display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 25px;
-  padding: 24px 0 10px;
+  gap: 24px;
+  padding: 16px 0 6px;
+}
+.paper-signatures span {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+.paper-signatures i {
+  flex: 1;
+  border-bottom: 1px solid #111;
+}
+.paper-copy-labels {
+  writing-mode: vertical-rl;
+  align-self: center;
+  font-size: 8pt;
+  letter-spacing: 1px;
+  color: #4a5559;
 }
 .paper-running-text {
   font-size: 9pt;
-  padding: 10px 0;
+  padding: 4px 0;
   color: #52616b;
 }
 .document-template-select {

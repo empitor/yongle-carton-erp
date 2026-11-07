@@ -27,8 +27,8 @@ async function start(file = ':memory:') {
     server = createApp(store, { auth }).listen(0, '127.0.0.1');
   await new Promise<void>((r) => server.once('listening', r));
   const base = 'http://127.0.0.1:' + (server.address() as any).port + '/api';
-  const send = (path: string, body?: unknown, cookie = '', csrf: string | null = auth.csrf) =>
-    fetch(base + path, {
+  const send = async (path: string, body?: unknown, cookie = '', csrf: string | null = auth.csrf) => {
+    const response = await fetch(base + path, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,6 +37,10 @@ async function start(file = ':memory:') {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    // 即便用例只检查状态码，也先读完响应，避免并行测试时遗留未读 body 和连接回收竞态。
+    await response.clone().arrayBuffer();
+    return response;
+  };
   const login = async (name: string, password: string) => {
     const response = await send('/auth/login', { name, password });
     assert.equal(response.status, 200, name + ' 应该能登录');

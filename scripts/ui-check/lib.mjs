@@ -12,7 +12,7 @@ export const SERVER_SOURCE = new URL('./server.mts', import.meta.url);
 export async function openChrome({ width = 1440, height = 900, deviceScaleFactor = 1, ...device } = {}) {
   const profile = mkdtempSync(join(tmpdir(), 'erp-chrome-'));
   const context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: process.env.CHROME_PATH || (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/chromium'),
     headless: true,
     viewport: { width, height },
     deviceScaleFactor,

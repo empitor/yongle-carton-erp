@@ -14,6 +14,7 @@ const env = {
   ...process.env,
   UI_CHECK_DIR: dir.replaceAll('\\', '/'),
   LOCALAPPDATA: join(dir, 'localappdata'),
+  ERP_CONFIG_DIR: join(dir, 'config'),
   DB_PATH: join(dir, 'never-used.sqlite'),
 };
 const vite = join(root, 'node_modules/vite/bin/vite.js');

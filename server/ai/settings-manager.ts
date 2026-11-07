@@ -19,7 +19,7 @@ import { AiConnectionError } from './connection-error.js';
 import { completeCompatible, type ChatMessage } from './compatible-chat.js';
 import { completeResponses, type ResponseOptions } from './compatible-responses.js';
 import { AiWorkQueue } from './work-queue.js';
-import { windowsProtector, type SecretProtector } from './credential-store.js';
+import { platformProtector, type SecretProtector } from './credential-store.js';
 import {
   SettingsRepository,
   type StoredPreset,
@@ -126,7 +126,7 @@ export class AiSettingsManager {
       receiptTtlMs?: number;
     } = {},
   ) {
-    this.protector = options.protector || windowsProtector;
+    this.protector = options.protector || platformProtector;
     try {
       this.repository = new SettingsRepository(options.file || ':memory:');
       const loaded = this.repository.load();
@@ -525,7 +525,7 @@ export class AiSettingsManager {
       try {
         this.protector.unprotect(preset.encryptedKey);
       } catch {
-        return '当前 Windows 服务账号无法解密已保存的 AI 密钥，请在此账号下重新填写。';
+        return '当前服务账号或平台无法解密已保存的 AI 密钥，请在此账号下重新填写。';
       }
     }
   }

@@ -3,3 +3,5 @@
 *.sh text eol=lf
 *.tgz binary
 tests/fixtures/import/word-extractor-test01.doc binary
+
+*.service text eol=lf

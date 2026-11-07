@@ -117,3 +117,8 @@ test-results/
 !docs/history/acceptance/真实文件全面测试验收-2026-11-07.md
 !docs/history/acceptance/代码审查修复与回归验收-2026-11-07.md
 !docs/history/acceptance/0.8.0发布前收尾验收-2026-11-07.md
+!docs/history/acceptance/单据固定版式验收-2026-11-07.md
+
+!docs/releases/发布说明-v0.8.1.md
+!docs/history/acceptance/Linux兼容与0.8.1发布验收-2026-11-07.md
+*.tar.gz

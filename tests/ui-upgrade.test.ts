@@ -338,7 +338,7 @@ test('虚构样张按当前未保存配置生成，Excel保留前导零编码，
         .getRows(1, sheet.rowCount)!
         .find((r) => r.getCell(2).value === '产品编码 / 客户料号')!;
     assert.equal(sheet.getRow(header.number + 1).getCell(2).value, '000123');
-    assert.match(String(sheet.getCell('A1').value), /测试样张 非正式/);
+    assert.match(String(sheet.headerFooter.oddHeader), /测试样张 · 非正式/);
     assert.equal(f.store.db.prepare('SELECT COUNT(*) n FROM operation_requests').get()!.n, before);
     assert.equal(f.store.orders().length, 1);
     assert.equal(f.store.purchases().length, 1);

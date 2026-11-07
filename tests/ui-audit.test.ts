@@ -173,7 +173,9 @@ test('可维护模板与业务映射分离、版本冲突及权限保护、人�
     );
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(docs.file(file.exportId, actor).buffer as any);
-    assert.match(String(book.worksheets[0].getCell('A1').value), /虚构模板工厂 材料采购订货单/);
+    const sheetText = JSON.stringify(book.worksheets[0].getSheetValues());
+    assert.match(sheetText, /虚构模板工厂/);
+    assert.match(sheetText, /材料采购订货单/);
     assert.equal(file.templateRevision, 1);
     assert.equal(f.store.purchases()[0].businessStatus, '待订货');
     await assert.rejects(

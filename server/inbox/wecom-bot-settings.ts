@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { InputError } from '../db.js';
 import {
   defaultAiSettingsPath,
-  windowsProtector,
+  platformProtector,
   type SecretProtector,
 } from '../ai/credential-store.js';
 
@@ -25,7 +25,7 @@ export class WecomBotSettings {
   private db: DatabaseSync;
   constructor(
     file: string,
-    private protector: SecretProtector = windowsProtector,
+    private protector: SecretProtector = platformProtector,
   ) {
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
@@ -67,7 +67,7 @@ export class WecomBotSettings {
     try {
       this.protector.unprotect(row.secret);
     } catch {
-      return '当前 Windows 服务账号无法解密已保存的企业微信机器人 Secret，请重新填写。';
+      return '当前服务账号或平台无法解密已保存的企业微信机器人 Secret，请重新填写。';
     }
   }
   close() {
