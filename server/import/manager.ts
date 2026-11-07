@@ -77,6 +77,8 @@ export class ImportManager {
   constructor(
     private options: {
       directory: string;
+      /** 正式导入的原件归档目录。只由启动入口明确传入；不传时初始化不清理任何归档。 */
+      archiveDirectory?: string;
       settings: AiSettingsManager;
       database?: string;
       parser?: typeof parseUpload;
@@ -257,6 +259,26 @@ export class ImportManager {
       }
     }
     return { count, ids, failed };
+  }
+  get archiveDirectory() {
+    return this.options.archiveDirectory ? resolve(this.options.archiveDirectory) : undefined;
+  }
+  /**
+   * 初始化清空导入台账后，原件归档没有任何记录再引用，跟着清掉，不把客户文件留在服务器上。
+   * 只删归档目录下按文件哈希命名的子目录，目录本身保留。返回删掉的原件份数。
+   */
+  clearArchive(who: Actor) {
+    requireLocalAdministrator(who);
+    const base = this.archiveDirectory;
+    if (!base || !existsSync(base)) return 0;
+    let count = 0;
+    for (const name of readdirSync(base)) {
+      const target = resolve(base, name);
+      if (dirname(target) !== base) continue;
+      rmSync(target, { recursive: true, force: true });
+      count++;
+    }
+    return count;
   }
   private tags(w: { id: string; fileHash: string }) {
     const ref = this.options.findImport?.(w.id, w.fileHash);

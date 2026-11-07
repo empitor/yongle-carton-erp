@@ -1,6 +1,6 @@
 {
   "name": "carton-workshop-erp",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
@@ -19,7 +19,8 @@
     "reset-password": "tsx server/maintenance.ts reset-password",
     "test": "tsx --test tests/*.test.ts tests/*.test.mjs && tsx --test tests/serial/*.test.mjs",
     "test:ui": "node scripts/ui-check/run.mjs",
-    "package": "node scripts/package-release.mjs"
+    "package": "node scripts/package-release.mjs",
+    "patch-server": "node scripts/patch-server.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.13",

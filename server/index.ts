@@ -74,6 +74,8 @@ const assistant = new AssistantManager(store, aiSettings, assistantPrompts, {
 });
 const imports = new ImportManager({
   directory: join(dirname(defaultDbPath), 'ai-imports'),
+  // 原件归档跟随业务库目录：服务器上程序目录只读，数据在 DB_PATH 所在目录，备份也按这个目录打包。
+  archiveDirectory: join(dirname(defaultDbPath), 'import-archive'),
   settings: aiSettings,
   promptPresets,
   findImport: (id, hash) => findImport(store, id, hash),

@@ -53,7 +53,8 @@ export default function DataResetPanel() {
                   (a: any, b: any) => Number(a) + Number(b),
                   0,
                 ) + '条业务数据'}
-            {scope === 'all' ? '，并清理全部AI识别工作区及工作原件。' : '。'}此操作实际删除数据。
+            {scope === 'all' ? '，并清理全部AI识别工作区及工作原件' : ''}
+            {scope === 'ai-imports' ? '。' : '，正式导入留下的原件归档一并删除。'}此操作实际删除数据。
           </p>
           <button
             className="danger"
@@ -66,7 +67,8 @@ export default function DataResetPanel() {
                   '已按实际范围清理 ' +
                     r.count +
                     ' 条' +
-                    (scope === 'all' ? '业务数据及' + r.aiImports + '份AI工作区。' : '。'),
+                    (scope === 'all' ? '业务数据及' + r.aiImports + '份AI工作区' : '') +
+                    (r.archives ? '，删除原件归档 ' + r.archives + ' 份。' : '。'),
                 );
                 setPreview(null);
                 window.dispatchEvent(new Event('erp-business-changed'));

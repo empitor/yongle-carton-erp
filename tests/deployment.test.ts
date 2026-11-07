@@ -13,6 +13,7 @@ import { readDeployment } from '../server/deployment.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager, assistantDefaultPreset } from '../server/assistant/manager.js';
+import { setSpeechEngineForTests, speechModelInstalled } from '../server/speech/engine.js';
 
 test('部署代理入口校验 Host、来源和访客地址，管理员能力和会话按入口及重启隔离', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'erp-deployment-test-'));
@@ -57,9 +58,10 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
       headers?: Record<string, string>;
       cookie?: string;
       method?: string;
+      raw?: Buffer;
     } = {},
   ) {
-    const data = options.body === undefined ? '' : JSON.stringify(options.body);
+    const data = options.raw ?? (options.body === undefined ? '' : JSON.stringify(options.body));
     return await new Promise<{ code: number; headers: IncomingMessage['headers']; value: any }>(
       (done, reject) => {
         const req = request(
@@ -110,6 +112,21 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
     );
     assert.equal(
       (await call(proxyPort, '/auth/setup', { headers: remote, body: owner })).code,
+      403,
+    );
+    // SSH 隧道把维护端口映射到别的本机端口：来源和 Host 一致才放行，来源对不上 Host 仍拒绝。
+    const tunnel = 'http://127.0.0.1:13001';
+    assert.equal(
+      (await call(localPort, '/auth/setup', { headers: { origin: tunnel }, body: {} })).code,
+      403,
+    );
+    assert.notEqual(
+      (
+        await call(localPort, '/auth/setup', {
+          headers: { host: '127.0.0.1:13001', origin: tunnel },
+          body: {},
+        })
+      ).code,
       403,
     );
     const localLogin = await call(localPort, '/auth/setup', { body: owner });
@@ -203,11 +220,29 @@ test('部署代理入口校验 Host、来源和访客地址，管理员能力和
       false,
     );
     assert.throws(() => assistant.registry.assertAvailable('browser.act'), /部署模式已关闭/);
-    for (const route of ['/assistant/browser/connect', '/assistant/transcribe'])
-      assert.match(
-        (await call(proxyPort, route, { headers: remote, cookie, body: {} })).value.message,
-        /部署模式已关闭/,
+    assert.match(
+      (await call(proxyPort, '/assistant/browser/connect', { headers: remote, cookie, body: {} }))
+        .value.message,
+      /部署模式已关闭/,
+    );
+    // 语音不跟服务器浏览器一起关：录音传到本服务器识别，模型在就能用。
+    assert.equal(assistantState.speechAvailable, speechModelInstalled());
+    setSpeechEngineForTests({ transcribe: () => '虚构语音内容' });
+    try {
+      assert.equal(
+        (await call(proxyPort, '/assistant', { headers: remote, cookie })).value.speechAvailable,
+        true,
       );
+      const spoken = await call(proxyPort, '/assistant/transcribe', {
+        headers: { ...remote, 'content-type': 'application/octet-stream' },
+        cookie,
+        raw: Buffer.alloc(16000 * 2),
+      });
+      assert.equal(spoken.code, 200);
+      assert.equal(spoken.value.text, '虚构语音内容');
+    } finally {
+      setSpeechEngineForTests(null);
+    }
     auth.close();
     auth = new AuthManager(file, () => now, { deployment, localAdministration: true });
     init();

@@ -9,9 +9,18 @@ export const speechModelDirectory = fileURLToPath(
 );
 let enginePromise: Promise<SpeechEngine> | null = null;
 let testEngine: SpeechEngine | null = null;
+const modelFiles = () => ({
+  model: join(speechModelDirectory, 'model.int8.onnx'),
+  tokens: join(speechModelDirectory, 'tokens.txt'),
+});
+/** 模型文件是否齐全。服务器部署时据此决定显不显示语音按钮。 */
+export function speechModelInstalled() {
+  if (testEngine) return true;
+  const { model, tokens } = modelFiles();
+  return existsSync(model) && existsSync(tokens);
+}
 async function loadEngine(): Promise<SpeechEngine> {
-  const model = join(speechModelDirectory, 'model.int8.onnx'),
-    tokens = join(speechModelDirectory, 'tokens.txt');
+  const { model, tokens } = modelFiles();
   if (!existsSync(model) || !existsSync(tokens))
     throw new ImportError(
       '本地语音模型文件缺失，请检查 vendor/models/sensevoice 是否完整。',
@@ -34,10 +43,13 @@ async function loadEngine(): Promise<SpeechEngine> {
     },
   });
   return {
-    transcribe(samples) {
+    async transcribe(samples) {
       // Native streams are finalized by the addon; it exposes no dispose/free API.
       const stream = recognizer.createStream();
       stream.acceptWaveform({ samples, sampleRate: SPEECH_SAMPLE_RATE });
+      // 服务器上多人共用一个进程，同步识别会让所有请求等它；有异步接口就用异步。
+      if (typeof recognizer.decodeAsync === 'function')
+        return String((await recognizer.decodeAsync(stream))?.text ?? '');
       recognizer.decode(stream);
       return String(recognizer.getResult(stream)?.text ?? '');
     },

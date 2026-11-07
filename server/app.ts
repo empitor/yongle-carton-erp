@@ -181,11 +181,14 @@ export function createApp(
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const origin = req.headers.origin;
       if (origin) {
+        // 走到这里的非代理请求 Host 已确认是本机回环；来源和 Host 一致就是本页发出的，
+        // 这样 SSH 隧道映射到任意本机端口（如 13001）也能维护。
         const allowed = [
           `http://127.0.0.1:${process.env.PORT || 3001}`,
           `http://localhost:${process.env.PORT || 3001}`,
           'http://127.0.0.1:5173',
           'http://localhost:5173',
+          `http://${host.toLowerCase()}`,
         ];
         if (deployment && viaProxy ? !deployment.origins.has(origin) : !allowed.includes(origin))
           return res.status(403).json({ message: '请求来源不允许' });
@@ -217,7 +220,7 @@ export function createApp(
       app: 'carton-workshop-erp',
       version: APP_VERSION,
       processId: process.pid,
-      mode: '本机开发验收版',
+      mode: options.deployment ? '服务器部署版' : '本机开发验收版',
       database: 'SQLite',
     }),
   );
@@ -345,6 +348,7 @@ export function createApp(
       store,
       options.imports,
       options.importArchiveDirectory ||
+        options.imports.archiveDirectory ||
         fileURLToPath(new URL('../data/import-archive/', import.meta.url)),
     );
     options.assistant?.connectImports(options.imports, execution);

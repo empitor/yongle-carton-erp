@@ -20,6 +20,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { releaseFiles } from './release-files.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -51,33 +52,8 @@ for (const item of (windows ? ['node.exe', 'npm.cmd', 'node_modules/npm'] : ['bi
   if (!existsSync(join(nodeDir, item))) throw new Error('Node 安装目录不完整：' + item);
 
 step('复制程序文件');
-for (const item of [
-  'server',
-  'shared',
-  'package.json',
-  'package-lock.json',
-  'tsconfig.json',
-  '.env.example',
-  '启动系统.cmd',
-  '停止系统.cmd',
-  'scripts/linux',
-  'README.md',
-  'LICENSE',
-  'vendor/xlsx-0.20.3.tgz',
-  'vendor/models/README.md',
-  'docs/使用手册.md',
-  'docs/部署与运维.md',
-  'docs/CHANGELOG.md',
-  `docs/releases/发布说明-v${pkg.version}.md`,
-  // 服务端和部署用到的脚本，开发脚本不进包。
-  'scripts/start-system.mjs',
-  'scripts/runtime-control.mjs',
-  'scripts/run-deployment.mjs',
-  'scripts/install-deployment-task.ps1',
-  'scripts/diagnose-startup-zone.ps1',
-  'scripts/ocr-image.ps1',
-])
-  copy(item);
+// xlsx 的本地 tgz 只给安装依赖用，装完就删，不在共用清单里。
+for (const item of [...releaseFiles(pkg.version), 'vendor/xlsx-0.20.3.tgz']) copy(item);
 
 step('构建页面');
 // 和 build.mjs 一样放项目内临时目录：Windows 的 %TEMP% 可能没有权限，vite 会在编译阶段失败。

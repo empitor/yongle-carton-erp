@@ -11,6 +11,7 @@ import { asksAboutState, chatDeleteAuthorized, startsIndependentTask } from './t
 import { snapshotBeforeDestructive } from '../backup.js';
 import { hasDsml } from '../ai/protocol-diagnostics.js';
 import { AssistantLocalBrowser } from './local-browser.js';
+import { speechModelInstalled } from '../speech/engine.js';
 import { BusinessDocuments } from '../documents/service.js';
 import {
   AgentExecutionBudget,
@@ -289,6 +290,10 @@ export class AssistantManager {
       .run('程序已重启，已保留任务和成功回执；继续时先核验数据库，未知计费操作不自动重发。');
   }
   readonly localFeaturesAvailable: boolean;
+  /** 本机版照旧显示语音（缺模型时点了会提示）；服务器部署时只在模型齐全时显示。 */
+  speechAvailable() {
+    return this.localFeaturesAvailable || speechModelInstalled();
+  }
   private require(who: Actor | null | undefined) {
     if (!who) throw new ImportError('请先登录管理账号。', 401);
     return who;
@@ -305,6 +310,7 @@ export class AssistantManager {
     return {
       budgetLimits: this.budgetLimits,
       ...(this.localFeaturesAvailable ? {} : { localFeaturesAvailable: false }),
+      speechAvailable: this.speechAvailable(),
       active: this.settings.view().active,
       tools: this.registry.view(actor).tools,
       toolRevision: this.registry.view().revision,

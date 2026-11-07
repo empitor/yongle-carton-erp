@@ -17,9 +17,15 @@ export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
     next();
   });
   router.get('/', (req, res) => res.json(manager.state(auth.actor(req))));
-  router.use(['/browser', '/transcribe'], (_req, _res, next) => {
+  router.use('/browser', (_req, _res, next) => {
     if (!manager.localFeaturesAvailable)
-      throw new ImportError('部署模式已关闭服务器浏览器和本机语音识别；当前网页的页面控制可用。', 403);
+      throw new ImportError('部署模式已关闭服务器浏览器；当前网页的页面控制可用。', 403);
+    next();
+  });
+  // 语音录音由员工浏览器上传到本服务器识别，不外发；部署时只要模型在就可用。
+  router.use('/transcribe', (_req, _res, next) => {
+    if (!manager.speechAvailable())
+      throw new ImportError('服务器未安装语音模型，语音输入不可用。', 503, 'speech-model');
     next();
   });
   router.get('/browser', (req, res) =>

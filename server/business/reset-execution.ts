@@ -58,5 +58,7 @@ export function executeDevelopmentReset(
     throw new ImportError('AI导入服务未配置，未执行清理。', 503);
   return new DevelopmentResetService(store).execute(v.scope, actor, clear,{
     includeFinance,clearClosedFinance:v.clearClosedFinance,financeDigest:v.financeDigest,
+    // 只清工作区时导入台账还在，原件归档要留着；清业务记录时台账没了，归档跟着清。
+    ...(imports && v.scope !== 'ai-imports' ? { clearArchive: () => imports.clearArchive(actor) } : {}),
   });
 }

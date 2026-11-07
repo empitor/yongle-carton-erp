@@ -18,6 +18,8 @@ declare module 'sherpa-onnx-node' {
     constructor(config: OfflineRecognizerConfig);
     createStream(): OfflineStream;
     decode(stream: OfflineStream): void;
+    /** 1.13 起提供，在原生线程里识别，不阻塞事件循环。 */
+    decodeAsync?(stream: OfflineStream): Promise<{ text?: string }>;
     getResult(stream: OfflineStream): { text?: string };
   }
   export function readWave(path: string): Waveform;

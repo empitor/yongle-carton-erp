@@ -14,6 +14,9 @@ import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/developer-capability.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { DevelopmentResetService } from '../server/business/development-reset.js';
+import { executeDevelopmentReset } from '../server/business/reset-execution.js';
+import { ImportManager } from '../server/import/manager.js';
+import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { InboxService } from '../server/inbox/service.js';
 import { PermanentDeletionService } from '../server/business/permanent-deletion.js';
 import { WecomBotSettings } from '../server/inbox/wecom-bot-settings.js';
@@ -378,6 +381,44 @@ test('业务删除保留独立收件及附件，业务初始化清理两张表�
   } finally {
     settings.close();
     store.close();
+  }
+});
+
+test('初始化清空导入台账时一并删除原件归档；只清工作区或未配置归档目录时不删', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'erp-p0-archive-')),
+    archive = join(dir, 'import-archive'),
+    store = new Store(':memory:'),
+    settings = new AiSettingsManager({
+      file: join(dir, 'ai.sqlite'),
+      protector: { protect: (s) => s, unprotect: (s) => s },
+    }),
+    who = localAdministratorActor(superActor());
+  const seed = () => {
+    for (const hash of ['a'.repeat(64), 'b'.repeat(64)]) {
+      mkdirSync(join(archive, hash), { recursive: true });
+      writeFileSync(join(archive, hash, 'original'), '虚构原件');
+    }
+  };
+  const withArchive = new ImportManager({ directory: join(dir, 'ai-imports'), archiveDirectory: archive, settings }),
+    withoutArchive = new ImportManager({ directory: join(dir, 'ai-imports-2'), settings });
+  try {
+    seed();
+    executeDevelopmentReset(store, withArchive, { scope: 'ai-imports' }, who);
+    assert.equal(readdirSync(archive).length, 2, '只清工作区时导入台账还在，原件归档保留');
+    executeDevelopmentReset(store, withoutArchive, { scope: 'business' }, who);
+    assert.equal(readdirSync(archive).length, 2, '没配置归档目录就不删任何归档');
+    const result = executeDevelopmentReset(store, withArchive, { scope: 'business' }, who) as { archives: number };
+    assert.equal(result.archives, 2);
+    assert.deepEqual(readdirSync(archive), [], '归档目录清空，目录本身保留');
+    seed();
+    assert.equal((executeDevelopmentReset(store, withArchive, { scope: 'all' }, who) as { archives: number }).archives, 2);
+    assert.deepEqual(readdirSync(archive), []);
+  } finally {
+    withArchive.close?.();
+    withoutArchive.close?.();
+    settings.close();
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

@@ -396,9 +396,10 @@ export function getBusinessMetadata(
         requiredContract: '输出Schema、受控修改、字段校验、金额重算和正式写入门禁不可由预设覆盖',
       },
       aiSettings: {
-        scope: '仅本机验收',
+        scope: '超级管理员在设置页配置',
         futurePermission: 'ai.settings.manage',
-        secretStorage: 'Windows CurrentUser DPAPI 加密，独立用户目录 SQLite 持久保存',
+        secretStorage:
+          'Windows 用 CurrentUser DPAPI、Linux 用 AES-256-GCM（主密钥在配置目录）加密，独立凭据目录 SQLite 持久保存',
         presets: true,
         automaticConnection: '启动时仅 GET 检查，无模型推理；不支持免费验证时明确未验证',
         settingsProtocol: '自定义兼容 API / OpenAI Chat Completions',

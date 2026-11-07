@@ -1168,8 +1168,8 @@ export default function GlobalAssistant() {
                     }
                   }}
                 />
-                {/* 部署到服务器后录音转写在服务器上跑，不提供 */}
-                {state?.localFeaturesAvailable !== false && (
+                {/* 服务器部署时录音传到本服务器识别，未装模型就不显示 */}
+                {state?.speechAvailable !== false && (
                 <button
                   type="button"
                   className={'ga-attach-button' + (speech.recording ? ' ga-mic-recording' : '')}
@@ -1180,7 +1180,7 @@ export default function GlobalAssistant() {
                       ? '当前浏览器或访问方式不支持本地录音'
                       : speech.recording
                         ? '停止录音并识别'
-                        : '语音输入（本机识别，识别结果只填入输入框，不自动发送）'
+                        : '语音输入（在本系统内识别，不外发；结果只填入输入框，不自动发送）'
                   }
                   disabled={busy || speech.starting || speech.transcribing || !speech.supported}
                   onClick={() => {

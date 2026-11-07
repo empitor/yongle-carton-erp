@@ -253,6 +253,7 @@ test('模板重开后持久保留，业务初始化保留模板、普通账号�
           executeDevelopmentReset(
             store,
             {
+              clearArchive: () => 0,
               deleteAllWorkspaces: () => ({
                 count: 1,
                 ids: ['fictional-ok'],

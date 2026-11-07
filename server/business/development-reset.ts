@@ -11,7 +11,7 @@ export type DevelopmentResetScope = (typeof developmentResetScope)[number];
 
 /**
  * 开发阶段的一键初始化：只清空真实业务数据与/或AI识别工作区。
- * 业务清理保留账号、审计、AI配置和提示词；清理AI工作区会同时删除其原件。
+ * 业务清理保留账号、审计、AI配置和提示词，导入台账清空后原件归档一并删除；清理AI工作区会同时删除其原件。
  * 该操作不可撤销，因此仅限本机最高管理员。
  */
 const businessTables = [
@@ -113,7 +113,13 @@ export class DevelopmentResetService {
     scope: DevelopmentResetScope,
     who: Actor,
     clearImports?: () => { count: number; ids: string[] },
-    options: {includeFinance?:boolean;clearClosedFinance?:boolean;financeDigest?:string} = {},
+    options: {
+      includeFinance?: boolean;
+      clearClosedFinance?: boolean;
+      financeDigest?: string;
+      /** 清空导入台账后一并删掉原件归档，返回删掉的份数。 */
+      clearArchive?: () => number;
+    } = {},
   ) {
     const actor = requireLocalAdministrator(who);
     if (scope === 'ai-imports') {
@@ -158,7 +164,7 @@ export class DevelopmentResetService {
         db.exec('UPDATE fin_settings SET start_period=NULL,version=version+1 WHERE start_period IS NOT NULL');
         db.exec('UPDATE fin_accounts SET used=0 WHERE used=1');
       }
-      // 审计、正式归档与持久任务仍保留旧记录身份，清空业务不能让新记录复用旧ID。
+      // 审计与持久任务仍保留旧记录身份，清空业务不能让新记录复用旧ID。
       if (db.prepare('PRAGMA foreign_key_check').all().length)
         throw new ImportError('初始化后的业务关联检查未通过，已回滚。', 409);
       db.exec('RELEASE development_reset');
@@ -166,6 +172,18 @@ export class DevelopmentResetService {
       db.exec('ROLLBACK TO development_reset');
       db.exec('RELEASE development_reset');
       throw e;
+    }
+    // 导入台账（import_executions）已清空，原件归档再无引用，留着只会把客户文件留在服务器上。
+    let archives = 0;
+    if (options.clearArchive) {
+      try {
+        archives = options.clearArchive();
+      } catch (error) {
+        throw new ImportError(
+          '业务数据已清空，但原件归档没有清理干净：' + (error as Error).message + '。请检查目录权限后重新初始化。',
+          500,
+        );
+      }
     }
     let aiImports = 0;
     if (scope === 'all') {
@@ -178,8 +196,9 @@ export class DevelopmentResetService {
       scope,
       businessCount: total,
       aiImports,
+      archives,
       digest,
     });
-    return { scope, count: total, aiImports };
+    return { scope, count: total, aiImports, archives };
   }
 }

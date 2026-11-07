@@ -12,7 +12,8 @@ import yauzl from 'yauzl';
 import ExcelJS from 'exceljs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const marker = JSON.parse(readFileSync(join(root, '.release-package'), 'utf8'));
-assert.equal(marker.version, '0.8.1');
+// 版本号以包里的 package.json 为准，不写死，换版本时不用改这里。
+assert.equal(marker.version, JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version);
 assert.ok(process.execPath.startsWith(join(root, 'runtime')));
 assert.equal(existsSync(join(root, 'data')), false);
 assert.equal(existsSync(join(root, 'backups')), false);
