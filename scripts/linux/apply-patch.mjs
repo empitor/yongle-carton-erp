@@ -120,10 +120,23 @@ try {
   }
   for (const f of patch.deleted) rmSync(target(f.path), { force: true });
   const marker = JSON.parse(oldMarker);
+  // 当前程序对应的提交和是否正式发布，patch-server --check 据此核对三方一致。
+  const released = patch.released ?? !patch.dirty;
   marker.version = patch.version;
+  marker.commit = patch.baseCommit;
+  marker.released = released;
   marker.patches = [
     ...(marker.patches || []),
-    { id: patch.id, appliedAt: new Date().toISOString(), baseCommit: patch.baseCommit, dirty: patch.dirty, written: patch.files.length, deleted: patch.deleted.length },
+    {
+      id: patch.id,
+      appliedAt: new Date().toISOString(),
+      baseCommit: patch.baseCommit,
+      dirty: patch.dirty,
+      released,
+      ...(patch.hotfix ? { hotfix: patch.hotfix } : {}),
+      written: patch.files.length,
+      deleted: patch.deleted.length,
+    },
   ];
   writeFileSync(markerFile, JSON.stringify(marker, null, 2) + '\n');
 } catch (error) {
@@ -137,3 +150,4 @@ if (!state) rollback('启动后 90 秒内健康检查没有通过');
 if (state.version !== patch.version) rollback(`健康检查版本是 ${state.version}，应为 ${patch.version}`);
 rmSync(patchPath, { force: true });
 console.log(`\n补丁已应用：版本 ${state.version}，进程 ${state.processId}。回滚副本留在 ${history}。`);
+if (patch.hotfix) console.log(`这是临时修复（${patch.hotfix}），已标记为未发布，事后要补发正式版本。`);

@@ -2,7 +2,7 @@
 
 宁波甬勒包装制品有限公司自用的纸箱厂管理系统：从收到客户文件，到下单、采购、生产、送货，再到每月算账，都在一个系统里完成，并由 AI 帮忙识别文件和处理日常操作。
 
-当前版本 **0.8.3**，面向 Windows 和 Ubuntu 24.04 LTS x64，数据都保存在你自己的电脑或服务器里。
+当前版本 **0.8.4**，面向 Windows 和 Ubuntu 24.04 LTS x64，数据都保存在你自己的电脑或服务器里。
 
 - [下载安装](#下载安装)
 - [功能一览](#功能一览)
@@ -14,7 +14,7 @@
 
 ## 下载安装
 
-两个安装包各自内置 Node.js 24 和原生依赖；Linux 另需中文字体。完整安装包目前是 0.8.2，0.8.3 只发补丁，完整安装包下一次在 0.9.0 提供。
+两个安装包各自内置 Node.js 24 和原生依赖；Linux 另需中文字体。完整安装包目前是 0.8.2，0.8.3 和 0.8.4 只发补丁，完整安装包下一次在 0.9.0 提供。
 
 1. 到 [0.8.2 Release](https://github.com/empitor/yongle-carton-erp/releases/tag/v0.8.2) 下载 `yongle-carton-erp-v0.8.2-win-x64.zip`。
 2. 解压到一个固定的文件夹，比如 `D:\纸箱厂ERP`。**不要放在压缩包里直接运行。**
@@ -23,7 +23,7 @@
 
 用完双击 `停止系统.cmd`，或在启动窗口按 `Ctrl+C`。
 
-**Linux：** 同一 Release 提供 `yongle-carton-erp-v0.8.2-linux-x64.tar.gz`，两个包各附 sha256。按[部署与运维](docs/部署与运维.md)配置中文字体、专用账号、systemd 与 Caddy。装好后到 [0.8.3 Release](https://github.com/empitor/yongle-carton-erp/releases/tag/v0.8.3) 下载补丁升级，步骤见 [0.8.3 发布说明](docs/releases/发布说明-v0.8.3.md)。
+**Linux：** 同一 Release 提供 `yongle-carton-erp-v0.8.2-linux-x64.tar.gz`，两个包各附 sha256。按[部署与运维](docs/部署与运维.md)配置中文字体、专用账号、systemd 与 Caddy。装好后到 [0.8.4 Release](https://github.com/empitor/yongle-carton-erp/releases/tag/v0.8.4) 下载补丁直接升到 0.8.4，步骤见 [0.8.4 发布说明](docs/releases/发布说明-v0.8.4.md)。
 
 **Windows 系统要求：** Windows 10、11 或 Windows Server，64 位。AI 助手操作独立浏览器窗口时，电脑上要有 Chrome 或 Edge。
 
@@ -185,7 +185,7 @@ npm.cmd run dev
 | `npm.cmd run build` | 构建页面 |
 | `npm.cmd run package` | 生成发布用的 zip |
 
-**文档：** [文档索引](docs/README.md) · [架构说明](docs/架构说明.md) · [数据模型](docs/数据模型.md) · [变更日志](docs/CHANGELOG.md) · [0.8.3 发布说明](docs/releases/发布说明-v0.8.3.md) · 协作规则见 [AGENTS.md](AGENTS.md)
+**文档：** [文档索引](docs/README.md) · [架构说明](docs/架构说明.md) · [数据模型](docs/数据模型.md) · [变更日志](docs/CHANGELOG.md) · [0.8.4 发布说明](docs/releases/发布说明-v0.8.4.md) · 协作规则见 [AGENTS.md](AGENTS.md)
 
 ## 许可
 

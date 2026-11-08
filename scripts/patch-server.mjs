@@ -1,6 +1,10 @@
 // 小版本升级服务器：只传有变化的程序文件，不传整包。大版本或依赖变了仍用整包。
-// 用法：npm run patch-server -- [--host yongle-erp] [--dry-run]
+// 原则：服务器上跑的代码必须是 GitHub 上某个已发布版本的代码，本机、GitHub、服务器三方一致。
+// 用法：npm run patch-server -- [--host yongle-erp] [--dry-run | --check | --hotfix "原因"]
+//   默认：正式打补丁。要求本机没有未提交的改动、当前提交打了 v版本号 标签、标签已推送到 GitHub。
 //   --dry-run 只对比、列出差异，不上传、不改服务器。
+//   --check 核对本机、GitHub、服务器三方的版本、提交和每个程序文件，不一致时退出码为 1。
+//   --hotfix "原因" 紧急临时修复：跳过发布检查直接打上去，服务器标记为“临时修复，未发布”，事后必须补发正式版本。
 // 生成发布用补丁（例如 0.8.2 → 0.8.3，附到 GitHub Release）：
 //   npm run patch-server -- --base 服务器上解压好的旧版安装目录 --out 本机输出目录
 //   只和 --base 目录比对、生成补丁文件和 apply-patch.mjs，不上传、不改服务器。
@@ -29,11 +33,57 @@ const appRoot = arg('--base') || installRoot;
 const outDir = arg('--out') ? resolve(arg('--out')) : undefined;
 if (!/^\/[\w./-]+$/.test(appRoot)) throw new Error('--base 要写服务器上的绝对路径。');
 if (arg('--base') && !outDir) throw new Error('--base 只用于生成发布补丁，要和 --out 一起用。');
+const checkOnly = process.argv.includes('--check');
+const hotfixFlag = process.argv.includes('--hotfix');
+const hotfix = hotfixFlag ? arg('--hotfix') : undefined;
+if (hotfixFlag && (!hotfix || hotfix.startsWith('--')))
+  throw new Error('--hotfix 后面要写原因，例如 --hotfix "登录页打不开，先临时修复"。');
+if (hotfixFlag && (outDir || checkOnly || dryRun)) throw new Error('--hotfix 只用于直接给服务器打补丁。');
+if (checkOnly && (outDir || dryRun)) throw new Error('--check 不能和 --out、--dry-run 一起用。');
 const remoteDir = '/home/ubuntu/erp-patches';
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const scope = releaseFiles(pkg.version);
 const step = (text) => console.log('\n== ' + text);
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
+const short = (commit) => (commit ? commit.slice(0, 7) : '无');
+
+// 发布检查：本机工作区干净、当前提交打了 v版本号 标签、GitHub 上的同名标签指向同一个提交。
+const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
+const tagName = 'v' + pkg.version;
+function gitState() {
+  const state = {
+    head: git('rev-parse', 'HEAD').stdout.trim(),
+    clean: !git('status', '--porcelain').stdout.trim(),
+    localTag: git('rev-parse', '-q', '--verify', `refs/tags/${tagName}^{commit}`).stdout.trim() || null,
+    remoteTag: null,
+    remoteMain: null,
+    remoteError: null,
+  };
+  const refs = (args) => {
+    const r = git('ls-remote', ...args);
+    if (r.status !== 0) {
+      state.remoteError = (r.stderr || '').trim() || '无法访问 GitHub';
+      return new Map();
+    }
+    return new Map(r.stdout.trim().split('\n').filter(Boolean).map((l) => l.split('\t').reverse()));
+  };
+  // 附注标签要取 ^{} 那一行才是它指向的提交；这一行要单独写进查询条件才会返回。
+  const tags = refs(['origin', `refs/tags/${tagName}`, `refs/tags/${tagName}^{}`]);
+  state.remoteTag = tags.get(`refs/tags/${tagName}^{}`) || tags.get(`refs/tags/${tagName}`) || null;
+  if (!state.remoteError) state.remoteMain = refs(['--heads', 'origin', 'main']).get('refs/heads/main') || null;
+  return state;
+}
+function releaseProblems(s) {
+  const problems = [];
+  if (!s.clean) problems.push('本机有未提交的改动（用 git status 查看），先提交。');
+  if (!s.localTag) problems.push(`本机没有 ${tagName} 标签。确认版本号后打标签：git tag -a ${tagName} -m "说明"`);
+  else if (s.localTag !== s.head)
+    problems.push(`${tagName} 标签指向 ${short(s.localTag)}，当前提交是 ${short(s.head)}。修了新东西要先改版本号再打新标签。`);
+  if (s.remoteError) problems.push('访问 GitHub 失败：' + s.remoteError);
+  else if (!s.remoteTag) problems.push(`${tagName} 还没推送到 GitHub：git push origin main ${tagName}`);
+  else if (s.remoteTag !== s.head) problems.push(`GitHub 上的 ${tagName} 指向 ${short(s.remoteTag)}，和本机当前提交 ${short(s.head)} 不同。`);
+  return problems;
+}
 
 // 本机是 Windows 换行，服务器上是 Git 取出的 LF；按 .gitattributes 的规则转换，.cmd 保持 CRLF。
 const textExt = /\.(ts|tsx|mjs|cjs|js|json|md|sh|css|html|txt|ps1|svg|example|service|yml|yaml|map)$|(^|\/)LICENSE$/i;
@@ -81,9 +131,27 @@ step('检查环境');
 if (!existsSync(join(root, 'node_modules/vite/bin/vite.js'))) throw new Error('本机缺少依赖，先运行 npm ci。');
 const marker = ssh(`cat ${appRoot}/.release-package`, { allowFail: true });
 if (marker.status !== 0) throw new Error('服务器上没有找到已安装的程序：' + appRoot + '。第一次安装请用整包。');
-const fromVersion = JSON.parse(marker.stdout).version;
-console.log((outDir ? '比对基准：' : '服务器当前：') + JSON.stringify(JSON.parse(marker.stdout)));
+const serverMarker = JSON.parse(marker.stdout);
+const fromVersion = serverMarker.version;
+console.log((outDir ? '比对基准：' : '服务器当前：') + '版本 ' + fromVersion);
 if (outDir && appRoot === installRoot) throw new Error('生成发布补丁要用 --base 指定解压好的旧版安装目录，不能拿正在运行的服务器当基准。');
+
+step('发布检查');
+const state = gitState();
+const problems = releaseProblems(state);
+console.log(`本机：版本 ${pkg.version}，提交 ${short(state.head)}，${state.clean ? '没有未提交的改动' : '有未提交的改动'}`);
+console.log(`GitHub：${tagName} → ${state.remoteError ? '无法访问' : short(state.remoteTag)}，main → ${state.remoteError ? '无法访问' : short(state.remoteMain)}`);
+if (!problems.length) console.log('通过：本机代码就是 GitHub 上已发布的 ' + tagName + '。');
+else if (dryRun || checkOnly) for (const p of problems) console.log('注意：' + p);
+else if (hotfix) {
+  for (const p of problems) console.warn('跳过：' + p);
+  console.warn(`临时修复（${hotfix}）：服务器会标记为未发布，事后必须补发正式版本。`);
+} else
+  throw new Error(
+    '不能打补丁：本机代码还不是 GitHub 上一个已发布的版本。\n- ' +
+      problems.join('\n- ') +
+      '\n服务器出了紧急问题、必须先修上去时，可以加 --hotfix "原因"，事后必须补发正式版本。',
+  );
 
 step('类型检查和构建页面');
 const buildTemp = mkdtempSync(join(root, '.build-tmp-'));
@@ -115,6 +183,26 @@ const total = d.changed.length + d.added.length + d.deleted.length;
 for (const [label, list] of [['修改', d.changed], ['新增', d.added], ['删除', d.deleted]])
   for (const path of list) console.log(label + '  ' + path);
 console.log(`共 ${local.size} 个程序文件，${d.changed.length} 个修改、${d.added.length} 个新增、${d.deleted.length} 个删除。`);
+if (checkOnly) {
+  step('三方核对结果');
+  const last = serverMarker.patches?.at(-1);
+  const serverCommit = serverMarker.commit || (last ? last.baseCommit : serverMarker.baseCommit);
+  const serverReleased = serverMarker.released ?? (last ? !last.dirty && !last.hotfix : true);
+  console.log(`服务器：版本 ${fromVersion}，提交 ${short(serverCommit)}，${serverReleased ? '正式发布' : '临时修复或含未提交的改动'}${last ? `，最近一次补丁 ${last.id}` : ''}`);
+  const issues = [
+    ...problems,
+    ...(fromVersion !== pkg.version ? [`服务器版本是 ${fromVersion}，本机是 ${pkg.version}。`] : []),
+    ...(serverCommit !== state.head ? [`服务器记录的提交是 ${short(serverCommit)}，本机是 ${short(state.head)}。`] : []),
+    ...(!serverReleased ? ['服务器上是临时修复或含未提交的改动，要补发正式版本。'] : []),
+    ...(total ? [`服务器上有 ${total} 个程序文件和本机不同。`] : []),
+  ];
+  if (!issues.length) {
+    console.log(`一致：本机、GitHub、服务器都是 ${tagName}（${short(state.head)}），${local.size} 个程序文件完全相同。`);
+    process.exit(0);
+  }
+  console.log('不一致：\n- ' + issues.join('\n- '));
+  process.exit(1);
+}
 if (!total) {
   console.log('服务器上的程序已经和本机一致，不用打补丁。');
   process.exit(0);
@@ -143,9 +231,8 @@ if (dryRun) {
 }
 
 step('打补丁');
-const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
-const baseCommit = git('rev-parse', 'HEAD').stdout.trim() || 'unknown';
-const dirty = !!git('status', '--porcelain').stdout.trim();
+const baseCommit = state.head || 'unknown';
+const dirty = !state.clean;
 const files = [...d.changed, ...d.added].map((path) => {
   const bytes = local.get(path);
   return { path, sha256: sha(bytes), before: remote.get(path) ?? null, data: bytes.toString('base64') };
@@ -157,6 +244,9 @@ const body = {
   fromVersion,
   baseCommit,
   dirty,
+  // 正式发布 = 没有未提交改动、不是临时修复，且通过了上面的发布检查。
+  released: !problems.length && !hotfix,
+  hotfix: hotfix || null,
   files,
   deleted: d.deleted.map((path) => ({ path, before: remote.get(path) })),
 };
@@ -206,4 +296,9 @@ step('再次比对，确认和本机一致');
 const after = diff(local, remoteManifest());
 const left = [...after.changed, ...after.added, ...after.deleted];
 if (left.length) throw new Error('补丁后仍有差异：\n' + left.join('\n'));
-console.log(`一致：服务器上 ${local.size} 个程序文件和本机完全相同。基线 ${baseCommit.slice(0, 7)}${dirty ? '（含未提交的改动）' : ''}。`);
+console.log(`一致：服务器上 ${local.size} 个程序文件和本机完全相同。基线 ${baseCommit.slice(0, 7)}。`);
+console.log(
+  body.released
+    ? `服务器现在就是 GitHub 上的 ${tagName}。`
+    : `注意：这是临时修复（${hotfix}），服务器标记为未发布。修好后提交、打新版本标签、推送，再正式打一次补丁。`,
+);

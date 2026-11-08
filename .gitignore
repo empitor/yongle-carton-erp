@@ -123,5 +123,7 @@ test-results/
 !docs/releases/发布说明-v0.8.2.md
 !docs/releases/发布说明-v0.8.3.md
 !docs/history/acceptance/服务器部署与0.8.3补丁验收-2026-11-08.md
+!docs/releases/发布说明-v0.8.4.md
+!docs/history/acceptance/大文件拆分与发布检查验收-2026-11-08.md
 !docs/history/acceptance/Linux兼容与0.8.1发布验收-2026-11-07.md
 *.tar.gz
