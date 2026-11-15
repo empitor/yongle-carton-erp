@@ -1,0 +1,130 @@
+// 业务动作登记（规矩和字段说明见 ui-actions.ts）的另一半：账号和登录、助手对话和记忆、AI 设置和提示词、数据管理、出错上报。
+import type { UiAction } from './ui-actions.js';
+
+const accounts: UiAction[] = [
+  { capability: 'accounts', record: '登录', verb: '首次设置管理员', labels: [], api: 'POST /auth/setup', service: 'loginRoutes' },
+  { capability: 'accounts', record: '登录', verb: '登录', labels: [], api: 'POST /auth/login', service: 'loginRoutes' },
+  { capability: 'accounts', record: '登录', verb: '退出', labels: ['退出登录'], api: 'POST /auth/logout', service: 'authRouter' },
+  { capability: 'accounts', record: '超级管理员模式', verb: '进入或退出', labels: [], api: 'POST /auth/super-admin/:id', service: 'authRouter' },
+  { capability: 'accounts', record: '本人密码', verb: '修改', labels: ['修改密码'], api: 'POST /auth/password', service: 'authRouter' },
+  { capability: 'accounts', record: '账号申请', verb: '申请账号', labels: ['申请账号'], api: 'POST /auth/apply', service: 'accountRequestRouter' },
+  { capability: 'accounts', record: '账号申请', verb: '忘记密码', labels: ['忘记密码'], api: 'POST /auth/forgot', service: 'accountRequestRouter' },
+  { capability: 'accounts', record: '账号申请', verb: '批准', labels: ['批准'], api: 'POST /auth/requests/:id/approve', service: 'accountRouter' },
+  { capability: 'accounts', record: '账号申请', verb: '拒绝', labels: ['拒绝'], api: 'POST /auth/requests/:id/reject', service: 'accountRouter' },
+  { capability: 'accounts', record: '账号', verb: '新建', labels: ['新建账号'], api: 'POST /auth/users', service: 'accountRouter' },
+  { capability: 'accounts', record: '账号', verb: '改级别或停用', labels: ['停用', '启用'], api: 'PUT /auth/users/:id', service: 'accountRouter' },
+  { capability: 'accounts', record: '账号', verb: '重置密码', labels: ['重置密码'], api: 'POST /auth/users/:id/password', service: 'accountRouter' },
+];
+
+const assistant: UiAction[] = [
+  { capability: 'assistant', record: '会话', verb: '新建', labels: [], api: 'POST /assistant/threads', service: 'create' },
+  { capability: 'assistant', record: '会话', verb: '发消息', labels: [], api: 'POST /assistant/threads/:id/chat', service: 'assistantRouter' },
+  { capability: 'assistant', record: '会话', verb: '停止回复', labels: [], api: 'POST /assistant/threads/:id/cancel', service: 'cancel' },
+  { capability: 'assistant', record: '会话', verb: '清空', labels: ['清空会话'], api: 'POST /assistant/threads/:id/clear', service: 'clear' },
+  { capability: 'assistant', record: '会话', verb: '删除', labels: ['删除会话'], api: 'POST /assistant/threads/:id/delete', service: 'removeThread', tools: ['chat.delete'] },
+  { capability: 'assistant', record: '聊天附件', verb: '上传', labels: [], api: 'POST /assistant/threads/:id/attachments', service: 'assistantRouter' },
+  { capability: 'assistant', record: '聊天附件', verb: '取消上传', labels: [], api: 'POST /assistant/threads/:id/attachments/cancel-upload', service: 'assistantRouter' },
+  { capability: 'assistant', record: '聊天附件', verb: '删除', labels: ['删除附件'], api: 'POST /assistant/attachments/:id/delete', service: 'assistantRouter' },
+  {
+    capability: 'assistant',
+    record: '确认卡片',
+    verb: '确认执行',
+    labels: ['确认执行', '确认删除', '确认清空', '查看修改内容并确认'],
+    api: 'POST /assistant/previews/:id/execute',
+    service: 'assistantRouter',
+    note: '助手的业务写入都经这里执行，执行时调的是各自动作登记的服务（卡片上的命令）',
+  },
+  { capability: 'assistant', record: '确认卡片', verb: '不执行', labels: [], api: 'POST /assistant/previews/:id/reject', service: 'reject' },
+  { capability: 'assistant', record: '确认卡片', verb: '选删除时库存怎么处理', labels: [], api: 'POST /assistant/previews/:id/inventory-policy', service: 'changeDeletionPolicy' },
+  { capability: 'technical', record: '页面观察', verb: '交回页面结果', labels: [], api: 'POST /assistant/page/results', service: 'complete', note: '页面自动交回，没有按钮' },
+  { capability: 'speech', record: '语音', verb: '识别录音', labels: [], api: 'POST /assistant/transcribe', service: 'assistantRouter' },
+  { capability: 'speech', record: '语音', verb: '朗读', labels: [], api: 'POST /assistant/speak', service: 'readAloud' },
+  { capability: 'memory', record: '记忆', verb: '加一条', labels: [], api: 'POST /assistant/memory', service: 'add', tools: ['memory.save'] },
+  { capability: 'memory', record: '记忆', verb: '改', labels: [], api: 'POST /assistant/memory/:id', service: 'update', tools: ['memory.update'] },
+  { capability: 'memory', record: '记忆', verb: '删', labels: [], api: 'POST /assistant/memory/:id/delete', service: 'remove', tools: ['memory.forget'] },
+  { capability: 'memory', record: '记忆', verb: '清空', labels: ['清空记忆'], api: 'POST /assistant/memory/clear', service: 'clear' },
+  { capability: 'memory', record: '记忆', verb: '开关自动记忆', labels: [], api: 'POST /assistant/memory/settings', service: 'setAutoSave', tools: ['memory.auto'] },
+];
+
+/** 三种提示词（销售订单、供应商送货单、助手）的地址写死在路由里，:kind 代表这三种 */
+const prompt = (action: string, verb: string, labels: string[], tools?: string[]): UiAction => ({
+  capability: 'prompts',
+  record: '提示词',
+  verb,
+  labels,
+  api: 'POST /ai/prompt-modules/:kind/' + action,
+  service: 'PromptPresetManager.change',
+  ...(tools ? { tools } : {}),
+});
+const settings: UiAction[] = [
+  prompt('save', '保存', ['保存'], ['prompts.propose']),
+  prompt('copy', '复制成新预设', []),
+  prompt('activate', '启用', ['启用']),
+  prompt('delete', '删除预设', ['删除预设']),
+  prompt('restore', '恢复', ['恢复默认条目', '恢复并保存']),
+  { capability: 'prompts', record: 'AI 密钥', verb: '保存并测试', labels: [], api: 'POST /ai/settings/key', service: 'saveAndTestKey' },
+  { capability: 'prompts', record: 'AI 密钥', verb: '只保存不测试', labels: [], api: 'POST /ai/settings/key/save', service: 'saveKey' },
+  { capability: 'prompts', record: 'AI 密钥', verb: '删除', labels: ['删除密钥'], api: 'POST /ai/settings/key/delete', service: 'removeKey' },
+  { capability: 'prompts', record: 'AI 密钥', verb: '测试连接', labels: [], api: 'POST /ai/settings/test', service: 'testKey' },
+  { capability: 'prompts', record: 'AI 密钥', verb: '查余额', labels: [], api: 'POST /ai/settings/balance', service: 'balance' },
+  { capability: 'prompts', record: 'AI 设置', verb: '改识别设置', labels: [], api: 'POST /ai/settings/preferences', service: 'preferences' },
+  { capability: 'prompts', record: '助手插件', verb: '启停', labels: [], api: 'POST /assistant/plugins/settings', service: 'setPlugin' },
+  { capability: 'prompts', record: '助手工具', verb: '启停', labels: [], api: 'POST /assistant/tools/settings', service: 'set' },
+];
+
+const management: UiAction[] = [
+  {
+    capability: 'management',
+    record: '任意记录',
+    verb: '删除',
+    labels: ['删除', '批量删除', '输入本人密码确认删除'],
+    api: 'POST /deletions/execute',
+    previews: ['POST /deletions/preview'],
+    service: 'DatabaseMaintenanceService.delete',
+    tools: ['records.delete'],
+    note: '业务页面和本机数据管理的删除、批量删除都打开同一个删除窗（src/recordkit/DatabaseDeleteDialog.tsx），发这一个地址；助手 records.delete 一次一条或几条（同一个上限 DELETION_MAX_RECORDS）走同一个服务',
+  },
+  {
+    capability: 'management',
+    record: '任意记录',
+    verb: '数据管理里改、归档、恢复、确认、撤销、取消',
+    labels: ['核对并批量保存', '确认单据'],
+    api: 'POST /management/execute',
+    service: 'DataManagementService.execute',
+    tools: ['management.execute'],
+    note: '本机管理员的数据管理：按模块和动作转给各自的服务（归档转 changeLifecycle）；删除不在这里，走上面那条',
+  },
+  {
+    capability: 'management',
+    record: '识别工作区',
+    verb: '复制或打开',
+    labels: [],
+    api: 'POST /management/workspaces',
+    service: 'manageWorkspaces',
+    tools: ['management.workspaces'],
+    note: '助手的归档、恢复、删除也走 manageWorkspaces，它再调 AI 导入的 changeArchive、deleteMany（页面直接发 /ai/imports/batch、delete-many）',
+  },
+  {
+    capability: 'management',
+    record: '业务数据',
+    verb: '初始化',
+    labels: ['确认此范围'],
+    api: 'POST /management/reset',
+    previews: ['GET /management/reset-preview'],
+    service: 'BusinessReset.execute',
+    tools: ['management.reset'],
+  },
+  {
+    capability: 'management',
+    record: '数据库备份',
+    verb: '手动备份',
+    labels: [],
+    api: null,
+    service: 'systemBackup',
+    tools: ['system.backup'],
+    note: '手动备份只有助手做（使用手册：系统状态、体检和手动备份由助手提供），界面上没有按钮和地址；自动备份在启动装配里',
+  },
+  { capability: 'troubleshooting', record: '页面出错记录', verb: '上报', labels: [], api: 'POST /diagnostics/page-problems', service: 'pageProblemRouter', note: '页面出错时自动上报' },
+];
+
+export const systemActions: UiAction[] = [...accounts, ...assistant, ...settings, ...management];

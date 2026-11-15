@@ -1,0 +1,67 @@
+/* 外壳：侧栏、导航、主区域、提示条（第 3 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面；另有几条设置总页的页签的写法也要排在这个位置，一起放在这里。顺序见 src/main.tsx */
+:root[data-ui='refined'] .ai-settings-tabs {
+  gap: var(--space-2xs);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+:root[data-ui='refined'] .record-view-tabs.fin-tabs button,
+:root[data-ui='refined'] .ai-settings-tabs button {
+  min-height: 30px;
+  height: 30px;
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: none;
+}
+:root[data-ui='refined'] .record-view-tabs.fin-tabs button:hover:not(:disabled, .selected) {
+  background: var(--fill-1);
+  color: var(--ink);
+}
+:root[data-ui='refined'] .ai-settings-tabs button:hover:not(:disabled, .selected, [aria-selected='true']) {
+  background: var(--fill-1);
+  color: var(--ink);
+}
+:root[data-ui='refined'] .record-view-tabs.fin-tabs button.selected {
+  background: var(--fill-2);
+  color: var(--ink);
+  box-shadow: none;
+}
+:root[data-ui='refined'] .ai-settings-tabs button:is(.selected, [aria-selected='true']) {
+  background: var(--fill-2);
+  color: var(--ink);
+  box-shadow: none;
+}
+/* 底部提示：靠左贴着侧栏，长句子换行，不被推出屏幕 */
+:root[data-ui='refined'] .toast {
+  transform: none;
+  max-width: min(560px, calc(100vw - var(--sidebar-w) - var(--assistant-w) - 32px));
+  border-radius: var(--r-panel);
+  box-shadow: var(--pop-shadow);
+  line-height: 20px;
+}
+/* 窗口已经关了但没办成：红色提示说原因 */
+.toast.toast-error {
+  background: var(--danger-fill);
+  color: var(--on-danger);
+}
+/* 勾选条占着底部时，提示条抬到它上面，两个不互相挡 */
+body:has(.selection-bar) .toast {
+  bottom: 84px;
+}
+
+@media (max-width: 700px) {
+  body:has(.selection-bar) .toast {
+    bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom) + 112px);
+  }
+  /* 弹层从底部升起时，提示条挪到顶上，不盖住弹层底栏的按钮（写在勾选条那条后面：两个都在时以这条为准） */
+  body:has(.overlay) .toast {
+    top: calc(env(safe-area-inset-top) + 8px);
+    bottom: auto;
+  }
+}

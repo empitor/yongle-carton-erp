@@ -1,13 +1,18 @@
-import type { Store } from '../db.js';
-import type { ImportWorkspaceView } from '../../shared/order-draft.js';
-import { productCandidatesForLine } from '../../shared/import-matching.js';
+import type { Store } from '../core/index.js';
+import type { ImportWorkspaceView } from '../../shared/import/index.js';
+import { productCandidatesForLine } from '../../shared/import/index.js';
 import { resolveImportCustomer } from './customer-resolution.js';
-// Original read-only matching entry point, shared by the manual page and assistant tools.
+import { customerProductSpecs, ordersWithPurchaseOrder } from './order-lookup.js';
+/** 识别结果页和助手共用的“候选”：客户、产品候选和同采购单号的订单。只读。 */
 export function matchDraft(store: Store, w: ImportWorkspaceView) {
   const d = w.draft,
     customers = store.customers(),
     products = store.products();
   const customerResolution = resolveImportCustomer(store, d?.header.buyerName.value || '');
+  // 已选的客户优先，没选的用按名字唯一对上的那位；新客户没有老产品
+  const resolved = customerResolution.state === 'resolved' ? customerResolution.customer.id : undefined,
+    chosen = w.mapping?.customer.mode === 'existing' ? w.mapping.customer.id : resolved,
+    customerHistory = chosen ? { customerId: chosen, specs: customerProductSpecs(store, chosen) } : null;
   return {
     revision: w.revision,
     customers,
@@ -27,16 +32,11 @@ export function matchDraft(store: Store, w: ImportWorkspaceView) {
     customerResolution,
     customerCandidates: customerResolution.candidates,
     productCandidates: d
-      ? Object.fromEntries(d.lines.map((l) => [l.id, productCandidatesForLine(l, products)]))
+      ? Object.fromEntries(d.lines.map((l) => [l.id, productCandidatesForLine(l, products, customerHistory?.specs)]))
       : {},
-    duplicateOrders: d
-      ? store
-          .orders()
-          .filter(
-            (o) =>
-              !!d.header.purchaseOrderNumber.value &&
-              o.externalPurchaseOrder === d.header.purchaseOrderNumber.value,
-          )
+    customerHistory,
+    duplicateOrders: d?.header.purchaseOrderNumber.value
+      ? ordersWithPurchaseOrder(store, d.header.purchaseOrderNumber.value)
           .map((o) => ({
             id: o.id,
             number: o.number,

@@ -1,0 +1,17 @@
+// 对外接口：别的模块只能从这里引用这个模块
+export { assistantManagementSchema } from './assistant-management.js';
+export { aiSettingsTab, assistantManagementHash, erpPageIds, financePageTargets, isErpNavigation, navigationTargets, pageLink } from './assistant-navigation.js';
+export { pageObserveSchema, pageSnapshotSchema, pageTools } from './assistant-page.js';
+export type { PageObserveOptions, PageSnapshot } from './assistant-page.js';
+export { DEFAULT_SPEAKER, readSpeaker, speakerForTools, speakerNames, speakerPairName } from './assistant-personas.js';
+export type { AssistantSpeaker } from './assistant-personas.js';
+export type { AgentBudgetView, InterimSaid, TurnFacts, WebSource } from './assistant-task.js';
+export { isWebLink } from './assistant-task.js';
+export type { AssistantApi } from './assistant-api.js';
+export { memoryAutoSaveBody, memoryContentBody, memoryLimits, memorySources } from './assistant-memory.js';
+export type { MemoryView } from './assistant-memory.js';
+export { pageResultBody } from './assistant-page.js';
+export type { pageResultSchema } from './assistant-page.js';
+export { acknowledgedBody, cancelUploadBody, executeCardBody, inventoryPolicyBody, pluginSettingBody, toolSettingBody } from './assistant-requests.js';
+export { cardStateNames, exportFileSchema, interimSaid, jsonValue, planCardSchema, storedMessageSchema, toolParametersSchema } from './assistant-views.js';
+export type { AssistantStateView, CardStateName, JsonView, MessageView, PlanCard, PluginsView, ThreadView, ToolsView } from './assistant-views.js';

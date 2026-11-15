@@ -1,11 +1,13 @@
-import type { Actor } from '../auth.js';
+import type { Actor } from '../core/index.js';
 import type { z } from 'zod';
+/**
+ * 工具分组：命令目录按组分小节，管理员能在“插件与工具”里整组停用。只有编号、名字和一句说明；
+ * 每个工具归哪一组由 builtinPluginFor 按名字定，新工具不在表里就报错，加工具时补一行。
+ */
 export type PluginManifest = {
   id: string;
   name: string;
   description: string;
-  version: string;
-  capabilities: string[];
 };
 export type PluginTool = {
   name: string;
@@ -13,81 +15,69 @@ export type PluginTool = {
   arguments: unknown;
   risk: string;
   kind: 'read' | 'business' | 'workflow';
-  capability?: 'read' | 'page' | 'write' | 'management';
   schema: z.ZodType;
   permissions?: string[];
   available?: (actor?: Actor | null) => boolean;
-  execute?: (args: any, actor: Actor, context: unknown) => unknown | Promise<unknown>;
+  execute?: (args: unknown, actor: Actor, context: unknown) => unknown;
 };
 export const builtinPlugins: PluginManifest[] = [
-  {
-    id: 'erp-business',
-    name: 'ERP业务服务',
-    description: '客户、产品、销售、采购、库存和生产操作，复用原业务校验、事务和审计。',
-    version: '1.0.0',
-    capabilities: ['查询与统计', '增删改、归档恢复', '实物流转'],
-  },
-  {
-    id: 'order-import',
-    name: 'AI 导入工作区',
-    description: '复用人工或聊天创建的工作区、草稿、匹配、正式导入及真实回执。',
-    version: '1.0.0',
-    capabilities: ['跨页面工作区关联', '草稿编辑与匹配', '多文件幂等导入'],
-  },
-  {
-    id: 'system-maintenance',
-    name: '系统维护',
-    description: '查看系统状态、数据库体检、马上备份、清空前预览和一键清空。仅本机最高管理员。恢复备份要停机，不在这里。',
-    version: '1.0.0',
-    capabilities: ['系统状态', '数据库体检', '手动完整备份', '一键清空及影响预览'],
-  },
-  {
-    id: 'chat-records',
-    name: '聊天记录',
-    description: '查看和删除当前账号自己的聊天会话。必须是用户本人明确要求，不动业务数据。',
-    version: '1.0.0',
-    capabilities: ['查看会话', '删除会话'],
-  },
-  {
-    id: 'erp-page',
-    name: 'ERP页面控制',
-    description: '读取实际页面结构并操作ERP控件。原生业务API优先；操作后重新观察并核验。',
-    version: '1.0.0',
-    capabilities: [
-      '页面/表格/表单/弹窗感知',
-      '导航、点击、输入、选择、滚动和提交',
-      '操作反馈与原服务核验；连接独立ERP浏览器后支持真实截图、坐标、键盘和附件上传；不控制Windows',
-    ],
-  },
-  {
-    id: 'task-ledger',
-    name: '持久任务',
-    description: '保存步骤和成功回执，中断后核验并继续。',
-    version: '1.0.0',
-    capabilities: ['计划与恢复', '幂等及结果核验'],
-  },
-  {
-    id: 'attachment-reader',
-    name: '隔离附件阅读',
-    description: '阅读当前账号和会话的附件，不从附件获取业务授权。',
-    version: '1.0.0',
-    capabilities: ['附件阅读'],
-  },
+  { id: 'records', name: '记录查改删', description: '查、汇总、新建、修改、归档和删除业务记录，查修改历史和经营概况。' },
+  { id: 'purchasing', name: '采购订货和到货', description: '订货单、到货登记、到货记录、更正到货和采购退货。' },
+  { id: 'production-delivery', name: '生产和送货', description: '安排生产和送货、登记完工、核对入库出库、冲销、盘点和成品批次。' },
+  { id: 'documents', name: '单据导出', description: '预览和导出采购订货单、送货单，查导出交付到哪一步。' },
+  { id: 'finance', name: '财务', description: '查盈亏、应收应付、收付款、发票、凭证和报表，只读。' },
+  { id: 'inbox-marks', name: '收件箱和唛头', description: '收件箱里外来的消息和文件，产品下挂的唛头。' },
+  { id: 'order-import', name: 'AI 导入工作区', description: '识别客户订单和供应商送货单，改识别结果、匹配和正式导入。' },
+  { id: 'erp-page', name: 'ERP页面', description: '看用户眼前的页面、打开指定的页面或记录。' },
+  { id: 'assistant-memory', name: '长期记忆', description: '按账号记住用户自己说的偏好、说法和纠正。' },
+  { id: 'chat-records', name: '聊天记录', description: '查看和删除当前账号自己的聊天会话。' },
+  { id: 'diagnostics', name: '排查和设置', description: '出错记录、运行日志、程序代码、AI 接入、后台任务、设置、账号、使用说明和提示词。' },
+  { id: 'web', name: '联网', description: '联网搜索和读公开网页。' },
+  { id: 'system-maintenance', name: '系统维护', description: '系统状态、数据库体检、马上备份和一键清空。' },
+];
+/** 名字（或名字前缀，以点结尾）→ 组。按顺序找第一条对上的，具体名字写在前缀前面。 */
+const groupOf: [string, string][] = [
+  ['management.workspaces', 'order-import'],
+  ['arrival.recognize', 'order-import'],
+  ['order_import.', 'order-import'],
+  ['management.reset', 'system-maintenance'],
+  ['management.reset_preview', 'system-maintenance'],
+  ['system.', 'system-maintenance'],
+  ['management.', 'records'],
+  ['records.', 'records'],
+  ['history.records', 'records'],
+  ['overview.get', 'records'],
+  ['order_batch.', 'purchasing'],
+  ['arrival.records', 'purchasing'],
+  ['purchase_return.', 'purchasing'],
+  ['arrival.correct', 'purchasing'],
+  ['delivery.', 'production-delivery'],
+  ['production.plan', 'production-delivery'],
+  ['production.correct', 'production-delivery'],
+  ['flow.', 'production-delivery'],
+  ['inventory.', 'production-delivery'],
+  ['documents.', 'documents'],
+  ['exports.list', 'documents'],
+  ['finance.', 'finance'],
+  ['inbox.', 'inbox-marks'],
+  ['marks.', 'inbox-marks'],
+  ['page.', 'erp-page'],
+  ['ui.open', 'erp-page'],
+  ['memory.', 'assistant-memory'],
+  ['chat.', 'chat-records'],
+  ['web.', 'web'],
+  ['diagnostics.', 'diagnostics'],
+  ['logs.read', 'diagnostics'],
+  ['source.', 'diagnostics'],
+  ['ai.status', 'diagnostics'],
+  ['jobs.status', 'diagnostics'],
+  ['settings.view', 'diagnostics'],
+  ['accounts.', 'diagnostics'],
+  ['guide.read', 'diagnostics'],
+  ['prompts.', 'diagnostics'],
 ];
 export function builtinPluginFor(name: string) {
-  return name.startsWith('page.') || name.startsWith('browser.') || name === 'ui.open'
-    ? 'erp-page'
-    : name.startsWith('order_import.') || name === 'management.workspaces'
-      ? 'order-import'
-      : name.startsWith('system.') || name === 'management.reset' || name === 'management.reset_preview'
-        ? 'system-maintenance'
-        : name.startsWith('chat.')
-          ? 'chat-records'
-          : name === 'arrival.recognize'
-            ? 'order-import'
-            : name.startsWith('task.')
-        ? 'task-ledger'
-        : name === 'attachments.read'
-          ? 'attachment-reader'
-          : 'erp-business';
+  const hit = groupOf.find(([key]) => (key.endsWith('.') ? name.startsWith(key) : name === key));
+  if (!hit) throw new Error('工具没有分组：' + name + '（在 server/assistant/plugins.ts 的 groupOf 里补一行）');
+  return hit[1];
 }

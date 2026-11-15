@@ -1,0 +1,40 @@
+/* 其余公共件：标题、链接、页脚、提示、状态标签、Markdown 等（第 3 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面；另有几条“更多”菜单、可搜索下拉、勾选后的操作条的写法也要排在这个位置，一起放在这里。顺序见 src/main.tsx */
+:root[data-ui='refined'] :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+:root[data-ui='refined'] .more-menu-list > :is(button, a) {
+  min-height: 30px;
+  border-radius: var(--r-small);
+  background: transparent;
+}
+:root[data-ui='refined'] .more-menu-list > :is(button, a):hover {
+  background: var(--fill-1);
+}
+
+/* 精致版式：其余没写类名的按钮也换成灰色填充（特异性最低，各区域自己写了样式的按钮不受影响） */
+:where(:root[data-ui='refined']) button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: none;
+  transition:
+    background 0.15s var(--ease),
+    transform 0.12s var(--ease);
+}
+:where(:root[data-ui='refined']) button:hover:not(:disabled) {
+  background: var(--fill-2);
+  border-color: transparent;
+}
+
+/* —— 单号、日期这类短内容不从中间断开 ——
+   给元素加 class="nowrap"：放不下时整体换到下一行（或让表格列宽一点），不会折成“2026-11-”和“13”、
+   “DH-20261109-”和“00003”。详情卡片里的表格对 th、td 统一设了 white-space: normal（选择器很长），
+   这里用 !important 保证这个工具类在哪儿都管用。 */
+.nowrap {
+  white-space: nowrap !important;
+}

@@ -1,0 +1,111 @@
+/* 插件与工具设置；另有几条助手窗口外壳和右下角入口的写法也要排在这个位置，一起放在这里 */
+/* ---------- 插件与工具（设置 → 插件与工具） ---------- */
+.adm-plugins {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.adm-plugins > .form-message,
+.adm-plugins > .adm-muted {
+  margin: 0;
+}
+.adm-plugin-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.adm-plugin {
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.adm-plugin-head,
+.adm-plugin-tool-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+.adm-plugin-head > div,
+.adm-plugin-tool-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.adm-plugin h3,
+.adm-plugin h4 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.adm-plugin h4 {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--text-sm);
+}
+.adm-plugin h3 small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+.adm-plugin-head p,
+.adm-plugin-tool-row p {
+  margin: var(--space-3xs) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.adm-plugin-count {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3xs);
+}
+.adm-plugin-count small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-plugin-tools {
+  margin-top: var(--space-sm);
+}
+.adm-plugin-tools > summary {
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.adm-plugin-tools[open] > summary {
+  margin-bottom: var(--space-2xs);
+}
+.adm-plugin-tool {
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border);
+}
+
+/* 设置 → 高级：插件与工具 */
+.adm-plugins-head h2 {
+  margin: 0 0 var(--space-2xs);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.adm-plugins-head .adm-muted {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .adm-plugin {
+    padding: var(--space-md);
+  }
+  .adm-plugin-head {
+    flex-wrap: wrap;
+  }
+  .adm-plugin-head > div {
+    flex-basis: calc(100% - 80px);
+  }
+  .adm-plugin-tool-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 700px) {
+  .ga-panel button {
+    min-height: 40px;
+  }
+}

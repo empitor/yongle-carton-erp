@@ -1,0 +1,218 @@
+/* 系统维护、初始化、编辑窗里的密码框 */
+.flow-warning {
+  padding: var(--space-md) var(--space-lg);
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-left: 3px solid var(--warning-border);
+  border-radius: var(--r-small);
+  line-height: 1.8;
+}
+.ai-spin {
+  animation: ai-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-spin {
+    animation: none;
+  }
+}
+
+/* 编辑窗里的密码框：和 FormField 一样标签在上，右侧显示按钮 */
+.adm-form .password-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 16px;
+}
+.adm-form .password-field-box {
+  position: relative;
+  display: block;
+}
+.adm-form .password-field-box input {
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  padding-right: 40px;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 400;
+}
+.adm-form .password-field-box .password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  width: 36px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+}
+.adm-form .password-field input::placeholder {
+  font-size: var(--text-sm);
+}
+
+/* ---------- 账号 ---------- */
+.adm-dialog-facts {
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-md);
+  border-radius: var(--r-panel);
+  background: var(--surface-muted);
+}
+.adm-temp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+.adm-temp-row .temp-password {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-sm) var(--space-md);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--text-xl);
+  line-height: 28px;
+  text-align: center;
+}
+.adm-temp-row button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+/* 系统维护：每块一个标题和状态、一句说明、一排操作 */
+.adm-maint {
+  padding: var(--space-lg) 0 0;
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}
+.adm-maint:first-child,
+.form-message + .adm-maint {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+.adm-maint > header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-2xs);
+}
+.adm-maint > header h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.adm-maint > p {
+  margin: 0 0 var(--space-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+
+/* 初始化业务数据：危险区，默认收起 */
+.adm-reset {
+  border: 1px solid var(--danger-border);
+  border-radius: var(--r-panel);
+}
+.adm-reset > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.adm-reset > summary small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+.adm-reset[open] > summary {
+  border-bottom: 1px solid var(--danger-border);
+}
+.adm-reset-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+.adm-reset-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.adm-reset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+.adm-reset-row > .form-field {
+  flex: 0 1 280px;
+}
+.adm-reset-impact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--danger-soft);
+}
+.adm-reset-impact p {
+  flex: 1 1 260px;
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.adm-reset-message {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.adm-reset .adm-reset-warning {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--warning-soft);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.line-card.adm-prompt-entry > footer {
+  padding: 0;
+}
+.line-card.adm-prompt-entry textarea {
+  display: block;
+}
+.temp-password {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  font-size: var(--text-lg);
+  letter-spacing: 0.5px;
+  user-select: all;
+  color: var(--ink);
+}
+
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

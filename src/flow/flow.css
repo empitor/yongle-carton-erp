@@ -1,0 +1,305 @@
+/* 到货、送货、生产等单据流转页面和编辑窗 */
+.flow-page .page-heading {
+  margin: 0;
+}
+.flow-editor,
+.flow-details {
+  min-width: 0;
+}
+.flow-editor input,
+.flow-editor select,
+.flow-editor textarea {
+  width: 100%;
+  min-width: 0;
+}
+.flow-editor input[type='checkbox'] {
+  width: auto;
+  margin-right: var(--space-sm);
+}
+.flow-editor output {
+  padding: 10px 0;
+}
+.flow-page .secondary,
+.flow-page .primary,
+.flow-page .danger,
+.flow-page .danger-solid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+}
+.flow-details > h3 {
+  line-height: 1.8;
+}
+.flow-details > a {
+  margin: var(--space-sm) 0 18px;
+}
+
+@media (max-width: 600px) {
+  .flow-page .list-summary {
+    grid-template-columns: 1fr;
+  }
+}
+.wh-block {
+  display: block;
+}
+.wh-check-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.wh-check-line input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
+/* 弹窗和核对区里的只读表格：表头浅底，数字右对齐，第二行小字 */
+table.wh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+table.wh-table th {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+table.wh-table th.num,
+table.wh-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+table.wh-table td small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.line-table td small.wh-danger {
+  color: var(--danger);
+}
+.line-table.wh-no-action td:last-child {
+  width: auto;
+  padding-right: 0;
+}
+.line-table.wh-no-action td.num:last-child {
+  width: 128px;
+}
+.line-table.wh-compact td.num,
+.line-table.wh-compact.wh-no-action td.num:last-child {
+  width: 96px;
+}
+.line-table.wh-compact td.num.wh-wide {
+  width: 136px;
+}
+.line-table th.wh-check,
+.line-table td.wh-check {
+  width: 32px;
+}
+.line-table th.wh-check input[type='checkbox'] {
+  margin-top: 0;
+}
+
+/* 整批完工：表单不随弹窗收起滚动 */
+.modal form.wh-batch-form {
+  display: block;
+  overflow: visible;
+}
+table.wh-table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  white-space: normal;
+}
+.wh-return-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-sm);
+}
+
+/* 送货单“送哪些货” */
+.wh-picker-filters {
+  display: flex;
+  flex: none;
+  gap: var(--space-sm);
+}
+.wh-picker-filters input,
+.wh-picker-filters select {
+  min-height: 28px;
+  font-size: var(--text-sm);
+}
+.wh-picker-filters input {
+  flex: none;
+  width: 180px;
+}
+.wh-picker-filters select {
+  flex: none;
+  width: 112px;
+}
+.wh-picker-empty {
+  padding: var(--space-lg);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-panel);
+  text-align: center;
+}
+.choice-list.wh-picker-list {
+  max-height: 240px;
+}
+.choice-list label.wh-picker-all {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text-secondary);
+}
+.wh-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wh-picker-name em {
+  margin-left: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-style: normal;
+}
+.wh-picker-blocked ul {
+  display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wh-picker-blocked li {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+.wh-picker-blocked li small {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 760px) {
+  /* 安排送货“送哪些货”：标题和搜索框在手机上分两行，标题不被挤成竖排 */
+  .ed-section > header:has(.wh-picker-filters) {
+    flex-wrap: wrap;
+  }
+  .ed-section > header:has(.wh-picker-filters) > :first-child {
+    flex: 1 1 100%;
+    white-space: nowrap;
+  }
+  .wh-picker-filters {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .wh-picker-filters input {
+    flex: 1 1 140px;
+  }
+  .wh-picker-name em {
+    display: none;
+  }
+}
+.wh-nowrap {
+  white-space: nowrap;
+}
+.line-table td.pb-remove {
+  width: 40px;
+}
+
+@media (min-width: 701px) {
+  .line-table:is(.pb-tasks, .pb-distribution) td.num {
+    width: 128px;
+    padding-right: var(--space-sm);
+  }
+}
+
+@media (max-width: 700px) {
+  :root[data-ui='refined'] .management-dialog .line-table:is(.pb-tasks, .pb-materials) td {
+    padding: 0;
+    border: 0;
+  }
+  .line-table.pb-tasks td,
+  .line-table.pb-materials td {
+    display: block;
+    order: 1;
+    flex: 1 1 40%;
+    width: auto !important;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+}
+.flow-page > .record-view-tabs {
+  margin-bottom: var(--space-sm);
+}
+.inline-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.inline-progress .board-progress {
+  width: 64px;
+}
+.detail-panel-body .flow-details {
+  font-size: var(--text-sm);
+}
+.flow-page {
+  display: grid;
+  gap: var(--space-sm);
+}
+/* 看板列宽是固定的，窄窗口时只让看板内部横向滚动，不撑宽整页。 */
+.flow-page > * {
+  min-width: 0;
+}
+.flow-editor {
+  gap: 10px var(--space-lg);
+}
+/* 表单底部操作贴住弹窗底边，内容不会从下面露出来 */
+.management-dialog:has(.flow-editor) {
+  padding-bottom: 0;
+}
+
+.management-dialog-body:has(.flow-editor) {
+  padding-bottom: 0;
+}
+
+@media (max-width: 700px) {
+  .flow-editor {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .flow-editor > * {
+    grid-column: 1 / -1 !important;
+    min-width: 0;
+  }
+
+  /* 仓库和生产页：日期条在自己里面滑动，不撑宽页面 */
+  .flow-page {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .flow-page > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+.form-message .delivery-blockers {
+  margin: var(--space-2xs) 0 var(--space-sm);
+  color: inherit;
+}
+.form-message .delivery-blockers + button,
+.form-message .delivery-blockers ~ button {
+  margin: 0 var(--space-sm) 0 0;
+}

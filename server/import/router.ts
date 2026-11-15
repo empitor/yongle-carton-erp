@@ -1,622 +1,144 @@
-import { prepareArrivalRecognition } from '../flow/arrival-recognition.js';
-import express, { Router, type Response } from 'express';
-import { timingSafeEqual } from 'node:crypto';
+import express, { Router, type Request, type Response, type NextFunction } from 'express';
 import { z, ZodError } from 'zod';
-import { ImportManager } from './manager.js';
-import { FlowService } from '../flow/service.js';
-import { requirePermission } from '../business/management.js';
-import { markImportRouter } from '../marks/import-router.js';
-import type { MarkAi } from '../marks/mark-ai.js';
-import type { ReceiptAi } from '../flow/receipt-ai.js';
-import { ImportError } from './errors.js';
-import { AiConnectionError } from '../ai/connection-error.js';
-import { AI_HTTP_TIMEOUT_MS, type AiProgress } from '../../shared/ai-runtime.js';
-import { requireLocalAdministrator, isLocalAdministrator } from '../developer-capability.js';
-import type { Actor } from '../auth.js';
-export function importRouter(
-  manager: ImportManager,
-  operator?: (req: express.Request) => { id: string; name: string; permissions?: string[] } | null,
-  receiptAi?: ReceiptAi,
-  markAi?: MarkAi,
-) {
-  if (receiptAi) manager.abortArrival = (id) => receiptAi.abort(id);
-  const router = Router();
-  router.use((req, res, next) => {
-    res.set('Cache-Control', 'no-store');
-    if (req.headers['sec-fetch-site'] === 'cross-site')
-      return res.status(403).json({ message: '导入工作区仅允许从本机管理系统页面访问。' });
-    if (req.method !== 'GET') {
-      const token = req.headers['x-erp-ai-token'];
-      if (
-        typeof token !== 'string' ||
-        !/^[a-f0-9]{64}$/.test(token) ||
-        !timingSafeEqual(Buffer.from(token), Buffer.from(manager.csrfToken))
-      )
-        return res.status(403).json({ message: '页面安全凭证无效，请刷新工作区。' });
-    }
-    next();
-  });
-  if (markAi) router.use(markImportRouter(manager, markAi, operator));
-  const safe =
-    (job: (req: express.Request, res: Response) => Promise<unknown> | unknown) =>
-    (req: express.Request, res: Response, next: express.NextFunction) => {
-      Promise.resolve()
-        .then(() => job(req, res))
-        .catch(next);
-    };
-  router.get(
-    '/',
-    safe((_req, res) => {
-      const status = manager.status();
-      if (receiptAi?.store) {
-        const documents = new FlowService(receiptAi.store).list('arrival', true),
-          sources = receiptAi.sources();
-        for (const file of status.workspaces as any[]) {
-          const source = sources.find((s) => s.id === file.arrivalSourceId),
-            document = documents.find((d) => d.id === file.arrivalDocId);
-          file.arrivalStatus =
-            document?.status === 'confirmed'
-              ? 'confirmed'
-              : source && receiptAi.isBusy(source.id)
-                ? 'running'
-                : source?.lastError?.state ||
-                  document?.status ||
-                  (source?.result ? 'recognized' : 'uploaded');
-          file.arrivalNumber = document?.number || null;
-        }
-      }
-      res.json(status);
-    }),
-  );
-  router.post(
-    '/:id/mode',
-    safe((req, res) => {
-      const workspace = manager.get(String(req.params.id));
-      if (
-        receiptAi &&
-        workspace.arrivalDocId &&
-        req.body.mode !== workspace.mode &&
-        new FlowService(receiptAi.store).get(workspace.arrivalDocId).status !== 'draft'
-      )
-        throw new ImportError('到货单已确认或取消，识别类型已锁定，请保留原记录。', 409);
-      res.json(manager.setMode(workspace.id, req.body));
-    }),
-  );
-  const arrivalActor = (req: express.Request) => {
-    const actor = operator?.(req);
-    if (!actor) throw new ImportError('请登录有业务编辑权限的账号。', 403);
-    return requirePermission(
-      { ...actor, permissions: actor.permissions || [] } as any,
-      'business:edit',
-    );
-  };
-  router.get(
-    '/:id/arrival/assistant',
-    safe((req, res) => {
-      const actor = arrivalActor(req);
-      if (!receiptAi) throw new ImportError('到货助手未配置。', 503);
-      res.json(receiptAi.draftAssistant.view(manager, String(req.params.id), actor));
-    }),
-  );
-  for (const action of ['sync', 'undo', 'chat'] as const)
-    router.post(
-      '/:id/arrival/assistant' + (action === 'sync' ? '' : '/' + action),
-      safe(async (req, res) => {
-        const actor = arrivalActor(req),
-          id = String(req.params.id);
-        if (!receiptAi) throw new ImportError('到货助手未配置。', 503);
-        if (action !== 'chat') {
-          res.json(receiptAi.draftAssistant[action](manager, id, req.body, actor));
-          return;
-        }
-        const diagnosticWorkspace = manager.get(id),
-          startedAt = Date.now();
-        const diagnose = (error: unknown) => {
-          try {
-            return {
-              failureId: manager.recordFailure(error, diagnosticWorkspace, {
-                operation: 'chat',
-                stream: req.body.stream === true,
-                stage: 'arrival-draft-chat',
-                startedAt,
-                actor,
-              }),
-            };
-          } catch {
-            return { diagnosticStorageError: true };
-          }
-        };
-        req.setTimeout(AI_HTTP_TIMEOUT_MS * 3);
-        res.setTimeout(AI_HTTP_TIMEOUT_MS * 3);
-        let done = false;
-        res.on('close', () => {
-          if (!done) receiptAi.draftAssistant.abort(id);
-        });
-        const live = () => {
-          try {
-            return arrivalActor(req);
-          } catch {
-            return null;
-          }
-        };
-        if (req.body.stream !== true) {
-          try {
-            res.json(await receiptAi.draftAssistant.chat(manager, id, req.body, actor, live));
-          } catch (e) {
-            diagnose(e);
-            throw e;
-          } finally {
-            done = true;
-          }
-          return;
-        }
-        res
-          .set({
-            'Content-Type': 'text/event-stream; charset=utf-8',
-            'Cache-Control': 'no-cache, no-transform',
-            'X-Accel-Buffering': 'no',
-          })
-          .flushHeaders();
-        const send = (event: string, data: unknown) => {
-          if (!res.destroyed)
-            res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
-        };
-        const timer = setInterval(
-          () => send('progress', { stage: 'waiting', elapsedMs: Date.now() - startedAt }),
-          10000,
-        );
-        timer.unref();
-        try {
-          send(
-            'result',
-            await receiptAi.draftAssistant.chat(manager, id, req.body, actor, live, (p) =>
-              send('progress', p),
-            ),
-          );
-        } catch (e) {
-          send('error', {
-            message:
-              e instanceof ImportError || e instanceof AiConnectionError
-                ? e.message
-                : e instanceof ZodError
-                  ? '到货助手返回的字段不合法，原草稿保留。'
-                  : '到货助手处理失败，原草稿保留。',
-            ...diagnose(e),
-          });
-        } finally {
-          done = true;
-          clearInterval(timer);
-          res.end();
-        }
-      }),
-    );
-  router.post(
-    '/:id/arrival/link',
-    safe((req, res) => {
-      arrivalActor(req);
-      if (!receiptAi) throw new ImportError('供应商到货AI未配置。', 503);
-      const workspace = manager.get(String(req.params.id));
-      const input = z
-        .strictObject({
-          expectedRevision: z.number().int().nonnegative(),
-          docId: z.number().int().positive().nullable(),
-          sourceId: z.string().uuid().nullable().optional(),
-        })
-        .parse(req.body);
-      const document = input.docId ? new FlowService(receiptAi.store).get(input.docId) : null;
-      if (document && document.kind !== 'arrival')
-        throw new ImportError('只能关联采购到货草稿。', 422);
-      const sourceId = input.sourceId || document?.sourceId;
-      if (document && (!sourceId || document.sourceId !== sourceId))
-        throw new ImportError('到货草稿与来源原件不一致。', 409);
-      if (sourceId && receiptAi.source(sourceId).hash !== workspace.fileHash)
-        throw new ImportError('不能关联其他文件的到货记录。', 409);
-      res.json(manager.linkArrival(workspace.id, { ...input, ...(sourceId ? { sourceId } : {}) }));
-    }),
-  );
-  router.post(
-    '/:id/arrival/recognize',
-    safe(async (req, res) => {
-      const actor = arrivalActor(req),
-        id = String(req.params.id);
-      if (!receiptAi) throw new ImportError('供应商到货AI未配置。', 503);
-      const input = z
-        .object({
-          consent: z.literal(true),
-          stream: z.boolean().default(true),
-          force: z.boolean().default(false),
-          policyVersion: z.number().int().optional(),
-          profile: z
-            .object({
-              id: z.string(),
-              endpoint: z.string(),
-              model: z.string(),
-              apiStyle: z.enum(['responses', 'chat-completions']),
-            })
-            .optional(),
-        })
-        .parse(req.body);
-      const { workspace, source, profile } = await prepareArrivalRecognition(
-        manager,
-        receiptAi,
-        id,
-        actor,
-        input,
-      );
-      let done = false;
-      req.setTimeout(AI_HTTP_TIMEOUT_MS);
-      res.setTimeout(AI_HTTP_TIMEOUT_MS);
-      res.on('close', () => {
-        if (!done) receiptAi.abort(source.id);
-      });
-      const startedAt = Date.now();
-      const perform = async (progress?: (p: AiProgress) => void) => {
-        if ((source as any).result && !input.force) return source;
-        return receiptAi.analyze(
-          source.id,
-          {
-            consent: true,
-            stream: input.stream,
-            force: input.force,
-            policyVersion: input.policyVersion,
-            profile: {
-              id: profile.id,
-              endpoint: profile.endpoint,
-              model: profile.model,
-              apiStyle: profile.apiStyle || 'chat-completions',
-            },
-          },
-          actor,
-          progress,
-        );
-      };
-      const diagnose = (error: unknown) =>
-        manager.recordFailure(error, workspace, {
-          operation: 'analyze',
-          stream: input.stream,
-          stage: 'supplier-arrival',
-          startedAt,
-          actor,
-        });
-      if (!input.stream) {
-        try {
-          const result = await perform();
-          done = true;
-          res.json(result);
-        } catch (error) {
-          diagnose(error);
-          throw error;
-        }
-        return;
-      }
-      res
-        .set({
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
-          'X-Accel-Buffering': 'no',
-        })
-        .flushHeaders();
-      const send = (event: string, data: unknown) => {
-        if (!res.destroyed)
-          res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
-      };
-      const timer = setInterval(
-        () => send('progress', { stage: 'waiting', elapsedMs: Date.now() - startedAt }),
-        10000,
-      );
-      timer.unref();
-      try {
-        send('progress', { stage: 'connecting', elapsedMs: 0 });
-        send('result', await perform((p) => send('progress', p)));
-      } catch (error) {
-        const failureId = diagnose(error);
-        send('error', {
-          message:
-            error instanceof ImportError || error instanceof AiConnectionError
-              ? error.message
-              : error instanceof ZodError
-                ? '到货识别格式不正确，未保存草稿。'
-                : '到货识别失败，请查看错误档案。',
-          failureId,
-        });
-      } finally {
-        done = true;
-        clearInterval(timer);
-        res.end();
-      }
-    }),
-  );
-  router.post(
-    '/remove-many',
-    safe(async (req, res) => res.json(await manager.removeMany(req.body))),
-  );
-  router.post(
-    '/delete-many',
-    safe(async (req, res) => {
-      const actor = requireLocalAdministrator(operator?.(req) as Actor),
-        v = z
-          .object({
-            items: z
-              .array(z.object({ id: z.string().uuid(), expectedRevision: z.number().int() }))
-              .min(1)
-              .max(200),
-          })
-          .parse(req.body),
-        results = [];
-      for (const item of v.items) {
-        try {
-          await manager.deleteWorkspace(item.id, item.expectedRevision, actor);
-          results.push({
-            id: item.id,
-            removed: true,
-            deleted: true,
-            message: '已从数据库和文件系统删除',
-          });
-        } catch (e) {
-          results.push({ id: item.id, removed: false, message: (e as Error).message });
-        }
-      }
-      res.json({ results });
-    }),
-  );
-  router.post(
-    '/:id/delete',
-    safe(async (req, res) =>
-      res.json(
-        await manager.deleteWorkspace(
-          String(req.params.id),
-          z.object({ expectedRevision: z.number().int() }).parse(req.body).expectedRevision,
-          requireLocalAdministrator(operator?.(req) as Actor),
-        ),
-      ),
-    ),
-  );
-  router.post(
-    '/:id/open-archive',
-    safe(async (req, res) =>
-      res.json(
-        await manager.openArchivedWorkspace(
-          String(req.params.id),
-          requireLocalAdministrator(operator?.(req) as Actor),
-        ),
-      ),
-    ),
-  );
-  router.post(
-    '/:id/archive',
-    safe((req, res) =>
-      res.json(
-        manager.archiveWorkspace(
-          String(req.params.id),
-          z.object({ expectedRevision: z.number().int() }).parse(req.body).expectedRevision,
-          requireLocalAdministrator(operator?.(req) as Actor),
-        ),
-      ),
-    ),
-  );
-  const diagnosticActor = (req: express.Request) => {
-    const actor = operator?.(req);
-    if (!actor?.permissions?.includes('business:edit'))
-      throw new ImportError('请登录有业务管理权限的账号查看错误档案。', 403);
-    return actor;
-  };
-  router.get(
-    '/diagnostics',
-    safe((req, res) => {
-      diagnosticActor(req);
-      const q = z
-        .object({
-          workspaceId: z.string().uuid().optional(),
-          offset: z.coerce.number().int().min(0).max(1000000).default(0),
-        })
-        .parse(req.query);
-      res.json(manager.failures(q.workspaceId, q.offset));
-    }),
-  );
-  router.get(
-    '/diagnostics/:failureId',
-    safe((req, res) => {
-      diagnosticActor(req);
-      const record = manager.failure(String(req.params.failureId));
-      if (req.query.download === '1')
-        res.set('Content-Disposition', 'attachment; filename="ai-failure-' + record.id + '.json"');
-      res.json(record);
-    }),
-  );
-  router.post('/:id/enqueue', (req, res) =>
-    res.status(202).json(manager.enqueue(String(req.params.id), req.body, operator?.(req))),
-  );
-  for (const action of ['analyze', 'chat'] as const)
-    router.post(
-      '/:id/' + action,
-      safe(async (req, res) => {
-        const id = String(req.params.id),
-          stream = req.body?.stream === true,
-          input = { ...req.body, stream };
-        req.setTimeout(AI_HTTP_TIMEOUT_MS);
-        res.setTimeout(AI_HTTP_TIMEOUT_MS);
-        let finished = false;
-        const closed = () => {
-          if (!finished) manager.abortRequest(id);
-        };
-        res.on('close', closed);
-        if (!stream) {
-          try {
-            res.json(await manager[action](id, input, undefined, operator?.(req)));
-          } finally {
-            finished = true;
-            res.off('close', closed);
-          }
-          return;
-        }
-        res.status(200).set({
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
-          'X-Accel-Buffering': 'no',
-          Connection: 'keep-alive',
-        });
-        res.flushHeaders();
-        const started = Date.now();
-        let progress: AiProgress = { stage: 'connecting', receivedChars: 0, elapsedMs: 0 },
-          last = 0;
-        const send = (event: string, data: unknown) => {
-          if (!res.destroyed && !res.writableEnded)
-            res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
-        };
-        const update = (p: AiProgress) => {
-          progress = { ...p, elapsedMs: Date.now() - started };
-          if (Date.now() - last >= 250 || p.stage === 'validating') {
-            send('progress', progress);
-            last = Date.now();
-          }
-        };
-        send('progress', progress);
-        const heartbeat = setInterval(
-          () => send('progress', { ...progress, elapsedMs: Date.now() - started }),
-          10000,
-        );
-        heartbeat.unref();
-        try {
-          if (res.destroyed) return;
-          const workspace = await manager[action](id, input, update, operator?.(req));
-          send('result', workspace);
-        } catch (error) {
-          const message =
-            error instanceof ImportError || error instanceof AiConnectionError
-              ? error.message
-              : error instanceof ZodError
-                ? 'AI返回结构或订单字段不符合约定，未保存本次草稿。'
-                : 'AI请求失败，未保存不完整草稿。';
-          send('error', {
-            message,
-            code:
-              error instanceof ImportError || error instanceof AiConnectionError
-                ? error.code
-                : 'schema',
-          });
-        } finally {
-          finished = true;
-          clearInterval(heartbeat);
-          res.off('close', closed);
-          if (!res.destroyed) res.end();
-        }
-      }),
-    );
-  router.post(
-    '/:id/remove',
-    safe(async (req, res) => res.json(await manager.remove(String(req.params.id), req.body))),
-  );
-  router.post(
-    '/:id/restore',
-    safe(async (req, res) =>
-      res.json(
-        isLocalAdministrator(operator?.(req) as Actor)
-          ? await manager.restoreWorkspace(String(req.params.id), operator!(req) as Actor)
-          : await manager.restore(String(req.params.id)),
-      ),
-    ),
-  );
-  router.post(
-    '/:id/confirm',
-    safe((req, res) => res.json(manager.confirm(String(req.params.id), req.body, operator?.(req)))),
-  );
-  router.post(
-    '/upload',
-    express.raw({ type: 'application/octet-stream', limit: '10mb' }),
-    safe(async (req, res) => {
-      let name = '';
-      try {
-        name = decodeURIComponent(String(req.headers['x-file-name'] || ''));
-      } catch {}
-      if (!name || !Buffer.isBuffer(req.body))
-        throw new ImportError('请通过文件上传区域选择有效文件。', 415);
-      res.status(201).json(await manager.upload(req.body, name));
-    }),
-  );
-  router.get(
-    '/:id',
-    safe((req, res) => res.json(manager.get(String(req.params.id)))),
-  );
-  router.get(
-    '/:id/file',
-    safe(async (req, res) => {
-      const page =
-        req.query.page === undefined
-          ? undefined
-          : z.coerce.number().int().positive().parse(req.query.page);
-      const f = await manager.file(String(req.params.id), page);
-      res.type(f.mime);
-      if (page === undefined)
-        res.set(
-          'Content-Disposition',
-          (req.query.view === 'image' && f.mime.startsWith('image/') ? 'inline' : 'attachment') +
-            "; filename*=UTF-8''" +
-            encodeURIComponent(f.name),
-        );
-      res.send(f.bytes);
-    }),
-  );
-  for (const [path, fn] of [
-    ['consent', manager.consent.bind(manager)],
-    ['revoke-consent', manager.revoke.bind(manager)],
-    ['cancel', manager.cancel.bind(manager)],
-  ] as const)
-    router.post(
-      '/:id/' + path,
-      safe(async (req, res) => res.json(await fn(String(req.params.id), req.body))),
-    );
-  for (const action of ['edit', 'undo', 'mapping'] as const)
-    router.post(
-      '/:id/' + action,
-      safe((req, res) => {
-        const id = String(req.params.id),
-          who = operator?.(req) as Actor | null;
-        res.json(
-          action === 'edit'
-            ? manager.edit(id, req.body, 'manual', who)
-            : manager[action](id, req.body, who),
-        );
-      }),
-    );
-  router.post('/:id/execute', (_req, res) =>
-    res
-      .status(403)
-      .json({ message: '正式 ERP 写入尚未开放。本轮仅核对草稿，不得绕过业务服务的导入写入限制。' }),
-  );
-  router.use((error: unknown, req: express.Request, res: Response, _next: express.NextFunction) => {
-    // 文件/模型正文、密钥、请求内容与堆栈均不进入一般日志。
+import { AppError, constraintFailure, route, type Store } from '../core/index.js';
+import { AiConnectionError, aiPageGuard } from '../ai/index.js';
+import type { ImportManager } from './manager.js';
+import type { ReceiptAi } from './receipt-ai.js';
+import type { ImportExecutionService } from './import-execution.js';
+import { matchDraft } from './matching.js';
+import { standardOrderDraft } from './standard-order.js';
+import { arrivalLinks, withArrivalStatus } from './business-links.js';
+import { recognitionModes, type ImportsApi } from '../../shared/import/index.js';
+import { arrivalRouter } from './arrival-router.js';
+import { workspaceAdminRouter, type Operator } from './workspace-admin-router.js';
+import { aiFailureMessage, replyAi } from './ai-stream.js';
+
+/** express 解析请求体时文件太大（express.raw 的 limit） */
+const tooLarge = (error: unknown) =>
+  typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large';
+
+const fileName = (req: Request, fallback = '') => {
+  try {
+    return decodeURIComponent(String(req.headers['x-file-name'] || fallback));
+  } catch {
+    return fallback;
+  }
+};
+
+/** 出错时回什么：上传失败记错误档案；中文说明，不带堆栈、文件内容和密钥 */
+function failureHandler(manager: ImportManager, operator: Operator) {
+  return (error: unknown, req: Request, res: Response, next: NextFunction) => {
+    // 正式导入写的是业务库：出错按全站的说法回（版本冲突 409、校验没过逐项说明等，server/http-errors.ts）
+    if (/^\/[^/]+\/(?:preview|execute)$/.test(req.path)) return next(error);
     let failureId: string | undefined;
     if (req.method === 'POST' && req.path === '/upload') {
-      let name = '未知上传文件';
-      try {
-        name = decodeURIComponent(String(req.headers['x-file-name'] || name));
-      } catch {}
-      const failure =
-        (error as any)?.type === 'entity.too.large'
-          ? new ImportError('文件超过10MB，上传已拒绝。', 413, 'file-size')
-          : error;
+      const failure = tooLarge(error) ? new AppError('文件超过10MB，上传已拒绝。', 413, 'file-size') : error;
       try {
         failureId = manager.recordFailure(
           failure,
-          { fileName: name, size: Buffer.isBuffer(req.body) ? req.body.length : 0 },
-          { operation: 'upload', stage: 'upload-validation', actor: operator?.(req) },
+          { fileName: fileName(req, '未知上传文件'), size: Buffer.isBuffer(req.body) ? req.body.length : 0 },
+          { operation: 'upload', stage: 'upload-validation', actor: operator(req) },
         );
-      } catch {}
+      } catch (recordError) {
+        // 错误档案写不进去不挡住给人回话（回话里就没有错误编号），记一行日志
+        console.error('[识别导入] 上传失败的错误档案没有写上：', recordError instanceof Error ? recordError.message : String(recordError));
+      }
     }
-    if (error instanceof ImportError || error instanceof AiConnectionError)
+    if (error instanceof AppError || error instanceof AiConnectionError)
       return res.status(error.status).json({ message: error.message, code: error.code, failureId });
     if (error instanceof ZodError)
       return res.status(422).json({
-        message:
-          '文件解析、草稿操作或 AI 返回结构不符合约定，未保存本次结果。请检查字段与来源后重试。',
+        message: '文件解析、识别结果操作或 AI 返回结构不符合约定，未保存本次结果。请检查字段后重试。',
         code: 'schema',
       });
-    if ((error as any)?.type === 'entity.too.large')
+    if (tooLarge(error))
       return res.status(413).json({ message: '文件超过 10 MB，已拒绝上传。', code: 'file-size' });
+    // 数据库约束挡下的写入：给一句中文；日志里只记约束表达式，不记堆栈
+    const constraint = constraintFailure(error, '识别导入 ' + req.method + ' ' + req.path, { stack: false });
+    if (constraint) return res.status(500).json({ message: constraint, code: 'data-rule', failureId });
     res.status(500).json({
       message: '导入工作区操作失败，可能是文件损坏、磁盘不可写或解析器异常。未修改正式 ERP 数据。',
       code: 'import',
     });
+  };
+}
+
+/**
+ * AI 导入的地址（/api/ai/imports 下，接口表 shared/import/imports-api.ts）：列表、上传、读、改识别类型、订单识别和修改、核对、取消、下载原件。
+ * 不在接口表里的照旧用 express 注册：上传（原始字节）、下载原件（文件）、识别（边收边推进度）。
+ * 到货的两条在 arrival-router.ts，归档和永久删除、错误档案在 workspace-admin-router.ts。路由里只取参数、鉴权、调服务。
+ * business：业务库（对应档案、标准订单）和正式导入的预览、执行（不开正式导入时不给 execution，这两条地址就没有）。
+ */
+export function importRouter(
+  manager: ImportManager,
+  operator?: Operator,
+  receiptAi?: ReceiptAi,
+  business?: { store: Store; execution?: ImportExecutionService },
+) {
+  const who = (req: Request) => operator?.(req) || null;
+  // 到货单在不在、锁没锁、停到货识别：接到工作区上，只接这一处
+  const store = receiptAi?.store ?? business?.store;
+  if (store) manager.connectArrivals(arrivalLinks(store, receiptAi && ((id) => receiptAi.abort(id))));
+  const router = Router(),
+    on = route<ImportsApi>(router, '/ai/imports');
+  router.use(aiPageGuard(manager.csrfToken, '导入工作区'));
+  if (receiptAi) router.use(arrivalRouter(manager, who, receiptAi));
+  router.use(workspaceAdminRouter(manager, who));
+  on('GET /ai/imports', () => {
+    const status = manager.status();
+    // 只按编号取列表里引用到的到货单（含归档）和到货原件，不把全部单据读出来再逐个找。
+    return receiptAi
+      ? { ...status, workspaces: withArrivalStatus(receiptAi.store, status.workspaces, (id) => receiptAi.isBusy(id)) }
+      : status;
   });
+  router.post(
+    '/upload',
+    express.raw({ type: 'application/octet-stream', limit: '10mb' }),
+    async (req, res) => {
+      const name = fileName(req);
+      if (!name || !Buffer.isBuffer(req.body)) throw new AppError('请通过文件上传区域选择有效文件。', 415);
+      // 页面可以说明新文件按哪种类型识别（从到货页过来的是到货单）
+      const mode = z.enum(recognitionModes).default('order').parse(req.headers['x-import-mode'] || undefined);
+      res.status(201).json(await manager.upload(req.body, name, false, mode));
+    },
+  );
+  on('GET /ai/imports/:id', ({ param }) => manager.get(param('id')));
+  router.get('/:id/file', async (req, res) => {
+    const f = await manager.file(String(req.params.id));
+    const inline = req.query.view === 'image' && f.mime.startsWith('image/');
+    res.type(f.mime);
+    res.set('Content-Disposition', (inline ? 'inline' : 'attachment') + "; filename*=UTF-8''" + encodeURIComponent(f.name));
+    res.send(f.bytes);
+  });
+  on('POST /ai/imports/:id/mode', ({ param, body }) => manager.setMode(param('id'), body));
+  on('POST /ai/imports/:id/enqueue', ({ param, body, req }) => manager.enqueue(param('id'), body, who(req)), { status: 202 });
+  router.post('/:id/analyze', async (req, res) => {
+    const id = String(req.params.id),
+      body = z.record(z.string(), z.unknown()).catch({}).parse(req.body),
+      stream = body.stream === true;
+    await replyAi(req, res, {
+      stream,
+      abort: () => manager.abortRequest(id),
+      run: (progress) => manager.analyze(id, { ...body, stream }, progress, who(req)),
+      failure: (error) => ({
+        message: aiFailureMessage(error, 'AI返回结构或订单字段不符合约定，未保存本次识别结果。', 'AI请求失败，未保存不完整的识别结果。'),
+        code: error instanceof AppError || error instanceof AiConnectionError ? error.code : 'schema',
+      }),
+    });
+  });
+  on('POST /ai/imports/:id/edit', ({ param, body, req }) => manager.edit(param('id'), body, 'manual', who(req)));
+  on('POST /ai/imports/:id/undo', ({ param, body, req }) => manager.undo(param('id'), body, who(req)));
+  on('POST /ai/imports/:id/mapping', ({ param, body, req }) => manager.mapping(param('id'), body, who(req)));
+  on('POST /ai/imports/:id/cancel', ({ param, body }) => manager.cancel(param('id'), body));
+  if (business) {
+    const { store: db, execution } = business;
+    on('GET /ai/imports/:id/matches', ({ param }) => matchDraft(db, manager.get(param('id'))));
+    on('GET /ai/imports/:id/standard-order', ({ param }) => standardOrderDraft(db, manager.get(param('id'))));
+    if (execution) {
+      on('POST /ai/imports/:id/preview', ({ param, body, req }) => execution.preview(param('id'), body, who(req)));
+      on('POST /ai/imports/:id/execute', ({ param, body, req }) => execution.execute(param('id'), body, who(req), () => who(req)));
+    }
+  }
+  router.use(failureHandler(manager, operator ?? (() => null)));
   return router;
 }

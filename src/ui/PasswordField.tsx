@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { passwordHint, passwordPattern } from '../../shared/password-policy';
+import { passwordHint, passwordPattern } from '../../shared/core/index';
 
 /** 密码输入框，右侧可切换显示。手机上输长密码时用得上。 */
 export default function PasswordField({

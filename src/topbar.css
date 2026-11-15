@@ -1,0 +1,206 @@
+/* 顶栏：搜索、新建、右侧按钮 */
+@media (max-width: 1000px) {
+  .topbar > div:first-child {
+    min-width: 0;
+    flex: 0 1 125px;
+  }
+  .topbar .topbar-right {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  padding: 0 var(--space-lg);
+  gap: var(--space-md);
+}
+.topbar > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.topbar-right {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  gap: var(--space-sm);
+}
+.top-search {
+  display: flex;
+  width: min(420px, 100%);
+  height: 32px;
+  padding: 0 var(--space-sm);
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+  color: var(--placeholder);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.top-search kbd {
+  margin-left: auto;
+  padding: 0 var(--space-2xs);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+.top-new {
+  position: relative;
+}
+.top-new-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: var(--z-floating);
+  width: 160px;
+  padding: var(--space-2xs);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-sm);
+}
+.top-new-menu a {
+  display: block;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--r-control);
+  font-size: var(--text-sm);
+}
+.top-new-menu a:hover {
+  background: var(--surface-hover);
+}
+
+@media (max-width: 1023px) {
+  .top-search kbd {
+    display: none;
+  }
+}
+
+@media print {
+  .topbar {
+    display: none !important;
+  }
+}
+/* 顶栏：搜索之外都是次要操作，高度一致 */
+.topbar-right button,
+.topbar-right select,
+.topbar-right .theme-switcher {
+  height: 32px;
+  min-height: 32px;
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 700px) {
+  .topbar button {
+    min-height: 44px;
+  }
+
+  /* 顶栏 */
+  .topbar {
+    padding: 0 var(--space-sm);
+    gap: var(--space-2xs);
+  }
+  .topbar > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .top-search {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--text-sm);
+  }
+  /* 只留加号；要压过精致版式层给页头按钮定的字号（shell-2.css），不然“新建”两个字挤出按钮、贴着头像 */
+  .topbar .topbar-right .top-new > button {
+    width: 44px;
+    padding: 0;
+    font-size: 0;
+    justify-content: center;
+  }
+  /* 右边只留新建和头像，剩下的宽度都给搜索框（要压过上面 1000 宽时的 flex: 1，不然各占一半、搜索字被截） */
+  .topbar .topbar-right {
+    flex: none;
+    gap: var(--space-2xs);
+  }
+  .topbar-right > button {
+    display: block;
+    max-width: 88px;
+    padding: 0 var(--space-sm);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--text-xs);
+  }
+  .topbar-right > button svg {
+    display: none;
+  }
+}
+.topbar-right .oi-account {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  max-width: 240px;
+  padding: 0 var(--space-sm) 0 var(--space-2xs);
+  color: var(--ink);
+}
+.topbar-right .account-menu > button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  /* 顶栏只放头像，名字和级别在菜单里 */
+  .topbar-right .oi-account {
+    display: inline-flex;
+    width: 44px;
+    max-width: 44px;
+    padding: 0;
+    justify-content: center;
+    position: relative;
+  }
+  .topbar-right .oi-account .oi-account-name,
+  .topbar-right .oi-account .oi-account-level,
+  .topbar-right .oi-account > svg {
+    display: none;
+  }
+}
+:root[data-ui='refined'] .topbar {
+  background: color-mix(in srgb, var(--page-bg) 80%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--border);
+}
+:root[data-ui='refined'] .top-search {
+  border: 0;
+  background: var(--field-bg);
+  border-radius: var(--r-control);
+  transition: background 0.15s var(--ease);
+}
+:root[data-ui='refined'] .top-search:hover {
+  background: var(--fill-1);
+}

@@ -1,14 +1,14 @@
+// 凭据加密（server/ai/credential-store.ts）：配置目录按平台选、Windows 用 DPAPI、Linux 用 0600 主密钥加 AES；权限不对拒绝启动。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, createHash } from 'node:crypto';
-import { mkdtempSync, rmSync, chmodSync, statSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, chmodSync, statSync, mkdirSync, readFileSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve, dirname } from 'node:path';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { aesProtector, linuxMasterKey, windowsProtector } from '../server/ai/credential-store.js';
-import { configDirectory } from '../server/config-paths.js';
-import { Store } from '../server/db.js';
-import { createFullBackup, copyAutomaticBackup } from '../server/backup.js';
+import { aesProtector, initializeCredentialProtection, linuxMasterKey, windowsProtector } from '../server/ai/credential-store.js';
+import { AiConnectionError } from '../server/ai/errors.js';
+import { configDirectory } from '../server/core/config-paths.js';
 
 test('凭据目录按平台选择，Windows保持旧路径，Linux遵守XDG且覆盖项必须绝对路径', () => {
   assert.equal(configDirectory('win32', { LOCALAPPDATA: 'C:\\VirtualLocal' }, 'C:\\VirtualUser'), 'C:\\VirtualLocal\\ZhixuERP');
@@ -29,19 +29,23 @@ test('AES带算法版本、随机IV、跨实例可恢复；篡改、错误主密
     assert.ok(b.unprotect(c) === secret); assert.ok(!c.includes(secret));
     const bytes = Buffer.from(c.slice(13), 'base64'); bytes[15] ^= 1;
     for (const run of [() => a.unprotect('aes256gcm:v1:' + bytes.toString('base64')), () => aesProtector(() => randomBytes(32)).unprotect(c), () => a.unprotect('aes256gcm:v1:invalid')])
-      assert.throws(run, (e: any) => { assert.equal(e.code, 'storage'); assert.ok(!e.message.includes(secret)); return true; });
+      assert.throws(run, (e: unknown) => {
+        assert.ok(e instanceof AiConnectionError);
+        assert.equal(e.code, 'storage'); assert.ok(!e.message.includes(secret)); return true;
+      });
     assert.throws(() => a.unprotect('dpapi:v1:virtual-cipher'), /当前平台/);
-    assert.throws(() => a.unprotect('legacy-windows-cipher'), /当前平台/);
+    assert.throws(() => a.unprotect('untagged-cipher'), /当前平台/);
     assert.throws(() => windowsProtector.unprotect(c), /当前平台/);
   } finally { key.fill(0); }
 });
 
-test('Windows DPAPI新标记和旧无标记密文均可恢复', { skip: process.platform !== 'win32' }, () => {
+test('Windows DPAPI：密文带 dpapi:v1 标记、能解回；不带标记的不认', { skip: process.platform !== 'win32' }, () => {
   const secret = randomBytes(24).toString('base64'), c = windowsProtector.protect(secret);
   assert.match(c, /^dpapi:v1:/);
   assert.ok(windowsProtector.unprotect(c) === secret);
-  assert.ok(windowsProtector.unprotect(c.slice(9)) === secret);
+  assert.throws(() => windowsProtector.unprotect(c.slice(9)), /当前平台/);
 });
+
 
 test('Linux原生：创建0700目录和0600主密钥，跨进程恢复且不输出内容', { skip: process.platform !== 'linux' }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-key-'));
@@ -72,35 +76,19 @@ test('Linux原生：目录权限、文件权限、符号链接、硬链接及损
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('Linux原生：权限错误在启动业务库前拒绝', { skip: process.platform !== 'linux' }, () => {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-key-startup-'));
+// 启动时最先调它（在打开业务库之前，见 server/index.ts）；这里直接调，不运行 server/index.ts
+test('Linux原生：配置目录权限不对，初始化凭据保护就拒绝，报 0700', { skip: process.platform !== 'linux' }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'erp-key-startup-')),
+    saved = process.env.ERP_CONFIG_DIR;
   try {
-    const config = join(dir, 'config'); mkdirSync(config, { mode: 0o755 }); chmodSync(config, 0o755);
-    const db = join(dir, 'must-not-create.sqlite');
-    const p = spawnSync(process.execPath, ['--import', 'tsx', resolve('server/index.ts')], { cwd: process.cwd(), env: { ...process.env, ERP_CONFIG_DIR: config, DB_PATH: db, PORT: '32981' }, encoding: 'utf8', timeout: 20000 });
-    assert.notEqual(p.status, 0); assert.match(p.stderr, /0700/); assert.equal(existsSync(db), false);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('完整备份排除误放在业务目录里的主密钥，也拒绝extraFiles指定主密钥', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-key-backup-')), data = join(dir, 'data'); mkdirSync(data);
-  const store = new Store(join(data, 'erp.sqlite')); store.close();
-  try {
-    mkdirSync(join(data, 'credentials')); writeFileSync(join(data, 'credentials/master.key'), randomBytes(32));
-    const backup = await createFullBackup({ dataDir: data, backupRoot: join(dir, 'backups') });
-    const manifest = JSON.parse(readFileSync(join(backup.dir, 'manifest.json'), 'utf8'));
-    assert.ok(manifest.files.every((f: any) => !f.path.includes('master.key')));
-    await assert.rejects(createFullBackup({ dataDir: data, backupRoot: join(dir, 'backups'), extraFiles: { 'master.key': join(data, 'credentials/master.key') } }), /主密钥不能进入/);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('Linux原生：备份复制区分目录大小写，仍拒绝复制回同一目录', { skip: process.platform !== 'linux' }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-case-backup-'));
-  try {
-    const source = join(dir, 'Backup', 'auto-fictional'), target = join(dir, 'backup');
-    mkdirSync(source, { recursive: true }); writeFileSync(join(source, 'fictional.txt'), '虚构备份');
-    await copyAutomaticBackup(source, target);
-    assert.equal(readFileSync(join(target, 'auto-fictional/fictional.txt'), 'utf8'), '虚构备份');
-    await assert.rejects(copyAutomaticBackup(source, dirname(source)), /不同/);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+    const config = join(dir, 'config');
+    mkdirSync(config, { mode: 0o755 });
+    chmodSync(config, 0o755);
+    process.env.ERP_CONFIG_DIR = config;
+    assert.throws(() => initializeCredentialProtection(), /0700/);
+  } finally {
+    if (saved === undefined) delete process.env.ERP_CONFIG_DIR;
+    else process.env.ERP_CONFIG_DIR = saved;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

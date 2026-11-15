@@ -1,784 +1,221 @@
-import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { Store } from '../db.js';
-import type { Actor } from '../auth.js';
-import { requireLocalAdministrator } from '../developer-capability.js';
-import { ImportError } from '../import/errors.js';
-import { audit, rememberDeletedRecord } from './management.js';
-import { developerModules } from '../../shared/developer.js';
-import { quantityUnits } from '../../shared/operations.js';
-import { precisionTotal } from '../../shared/precision.js';
-import { FlowService } from '../flow/service.js';
-import { sheetArea, purchaseLineAmount } from '../../shared/physical-flow.js';
-import { syncReceivedUnits } from '../operations/fulfillment.js';
-import { recordMovementRevision } from '../operations/repository.js';
-import { snapshotBeforeDestructive } from '../backup.js';
-import { deletedFinanceSource,retainedFinanceReferences } from '../finance/source-deletion.js';
+import type { Store } from '../core/index.js';
+import type { Actor } from '../core/index.js';
+import { exists, isLocalAdministrator, one, rows } from '../core/index.js';
+import { AppError, assertPreviewCurrent, financeDeletionRules } from '../core/index.js';
+import { beforeRecordDeleted, deletionRemove, deletionUpdate } from '../core/index.js';
+import type { DeletionContext, DeletionRow } from '../core/index.js';
+import { audit, isSuperMode, rememberDeletedRecord, superModeDenied } from '../core/index.js';
+import { inventoryEffectText } from './deletion-summary.js';
+import { textOf } from './deletion-impact.js';
+import { businessTables, planDeletion, quote } from './deletion-plan.js';
+import { recomputeAfterFlowDeletion } from '../flow/index.js';
+// 产品唛头资料（业务汇总自己的表）的删除规则：加载删除引擎时登记
+import './marks-deletion.js';
+import { snapshotBeforeDestructive } from '../core/index.js';
+import { onceByRequest, operationRequest, replayRequest, requestDone } from '../core/index.js';
+import { deletionRequestSchema, deletionResultSchema, deletionSelection, flowKinds } from '../../shared/business/index.js';
 
-const quote = (s: string) => '"' + s.replaceAll('"', '""') + '"';
-const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
-export const deletionSelection = z.strictObject({
-  module: z.enum(developerModules),
-  items: z
-    .array(
-      z.strictObject({ id: z.number().int().positive(), version: z.number().int().positive() }),
-    )
-    .min(1)
-    .max(100),
-  inventoryPolicy: z.enum(['preserve', 'recalculate']).default('preserve'),
-});
-
-type Row = Record<string, any> & { __rowid: number };
-const businessTables = new Set([
-  'customers',
-  'products',
-  'orders',
-  'suppliers',
-  'purchases',
-  'stock_items',
-  'flow_documents',
-]);
-
-/** 受控数据库维护：删除不是归档/冲销。关联处理由真实FK及单据引用决定。 */
+const DELETE_REQUEST = 'database-delete';
+/** 删之前按 rowid 取整行记进审计：哪张表都有可能，按“列名 → 值”读 */
+const wholeRow = z.record(z.string(), z.unknown());
+const draftState = rows.flow_documents.pick({ kind: true, status: true });
+/** 删除的防重复提交：同一个人、同一会话、同一内容才原样返回 */
+const deleteRequest = (v: z.infer<typeof deletionRequestSchema>, actor: Actor, binding: string) =>
+  operationRequest(DELETE_REQUEST, v.requestId, actor, v, binding);
+type DeletionRequest = z.output<typeof deletionRequestSchema>;
+/** 权限和内容都核对过的一次删除：谁删、删什么、防重复提交的请求 */
+type CheckedDeletion = { actor: Actor; v: DeletionRequest; request: ReturnType<typeof deleteRequest> };
+/**
+ * 删除引擎（受控数据库维护）：删除不是归档/冲销。这里管谁能删、预览和真删；删哪些、解除哪些引用在 deletion-plan.ts 算，
+ * 由数据库外键和各模块登记的删除规则决定（server/core/deletion-rules.ts）；改、删每一行都交给表的主人写，这里不直接写别的模块的表。
+ * 影响清单怎么显示、库存说明要的数在 deletion-impact.ts；管理员改订单时连带改单据在 order-edit-cascade.ts。
+ */
 export class DatabaseMaintenanceService {
   constructor(readonly store: Store) {}
-  alignStock(before: any, after: any, actor: Actor) {
-    requireLocalAdministrator(actor);
-    const db = this.store.db,
-      flow = new FlowService(this.store);
-    const item = Object.fromEntries(
-      [
-        'name',
-        'unit',
-        'specification',
-        'length',
-        'width',
-        'height',
-        'dimensionUnit',
-        'material',
-        'flute',
-        'notes',
-      ].map((k) => [k, after[k]]),
-    );
-    for (const line of db
-      .prepare('SELECT * FROM purchase_lines WHERE stock_item_id=?')
-      .all(after.id)) {
-      if (after.kind !== 'raw')
-        db.prepare('UPDATE purchase_lines SET stock_item_id=NULL WHERE id=?').run(line.id);
-      else
-        db.prepare('UPDATE purchase_lines SET document=? WHERE id=?').run(
-          JSON.stringify({ ...JSON.parse(String(line.document)), ...item }),
-          line.id,
-        );
-      db.prepare('UPDATE purchases SET version=version+1 WHERE id=?').run(line.purchase_id);
-    }
-    for (const d of flow.list(undefined, true)) {
-      let changed = false;
-      if (d.kind === 'arrival')
-        for (const l of d.lines)
-          if (l.stockId === after.id) {
-            if (after.kind !== 'raw') {
-              l.stockId = null;
-            } else {
-              if (after.unit !== '张')
-                throw new ImportError(
-                  '关联到货按张记录；修改数量单位需要明确新的到货数量，不能自动换算。',
-                );
-              l.item = { ...l.item, ...item };
-              l.area = sheetArea(l.item, l.quantity);
-              l.amount = purchaseLineAmount({
-                ...l.item,
-                quantity: l.quantity,
-                unitPrice: l.unitPrice,
-                priceBasis: l.priceBasis,
-              });
-            }
-            changed = true;
-          }
-      if (d.kind === 'production' && d.finishedStockId === after.id) {
-        if (after.kind !== 'finished' || !after.productId)
-          throw new ImportError(
-            '生产登记的成品库存关联需要成品类型和真实产品，不能留下类型不符的引用。',
-          );
-        d.productId = after.productId;
-        if (d.taskId && flow.get(d.taskId).productId !== d.productId) d.taskId = null;
-        changed = true;
-      }
-      if (
-        d.kind === 'production' &&
-        d.materials.some((m: any) => m.stockId === after.id) &&
-        (after.kind !== 'raw' || after.unit !== '张')
-      )
-        throw new ImportError(
-          '生产领料的原材料引用需要张数；请明确新的领料数量和库存品后编辑关联，不能猜测换算。',
-        );
-      if (changed) {
-        db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(
-          JSON.stringify(d),
-          d.id,
-        );
-        flow.maintenanceReferences(d.id);
-      }
-    }
-    audit(
-      this.store,
-      actor,
-      'database-maintenance',
-      'edit-related-stock',
-      'stock_items',
-      after.id,
-      { before, after },
-    );
-  }
-  detachPurchaseLines(purchaseId: number, lineIds: number[], actor: Actor) {
-    if (!lineIds.length) return;
-    requireLocalAdministrator(actor);
-    const ids = new Set(lineIds),
-      db = this.store.db,
-      flow = new FlowService(this.store);
-    for (const arrival of flow.list('arrival', true)) {
-      let changed = false;
-      const lines = arrival.lines.map((l: any) => {
-        if (!ids.has(l.purchaseLineId)) return l;
-        changed = true;
-        return { ...l, purchaseLineId: null, purchaseId: null, purchaseNumber: '' };
+  /**
+   * 谁能删：本机最高管理员什么都能删。不在本机（服务器上从域名访问）时和本机一致，但多两道门：
+   * 要超级管理员模式，提交时再输本人密码（路由里核验）。
+   * 生产任务、到货、完工、送货还没核对的单据没动库存也没进账，有编辑权限就能删，不用密码。
+   */
+  deletionAccess(who: Actor | null | undefined, raw: unknown): { actor: Actor; draftsOnly: boolean } {
+    // 删除提交还带着请求编号和范围摘要，这里只看选了哪些
+    const s = z.object(deletionSelection.shape).safeParse(raw);
+    const chosen = s.success ? s.data : null;
+    const flowModule = !!chosen && flowKinds.some((k) => k === chosen.module);
+    const draftsOnly =
+      !!chosen &&
+      flowModule &&
+      chosen.items.every((i) => {
+        const r = one(this.store.db, draftState, 'SELECT kind,status FROM flow_documents WHERE id=?', i.id);
+        return !!r && r.kind === chosen.module && r.status === 'draft';
       });
-      if (changed) {
-        db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(
-          JSON.stringify({ ...arrival, lines }),
-          arrival.id,
-        );
-        flow.maintenanceReferences(arrival.id);
-      }
-    }
-    for (const row of db
-      .prepare('SELECT * FROM purchase_receipts WHERE purchase_id=?')
-      .all(purchaseId)) {
-      const d = JSON.parse(String(row.document)),
-        items = (d.items || []).filter((i: any) => !ids.has(i.lineId));
-      if (items.length !== d.items.length) {
-        if (items.length)
-          db.prepare('UPDATE purchase_receipts SET document=? WHERE id=?').run(
-            JSON.stringify({ ...d, items }),
-            row.id,
-          );
-        else {
-          for (const m of db
-            .prepare("SELECT * FROM stock_movements WHERE source_kind='purchase_receipt' AND source_id=?")
-            .all(row.id))
-            recordMovementRevision(this.store, actor, '解除采购关联', m, {
-              source_kind: 'database-maintenance',
-              source_id: null,
-            });
-          db.prepare(
-            "UPDATE stock_movements SET source_kind='database-maintenance',source_id=NULL WHERE source_kind='purchase_receipt' AND source_id=?",
-          ).run(row.id);
-          db.prepare('DELETE FROM purchase_receipts WHERE id=?').run(row.id);
-        }
-      }
-    }
-    for (const id of lineIds) {
-      for (const m of db.prepare('SELECT * FROM stock_movements WHERE purchase_line_id=?').all(id))
-        recordMovementRevision(this.store, actor, '解除采购关联', m, { purchase_line_id: null });
-      db.prepare('UPDATE stock_movements SET purchase_line_id=NULL WHERE purchase_line_id=?').run(
-        id,
-      );
-      db.prepare(
-        'UPDATE flow_refs SET purchase_line_id=NULL,purchase_id=NULL WHERE purchase_line_id=?',
-      ).run(id);
-      db.prepare('UPDATE purchase_lines SET received_units=0 WHERE id=?').run(id);
-    }
+    if (who && (isLocalAdministrator(who) || isSuperMode(who))) return { actor: who, draftsOnly };
+    if (draftsOnly && who?.permissions.includes('business:edit')) return { actor: who, draftsOnly };
+    if (!who) throw new AppError('请先登录管理账号。', 401, 'authentication');
+    // 选的全是还没核对的单据：缺的是编辑权限（只读、财务账号），和超级管理员模式无关，按实际原因说
+    if (draftsOnly)
+      throw new AppError('删除还没核对的单据要有业务编辑权限，当前账号没有这个权限。', 403, 'permission');
+    // 其余要超级管理员模式：进不了模式的账号（业务员、只读、财务）直接说没有权限，不叫人去系统维护；
+    // 没进模式的超级管理员提示去“系统维护”进入。分法和类别见 server/core/permissions.ts 的 superModeDenied
+    throw flowModule
+      ? superModeDenied(who, '删除已核对的单据', {
+          permission: who.permissions.includes('business:edit') ? '还没核对的单据可以直接删' : undefined,
+          superMode: '还没核对的单据有编辑权限就能直接删',
+        })
+      : superModeDenied(who, '删除客户、产品、订单、采购单和库存品');
   }
-  prepareOrderEdit(before: any, lines: any[], actor: Actor) {
-    requireLocalAdministrator(actor);
-    const keep = new Set(lines.map((l) => l.id).filter(Boolean)),
-      flow = new FlowService(this.store);
-    for (const d of flow.list('delivery', true)) {
-      const next = d.lines.filter((l: any) => l.orderId !== before.id || keep.has(l.orderLineId));
-      if (next.length === d.lines.length) continue;
-      if (!next.length) {
-        const selection = { module: 'delivery', items: [{ id: d.id, version: d.version }] },
-          p = this.preview(selection, actor);
-        this.delete(
-          { ...selection, requestId: randomUUID(), deletionDigest: p.digest },
-          actor,
-          'order-edit',
-        );
-        continue;
-      }
-      this.retainDeliveryLines(d, next, actor);
-    }
-  }
-  private retainDeliveryLines(d: any, lines: any[], actor: Actor) {
-    const db = this.store.db;
-    const detached: string[] = [];
-    const expected = new Map<number, number>();
-    for (const l of lines)
-      expected.set(l.stockId, (expected.get(l.stockId) || 0) - quantityUnits(l.quantity));
-    const movements = db
-      .prepare("SELECT * FROM stock_movements WHERE source_kind='flow_delivery' AND source_id=?")
-      .all(String(d.id));
-    for (const stock of new Set(movements.map((r) => Number(r.item_id)))) {
-      const group = movements.filter((m) => m.item_id === stock),
-        total = group.reduce((n, m) => n + Number(m.delta_units), 0),
-        target = expected.get(stock) || 0,
-        first = group[0],
-        orderId = lines.find((l: any) => l.stockId === stock)?.orderId || null;
-      for (const m of group) {
-        // 数量没变也可能是几条并成一条，或者换了关联订单，都算改写。
-        if (total !== target || group.length > 1 || m.customer_order_id !== orderId)
-          recordMovementRevision(
-            this.store,
-            actor,
-            '调整送货单 ' + d.number,
-            m,
-            m === first && target ? { delta_units: target, customer_order_id: orderId } : null,
-          );
-        db.prepare('DELETE FROM stock_movements WHERE id=?').run(m.id);
-      }
-      const insert = (id: string, delta: number, source: string, orderId: any) =>
-        db
-          .prepare('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-          .run(
-            id,
-            stock,
-            'out',
-            delta,
-            0,
-            0,
-            source,
-            source === 'flow_delivery' ? String(d.id) : null,
-            null,
-            orderId,
-            first.date,
-            first.notes,
-            actor.id,
-            actor.name,
-            first.created_at,
-          );
-      if (target)
-        insert(String(first.id), target, 'flow_delivery', orderId);
-      if (total - target) {
-        const id = randomUUID();
-        insert(id, total - target, 'database-maintenance', null);
-        detached.push(id);
-      }
-    }
-    db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(
-      JSON.stringify({ ...d, lines }),
-      d.id,
-    );
-    new FlowService(this.store).maintenanceReferences(d.id);
-    return detached;
-  }
-  alignOrder(before: any, after: any, actor: Actor) {
-    const flow = new FlowService(this.store),
-      db = this.store.db;
-    let detachedTask = false;
-    for (const task of flow.list('task', true).filter((t) => t.orderIds.includes(after.id)))
-      if (!after.lines.some((l: any) => l.productId === task.productId)) {
-        detachedTask = true;
-        db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(
-          JSON.stringify({
-            ...task,
-            orderIds: task.orderIds.filter((id: number) => id !== after.id),
-          }),
-          task.id,
-        );
-        flow.maintenanceReferences(task.id);
-      }
-    if (before.customerId !== after.customerId)
-      for (const d of flow
-        .list('delivery', true)
-        .filter((d) => d.lines.some((l: any) => l.orderId === after.id))) {
-        const affected = d.lines.filter((l: any) => l.orderId === after.id),
-          other = d.lines.filter((l: any) => l.orderId !== after.id);
-        if (!other.length) {
-          db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(
-            JSON.stringify({
-              ...d,
-              customerId: after.customerId,
-              customerName: after.customerName,
-            }),
-            d.id,
-          );
-          flow.maintenanceReferences(d.id);
-        } else {
-          const detached = this.retainDeliveryLines(d, other, actor);
-          // 被拆出订单的已有出库保留为独立流水；新单据只建立准确关联，不重复扣库存。
-          const created = flow.save(
-            'delivery',
-            {
-              ...d,
-              customerId: after.customerId,
-              lines: affected,
-              correctionOf: null,
-              requestId: randomUUID(),
-            },
-            actor,
-          );
-          db.prepare('UPDATE flow_documents SET status=?,document=? WHERE id=?').run(
-            d.status,
-            JSON.stringify({
-              ...created,
-              customerName: after.customerName,
-              // 新单据经过草稿校验会丢字段，已确认单据的明细快照要原样留着。
-              lines: created.lines.map((l: any, i: number) => ({ ...l, ...affected[i] })),
-            }),
-            created.id,
-          );
-          for (const movementId of detached) {
-            const moved = db.prepare('SELECT * FROM stock_movements WHERE id=?').get(movementId);
-            if (moved)
-              recordMovementRevision(this.store, actor, '拆分送货单 ' + d.number, moved, {
-                source_kind: 'flow_delivery',
-                source_id: String(created.id),
-                customer_order_id: after.id,
-              });
-            db.prepare(
-              "UPDATE stock_movements SET source_kind='flow_delivery',source_id=?,customer_order_id=? WHERE id=?",
-            ).run(String(created.id), after.id, movementId);
-          }
-          flow.maintenanceReferences(created.id);
-        }
-      }
-    if (
-      detachedTask ||
-      this.store.db.prepare('SELECT 1 FROM flow_refs WHERE order_id=?').get(after.id) ||
-      before.lines.some((l: any) => l.shippedQuantity > 0)
-    )
-      flow.refreshOrderProgress([after.id]);
-  }
-  private graph(raw: unknown) {
-    const selection = deletionSelection.parse(raw),
-      db = this.store.db;
-    const table = ['arrival', 'task', 'production', 'delivery'].includes(selection.module)
-      ? 'flow_documents'
-      : selection.module;
-    const cache = new Map<string, Row[]>(),
-      removed = new Map<string, Set<number>>(),
-      patches = new Map<string, Map<number, any>>();
-    const rows = (t: string) => {
-      if (!cache.has(t))
-        cache.set(t, db.prepare('SELECT rowid AS __rowid,* FROM ' + quote(t)).all() as Row[]);
-      return cache.get(t)!;
-    };
-    const gone = (t: string, row: Row) => removed.get(t)?.has(row.__rowid) || false;
-    const remove = (t: string, row: Row) => {
-      if (!removed.has(t)) removed.set(t, new Set());
-      const s = removed.get(t)!;
-      if (s.has(row.__rowid)) return false;
-      s.add(row.__rowid);
-      return true;
-    };
-    const patch = (t: string, row: Row, value: any) => {
-      if (!patches.has(t)) patches.set(t, new Map());
-      patches.get(t)!.set(row.__rowid, { ...patches.get(t)!.get(row.__rowid), ...value });
-    };
-    const changed = (t: string, row: Row) => ({ ...row, ...patches.get(t)?.get(row.__rowid) });
-    if (new Set(selection.items.map((r) => r.id)).size !== selection.items.length)
-      throw new ImportError('重复选择记录。');
-    const selected = db.prepare('SELECT rowid AS __rowid,* FROM ' + quote(table) + ' WHERE id=?');
-    for (const item of selection.items) {
-      const r = selected.get(item.id) as Row | undefined;
-      if (
-        !r ||
-        r.version !== item.version ||
-        (table === 'flow_documents' && r.kind !== selection.module)
-      )
-        throw new ImportError('记录不存在或版本已改变，请刷新。', 409);
-      remove(table, r);
-    }
-    const tableNames = db
-      .prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-      .all()
-      .map((r) => String(r.name));
-    const refs = tableNames.flatMap((t) =>
-      db
-        .prepare('PRAGMA foreign_key_list(' + quote(t) + ')')
-        .all()
-        .map((r) => ({
-          table: t,
-          parent: String(r.table),
-          from: String(r.from),
-          to: String(r.to || 'id'),
-        })),
-    );
-    const nullable = (t: string, column: string) =>
-      !db
-        .prepare('PRAGMA table_info(' + quote(t) + ')')
-        .all()
-        .find((r) => r.name === column)?.notnull;
-    const ids = (t: string) =>
-      new Set(
-        rows(t)
-          .filter((r) => gone(t, r))
-          .map((r) => r.id),
-      );
-    let progress = true;
-    while (progress) {
-      progress = false;
-      const deletedOrders = ids('orders'),
-        deletedLines = ids('order_lines'),
-        deletedProducts = ids('products'),
-        deletedStocks = ids('stock_items'),
-        deletedPurchases = ids('purchases'),
-        deletedPurchaseLines = ids('purchase_lines'),
-        deletedFlows = ids('flow_documents');
-      for (const row of rows('flow_documents')) {
-        if (gone('flow_documents', row)) continue;
-        const doc = JSON.parse(changed('flow_documents', row).document),
-          before = JSON.stringify(doc);
-        const deleteDoc =
-          (row.kind === 'arrival' && ids('suppliers').has(doc.supplierId)) ||
-          (['task', 'production'].includes(row.kind) && deletedProducts.has(doc.productId)) ||
-          (row.kind === 'production' &&
-            (deletedStocks.has(doc.finishedStockId) ||
-              doc.materials.some((m: any) => deletedStocks.has(m.stockId)))) ||
-          (row.kind === 'delivery' &&
-            (ids('customers').has(doc.customerId) ||
-              doc.lines.some(
-                (l: any) =>
-                  deletedOrders.has(l.orderId) ||
-                  deletedLines.has(l.orderLineId) ||
-                  deletedStocks.has(l.stockId),
-              )));
-        if (deleteDoc) {
-          progress = remove('flow_documents', row) || progress;
-          continue;
-        }
-        if (doc.correctionOf && deletedFlows.has(doc.correctionOf)) doc.correctionOf = null;
-        if (row.kind === 'task')
-          doc.orderIds = doc.orderIds.filter((id: number) => !deletedOrders.has(id));
-        if (row.kind === 'production' && deletedFlows.has(doc.taskId)) doc.taskId = null;
-        if (row.kind === 'arrival')
-          for (const l of doc.lines) {
-            if (deletedStocks.has(l.stockId)) l.stockId = null;
-            if (deletedPurchaseLines.has(l.purchaseLineId) || deletedPurchases.has(l.purchaseId)) {
-              l.purchaseLineId = null;
-              l.purchaseId = null;
-              l.purchaseNumber = '';
-            }
-          }
-        if (JSON.stringify(doc) !== before)
-          patch('flow_documents', row, { document: JSON.stringify(doc) });
-      }
-      for (const row of rows('purchase_receipts'))
-        if (ids('flow_documents').has(JSON.parse(row.document).flowId))
-          progress = remove('purchase_receipts', row) || progress;
-      // 数据库FK：拥有型子记录删除，可空引用解除，不把历史状态作为删除条件。
-      for (const ref of refs) {
-        const values = new Set(
-          rows(ref.parent)
-            .filter((r) => gone(ref.parent, r))
-            .map((r) => r[ref.to]),
-        );
-        if (!values.size) continue;
-        for (const row of rows(ref.table)) {
-          if (gone(ref.table, row) || !values.has(changed(ref.table, row)[ref.from])) continue;
-          if (
-            nullable(ref.table, ref.from) &&
-            !['product_extensions', 'order_extensions', 'order_line_extensions'].includes(ref.table)
-          )
-            patch(ref.table, row, { [ref.from]: null });
-          else progress = remove(ref.table, row) || progress;
-        }
-      }
-      for (const order of rows('orders'))
-        if (
-          !gone('orders', order) &&
-          !rows('order_lines').some((l) => l.order_id === order.id && !gone('order_lines', l))
-        )
-          progress = remove('orders', order) || progress;
-    }
-    // 删除单据不强迫撤销已经发生的库存。默认明确解除流水来源，数量保持；可选择移除来源流水并重算。
-    const deletedFlowIds = ids('flow_documents'),
-      receiptIds = ids('purchase_receipts');
-    for (const row of rows('stock_movements'))
-      if (!gone('stock_movements', row)) {
-        const flowSource =
-          /^flow_(arrival|production|delivery|task|reversal)$/.test(row.source_kind) &&
-          deletedFlowIds.has(Number(row.source_id));
-        if (
-          flowSource ||
-          (row.source_kind === 'purchase_receipt' && receiptIds.has(row.source_id))
-        ) {
-          if (selection.inventoryPolicy === 'recalculate') remove('stock_movements', row);
-          else
-            patch('stock_movements', row, { source_kind: 'database-maintenance', source_id: null });
-        }
-      }
-    // 单据/实收JSON中的流水索引也是引用，不能在删除库存后留下失效ID。
-    const deletedMovements = ids('stock_movements');
-    for (const t of ['flow_documents', 'purchase_receipts'])
-      for (const row of rows(t)) {
-        if (gone(t, row)) continue;
-        const doc = JSON.parse(changed(t, row).document);
-        if (
-          Array.isArray(doc.movements) &&
-          doc.movements.some((id: string) => deletedMovements.has(id))
-        ) {
-          doc.movements = doc.movements.filter((id: string) => !deletedMovements.has(id));
-          patch(t, row, { document: JSON.stringify(doc) });
-        }
-      }
-    for (const file of rows('mark_files'))
-      if (!rows('product_marks').some((m) => !gone('product_marks', m) && m.file_sha256 === file.sha256))
-        remove('mark_files', file);
-    const deletions = [...removed].flatMap(([t, set]) =>
-      rows(t)
-        .filter((r) => set.has(r.__rowid))
-        .map((r) => ({ table: t, row: r })),
-    );
-    const updates = [...patches].flatMap(([t, map]) =>
-      [...map]
-        .filter(([id]) => !removed.get(t)?.has(id))
-        .map(([id, value]) => ({ table: t, row: rows(t).find((r) => r.__rowid === id)!, value })),
-    );
-    const label = (t: string, r: Row) =>
-      r.number ||
-      r.name ||
-      (t === 'flow_refs' ? '单据引用 #' + r.document_id : String(r.id ?? r.__rowid));
-    const impact = [
-      ...deletions.map(({ table: t, row: r }) => ({
-        table: t,
-        id: r.id ?? r.__rowid,
-        name: label(t, r),
-        action: 'delete',
-        kind: r.kind,
-      })),
-      ...updates.map(({ table: t, row: r, value }) => ({
-        table: t,
-        id: r.id ?? r.__rowid,
-        name: label(t, r),
-        action: 'detach',
-        fields: Object.keys(value),
-      })),
-    ];
-    const digest = hash({
-      selection,
-      deletions,
-      updates,
-      stock: rows('stock_movements').map((r) => [
-        r.id,
-        r.delta_units,
-        r.before_units,
-        r.after_units,
-      ]),
-    });
-    const independent =
-      deletions.some(
-        ({ table: t, row: r }) =>
-          businessTables.has(t) && (t !== table || !selection.items.some((i) => i.id === r.id)),
-      ) ||
-      updates.length > 0 ||
-      deletions.some((r) => r.table === 'stock_movements');
-    return {
-      selection,
-      table,
-      deletions,
-      updates,
-      digest,
-      impact,
-      hasIndependentImpact: independent,
-    };
+  private deletionActor(who: Actor | null | undefined, raw: unknown): Actor {
+    return this.deletionAccess(who, raw).actor;
   }
   preview(raw: unknown, who: Actor | null | undefined) {
-    requireLocalAdministrator(who);
-    const p = this.graph(raw);
+    this.deletionActor(who, raw);
+    const p = planDeletion(this.store, raw);
     return {
       selection: p.selection,
       digest: p.digest,
       impact: p.impact,
       hasIndependentImpact: p.hasIndependentImpact,
-      financeReferencesRetained:retainedFinanceReferences(this.store,p.table,p.selection.items.map(i=>i.id)),
-      inventoryEffect:
-        p.selection.inventoryPolicy === 'preserve'
-          ? '删除目标及必需子记录；解除可空引用。保留其他库存品已有流水数量，被删来源改为独立数据库维护流水。删除库存档案本身会一并删除它的全部流水。'
-          : '删除目标及必需子记录，同时移除被删单据的来源流水，重新计算剩余库存及流水前后余额。',
-      warning:
-        '这是数据库物理删除，不能恢复，不会归档或进入回收站。清单列出所有删除及引用解除范围。',
+      // 被删单据有几笔出入库流水要按“库存处理方式”处理；0 表示没动过库存，不用选
+      inventoryChoice: p.inventoryChoice,
+      financeReferencesRetained:financeDeletionRules().retainedFinanceReferences(this.store,p.table,p.selection.items.map(i=>i.id)),
+      // 库存怎么变：按实际删的对象说（这张采购单、这家供应商、这个原材料库存），笔数和影响清单对得上。
+      // “库存怎么处理”的选项文字界面按删的对象自己取（shared/business/deletion-words.ts），不在这里给
+      inventoryEffect: inventoryEffectText({
+        module: p.selection.module,
+        count: p.selection.items.length,
+        policy: p.selection.inventoryPolicy,
+        ...p.inventory,
+      }),
     };
   }
+  /**
+   * 同一请求编号已经删过（比如网络断了重试）：原样返回上次的结果。
+   * 要放在权限判断前面：删完后单据已经不在库里，再按现在的库判断“是不是只删还没核对的单据”，
+   * 会把同一个人的重试误判成没权限。请求号按账号分开：没登录、这个账号没用这个号删过，都返回 null，
+   * 照常走权限判断和删除（没登录由权限判断报 401）；删过的仍要求同一会话、同一内容。
+   */
+  replay(raw: unknown, who: Actor | null | undefined, binding: string) {
+    const parsed = deletionRequestSchema.safeParse(raw);
+    if (!parsed.success || !who) return null;
+    if (!requestDone(this.store, DELETE_REQUEST, who, parsed.data.requestId)) return null;
+    if (!binding) throw new AppError('登录会话无效。', 403);
+    return replayRequest(this.store, deleteRequest(parsed.data, who, binding), deletionResultSchema);
+  }
+  /** 删除：先拍一份破坏前快照（拍不成就不删），再按预览时的范围删。对外只有这一个删除入口 */
   delete(raw: unknown, who: Actor | null | undefined, binding: string) {
-    const actor = requireLocalAdministrator(who),
-      v = deletionSelection
-        .extend({ requestId: z.string().uuid(), deletionDigest: z.string().optional() })
-        .parse(raw);
-    if (!binding) throw new ImportError('登录会话无效。', 403);
-    const key = hash({ v, user: actor.id, binding }),
-      old = this.store.db
-        .prepare(
-          "SELECT digest,result FROM operation_requests WHERE kind='database-delete' AND request_id=?",
-        )
-        .get(v.requestId);
-    if (old) {
-      if (old.digest !== key) throw new ImportError('请求编号已用于其他操作。', 409);
-      return JSON.parse(String(old.result));
-    }
+    const replayed = this.replay(raw, who, binding);
+    if (replayed) return replayed;
+    const checked = checkedRequest(this, raw, who, binding);
     snapshotBeforeDestructive(this.store, 'delete');
-    this.store.db.exec('SAVEPOINT database_delete');
-    try {
-      const p = this.graph({
-        module: v.module,
-        items: v.items,
-        inventoryPolicy: v.inventoryPolicy,
-      });
-      if ((p.hasIndependentImpact || v.deletionDigest) && p.digest !== v.deletionDigest)
-        throw new ImportError(
-          '关联删除范围未展示或已变化，请查询删除影响后提交同一范围。',
-          409,
-          'deletion-scope',
-        );
-      this.store.db.exec('PRAGMA defer_foreign_keys=ON');
-      for (const { table, row, value } of p.updates) {
-        const fields = Object.keys(value);
-        if (!fields.length) continue;
-        if (table === 'stock_movements')
-          recordMovementRevision(this.store, actor, '关联记录删除后保留库存', row, value);
-        this.store.db
-          .prepare(
-            'UPDATE ' +
-              quote(table) +
-              ' SET ' +
-              fields.map((k) => quote(k) + '=?').join(',') +
-              (Object.hasOwn(row, 'version') ? ',version=version+1' : '') +
-              ' WHERE rowid=?',
-          )
-          .run(...fields.map((k) => value[k]), row.__rowid);
-      }
-      for (const { table, row } of p.deletions) {
-        if (table==='flow_documents') deletedFinanceSource(this.store,actor,String(row.kind),String(row.id));
-        if (table==='purchase_receipts') deletedFinanceSource(this.store,actor,'legacy_arrival',String(row.id));
-        if (table==='stock_movements') deletedFinanceSource(this.store,actor,'stock',String(row.id));
-        if (businessTables.has(table)) {
-          const entity = table === 'flow_documents' ? 'flow_' + row.kind : table;
-          audit(this.store, actor, 'database-maintenance', 'delete', entity, Number(row.id), {
-            before: row,
-            inventoryPolicy: v.inventoryPolicy,
-            requestId: v.requestId,
-          });
-          rememberDeletedRecord(this.store, actor, entity, {
-            id: Number(row.id),
-            number: row.number,
-            name: row.name,
-          });
-          this.store.db
-            .prepare('DELETE FROM record_lifecycle WHERE entity=? AND record_id=?')
-            .run(entity, row.id);
-          if (table === 'orders')
-            for (const receipt of this.store.db
-              .prepare('SELECT id,document FROM import_executions WHERE order_id IS NULL')
-              .all()) {
-              const doc = JSON.parse(String(receipt.document));
-              if (
-                doc.orderId === row.id ||
-                p.updates.some(
-                  (u) =>
-                    u.table === 'import_executions' &&
-                    u.row.id === receipt.id &&
-                    u.row.order_id === row.id,
-                )
-              ) {
-                doc.permanentDeletion = {
-                  at: new Date().toISOString(),
-                  actorId: actor.id,
-                  requestId: v.requestId,
-                };
-                this.store.db
-                  .prepare('UPDATE import_executions SET document=? WHERE id=?')
-                  .run(JSON.stringify(doc), receipt.id);
-              }
-            }
-        }
-        if (table === 'stock_movements')
-          recordMovementRevision(this.store, actor, '随关联记录物理删除', row, null);
-        this.store.db.prepare('DELETE FROM ' + quote(table) + ' WHERE rowid=?').run(row.__rowid);
-      }
-      // 完工单不直接挂订单，要从它的生产任务找回去。
-      const taskOrderIds = (taskId: number) => {
-        const task = this.store.db
-          .prepare("SELECT document FROM flow_documents WHERE id=? AND kind='task'")
-          .get(taskId);
-        return task ? JSON.parse(String(task.document)).orderIds || [] : [];
-      };
-      const orderIds = [...p.deletions, ...p.updates]
-        .filter((r) => r.table === 'flow_documents')
-        .flatMap((r) => {
-          const d = JSON.parse(r.row.document);
-          return r.row.kind === 'task'
-            ? d.orderIds
-            : r.row.kind === 'delivery'
-              ? d.lines.map((l: any) => l.orderId)
-              : r.row.kind === 'production' && d.taskId
-                ? taskOrderIds(d.taskId)
-                : [];
-        });
-      this.recompute(orderIds);
-      if (this.store.db.prepare('PRAGMA foreign_key_check').all().length)
-        throw new ImportError('外键重算校验失败，整个删除已回滚。', 409);
-      const result = {
-        module: v.module,
-        action: 'delete',
-        count: v.items.length,
-        deleted: true,
-        impact: p.impact,
-        results: v.items.map((r) => ({ id: r.id, deleted: true })),
-      };
-      this.store.db
-        .prepare('INSERT INTO operation_requests VALUES(?,?,?,?)')
-        .run('database-delete', v.requestId, key, JSON.stringify(result));
-      this.store.db.exec('RELEASE database_delete');
-      return result;
-    } catch (e) {
-      this.store.db.exec('ROLLBACK TO database_delete; RELEASE database_delete');
-      throw e;
-    }
+    return deleteOnce(this.store, checked);
   }
-  recompute(affectedOrders?: number[]) {
-    const db = this.store.db;
-    syncReceivedUnits(this.store, true);
-    for (const item of db.prepare('SELECT id FROM stock_items').all()) {
-      let balance = 0;
-      for (const m of db
-        .prepare('SELECT * FROM stock_movements WHERE item_id=? ORDER BY created_at,rowid')
-        .all(item.id)) {
-        const before = balance;
-        balance += Number(m.delta_units);
-        if (!Number.isSafeInteger(balance) || balance < 0 || balance > 999999999999)
-          throw new ImportError(
-            '库存编号' +
-              item.id +
-              '重算后出现无效余额。可选择保留已发生库存并解除来源引用；本次数据库改动已回滚。',
-            409,
-          );
-        if (m.before_units !== before || m.after_units !== balance)
-          db.prepare('UPDATE stock_movements SET before_units=?,after_units=? WHERE id=?').run(
-            before,
-            balance,
-            m.id,
-          );
-      }
-    }
-    for (const order of this.store.orders(true)) {
-      const total = precisionTotal(order.lines);
-      if (order.totalCents !== total.cents)
-        db.prepare('UPDATE orders SET total_cents=?,version=version+1 WHERE id=?').run(
-          total.cents,
-          order.id,
-        );
-      const extension = db
-        .prepare('SELECT document FROM order_extensions WHERE order_id=?')
-        .get(order.id);
-      if (extension) {
-        const doc = JSON.parse(String(extension.document));
-        doc.totalAmountExact = total.exact;
-        db.prepare('UPDATE order_extensions SET document=? WHERE order_id=?').run(
-          JSON.stringify(doc),
-          order.id,
-        );
-      }
-    }
-    new FlowService(this.store).refreshOrderProgress(affectedOrders);
+}
+
+/**
+ * 拍过破坏前快照的凭证：只有 take 真拍了快照才拿得到（构造函数和字段都是私有的，别处造不出来，
+ * 也不从业务汇总的入口交出去）。不另拍快照的删除（deleteAfterSnapshot）要它。
+ */
+export class TakenSnapshot {
+  private constructor(private readonly store: Store) {}
+  static take(store: Store, reason: string) {
+    snapshotBeforeDestructive(store, reason);
+    return new TakenSnapshot(store);
   }
+  /** 拍的是不是这个业务库 */
+  covers(store: Store) {
+    return this.store === store;
+  }
+}
+
+/**
+ * 调用方在同一次操作里已经拍过破坏前快照时的删除（本机管理员改订单连带删整张送货单：service.ts 改订单前
+ * 用 TakenSnapshot.take 拍了一份）：核对和删除跟 delete 一样，只是不再拍第二份。要本库的快照凭证，
+ * 没拍过就调不了；不从业务汇总的入口导出。
+ */
+export function deleteAfterSnapshot(
+  engine: DatabaseMaintenanceService,
+  raw: unknown,
+  who: Actor | null | undefined,
+  binding: string,
+  snapshot: TakenSnapshot,
+) {
+  if (!snapshot.covers(engine.store)) throw new Error('删除前的快照不是这个业务库拍的，没有删除。');
+  const replayed = engine.replay(raw, who, binding);
+  if (replayed) return replayed;
+  return deleteOnce(engine.store, checkedRequest(engine, raw, who, binding));
+}
+
+/** 谁删、删什么：权限和请求内容都核对过的一次删除 */
+function checkedRequest(
+  engine: DatabaseMaintenanceService,
+  raw: unknown,
+  who: Actor | null | undefined,
+  binding: string,
+): CheckedDeletion {
+  const { actor } = engine.deletionAccess(who, raw),
+    v = deletionRequestSchema.parse(raw);
+  if (!binding) throw new AppError('登录会话无效。', 403);
+  return { actor, v, request: deleteRequest(v, actor, binding) };
+}
+function deleteOnce(store: Store, { actor, v, request }: CheckedDeletion) {
+  return onceByRequest(store, request, () => applyDeletion(store, v, actor), deletionResultSchema);
+}
+/** 真删：范围和预览时一样才删；改、删都交给表的主人，删完核对外键 */
+function applyDeletion(store: Store, v: DeletionRequest, actor: Actor): z.output<typeof deletionResultSchema> {
+  const p = planDeletion(store, { module: v.module, items: v.items, inventoryPolicy: v.inventoryPolicy });
+  if (p.hasIndependentImpact || v.deletionDigest) assertPreviewCurrent(v.deletionDigest, p.digest);
+  store.db.exec('PRAGMA defer_foreign_keys=ON');
+  const at = new Date().toISOString();
+  const ctx: DeletionContext = {
+    actor,
+    at,
+    mark: { at, actorId: actor.id, requestId: v.requestId },
+    updated: (t) => p.updates.filter((u) => u.table === t).map((u) => u.row),
+  };
+  // 改、删都交给表的主人（修订记录、所属单据的版本号由主人处理）
+  for (const { table, row, value } of p.updates) deletionUpdate(store, ctx, table, row, value);
+  for (const { table, row } of p.deletions) removeRow(store, ctx, v, { table, row });
+  // 删掉、改过的单据挂着的订单重算生产、发货进度
+  recomputeAfterFlowDeletion(
+    store,
+    [...p.deletions, ...p.updates].filter((r) => r.table === 'flow_documents'),
+  );
+  if (exists(store.db, 'PRAGMA foreign_key_check'))
+    throw new AppError('外键重算校验失败，整个删除已回滚。', 409);
+  return {
+    module: v.module,
+    action: 'delete',
+    count: v.items.length,
+    deleted: true,
+    impact: p.impact,
+    results: v.items.map((r) => ({ id: r.id, deleted: true })),
+  };
+}
+/** 删一行：财务标“来源已删除”；业务记录另记审计和“删掉的记录”、取消归档、让别的模块先配合，再交给表的主人删 */
+function removeRow(store: Store, ctx: DeletionContext, v: DeletionRequest, { table, row }: { table: string; row: DeletionRow }) {
+  const { actor } = ctx;
+  if (table === 'flow_documents')
+    financeDeletionRules().deletedFinanceSource(store, actor, String(row.kind), String(row.id));
+  if (table === 'stock_movements')
+    financeDeletionRules().deletedFinanceSource(store, actor, 'stock', String(row.id));
+  if (businessTables.has(table)) {
+    const entity = table === 'flow_documents' ? 'flow_' + String(row.kind) : table;
+    // 影响范围只取了关联要用的列，审计要整行：按 rowid 再取一次（业务表没有大文件列）
+    const full = one(store.db, wholeRow, 'SELECT rowid AS __rowid,* FROM ' + quote(table) + ' WHERE rowid=?', row.__rowid);
+    audit(store, actor, {
+      action: 'delete',
+      entity,
+      id: Number(row.id),
+      document: { before: full, inventoryPolicy: v.inventoryPolicy, requestId: v.requestId },
+    });
+    rememberDeletedRecord(store, actor, entity, {
+      id: Number(row.id),
+      number: textOf(row.number),
+      name: textOf(row.name),
+    });
+    store.unarchive(entity, Number(row.id));
+    beforeRecordDeleted(store, ctx, entity, Number(row.id));
+  }
+  deletionRemove(store, ctx, table, row);
 }

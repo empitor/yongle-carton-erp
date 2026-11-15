@@ -1,6 +1,21 @@
+{
+	# 慢速发送占不住连接：请求头 15 秒内发完；请求体（最大的上传 20MB，慢网络也够）5 分钟内发完。
+	# 不设写超时：助手的回答是长时间的流式输出。
+	servers {
+		timeouts {
+			read_header 15s
+			read_body 5m
+		}
+	}
+}
+
 erp.example.invalid {
-    encode /assets/* gzip
-    reverse_proxy 127.0.0.1:3002 {
-        header_up X-ERP-Client-IP {remote_host}
-    }
+	encode /assets/* gzip
+	# 比程序里最大的上传（唛头、收件箱、财务附件 20MB）略大，更大的请求在这里就拒掉
+	request_body {
+		max_size 21MB
+	}
+	reverse_proxy 127.0.0.1:3002 {
+		header_up X-ERP-Client-IP {remote_host}
+	}
 }

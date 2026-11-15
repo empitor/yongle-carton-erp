@@ -1,0 +1,160 @@
+/* 助手消息 */
+/* 聊天记录里的一条条消息：说话人、正文、命令结果、记录链接、卡片入口、在办的识别任务、读出来、折叠的思考过程。 */
+.ga-message {
+  margin-bottom: 18px;
+  font-size: var(--text-sm);
+  line-height: 1.8;
+}
+.ga-message > small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.ga-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ga-user {
+  margin-left: 26px;
+  padding: 10px 13px;
+  background: var(--accent-soft);
+  border-radius: var(--r-control);
+}
+.ga-tool-result {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border-left: 2px solid var(--teal);
+  padding-left: var(--space-sm);
+  margin: var(--space-sm) 0;
+  overflow-wrap: anywhere;
+}
+.ga-record-link {
+  display: inline-block;
+  border: 1px solid var(--border);
+  padding: var(--space-3xs) 7px;
+  border-radius: var(--r-small);
+  margin: var(--space-2xs) 5px 0 0;
+  font-size: var(--text-xs);
+}
+.ga-plan {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  padding: var(--space-md);
+  margin-top: 10px;
+  background: var(--surface-muted);
+}
+.ga-plan p {
+  margin: 5px 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.ga-plan button {
+  width: 100%;
+  margin-top: var(--space-xs);
+}
+.ga-order-task {
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  border-radius: var(--r-control);
+  padding: 10px var(--space-md);
+  margin-bottom: var(--space-md);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.ga-order-task > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: space-between;
+}
+.ga-order-task > a {
+  display: inline-block;
+  margin: 7px var(--space-md) 0 0;
+  color: var(--teal);
+}
+.ga-order-task details {
+  margin-top: var(--space-sm);
+}
+.ga-order-task summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.ga-order-task article {
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-xs) 0;
+}
+/* 助手回复下面的“读出来”小喇叭（图标按钮，次要操作）；出错原因跟在旁边 */
+.ga-read-aloud {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-top: var(--space-2xs);
+}
+.global-assistant .ga-message .ga-read-aloud-button.active {
+  color: var(--teal);
+}
+.ga-read-aloud-button[aria-disabled='true'] {
+  opacity: 0.45;
+}
+.ga-read-aloud-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+/* 回复上方折叠的思考过程；紫色只用于 AI 的东西 */
+.ga-reasoning {
+  margin: var(--space-3xs) 0 var(--space-2xs);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.ga-reasoning summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--purple);
+}
+.ga-reasoning-text {
+  margin-top: var(--space-2xs);
+  padding-left: var(--space-sm);
+  border-left: 2px solid var(--purple-soft);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+}
+p.ga-reasoning {
+  color: var(--purple);
+}
+/* 正在处理时正文下面单独一行的状态（正在联网搜索：……），命令在跑时一直看得到 */
+.ga-status {
+  margin-top: var(--space-3xs);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* 调命令前先说的话：照普通助手的话显示，段与段之间留一点空 */
+.ga-interim {
+  margin-bottom: var(--space-xs);
+}
+/* 回答下面可展开的来源：默认收起，展开是链接列表 */
+.ga-sources {
+  margin: var(--space-xs) 0 var(--space-3xs);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.ga-sources summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.ga-sources ol {
+  margin: var(--space-2xs) 0 0;
+  padding-left: var(--space-xl);
+  line-height: 1.7;
+}
+.ga-sources a {
+  color: var(--teal);
+  overflow-wrap: anywhere;
+}
+.ga-sources small {
+  color: var(--muted);
+}

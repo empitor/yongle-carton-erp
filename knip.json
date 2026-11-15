@@ -1,0 +1,30 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "server/app.ts",
+    "src/main.tsx",
+    "scripts/**/*.{mjs,ts,mts}",
+    "tests/**/*.test.{ts,mjs}",
+    "vite.config.ts",
+    "tests/release/**/*.{ts,mjs}",
+    "tests/serial/**/*.{ts,mjs}",
+    "public/*.js"
+  ],
+  "project": [
+    "server/**/*.{ts,tsx,mjs}",
+    "shared/**/*.{ts,tsx}",
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.{mjs,ts,mts}",
+    "tests/**/*.{ts,mjs}"
+  ],
+  "ignoreBinaries": [
+    "taskkill.exe"
+  ],
+  "ignoreDependencies": [
+    "@stryker-mutator/command-runner"
+  ],
+  "vite": false,
+  "vitest": false,
+  "node": false,
+  "ignoreExportsUsedInFile": true
+}

@@ -1,0 +1,257 @@
+/* 小甬小勒小剧场：说悄悄话、击掌 */
+/* ---- 小剧场：说悄悄话，说完一起笑 ---- */
+.yl-duo[data-scene='whisper'] .yl-y-act {
+  animation: yl-whisper-y 3s ease-in-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-l-act {
+  animation: yl-whisper-l 3s ease-in-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-dots {
+  opacity: 1;
+}
+.yl-duo[data-scene='whisper'] .yl-dots circle:nth-child(1) {
+  animation: yl-whisper-dot 3s ease-in-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-dots circle:nth-child(2) {
+  animation: yl-whisper-dot 3s ease-in-out 0.14s both;
+}
+.yl-duo[data-scene='whisper'] .yl-dots circle:nth-child(3) {
+  animation: yl-whisper-dot 3s ease-in-out 0.28s both;
+}
+.yl-duo[data-scene='whisper'] .yl-heart {
+  animation: yl-whisper-heart 3s ease-out both;
+}
+.yl-duo[data-scene='whisper'] .yl-open {
+  animation: yl-whisper-mouth 3s step-end both;
+}
+.yl-duo[data-scene='whisper'] .yl-smile {
+  animation: yl-whisper-smile 3s step-end both;
+}
+
+/* ---- 小剧场：击掌。AI 做完时也演这段 ---- */
+.yl-duo[data-scene='highfive'] .yl-y-act {
+  animation: yl-five-y 1.7s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.yl-duo[data-scene='highfive'] .yl-l-act {
+  animation: yl-five-l 1.7s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.yl-duo[data-scene='highfive'] .yl-arm-r {
+  animation: yl-five-arm 1.7s ease-in-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-foot {
+  animation: yl-five-foot 1.7s ease-in-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-burst {
+  animation: yl-five-burst 1.7s ease-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-shadow {
+  animation: yl-hop-shadow 1.7s ease-in-out both;
+}
+.yl-duo[data-scene='highfive'] .yl-open {
+  opacity: 1;
+}
+.yl-duo[data-scene='highfive'] .yl-smile {
+  opacity: 0;
+}
+
+@keyframes yl-whisper-y {
+  0%,
+  100% {
+    transform: none;
+  }
+  14%,
+  56% {
+    transform: rotate(5deg) translateX(2px);
+  }
+  62%,
+  72%,
+  82% {
+    transform: rotate(2deg) translateY(-2.5px);
+  }
+  67%,
+  77%,
+  88% {
+    transform: rotate(2deg) translateY(0);
+  }
+}
+
+@keyframes yl-whisper-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  18%,
+  56% {
+    transform: rotate(-5deg) translateX(-1px);
+  }
+  64%,
+  74%,
+  84% {
+    transform: rotate(-2deg) translateY(-2.5px);
+  }
+  69%,
+  79%,
+  90% {
+    transform: rotate(-2deg) translateY(0);
+  }
+}
+
+@keyframes yl-whisper-dot {
+  0%,
+  16%,
+  58%,
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  24%,
+  48% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes yl-whisper-heart {
+  0%,
+  58% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.3);
+  }
+  68% {
+    opacity: 1;
+    transform: translateY(0) scale(1.1);
+  }
+  86% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-9px) scale(0.9);
+  }
+}
+
+@keyframes yl-whisper-mouth {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+}
+
+@keyframes yl-whisper-smile {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+}
+
+@keyframes yl-five-y {
+  0%,
+  100% {
+    transform: none;
+  }
+  14% {
+    transform: scale(1.08, 0.88);
+  }
+  32%,
+  42% {
+    transform: translateY(-11px) rotate(4deg) scale(0.97, 1.05);
+  }
+  60% {
+    transform: scale(1.08, 0.9);
+  }
+  72% {
+    transform: translateY(-3px) scale(0.99, 1.02);
+  }
+  84% {
+    transform: scale(1.02, 0.98);
+  }
+}
+
+@keyframes yl-five-l {
+  0%,
+  100% {
+    transform: none;
+  }
+  16% {
+    transform: scale(1.08, 0.88);
+  }
+  34%,
+  44% {
+    transform: translateY(-11px) rotate(-4deg) scale(0.97, 1.05);
+  }
+  62% {
+    transform: scale(1.08, 0.9);
+  }
+  74% {
+    transform: translateY(-3px) scale(0.99, 1.02);
+  }
+  86% {
+    transform: scale(1.02, 0.98);
+  }
+}
+
+@keyframes yl-five-arm {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  32%,
+  42% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes yl-five-foot {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  34% {
+    transform: rotate(-8deg);
+  }
+  62% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes yl-five-burst {
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  38% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  56% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes yl-hop-shadow {
+  0%,
+  20%,
+  60%,
+  100% {
+    transform: scale(1);
+    opacity: 0.18;
+  }
+  36% {
+    transform: scale(0.72);
+    opacity: 0.1;
+  }
+}

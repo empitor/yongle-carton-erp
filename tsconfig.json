@@ -19,13 +19,18 @@
       "vite/client"
     ],
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src",
     "server",
     "shared",
     "tests",
+    "scripts/**/*.ts",
+    "scripts/**/*.mts",
     "vite.config.ts"
   ]
 }

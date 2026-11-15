@@ -1,0 +1,234 @@
+/* 资金、往来、核销的编辑窗 */
+.management-dialog-body > form.fin-ed {
+  display: block;
+  overflow: visible;
+}
+.fin-ed .table-wrap {
+  margin-top: 0;
+}
+
+/* 输入框后面跟单位 */
+.fin-unit-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.fin-unit-input > input {
+  flex: 1;
+  min-width: 0;
+}
+.fin-unit-input > .fin-unit {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* 勾选项：方框在前、文字在后 */
+.form-field.fin-ed-check > .fin-ed-check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 32px;
+  color: var(--ink);
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+.fin-ed-check-row > input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+.fin-ed-check-row > input[type='radio'] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
+/* 详情面板里表格行尾的小按钮（撤销、匹配） */
+.record-section td.fin-row-actions {
+  width: 1%;
+  padding-top: var(--space-2xs);
+  padding-bottom: var(--space-2xs);
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+button.fin-row-action {
+  min-height: 28px;
+  padding: var(--space-3xs) 10px;
+  font-size: var(--text-sm);
+}
+
+/* 文字样式的小按钮，例如核销窗口里的“用 2%，省 6.78” */
+button.fin-link-button {
+  min-height: 0;
+  margin-top: var(--space-2xs);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+button.fin-link-button:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+
+/* 核销窗口的明细表：勾选、单据、到期、未结、核销、优惠 */
+.line-table.fin-alloc-table td.fin-line-check {
+  width: 28px;
+  padding-top: var(--space-md);
+}
+.line-table.fin-alloc-table td.fin-line-check input {
+  width: auto;
+  min-height: 0;
+}
+.line-table.fin-alloc-table td small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.line-table.fin-alloc-table td:not(.num) {
+  padding-top: 7px;
+  font-size: var(--text-sm);
+}
+.line-table.fin-alloc-table td.fin-line-amount {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.line-table.fin-alloc-table td:last-child {
+  width: 140px;
+  padding-right: 0;
+  text-align: right;
+}
+.line-table.fin-alloc-table tr.fin-line-off td {
+  color: var(--text-secondary);
+}
+
+/* 银行余额调节结果 */
+.fin-recon > header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+.fin-recon > header h2 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.fin-recon > header .icon-button {
+  margin-left: auto;
+}
+
+/* 税务底稿卡片 */
+.fin-tax-card {
+  padding: var(--space-lg);
+}
+
+/* 账期窗口和其它编辑窗里的明细行（现结优惠、分期） */
+.line-table.fin-term-lines td {
+  vertical-align: middle;
+}
+.line-table.fin-term-lines td.fin-term-index {
+  width: 56px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.line-table.fin-term-lines .fin-term-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.line-table.fin-term-lines .fin-term-rule input {
+  width: 72px;
+  min-width: 0;
+}
+.fin-term-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.fin-term-empty.fin-term-none {
+  align-self: end;
+  padding-bottom: var(--space-xs);
+}
+fieldset.fin-term-body {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* 单选列表（多付转抵选抵到哪一笔） */
+.choice-list.fin-choices label {
+  font-size: var(--text-sm);
+}
+.choice-list.fin-choices input[type='radio'] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+.choice-list.fin-choices label.selected {
+  background: var(--accent-soft);
+}
+
+/* 只读的小表格（重算预览） */
+.fin-ed-preview {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.fin-ed-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.fin-ed-preview th,
+.fin-ed-preview td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.fin-ed-preview th {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.fin-ed-preview tr:last-child td {
+  border-bottom: 0;
+}
+.fin-ed-preview .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .line-table.fin-alloc-table td:last-child {
+    width: 112px;
+  }
+  .line-table.fin-term-lines .fin-term-rule {
+    flex-wrap: wrap;
+  }
+}
+
+/* 全局的 footer { margin-top: 32px }（ui/elements.css）会把编辑窗底栏往下推一截，财务的编辑窗里去掉 */
+.management-dialog:has(.fin-ed) > footer.editor-footer {
+  margin-top: 0;
+}
+.line-table.fin-term-lines td.num {
+  text-align: right;
+}
+/* 账期窗口：选单位那一节后面接着的第一节，也要有分隔线 */
+.ed-section + fieldset.fin-term-body > .ed-section:first-child {
+  padding-top: var(--space-lg);
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}

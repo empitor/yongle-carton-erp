@@ -1,0 +1,106 @@
+/* 使用说明页 */
+/* 使用说明页：左边章节目录，右边这一节的正文（src/GuidePage.tsx） */
+.guide-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-xl);
+  align-items: start;
+}
+.guide-toc {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  padding: 14px;
+}
+.guide-toc p {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 0 0 10px;
+}
+.guide-toc button {
+  display: block;
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  padding: 7px 10px;
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.guide-toc button:hover {
+  background: var(--surface-hover);
+}
+.guide-toc button.active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.guide-body {
+  max-width: 880px;
+  /* 点目录跳到正文时，标题不被顶栏挡住 */
+  scroll-margin-top: calc(var(--topbar-h) + var(--space-md));
+}
+.prose {
+  padding: 25px 28px;
+}
+.prose h2 {
+  margin-bottom: 15px;
+}
+.prose h3,
+.prose h4 {
+  font-size: var(--text-md);
+  margin: var(--space-xl) 0 var(--space-sm);
+}
+.prose p,
+.prose li {
+  font-size: var(--text-sm);
+  color: var(--ink);
+  line-height: 1.8;
+  margin-bottom: 10px;
+}
+.prose ol,
+.prose ul {
+  padding-left: var(--space-xl);
+  margin-bottom: var(--space-md);
+}
+.prose li {
+  padding-left: var(--space-2xs);
+}
+.prose li ul {
+  margin: var(--space-xs) 0 0;
+}
+.prose code {
+  font-size: var(--text-xs);
+  padding: 1px var(--space-2xs);
+  border-radius: var(--r-small);
+  background: var(--surface-muted);
+}
+
+@media (max-width: 950px) {
+  .guide-grid {
+    grid-template-columns: 1fr;
+  }
+  .guide-toc {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: var(--space-sm);
+  }
+  .guide-toc p {
+    display: none;
+  }
+  .guide-toc button {
+    white-space: nowrap;
+    flex: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .prose {
+    padding: var(--space-xl);
+  }
+}

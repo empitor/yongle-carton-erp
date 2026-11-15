@@ -1,8 +1,5 @@
-import { useState } from 'react';
 import {
   CalendarCheck,
-  ChevronDown,
-  ChevronRight,
   Inbox,
   ClipboardList,
   Users,
@@ -86,19 +83,19 @@ const groups: { title?: string; items: NavEntry[] }[] = [
         target: 'warehouse',
         icon: Warehouse,
         when: (p) =>
-          !['arrivals', 'arrivalPlans', 'deliveries', 'deliveryPlans', 'flow'].some((k) => p.get(k) === '1'),
+          !['arrivals', 'deliveries', 'flow'].some((k) => p.get(k) === '1'),
       },
       {
         label: '到货',
         target: 'warehouse?arrivals=1',
         icon: PackagePlus,
-        when: (p) => p.get('arrivals') === '1' || p.get('arrivalPlans') === '1',
+        when: (p) => p.get('arrivals') === '1',
       },
       {
         label: '送货',
         target: 'warehouse?deliveries=1&kind=finished',
         icon: Truck,
-        when: (p) => p.get('deliveries') === '1' || p.get('deliveryPlans') === '1',
+        when: (p) => p.get('deliveries') === '1',
       },
       {
         label: '流水',
@@ -123,6 +120,8 @@ const financeGroup: { title?: string; items: NavEntry[] } = {
     { label: '财务设置', target: 'finance-settings', icon: SlidersHorizontal },
   ],
 };
+/** 有财务权限的业务账号：侧栏只放一个“财务”，进去用页签切换。 */
+const financeEntry: NavEntry = { label: '财务', target: 'finance', icon: Landmark };
 /** 只给管理员看。 */
 const accountsEntry: NavEntry = { label: '账号管理', target: 'accounts', icon: UserCog };
 const footer: NavEntry[] = [
@@ -138,6 +137,7 @@ export default function Navigation({
   inboxCount = 0,
   importCount = 0,
   finance = false,
+  financeOnly = false,
   accounts = false,
   accountRequests = 0,
 }: {
@@ -147,22 +147,17 @@ export default function Navigation({
   inboxCount?: number;
   importCount?: number;
   finance?: boolean;
+  /** 出纳这类纯财务账号：只显示财务和使用说明。 */
+  financeOnly?: boolean;
   accounts?: boolean;
   accountRequests?: number;
 }) {
   const params = new URLSearchParams(route.split('?')[1] || '');
-  // 财务默认收起，免得左侧要滚动才能看到别的入口；进了财务页面就一直展开。
-  const [financeOpen, setFinanceOpen] = useState(
-    () => typeof localStorage !== 'undefined' && localStorage.getItem('erp-nav-finance') === '1',
-  );
-  const onFinance = page.startsWith('finance');
-  const toggleFinance = () => {
-    localStorage.setItem('erp-nav-finance', financeOpen ? '0' : '1');
-    setFinanceOpen(!financeOpen);
-  };
   const item = (entry: NavEntry) => {
     const selected =
-      entry.target.split('?')[0] === page && (entry.when ? entry.when(params) : true);
+      entry === financeEntry
+        ? page.startsWith('finance')
+        : entry.target.split('?')[0] === page && (entry.when ? entry.when(params) : true);
     const Icon = entry.icon;
     return (
       <button
@@ -177,7 +172,7 @@ export default function Navigation({
           <span className="nav-count">{inboxCount}</span>
         )}
         {entry.target === 'ai-import' && importCount > 0 && (
-          <span className="nav-count">{importCount}</span>
+          <span className="nav-count ai">{importCount}</span>
         )}
         {entry.target === 'accounts' && accountRequests > 0 && (
           <span className="nav-count">{accountRequests}</span>
@@ -185,6 +180,18 @@ export default function Navigation({
       </button>
     );
   };
+  if (financeOnly)
+    return (
+      <>
+        <nav className="erp-nav" aria-label="主导航">
+          <div className="nav-section">
+            <div className="nav-section-title">{financeGroup.title}</div>
+            {financeGroup.items.map(item)}
+          </div>
+        </nav>
+        <div className="nav-footer">{footer.filter((e) => e.target === 'guide').map(item)}</div>
+      </>
+    );
   return (
     <>
       <nav className="erp-nav" aria-label="主导航">
@@ -194,24 +201,8 @@ export default function Navigation({
             {group.items.map(item)}
           </div>
         ))}
-        {finance && (
-          <div className="nav-section">
-            {onFinance ? (
-              <div className="nav-section-title">{financeGroup.title}</div>
-            ) : (
-              <button
-                type="button"
-                className="nav-section-title nav-section-toggle"
-                aria-expanded={financeOpen}
-                onClick={toggleFinance}
-              >
-                {financeGroup.title}
-                {financeOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </button>
-            )}
-            {(onFinance || financeOpen) && financeGroup.items.map(item)}
-          </div>
-        )}
+        {/* 财务在侧栏只占一个入口，8 个页面在财务页顶部的页签里切换：侧栏不用滚动，当前页一直看得到 */}
+        {finance && <div className="nav-section">{item(financeEntry)}</div>}
       </nav>
       <div className="nav-footer">
         {accounts && item(accountsEntry)}

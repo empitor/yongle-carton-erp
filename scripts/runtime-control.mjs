@@ -31,6 +31,16 @@ export function readControl(database) {
   return record;
 }
 
+/** 收到的停止请求对不对：动作、本进程号、令牌格式和内容都要对上（令牌按固定时间比较） */
+const validStopRequest = (request, token) =>
+  !!request &&
+  typeof request === 'object' &&
+  request.action === 'stop' &&
+  request.pid === process.pid &&
+  typeof request.token === 'string' &&
+  /^[a-f0-9]{64}$/.test(request.token) &&
+  timingSafeEqual(Buffer.from(request.token), Buffer.from(token));
+
 export async function createRuntimeControl(database, onStop, afterStop = () => {}) {
   const file = controlFile(database),
     token = randomBytes(32).toString('hex');
@@ -53,15 +63,7 @@ export async function createRuntimeControl(database, onStop, afterStop = () => {
       } catch {
         return socket.destroy();
       }
-      if (
-        !request ||
-        typeof request !== 'object' ||
-        request.action !== 'stop' ||
-        request.pid !== process.pid ||
-        typeof request.token !== 'string' ||
-        !/^[a-f0-9]{64}$/.test(request.token) ||
-        !timingSafeEqual(Buffer.from(request.token), Buffer.from(token))
-      ) {
+      if (!validStopRequest(request, token)) {
         socket.end(JSON.stringify({ ok: false }) + '\n');
         return;
       }

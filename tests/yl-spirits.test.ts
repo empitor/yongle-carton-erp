@@ -4,10 +4,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import YlSpirits, { SpeakerAvatar } from '../src/YlSpirits.js';
+import YlSpirits, { SpeakerAvatar } from '../src/assistant/YlSpirits.js';
 
-const css = readFileSync('src/yl-spirits.css', 'utf8');
-const source = readFileSync('src/YlSpirits.tsx', 'utf8');
+// 小甬小勒的样式按段落分在 src/assistant/spirits*.css，拼起来查
+const css = ['spirits', 'spirits-pass', 'spirits-whisper', 'spirits-play', 'spirits-dock']
+  .map((n) => readFileSync('src/assistant/' + n + '.css', 'utf8'))
+  .join('\n');
+const source = readFileSync('src/assistant/YlSpirits.tsx', 'utf8');
 
 test('两个精灵都画出来，纸箱和代表 AI 的小星也在', () => {
   const html = renderToStaticMarkup(createElement(YlSpirits));
@@ -35,7 +38,9 @@ test('状态写到属性上，样式才接得上', () => {
 });
 
 test('每段小剧场的时长和样式一致，结束时状态能及时清掉', () => {
-  const block = /const scenes = \{([\s\S]*?)\} as const/.exec(source)![1];
+  const found = /const scenes = \{([\s\S]*?)\} as const/.exec(source);
+  assert.ok(found, '源码里没有 scenes 表');
+  const block = found[1];
   const scenes = [...block.matchAll(/(\w+): (\d+),/g)].map((m) => [m[1], Number(m[2])] as const);
   assert.equal(scenes.length, 6);
   for (const [name, ms] of scenes) {
@@ -73,6 +78,10 @@ test('头像只画对应的那个人', () => {
 });
 
 test('紫色只用在代表 AI 的小星上', () => {
-  const purple = [...css.matchAll(/([^{}]+)\{[^{}]*#(7c3aed|a78bfa)[^{}]*\}/g)].map((m) => m[1].trim());
+  // 色值定义在 src/ui/tokens.css，小人身上只引用变量
+  const tokens = readFileSync('src/ui/tokens.css', 'utf8');
+  assert.match(tokens, /--yl-star: #7c3aed;/);
+  assert.match(tokens, /--yl-star-glow: #a78bfa;/);
+  const purple = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--yl-star(-glow)?\)[^{}]*\}/g)].map((m) => m[1].trim());
   assert.deepEqual(purple, ['.yl-star path', '.yl-star circle']);
 });

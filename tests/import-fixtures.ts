@@ -1,5 +1,27 @@
 import { crc32 } from 'node:zlib';
-import { createCanvas, PDFDocument, loadImage } from '@napi-rs/canvas';
+import { createCanvas, PDFDocument, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
+import type { Workspace } from '../server/import/workspace-document.js';
+/** 直接写进工作区库的一份工作区：给的几栏以外按刚上传、还没识别的填（和 WorkspaceStore.upload 写的一样） */
+export function workspaceRecord(fields: Pick<Workspace, 'id' | 'fileHash' | 'revision'> & Partial<Workspace>): Workspace {
+  return {
+    fileName: '',
+    size: 0,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    parsed: { format: 'pdf' },
+    draft: null,
+    evaluation: null,
+    changes: [],
+    canUndo: false,
+    history: [],
+    audits: [],
+    task: { state: 'uploaded' },
+    mode: 'order',
+    arrivalDocId: null,
+    arrivalSourceId: null,
+    promptVersion: 'fixture',
+    ...fields,
+  };
+}
 export function zipFixture(files: Record<string, string | Buffer>): Buffer {
   const locals: Buffer[] = [],
     centrals: Buffer[] = [];
@@ -39,7 +61,7 @@ export function zipFixture(files: Record<string, string | Buffer>): Buffer {
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, central, end]);
 }
-export const fictionalRows = [
+const fictionalRows = [
   '虚构验收订单（非真实客户文件）',
   '采购方：虚构验收客户甲；供应方：宁波甬勒包装制品有限公司',
   '采购订单号：TEST-20260901；订单日期：2026-09-01；交货日期：2026-09-04；人民币；含13%增值税',
@@ -81,7 +103,17 @@ export function docxFixture() {
       '</w:body></w:document>',
   });
 }
+/** 画一张要几十毫秒，按格式只画一次，每次给一份副本 */
+const images = new Map<boolean, Buffer>();
 export function imageFixture(jpeg = false) {
+  let image = images.get(jpeg);
+  if (!image) {
+    image = drawImage(jpeg);
+    images.set(jpeg, image);
+  }
+  return Buffer.from(image);
+}
+function drawImage(jpeg: boolean) {
   const c = createCanvas(1800, 760),
     ctx = c.getContext('2d');
   ctx.fillStyle = 'white';
@@ -91,6 +123,8 @@ export function imageFixture(jpeg = false) {
   fictionalRows.forEach((s, i) => ctx.fillText(s, 35, 65 + i * 105));
   return jpeg ? c.toBuffer('image/jpeg') : c.toBuffer('image/png');
 }
+/** PDF 页面的画布运行时能画图，但库的类型里 beginPage 交回的接口没写 drawImage：按方法在不在收窄 */
+const canDraw = (ctx: object): ctx is SKRSContext2D => 'drawImage' in ctx;
 export async function pdfFixture(scan = false) {
   if (!scan) {
     const lines = [
@@ -133,7 +167,8 @@ export async function pdfFixture(scan = false) {
   const pdf = new PDFDocument({ title: 'Fictional scan order' }),
     ctx = pdf.beginPage(1200, 850);
   const img = await loadImage(imageFixture());
-  (ctx as any).drawImage(img, 0, 0, 1200, 507);
+  if (!canDraw(ctx)) throw new Error('PDF 页面上画不了图');
+  ctx.drawImage(img, 0, 0, 1200, 507);
   pdf.endPage();
   return pdf.close();
 }

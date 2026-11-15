@@ -1,14 +1,15 @@
+/* 财务页面框架：页签、工具栏、分节卡片 */
 /* 财务页面：沿用设计系统，只补财务特有的版式。 */
 .fin-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-md);
 }
 .fin-period {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 .fin-period input {
@@ -18,11 +19,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-sm);
   min-width: 0;
-}
-.fin-toolbar .fin-grow {
-  flex: 1;
 }
 .fin-toolbar select,
 .fin-toolbar input[type='date'],
@@ -33,90 +31,21 @@
 .fin-party-picker {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2xs);
   width: 220px;
 }
 .fin-party-picker > :first-child {
   flex: 1;
   min-width: 0;
 }
-.fin-export {
-  gap: 4px;
-}
-.fin-table .num,
-.fin-compare .num {
+.fin-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.fin-hint {
-  color: var(--text-secondary);
-}
 .fin-note {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-}
-.fin-banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--warning-border);
-  border-radius: 8px;
-  font-size: 13px;
-}
-.fin-banner[data-tone='info'] {
-  border-color: var(--border);
-  background: var(--info-soft);
-}
-.fin-banner strong {
-  font-weight: 600;
-}
-.fin-banner .fin-grow {
-  flex: 1;
-}
-/* 理论和实际两行对照，是概览页的主角 */
-.fin-compare {
-  font-size: 14px;
-}
-.fin-compare th,
-.fin-compare td {
-  padding: 8px 12px;
-  font-weight: 400;
-}
-.fin-compare thead th {
-  font-size: 12px;
-}
-.fin-compare tbody tr:last-child td,
-.fin-compare tbody tr:last-child th {
-  border-bottom: 0;
-}
-.fin-compare tbody th small {
-  display: block;
-  color: var(--text-secondary);
-}
-.fin-compare button.fin-amount {
-  all: unset;
-  cursor: pointer;
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-}
-.fin-compare button.fin-amount:hover {
-  color: var(--teal);
-  text-decoration: underline;
-}
-.fin-compare button.fin-amount:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-.fin-compare button.fin-amount[aria-pressed='true'] {
-  color: var(--teal);
-  font-weight: 600;
-}
-.fin-compare .fin-profit {
-  font-size: 16px;
-  font-weight: 600;
 }
 .fin-negative {
   color: var(--danger);
@@ -124,216 +53,53 @@
 .fin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-  gap: 12px;
+  gap: var(--space-md);
   align-items: start;
-}
-.fin-card {
-  padding: 12px;
-  min-width: 0;
-}
-.fin-card > h2 {
-  margin: 0 0 8px;
-  font-size: 14px;
-}
-.fin-card .table-wrap,
-.fin-card.business-records .unified-table-region {
-  border: 0;
-}
-.fin-todo {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.fin-todo li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border);
-}
-.fin-todo li:last-child {
-  border-bottom: 0;
-}
-.fin-todo strong {
-  font-variant-numeric: tabular-nums;
-}
-.fin-lines input,
-.fin-lines select {
-  width: 100%;
-  min-width: 64px;
-}
-.fin-lines th,
-.fin-lines td {
-  padding: 4px 6px;
-  font-size: 13px;
 }
 .fin-check {
   flex-direction: row !important;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 .fin-check input {
   width: auto;
 }
 .fin-subform {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
   border-top: 1px solid var(--border);
 }
 .fin-subform h3 {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
   font-weight: 600;
-}
-.fin-subform-row {
-  display: flex;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-  font-size: 13px;
-}
-.fin-subform-row input,
-.fin-subform-row select {
-  width: 96px;
-}
-.fin-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.fin-steps {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.fin-steps li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border);
-}
-.fin-steps li:last-child {
-  border-bottom: 0;
-}
-.fin-steps .fin-grow {
-  flex: 1;
-}
-.fin-voucher-entries input,
-.fin-voucher-entries select {
-  width: 100%;
-  min-width: 80px;
-}
-.fin-voucher-entries .fin-acct {
-  min-width: 200px;
-}
-.modal:has(.fin-voucher-entries),
-.modal:has(.fin-wide) {
-  width: min(1000px, calc(100vw - 32px));
-  max-width: min(1000px, calc(100vw - 32px));
-}
-.fin-compare thead th {
-  background: var(--surface-muted);
-}
-.fin-compare tbody th {
-  width: 200px;
-  background: transparent;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-}
-.fin-compare tbody th small {
-  font-weight: 400;
-}
-.fin-todo button.link-button {
-  all: unset;
-  cursor: pointer;
-  color: var(--teal);
-}
-.fin-todo button.link-button:hover {
-  text-decoration: underline;
-}
-.fin-todo button.link-button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
 }
 .fin-toolbar > label.fin-check {
   display: inline-flex;
-  gap: 4px;
-  font-size: 13px;
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
-.fin-plain {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.fin-plain {
-  margin-top: 12px;
-}
-.fin-subform-row.fin-check input {
-  width: auto;
-}
 .fin-export {
+  gap: var(--space-2xs);
   min-height: 32px;
-  padding: 0 12px;
-  font-size: 13px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 .fin-export:hover {
   background: var(--surface-hover);
 }
 .fin-form .table-wrap {
-  margin-top: 12px;
-}
-/* 财务卡片内容多少就占多高，不要通用列表的最小高度 */
-.fin-card.business-records,
-.fin-card.business-records .unified-table-region,
-.fin-card .unified-table-region {
-  min-height: 0;
+  margin-top: var(--space-md);
 }
 
-/* 手机：对照表放下三列金额，工具条换行 */
 @media (max-width: 700px) {
-  .fin-compare {
-    table-layout: fixed;
-  }
-  .fin-compare th,
-  .fin-compare td,
-  .fin-compare thead th {
-    padding: 8px 4px;
-  }
-  .fin-compare thead th:first-child,
-  .fin-compare tbody th {
-    width: 44px;
-  }
-  .fin-compare thead th:first-child {
-    font-size: 0;
-  }
-  .fin-compare tbody th {
-    font-size: 13px;
-  }
-  .fin-compare tbody th small {
-    display: none;
-  }
-  .fin-compare button.fin-amount,
-  .fin-compare .fin-profit {
-    font-size: 13px;
-  }
   .fin-party-picker {
     width: 100%;
   }
   .fin-toolbar > * {
     max-width: 100%;
-  }
-  .fin-toolbar .fin-grow {
-    display: none;
   }
   .fin-period {
     flex: 1 1 100%;
@@ -341,7 +107,258 @@
   .fin-period input {
     flex: 1;
   }
-  .fin-banner a {
-    flex: none;
+}
+
+/* ---- 财务页签、页内切换、分节卡片 ---- */
+
+/* 财务 8 个页面之间的页签：侧栏只有一个“财务”入口，靠这一排切换；手机横向滑动、不折行 */
+.fin-nav {
+  min-width: 0;
+  margin: 0 0 var(--space-2xs);
+  container: fin-nav / inline-size;
+}
+.fin-nav-track {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2xs);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 701px) {
+  .fin-nav-track {
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
+}
+.fin-nav-track::-webkit-scrollbar {
+  display: none;
+}
+.fin-nav-track a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--space-md);
+  border-radius: var(--r-control);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.fin-nav-track a:hover {
+  background: var(--fill-1);
+  color: var(--ink);
+}
+.fin-nav-track a.selected {
+  background: var(--fill-2);
+  color: var(--ink);
+}
+.fin-nav-track a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+/* 打开右侧详情时（1280 宽只剩 600 左右）页签收紧左右留白，8 个还排得下一行，不把“财务设置”挤到第二行 */
+@container fin-nav (max-width: 680px) {
+  .fin-nav-track {
+    gap: var(--space-3xs);
+  }
+  .fin-nav-track a {
+    padding: 0 var(--space-sm);
+  }
+}
+
+/* 页签下面那一排：页内切换在左，应收 / 应付这类全页切换固定在右 */
+.fin-subbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  min-width: 0;
+}
+.fin-subbar-side {
+  margin-left: auto;
+}
+.fin-segmented {
+  flex-wrap: nowrap;
+}
+.fin-segmented button {
+  white-space: nowrap;
+}
+
+/* 分节卡片：白色圆角卡片里一个小标题，右边放这节自己的条件或次要操作 */
+.fin-section {
+  min-width: 0;
+  padding: var(--space-md) 14px;
+}
+.fin-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-md);
+  margin: 0 0 var(--space-sm);
+}
+.fin-section-head h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.fin-section-note {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.fin-section-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.fin-section-extra select,
+.fin-section-extra input[type='date'],
+.fin-section-extra input[type='month'] {
+  width: auto;
+}
+/* 默认收起的一节：点标题展开 */
+details.fin-fold > summary.fin-section-head {
+  margin: 0;
+  cursor: pointer;
+  list-style: none;
+}
+details.fin-fold > summary.fin-section-head::-webkit-details-marker {
+  display: none;
+}
+details.fin-fold > summary.fin-section-head::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-3xs);
+  border-right: 1.5px solid var(--text-secondary);
+  border-bottom: 1.5px solid var(--text-secondary);
+  transform: rotate(-45deg);
+  transition: transform 0.15s var(--ease, ease);
+}
+details.fin-fold[open] > summary.fin-section-head {
+  margin-bottom: var(--space-sm);
+}
+details.fin-fold[open] > summary.fin-section-head::before {
+  transform: rotate(45deg);
+}
+details.fin-fold > .fin-section-extra {
+  justify-content: flex-end;
+  margin: 0 0 var(--space-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  details.fin-fold > summary.fin-section-head::before {
+    transition: none;
+  }
+}
+/* 卡片里的列表不再套一层卡片，也不要通用列表的最小高度 */
+:root[data-ui='refined'] main .fin-section .panel,
+:root[data-ui='refined'] main .fin-section .unified-table-region {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.fin-section .business-records .unified-table-region,
+.fin-section .unified-table-region {
+  min-height: 0;
+  max-height: none;
+  border-top: 0;
+}
+.fin-section .list-summary {
+  margin: 0 0 var(--space-sm);
+}
+
+/* 概览：对照表下面一行说明，加上不算进盈亏的几项（只列不为 0 的） */
+.fin-overview-main {
+  padding-bottom: var(--space-2xs);
+}
+.fin-overview-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-lg);
+  padding: var(--space-sm) var(--space-md) 10px;
+  border-top: 0.5px solid var(--sep, var(--border));
+}
+.fin-tax-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+@media (max-width: 700px) {
+  .fin-nav {
+    margin: 0 calc(-1 * var(--space-lg)) var(--space-3xs);
+  }
+  .fin-nav-track {
+    padding: 0 var(--space-lg);
+  }
+  .fin-subbar {
+    flex-wrap: wrap;
+  }
+  .fin-subbar > .fin-segmented,
+  .fin-subbar-side {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .fin-subbar-side {
+    margin-left: 0;
+  }
+  .fin-section {
+    padding: 10px var(--space-md);
+  }
+  .fin-section-extra {
+    margin-left: 0;
+  }
+  .fin-overview-foot {
+    padding: var(--space-sm) var(--space-2xs) 10px;
+  }
+}
+
+/* 页头“更多”里的按钮和导出链接对齐（页头按钮的通用内边距比菜单项宽） */
+:root .fin-page .page-actions .more-menu-list > :is(button, a) {
+  padding: 0 var(--space-sm);
+}
+
+/* 分节右上角的导出链接和按钮一个样子 */
+:root[data-ui='refined'] .fin-section-extra a.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+:root[data-ui='refined'] .fin-section-extra a.button:hover {
+  background: var(--fill-2);
+}
+
+@media (max-width: 700px) {
+  /* 手机上页头的“更多”在左边，菜单按右对齐会伸出屏幕左边：改成贴左边距展开（公共件修好后可去掉） */
+  .fin-page .page-actions .more-menu-list {
+    left: 16px !important;
+    right: auto !important;
+    max-width: calc(100vw - 32px);
+  }
+}
+/* 应收应付逐笔：红字冲销成对的两笔，单号、标签、小字之间留出间距，窄了就换行 */
+.fin-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-xs);
+}
+.fin-pair small {
+  color: var(--text-secondary);
 }

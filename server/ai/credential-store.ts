@@ -2,8 +2,8 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
-import { configDirectory, masterKeyName } from '../config-paths.js';
-import { AiConnectionError } from './connection-error.js';
+import { configDirectory, masterKeyName } from '../core/index.js';
+import { AiConnectionError } from './errors.js';
 
 export interface SecretProtector {
   protect(secret: string): string;
@@ -66,42 +66,61 @@ function dpapi(action: string, value: string) {
     );
   return result.stdout.trim();
 }
+/** 带版本的密文前缀：哪种加密方式加的 */
+const DPAPI_PREFIX = 'dpapi:v1:';
+const AES_PREFIX = 'aes256gcm:v1:';
 export const windowsProtector: SecretProtector = {
-  protect: (secret) => 'dpapi:v1:' + dpapi('protect', secret),
+  protect: (secret) => DPAPI_PREFIX + dpapi('protect', secret),
   unprotect: (ciphertext) => {
-    if (ciphertext.startsWith('aes256gcm:')) throw platformMismatch();
-    return dpapi('unprotect', ciphertext.startsWith('dpapi:v1:') ? ciphertext.slice(9) : ciphertext);
+    if (!ciphertext.startsWith(DPAPI_PREFIX)) throw platformMismatch();
+    return dpapi('unprotect', ciphertext.slice(DPAPI_PREFIX.length));
   },
 };
 const platformMismatch = () => new AiConnectionError('storage', '凭据加密方式不属于当前平台；迁移后请重新填写 AI 密钥或机器人 Secret，原配置未清空。', 503);
 const keyError = () => new AiConnectionError('storage', 'Linux 主密钥无法安全读取：目录须为当前服务账号所有且权限 0700，主密钥须为该账号所有的 0600 常规文件（32 字节、非链接）。请检查权限或恢复原主密钥；不会改用明文或覆盖原文件。', 503);
+
+/** Linux 主密钥：目录 0700、文件 0600（只比权限位），32 字节 */
+const KEY_DIR_MODE = 0o700;
+const KEY_FILE_MODE = 0o600;
+const PERMISSION_BITS = 0o7777;
+const MASTER_KEY_BYTES = 32;
+const isExisting = (error: unknown) => error instanceof Error && 'code' in error && error.code === 'EEXIST';
 
 /** 每次读取都检查权限和所有者；不修正已有权限，不输出路径或密钥内容。 */
 export function linuxMasterKey(root = configDirectory()): Buffer {
   if (process.platform !== 'linux') throw keyError();
   const directory = join(root, 'credentials'), file = join(directory, masterKeyName);
   try {
+    // Linux 上一定有 getuid；没有就当权限核对不过
+    const uid = process.getuid?.();
+    if (uid === undefined) throw keyError();
     for (const dir of [root, directory]) {
-      try { mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { throw keyError(); }
+      try { mkdirSync(dir, { recursive: true, mode: KEY_DIR_MODE }); } catch { throw keyError(); }
       const stat = lstatSync(dir);
-      if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid!() || (stat.mode & 0o7777) !== 0o700) throw keyError();
+      if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== uid || (stat.mode & PERMISSION_BITS) !== KEY_DIR_MODE) throw keyError();
     }
     let fd: number | undefined;
     try {
-      fd = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
-      const key = randomBytes(32);
+      fd = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, KEY_FILE_MODE);
+      const key = randomBytes(MASTER_KEY_BYTES);
       try { writeFileSync(fd, key); fsyncSync(fd); } finally { key.fill(0); }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw keyError();
+      if (!isExisting(error)) throw keyError();
     } finally { if (fd !== undefined) closeSync(fd); }
     fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const stat = fstatSync(fd);
-      if (!stat.isFile() || stat.nlink !== 1 || stat.uid !== process.getuid!() || (stat.mode & 0o7777) !== 0o600 || stat.size !== 32) throw keyError();
+      if (!stat.isFile() || stat.nlink !== 1 || stat.uid !== uid || (stat.mode & PERMISSION_BITS) !== KEY_FILE_MODE || stat.size !== MASTER_KEY_BYTES) throw keyError();
       return readFileSync(fd);
     } finally { closeSync(fd); }
   } catch { throw keyError(); }
 }
+
+/** AES-256-GCM 密文的排法：12 字节随机 IV、16 字节认证标签，后面是加密的内容 */
+const IV_BYTES = 12;
+const TAG_BYTES = 16;
+const TAG_END = IV_BYTES + TAG_BYTES;
+const AES_AAD = 'ZhixuERP.credentials.aes256gcm.v1';
 
 /** keyProvider 返回调用方持有的临时副本，用后清零；随机 IV 和认证标签均存于带版本的密文中。 */
 export function aesProtector(keyProvider: () => Buffer): SecretProtector {
@@ -109,22 +128,22 @@ export function aesProtector(keyProvider: () => Buffer): SecretProtector {
     protect(secret) {
       const key = keyProvider();
       try {
-        const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', key, iv);
-        cipher.setAAD(Buffer.from('ZhixuERP.credentials.aes256gcm.v1'));
+        const iv = randomBytes(IV_BYTES), cipher = createCipheriv('aes-256-gcm', key, iv);
+        cipher.setAAD(Buffer.from(AES_AAD));
         const bytes = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
-        return 'aes256gcm:v1:' + Buffer.concat([iv, cipher.getAuthTag(), bytes]).toString('base64');
+        return AES_PREFIX + Buffer.concat([iv, cipher.getAuthTag(), bytes]).toString('base64');
       } finally { key.fill(0); }
     },
     unprotect(ciphertext) {
-      if (!ciphertext.startsWith('aes256gcm:v1:')) throw platformMismatch();
+      if (!ciphertext.startsWith(AES_PREFIX)) throw platformMismatch();
       const key = keyProvider();
       try {
-        const encoded = ciphertext.slice(13), bytes = Buffer.from(encoded, 'base64');
-        if (bytes.length < 28 || bytes.toString('base64') !== encoded) throw new Error();
-        const cipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12));
-        cipher.setAAD(Buffer.from('ZhixuERP.credentials.aes256gcm.v1'));
-        cipher.setAuthTag(bytes.subarray(12, 28));
-        return Buffer.concat([cipher.update(bytes.subarray(28)), cipher.final()]).toString('utf8');
+        const encoded = ciphertext.slice(AES_PREFIX.length), bytes = Buffer.from(encoded, 'base64');
+        if (bytes.length < TAG_END || bytes.toString('base64') !== encoded) throw new Error();
+        const cipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, IV_BYTES));
+        cipher.setAAD(Buffer.from(AES_AAD));
+        cipher.setAuthTag(bytes.subarray(IV_BYTES, TAG_END));
+        return Buffer.concat([cipher.update(bytes.subarray(TAG_END)), cipher.final()]).toString('utf8');
       } catch { throw new AiConnectionError('storage', 'Linux 凭据无法解密或校验失败，请确认使用原主密钥；迁移后请重新填写凭据，原配置未清空。', 503); }
       finally { key.fill(0); }
     },

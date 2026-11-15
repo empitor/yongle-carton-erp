@@ -1,13 +1,11 @@
+// 看用户眼前的页面（page.observe）：服务器经聊天的事件流发一条“看一眼”的命令，浏览器把页面快照交回来。
+// 只看不动：打开页面用 ui.open，改数据用业务工具。
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { Actor } from '../auth.js';
-import { ImportError } from '../import/errors.js';
-import { requirePermission } from '../business/management.js';
-import {
-  pageActionSchema,
-  pageObserveSchema,
-  pageSnapshotSchema,
-} from '../../shared/assistant-page.js';
+import type { Actor } from '../core/index.js';
+import { AppError } from '../core/index.js';
+import { pageObserveSchema, pageResultBody, type pageResultSchema } from '../../shared/assistant/index.js';
+
 export type PageBridgeContext = {
   actor: Actor;
   binding: string;
@@ -16,14 +14,14 @@ export type PageBridgeContext = {
   requestId: string;
   check: () => Actor;
   signal: AbortSignal;
-  onDispatched?: () => void;
-  emit: (event: string, data: any) => void;
+  emit: (event: string, data: unknown) => void;
 };
-const resultSchema = z.strictObject({
-  ok: z.boolean(),
-  message: z.string().max(1200),
-  snapshot: pageSnapshotSchema.optional(),
-});
+/** 页面交回的整份反馈最多多少字 */
+const PAGE_REPLY_CHARS = 160000;
+type PageResult = z.infer<typeof pageResultSchema>;
+/** 等浏览器交回快照最多等多久 */
+const PAGE_REPLY_MS = 15000;
+
 export class AssistantPageBridge {
   private pending = new Map<
     string,
@@ -33,19 +31,17 @@ export class AssistantPageBridge {
       clientId: string;
       threadId: string;
       requestId: string;
-      finish: (result: z.infer<typeof resultSchema>) => void;
+      finish: (result: PageResult) => void;
     }
   >();
-  async call(name: string, raw: unknown, ctx: PageBridgeContext) {
+  async observe(raw: unknown, ctx: PageBridgeContext) {
     ctx.check();
-    if (ctx.signal.aborted) throw new ImportError('页面请求已停止。', 409);
-    if (!ctx.clientId || !ctx.binding)
-      throw new ImportError('ERP页面桥接未连接，请在ERP网页中发起本轮聊天。', 409);
-    const action = name === 'page.act' ? pageActionSchema.parse(raw) : undefined;
-    if (action && !['navigate', 'scroll'].includes(action.action))
-      requirePermission(ctx.check(), 'business:edit');
+    if (ctx.signal.aborted) throw new AppError('页面请求已停止。', 409);
+    const clientId = ctx.clientId;
+    if (!clientId || !ctx.binding) throw new AppError('这一轮没有连着 ERP 页面，看不到页面。', 409);
+    const observe = pageObserveSchema.parse(raw);
     const commandId = randomUUID();
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<PageResult & { commandId: string }>((resolve, reject) => {
       const clean = () => {
         clearTimeout(timer);
         this.pending.delete(commandId);
@@ -53,72 +49,42 @@ export class AssistantPageBridge {
       };
       const abort = () => {
         clean();
-        reject(
-          new ImportError(
-            '页面操作已中断；可能已发生交互，继续前先核验，禁止盲目重放。',
-            409,
-            'uncertain-operation',
-          ),
-        );
+        reject(new AppError('页面请求已停止。', 409));
       };
       const timer = setTimeout(() => {
         clean();
-        reject(
-          new ImportError(
-            '未收到ERP页面反馈，不能认定业务成功；请重新观察并查询真实记录。',
-            409,
-            action ? 'uncertain-operation' : 'page-timeout',
-          ),
-        );
-      }, 15000);
+        reject(new AppError('没有收到页面的反馈，这次没看到页面；要数据请直接查记录。', 409, 'page-timeout'));
+      }, PAGE_REPLY_MS);
       ctx.signal.addEventListener('abort', abort, { once: true });
       this.pending.set(commandId, {
         actorId: ctx.actor.id,
         binding: ctx.binding,
-        clientId: ctx.clientId!,
+        clientId,
         threadId: ctx.threadId,
         requestId: ctx.requestId,
         finish: (result) => {
           clean();
           try {
             ctx.check();
-            if (!result.ok) throw new ImportError(result.message, 409);
-            resolve({
-              ...result,
-              commandId,
-              status: action ? 'interaction' : 'observed',
-              businessVerified: false,
-              message:
-                result.message +
-                (action ? '。界面交互回执不代表业务提交成功，请通过records.get/原服务核验。' : ''),
-            });
+            if (!result.ok) throw new AppError(result.message, 409);
+            resolve({ ...result, commandId });
           } catch (e) {
-            reject(e);
+            reject(e instanceof Error ? e : new Error(String(e)));
           }
         },
       });
-      ctx.onDispatched?.();
       ctx.emit('page_command', {
         commandId,
-        clientId: ctx.clientId,
+        clientId,
         threadId: ctx.threadId,
         requestId: ctx.requestId,
-        action,
-        observe: action ? undefined : pageObserveSchema.parse(raw),
+        observe,
       });
     });
   }
   complete(raw: unknown, actor: Actor, binding: string) {
-    const v = z
-      .strictObject({
-        commandId: z.string().uuid(),
-        clientId: z.string().uuid(),
-        threadId: z.string().uuid(),
-        requestId: z.string().uuid(),
-        result: resultSchema,
-      })
-      .parse(raw);
-    if (JSON.stringify(v).length > 160000) throw new ImportError('页面反馈过大。', 413);
+    const v = pageResultBody.parse(raw);
+    if (JSON.stringify(v).length > PAGE_REPLY_CHARS) throw new AppError('页面反馈过大。', 413);
     const p = this.pending.get(v.commandId);
     if (
       !p ||
@@ -128,7 +94,7 @@ export class AssistantPageBridge {
       p.threadId !== v.threadId ||
       p.requestId !== v.requestId
     )
-      throw new ImportError('页面命令已失效或不属于当前真实登录会话。', 403);
+      throw new AppError('页面命令已失效或不属于当前真实登录会话。', 403);
     p.finish(v.result);
     return { accepted: true };
   }

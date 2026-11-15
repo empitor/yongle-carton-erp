@@ -1,0 +1,310 @@
+/* 全站变量（颜色、圆角、阴影，浅色和深色）、页面底色和最基本的元素样式 */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+html {
+  scrollbar-color: var(--border-strong) var(--page-bg);
+}
+
+/* ---- 设计系统 ---- */
+/* 语义化外观变量：同一组件在浅色和深色下保持一致的层级与操作含义。 */
+:root[data-theme='dark'] {
+  --focus-ring: #75c6d4;
+  --teal: #8fa8e8;
+  --accent-hover: #a8bcee;
+  --accent-soft: #232c42;
+  --accent-ink: #a8bcee;
+  --on-accent: #141822;
+  --kraft: #d2a468;
+  --kraft-deep: #b98a4e;
+  --danger: #f0938a;
+  --danger-fill: #b8453b;
+  --danger-hover: #c9554b;
+  --danger-soft: #3d2826;
+  --danger-border: #6d3d39;
+  --warning: #e9bd70;
+  --warning-soft: #3a3020;
+  --warning-border: #6b5a36;
+  --success: #6fcf9f;
+  --info: #84bdec;
+  --info-soft: #1f3040;
+  --purple: #b9a6ec;
+  --purple-soft: #2d2743;
+  --overlay: #000000a0;
+  --shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+  --shadow-sm: 0 4px 12px rgb(0 0 0 / 0.35);
+  --sidebar-ink: #c8c5bd;
+  --sidebar-muted: #7d7a72;
+  --sidebar-selected: #3a2f20;
+  --sidebar-active-ink: #f0e6d6;
+}
+
+/* 基础 */
+/*
+ * 单据流转台：设计系统与外壳。最后加载，统一覆盖旧样式。
+ * 字号只用 12/13/14/16/20/24；圆角只用 4/8；间距基于 4；阴影只给悬浮层。
+ * 牛皮纸色只用于品牌点缀，不表示状态；紫色只表示 AI 产生的内容。
+ */
+:root {
+  color: var(--ink);
+  background: var(--page-bg);
+  font-synthesis: none;
+  font-weight: 400;
+  --teal: #27407a;
+  --accent-hover: #1e3363;
+  --accent-soft: #eaeef7;
+  --accent-ink: #27407a;
+  --on-accent: #ffffff;
+  --kraft: #b07d3c;
+  --kraft-deep: #8f6229;
+  --danger: #c0362c;
+  --danger-fill: #c0362c;
+  --danger-hover: #a32c23;
+  --danger-soft: #fcebe9;
+  --danger-border: #f0c8c4;
+  --on-danger: #ffffff;
+  --warning: #9e5e00;
+  --warning-soft: #fff3dc;
+  --warning-border: #eed7a6;
+  --success: #1e7b4f;
+  --info: #1f6fb2;
+  --info-soft: #e7f1fa;
+  --purple: #6b4fbb;
+  --purple-soft: #f0ecfa;
+  --focus-ring: #7e95cc;
+  --overlay: #211f1b59;
+  --shadow: 0 12px 32px rgb(33 31 27 / 0.14);
+  --shadow-sm: 0 4px 12px rgb(33 31 27 / 0.08);
+  --sidebar-ink: #4a463f;
+  --sidebar-muted: #8a857b;
+  --sidebar-selected: #f5ede0;
+  --sidebar-active-ink: #211f1b;
+  --topbar-h: 48px;
+  --sidebar-w: 200px;
+  --row-h: 36px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  font-family:
+    'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'HarmonyOS Sans SC', sans-serif;
+  --assistant-w: 0px;
+}
+
+@media (max-width: 1439px) {
+  :root {
+    --sidebar-w: 168px;
+  }
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --sidebar-w: 0px;
+  }
+}
+
+/* AI 助手停靠：占据右侧一列，内容、详情面板和弹窗都让开。窄屏改为覆盖，不推内容。 */
+
+@media (min-width: 1024px) {
+  html[data-assistant-dock='on'] {
+    --assistant-w: 380px;
+  }
+  html[data-assistant-dock='wide'] {
+    --assistant-w: 720px;
+  }
+}
+
+@media print {
+  html[data-assistant-dock] {
+    --assistant-w: 0px;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --topbar-h: 52px;
+    --tabbar-h: 56px;
+  }
+}
+/* 右下角悬浮的小甬小勒不挡详情最后一行：正文末尾留出位置，可以滚上来 */
+
+/* ===================================================================
+   精致版式：<html data-ui="refined">（index.html）全站启用。
+   底色分层：浅灰底上放白色圆角卡片，模块靠卡片分开、少用线；
+   控件有手感：实心主按钮、灰色填充的次要按钮、分段控件，
+   按下轻微缩小，弹窗和详情有过渡。
+   =================================================================== */
+:root[data-ui='refined'] {
+  --page-bg: #f4f4f6;
+  --surface: #ffffff;
+  --input-bg: #ffffff;
+  --surface-muted: #f4f4f6;
+  --surface-hover: rgb(118 118 128 / 0.08);
+  --ink: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --muted: #6e6e73;
+  --placeholder: #a1a1a6;
+  --border: rgb(0 0 0 / 0.08);
+  --border-strong: rgb(0 0 0 / 0.14);
+  --sidebar-bg: #ececef;
+  --sidebar-hover: rgb(118 118 128 / 0.12);
+  --r-control: 8px;
+  --r-panel: 12px;
+  --r-pill: 999px;
+  --r-inner: 6px;
+  --fill-1: rgb(118 118 128 / 0.12);
+  --fill-2: rgb(118 118 128 / 0.18);
+  --fill-3: rgb(118 118 128 / 0.26);
+  --field-bg: rgb(118 118 128 / 0.09);
+  --sep: rgb(0 0 0 / 0.07);
+  --card-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.04);
+  --pop-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 20px 56px rgb(0 0 0 / 0.18), 0 4px 12px rgb(0 0 0 / 0.06);
+  --btn-shadow: 0 0.5px 1px rgb(0 0 0 / 0.1);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--teal) 24%, transparent);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --panel-w: min(480px, calc(100vw - var(--sidebar-w) - var(--assistant-w) - 600px));
+}
+:root[data-ui='refined'][data-theme='dark'] {
+  --page-bg: #111113;
+  --surface: #1c1c1e;
+  --input-bg: #1c1c1e;
+  --surface-muted: #232326;
+  --surface-hover: rgb(118 118 128 / 0.16);
+  --ink: #f2f2f4;
+  --text-secondary: #a1a1a6;
+  --muted: #a1a1a6;
+  --placeholder: #77777c;
+  --border: rgb(255 255 255 / 0.09);
+  --border-strong: rgb(255 255 255 / 0.16);
+  --sidebar-bg: #18181a;
+  --sidebar-hover: rgb(118 118 128 / 0.22);
+  --fill-1: rgb(118 118 128 / 0.24);
+  --fill-2: rgb(118 118 128 / 0.32);
+  --fill-3: rgb(118 118 128 / 0.4);
+  --field-bg: rgb(118 118 128 / 0.18);
+  --sep: rgb(255 255 255 / 0.08);
+  --card-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.07);
+  --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 24px 64px rgb(0 0 0 / 0.55);
+  --btn-shadow: none;
+}
+
+/* —— 外壳 —— */
+:root[data-ui='refined'] body {
+  background: var(--page-bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-ui='refined'] *,
+  :root[data-ui='refined'] *::before,
+  :root[data-ui='refined'] *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- 档位和固定用色：页面里只引用这些变量，不写死值（stylelint.config.mjs 查） ---- */
+:root {
+  /* 字号：只有这六档 */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  /* 圆角：控件、卡片、胶囊、内层在精致版式里定义；另有小圆角和圆形 */
+  --r-small: 4px;
+  --r-circle: 50%;
+  /* 间距：margin、padding、gap 用这八档；负的写 calc(-1 * var(--space-…)) */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  /* 层级：从低到高 */
+  --z-above: 1; /* 同一块内容里往上叠一层：冻结的表头、操作列、吸底的保存栏 */
+  --z-above-2: 2;
+  --z-above-3: 3;
+  --z-resize-handle: 10; /* 助手窗口的拖动改大小的边 */
+  --z-topbar: 15;
+  --z-sidebar: 20; /* 侧栏、手机底部导航 */
+  --z-side-panel: 30; /* 右侧详情、识别导入的疑点浮层 */
+  --z-floating: 40; /* 浮在页面上的：菜单、账号菜单、右下角助手、手机上的详情 */
+  --z-drawer-backdrop: 44; /* 手机侧栏抽屉的遮罩 */
+  --z-drawer: 45; /* 手机侧栏抽屉、勾选后的操作条、助手确认中 */
+  --z-filter-popover: 46;
+  --z-overlay: 50; /* 弹窗遮罩、详情“更多”菜单 */
+  --z-overlay-menu: 60; /* 弹窗之上的下拉、手机上的助手面板和账号菜单遮罩 */
+  --z-overlay-menu-top: 61;
+  --z-toast: 80;
+  --z-palette: 90;
+  --z-management: 100; /* 编辑窗 */
+  --z-popover-menu: 1000; /* 打开的“更多”菜单（浏览器顶层） */
+  --z-assistant-open: 1600; /* 展开的助手窗口 */
+  --z-preview: 4000; /* 助手附件的大图预览 */
+  /* 只在一处用的阴影、遮罩、底色 */
+  --drawer-shadow: 20px 0 50px #142a3c33;
+  --assistant-panel-shadow: 0 18px 65px #0006;
+  --review-bar-shadow: 0 -10px 18px -14px #0006;
+  --primary-btn-highlight: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  --segment-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.12);
+  --segment-selected-dark: #636366;
+  --preview-backdrop: #000a;
+  --overlay-dim: rgb(0 0 0 / 0.28);
+  --on-success: #fff;
+  --line-strong: #c7c7cc; /* 产品附属关系的连接线；深色下也是这个色，看不太清，待改 */
+  /* 打印：白底黑字 */
+  --print-paper: #fff;
+  --print-ink: #000;
+  --print-rule: #999;
+  /* 单据导出的样张：照纸面颜色，不跟主题变；字号相对样张正文 */
+  --paper-bg: #fff;
+  --paper-ink: #111;
+  --paper-rule: #8c979c;
+  --paper-rule-strong: #3c4448;
+  --paper-muted: #52616b;
+  --paper-label: #5a666b;
+  --paper-meta: #4a5559;
+  --paper-brand: #1f3566;
+  --paper-red: #b3261e;
+  --paper-head-bg: #f1f4f5;
+  --paper-terms: #333;
+  --paper-logo-teal: #27407a;
+  --paper-logo-kraft: #b07d3c;
+  --paper-logo-kraft-deep: #8f6229;
+  --paper-text-small: 0.85em;
+  --paper-text-note: 0.9em;
+  --paper-text-number: 1.2em;
+  --paper-text-company: 1.4em;
+  --paper-text-title: 1.8em;
+  --paper-text-copy: 8pt;
+  --paper-text-running: 9pt;
+  /* 小甬小勒：纸箱、小星（紫色只给代表 AI 的小星）、眼睛、脸 */
+  --yl-box: #e9c691;
+  --yl-box-edge: #7a5530;
+  --yl-tape: #f8ebcf;
+  --yl-tape-edge: #c49a63;
+  --yl-star: #7c3aed;
+  --yl-star-glow: #a78bfa;
+  --yl-eye-white: #fff;
+  --yl-pupil: #1b1a22;
+  --yl-cheek: #ef9273;
+  --yl-heart: #ef6f5e;
+  --yl-ground-shadow: #1c1208;
+  --yl-y-ink-light: #fff;
+  --yl-y-ink-dark: #1b2a55;
+  --yl-y-mouth: #ffd7c8;
+  --yl-l-ink-base: #4a2f12;
+}

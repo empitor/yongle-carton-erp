@@ -1,0 +1,67 @@
+/* 消息接入设置 */
+/* 设置 → 消息接入：各家机器人一张卡片，上下排 */
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.channel-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 640px;
+  padding: var(--space-lg);
+}
+.channel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.channel-head h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.channel-state {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.channel-state::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-xs);
+  border-radius: var(--r-circle);
+  background: currentColor;
+}
+.channel-state[data-tone='ok'] {
+  color: var(--success);
+}
+.channel-state[data-tone='busy'] {
+  color: var(--warning);
+}
+.channel-state[data-tone='bad'] {
+  color: var(--danger);
+}
+.channel-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+.channel-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.channel-form .form-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+.channel-notes {
+  margin: 0;
+  padding: var(--space-md) 0 0 var(--space-lg);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--text-secondary);
+}

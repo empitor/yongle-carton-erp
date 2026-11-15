@@ -1,6 +1,7 @@
-// 小甬和小勒：点哪个都打开同一个助手、拖动、贴边、自动小剧场、AI 忙碌和做完、减少动效、深色。虚构数据。
-import { readFileSync } from 'node:fs';
-import { BASE, SERVER_SOURCE, SP, openChrome } from './lib.mjs';
+// 小甬和小勒：点哪个都打开同一个助手、拖动、贴边、自动小剧场、AI 忙碌和做完、
+// 面板头部只留新会话/更多/关闭、Esc 关面板、压住表格或打开详情时让开、减少动效、深色；助手代码没加载完就点也能打开。虚构数据。
+import { readFileSync, readdirSync } from 'node:fs';
+import { BASE, SERVER_SOURCE, SP, login, openChrome } from './lib.mjs';
 
 const seed = readFileSync(SERVER_SOURCE, 'utf8');
 const [, name, password] = /add\('(虚构管理员)',\s*'([^']+)'/.exec(seed);
@@ -47,9 +48,12 @@ await page.locator('.login-screen input').nth(0).fill(name);
 await page.locator('.login-screen input').nth(1).fill(password);
 await page.locator('.login-screen input').nth(1).press('Enter');
 await page.locator('.shell').waitFor();
+// 小人压住按钮、表格时会缩到边上让开；先到右下角空着的页面（消息接入只有一张窄卡片）测动作
+await page.evaluate(() => (location.hash = '#ai-settings?tab=channels'));
 await launcher.waitFor();
 await page.mouse.move(10, 10);
 await page.waitForTimeout(900);
+if (await page.locator('.ga-launcher.ga-yield').count()) fail('右下角空着时小人也让开了');
 await shot('平时');
 const size = await launcher.boundingBox();
 if (Math.round(size.width) !== 104 || Math.round(size.height) !== 108) fail('按钮尺寸不对 ' + JSON.stringify(size));
@@ -77,9 +81,11 @@ else console.log('眼睛跟随 ok');
 
 // 鼠标移上去
 await launcher.hover();
-await page.waitForTimeout(350);
+// 机器忙时动画起得晚：最多等 2 秒看到挥手
+let waved = false;
+for (let i = 0; i < 20 && !waved; i++) (waved = (await running()).includes('yl-wave-l')) || (await page.waitForTimeout(100));
 await shot('鼠标移上去');
-if (!(await running()).includes('yl-wave-l')) fail('鼠标移上去没有挥手');
+if (!waved) fail('鼠标移上去没有挥手');
 else console.log('挥手 ok');
 await page.mouse.move(10, 10);
 
@@ -189,6 +195,68 @@ console.log('气泡和说话人 ok');
 await closePanel();
 await page.unroute('**/api/assistant/**');
 
+// 面板头部只留“新会话”“更多”“关闭”；停靠方式、插件、提示词、清空、删除都在“更多”里，危险项红色
+await launcher.click();
+await panel.waitFor();
+const head = await panel
+  .locator('.ga-header')
+  .evaluate((h) =>
+    [...h.querySelectorAll('button, summary')]
+      .filter((b) => !b.closest('.more-menu-list'))
+      .map((b) => (b.getAttribute('aria-label') || b.textContent || '').trim()),
+  );
+if (head.length !== 3) fail('头部按钮不是 3 个：' + head.join('、'));
+if (await panel.getByRole('button', { name: '返回' }).count()) fail('还有和关闭一样的“返回”');
+await panel.locator('.ga-header .more-menu > summary').click();
+const items = await panel.locator('.ga-header .more-menu-list [role=menuitem]').allInnerTexts();
+for (const name of ['停靠到右侧', '收起后', '插件与工具', '管理提示词', '清空会话', '删除会话'])
+  if (!items.some((t) => t.includes(name)) && !(name === '停靠到右侧' && items.some((t) => t.includes('改为浮动窗口'))))
+    fail('“更多”里没有' + name + '：' + items.join('、'));
+for (const name of ['清空会话', '删除会话']) {
+  const red = await panel
+    .locator('.ga-header .more-menu-list [role=menuitem]', { hasText: name })
+    .evaluate((b) => b.classList.contains('danger-text'));
+  if (!red) fail(name + '不是红色');
+}
+await page.screenshot({ path: SP + '/s' + String(++shots).padStart(2, '0') + '-面板更多.png' });
+// 清空会话走确认窗，不用浏览器自带的 confirm
+page.once('dialog', (d) => {
+  fail('弹出了浏览器自带的确认框：' + d.message());
+  void d.dismiss();
+});
+await panel.locator('.ga-header .more-menu-list [role=menuitem]', { hasText: '清空会话' }).click();
+const confirmBox = page.locator('[role="dialog"][aria-modal="true"]').last();
+await confirmBox.getByRole('button', { name: '清空会话' }).waitFor();
+await page.screenshot({ path: SP + '/s' + String(++shots).padStart(2, '0') + '-清空会话确认.png' });
+await confirmBox.getByRole('button', { name: '取消' }).click();
+await confirmBox.waitFor({ state: 'detached' }).catch(() => {});
+// Esc：焦点在面板里就关掉
+await panel.locator('textarea').first().focus();
+await page.keyboard.press('Escape');
+await launcher.waitFor({ timeout: 2000 }).catch(() => fail('Esc 没有关掉面板'));
+console.log('面板头部、确认窗和 Esc ok');
+
+// 压住表格、打开详情时让开：缩到屏幕边只露脸，鼠标移上去探出来，点了照常打开
+await page.evaluate(() => (location.hash = '#orders'));
+await page.mouse.move(10, 10);
+await page.waitForTimeout(800);
+await page.locator('.record-row').first().waitFor();
+await page.locator('.record-row').first().click();
+await page.locator('.detail-panel').waitFor();
+await page.waitForTimeout(700);
+if (!(await page.locator('.ga-launcher.ga-yield').count())) fail('打开详情时小人没有让开');
+{
+  const box = await launcher.boundingBox();
+  if (box.x + box.width / 2 < 1440 - 10) fail('让开后还压在页面里 ' + JSON.stringify(box));
+}
+await page.screenshot({ path: SP + '/s' + String(++shots).padStart(2, '0') + '-详情时让开.png' });
+await page.getByRole('button', { name: '关闭详情' }).click();
+await page.evaluate(() => (location.hash = '#ai-settings?tab=channels'));
+await page.mouse.move(10, 10);
+await page.waitForTimeout(1500);
+if (await page.locator('.ga-launcher.ga-yield').count()) fail('空出来以后小人没有回来');
+else console.log('让开和回来 ok');
+
 // 深色
 await page.emulateMedia({ colorScheme: 'dark' });
 await page.reload();
@@ -210,3 +278,34 @@ else console.log('减少动效 ok');
 const real = [...new Set(consoleErrors)].filter((e) => !/status of (401|403|404|409|422|429|503)/.test(e));
 if (real.length) fail('控制台报错 ' + real.join(' | ').slice(0, 300));
 await context.close();
+
+// 助手代码还没加载完（故意让它晚到 2 秒）就按 Ctrl+J、点手机底部“助手”：加载完要接着打开，不能被吞掉。
+// 助手的代码块从 run.mjs 构建出的 dist 里按内容找（面板头部的“新会话”按钮只在它里面）
+const assets = SP + '/dist/assets/';
+const chunk = readdirSync(assets).find((n) => n.endsWith('.js') && readFileSync(assets + n, 'utf8').includes('ga-head-new'));
+if (!chunk) fail('构建结果里没找到助手的代码块');
+for (const [tag, chrome, mobile] of [
+  ['电脑', { width: 1440, height: 900 }, false],
+  ['手机', { width: 390, height: 844, isMobile: true, hasTouch: true }, true],
+]) {
+  const early = await openChrome(chrome);
+  let held = false;
+  await early.page.route('**/assets/' + chunk, async (route) => {
+    held = true;
+    await new Promise((r) => setTimeout(r, 2000));
+    await route.continue();
+  });
+  await login(early.page);
+  const loaded = await early.page.locator('[data-global-assistant]').count();
+  if (mobile) await early.page.locator('.mobile-tabbar').getByRole('button', { name: '助手', exact: true }).tap();
+  else await early.page.keyboard.press('Control+j');
+  const opened = await early.page
+    .locator('[data-global-assistant] .ga-panel textarea')
+    .waitFor({ timeout: 10000 })
+    .then(() => true, () => false);
+  await early.page.screenshot({ path: `${SP}/s-早点助手-${tag}.png` });
+  if (!held || loaded) fail(tag + '没拦住助手的代码，这一步没测到');
+  else if (!opened) fail(tag + '助手代码没加载完时' + (mobile ? '点“助手”' : '按 Ctrl+J') + '，加载完没有打开');
+  else console.log(tag + '助手代码没加载完就' + (mobile ? '点“助手”' : '按 Ctrl+J') + '，加载完接着打开 ok');
+  await early.context.close();
+}

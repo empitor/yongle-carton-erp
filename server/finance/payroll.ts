@@ -1,21 +1,22 @@
 import { z } from 'zod';
-import {
-  accountCodeSchema,
-  centsSchema,
-  periodSchema,
-  versionSchema,
-} from '../../shared/finance.js';
-import { dateSchema } from '../../shared/domain.js';
-import type { Actor } from '../auth.js';
-import type { Store } from '../db.js';
+import { accountCodeSchema, centsSchema, periodSchema, versionSchema } from '../../shared/finance/index.js';
+import type { Actor } from '../core/index.js';
+import type { Store } from '../core/index.js';
+import { many, one, rows } from '../core/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
 import { FinanceLedger } from './ledger.js';
-import { FinanceSettlements } from './settlements.js';
-import { periodJob } from './jobs.js';
-import { endOfMonth, entry, id, label, pageSql, request, row } from './query.js';
-import { sheetRows, yuan } from './bank.js';
+import { entryNet, expectedVoucher, periodJob, periodJobResult, sameNet, withdrawJob } from './jobs.js';
+import { entry, label, pageSql, request, type FinancePage } from './query.js';
+import { sheetRows, yuan } from './sheet-import.js';
 import { financeTemplate } from './template.js';
+import { snapshotBeforeDestructive } from '../core/index.js';
+import { endOfMonth } from './periods.js';
+import { expectRow } from './finance-rows.js';
+import { accrualDetails, payrollJob, readAccrual } from './payroll-jobs.js';
+import { paidOut, payInput, paymentStatus, payPayroll } from './payroll-pay.js';
 
+/** 一张工资表最多几个人 */
+const MAX_EMPLOYEES = 1000;
 const payrollRow = z
   .strictObject({
     employeeId: label,
@@ -35,6 +36,35 @@ const payrollRow = z
     (v) => BigInt(v.gross) === BigInt(v.social) + BigInt(v.housing) + BigInt(v.tax) + BigInt(v.net),
     '应发须等于实发和个人扣款之和。',
   );
+/** 工资表按部门汇总的一行 */
+const departmentRow = z.object({
+  department: z.string(),
+  employees: z.number(),
+  gross: z.number(),
+  net: z.number(),
+  social: z.number(),
+  housing: z.number(),
+  tax: z.number(),
+  employer_social: z.number(),
+  employer_housing: z.number(),
+});
+type DepartmentTotals = z.output<typeof departmentRow>;
+type PayrollRow = z.output<typeof rows.fin_payroll>;
+/** 工资表列表的筛选：哪个月、哪个部门（翻页参数另从同一份查询里读） */
+type PayrollQuery = { period: string; department?: string };
+/** 计提按费用科目分组的合计 */
+const costGroup = z.object({
+  account_code: z.string(),
+  cost: z.number(),
+  social: z.number(),
+  housing: z.number(),
+  tax: z.number(),
+  net: z.number(),
+});
+/** 挂账科目（没另选的用模板里的） */
+type PayrollAccounts = z.output<typeof accrualDetails>['accounts'];
+const saved = z.object({ rows: z.array(rows.fin_payroll) });
+const accrued = periodJobResult(accrualDetails);
 
 export class FinancePayroll {
   private ledger: FinanceLedger;
@@ -44,7 +74,13 @@ export class FinancePayroll {
   private get db() {
     return this.store.db;
   }
-  list(actor: Actor | null, raw: unknown) {
+  /** detail=1：员工明细（要结账权限） */
+  list(actor: Actor | null, raw: PayrollQuery & { detail: '1' }): FinancePage<PayrollRow>;
+  /** 不带 detail（或 detail=0）：按部门汇总 */
+  list(actor: Actor | null, raw: PayrollQuery & { detail?: '0' }): FinancePage<DepartmentTotals>;
+  /** 地址上的查询参数：哪一种由 detail 定 */
+  list(actor: Actor | null, raw: unknown): FinancePage<PayrollRow> | FinancePage<DepartmentTotals>;
+  list(actor: Actor | null, raw: unknown): FinancePage<PayrollRow> | FinancePage<DepartmentTotals> {
     const q = z
       .object({
         period: periodSchema,
@@ -54,38 +90,41 @@ export class FinancePayroll {
       .parse(raw);
     financeActor(actor, q.detail === '1' ? 'finance:close' : 'finance:view');
     const where = 'FROM fin_payroll WHERE period=? AND (? IS NULL OR department=?)';
-    return pageSql(
-      this.db,
-      q.detail === '1'
-        ? 'SELECT * ' + where
-        : `SELECT department,count(*) AS employees,sum(gross) AS gross,
+    const values = [q.period, q.department ?? null, q.department ?? null];
+    return q.detail === '1'
+      ? pageSql(this.db, { schema: rows.fin_payroll, sql: 'SELECT * ' + where, values, order: 'department' }, raw)
+      : pageSql(
+          this.db,
+          {
+            schema: departmentRow,
+            sql: `SELECT department,count(*) AS employees,sum(gross) AS gross,
       sum(net) AS net,sum(social) AS social,sum(housing) AS housing,sum(tax) AS tax,
       sum(employer_social) AS employer_social,sum(employer_housing) AS employer_housing ${where} GROUP BY department`,
-      [q.period, q.department ?? null, q.department ?? null],
-      raw,
-      'department',
-    );
+            values,
+            order: 'department',
+          },
+          raw,
+        );
   }
-  save(actor: Actor | null, raw: unknown) {
+  private employee(period: string, employeeId: string) {
+    return one(this.db, rows.fin_payroll, 'SELECT * FROM fin_payroll WHERE period=? AND employee_id=?', period, employeeId);
+  }
+  /**
+   * 保存工资表。replace 是导入整张工资表：这个月按文件整月覆盖，文件里没写版本列的按当前版本覆盖，
+   * 文件里没有的员工删掉（删前留了快照和审计）。
+   */
+  save(actor: Actor | null, raw: unknown, replace = false) {
     const user = financeActor(actor, 'finance:close');
     const v = request
-      .extend({ period: periodSchema, rows: z.array(payrollRow).min(1).max(1000) })
+      .extend({ period: periodSchema, rows: z.array(payrollRow).min(1).max(MAX_EMPLOYEES) })
       .parse(raw);
-    return financeWrite(this.store, user, 'payroll.save', v, () => {
+    return financeWrite(this.store, user, { action: 'payroll.save', input: v, result: saved }, () => {
+      // 计提以后还能改（月份没结账就行）：改了以后结账检查会提示重做工资计提。
       this.ledger.openPeriod(user, endOfMonth(v.period));
-      if (
-        this.db
-          .prepare("SELECT 1 FROM fin_period_jobs WHERE period=? AND kind='payroll'")
-          .get(v.period)
-      )
-        financeError('工资已确认。', 409);
-      if (new Set(v.rows.map((r) => r.employeeId)).size !== v.rows.length)
-        financeError('工资员工重复。');
-      const rows = v.rows.map((r) => {
-        const before = this.db
-          .prepare('SELECT * FROM fin_payroll WHERE period=? AND employee_id=?')
-          .get(v.period, r.employeeId);
-        if (before) checkVersion(before, r.version ?? 0);
+      if (new Set(v.rows.map((r) => r.employeeId)).size !== v.rows.length) financeError('工资员工重复。');
+      const list = v.rows.map((r) => {
+        const before = this.employee(v.period, r.employeeId);
+        if (before) checkVersion(before, r.version ?? (replace ? before.version : 0));
         else if (r.version) financeError('工资记录不存在。', 404);
         this.db
           .prepare(
@@ -109,28 +148,33 @@ export class FinancePayroll {
             r.employerSocial,
             r.employerHousing,
           );
-        const after = this.db
-          .prepare('SELECT * FROM fin_payroll WHERE period=? AND employee_id=?')
-          .get(v.period, r.employeeId)!;
-        financeAudit(
-          this.store,
-          user,
-          'save',
-          'fin_payroll',
-          Number(after.id),
-          before ?? null,
-          after,
-        );
+        const after = expectRow(this.employee(v.period, r.employeeId), '工资记录');
+        financeAudit(this.store, user, { action: 'save', entity: 'fin_payroll', id: after.id, before: before ?? null, after });
         return { ...after };
       });
-      return { rows };
+      if (replace) this.removeMissing(user, v.period, v.rows.map((r) => r.employeeId));
+      return { rows: list };
     });
+  }
+  /** 整月覆盖：文件里没有的员工删掉，逐条记审计 */
+  private removeMissing(user: Actor, period: string, employeeIds: string[]) {
+    const removed = many(
+      this.db,
+      rows.fin_payroll,
+      'SELECT * FROM fin_payroll WHERE period=? AND employee_id NOT IN (SELECT value FROM json_each(?))',
+      period,
+      JSON.stringify(employeeIds),
+    );
+    for (const item of removed) {
+      this.db.prepare('DELETE FROM fin_payroll WHERE id=?').run(item.id);
+      financeAudit(this.store, user, { action: 'replace_delete', entity: 'fin_payroll', id: item.id, before: item, after: null });
+    }
   }
   async upload(actor: Actor | null, raw: unknown, bytes: Buffer) {
     financeActor(actor, 'finance:close');
     const v = request.extend({ period: periodSchema, format: z.enum(['csv', 'xlsx']) }).parse(raw);
     const lines = await sheetRows(bytes, v.format, 1);
-    const rows = lines.map((c) => ({
+    const sheet = lines.map((c) => ({
       employeeId: c[0],
       employeeName: c[1],
       department: c[2],
@@ -144,8 +188,82 @@ export class FinancePayroll {
       employerHousing: yuan(c[10] ?? ''),
       version: c[11] ? Number(c[11]) : undefined,
     }));
-    return this.save(actor, { period: v.period, requestId: v.requestId, rows });
+    // 重新导入是整月覆盖：文件里少了的员工会删掉，删之前留一份快照
+    const listed = new Set(sheet.map((r) => String(r.employeeId)));
+    if (
+      many(this.db, rows.fin_payroll.pick({ employee_id: true }), 'SELECT employee_id FROM fin_payroll WHERE period=?', v.period).some(
+        (r) => !listed.has(r.employee_id),
+      )
+    )
+      snapshotBeforeDestructive(this.store, 'finance-payroll-replace');
+    return this.save(actor, { period: v.period, requestId: v.requestId, rows: sheet }, true);
   }
+  /** 按现在的工资表算计提分录，只读不写。 */
+  private plan(period: string, accounts: PayrollAccounts = {}) {
+    const groups = many(
+      this.db,
+      costGroup,
+      `SELECT account_code,sum(gross+employer_social+employer_housing) AS cost,
+      sum(social+employer_social) AS social,sum(housing+employer_housing) AS housing,sum(tax) AS tax,sum(net) AS net
+      FROM fin_payroll WHERE period=? GROUP BY account_code`,
+      period,
+    );
+    const total = (key: 'cost' | 'social' | 'housing' | 'tax' | 'net') => groups.reduce((n, r) => n + r[key], 0);
+    const cost = total('cost'),
+      net = total('net');
+    const credits = new Map<string, number>();
+    const mapping = financeTemplate(this.store, 'payroll'),
+      wagesAccount = mapping('wages');
+    for (const [code, n] of [
+      [wagesAccount, net],
+      [accounts.socialAccount ?? mapping('social'), total('social')],
+      [accounts.housingAccount ?? mapping('housing'), total('housing')],
+      [accounts.taxAccount ?? mapping('tax'), total('tax')],
+    ] as const)
+      credits.set(code, (credits.get(code) ?? 0) + n);
+    const entries = [
+      ...groups.filter((r) => r.cost).map((r) => entry(r.account_code, r.cost, 0)),
+      ...Array.from(credits)
+        .filter(([, amount]) => amount)
+        .map(([code, amount]) => entry(code, 0, amount)),
+    ];
+    return {
+      entries,
+      cost,
+      net,
+      wagesAccount,
+      totals: { social: total('social'), housing: total('housing'), tax: total('tax') },
+    };
+  }
+
+  /**
+   * 结账检查：工资计提以后工资表改了，按现在的工资表重算和那次不一样，要重做。
+   * 比各部门费用科目、实发和代扣合计；挂账科目当时可能改选过，只比金额。
+   */
+  accrualStale(period: string) {
+    const job = payrollJob(this.db, period, 'payroll');
+    if (!job) return null;
+    const details = readAccrual(job);
+    const plan = this.plan(period, details.accounts);
+    const debit = (list: { accountCode: string; debit: number; credit: number }[]) =>
+      entryNet(list.filter((e) => e.debit > 0));
+    const recorded = job.voucher_id
+      ? many(
+          this.db,
+          rows.fin_entries.pick({ account_code: true, debit: true, credit: true }),
+          'SELECT account_code,debit,credit FROM fin_entries WHERE voucher_id=?',
+          job.voucher_id,
+        ).map((e) => ({ accountCode: e.account_code, debit: e.debit, credit: e.credit }))
+      : [];
+    const changed =
+      !sameNet(debit(plan.entries), debit(recorded)) ||
+      details.net !== plan.net ||
+      details.totals.social !== plan.totals.social ||
+      details.totals.housing !== plan.totals.housing ||
+      details.totals.tax !== plan.totals.tax;
+    return changed ? '工资计提以后，工资表改过。' : null;
+  }
+
   confirm(actor: Actor | null, raw: unknown) {
     const user = financeActor(actor, 'finance:close'),
       v = request
@@ -154,39 +272,35 @@ export class FinancePayroll {
           socialAccount: accountCodeSchema.optional(),
           housingAccount: accountCodeSchema.optional(),
           taxAccount: accountCodeSchema.optional(),
+          /** 工资表改过，撤回原来的计提（已记账的红冲）按现在的工资表重做 */
+          redo: z.boolean().default(false),
+          expectedVoucherId: expectedVoucher,
         })
         .parse(raw);
-    return financeWrite(this.store, user, 'payroll.confirm', v, () => {
+    return financeWrite(this.store, user, { action: 'payroll.confirm', input: v, result: accrued }, () => {
       const date = endOfMonth(v.period);
       this.ledger.openPeriod(user, date);
-      const groups = this.db
-        .prepare(
-          `SELECT account_code,sum(gross+employer_social+employer_housing) AS cost,
-        sum(social+employer_social) AS social,sum(housing+employer_housing) AS housing,sum(tax) AS tax,sum(net) AS net
-        FROM fin_payroll WHERE period=? GROUP BY account_code`,
-        )
-        .all(v.period);
-      const total = (key: string) => groups.reduce((n, r) => n + Number(r[key]), 0);
-      const cost = total('cost'),
-        net = total('net');
-      const credits = new Map<string, number>();
-      const mapping = financeTemplate(this.store, 'payroll'),
-        wagesAccount = mapping('wages');
-      for (const [code, n] of [
-        [wagesAccount, net],
-        [v.socialAccount ?? mapping('social'), total('social')],
-        [v.housingAccount ?? mapping('housing'), total('housing')],
-        [v.taxAccount ?? mapping('tax'), total('tax')],
-      ] as const)
-        credits.set(code, (credits.get(code) ?? 0) + n);
-      const entries = [
-        ...groups
-          .filter((r) => r.cost)
-          .map((r) => entry(String(r.account_code), Number(r.cost), 0)),
-        ...Array.from(credits)
-          .filter(([, amount]) => amount)
-          .map(([code, amount]) => entry(code, 0, amount)),
-      ];
+      let accounts: PayrollAccounts = {
+        socialAccount: v.socialAccount,
+        housingAccount: v.housingAccount,
+        taxAccount: v.taxAccount,
+      };
+      if (v.redo) {
+        const previous = withdrawJob(this.store, user, {
+          period: v.period,
+          kind: 'payroll',
+          reason: '重做工资计提',
+          expectedVoucherId: v.expectedVoucherId,
+        });
+        // 没另选挂账科目时沿用上次的
+        const used = readAccrual(previous.job).accounts;
+        accounts = {
+          socialAccount: v.socialAccount ?? used.socialAccount,
+          housingAccount: v.housingAccount ?? used.housingAccount,
+          taxAccount: v.taxAccount ?? used.taxAccount,
+        };
+      }
+      const { entries, cost, net, wagesAccount, totals } = this.plan(v.period, accounts);
       const voucher = cost
         ? Number(
             this.ledger.createLinked(
@@ -198,70 +312,28 @@ export class FinancePayroll {
             ).header.id,
           )
         : null;
-      return periodJob(this.store, user, v.period, 'payroll', voucher, { cost, net, wagesAccount });
+      return periodJob(this.store, user, {
+        period: v.period,
+        kind: 'payroll',
+        voucher,
+        schema: accrualDetails,
+        details: { cost, net, wagesAccount, totals, accounts },
+      });
     });
   }
+  /** 这个月工资发了多少、还剩多少（见 payroll-pay.ts） */
+  paymentStatus(actor: Actor | null, raw: unknown) {
+    financeActor(actor);
+    const { period } = z.object({ period: periodSchema }).parse(raw);
+    return paymentStatus(this.db, period);
+  }
+
+  /** 发一次工资（见 payroll-pay.ts） */
   pay(actor: Actor | null, raw: unknown) {
     const user = financeActor(actor, 'finance:cash'),
-      v = request.extend({ period: periodSchema, date: dateSchema, accountId: id }).parse(raw);
-    return financeWrite(this.store, user, 'payroll.pay', v, () => {
-      const run = this.db
-        .prepare("SELECT * FROM fin_period_jobs WHERE period=? AND kind='payroll'")
-        .get(v.period);
-      if (
-        !run?.voucher_id ||
-        this.ledger.get(user, run.voucher_id).header.status !== 'posted' ||
-        v.date < endOfMonth(v.period)
-      )
-        financeError('请先确认并记账工资计提。');
-      const payroll = JSON.parse(String(run.details));
-      const amount = Number(payroll.net);
-      if (!amount) financeError('没有应发放净额。');
-      const cash = new FinanceSettlements(this.store);
-      const draft = cash.writeCash(user, {
-        requestId: v.requestId,
-        kind: 'outlay',
-        accountId: v.accountId,
-        date: v.date,
-        amount,
-        method: '银行',
-        description: '工资发放 ' + v.period,
-        counterAccount: String(payroll.wagesAccount),
-        cashFlow: '支付给职工的现金',
-      });
-      const previous = this.db
-        .prepare("SELECT * FROM fin_period_jobs WHERE period=? AND kind='payroll_pay'")
-        .get(v.period);
-      if (
-        previous &&
-        row(this.db, 'fin_cash_documents', Number(JSON.parse(String(previous.details)).cashId))
-          .status !== 'cancelled'
-      )
-        financeError('该期间工资已发放。', 409);
-      cash.confirm(user, draft.id, {
-        version: 1,
-        requestId: 'payroll-cash:' + v.period + ':' + draft.id,
-      });
-      if (previous) {
-        const voucherId = row(this.db, 'fin_cash_documents', Number(draft.id)).voucher_id;
-        const details = { cashId: draft.id, amount };
-        this.db
-          .prepare(
-            "UPDATE fin_period_jobs SET voucher_id=?,details=? WHERE period=? AND kind='payroll_pay'",
-          )
-          .run(voucherId, JSON.stringify(details), v.period);
-        const after = { period: v.period, kind: 'payroll_pay', voucherId, details };
-        financeAudit(this.store, user, 'payment_replace', 'fin_period_jobs', null, previous, after);
-        return after;
-      }
-      return periodJob(
-        this.store,
-        user,
-        v.period,
-        'payroll_pay',
-        Number(row(this.db, 'fin_cash_documents', Number(draft.id)).voucher_id),
-        { cashId: draft.id, amount },
-      );
-    });
+      v = payInput.parse(raw);
+    return financeWrite(this.store, user, { action: 'payroll.pay', input: v, result: paidOut }, () =>
+      payPayroll(this.store, this.ledger, user, v),
+    );
   }
 }

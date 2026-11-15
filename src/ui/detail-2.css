@@ -1,0 +1,291 @@
+/* 右侧详情面板和详情里的分节、事实、明细表（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+@media (max-width: 700px) {
+  .detail-panel button {
+    min-height: 44px;
+  }
+  .detail-panel input:not([type='checkbox']):not([type='radio']),
+  .detail-panel select,
+  .detail-panel textarea {
+    min-height: 44px;
+    font-size: var(--text-lg);
+  }
+  .record-view-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .record-view-tabs button {
+    flex: none;
+  }
+
+  /* 右侧详情：铺满屏幕 */
+  .detail-panel {
+    top: 0;
+    right: 0;
+    width: 100% !important;
+    min-width: 0 !important;
+    z-index: var(--z-floating);
+  }
+  .detail-panel-head .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* 详情面板头部：上面一行小字是单据类型，下面是编号 */
+.detail-panel-titles {
+  flex: 1;
+  min-width: 0;
+}
+.detail-panel-titles .detail-panel-kicker {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 16px;
+}
+.detail-panel-titles h2 {
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-panel-subtitle {
+  flex: none;
+  font-size: var(--text-sm);
+}
+.detail-panel-head:has(+ .detail-panel-subtitle) {
+  border-bottom: 0;
+}
+
+/* 一行操作 */
+.record-actions {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.record-actions > button,
+.record-actions > .button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 28px;
+  padding: var(--space-3xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+.record-actions .more-menu {
+  margin-left: auto;
+}
+.record-actions .more-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  list-style: none;
+}
+.record-actions .more-menu summary::-webkit-details-marker {
+  display: none;
+}
+.record-actions .danger-text {
+  color: var(--danger);
+}
+
+/* 基本信息：两列，标签在上 */
+.record-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md) var(--space-lg);
+  margin: 0;
+}
+.record-facts > div {
+  min-width: 0;
+}
+.record-facts > .wide {
+  grid-column: 1 / -1;
+}
+.record-facts dt {
+  margin: 0 0 var(--space-3xs);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 16px;
+}
+.record-facts dd {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.record-facts dd a {
+  color: var(--accent-ink);
+}
+
+/* 详情里的分节 */
+.record-section {
+  padding: var(--space-lg) 0 0;
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}
+.record-section:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+.record-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.record-section table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.record-section th {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.record-section td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.record-section td.num,
+.record-section th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.record-section td small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.record-links {
+  display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.record-links li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+.record-links li a,
+.record-links li button.link {
+  color: var(--accent-ink);
+}
+.record-links li small {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+/* 进度 */
+.record-progress {
+  display: grid;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+}
+.record-progress-text {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.record-progress-text strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+.record-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-control);
+  background: var(--success);
+}
+
+/* 一句提示 */
+.record-hint {
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--r-control);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.record-hint.tone-info {
+  background: var(--info-soft);
+}
+.record-hint.tone-warning {
+  background: var(--warning-soft);
+}
+.record-hint.tone-danger {
+  background: var(--danger-soft);
+}
+
+@media (max-width: 760px) {
+  .record-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 编辑窗里的明细行：表头只出现一次，每行一排输入框 */
+.line-table {
+  overflow-x: auto;
+}
+.line-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.line-table th {
+  padding: var(--space-2xs) var(--space-sm) var(--space-xs) 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.line-table th.num {
+  text-align: right;
+}
+.line-table td {
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.line-table td.num {
+  width: 128px;
+}
+.line-table td.num input {
+  text-align: right;
+}
+.line-table td:last-child {
+  width: 36px;
+  padding-right: 0;
+}
+
+@media (max-width: 700px) {
+  /* 手机上标题放不下时换行，不被旁边的状态标签挤成省略号（单号要看全） */
+  .detail-panel-head h2 {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

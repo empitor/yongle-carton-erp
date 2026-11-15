@@ -1,0 +1,32 @@
+/**
+ * 从选中的记录新建单据：跳到对应页面打开新建窗，并带上选中的内容。
+ * 右上角的“新建”是空白单；这里是“拿这些东西开单”，所以客户、产品、供应商、纸板都预先填好。
+ * 末尾带一个时间戳，连点两次同一个按钮也能再打开。
+ */
+const stamp = () => '&n=' + Date.now();
+
+/** 新建订单：带客户，或带几种产品（每种一行，数量自己填；产品不属于某个客户，客户不猜）。 */
+export function newOrderFrom({ customerId, productIds }: { customerId?: number; productIds?: number[] }) {
+  location.hash =
+    'orders?create=1' +
+    (customerId ? '&customer=' + customerId : '') +
+    (productIds?.length ? '&products=' + productIds.join(',') : '') +
+    stamp();
+}
+
+/** 新建采购单：带供应商，或带几种纸板（每种一行，张数和单价自己填）。 */
+export function newPurchaseFrom({ supplierId, stockIds }: { supplierId?: number; stockIds?: number[] }) {
+  location.hash =
+    'purchases?create=1' +
+    (supplierId ? '&supplier=' + supplierId : '') +
+    (stockIds?.length ? '&stocks=' + stockIds.join(',') : '') +
+    stamp();
+}
+
+/** 读地址栏里的 id 列表，例如 products=3,5。 */
+export function idList(value: string | null) {
+  return (value || '')
+    .split(',')
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0);
+}

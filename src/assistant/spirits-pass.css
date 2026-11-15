@@ -1,0 +1,239 @@
+/* 小甬小勒小剧场：传箱子 */
+/* ---- 小剧场：传箱子 ---- */
+.yl-duo[data-scene='pass'] .yl-foot {
+  animation: yl-pass-foot 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-cargo {
+  animation: yl-pass-cargo 3.6s both;
+}
+.yl-duo[data-scene='pass'] .yl-box {
+  animation: yl-pass-spin 3.6s both;
+}
+.yl-duo[data-scene='pass'] .yl-y-act {
+  animation: yl-pass-y 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-l-act {
+  animation: yl-pass-l 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-arm-l {
+  animation: yl-pass-arm-l 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-arm-r {
+  animation: yl-pass-arm-r 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-eyes-y .yl-look {
+  animation: yl-pass-look-y 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-eyes-l .yl-look {
+  animation: yl-pass-look-l 3.6s ease-in-out both;
+}
+.yl-duo[data-scene='pass'] .yl-open {
+  animation: yl-pass-mouth 3.6s step-end both;
+}
+.yl-duo[data-scene='pass'] .yl-smile {
+  animation: yl-pass-smile 3.6s step-end both;
+}
+
+@keyframes yl-pass-foot {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  10% {
+    transform: rotate(4deg);
+  }
+  14% {
+    transform: rotate(-15deg);
+  }
+  24%,
+  78% {
+    transform: rotate(0);
+  }
+  83% {
+    transform: rotate(6deg);
+  }
+  90% {
+    transform: rotate(-2deg);
+  }
+}
+
+@keyframes yl-pass-cargo {
+  0%,
+  12% {
+    transform: translate(0, 0);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.5, 1);
+  }
+  22% {
+    transform: translate(-28px, -64px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.5);
+  }
+  32%,
+  64% {
+    transform: translate(-55px, -46px);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.5, 1);
+  }
+  73% {
+    transform: translate(-27px, -66px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.5);
+  }
+  83%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes yl-pass-spin {
+  0%,
+  12% {
+    transform: rotate(0);
+  }
+  32%,
+  64% {
+    transform: rotate(-360deg);
+  }
+  83%,
+  100% {
+    transform: rotate(-720deg);
+  }
+}
+
+@keyframes yl-pass-y {
+  0%,
+  28%,
+  58%,
+  100% {
+    transform: scale(1, 1);
+  }
+  34% {
+    transform: scale(1.07, 0.92);
+  }
+  42% {
+    transform: scale(0.99, 1.02);
+  }
+  62% {
+    transform: scale(1.06, 0.94);
+  }
+  67% {
+    transform: scale(0.95, 1.06) translateY(-2px);
+  }
+  74% {
+    transform: scale(1, 1);
+  }
+}
+
+@keyframes yl-pass-l {
+  0%,
+  16%,
+  78%,
+  100% {
+    transform: scale(1, 1);
+  }
+  10% {
+    transform: scale(1.05, 0.93);
+  }
+  14% {
+    transform: scale(0.96, 1.05) translateY(-2px);
+  }
+  84% {
+    transform: scale(1.06, 0.93);
+  }
+  91% {
+    transform: scale(0.99, 1.02);
+  }
+}
+
+@keyframes yl-pass-arm-l {
+  0%,
+  22%,
+  72%,
+  100% {
+    transform: rotate(0);
+  }
+  32%,
+  60% {
+    transform: rotate(5deg);
+  }
+  66% {
+    transform: rotate(-9deg);
+  }
+}
+
+@keyframes yl-pass-arm-r {
+  0%,
+  22%,
+  72%,
+  100% {
+    transform: rotate(0);
+  }
+  32%,
+  60% {
+    transform: rotate(-5deg);
+  }
+  66% {
+    transform: rotate(9deg);
+  }
+}
+
+@keyframes yl-pass-look-y {
+  0%,
+  10%,
+  90%,
+  100% {
+    transform: translate(0, 0);
+  }
+  22%,
+  73% {
+    transform: translate(0.6px, -1.4px);
+  }
+  32%,
+  64% {
+    transform: translate(-0.9px, -1.5px);
+  }
+}
+
+@keyframes yl-pass-look-l {
+  0%,
+  8%,
+  90%,
+  100% {
+    transform: translate(0, 0);
+  }
+  22%,
+  73% {
+    transform: translate(0.6px, -1.4px);
+  }
+  32%,
+  64% {
+    transform: translate(-0.4px, -1.5px);
+  }
+}
+
+@keyframes yl-pass-mouth {
+  0%,
+  22%,
+  44%,
+  70%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  32%,
+  83% {
+    opacity: 1;
+  }
+}
+
+@keyframes yl-pass-smile {
+  0%,
+  22%,
+  44%,
+  70%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  32%,
+  83% {
+    opacity: 0;
+  }
+}

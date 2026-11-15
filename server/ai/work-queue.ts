@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { AiConnectionError } from './connection-error.js';
+import { AiConnectionError } from './errors.js';
 export type QueueState = {
   state: 'queued' | 'running' | 'backoff';
   position: number;
@@ -8,19 +8,25 @@ export type QueueState = {
 };
 type Job = {
   id: string;
-  run: () => Promise<any>;
-  resolve: (v: any) => void;
-  reject: (e: any) => void;
+  /** 跑一次；成功时交回把结果交给调用方的函数（各个任务的结果类型不同，排队这一层不用知道） */
+  run: () => Promise<() => void>;
+  reject: (e: unknown) => void;
   signal?: AbortSignal;
   notify?: (s: QueueState) => void;
   attempt: number;
   abort: () => void;
 };
+/** 自动调节的并发上限最高到几；连着成功几次往上加一 */
+const ADAPTIVE_CEILING = 6;
+const SUCCESSES_TO_RAISE = 6;
+/** 限流后最多等多久、最多重排几次 */
+const MAX_BACKOFF_MS = 30_000;
+const MAX_RETRIES = 2;
 // 所有使用当前AI管理器的请求共享限额。仅明确429自动重试，超时/断线可能已计费，不自动重发。
 export class AiWorkQueue {
   private jobs: Job[] = [];
   private active = 0;
-  private adaptive = 6;
+  private adaptive = ADAPTIVE_CEILING;
   private successes = 0;
   private cooldown = 0;
   private timer?: ReturnType<typeof setTimeout>;
@@ -47,8 +53,7 @@ export class AiWorkQueue {
     return new Promise((resolve, reject) => {
       const job: Job = {
         id: randomUUID(),
-        run,
-        resolve,
+        run: () => run().then((value) => () => resolve(value)),
         reject,
         signal,
         notify,
@@ -87,8 +92,9 @@ export class AiWorkQueue {
       this.timer.unref();
       return;
     }
-    while (this.active < this.limit && this.jobs.length) {
-      const j = this.jobs.shift()!;
+    while (this.active < this.limit) {
+      const j = this.jobs.shift();
+      if (!j) break;
       if (j.signal?.aborted) {
         j.abort();
         j.reject(new AiConnectionError('busy', '任务已取消。', 409));
@@ -99,19 +105,19 @@ export class AiWorkQueue {
       void Promise.resolve()
         .then(j.run)
         .then(
-          (v) => {
-            if (++this.successes >= 6) {
-              this.adaptive = Math.min(6, this.adaptive + 1);
+          (deliver) => {
+            if (++this.successes >= SUCCESSES_TO_RAISE) {
+              this.adaptive = Math.min(ADAPTIVE_CEILING, this.adaptive + 1);
               this.successes = 0;
             }
-            j.resolve(v);
+            deliver();
           },
-          (e) => {
+          (e: unknown) => {
             if (e instanceof AiConnectionError && e.code === 'rate_limit') {
               this.adaptive = 1;
               this.successes = 0;
-              this.cooldown = Date.now() + Math.min(30000, this.backoffMs * 2 ** j.attempt);
-              if (j.attempt < 2 && !j.signal?.aborted) {
+              this.cooldown = Date.now() + Math.min(MAX_BACKOFF_MS, this.backoffMs * 2 ** j.attempt);
+              if (j.attempt < MAX_RETRIES && !j.signal?.aborted) {
                 j.attempt++;
                 this.jobs.push(j);
                 return;

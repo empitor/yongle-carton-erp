@@ -34,13 +34,13 @@ export function auditRelease(cwd = process.cwd()) {
     for (const [rule, re] of patterns)
       for (const match of content.matchAll(re))
         if (!dummy(match[0])) findings.push({ scope, file: name, rule });
-    // Secret 无固定前缀，按配置字段识别；通用 secret 还必须有企微机器人上下文。
-    const secretFields = /["']?\b(?:wecom[_-]?(?:bot|robot)[_-]?secret|botSecret|robotSecret)["']?\s*[:=]\s*["']?([A-Za-z0-9_+/=-]{16,})/gi;
-    const contextual = /wecom|aibot|\bbot[_-]?id\b|企业微信|企微|智能机器人/i.test(name + '\n' + content);
+    // Secret 无固定前缀，按配置字段识别；通用 secret 还必须有机器人（企业微信、飞书、钉钉）上下文。
+    const secretFields = /["']?\b(?:(?:wecom|feishu|lark|dingtalk)[_-]?(?:bot|robot|app|client)?[_-]?secret|botSecret|robotSecret|app[_-]?secret|client[_-]?secret)["']?\s*[:=]\s*["']?([A-Za-z0-9_+/=-]{16,})/gi;
+    const contextual = /wecom|aibot|feishu|lark|dingtalk|\bbot[_-]?id\b|企业微信|企微|智能机器人|飞书|钉钉/i.test(name + '\n' + content);
     const genericSecret = /["']?\bsecret["']?\s*[:=]\s*["']?([A-Za-z0-9_+/=-]{16,})/gi;
     for (const re of [secretFields, ...(contextual ? [genericSecret] : [])])
       for (const match of content.matchAll(re))
-        if (!placeholder(match[1])) findings.push({ scope, file: name, rule: '企业微信机器人 Secret' });
+        if (!placeholder(match[1])) findings.push({ scope, file: name, rule: '机器人 Secret' });
   };
 
   const index = git('ls-files', '--stage', '-z').split('\0').filter(Boolean);

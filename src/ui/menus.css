@@ -1,0 +1,132 @@
+/* “更多”菜单、可搜索下拉、勾选后的操作条 */
+/* 可搜索下拉 */
+.combobox {
+  position: relative;
+}
+.combobox input {
+  width: 100%;
+}
+.combobox input::placeholder {
+  color: var(--placeholder);
+}
+.combobox-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: var(--z-overlay-menu);
+  width: max(100%, 280px);
+  max-height: 260px;
+  margin: 0;
+  padding: var(--space-2xs);
+  overflow: auto;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-sm);
+}
+.combobox-list li {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.combobox-list li small {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.combobox-list li.active {
+  background: var(--accent-soft);
+}
+.combobox-empty {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+/* 更多菜单 */
+.more-menu {
+  position: relative;
+}
+.more-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.more-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.more-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+.more-menu-list button,
+.more-menu-list a {
+  display: flex;
+  align-items: center;
+  /* 弹性布局下 text-align 不起作用，要靠这一条靠左 */
+  justify-content: flex-start;
+  gap: var(--space-xs);
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+.more-menu-list button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.more-menu-list button.danger-text {
+  color: var(--danger);
+}
+.more-menu-list small {
+  padding: var(--space-2xs) var(--space-sm);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 700px) {
+  .combobox-list li {
+    min-height: 44px;
+  }
+}
+.more-menu-list .danger-text {
+  color: var(--danger);
+}
+:root[data-ui='refined'] .more-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: background 0.15s var(--ease);
+}
+:root[data-ui='refined'] .more-menu > summary:hover,
+:root[data-ui='refined'] .more-menu[open] > summary {
+  background: var(--fill-1);
+}
+:root[data-ui='refined'] .more-menu-list {
+  padding: var(--space-2xs);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: var(--pop-shadow);
+}

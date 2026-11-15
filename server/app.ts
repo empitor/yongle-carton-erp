@@ -1,588 +1,193 @@
-import { MarkImportService } from './marks/mark-import.js';
-import express, { type Request, type Response, type NextFunction } from 'express';
-import helmet from 'helmet';
-import { forwardedClient, hasProxyHeaders, proxyIngress, type Deployment } from './deployment.js';
+import express, { type Express, type Request, type Response, type NextFunction } from 'express';
+import { pageProblemRouter, proxyIngress, requirePermission, requireSuperModeFor, userManualRouter, type Deployment, type ProblemLog, type Store } from './core/index.js';
+import { operationsRouter } from './operations/index.js';
+import { MarkService, recordsRouter, workbenchRouter } from './business/index.js';
+import { installRequestGuards } from './http-guards.js';
+import { apiErrorHandler } from './http-errors.js';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
-import { z, ZodError } from 'zod';
-import { pageRows } from './paging.js';
-import { autoBackupFailure, snapshotBeforeDestructive } from './backup.js';
-import { dateSchema, displayOrderStatuses, orderDisplayStatus, today, type Order } from '../shared/domain.js';
-import { Store, ConflictError, InputError } from './db.js';
-import { createBusinessService, BusinessAccessError, NotFoundError } from './business/service.js';
-import { getBusinessMetadata } from './business/metadata.js';
-import { AiSettingsManager } from './ai/settings-manager.js';
-import { aiSettingsRouter } from './ai/settings-router.js';
-import { importRouter } from './import/router.js';
-import type { ImportManager } from './import/manager.js';
-import { AuthManager } from './auth.js';
-import { matchDraft } from './import/matching.js';
-import { standardOrderDraft } from './import/standard-order.js';
-import { ImportError } from './import/errors.js';
-import { promptSettingsRouter } from './ai/prompt-router.js';
-import type { PromptPresetManager } from './ai/prompt-presets.js';
-import { promptModules } from '../shared/prompt-modules.js';
-import { changeLifecycle, audit, requirePermission, isSuperMode } from './business/management.js';
-import { PermanentDeletionService } from './business/permanent-deletion.js';
-import type { BusinessCommand } from './business/service.js';
-import { ImportExecutionService } from './business/import-execution.js';
-import { fileURLToPath } from 'node:url';
-import { marksRouter } from './marks/router.js';
-import type { MarkAi } from './marks/mark-ai.js';
-import { inboxRouter, type WecomBotControl } from './inbox/router.js';
-import { operationsRouter } from './operations/router.js';
-import { flowRouter } from './flow/router.js';
-import { financeRouter } from './finance/router.js';
-import { FinanceInfoPending } from './finance/reports.js';
-import { documentsRouter } from './documents/router.js';
-import type { ReceiptAi } from './flow/receipt-ai.js';
-import type { AssistantManager } from './assistant/manager.js';
-import { assistantRouter } from './assistant/router.js';
-import { orderInView } from '../shared/date-ranges.js';
-import { buildDashboard } from './business/dashboard.js';
-import { buildToday, relatedBusiness } from './business/workbench.js';
-import { developerRouter } from './developer-router.js';
-import { isLocalAdministrator } from './developer-capability.js';
-import { APP_VERSION } from '../shared/version.js';
-import {
-  orderMetrics,
-  productMetrics,
-  productIncomplete,
-  matchesProduct,
-} from '../shared/business-metrics.js';
+import { AiSettingsManager } from './ai/index.js';
+import { aiSettingsRouter } from './ai/index.js';
+import { importRouter } from './import/index.js';
+import type { ImportManager } from './import/index.js';
+import { AuthManager } from './core/index.js';
+import { promptModuleListRouter, promptSettingsRouter } from './ai/index.js';
+import type { PromptPresetManager } from './ai/index.js';
+import { promptModules } from '../shared/ai/index.js';
+import { ImportExecutionService } from './import/index.js';
+import { marksRouter } from './business/index.js';
+import { inboxRouter, type BotManager } from './inbox/index.js';
+import { receivingRouter } from './flow/index.js';
+import { flowRouter } from './flow/index.js';
+import { financeRouter } from './finance/index.js';
+import { documentsRouter } from './documents/index.js';
+import type { ReceiptAi } from './import/index.js';
+import { receiptSourceRouter } from './import/index.js';
+import type { AssistantManager } from './assistant/index.js';
+import { assistantRouter } from './assistant/index.js';
+import { dataManagementRouter } from './admin/index.js';
+import { deletionRouter } from './business/index.js';
+import { APP_VERSION } from '../shared/core/index.js';
+import { SERVICE_APP_NAME } from './local-service.js';
 
-function filters(req: Request, rows: Order[]) {
-  const f = z
-    .object({
-      customerId: z.coerce.number().int().positive().optional(),
-      productId: z.coerce.number().int().positive().optional(),
-      start: dateSchema.optional(),
-      end: dateSchema.optional(),
-      status: z.enum(displayOrderStatuses).optional(),
-      q: z.string().max(200).optional(),
-      view: z.enum(['current', 'pending', 'history']).optional(),
-      retainPending: z.enum(['1', '0']).optional(),
-    })
-    .parse(req.query);
-  if (f.start && f.end && f.start > f.end) throw new InputError('开始日期不能晚于结束日期');
-  return rows.filter(
-    (o) =>
-      (!f.customerId || o.customerId === f.customerId) &&
-      (!f.productId || o.lines.some((l) => l.productId === f.productId)) &&
-      orderInView(o, {
-        view: f.view,
-        start: f.start,
-        end: f.end,
-        retainPending: f.retainPending === '1',
-      }) &&
-      (!f.status || orderDisplayStatus(o) === f.status) &&
-      (!f.q ||
-        [o.number, o.customerName, ...o.lines.map((l) => l.productName)]
-          .join(' ')
-          .toLowerCase()
-          .includes(f.q.toLowerCase())),
-  );
-}
-export function createApp(
-  store: Store,
-  options: {
-    aiSettings?: AiSettingsManager;
-    imports?: ImportManager;
-    auth?: AuthManager;
-    deployment?: Deployment;
-    enableReviewedImports?: boolean;
-    importArchiveDirectory?: string;
-    receiptAi?: ReceiptAi;
-    markAi?: MarkAi;
-    wecomBot?: WecomBotControl;
-    assistant?: AssistantManager;
-    promptModules?: Partial<Record<string, PromptPresetManager>>;
-  } = {},
-) {
-  const app = express();
-  if (options.imports)
-    options.imports.arrivalDocumentExists = (id) =>
-      !!store.db.prepare("SELECT 1 FROM flow_documents WHERE id=? AND kind='arrival'").get(id);
-  const business = createBusinessService(store);
-  function includeArchived(req: Request) {
-    if (req.query.archived === 'all') {
-      if (!options.auth) throw new ImportError('请先登录并进入超级管理员模式。', 403);
-      options.auth.requireSuperMode(req);
-      return true;
-    }
-    return req.query.archived === '1';
-  }
-  // 暂时维持本机人工录入；未来此处从真实登录会话构建身份与权限上下文。
-  function manualWrite(command: BusinessCommand, req: Request) {
-    const actor = options.auth ? requirePermission(options.auth.actor(req), 'business:edit') : null;
-    if (options.auth && req.headers['x-erp-auth-token'] !== options.auth.csrf)
-      throw new ImportError('页面凭证已过期，请刷新。', 403);
-    const elevated = isSuperMode(actor);
-    const id = 'id' in command ? Number(command.id) : null,
-      before = id
-        ? command.entity === 'customers'
-          ? store.customer(id, elevated)
-          : command.entity === 'products'
-            ? store.product(id, elevated)
-            : store.order(id, elevated)
-        : null;
-    // 管理员改订单可能连带改写或删除已确认单据；开了 SAVEPOINT 就拍不了快照，要在这之前。
-    if (elevated && command.entity === 'orders' && command.action === 'update')
-      snapshotBeforeDestructive(store, 'order-maintenance-edit');
-    store.db.exec('SAVEPOINT manual_business');
-    try {
-      const result = business.execute(command, {
-        source: 'manual-ui',
-        operatorId: actor?.id || null,
-        superAdminMode: elevated,
-        developerActor: actor || undefined,
-      });
-      if (actor)
-        audit(
-          store,
-          actor,
-          elevated ? 'super-admin' : 'manual-ui',
-          command.action,
-          command.entity,
-          result.id,
-          {
-            before,
-            after: result,
-            beforeArchived: id ? store.archived(command.entity, id) : false,
-          },
-        );
-      store.db.exec('RELEASE manual_business');
-      return result;
-    } catch (error) {
-      store.db.exec('ROLLBACK TO manual_business; RELEASE manual_business');
-      throw error;
-    }
-  }
-  app.disable('x-powered-by');
-  app.use(
-    helmet({
-      contentSecurityPolicy: { directives: { upgradeInsecureRequests: null } },
-      strictTransportSecurity: false,
-    }),
-  );
-  app.use((req, res, next) => {
-    const deployment = options.deployment;
-    const viaProxy = proxyIngress(req, deployment);
-    const host = req.headers.host || '';
-    if (deployment && viaProxy) {
-      if (!deployment.hosts.has(host.toLowerCase()) || !forwardedClient(req))
-        return res.status(403).json({ message: '代理域名或访客地址不允许' });
-      res.set('Strict-Transport-Security', 'max-age=31536000');
-    } else if (deployment
-      ? !/^(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(host) || hasProxyHeaders(req)
-      : !['localhost', '127.0.0.1'].includes(host.split(':')[0])) {
-      return res.status(403).json({ message: '仅允许本机访问' });
-    }
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-      const origin = req.headers.origin;
-      if (origin) {
-        // 走到这里的非代理请求 Host 已确认是本机回环；来源和 Host 一致就是本页发出的，
-        // 这样 SSH 隧道映射到任意本机端口（如 13001）也能维护。
-        const allowed = [
-          `http://127.0.0.1:${process.env.PORT || 3001}`,
-          `http://localhost:${process.env.PORT || 3001}`,
-          'http://127.0.0.1:5173',
-          'http://localhost:5173',
-          `http://${host.toLowerCase()}`,
-        ];
-        if (deployment && viaProxy ? !deployment.origins.has(origin) : !allowed.includes(origin))
-          return res.status(403).json({ message: '请求来源不允许' });
-      }
-      const rawUpload =
-        req.method === 'POST' &&
-        ([
-          '/api/ai/imports/upload',
-          '/api/flow/sources/upload',
-          '/api/assistant/transcribe',
-          '/api/finance/bank/upload',
-          '/api/finance/invoices/upload',
-          '/api/finance/attachments/upload',
-          '/api/finance/payroll/upload',
-        ].includes(req.path) ||
-          /^\/api\/assistant\/threads\/[0-9a-f-]{36}\/attachments$/.test(req.path)) &&
-        req.is('application/octet-stream');
-      if (!req.is('application/json') && !rawUpload && req.path !== '/api/inbox/upload' && !/^\/api\/products\/[1-9]\d*\/marks\/upload$/.test(req.path))
-        return res
-          .status(415)
-          .json({ message: '请使用 JSON 请求；文件仅允许从导入上传入口提交。' });
-    }
-    next();
-  });
-  app.use((req, res, next) => (req.path === '/api/inbox/upload' || /^\/api\/products\/[1-9]\d*\/marks\/upload$/.test(req.path)) ? next() : express.json({ limit: '128kb' })(req, res, next));
-  app.get('/api/health', (_req, res) =>
-    res.json({
-      ok: true,
-      app: 'carton-workshop-erp',
-      version: APP_VERSION,
-      processId: process.pid,
-      mode: options.deployment ? '服务器部署版' : '本机开发验收版',
-      database: 'SQLite',
-    }),
-  );
-  // 启用账号体系后，除健康检查与登录接口外的全部API都要求有效会话；写入权限仍由各业务服务校验。
-  if (options.auth)
-    app.use('/api', (req, res, next) => {
-      if (req.path === '/health' || req.path === '/auth' || req.path.startsWith('/auth/'))
-        return next();
-      if (!options.auth!.actor(req))
-        return res.status(401).json({ message: '请先登录账号。', code: 'authentication' });
-      next();
-    });
-  app.get('/api/business/metadata', (_req, res) =>
+/** 原件归档目录必须由调用方给：不回退到程序目录下的固定位置，免得测试或漏配的实例写进真实数据目录。 */
+const noArchiveDirectory = (): never => {
+  throw new Error('没有给原件归档目录：建识别导入管理器时传 archiveDirectory，或建应用时传 importArchiveDirectory。');
+};
+
+type AppOptions = {
+  aiSettings?: AiSettingsManager;
+  imports?: ImportManager;
+  auth?: AuthManager;
+  deployment?: Deployment;
+  enableReviewedImports?: boolean;
+  importArchiveDirectory?: string;
+  receiptAi?: ReceiptAi;
+  bots?: BotManager;
+  assistant?: AssistantManager;
+  promptModules?: Partial<Record<string, PromptPresetManager>>;
+  /** 出错记录库：请求失败由请求守卫记，页面报错走 /api/diagnostics */
+  problems?: ProblemLog;
+};
+
+/** 健康检查：从域名进来的只回 ok，版本号、进程号不对外（停服务、启动、打补丁的脚本都走本机端口） */
+function healthRoute(app: Express, deployment: Deployment | undefined) {
+  app.get('/api/health', (req, res) =>
     res.json(
-      getBusinessMetadata({
-        authentication: !!options.auth,
-        importExecution: !!(options.auth && options.imports && options.enableReviewedImports),
-        assistantTools:
-          options.auth && options.assistant
-            ? Object.fromEntries(options.assistant.registry.exposed().map((t) => [t.name, true]))
-            : {},
-      }),
+      proxyIngress(req, deployment)
+        ? { ok: true }
+        : {
+            ok: true,
+            app: SERVICE_APP_NAME,
+            version: APP_VERSION,
+            processId: process.pid,
+            mode: deployment ? '服务器部署版' : '本机开发验收版',
+            database: 'SQLite',
+          },
     ),
   );
+}
+
+/** 提示词模块对应的管理器：建应用时给的优先，没给就用识别导入、送货单识别、助手各自带的那份 */
+function promptManagerFor(id: string, options: AppOptions) {
+  const given = options.promptModules?.[id];
+  if (given) return given;
+  if (id === 'sales-order') return options.imports?.promptPresets;
+  if (id === 'supplier-delivery') return options.receiptAi?.prompts;
+  if (id === 'assistant') return options.assistant?.prompts;
+  return undefined;
+}
+
+/** 提示词只有这一套地址：/api/ai/prompt-modules 列模块，每个模块挂在自己的 apiPath 下。 */
+function promptRoutes(app: Express, auth: AuthManager, options: AppOptions) {
+  app.use('/api/ai/prompt-modules', promptModuleListRouter((req) => auth.actor(req)));
+  for (const module of promptModules) {
+    const manager = promptManagerFor(module.id, options);
+    if (!manager) continue;
+    options.assistant?.promptEdit.managers.set(module.id, manager);
+    app.use(
+      module.apiPath,
+      (req, _res, next) => {
+        const actor = auth.actor(req);
+        requirePermission(actor, 'business:edit');
+        // 提示词全员共用，进所有人助手的系统提示词：改动和 AI 设置一样要先进超级管理员模式；读取照旧
+        if (req.method !== 'GET') requireSuperModeFor(actor, '修改提示词');
+        next();
+      },
+      promptSettingsRouter(module.id, manager, auth.csrf),
+    );
+  }
+}
+
+/** 识别结果确认后写进业务库：开了识别导入、有账号体系、允许执行时才有，有就交给助手一起用 */
+function importExecution(store: Store, options: AppOptions) {
+  if (!options.imports || !options.auth || !options.enableReviewedImports) return undefined;
+  const execution = new ImportExecutionService(
+    store,
+    options.imports,
+    options.importArchiveDirectory || options.imports.archiveDirectory || noArchiveDirectory(),
+  );
+  options.assistant?.connectImports(options.imports, execution);
+  options.assistant?.connectExtras({
+    marks: new MarkService(store),
+    ...(options.receiptAi ? { receiptAi: options.receiptAi } : {}),
+  });
+  return execution;
+}
+
+/** 有构建好的页面（dist）就一起发：入口页不缓存，带内容摘要的资源长期缓存，别的地址都回入口页 */
+function staticSite(app: Express) {
+  const dist = resolve('dist');
+  if (!existsSync(dist)) return;
+  app.use(express.static(dist, {
+    setHeaders(res, file) {
+      const relative = file.slice(dist.length + 1).replaceAll('\\', '/');
+      if (relative === 'index.html') res.setHeader('Cache-Control', 'no-cache');
+      else if (/^assets\/(?:[^/]+\/)*[^/]+-[A-Za-z0-9_-]{8}\.[^/]+$/.test(relative))
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
+  }));
+  app.get('/{*path}', (_req, res) =>
+    res.sendFile(resolve(dist, 'index.html'), { headers: { 'Cache-Control': 'no-cache' } }),
+  );
+}
+
+export function createApp(store: Store, options: AppOptions = {}) {
+  const app = express();
+  installRequestGuards(app, options);
+  healthRoute(app, options.deployment);
+  // 业务汇总：今日、概况、关联记录
+  app.use('/api', workbenchRouter(store, options.auth));
   // 新增核对身份仅服务于导入准备，不改变既有业务或AI设置的访问策略。
   if (options.auth) app.use('/api/auth', options.auth.router());
+  // 使用手册（docs/使用手册.md），“使用说明”页显示它，助手的 guide.read 读同一份
+  app.use('/api/guide', userManualRouter());
+  if (options.auth) app.use('/api/deletions', deletionRouter(store, options.auth));
   if (options.auth)
     app.use(
-      ['/api/management', '/api/developer'],
-      developerRouter(store, options.auth, options.imports),
+      '/api/management',
+      dataManagementRouter(store, options.auth, options.imports),
     );
   if (options.assistant && options.auth) {
     app.use('/api/assistant', assistantRouter(options.assistant, options.auth));
-    app.use(
-      '/api/ai/assistant-prompts',
-      (req, _res, next) => {
-        requirePermission(options.auth!.actor(req), 'business:edit');
-        next();
-      },
-      promptSettingsRouter(options.assistant.prompts, options.auth.csrf),
-    );
   }
   app.use('/api', marksRouter(store, options.auth));
-  app.use('/api/inbox', inboxRouter(store, options.auth, options.imports, options.wecomBot));
+  app.use('/api/inbox', inboxRouter(store, options.auth, options.imports, options.bots));
+  // 登记到货属于单据流转，地址沿用 /api/order-batches/:id/receive、/api/purchases/:id/receive
+  app.use('/api', receivingRouter(store, options.auth));
   app.use('/api', operationsRouter(store, options.auth));
-  app.use('/api/flow', flowRouter(store, options.auth, options.receiptAi));
+  // 送货单原件和 AI 识别属于识别导入，先挂，免得被单据的 /:id 路由接走
+  app.use('/api/flow', receiptSourceRouter(options.auth, options.receiptAi));
+  app.use('/api/flow', flowRouter(store, options.auth));
   app.use('/api/finance', financeRouter(store, options.auth));
   app.use('/api/documents', documentsRouter(store, options.auth));
-  if (options.receiptAi && options.auth)
-    app.use(
-      '/api/ai/receipt-prompts',
-      (req, _res, next) => {
-        requirePermission(options.auth!.actor(req), 'business:edit');
-        next();
-      },
-      promptSettingsRouter(options.receiptAi.prompts, options.auth.csrf),
-    );
-  // 统一提示词模块目录：按模块标识隔离预设，旧 /api/ai/prompts 等路径继续兼容。
-  if (options.auth) {
-    app.get('/api/ai/prompt-modules', (req, res) => {
-      requirePermission(options.auth!.actor(req), 'business:edit');
-      res.json(
-        promptModules.map((module) => ({
-          id: module.id,
-          name: module.name,
-          description: module.description,
-          purpose: module.purpose,
-          apiPath: module.apiPath,
-          status: module.status,
-          documents: module.documents,
-          usage: module.usage,
-        })),
-      );
-    });
-    for (const module of promptModules) {
-      const manager =
-        options.promptModules?.[module.id] ??
-        (module.id === 'sales-order'
-          ? options.imports?.promptPresets
-          : module.id === 'supplier-delivery'
-            ? options.receiptAi?.prompts
-            : module.id === 'shipping-mark'
-              ? options.markAi?.prompts
-            : module.id === 'assistant'
-              ? options.assistant?.prompts
-              : undefined);
-      if (!manager) continue;
-      options.assistant?.promptEdit.managers.set(module.id, manager);
-      app.use(
-        module.apiPath,
-        (req, _res, next) => {
-          requirePermission(options.auth!.actor(req), 'business:edit');
-          next();
-        },
-        promptSettingsRouter(manager, options.auth.csrf),
-      );
-    }
-  }
-  if (options.auth) {
-    const deletion = new PermanentDeletionService(store);
-    app.post('/api/admin/permanent-deletions/:action', (req, res) => {
-      if (proxyIngress(req, options.deployment))
-        throw new ImportError('部署模式下请通过服务器本机维护入口执行永久删除。', 403);
-      if (req.headers['x-erp-auth-token'] !== options.auth!.csrf)
-        throw new ImportError('页面凭证已过期，请刷新。', 403);
-      const actor = options.auth!.requireSuperMode(req),
-        binding = options.auth!.sessionBinding(req);
-      if (req.params.action === 'preview') res.json(deletion.preview(req.body, actor, binding));
-      else if (req.params.action === 'execute') {
-        const { password, ...input } = z
-          .strictObject({
-            previewId: z.string().uuid(),
-            acknowledged: z.literal(true),
-            confirmation: z.literal('永久删除').optional(),
-            password: z.string().min(1).max(128).optional(),
-          })
-          .parse(req.body);
-        if (!isLocalAdministrator(actor)) options.auth!.verifyPassword(req, password);
-        res.json(deletion.execute(input, options.auth!.requireSuperMode(req), binding));
-      } else throw new ImportError('操作不存在。', 404);
-    });
-  }
-  if (options.imports && options.auth && options.enableReviewedImports) {
-    const execution = new ImportExecutionService(
-      store,
-      options.imports,
-      options.importArchiveDirectory ||
-        options.imports.archiveDirectory ||
-        fileURLToPath(new URL('../data/import-archive/', import.meta.url)),
-    );
-    options.assistant?.connectImports(options.imports, execution);
-    options.assistant?.connectExtras({
-      ...(options.markAi ? { marks: new MarkImportService(options.imports, options.markAi) } : {}),
-      ...(options.receiptAi ? { receiptAi: options.receiptAi } : {}),
-    });
-    for (const action of ['preview', 'execute', 'undo-import'] as const)
-      app.post('/api/ai/imports/:id/' + action, async (req, res, next) => {
-        try {
-          if (req.headers['x-erp-ai-token'] !== options.imports!.csrfToken)
-            throw new ImportError('页面安全凭证无效，请刷新。', 403);
-          const id = String(req.params.id),
-            actor = options.auth!.actor(req);
-          res.json(
-            action === 'preview'
-              ? await execution.preview(id, req.body, actor)
-              : action === 'execute'
-                ? await execution.execute(id, req.body, actor, () => options.auth!.actor(req))
-                : (z.strictObject({ acknowledged: z.literal(true) }).parse(req.body),
-                  execution.undo(id, actor)),
-          );
-        } catch (error) {
-          next(error);
-        }
-      });
-  }
+  if (options.auth) promptRoutes(app, options.auth, options);
+  const execution = importExecution(store, options);
   /** 识别要花钱、工作区里是客户文件，写操作都要业务编辑权限；读取放开。 */
   const writeGuard = (req: Request, _res: Response, next: NextFunction) => {
     if (options.auth && req.method !== 'GET')
       requirePermission(options.auth.actor(req), 'business:edit');
     next();
   };
-  for (const entity of ['customers', 'products', 'orders'] as const) {
-    app.post('/api/' + entity + '/batch', (req, res, next) => {
-      try {
-        if (!options.auth || req.headers['x-erp-auth-token'] !== options.auth.csrf)
-          throw new ImportError('请登录管理账号并刷新页面。', 403);
-        res.json(changeLifecycle(store, entity, req.body, options.auth.actor(req)));
-      } catch (error) {
-        next(error);
-      }
-    });
-  }
-  if (options.imports)
-    app.use(
-      '/api/ai/prompts',
-      writeGuard,
-      promptSettingsRouter(options.imports.promptPresets, options.imports.csrfToken),
-    );
-  if (options.imports)
-    app.get('/api/ai/imports/:id/matches', (req, res) => {
-      res.set('Cache-Control', 'no-store');
-      res.json(matchDraft(store, options.imports!.get(String(req.params.id))));
-    });
-  if (options.imports)
-    app.get('/api/ai/imports/:id/standard-order', (req, res) => {
-      res.set('Cache-Control', 'no-store');
-      res.json(standardOrderDraft(store, options.imports!.get(String(req.params.id))));
-    });
-  // 模型配置关系到密钥和对外发送，只有管理员能改；读取放开，聊天和识别要用。
+  // 业务汇总：客户、产品、订单的列表、单条、新建、修改，六类档案的批量归档、恢复
+  app.use('/api', recordsRouter(store, options.auth));
+  const auth = options.auth;
+  // AI 设置：改设置要超级管理员账号，权限关卡在 AI 接入的路由里
   app.use(
     '/api/ai/settings',
-    (req, res, next) => {
-      if (options.auth && req.method !== 'GET' && options.auth.actor(req)?.role !== 'super_admin')
-        return res.status(403).json({
-          message: '只有管理员可以修改 AI 设置。',
-          error: { code: 'permission', message: '只有管理员可以修改 AI 设置。' },
-        });
-      next();
-    },
-    aiSettingsRouter(options.aiSettings || new AiSettingsManager()),
+    aiSettingsRouter(options.aiSettings || new AiSettingsManager(), auth ? (req) => auth.actor(req) : undefined),
   );
   if (options.imports)
     app.use(
       '/api/ai/imports',
       writeGuard,
-      importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, options.markAi),
+      importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, { store, execution }),
     );
-  for (const entity of ['customers', 'products'] as const) {
-    app.get(`/api/${entity}`, (req, res) => {
-      const q = z
-        .string()
-        .max(200)
-        .parse(req.query.q || '')
-        .toLowerCase();
-      const archivedIds = store.archivedIds(entity);
-      const scoped = store[entity](includeArchived(req))
-        .filter((x) => req.query.archived !== '1' || archivedIds.has(x.id))
-        .map((row) => ({ ...row, archived: archivedIds.has(row.id) }));
-      if (req.query.withMetrics === '1') {
-        const matched = scoped.filter((row) =>
-          entity === 'products'
-            ? matchesProduct(row, q)
-            : [
-                row.name,
-                (row as any).contact,
-                (row as any).phone,
-                (row as any).address,
-                (row as any).notes,
-              ]
-                .join(' ')
-                .toLowerCase()
-                .includes(q),
-        );
-        const incomplete = z.enum(['1', '0']).optional().parse(req.query.incomplete);
-        return res.json({
-          rows:
-            entity === 'products' && incomplete === '1'
-              ? matched.filter(productIncomplete)
-              : matched,
-          totalRecords: scoped.length,
-          metrics: entity === 'products' ? productMetrics(matched) : null,
-        });
-      }
-      res.json(
-        scoped.filter(({ archived, ...x }) => Object.values(x).join(' ').toLowerCase().includes(q)),
-      );
-    });
-    app.get(`/api/${entity}/:id`, (req, res) => {
-      const id = z.coerce.number().int().positive().parse(req.params.id);
-      const item =
-        entity === 'customers'
-          ? store.customer(id, isSuperMode(options.auth?.actor(req)))
-          : store.product(id, isSuperMode(options.auth?.actor(req)));
-      if (!item)
-        return res
-          .status(404)
-          .json({ message: entity === 'customers' ? '客户不存在' : '产品不存在' });
-      res.json(item);
-    });
-    for (const method of ['post', 'put'] as const)
-      app[method](`/api/${entity}${method === 'put' ? '/:id' : ''}`, (req, res) => {
-        const command =
-          method === 'put'
-            ? {
-                entity,
-                action: 'update' as const,
-                id: (req.params as Record<string, string>).id,
-                input: req.body,
-              }
-            : { entity, action: 'create' as const, input: req.body };
-        res.status(method === 'put' ? 200 : 201).json(manualWrite(command, req));
-      });
-  }
-  app.get('/api/orders', (req, res) => {
-    const scoped = store
-      .orders(includeArchived(req))
-      .filter((o) => req.query.archived !== '1' || store.archived('orders', o.id))
-      .map((row) => ({ ...row, archived: store.archived('orders', row.id) }));
-    const rows = filters(req, scoped);
-    res.json(
-      req.query.withMetrics === '1'
-        ? { ...pageRows(rows, req.query), totalRecords: scoped.length, metrics: orderMetrics(rows) }
-        : rows,
-    );
-  });
-  app.get('/api/orders/:id', (req, res) => {
-    const item = store.order(
-      z.coerce.number().int().positive().parse(req.params.id),
-      isSuperMode(options.auth?.actor(req)),
-    );
-    if (!item) return res.status(404).json({ message: '订单不存在' });
-    res.json(item);
-  });
-  for (const method of ['post', 'put'] as const)
-    app[method](`/api/orders${method === 'put' ? '/:id' : ''}`, (req, res) => {
-      const command =
-        method === 'put'
-          ? {
-              entity: 'orders' as const,
-              action: 'update' as const,
-              id: (req.params as Record<string, string>).id,
-              input: req.body,
-            }
-          : { entity: 'orders' as const, action: 'create' as const, input: req.body };
-      res.status(method === 'put' ? 200 : 201).json(manualWrite(command, req));
-    });
-  app.get('/api/business/:entity/:id/related', (req, res) => {
-    requirePermission(options.auth?.actor(req), 'business:edit');
-    const entity = z.enum(['orders', 'purchases']).parse(req.params.entity), id = z.coerce.number().int().positive().parse(req.params.id);
-    const result = relatedBusiness(store, entity, id);
-    if (!result) return res.status(404).json({ message: '业务记录不存在。' });
-    res.json(result);
-  });
-  app.get('/api/business/today', (req, res) => {
-    const actor = options.auth?.actor(req),
-      failure = autoBackupFailure();
-    res.json({
-      ...buildToday(store, today()),
-      // 只读账号处理不了备份问题，不打扰；错误原文只在服务端日志。
-      backupFailedAt: failure && actor?.permissions.includes('business:edit') ? failure.at : null,
-    });
-  });
-  app.get('/api/dashboard', (req, res) => {
-    const range = z
-      .object({ start: dateSchema.optional(), end: dateSchema.optional() })
-      .parse(req.query);
-    res.json(buildDashboard(store, filters(req, store.orders()), range));
-  });
+  // 页面上报的报错存进出错记录库，助手和管理员排查时一起查（server/core/diagnostics/）
+  if (options.problems)
+    app.use('/api/diagnostics', pageProblemRouter(options.problems, (req) => options.auth?.actor(req) ?? null));
   app.use('/api', (_req, res) => res.status(404).json({ message: '接口不存在' }));
-  const dist = resolve('dist');
-  if (existsSync(dist)) {
-    app.use(express.static(dist, {
-      setHeaders(res, file) {
-        const relative = file.slice(dist.length + 1).replaceAll('\\', '/');
-        if (relative === 'index.html') res.setHeader('Cache-Control', 'no-cache');
-        else if (/^assets\/(?:[^/]+\/)*[^/]+-[A-Za-z0-9_-]{8}\.[^/]+$/.test(relative))
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      },
-    }));
-    app.get('/{*path}', (_req, res) =>
-      res.sendFile(resolve(dist, 'index.html'), { headers: { 'Cache-Control': 'no-cache' } }),
-    );
-  }
-  app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (error instanceof ZodError)
-      return res
-        .status(400)
-        .json({ message: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('；') });
-    if (error instanceof ConflictError) return res.status(409).json({ message: error.message });
-    if (error instanceof BusinessAccessError)
-      return res.status(403).json({ message: error.message });
-    if (error instanceof NotFoundError) return res.status(404).json({ message: error.message });
-    if (error instanceof InputError) return res.status(400).json({ message: error.message });
-    if (error instanceof FinanceInfoPending)
-      return res.status(error.status).json({message:error.message,code:error.code,details:error.details});
-    if (error instanceof ImportError)
-      return res.status(error.status).json({ message: error.message, code: error.code });
-    if (error instanceof SyntaxError) return res.status(400).json({ message: 'JSON 格式错误' });
-    if ((error as { type?: string })?.type === 'entity.too.large')
-      return res.status(413).json({ message: '提交内容过大' });
-    console.error(error);
-    res.status(500).json({ message: '保存失败，请检查服务日志后重试' });
-  });
+  staticSite(app);
+  app.use(apiErrorHandler);
   return app;
 }

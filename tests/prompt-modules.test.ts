@@ -1,101 +1,73 @@
+// 提示词模块（shared/ai/prompt-modules.ts、server/ai/recognition-modules.ts）：三个模块各自存、互不影响；默认提示词的口径；
+// 比程序新的库拒绝打开；HTTP 接口（目录、读、凭证、改动）。临时目录、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { promptModules } from '../shared/prompt-modules.js';
-import {
-  defaultPromptPreset,
-  legacyDefaultPromptPreset,
-} from '../server/import/default-prompts.js';
+import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
+import { z } from 'zod';
+import { promptModules } from '../shared/ai/prompt-modules.js';
+import { orderFormTool } from '../shared/import/order-form.js';
+import { defaultPromptPreset } from '../server/ai/default-prompts/sales-order.js';
+import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { createPromptManagers } from '../server/ai/recognition-modules.js';
-import {
-  assistantDefaultPreset,
-  legacyAssistantDefaults,
-} from '../server/assistant/default-preset.js';
-import { AuthManager } from '../server/auth.js';
-import { createApp } from '../server/app.js';
+import { startHttp } from './http-fixture.js';
 import { assistantFixture } from './assistant-fixture.js';
 
-test('客户订单默认提示词：含税合同用含税单价和税价合计，不把未税金额当行金额', () => {
-  const entry = defaultPromptPreset().entries.find((e) => e.name === '金额与精度');
-  assert.ok(entry);
-  assert.match(entry!.content, /税价合计/);
-  assert.match(entry!.content, /含税单价/);
-  assert.match(entry!.content, /金额（不含税）/);
+const removeDir = (dir: string) => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+/** 接口回答：模块目录的一行、一个模块的设置视图（只认用到的字段） */
+const moduleRows = z.array(z.looseObject({ id: z.string() }));
+const settingsView = z.looseObject({
+  revision: z.number(),
+  csrfToken: z.string(),
+  presets: z.array(z.looseObject({ name: z.string() })),
 });
 
-test('客户订单默认提示词：个/只同义、张单列，缺档默认新建并合并唯一相近客户', () => {
-  const entries = defaultPromptPreset().entries;
-  const unit = entries.find((e) => e.name === '数量单位与同义词');
-  assert.ok(unit);
-  assert.match(unit!.content, /“个”或“只”/);
-  assert.match(unit!.content, /“张”/);
-  assert.match(unit!.content, /不要因为个\/只差异追问/);
-  assert.match(unit!.content, /只能是“个”“只”“张”三种/);
-  const archive = entries.find((e) => e.name === '客户与产品档案');
-  assert.ok(archive);
-  assert.match(archive!.content, /主体名称完全一致/);
-  assert.match(archive!.content, /宁波示例/);
-  assert.match(archive!.content, /没有匹配客户档案时，按原件客户名称直接新建/);
+test('客户订单默认提示词只放表上放不下的口径：本公司是谁、含税合同按含税单价和价税合计；档案对应、单位换算不在里面', () => {
+  const all = defaultPromptPreset().entries.map((e) => e.content).join('');
+  assert.match(all, /宁波甬勒包装制品有限公司/);
+  assert.match(all, /价税合计/);
+  assert.match(all, /含税单价/);
+  assert.doesNotMatch(all, /档案|needs-review|JSON|后端/, '档案对应由程序做，状态和格式写在表上');
+  // 数量单位照原文写、不换算，写在表上
+  assert.match(JSON.stringify(orderFormTool()), /数量单位：照原文写（只、个、箱等），不换算/);
 });
 
-test('未修改的旧订单默认预设升级到单位/客户新规则，且只升级一次', () => {
-  const manager = new PromptPresetManager(':memory:', defaultPromptPreset);
+// 比当前版本旧的库删掉重建是统一规则（versioned-sqlite.test.ts）
+test('提示词库比程序新：拒绝打开，文件不动', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'erp-prompt-newer-')),
+    file = join(dir, 'receipts.sqlite');
   try {
-    const legacy = legacyDefaultPromptPreset();
-    manager.change('save', {
-      expectedRevision: 0,
-      preset: legacy,
-      activate: true,
-    });
-    manager.upgradeUntouchedDefaults([legacy], 'test-order-default-upgrade');
-    const upgraded = manager.view();
-    assert.equal(upgraded.presets[0].entries.length, defaultPromptPreset().entries.length);
-    assert.ok(upgraded.presets[0].entries.some((e) => e.name === '数量单位与同义词'));
-    manager.upgradeUntouchedDefaults([legacy], 'test-order-default-upgrade');
-    assert.equal(manager.view().revision, upgraded.revision);
+    new PromptPresetManager(file, supplierDefaultPreset).close();
+    const db = new DatabaseSync(file);
+    db.exec('PRAGMA user_version=3');
+    db.close();
+    const bytes = readFileSync(file);
+    assert.throws(() => new PromptPresetManager(file, supplierDefaultPreset), /提示词库比当前程序新，不能打开：它是第 3 版/);
+    assert.deepEqual(readFileSync(file), bytes);
   } finally {
-    manager.close();
+    removeDir(dir);
   }
 });
 
-test('旧全局助手默认提示词升级到批量导入/一键清空/生产完工新规则，且只升级一次', () => {
-  const manager = new PromptPresetManager(':memory:', assistantDefaultPreset);
-  try {
-    const legacy = legacyAssistantDefaults[0];
-    manager.change('save', {
-      expectedRevision: 0,
-      preset: legacy,
-      activate: true,
-    });
-    manager.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-assistant-default-upgrade');
-    const upgraded = manager.view();
-    assert.equal(upgraded.presets[0].entries.length, assistantDefaultPreset().entries.length);
-    const rules = upgraded.presets[0].entries.map((e) => e.content).join('\n');
-    assert.match(rules, /management\.reset/);
-    assert.match(rules, /order_import\.start/);
-    manager.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-assistant-default-upgrade');
-    assert.equal(manager.view().revision, upgraded.revision);
-  } finally {
-    manager.close();
-  }
-});
-
-test('提示词模块目录：五个模块独立标识，旧存储文件保持兼容', () => {
-  assert.equal(promptModules.length, 6);
-  assert.equal(new Set(promptModules.map((m) => m.id)).size, 6);
-  assert.equal(new Set(promptModules.map((m) => m.apiPath)).size, 6);
+test('提示词模块目录：只有会发给模型的三个模块（唛头不识别），各自独立标识和存储文件', () => {
+  assert.deepEqual(
+    promptModules.map((m) => m.id),
+    ['sales-order', 'supplier-delivery', 'assistant'],
+  );
+  assert.equal(new Set(promptModules.map((m) => m.apiPath)).size, 3);
+  assert.equal(new Set(promptModules.map((m) => m.storageFile)).size, 3);
   const storage = Object.fromEntries(promptModules.map((m) => [m.id, m.storageFile]));
   assert.equal(storage['sales-order'], 'presets.sqlite');
   assert.equal(storage['supplier-delivery'], 'receipts.sqlite');
   assert.equal(storage.assistant, 'assistant.sqlite');
-  assert.equal(promptModules.find((m) => m.id === 'sales-order')!.status, 'active');
-  assert.equal(promptModules.find((m) => m.id === 'supplier-delivery')!.status, 'active');
-  assert.equal(promptModules.find((m) => m.id === 'assistant')!.status, 'active');
-  for (const id of ['purchase-order', 'customer-delivery'])
-    assert.equal(promptModules.find((m) => m.id === id)!.status, 'generation');
+  for (const module of promptModules) {
+    assert.equal(module.status, 'active');
+    assert.equal(module.apiPath, '/api/ai/prompt-modules/' + module.id);
+  }
 });
 
 test('每个模块独立提示词预设，修改一个模块不影响其他模块并可重开保留', () => {
@@ -103,83 +75,67 @@ test('每个模块独立提示词预设，修改一个模块不影响其他模�
   try {
     let managers = createPromptManagers(dir);
     try {
+      assert.deepEqual(Object.keys(managers).sort(), promptModules.map((m) => m.id).sort());
       assert.match(managers['sales-order'].view().presets[0].name, /标准纸箱订单识别/);
       assert.match(managers['supplier-delivery'].view().presets[0].name, /供应商送货单识别/);
       assert.match(managers.assistant.view().presets[0].name, /全局业务助手/);
-      assert.match(managers['purchase-order'].view().presets[0].name, /采购订单识别/);
-      assert.match(managers['customer-delivery'].view().presets[0].name, /客户送货单识别/);
-      assert.ok(
-        managers['customer-delivery']
-          .view()
-          .presets[0].entries.some((e) => e.name === '客户仓库入库/送检格式'),
-      );
-      const view = managers['purchase-order'].view(),
+      const view = managers['supplier-delivery'].view(),
         preset = structuredClone(view.presets[0]);
-      preset.name = '采购自定义预设';
-      managers['purchase-order'].change('save', {
-        expectedRevision: view.revision,
-        preset,
-        activate: true,
-      });
-      assert.equal(managers['purchase-order'].view().presets[0].name, '采购自定义预设');
-      assert.match(managers['customer-delivery'].view().presets[0].name, /客户送货单识别/);
+      preset.name = '虚构送货单自定义预设';
+      managers['supplier-delivery'].change('save', { expectedRevision: view.revision, preset, activate: true });
+      assert.equal(managers['supplier-delivery'].view().presets[0].name, '虚构送货单自定义预设');
+      assert.match(managers['sales-order'].view().presets[0].name, /标准纸箱订单识别/);
     } finally {
       for (const manager of Object.values(managers)) manager.close();
     }
     managers = createPromptManagers(dir);
     try {
-      assert.equal(managers['purchase-order'].view().presets[0].name, '采购自定义预设');
+      assert.equal(managers['supplier-delivery'].view().presets[0].name, '虚构送货单自定义预设');
       assert.match(managers['sales-order'].view().presets[0].name, /标准纸箱订单识别/);
     } finally {
       for (const manager of Object.values(managers)) manager.close();
     }
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    removeDir(dir);
   }
 });
 
-test('提示词模块接口：目录、模块隔离、旧路径兼容和 CSRF 保护', async () => {
+test('提示词模块接口：列目录、读一个模块不带密钥；不带 AI 凭证或跨站 403；进了超级管理员模式五个动作都能用', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-prompt-api-')),
     managers = createPromptManagers(dir),
     f = assistantFixture(),
-    auth = new AuthManager(':memory:'),
-    server = createApp(f.store, {
-      auth,
-      aiSettings: f.settings,
-      assistant: f.manager,
-      promptModules: managers,
-    }).listen(0, '127.0.0.1');
-  await new Promise<void>((resolve) => server.once('listening', resolve));
-  const base = 'http://127.0.0.1:' + (server.address() as any).port;
+    h = await startHttp(f.store, { aiSettings: f.settings, assistant: f.manager, promptModules: managers });
   try {
-    const setup = await fetch(base + '/api/auth/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '提示词验收', password: 'Fictional-prompt-password-123' }),
-    });
-    assert.equal(setup.status, 200);
-    const cookie = setup.headers.get('set-cookie')!.split(';')[0];
-    const get = (path: string) => fetch(base + path, { headers: { Cookie: cookie } });
-    const list = await get('/api/ai/prompt-modules');
-    assert.equal(list.status, 200);
-    const modules = (await list.json()) as any[];
-    assert.equal(modules.length, 6);
-    assert.equal(modules.find((m) => m.id === 'purchase-order')!.status, 'generation');
-    const purchase = await get('/api/ai/prompt-modules/purchase-order');
-    assert.equal(purchase.status, 200);
-    const view = (await purchase.json()) as any;
-    assert.match(view.presets[0].name, /采购订单识别/);
-    const denied = await fetch(base + '/api/ai/prompt-modules/purchase-order/save', {
-      method: 'POST',
-      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ expectedRevision: view.revision, preset: view.presets[0] }),
-    });
-    assert.equal(denied.status, 403);
+    const signedIn = { Cookie: h.cookie, 'X-ERP-Auth-Token': h.auth.csrf };
+    const list = await fetch(h.api + '/ai/prompt-modules', { headers: signedIn });
+    assert.deepEqual(moduleRows.parse(await list.json()).map((m) => m.id), promptModules.map((m) => m.id));
+    const url = h.api + '/ai/prompt-modules/supplier-delivery';
+    let response = await fetch(url, { headers: signedIn }),
+      view = settingsView.parse(await response.json());
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.match(view.presets[0].name, /供应商送货单识别/);
+    assert.ok(!JSON.stringify(view).includes('sk-fictional'));
+    assert.equal((await fetch(url, { headers: { ...signedIn, 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+    const preset = { ...supplierDefaultPreset(), id: randomUUID(), name: '虚构送货单模板' };
+    preset.entries = preset.entries.map((e) => ({ ...e, id: randomUUID() }));
+    const post = (action: string, body: object, token?: string) =>
+      fetch(url + '/' + action, {
+        method: 'POST',
+        headers: { ...signedIn, 'Content-Type': 'application/json', ...(token ? { 'X-ERP-AI-Token': token } : {}) },
+        body: JSON.stringify(body),
+      });
+    assert.equal((await post('save', { expectedRevision: view.revision, preset })).status, 403, '不带 AI 凭证');
+    await h.enterSuperMode();
+    for (const action of ['save', 'copy', 'activate', 'restore', 'delete']) {
+      const body = action === 'save' ? { preset } : { id: preset.id, ...(['delete', 'restore'].includes(action) ? { confirmed: true } : {}) };
+      response = await post(action, { expectedRevision: view.revision, ...body }, view.csrfToken);
+      assert.equal(response.status, 200, action);
+      view = settingsView.parse(await response.json());
+    }
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    auth.close();
+    await h.close();
     f.close();
     for (const manager of Object.values(managers)) manager.close();
-    rmSync(dir, { recursive: true, force: true });
+    removeDir(dir);
   }
 });

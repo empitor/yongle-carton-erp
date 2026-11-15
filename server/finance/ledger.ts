@@ -1,23 +1,47 @@
+/** 凭证：制单、修改、提交审核记账作废、红字冲销，别的功能生成凭证的入口，开会计期间。读凭证见 voucher-read.ts。 */
 import { z } from 'zod';
-import { dateSchema } from '../../shared/domain.js';
-import {
-  voucherSchema,
-  requestIdSchema,
-  versionSchema,
-  type FinanceEntry,
-} from '../../shared/finance.js';
-import { clampPage, parsePaging } from '../paging.js';
-import type { Actor } from '../auth.js';
-import type { Store } from '../db.js';
+import { voucherChangeSchema, voucherEditSchema, voucherReversalSchema, voucherSchema } from '../../shared/finance/index.js';
+import type { FinanceEntry, VoucherTransition } from '../../shared/finance/index.js';
+import { type FinancePermission } from '../../shared/core/index.js';
+import type { Actor } from '../core/index.js';
+import type { Store } from '../core/index.js';
+import { exists, one, rows } from '../core/index.js';
 import { FinanceSettings } from './settings.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { refreshPendingDeliveryReversals } from './pending-delivery.js';
+import { periodOf } from './days.js';
+import { finishAllocationReversal, releaseEventOnVoid } from './event-status.js';
+import { id as idSchema } from './query.js';
+import {
+  voucherDetail,
+  voucherEntries,
+  voucherList,
+  voucherRecord,
+  voucherRecordSchema,
+  type VoucherRecord,
+} from './voucher-read.js';
 
-const idSchema = z.coerce.number().int().positive();
-const change = z.strictObject({ version: versionSchema, requestId: requestIdSchema });
-const edit = voucherSchema.extend({ version: versionSchema });
-const reversal = change.extend({ date: dateSchema, description: voucherSchema.shape.description });
-const statusSchema = z.enum(['draft', 'pending', 'approved', 'posted', 'void']);
+/** 科目一行，加上是不是末级（没有下级科目） */
+const accountWithLeaf = rows.fin_accounts.extend({ leaf: z.number() });
+const periodStatus = rows.fin_periods.pick({ status: true });
+
+/**
+ * 别的财务功能作废、红冲自己生成的凭证时的说明：
+ * linked 是来源模块自己操作（凭证页不能直接作废、红冲模块生成的凭证）；cash 是撤销收付款，用出纳权限；
+ * permission 是模块撤回自己生成的凭证时用模块的权限，比如结账页重做计提用 finance:close。
+ */
+type VoucherCall = { linked?: boolean; cash?: boolean; permission?: FinancePermission };
+/** 状态往前走一步：从哪个状态到哪个状态 */
+const transitions = {
+  submit: ['draft', 'pending'],
+  approve: ['pending', 'approved'],
+  post: ['approved', 'posted'],
+} as const;
+
+/** 作废、红冲用哪个权限：模块自己撤回用模块的权限，撤销收付款用出纳权限，别的用制单权限 */
+function cancelPermission({ linked = false, cash = false, permission }: VoucherCall): FinancePermission {
+  if (linked && permission) return permission;
+  return cash ? 'finance:cash' : 'finance:edit';
+}
 
 export class FinanceLedger {
   private readonly settings: FinanceSettings;
@@ -29,96 +53,50 @@ export class FinanceLedger {
     return this.store.db;
   }
 
-  private record(id: number) {
-    const header = this.db.prepare('SELECT * FROM fin_vouchers WHERE id=?').get(id);
-    if (!header) financeError('凭证不存在。', 404);
-    const entries = this.db
-      .prepare('SELECT * FROM fin_entries WHERE voucher_id=? ORDER BY position')
-      .all(id);
-    return { header: { ...header }, entries: entries.map((entry) => ({ ...entry })) };
-  }
-
   get(actor: Actor | null, rawId: unknown) {
     financeActor(actor);
-    const record = this.record(idSchema.parse(rawId));
-    const event =
-      record.header.event_id == null
-        ? null
-        : this.db
-            .prepare('SELECT id,source_kind,source_id,event_type,status FROM fin_events WHERE id=?')
-            .get(record.header.event_id);
-    return {
-      ...record,
-      source:
-        event ??
-        (record.header.module_source
-          ? { module: record.header.module_source, id: record.header.module_id }
-          : null),
-    };
+    return voucherDetail(this.db, idSchema.parse(rawId));
   }
 
   list(actor: Actor | null, query: unknown) {
     financeActor(actor);
-    const paging = parsePaging(query);
-    const filters = z
-      .object({
-        period: z
-          .string()
-          .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
-          .optional(),
-        status: statusSchema.optional(),
-      })
-      .parse(query);
-    const params = [
-      filters.period ?? null,
-      filters.period ?? null,
-      filters.status ?? null,
-      filters.status ?? null,
-    ];
-    const where = 'WHERE (? IS NULL OR period=?) AND (? IS NULL OR status=?)';
-    const total = Number(
-      this.db.prepare(`SELECT count(*) AS n FROM fin_vouchers ${where}`).get(...params)?.n,
-    );
-    const page = clampPage(paging.page ?? 1, paging.pageSize, total);
-    return {
-      rows: this.db
-        .prepare(
-          `SELECT * FROM fin_vouchers ${where} ORDER BY period DESC,number DESC LIMIT ? OFFSET ?`,
-        )
-        .all(...params, paging.pageSize, (page - 1) * paging.pageSize),
-      page,
-      pageSize: paging.pageSize,
-      filteredRecords: total,
-    };
+    return voucherList(this.db, query);
   }
 
   openPeriod(user: Actor, date: string) {
-    const period = date.slice(0, 7);
+    const period = periodOf(date);
     const start = this.settings.get(user).startPeriod;
     if (!start) financeError('请先启用财务期初。');
     if (period < start) financeError('凭证日期早于财务启用期间。');
-    const current = this.db.prepare('SELECT status FROM fin_periods WHERE period=?').get(period);
+    const current = one(this.db, periodStatus, 'SELECT status FROM fin_periods WHERE period=?', period);
     if (current?.status === 'closed') financeError('该会计期间已结账。', 409);
     if (!current) {
       this.db.prepare("INSERT INTO fin_periods(period,status) VALUES(?,'open')").run(period);
-      financeAudit(this.store, user, 'open', 'fin_periods', null, null, {
-        period,
-        status: 'open',
-        version: 1,
+      financeAudit(this.store, user, {
+        action: 'open',
+        entity: 'fin_periods',
+        id: null,
+        before: null,
+        after: { period, status: 'open', version: 1 },
       });
     }
     return period;
   }
 
   private validateEntries(entries: FinanceEntry[], allowDisabled = false) {
-    if (entries.length < 2) financeError('至少填写两条分录。');
+    const { count, message } = voucherSchema.shape.entries.minimum;
+    if (entries.length < count) financeError(message);
     let debit = 0n,
       credit = 0n;
-    const account = this.db.prepare(`SELECT a.*, NOT EXISTS(
-      SELECT 1 FROM fin_accounts WHERE parent_code=a.code) AS leaf FROM fin_accounts a WHERE a.code=?`);
     for (const entry of entries) {
       if (entry.debit > 0 === entry.credit > 0) financeError('分录借贷必须且仅能填写一方。');
-      const current = account.get(entry.accountCode);
+      const current = one(
+        this.db,
+        accountWithLeaf,
+        `SELECT a.*, NOT EXISTS(SELECT 1 FROM fin_accounts WHERE parent_code=a.code) AS leaf
+        FROM fin_accounts a WHERE a.code=?`,
+        entry.accountCode,
+      );
       if (!current?.leaf || (!current.enabled && !allowDisabled))
         financeError('凭证科目必须为已启用的末级科目。');
       if ((entry.auxiliary?.kind ?? null) !== current.auxiliary)
@@ -129,23 +107,6 @@ export class FinanceLedger {
       credit += BigInt(entry.credit);
     }
     if (debit !== credit || debit === 0n) financeError('凭证借贷必须平衡且金额不能为零。');
-  }
-
-  private readEntries(entries: ReturnType<FinanceLedger['record']>['entries']): FinanceEntry[] {
-    return entries.map((entry) => ({
-      accountCode: String(entry.account_code),
-      description: String(entry.description),
-      debit: Number(entry.debit),
-      credit: Number(entry.credit),
-      auxiliary: entry.auxiliary_kind
-        ? {
-            kind: entry.auxiliary_kind as NonNullable<FinanceEntry['auxiliary']>['kind'],
-            id: String(entry.auxiliary_id),
-            name: String(entry.auxiliary_name),
-          }
-        : null,
-      cashFlow: entry.cash_flow as string | null,
-    }));
   }
 
   private writeEntries(id: number, entries: FinanceEntry[]) {
@@ -199,23 +160,21 @@ export class FinanceLedger {
         ).lastInsertRowid,
     );
     this.writeEntries(id, input.entries);
-    const after = this.record(id);
-    financeAudit(
-      this.store,
-      user,
-      originalId ? 'reverse' : 'create',
-      'fin_vouchers',
+    const after = voucherRecord(this.db, id);
+    financeAudit(this.store, user, {
+      action: originalId ? 'reverse' : 'create',
+      entity: 'fin_vouchers',
       id,
-      null,
+      before: null,
       after,
-    );
+    });
     return after;
   }
 
   create(actor: Actor | null, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
       input = voucherSchema.parse(raw);
-    return financeWrite(this.store, user, 'vouchers.create', input, () =>
+    return financeWrite(this.store, user, { action: 'vouchers.create', input, result: voucherRecordSchema }, () =>
       this.insert(user, input, null),
     );
   }
@@ -235,31 +194,29 @@ export class FinanceLedger {
     this.db
       .prepare('UPDATE fin_vouchers SET module_source=?,module_id=? WHERE id=?')
       .run(module, moduleId, record.header.id);
-    return this.record(Number(record.header.id));
+    return voucherRecord(this.db, record.header.id);
   }
 
   createFromEvent(actor: Actor | null, eventId: number, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
       input = voucherSchema.parse(raw);
     if (!this.db.isTransaction) financeError('请通过财务事件事务生成来源凭证。', 409);
-    const event = this.db
-      .prepare("SELECT id FROM fin_events WHERE id=? AND status='ready' AND voucher_id IS NULL")
-      .get(eventId);
-    if (!event) financeError('该来源事件不能生成凭证。', 409);
+    if (!exists(this.db, "SELECT 1 FROM fin_events WHERE id=? AND status='ready' AND voucher_id IS NULL", eventId))
+      financeError('该来源事件不能生成凭证。', 409);
     return this.insert(user, input, null, eventId);
   }
 
   update(actor: Actor | null, rawId: unknown, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
       id = idSchema.parse(rawId),
-      input = edit.parse(raw);
-    return financeWrite(this.store, user, 'vouchers.update', { ...input, id }, () => {
-      const before = this.record(id),
+      input = voucherEditSchema.parse(raw);
+    const request = { action: 'vouchers.update', input: { ...input, id }, result: voucherRecordSchema };
+    return financeWrite(this.store, user, request, () => {
+      const before = voucherRecord(this.db, id),
         header = before.header;
       this.assertMutable(header);
       checkVersion(header, input.version);
-      if (input.date.slice(0, 7) !== header.period)
-        financeError('跨期间更正须先作废，再录入新凭证。');
+      if (periodOf(input.date) !== header.period) financeError('跨期间更正须先作废，再录入新凭证。');
       if (header.reversal_of) financeError('红冲分录按原凭证固定，请作废后重新生成。');
       if (header.event_id || header.module_source) financeError('来源凭证分录不能手工覆盖。');
       this.openPeriod(user, input.date);
@@ -272,185 +229,95 @@ export class FinanceLedger {
         .run(input.date, input.description, input.attachmentCount, user.id, user.name, id);
       this.db.prepare('DELETE FROM fin_entries WHERE voucher_id=?').run(id);
       this.writeEntries(id, input.entries);
-      const after = this.record(id);
-      financeAudit(this.store, user, 'update', 'fin_vouchers', id, before, after);
+      const after = voucherRecord(this.db, id);
+      financeAudit(this.store, user, { action: 'update', entity: 'fin_vouchers', id, before, after });
       return after;
     });
   }
 
-  private assertMutable(header: ReturnType<FinanceLedger['record']>['header']) {
+  private assertMutable(header: VoucherRecord['header']) {
     if (header.status === 'posted') financeError('已记账凭证不可修改或删除，只能红冲。', 409);
     if (header.status === 'void') financeError('凭证已作废。', 409);
   }
 
-  transition(
-    actor: Actor | null,
-    rawId: unknown,
-    action: 'submit' | 'approve' | 'post' | 'void',
-    raw: unknown,
-    linked = false,
-    cashCancellation = false,
-  ) {
+  transition(actor: Actor | null, rawId: unknown, action: VoucherTransition, raw: unknown, call: VoucherCall = {}) {
     const user = financeActor(
       actor,
-      action === 'approve' || action === 'post'
-        ? 'finance:approve'
-        : cashCancellation
-          ? 'finance:cash'
-          : 'finance:edit',
+      action === 'approve' || action === 'post' ? 'finance:approve' : cancelPermission(call),
     );
     const id = idSchema.parse(rawId),
-      input = change.parse(raw);
-    return financeWrite(this.store, user, 'vouchers.' + action, { ...input, id }, () => {
-      const before = this.record(id),
+      input = voucherChangeSchema.parse(raw);
+    const request = { action: 'vouchers.' + action, input: { ...input, id }, result: voucherRecordSchema };
+    return financeWrite(this.store, user, request, () => {
+      const before = voucherRecord(this.db, id),
         header = before.header;
-      if (cashCancellation && (action !== 'void' || !linked || header.module_source !== 'cash'))
+      if (call.cash && (action !== 'void' || !call.linked || header.module_source !== 'cash'))
         financeError('此操作仅适用于资金单凭证。', 403);
       this.assertMutable(header);
       checkVersion(header, input.version);
-      this.openPeriod(user, String(header.date));
-      const transitions = {
-        submit: ['draft', 'pending'],
-        approve: ['pending', 'approved'],
-        post: ['approved', 'posted'],
-      } as const;
-      if (action === 'void') {
-        if (header.module_source && !linked) financeError('请在来源模块中作废凭证。', 409);
-        this.db
-          .prepare("UPDATE fin_vouchers SET status='void',version=version+1 WHERE id=?")
-          .run(id);
-        if (header.event_id) {
-          const find = this.db.prepare('SELECT * FROM fin_events WHERE id=?');
-          const event = find.get(header.event_id);
-          const active = this.db
-            .prepare('SELECT 1 FROM fin_source_observations WHERE event_id=?')
-            .get(header.event_id);
-          if (active && event?.status === 'generated') {
-            this.db
-              .prepare(
-                "UPDATE fin_events SET voucher_id=NULL,status='ready',version=version+1 WHERE id=?",
-              )
-              .run(header.event_id);
-            financeAudit(
-              this.store,
-              user,
-              'voucher_void',
-              'fin_events',
-              Number(header.event_id),
-              event,
-              find.get(header.event_id),
-            );
-          }
-        }
-      } else {
-        const [from, to] = transitions[action];
-        if (header.status !== from) financeError('凭证状态不允许执行此操作。', 409);
-        if (
-          action === 'approve' &&
-          header.maker_id === user.id &&
-          this.settings.get(user).requireSeparateApprover
-        )
-          financeError('制单人不能审核自己的凭证。', 403);
-        this.validateEntries(this.readEntries(before.entries), header.reversal_of !== null);
-        const actorColumns =
-          action === 'approve'
-            ? 'approver_id=?,approver_name=?,approved_at=?,'
-            : action === 'post'
-              ? 'poster_id=?,poster_name=?,posted_at=?,'
-              : '';
-        const values = actorColumns ? [user.id, user.name, new Date().toISOString()] : [];
-        this.db
-          .prepare(`UPDATE fin_vouchers SET ${actorColumns} status=?,version=version+1 WHERE id=?`)
-          .run(...values, to, id);
-      }
-      const after = this.record(id);
-      if (action === 'post' && header.reversal_of) {
-        const revoked = this.db
-          .prepare(
-            `SELECT * FROM fin_allocations WHERE status='reversing' AND id IN
-          (SELECT reversal_of FROM fin_allocations WHERE voucher_id=?)`,
-          )
-          .all(id);
-        for (const allocation of revoked) {
-          this.db
-            .prepare("UPDATE fin_allocations SET status='revoked',version=version+1 WHERE id=?")
-            .run(allocation.id);
-          financeAudit(
-            this.store,
-            user,
-            'revoke_post',
-            'fin_allocations',
-            Number(allocation.id),
-            allocation,
-            this.db.prepare('SELECT * FROM fin_allocations WHERE id=?').get(allocation.id),
-          );
-        }
-        const allocation = this.db
-          .prepare(
-            'SELECT obligation_id FROM fin_allocations WHERE voucher_id=? AND reversal_of IS NOT NULL',
-          )
-          .get(id);
-        if (allocation)
-          refreshPendingDeliveryReversals(this.store, user, Number(allocation.obligation_id));
-      }
-      financeAudit(this.store, user, action, 'fin_vouchers', id, before, after);
+      this.openPeriod(user, header.date);
+      if (action === 'void') this.voidVoucher(user, header, call.linked === true);
+      else this.advance(user, before, action);
+      const after = voucherRecord(this.db, id);
+      if (action === 'post' && header.reversal_of) finishAllocationReversal(this.store, user, id);
+      financeAudit(this.store, user, { action, entity: 'fin_vouchers', id, before, after });
       return after;
     });
   }
 
-  remove(actor: Actor | null, rawId: unknown) {
-    const user = financeActor(actor, 'finance:edit');
-    const { header } = this.get(user, rawId);
-    this.assertMutable(header);
-    financeError('凭证编号须保留，请使用作废操作。', 405);
+  private voidVoucher(user: Actor, header: VoucherRecord['header'], linked: boolean) {
+    if (header.module_source && !linked) financeError('这张凭证由别的财务功能生成，请到来源页面撤回。', 409);
+    this.db.prepare("UPDATE fin_vouchers SET status='void',version=version+1 WHERE id=?").run(header.id);
+    if (header.event_id) releaseEventOnVoid(this.store, user, header.event_id, header.id);
   }
 
-  reverse(
-    actor: Actor | null,
-    rawId: unknown,
-    raw: unknown,
-    linked = false,
-    cashCancellation = false,
-  ) {
-    const user = financeActor(actor, cashCancellation ? 'finance:cash' : 'finance:edit'),
+  /** 提交、审核、记账：状态往前走一步，审核、记账记下经办人 */
+  private advance(user: Actor, before: VoucherRecord, action: keyof typeof transitions) {
+    const header = before.header;
+    const [from, to] = transitions[action];
+    if (header.status !== from) financeError('凭证状态不允许执行此操作。', 409);
+    if (action === 'approve' && header.maker_id === user.id && this.settings.get(user).requireSeparateApprover)
+      financeError('制单人不能审核自己的凭证。', 403);
+    this.validateEntries(voucherEntries(before.entries), header.reversal_of !== null);
+    const actorColumns =
+      action === 'approve'
+        ? 'approver_id=?,approver_name=?,approved_at=?,'
+        : action === 'post'
+          ? 'poster_id=?,poster_name=?,posted_at=?,'
+          : '';
+    const values = actorColumns ? [user.id, user.name, new Date().toISOString()] : [];
+    this.db
+      .prepare(`UPDATE fin_vouchers SET ${actorColumns} status=?,version=version+1 WHERE id=?`)
+      .run(...values, to, header.id);
+  }
+
+  reverse(actor: Actor | null, rawId: unknown, raw: unknown, call: VoucherCall = {}) {
+    const linked = call.linked === true;
+    const user = financeActor(actor, cancelPermission(call)),
       id = idSchema.parse(rawId),
-      input = reversal.parse(raw);
-    return financeWrite(
-      this.store,
-      user,
-      'vouchers.reverse',
-      { ...input, id, ...(linked ? { linked } : {}) },
-      () => {
-        const { header, entries } = this.record(id);
-        if (cashCancellation && (!linked || header.module_source !== 'cash'))
-          financeError('此操作仅适用于资金单凭证。', 403);
-        if ((header.module_source || header.event_id) && !linked)
-          financeError('请在来源模块中红冲凭证。', 409);
-        checkVersion(header, input.version);
-        if (header.status !== 'posted' || header.reversal_of)
-          financeError('只可红冲已记账的原凭证。');
-        if (input.date < String(header.date)) financeError('红冲日期不得早于原凭证。');
-        if (
-          this.db
-            .prepare("SELECT 1 FROM fin_vouchers WHERE reversal_of=? AND status<>'void'")
-            .get(id)
-        )
-          financeError('已存在有效红冲凭证。', 409);
-        const red = this.insert(
-          user,
-          { ...input, attachmentCount: 0, entries: this.readEntries(entries) },
-          id,
-        );
-        if (!linked) return red;
-        this.db
-          .prepare('UPDATE fin_vouchers SET module_source=?,module_id=? WHERE id=?')
-          .run(
-            header.module_source ?? 'event_reversal',
-            header.module_id ?? header.event_id,
-            red.header.id,
-          );
-        return this.record(Number(red.header.id));
-      },
-    );
+      input = voucherReversalSchema.parse(raw);
+    const request = {
+      action: 'vouchers.reverse',
+      input: { ...input, id, ...(linked ? { linked } : {}) },
+      result: voucherRecordSchema,
+    };
+    return financeWrite(this.store, user, request, () => {
+      const { header, entries } = voucherRecord(this.db, id);
+      if (call.cash && (!linked || header.module_source !== 'cash'))
+        financeError('此操作仅适用于资金单凭证。', 403);
+      if ((header.module_source || header.event_id) && !linked)
+        financeError('这张凭证由别的财务功能生成，请到来源页面红字冲销。', 409);
+      checkVersion(header, input.version);
+      if (header.status !== 'posted' || header.reversal_of) financeError('只可红冲已记账的原凭证。');
+      if (input.date < header.date) financeError('红冲日期不得早于原凭证。');
+      if (exists(this.db, "SELECT 1 FROM fin_vouchers WHERE reversal_of=? AND status<>'void'", id))
+        financeError('已存在有效红冲凭证。', 409);
+      const red = this.insert(user, { ...input, attachmentCount: 0, entries: voucherEntries(entries) }, id);
+      if (!linked) return red;
+      this.db
+        .prepare('UPDATE fin_vouchers SET module_source=?,module_id=? WHERE id=?')
+        .run(header.module_source ?? 'event_reversal', header.module_id ?? header.event_id, red.header.id);
+      return voucherRecord(this.db, red.header.id);
+    });
   }
 }

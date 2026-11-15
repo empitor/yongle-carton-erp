@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
+import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
+import { textField } from '../ui/index';
+import { readMarkFile } from './mark-api';
 
+/** 最多记住几份读过的文件 */
+const CACHED_FILES = 8;
 /** 同一文件被多款唛头引用时只下载一次，翻页和切换不重复请求。 */
-const documents = new Map<string, Promise<{ kind: 'pdf'; doc: any } | { kind: 'image' }>>();
+const documents = new Map<string, Promise<{ kind: 'pdf'; doc: PDFDocumentProxy } | { kind: 'image' }>>();
 function load(url: string) {
   let task = documents.get(url);
   if (!task) {
     task = (async () => {
-      const response = await fetch(url);
+      const response = await readMarkFile(url);
       if (!response.ok) throw new Error('读取文件失败');
       const type = response.headers.get('content-type') || '';
       if (type.startsWith('image/')) return { kind: 'image' as const };
@@ -26,9 +31,23 @@ function load(url: string) {
     })();
     documents.set(url, task);
     task.catch(() => documents.delete(url));
-    if (documents.size > 8) documents.delete(documents.keys().next().value!);
+    // 超过上限丢掉最早读的那份
+    const oldest = documents.keys().next();
+    if (documents.size > CACHED_FILES && !oldest.done) documents.delete(oldest.value);
   }
   return task;
+}
+
+/** 把 PDF 的一页按预览框的宽度画到画布上；交回这次绘制（换页、关掉时取消） */
+function renderPage(pdfPage: PDFPageProxy, target: HTMLCanvasElement, boxWidth: number | undefined) {
+  const width = boxWidth || 320;
+  const base = pdfPage.getViewport({ scale: 1 });
+  const viewport = pdfPage.getViewport({
+    scale: (width * (window.devicePixelRatio || 1)) / base.width,
+  });
+  target.width = viewport.width;
+  target.height = viewport.height;
+  return pdfPage.render({ canvas: target, canvasContext: target.getContext('2d') ?? undefined, viewport });
 }
 
 /** 显示图片或 PDF 的某一页。page 为 0 时显示第一页。 */
@@ -53,7 +72,7 @@ export default function MarkPreview({
   useEffect(() => setCurrent(Math.max(page, 1)), [page]);
   useEffect(() => {
     let live = true,
-      render: any;
+      render: RenderTask | undefined;
     setError('');
     void (async () => {
       try {
@@ -65,18 +84,11 @@ export default function MarkPreview({
         const pdfPage = await file.doc.getPage(Math.min(current, file.doc.numPages));
         const target = canvas.current;
         if (!live || !target) return;
-        const width = box.current?.clientWidth || 320;
-        const base = pdfPage.getViewport({ scale: 1 });
-        const viewport = pdfPage.getViewport({
-          scale: (width * (window.devicePixelRatio || 1)) / base.width,
-        });
-        target.width = viewport.width;
-        target.height = viewport.height;
-        render = pdfPage.render({ canvas: target, canvasContext: target.getContext('2d'), viewport });
+        render = renderPage(pdfPage, target, box.current?.clientWidth);
         await render.promise;
       } catch (e) {
-        if (live && (e as Error).name !== 'RenderingCancelledException')
-          setError('预览失败，可下载查看。');
+        // 换页、关掉时取消的那次绘制不算失败
+        if (live && textField(e, 'name') !== 'RenderingCancelledException') setError('预览失败，可下载查看。');
       }
     })();
     return () => {

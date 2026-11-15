@@ -1,0 +1,62 @@
+/* 仓库：到货页、待发货、库存流水（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+.business-records .section-heading {
+  align-items: center;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-2xs) var(--space-md);
+}
+
+/* 到货、送货：日期条一行放下 */
+.arrival-warehouse {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 700px) {
+
+  /* 今日和可发货：单号一行，内容一行，状态和操作一行 */
+  .queue-row {
+    flex-wrap: wrap;
+    gap: var(--space-2xs) var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    height: auto;
+  }
+  .queue-row .queue-main {
+    display: block !important;
+    flex: 1 1 100%;
+    order: 2;
+    white-space: normal;
+  }
+  .queue-row .queue-note {
+    order: 3;
+    flex: 1;
+    white-space: normal;
+  }
+  .arrival-warehouse {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .arrival-warehouse > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+:root[data-ui='refined'] .section-heading .record-view-tabs button {
+  min-height: 28px;
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--r-inner);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: none;
+}
+:root[data-ui='refined'] main .panel > .section-heading {
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--sep);
+}
+:root[data-ui='refined'] .detail-panel-body .receipt-history td > strong {
+  white-space: nowrap;
+}

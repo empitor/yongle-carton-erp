@@ -1,12 +1,17 @@
-import { createHash } from 'node:crypto';
-import type { Actor } from '../auth.js';
-import type { Store } from '../db.js';
-import { audit, requirePermission } from '../business/management.js';
-import { ImportError } from '../import/errors.js';
-import type { FinancePermission } from '../../shared/finance.js';
+import type { z } from 'zod';
+import type { Actor } from '../core/index.js';
+import type { Store } from '../core/index.js';
+import { audit, onceByRequest, operationRequest, requirePermission } from '../core/index.js';
+import { AppError } from '../core/index.js';
+import type { FinancePermission } from '../../shared/core/index.js';
+import type { financeAuditActions, financeAuditEntities } from '../../shared/finance/index.js';
+
+/** 审计的动作、对象只能是中文名表里有的（修改记录页按表显示中文，类型检查保证每个取值都有名字） */
+type FinanceAuditAction = keyof typeof financeAuditActions;
+type FinanceAuditEntity = keyof typeof financeAuditEntities;
 
 export function financeError(message: string, status = 422): never {
-  throw new ImportError(message, status);
+  throw new AppError(message, status);
 }
 
 export function financeActor(
@@ -21,52 +26,53 @@ export function checkVersion(record: { version?: unknown }, version: number) {
   if (record.version !== version) financeError('记录已更新，请刷新后重试。', 409);
 }
 
-export function financeWrite<T, Input extends { requestId: string }>(
+/**
+ * 财务的一次写入：action 是哪种操作，input 是校验过的提交内容（带请求号），
+ * result 是结果的结构（同一个请求号再提交时按它读回上次的结果）。
+ */
+type FinanceWriteRequest<S extends z.ZodType> = {
+  action: string;
+  input: { requestId: string; [field: string]: unknown };
+  result: S;
+};
+
+export function financeWrite<S extends z.ZodType>(
   store: Store,
   actor: Actor,
-  action: string,
-  input: Input,
-  work: () => T,
-): T {
+  request: FinanceWriteRequest<S>,
+  work: () => z.output<S>,
+): z.output<S> {
   const db = store.db;
-  const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
-  const nested = db.isTransaction;
-  db.exec(nested ? 'SAVEPOINT finance_write' : 'BEGIN IMMEDIATE');
+  const { action, input, result } = request;
+  // 财务的写入都记成一种：同一个账号的同一个编号换了操作也算换了内容
+  const once = () => onceByRequest(store, operationRequest('finance', input.requestId, actor, { action, input }), work, result);
+  if (db.isTransaction) return once();
+  // 不在别的事务里时用 BEGIN IMMEDIATE，一开始就拿写锁
+  db.exec('BEGIN IMMEDIATE');
   try {
-    const prior = db
-      .prepare('SELECT * FROM fin_requests WHERE actor_id=? AND request_id=?')
-      .get(actor.id, input.requestId);
-    let result: T;
-    if (prior) {
-      if (prior.action !== action || prior.fingerprint !== hash)
-        financeError('请求编号已被其他操作使用。', 409);
-      result = JSON.parse(String(prior.response)) as T;
-    } else {
-      result = work();
-      db.prepare('INSERT INTO fin_requests VALUES(?,?,?,?,?)').run(
-        actor.id,
-        input.requestId,
-        action,
-        hash,
-        JSON.stringify(result),
-      );
-    }
-    db.exec(nested ? 'RELEASE finance_write' : 'COMMIT');
-    return result;
+    const done = once();
+    db.exec('COMMIT');
+    return done;
   } catch (error) {
-    db.exec(nested ? 'ROLLBACK TO finance_write; RELEASE finance_write' : 'ROLLBACK');
+    db.exec('ROLLBACK');
     throw error;
   }
 }
 
-export function financeAudit(
-  store: Store,
-  actor: Actor,
-  action: string,
-  entity: string,
-  id: number | null,
-  before: unknown,
-  after: unknown,
-) {
-  audit(store, actor, 'finance', action, entity, id, { before, after });
+/** 一条财务审计：动作、对象、编号，改之前和改之后 */
+type FinanceAuditRecord = {
+  action: FinanceAuditAction;
+  entity: FinanceAuditEntity;
+  id: number | null;
+  before: unknown;
+  after: unknown;
+};
+
+export function financeAudit(store: Store, actor: Actor, record: FinanceAuditRecord) {
+  audit(store, actor, {
+    action: record.action,
+    entity: record.entity,
+    id: record.id,
+    document: { before: record.before, after: record.after },
+  });
 }

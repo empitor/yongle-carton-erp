@@ -6,35 +6,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const require = createRequire(import.meta.url);
 const { createCanvas } = require('@napi-rs/canvas');
-const speech = require('sherpa-onnx-node');
-assert.equal(typeof speech.OfflineRecognizer, 'function');
 const canvas = createCanvas(80, 40);
 canvas.getContext('2d').fillText('虚构', 0, 20);
 assert.ok(canvas.toBuffer('image/png').length);
-const { defaultDocumentTemplates } = await import('../../shared/document-templates.ts');
-const { sampleDocument } = await import('../../server/documents/sample.ts');
-const { renderBusinessForm, checkDocumentFonts } = await import('../../server/documents/templates.ts');
+// 虚构样张、排版函数和几种纸张走单据导出的接口（server/documents/index.ts 的排版自检那几项）
+const { checkDocumentFonts, layoutCases, renderBusinessForm, sampleDocument } = await import('../../server/documents/index.ts');
 checkDocumentFonts();
 const dir = mkdtempSync(join(tmpdir(), 'erp-native-smoke-'));
-const [purchase, delivery] = defaultDocumentTemplates().templates;
 const matrix = [];
-for (const [name, template, count] of [
-  ['delivery-93', delivery, 6],
-  ['delivery-140', { ...delivery, paper: 'continuous-241x140' }, 11],
-  ['delivery-a5', { ...delivery, paper: 'a5' }, 11],
-  ['purchase-a4', purchase, 24],
-  ['purchase-wide', { ...purchase, orientation: 'landscape' }, 14],
-]) {
+for (const { name, template, rowsPerPage: count } of layoutCases()) {
   const form = sampleDocument(template);
   assert.equal(form.rowsPerPage, count);
   for (const format of ['docx', 'xlsx']) writeFileSync(join(dir, name + '.' + format), await renderBusinessForm(form, format));
   for (const field of ['name', 'notes']) {
     const index = form.columnKeys.indexOf(field);
     if (index < 0) continue;
-    const long = { ...form, rows: [form.rows[0].map((v, i) => i === index ? '虚构长文字'.repeat(50) : v)] };
-    for (const format of ['docx', 'xlsx']) await assert.rejects(renderBusinessForm(long, format), /内容过长/);
+    // 行高能自动加高，A4 采购单 250 字也放得下；用 2500 字确认一整张纸放不下时会拒绝
+    const long = { ...form, rows: [form.rows[0].map((v, i) => i === index ? '虚构长文字'.repeat(500) : v)] };
+    for (const format of ['docx', 'xlsx']) await assert.rejects(renderBusinessForm(long, format), /内容过长|内容太长/);
   }
   matrix.push({ name, rowsPerPage: form.rowsPerPage });
 }
 writeFileSync(join(dir, 'matrix.json'), JSON.stringify(matrix, null, 2));
-console.log(JSON.stringify({ platform: process.platform, node: process.version, canvas: 'ok', speechNative: 'ok', optionalModels: 'not-required', matrix, directory: dir }, null, 2));
+console.log(JSON.stringify({ platform: process.platform, node: process.version, canvas: 'ok', matrix, directory: dir }, null, 2));

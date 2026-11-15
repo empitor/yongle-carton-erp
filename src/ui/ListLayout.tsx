@@ -1,7 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Search,
-  RotateCcw,
   ChevronLeft,
   ChevronRight,
   Inbox,
@@ -28,102 +26,16 @@ export function PageHeading({
     </div>
   );
 }
-export function FilterField({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="list-filter-field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-export function ListFilters({
-  search,
-  onSearch,
-  searchLabel = '搜索业务记录',
-  placeholder,
-  children,
-  dates,
-  extras,
-  onReset,
-  note,
-  busy = false,
-}: {
-  search: string;
-  onSearch: (value: string) => void;
-  searchLabel?: string;
-  placeholder: string;
-  children?: ReactNode;
-  dates?: ReactNode;
-  extras?: ReactNode;
-  onReset: () => void;
-  note?: ReactNode;
-  busy?: boolean;
-}) {
-  // 手机上筛选默认收起，先看到数据。
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const reset = (
-    <button className="filter-reset" onClick={onReset}>
-      <RotateCcw size={14} aria-hidden="true" />
-      <span className="sr-only">重置筛选</span>
-    </button>
-  );
-  return (
-    <section
-      className={'list-filters collapsible' + (filtersOpen ? ' filters-open' : '')}
-      aria-label="列表筛选"
-    >
-      <div className="list-filters-primary">
-        <label className="list-search">
-          <span>关键词</span>
-          <div>
-            <Search size={16} />
-            <input
-              aria-label={searchLabel}
-              placeholder={placeholder}
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-            />
-          </div>
-        </label>
-        {(children || dates) && (
-          <button
-            type="button"
-            className="list-filter-toggle"
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((v) => !v)}
-          >
-            {filtersOpen ? '收起筛选' : '筛选'}
-          </button>
-        )}
-        {children}
-        {!dates && reset}
-      </div>
-      {dates && (
-        <div className="list-filters-secondary">
-          {dates}
-          <div className="list-filter-extras">
-            {extras}
-            {reset}
-          </div>
-        </div>
-      )}
-      {!dates && extras && <div className="list-filter-extras">{extras}</div>}
-      {(note || busy) && (
-        <div className="list-filter-note">
-          <span>{note}</span>
-          {busy && <span role="status">正在更新…</span>}
-        </div>
-      )}
-    </section>
-  );
-}
 export function ListSummary({
   items,
 }: {
   items: {
     label: string;
     value: ReactNode;
+    /** 口径说明：行内统计放不下，平时不显示 */
     hint?: string;
+    /** 会改变读数意思的说明（比如“另有 2 种没算进去”）：一直显示，次要文字 */
+    note?: string;
     onClick?: () => void;
     active?: boolean;
   }[];
@@ -137,12 +49,14 @@ export function ListSummary({
               <span>{item.label}</span>
               <strong>{item.value}</strong>
               {item.hint && <small>{item.hint}</small>}
+              {item.note && <small className="list-summary-note">{item.note}</small>}
             </button>
           ) : (
             <>
               <span>{item.label}</span>
               <strong>{item.value}</strong>
               {item.hint && <small>{item.hint}</small>}
+              {item.note && <small className="list-summary-note">{item.note}</small>}
             </>
           )}
         </div>
@@ -194,6 +108,9 @@ export function useResettingPage(signature: string) {
   const page = state.signature === signature ? state.page : 1;
   return [page, (next: number) => setState({ signature, page: next })] as const;
 }
+
+/** 列表每页条数：全站的列表一样，前端分页和按页读的请求都用它。 */
+export const LIST_PAGE_SIZE = 50;
 
 export function Pagination({
   page,

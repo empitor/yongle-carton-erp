@@ -1,126 +1,80 @@
-import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import type { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
-import { defaultDbPath } from '../db.js';
+import { defaultDbPath, one, openVersionedSqlite, parseStoredJson, registerVersionedSqlite, rows } from '../core/index.js';
 import { randomUUID, createHash } from 'node:crypto';
-import { z } from 'zod';
 import {
+  promptModules,
+  promptRevisionSchema,
+  promptSaveSchema,
   promptStateSchema,
-  promptPresetSchema,
+  promptTargetSchema,
+  type PromptAction,
+  type PromptPreset,
   type PromptState,
-} from '../../shared/prompt-presets.js';
-import { defaultPromptPreset } from '../import/default-prompts.js';
-import { ImportError } from '../import/errors.js';
+} from '../../shared/ai/index.js';
+import { defaultPromptPreset } from './default-prompts/sales-order.js';
+import { forgetEdited, initialPromptState, refreshDefaults, restoreDefault } from './prompt-defaults.js';
+import { AppError } from '../core/index.js';
 
 export const defaultPromptSettingsPath = () =>
   join(dirname(defaultDbPath), 'ai-prompts', 'presets.sqlite');
-const revision = z.object({ expectedRevision: z.number().int().nonnegative() });
+/** 复制时名字留前 75 个字再接“ 副本”，不超过名称上限 80 字 */
+const COPY_NAME_CHARS = 75;
+/** 整份提示词配置最多 2 MB */
+const MAX_DOCUMENT_BYTES = 2_097_152;
+const documentRow = rows.prompt_settings.pick({ document: true });
+/** 当前用的那份预设：结构核对过当前预设一定在，找不到说明程序有错 */
+function activePreset(state: PromptState): PromptPreset {
+  const preset = state.presets.find((p) => p.id === state.activeId);
+  if (!preset) throw new Error('提示词配置里找不到当前预设');
+  return preset;
+}
+/**
+ * 提示词库（ai-prompts 下每个模块一个文件）：prompt_settings 一行 JSON，用 PRAGMA user_version 记结构版本。
+ * 比当前版本旧的库不升级、不留备份：打开时整个删掉，按当前默认重建；比程序新的拒绝打开（server/core/versioned-sqlite.ts）。
+ * 默认文字变了不用改版本：没改过的默认在打开时自动换新（prompt-defaults.ts）。
+ */
+const promptDatabase = {
+  label: '提示词库',
+  latest: 2,
+  pragmas: 'PRAGMA synchronous=FULL',
+  create(db: DatabaseSync) {
+    db.exec(
+      'CREATE TABLE prompt_settings(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, document TEXT NOT NULL)',
+    );
+  },
+};
+// 每个提示词模块的默认文件都登记进配置库登记表：恢复备份的维护命令行不打开提示词库，
+// 靠这一条认出备份里 ai-prompts 下的文件是提示词库、支持到第几版
+for (const module of promptModules)
+  registerVersionedSqlite(promptDatabase, () => join(dirname(defaultPromptSettingsPath()), module.storageFile));
 export class PromptPresetManager {
   private db: DatabaseSync;
   constructor(
     file = ':memory:',
     private defaultPreset = defaultPromptPreset,
   ) {
-    if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
-    this.db = new DatabaseSync(file);
-    this.db.exec(
-      'PRAGMA busy_timeout=5000; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS prompt_settings(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, document TEXT NOT NULL)',
-    );
-    const preset = this.defaultPreset(),
-      initial: PromptState = { revision: 0, activeId: preset.id, presets: [preset] };
+    this.db = openVersionedSqlite(file, promptDatabase);
+    const latest = this.defaultPreset();
     this.db
-      .prepare('INSERT OR IGNORE INTO prompt_settings VALUES(1,0,?)')
-      .run(JSON.stringify(initial));
-    this.view(); // 损坏配置明确报错，不静默清空或覆盖。
+      .prepare('INSERT OR IGNORE INTO prompt_settings(id,revision,document) VALUES(1,0,?)')
+      .run(JSON.stringify(initialPromptState(latest)));
+    const current = this.view(); // 损坏配置明确报错，不静默清空或覆盖。
+    const refreshed = refreshDefaults(current, latest);
+    if (refreshed.changed) this.write(refreshed.state, current.revision);
   }
   close() {
     this.db.close();
   }
-  upgradeUntouchedDefaults(legacy: ReturnType<typeof defaultPromptPreset>[], version: string) {
-    const canonical = (p: ReturnType<typeof defaultPromptPreset>) =>
-      JSON.stringify({
-        name: p.name,
-        entries: p.entries.map(({ name, enabled, content }) => ({ name, enabled, content })),
-      });
-    const signatures = new Set(legacy.map(canonical));
-    this.db.exec(
-      'CREATE TABLE IF NOT EXISTS prompt_default_upgrades(version TEXT PRIMARY KEY,applied_at TEXT NOT NULL,document TEXT NOT NULL)',
-    );
-    this.db.exec('BEGIN IMMEDIATE');
-    try {
-      if (this.db.prepare('SELECT 1 FROM prompt_default_upgrades WHERE version=?').get(version)) {
-        this.db.exec('COMMIT');
-        return;
-      }
-      const state = this.view(),
-        before = structuredClone(state),
-        latest = this.defaultPreset();
-      let count = 0;
-      for (const p of state.presets)
-        if (signatures.has(canonical(p))) {
-          p.entries = latest.entries.map((e, i) => ({ ...e, id: p.entries[i]?.id || e.id }));
-          count++;
-        }
-      if (count) {
-        state.revision++;
-        const document = JSON.stringify(promptStateSchema.parse(state));
-        this.db
-          .prepare('UPDATE prompt_settings SET revision=?,document=? WHERE id=1')
-          .run(state.revision, document);
-      }
-      this.db
-        .prepare('INSERT INTO prompt_default_upgrades VALUES(?,?,?)')
-        .run(version, new Date().toISOString(), JSON.stringify({ count, before, after: state }));
-      this.db.exec('COMMIT');
-    } catch (e) {
-      this.db.exec('ROLLBACK');
-      throw e;
-    }
-  }
-  /** 给用户改过的预设补上缺少的默认条目（按名字判断），不动已有内容。改动前的内容留在升级记录里。 */
-  addMissingDefaultEntries(version: string) {
-    this.db.exec(
-      'CREATE TABLE IF NOT EXISTS prompt_default_upgrades(version TEXT PRIMARY KEY,applied_at TEXT NOT NULL,document TEXT NOT NULL)',
-    );
-    this.db.exec('BEGIN IMMEDIATE');
-    try {
-      if (this.db.prepare('SELECT 1 FROM prompt_default_upgrades WHERE version=?').get(version)) {
-        this.db.exec('COMMIT');
-        return;
-      }
-      const state = this.view(),
-        before = structuredClone(state),
-        latest = this.defaultPreset();
-      let count = 0;
-      for (const p of state.presets) {
-        const names = new Set(p.entries.map((e) => e.name));
-        const missing = latest.entries.filter((e) => !names.has(e.name));
-        if (!missing.length) continue;
-        p.entries = [...p.entries, ...missing.map((e) => ({ ...e, id: randomUUID() }))];
-        count++;
-      }
-      if (count) {
-        state.revision++;
-        this.db
-          .prepare('UPDATE prompt_settings SET revision=?,document=? WHERE id=1')
-          .run(state.revision, JSON.stringify(promptStateSchema.parse(state)));
-      }
-      this.db
-        .prepare('INSERT INTO prompt_default_upgrades VALUES(?,?,?)')
-        .run(version, new Date().toISOString(), JSON.stringify({ count, before, after: state }));
-      this.db.exec('COMMIT');
-    } catch (e) {
-      this.db.exec('ROLLBACK');
-      throw e;
-    }
-  }
   view(): PromptState {
-    const row = this.db.prepare('SELECT document FROM prompt_settings WHERE id=1').get()!;
-    return promptStateSchema.parse(JSON.parse(String(row.document)));
+    // 设置行在打开时就插好了，读不到说明库被改坏了
+    const row = one(this.db, documentRow, 'SELECT document FROM prompt_settings WHERE id=1');
+    if (!row) throw new Error('提示词库里没有设置行');
+    return parseStoredJson(promptStateSchema, row.document, 'prompt_settings.document');
   }
   snapshot() {
     const state = this.view(),
-      preset = state.presets.find((p) => p.id === state.activeId)!;
+      preset = activePreset(state);
     return {
       preset,
       usage: {
@@ -131,53 +85,51 @@ export class PromptPresetManager {
       },
     };
   }
-  change(action: 'save' | 'copy' | 'activate' | 'delete' | 'restore', raw: unknown): PromptState {
-    const expected = revision.parse(raw).expectedRevision,
-      state = this.view();
+  change(action: PromptAction, raw: unknown): PromptState {
+    const expected = promptRevisionSchema.parse(raw).expectedRevision;
+    let state = this.view();
     if (state.revision !== expected)
-      throw new ImportError('提示词预设已在其他页面修改，请重新加载后操作。', 409, 'stale');
+      throw new AppError('提示词预设已在其他页面修改，请重新加载后操作。', 409, 'stale');
     if (action === 'save') {
-      const input = revision
-        .extend({ preset: promptPresetSchema, activate: z.boolean().default(false) })
-        .strict()
-        .parse(raw);
+      const input = promptSaveSchema.parse(raw);
       const index = state.presets.findIndex((p) => p.id === input.preset.id);
       if (index < 0) state.presets.push(input.preset);
       else state.presets[index] = input.preset;
       if (input.activate) state.activeId = input.preset.id;
     } else {
-      const input = revision
-          .extend({ id: z.string().uuid(), confirmed: z.boolean().optional() })
-          .strict()
-          .parse(raw),
+      const input = promptTargetSchema.parse(raw),
         index = state.presets.findIndex((p) => p.id === input.id);
-      if (index < 0) throw new ImportError('提示词预设不存在。', 404);
+      if (index < 0) throw new AppError('提示词预设不存在。', 404);
       if (action === 'activate') state.activeId = input.id;
       if (action === 'copy') {
         const copy = structuredClone(state.presets[index]);
         copy.id = randomUUID();
-        copy.name = copy.name.slice(0, 75) + ' 副本';
+        copy.name = copy.name.slice(0, COPY_NAME_CHARS) + ' 副本';
         copy.entries.forEach((e) => (e.id = randomUUID()));
         state.presets.push(copy);
       }
       if (action === 'delete' || action === 'restore') {
-        if (input.confirmed !== true) throw new ImportError('请确认删除或恢复默认操作。');
-        if (action === 'restore') state.presets[index].entries = this.defaultPreset().entries;
+        if (input.confirmed !== true) throw new AppError('请确认删除或恢复默认操作。');
+        if (action === 'restore') state = restoreDefault(state, input.id, this.defaultPreset());
         else {
-          if (state.presets.length === 1) throw new ImportError('至少保留一份提示词预设。');
+          if (state.presets.length === 1) throw new AppError('至少保留一份提示词预设。');
           state.presets.splice(index, 1);
           if (state.activeId === input.id) state.activeId = state.presets[0].id;
         }
       }
     }
-    state.revision = expected + 1;
-    const document = JSON.stringify(promptStateSchema.parse(state));
-    if (Buffer.byteLength(document) > 2 * 1024 * 1024)
-      throw new ImportError('提示词配置超过2MB，请精简条目。', 413);
+    return this.write(state, expected);
+  }
+  /** 带版本校验写回，版本号加一；改过的、删掉的预设顺手不再跟着默认走。 */
+  private write(state: PromptState, expected: number): PromptState {
+    const next = { ...forgetEdited(state), revision: expected + 1 };
+    const document = JSON.stringify(promptStateSchema.parse(next));
+    if (Buffer.byteLength(document) > MAX_DOCUMENT_BYTES)
+      throw new AppError('提示词配置超过2MB，请精简条目。', 413);
     const result = this.db
       .prepare('UPDATE prompt_settings SET revision=?,document=? WHERE id=1 AND revision=?')
-      .run(state.revision, document, expected);
-    if (!result.changes) throw new ImportError('提示词保存冲突，请重新加载。', 409, 'stale');
+      .run(next.revision, document, expected);
+    if (!result.changes) throw new AppError('提示词保存冲突，请重新加载。', 409, 'stale');
     return this.view();
   }
 }

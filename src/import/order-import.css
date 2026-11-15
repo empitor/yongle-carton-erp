@@ -1,0 +1,474 @@
+/* AI 导入工作区：文件栏、原件、单据 */
+.order-import button.danger {
+  background: var(--danger-fill);
+  border-color: var(--danger-fill);
+  color: var(--on-danger);
+}
+.order-import button.danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  color: var(--on-danger);
+}
+.order-import .primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.oi-file-row:not(.active):hover {
+  background: var(--surface-hover);
+}
+.order-import button {
+  border-radius: var(--r-small);
+  font-size: var(--text-xs);
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--oi-border);
+}
+.order-import button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.order-import button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.order-import input,
+.order-import select,
+.order-import textarea {
+  font-size: var(--text-sm);
+  border: 1px solid var(--oi-border);
+  border-radius: var(--r-small);
+  padding: var(--space-xs) 7px;
+  line-height: 1.4;
+}
+.order-import input:focus,
+.order-import textarea:focus,
+.order-import select:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.order-import small {
+  color: var(--oi-muted);
+}
+.oi-workspace-head p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 5px 0 0;
+  font-size: var(--text-xs);
+  color: var(--oi-muted);
+}
+.oi-workspace-head p b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.oi-workspace-head > div:last-child {
+  gap: 7px;
+}
+.oi-file-list {
+  flex-shrink: 0;
+}
+.oi-file-list > header,
+.oi-preview > header {
+  border-radius: var(--r-control) var(--r-control) 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 11px;
+  border-bottom: 1px solid var(--oi-border);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  gap: var(--space-sm);
+  flex: none;
+}
+.oi-file-list > header span {
+  font-size: var(--text-xs);
+  color: var(--oi-muted);
+}
+.oi-file-row input {
+  width: 13px;
+  height: 13px;
+}
+.oi-file-row b {
+  max-width: 100%;
+}
+.oi-file-row small {
+  margin-top: 3px;
+}
+.oi-file-row.pending > div {
+  flex: 1;
+  min-width: 0;
+}
+.oi-file-row.pending small {
+  white-space: normal;
+  color: var(--danger);
+}
+.oi-preview {
+  background: var(--surface);
+  border: 1px solid var(--oi-border);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.oi-preview > header a {
+  color: var(--oi-teal);
+}
+.oi-preview-tools {
+  padding: 5px 7px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  flex: none;
+}
+.oi-preview-tools > span:first-child {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.oi-preview-tools button {
+  padding: 3px;
+  min-height: 24px;
+  border: 0;
+}
+.oi-preview-tools select {
+  max-width: 70px;
+  font-size: var(--text-xs);
+  padding: 3px;
+}
+.oi-preview-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  background: var(--surface-muted);
+}
+.oi-image-canvas {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: var(--space-sm);
+  text-align: center;
+}
+.oi-image-canvas img {
+  display: block;
+  margin: auto;
+  max-width: none;
+}
+.oi-bad {
+  color: var(--danger) !important;
+}
+.oi-empty p {
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+.oi-empty span {
+  font-size: var(--text-xs);
+  line-height: 1.7;
+}
+
+@media (max-width: 1100px) {
+  .oi-file-list > header span {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .oi-workspace-head p {
+    flex-wrap: wrap;
+    font-size: var(--text-xs);
+    max-width: 200px;
+  }
+  .oi-workspace-head > div:last-child {
+    justify-content: flex-end;
+  }
+  .oi-left {
+    height: 420px;
+    flex: none;
+  }
+  .oi-preview-content {
+    min-height: 150px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .order-import * {
+    animation: none !important;
+  }
+}
+
+/* 批量导入：每份文件一张卡片 */
+.sales-batch-card {
+  display: grid;
+  gap: var(--space-md);
+}
+.sales-batch-card > header {
+  margin-bottom: 0;
+}
+.sales-batch-card .form-message,
+.sales-batch-card .record-hint {
+  margin: 0;
+}
+
+/* 批量导入卡片里订单头一行四项，宽窗口里不浪费高度 */
+.sales-batch-card .record-facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .sales-batch-card .record-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- 页头、空状态、历史与归档 ---------- */
+/* 页头的识别失败数：只是提醒，不是入口（失败记录在“更多 → 历史与归档”） */
+.oi-head-counts .aii-count-bad,
+.oi-head-counts .aii-count-bad strong {
+  color: var(--danger);
+}
+.order-import > .record-hint {
+  margin: 0;
+}
+.order-import.is-dragging .aii-dropzone,
+.order-import.is-dragging .oi-file-list {
+  border-color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.more-menu-list > .aii-menu-note:first-child {
+  margin: 0 0 var(--space-2xs);
+  padding: var(--space-3xs) var(--space-sm) var(--space-xs);
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 勾选文件后的操作条浮在底部，正文让出位置 */
+.order-import:has(> .selection-bar) {
+  padding-bottom: 64px;
+}
+
+@media (max-width: 760px) {
+  .order-import:has(> .selection-bar) {
+    padding-bottom: 96px;
+  }
+}
+.oi-workspace-head h1,
+.oi-workspace-head h2 {
+  font-size: var(--text-xl);
+}
+.oi-file-list,
+.oi-left > section {
+  border-radius: var(--r-panel);
+  border-color: var(--border);
+}
+.oi-file-row > button:not(.oi-file-select) {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  min-height: 24px;
+  padding: 0 var(--space-2xs);
+  font-size: var(--text-xs);
+}
+
+/* ---- AI 导入：文件列表、原件、草稿三栏，操作都在页头、单据头和底部一条 ---- */
+.order-import {
+  --oi-border: var(--border);
+  --oi-muted: var(--muted);
+  --oi-teal: var(--teal);
+  font-size: var(--text-sm);
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  height: calc(100dvh - var(--topbar-h) - 24px);
+  min-height: 560px;
+}
+.oi-workspace-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  min-height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.oi-head-counts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.oi-head-counts strong {
+  color: var(--ink);
+}
+.oi-left {
+  min-height: 0;
+  flex-direction: column;
+  gap: 9px;
+  display: contents;
+}
+.oi-left .oi-file-list,
+.oi-preview,
+.oi-right {
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+}
+.oi-left .oi-file-list {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.oi-file-list > header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-above);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.oi-file-list > header label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+}
+.oi-file-list > header small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* 文件栏窄：名称占一行，类型和操作放第二行 */
+.oi-file-row {
+  border-left: 3px solid transparent;
+  flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 48px;
+  padding: var(--space-2xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+.oi-file-row.active {
+  border-left-color: var(--oi-teal);
+  background: var(--accent-soft);
+}
+
+/* 收件箱三栏：文件、原件、草稿 */
+.oi-file-row .oi-file-select {
+  min-height: 0;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: var(--space-3xs) 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+}
+.oi-file-select b,
+.oi-file-select small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.oi-file-select b {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.oi-file-select small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.oi-file-row.active .oi-file-select small:not(.oi-bad) {
+  color: var(--ink);
+}
+.oi-file-select small.oi-bad {
+  color: var(--danger);
+}
+.oi-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  overflow: hidden;
+}
+.oi-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--muted);
+  text-align: center;
+  padding: var(--space-xl);
+  min-height: 200px;
+}
+/* AI 导入：草稿优先，给原件留够看清的宽度 */
+.oi-workspace-body {
+  display: grid;
+  flex: 1;
+  gap: var(--space-sm);
+  min-height: 0;
+  margin: 0;
+  grid-template-columns: 200px minmax(260px, 26%) minmax(0, 1fr);
+}
+.oi-workspace-body.no-preview {
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+
+@media (max-width: 700px) {
+
+  /* AI 导入：三栏改成上下排 */
+  .oi-workspace-body,
+  .oi-workspace-body.no-preview {
+    display: flex !important;
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+  .oi-left {
+    display: block;
+  }
+  /* 上下排时每栏按自己的内容高度排。原件预览放在左栏里，左栏写死高度的话，
+     原件会溢出来压住下面的草稿 */
+  .oi-workspace-body,
+  .oi-left,
+  .oi-preview,
+  .oi-right {
+    flex: none;
+    height: auto;
+    overflow: visible;
+  }
+  .oi-left .oi-file-list {
+    max-height: 240px;
+  }
+  /* 单据类型和操作按钮一行放不下时换行，“更多”不能被挤出屏幕 */
+  .oi-preview {
+    min-height: 240px;
+  }
+  .oi-preview-content {
+    max-height: 60vh;
+  }
+  .oi-workspace-head {
+    flex-wrap: wrap;
+    height: auto;
+    gap: var(--space-sm);
+  }
+  .order-import {
+    height: auto !important;
+    max-height: none !important;
+  }
+}

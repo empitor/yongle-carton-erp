@@ -1,0 +1,210 @@
+// 只管：records.search、records.summarize 的筛选——能用的筛选键（给模型看的参数结构和执行时的校验同一份），
+// 和按筛选条件挑记录：各模块共用的条件读记录上的字段，订单、采购单、单据各自的状态、待办、日期范围用各自的类型。
+import { z } from 'zod';
+import type { Actor } from '../../core/index.js';
+import { ISO_DATE_LENGTH, dateSchema, orderInView } from '../../../shared/core/index.js';
+import {
+  SEARCH_MAX_LENGTH,
+  arrivalProgresses,
+  arrivalProgressText,
+  flowStatusLabel,
+  matchesFlowStatus,
+  pendingOrder,
+  pendingPurchase,
+  purchaseBusinessStatuses,
+  purchaseState,
+  type FlowKind,
+} from '../../../shared/business/index.js';
+import { MONTHS_MAX, fieldList, isFields, positive, type Fields, type ToolContext } from './context.js';
+import { recordRows, type Module, type ModuleRows } from './modules.js';
+
+/** 状态叫法最多几个字（按单号、名称、规格找的字和列表筛选同一个上限 SEARCH_MAX_LENGTH） */
+const STATUS_MAX_CHARS = 40;
+
+/**
+ * 查记录、汇总能用的筛选键：给模型看的参数结构和执行时的校验用同一份，写错键时报错里列出能用的，不接受别名。
+ * 按单号、名称、规格找都用 q。
+ */
+const filterShape = {
+  q: z.string().max(SEARCH_MAX_LENGTH).optional(),
+  customerId: positive.optional(),
+  supplierId: positive.optional(),
+  productId: positive.optional(),
+  stockId: positive.optional(),
+  status: z.string().max(STATUS_MAX_CHARS).optional(),
+  businessStatus: z.enum(purchaseBusinessStatuses).optional(),
+  arrivalProgress: z.enum(arrivalProgresses).optional(),
+  shippingProgress: z.enum(['未发货', '部分发货', '已发完']).optional(),
+  pending: z.boolean().optional(),
+  start: dateSchema.optional(),
+  end: dateSchema.optional(),
+  months: z.number().int().min(1).max(MONTHS_MAX).optional(),
+  archived: z.boolean().optional(),
+  lifecycle: z.enum(['active', 'archived', 'all']).optional(),
+  view: z.enum(['current', 'pending', 'history', 'all']).optional(),
+  kind: z.enum(['raw', 'finished']).optional(),
+  direction: z.enum(['in', 'out']).optional(),
+};
+export const FILTER_KEYS_HINT = '能用的筛选键：' + Object.keys(filterShape).join('、') + '；按单号、名称、规格找用 q，日期用 start、end。';
+export const filterSchema = z.strictObject(filterShape, {
+  error: (issue) =>
+    issue.code === 'unrecognized_keys' ? '筛选条件里没有“' + issue.keys.join('、') + '”。' + FILTER_KEYS_HINT : undefined,
+});
+export type RecordFilters = z.output<typeof filterSchema>;
+
+/** 各模块共用的条件按字段名读记录（Fields：模块不同，字段不同） */
+const text = (v: unknown) => (typeof v === 'string' ? v : '');
+
+/** 订单、采购单、单据各自的判断：额外认的状态叫法、待办（null 用通用的）、日期范围（null 用通用的） */
+type Specific = { status: boolean; pending: boolean | null; inView: boolean | null };
+const generic: Specific = { status: false, pending: null, inView: null };
+/** 筛选的现场：模块、筛选条件、按订单或采购单关联出来的产品或库存品编号（没有是 null） */
+export type FilterScope = { module: Module; f: RecordFilters; partyIds: Set<number> | null };
+
+const isInventory = (module: Module) => module === 'raw_inventory' || module === 'finished_inventory';
+
+/** 按单号、名称、规格找：这些字段和明细里的品名、规格、备注拼起来，含这个字就算 */
+function textMatch(r: Fields, q: string) {
+  if (!q) return true;
+  const lines = fieldList(r.lines).map((l) => {
+    const item = isFields(l.item) ? l.item : undefined;
+    return [l.productName, l.name, l.specification, l.notes, item?.name, item?.specification, item?.material, item?.flute].join(' ');
+  });
+  const fields = [r.name, r.productName, r.itemName, r.itemSpecification, r.purchaseNumber, r.customerOrderNumber, r.flowNumber, r.actor_name];
+  return [...fields, r.number, r.customerName, r.supplierName, r.notes, r.specification, r.material, r.flute, ...lines]
+    .join(' ')
+    .toLowerCase()
+    .includes(q);
+}
+/** 客户、供应商：产品、库存品按订单和采购单关联出来，别的看记录上的编号 */
+function partyMatch(r: Fields, s: FilterScope) {
+  const { f, partyIds } = s;
+  if (partyIds) return partyIds.has(Number(r.id));
+  const customerIds = Array.isArray(r.customerIds) ? r.customerIds : [];
+  return (
+    (!f.customerId || r.customerId === f.customerId || customerIds.includes(f.customerId)) &&
+    (!f.supplierId || r.supplierId === f.supplierId)
+  );
+}
+function stockMatch(r: Fields, s: FilterScope) {
+  const { f, module } = s;
+  if (!f.stockId) return true;
+  if (isInventory(module)) return r.id === f.stockId;
+  if (module === 'movements') return Number(r.item_id) === f.stockId;
+  return (
+    r.finishedStockId === f.stockId ||
+    fieldList(r.lines).some((l) => l.stockId === f.stockId) ||
+    fieldList(r.materials).some((m) => m.stockId === f.stockId)
+  );
+}
+function statusMatch(r: Fields, f: RecordFilters, specific: Specific) {
+  if (!f.status) return true;
+  return (
+    r.status === f.status ||
+    r.shippingProgress === f.status ||
+    r.arrivalProgress === f.status ||
+    r.businessStatus === f.status ||
+    specific.status
+  );
+}
+function pendingMatch(r: Fields, f: RecordFilters, specific: Specific) {
+  if (!f.pending) return true;
+  if (specific.pending !== null) return specific.pending;
+  return r.status === 'draft' || (r.status === 'confirmed' && r.kind === 'task' && Number(r.completed || 0) < Number(r.quantity));
+}
+/** 日期范围：库存余额不受日期筛选；订单按它自己的视图，别的按单据日期或创建日期 */
+function dateMatch(r: Fields, s: FilterScope, specific: Specific) {
+  if (isInventory(s.module)) return true;
+  if (specific.inView !== null) return specific.inView;
+  const { f } = s,
+    date = text(r.orderDate) || text(r.date) || String(r.createdAt || '').slice(0, ISO_DATE_LENGTH);
+  return (!f.start || date >= f.start) && (!f.end || date <= f.end);
+}
+function fieldMatch(r: Fields, f: RecordFilters) {
+  return (
+    (!f.businessStatus || r.businessStatus === f.businessStatus) &&
+    (!f.arrivalProgress || r.arrivalProgress === f.arrivalProgress) &&
+    (!f.shippingProgress || r.shippingProgress === f.shippingProgress) &&
+    (f.lifecycle !== 'archived' || !!r.archived) &&
+    (f.lifecycle !== 'active' || !r.archived) &&
+    (!f.kind || r.kind === f.kind) &&
+    (!f.direction || (f.direction === 'in' ? Number(r.delta_units) > 0 : Number(r.delta_units) < 0)) &&
+    (!f.productId || r.productId === f.productId || fieldList(r.lines).some((l) => l.productId === f.productId))
+  );
+}
+function rowMatches(r: Fields, s: FilterScope, specific: Specific) {
+  return (
+    fieldMatch(r, s.f) &&
+    textMatch(r, (s.f.q || '').toLowerCase()) &&
+    partyMatch(r, s) &&
+    stockMatch(r, s) &&
+    statusMatch(r, s.f, specific) &&
+    pendingMatch(r, s.f, specific) &&
+    dateMatch(r, s, specific)
+  );
+}
+
+/** 订单：“已完成”等同已发货，“部分发货”按发货进度；待办和日期范围按订单自己的规则 */
+function orderSpecific(r: ModuleRows['orders'][number], f: RecordFilters): Specific {
+  return {
+    status: (f.status === '已完成' && r.status === '已发货') || (f.status === '部分发货' && r.shippingProgress === '部分发货'),
+    pending: pendingOrder(r),
+    inView: orderInView(r, {
+      view: f.view === 'all' ? undefined : f.view,
+      start: f.start,
+      end: f.end,
+      retainPending: !!f.months && f.view === 'current',
+    }),
+  };
+}
+/** 采购单：页面上的叫法（待到货 / 已到齐），到货进度也认页面叫法 */
+function purchaseSpecific(r: ModuleRows['purchases'][number], f: RecordFilters): Specific {
+  return {
+    status: !!f.status && (purchaseState(r) === f.status || arrivalProgressText(r.arrivalProgress) === f.status),
+    pending: pendingPurchase(r),
+    inView: null,
+  };
+}
+/** 单据：界面叫法（和列表的状态筛选同一个比法），也认 flowStatusLabel 的叫法（已确认收货、已冲销这类） */
+function flowSpecific(
+  r: Parameters<typeof flowStatusLabel>[0] & Parameters<typeof matchesFlowStatus>[0],
+  kind: FlowKind,
+  f: RecordFilters,
+): Specific {
+  return { ...generic, status: !!f.status && (flowStatusLabel(r) === f.status || matchesFlowStatus(r, kind, f.status)) };
+}
+
+/** 筛出来的记录，带着模块（汇总按模块用各自的类型） */
+export type MatchedRows = { [M in Module]: { module: M; rows: ModuleRows[M] } }[Module];
+/** 按筛选条件挑记录：读这个模块的全部记录，逐条按共用条件和模块自己的判断筛 */
+export function matchingRows(ctx: ToolContext, actor: Actor, archived: boolean, s: FilterScope): MatchedRows {
+  const pick = <R extends Fields>(rows: R[], specific: (r: R) => Specific) => rows.filter((r) => rowMatches(r, s, specific(r)));
+  const plain = () => generic;
+  const { module, f } = s;
+  switch (module) {
+    case 'orders':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => orderSpecific(r, f)) };
+    case 'purchases':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => purchaseSpecific(r, f)) };
+    case 'arrivals':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => flowSpecific(r, 'arrival', f)) };
+    case 'production_tasks':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => flowSpecific(r, 'task', f)) };
+    case 'production_records':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => flowSpecific(r, 'production', f)) };
+    case 'deliveries':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => flowSpecific(r, 'delivery', f)) };
+    case 'customers':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), plain) };
+    case 'products':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), plain) };
+    case 'suppliers':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), plain) };
+    case 'raw_inventory':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), plain) };
+    case 'finished_inventory':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), plain) };
+    case 'movements':
+      return { module, rows: pick(recordRows(ctx, module, actor, archived), plain) };
+  }
+}

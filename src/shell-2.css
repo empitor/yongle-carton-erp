@@ -1,0 +1,37 @@
+/* 外壳：侧栏、导航、主区域、提示条（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+/* —— 按钮：主按钮实心，其余灰色填充，图标按钮平时透明；按下轻微缩小 —— */
+:root[data-ui='refined'] :where(.page-actions, .topbar-right, .record-actions, .editor-footer-actions, .section-heading, .ed-section > header, .detail-panel-head, .modal-head, .list-filters, .management-dialog-body) button:where(:not(.erp-nav-item, .row-key, .record-view-tabs > button)) {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: none;
+  transition:
+    background 0.15s var(--ease),
+    transform 0.12s var(--ease),
+    box-shadow 0.15s var(--ease),
+    filter 0.15s var(--ease);
+}
+:root[data-ui='refined'] :where(.page-actions, .topbar-right, .record-actions, .editor-footer-actions, .section-heading, .ed-section > header, .detail-panel-head, .modal-head, .list-filters, .management-dialog-body) button:where(:not(.erp-nav-item, .row-key, .record-view-tabs > button)):hover:not(:disabled) {
+  background: var(--fill-2);
+}
+:root[data-ui='refined'] button:not(.erp-nav-item):active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@media (min-width: 1200px) {
+  :root[data-ui='refined'] body:has(.detail-panel) .main {
+    margin-right: calc(var(--assistant-w) + max(var(--panel-w), 420px));
+  }
+}
+:root[data-ui='refined'] .record-view-tabs.fin-tabs {
+  gap: var(--space-2xs);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}

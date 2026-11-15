@@ -1,0 +1,42 @@
+/* 按钮：主按钮、次要、危险、图标按钮、做成链接样子的按钮（第 4 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面；另有几条弹窗的写法也要排在这个位置，一起放在这里。顺序见 src/main.tsx */
+/* 做成按钮样子的链接，和按钮一样 */
+:root[data-ui='refined'] a:is(.button, .secondary, .button-link):not(.primary) {
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s var(--ease);
+}
+:root[data-ui='refined'] a:is(.button, .secondary, .button-link):not(.primary):hover {
+  background: var(--fill-2);
+}
+:root[data-ui='refined'] a.primary {
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--teal);
+  color: var(--on-accent);
+}
+:root[data-ui='refined'] main td a:is(.button, .secondary, .button-link):not(.primary) {
+  min-height: 26px;
+  padding: 0 var(--space-sm);
+  background: transparent;
+  color: var(--accent-ink);
+}
+:root[data-ui='refined'] main td a:is(.button, .secondary, .button-link):not(.primary):hover {
+  background: var(--fill-1);
+}
+
+/* —— 禁用的输入框：看得出改不了 ——
+   精致版式给输入框统一的浅灰填充（上面“输入框”一节），禁用的原来和能改的一模一样。
+   禁用的：更浅的底、虚线边、次要字色、鼠标不能点；勾选框、单选、文件选择不在这里管。按钮的禁用样式另有（半透明），不动。 */
+:root[data-ui='refined'] :is(main, .management-dialog, .detail-panel) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea):disabled {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background-color: color-mix(in srgb, var(--field-bg) 40%, transparent);
+  color: var(--text-secondary);
+  -webkit-text-fill-color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 1;
+}

@@ -1,192 +1,200 @@
+// 助手的系统维护（状态、体检、备份、清空预览）、收件箱手动添加和读取、唛头挂上和移除这几个工具本身（extra-tools.ts、tools/system.ts、
+// tools/documents-inbox.ts）。
+// 内存库或临时目录、虚构数据。
+import { z } from 'zod';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assistantFixture, actor } from './assistant-fixture.js';
-import { Store } from '../server/db.js';
-import { localAdministratorActor } from '../server/developer-capability.js';
-import { compactSchema } from '../server/assistant/compact-schema.js';
-import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { toolCatalog } from '../server/assistant/tools.js';
+import { assistantFixture, actor, confirmCard, readAs } from './assistant-fixture.js';
+import { Store } from '../server/core/db.js';
+import { count, type Actor } from '../server/core/index.js';
+import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { toolCatalog } from '../server/assistant/tool-catalog.js';
 import { builtinPluginFor } from '../server/assistant/plugins.js';
-import { askedInChat } from '../server/assistant/task-routing.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
-import { MarkImportService } from '../server/marks/mark-import.js';
-import { MarkService } from '../server/marks/service.js';
-import { productSchema } from '../shared/domain.js';
-import { legacyAssistantDefaults, assistantDefaultPreset } from '../server/assistant/default-preset.js';
+import { AssistantAttachments } from '../server/assistant/attachments.js';
+import type { ToolContext } from '../server/assistant/tools/context.js';
+import type { WorkflowContext } from '../server/assistant/order-import-state.js';
+import { field } from '../server/assistant/chat/result-fields.js';
+import { documentInboxReaders } from '../server/assistant/tools/documents-inbox.js';
+import { resetPreview, systemBackup, systemCheck, systemStatus, type SystemDeps } from '../server/assistant/tools/system.js';
+import { MarkService } from '../server/business/product-marks.js';
+import { productSchema } from '../shared/core/domain.js';
+import type { AssistantAttachment } from '../shared/core/index.js';
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7yMK/gAAAABJRU5ErkJggg==',
   'base64',
 );
-const admin: any = localAdministratorActor({ ...actor, role: 'super_admin' } as any);
-const ctx = (over: any = {}) =>
-  ({
-    threadId: over.threadId || randomUUID(),
+const admin = localAdministratorActor({ ...actor, role: 'super_admin' });
+function ctx(files: AssistantAttachment[] = []): WorkflowContext {
+  return {
+    threadId: files[0]?.threadId ?? randomUUID(),
     actor: admin,
     requestId: randomUUID(),
-    text: over.text ?? '',
-    files: over.files ?? [],
+    files,
     check: () => admin,
     signal: new AbortController().signal,
     emit: () => {},
-    ...over,
-  }) as any;
+  };
+}
 
-test('工具目录：旧的采购分批到货工具去掉了，新工具都在，归到对的插件', () => {
+function attachedFile(store: Store, file: Pick<AssistantAttachment, 'name' | 'mime' | 'kind' | 'transfer'>) {
+  const meta: AssistantAttachment = {
+    ...file,
+    id: randomUUID(),
+    threadId: randomUUID(),
+    size: png.byteLength,
+    sha256: createHash('sha256').update(png).digest('hex'),
+    createdAt: '2026-11-13T08:00:00.000Z',
+    deleted: false,
+  };
+  const attachments = new AssistantAttachments(store);
+  attachments.file = () => ({ meta, bytes: png });
+  return { tools: new AssistantExtraTools(store, attachments), context: ctx([meta]) };
+}
+
+const pngInfo = { mime: 'image/png', kind: 'image', transfer: 'image' } as const;
+const inboxListShape = { rows: z.array(z.looseObject({ id: z.number() })) };
+
+test('系统维护、唛头、收件箱、到货识别这些工具都在目录里，归到对的插件', () => {
   const names = toolCatalog.map((t) => t.name);
-  assert.equal(names.includes('purchase.propose_receipt' as any), false);
-  assert.equal(new Set(names).size, names.length, '不能重名');
-  for (const name of ['system.status', 'system.check', 'system.backup', 'management.reset_preview', 'marks.recognize', 'marks.attach', 'marks.add', 'marks.remove', 'inbox.add', 'arrival.recognize'])
-    assert.ok(names.includes(name as any), name);
+  for (const name of ['system.status', 'system.check', 'system.backup', 'management.reset_preview', 'marks.add', 'marks.remove', 'inbox.add', 'arrival.recognize'])
+    assert.ok(names.some((registered) => registered === name), name);
   assert.equal(builtinPluginFor('system.backup'), 'system-maintenance');
   assert.equal(builtinPluginFor('management.reset'), 'system-maintenance');
   assert.equal(builtinPluginFor('chat.delete'), 'chat-records');
   assert.equal(builtinPluginFor('arrival.recognize'), 'order-import');
-  assert.equal(builtinPluginFor('marks.remove'), 'erp-business');
+  assert.equal(builtinPluginFor('marks.remove'), 'inbox-marks');
 });
 
-test('系统维护只给本机最高管理员看；普通账号拿不到', () => {
+test('聊天里让助手备份：只出确认卡片，写明会多出一份什么备份；人点了才备份', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'erp-extra-'));
   const f = assistantFixture();
   try {
-    const view = (who: any) => f.manager.registry.view(who).tools.find((t) => t.name === 'system.status')!;
-    assert.equal(view({ ...actor, localAdministrator: false, role: 'admin' }).permitted, false);
+    const local = localAdministratorActor({ ...actor, role: 'super_admin' });
+    f.manager.connectExtras({ backup: { dataDir: dir, backupRoot: join(dir, 'backups-out') } });
+    const t = f.manager.create(local);
+    // 模型连着要备份两次：两张卡片，一份都没做
+    f.replies.push({ message: '', toolCalls: [{ name: 'system.backup', args: {} }, { name: 'system.backup', args: {} }] }, { message: '请在卡片上确认。' });
+    const view = await f.manager.chat(t.id, f.input('备份一下', randomUUID()), local, 's', () => {}, () => local);
+    const plans = view.messages.at(-1)?.plans;
+    assert.ok(plans);
+    assert.equal(plans.length, 2);
+    assert.equal(plans[0].label, '马上做一次完整备份');
+    const summary = plans[0].summary?.[0].value;
+    assert.ok(typeof summary === 'string');
+    assert.match(summary, /一份完整备份：整个数据目录/);
+    assert.equal(existsSync(join(dir, 'backups-out')), false, '没点确认不备份');
+    const done = readAs(await confirmCard(f, view, 0, local, 's'), { name: z.string() });
+    assert.ok(existsSync(join(dir, 'backups-out', done.name, 'manifest.json')));
   } finally {
     f.close();
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
 
-test('系统状态和体检：数据如实', () => {
+/** 读收件箱只给库：外壳、业务服务、AI 导入一碰就报错 */
+const untouched = (what: string): never => {
+  throw new Error('读收件箱不该碰 ' + what);
+};
+function inboxReadContext(store: Store): ToolContext {
+  return {
+    store,
+    services: {},
+    get ops() {
+      return untouched('ctx.ops');
+    },
+    get flow() {
+      return untouched('ctx.flow');
+    },
+    get imports() {
+      return untouched('ctx.imports');
+    },
+    get tools() {
+      return untouched('ctx.tools');
+    },
+  };
+}
+
+test('收件箱：手动添加文字和附件，不给内容就报错；列表里正文只给前 200 个字，按编号读全文；没登录不给读', async () => {
   const store = new Store(':memory:');
   try {
-    const tools = new AssistantExtraTools(store, {} as any);
-    const status: any = tools.read('system.status', {}, admin);
-    assert.equal(status.records.customers, 0);
-    assert.ok(status.schemaVersion > 0);
-    assert.equal(status.backups.configured, false);
-    const ok: any = tools.read('system.check', {}, admin);
-    assert.equal(ok.healthy, true);
-    const preview: any = tools.read('management.reset_preview', { scope: 'business' }, admin);
-    assert.equal(preview.total, 0);
-    assert.throws(() => tools.read('management.reset_preview', { scope: 'nope' }, admin));
-  } finally {
-    store.close();
-  }
-});
-
-test('手动备份写到配置的目录；没配置就明确报错；状态里能看到', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-extra-'));
-  const store = new Store(join(dir, 'erp.sqlite'));
-  try {
-    const tools = new AssistantExtraTools(store, {} as any);
-    await assert.rejects(tools.call('system.backup', {}, ctx()), /没有配置备份目录/);
-    tools.backup = { dataDir: dir, backupRoot: join(dir, 'backups-out') };
-    const r: any = await tools.call('system.backup', {}, ctx());
-    assert.equal(r.verified, true);
-    assert.ok(existsSync(join(dir, 'backups-out', r.name, 'manifest.json')));
-    const status: any = tools.read('system.status', {}, admin);
-    assert.equal(status.backups.total, 1);
-    assert.equal(status.backups.latest[0].kind, '手动');
-  } finally {
-    store.close();
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('收件箱手动添加文字和附件；不给内容就报错', async () => {
-  const store = new Store(':memory:');
-  try {
-    const file = { meta: { name: '虚构.png', mime: 'image/png' }, bytes: png };
-    const tools = new AssistantExtraTools(store, { file: () => file } as any);
-    const text: any = await tools.call('inbox.add', { text: '虚构客户说月底对账' }, ctx());
+    const { tools, context } = attachedFile(store, { name: '虚构.png', ...pngInfo });
+    const text = readAs(await tools.call('inbox.add', { text: '虚构客户说月底对账' }, ctx()), {});
     assert.equal(text.status, 'pending');
-    const attached: any = await tools.call('inbox.add', {}, ctx({ files: [{ id: randomUUID() }] }));
+    const attached = readAs(await tools.call('inbox.add', {}, context), {});
     assert.ok(attached.id);
     await assert.rejects(tools.call('inbox.add', {}, ctx()));
-    assert.equal(Number(store.db.prepare('SELECT COUNT(*) n FROM inbox_items').get()!.n), 2);
+    assert.equal(count(store.db, 'SELECT COUNT(*) FROM inbox_items'), 2);
+    const long = '虚'.repeat(250);
+    const added = readAs(await tools.call('inbox.add', { text: long }, ctx()), { id: z.number() });
+    const readCtx = inboxReadContext(store);
+    const read = (args: unknown, who: Actor | null = actor) => documentInboxReaders['inbox.list'](readCtx, args, who, 'inbox.list');
+    const listed = readAs(read({ limit: 5 }), inboxListShape);
+    assert.equal(listed.rows.find((r) => r.id === added.id)?.text, '虚'.repeat(200));
+    assert.equal(field(read({ id: added.id }), 'text'), long);
+    for (const args of [{ id: added.id }, {}]) assert.throws(() => read(args, null), (e: unknown) => field(e, 'status') === 401);
   } finally {
     store.close();
   }
 });
 
-test('唛头：直接挂到产品；移除要用户明确说；只影响唛头', async () => {
+test('唛头：挂到产品、从产品上移除；只影响唛头（聊天里这两件事都先出确认卡片，见 assistant-boundaries）', async () => {
   const store = new Store(':memory:');
   try {
     const product = store.saveProduct(productSchema.parse({ name: '虚构箱' }));
-    const file = { meta: { name: '虚构唛头.png', mime: 'image/png' }, bytes: png };
-    const tools = new AssistantExtraTools(store, { file: () => file } as any);
-    tools.marks = new MarkImportService({} as any, { store } as any);
-    const added: any = await tools.call('marks.add', { productId: product.id }, ctx({ files: [{ id: randomUUID() }] }));
+    const { tools, context } = attachedFile(store, { name: '虚构唛头.png', ...pngInfo });
+    tools.marks = new MarkService(store);
+    const added = readAs(await tools.call('marks.add', { productId: product.id }, context), { id: z.number() });
     const service = new MarkService(store);
     assert.equal(service.list(product.id).length, 1);
     assert.equal(service.list(product.id)[0].fileName, '虚构唛头.png');
     const args = { id: added.id, expectedVersion: service.get(added.id).version };
-    await assert.rejects(tools.call('marks.remove', args, ctx({ text: '今天有什么事' })), /明确说/);
-    assert.equal(service.list(product.id).length, 1, '没授权不动');
-    const removed: any = await tools.call('marks.remove', args, ctx({ text: '把这个产品的唛头移除' }));
-    assert.equal(removed.verified, true);
+    const removed = await tools.call('marks.remove', args, ctx());
+    assert.equal(field(removed, 'verified'), true);
     assert.equal(service.list(product.id).length, 0);
     assert.ok(store.product(product.id), '产品还在');
     await assert.rejects(tools.call('marks.add', { productId: product.id }, ctx()), /哪一份附件/);
-    const bad = { meta: { name: '虚构.docx', mime: 'application/msword' }, bytes: png };
-    const strict = new AssistantExtraTools(store, { file: () => bad } as any);
-    strict.marks = tools.marks;
-    await assert.rejects(strict.call('marks.add', { productId: product.id }, ctx({ files: [{ id: randomUUID() }] })), /只支持/);
+    const bad = attachedFile(store, { name: '虚构.docx', mime: 'application/msword', kind: 'office', transfer: 'file' });
+    bad.tools.marks = tools.marks;
+    await assert.rejects(bad.tools.call('marks.add', { productId: product.id }, bad.context), /只支持/);
   } finally {
     store.close();
   }
 });
 
-test('授权判断：要用户本人说，确认只在上一条说了时才算', () => {
-  const p = /唛头.{0,6}移除/;
-  assert.equal(askedInChat(p, '唛头都移除'), true);
-  assert.equal(askedInChat(p, '确认', '唛头都移除'), true);
-  assert.equal(askedInChat(p, '确认'), false);
-  assert.equal(askedInChat(p, '看看库存', '唛头都移除'), false);
-});
-
-test('上一版默认提示词能被认出来升级；新版带系统维护和新工具名', () => {
-  const current = assistantDefaultPreset();
-  const text = current.entries.map((e) => e.content).join('\n');
-  for (const name of ['marks.recognize', 'arrival.recognize', 'inbox.add', 'system.backup', 'chat.delete'])
-    assert.ok(text.includes(name), name);
-  assert.ok(current.entries.some((e) => e.name === '系统维护'));
-  assert.equal(text.includes('order_import.recognize_mark'), false);
-  const previous = legacyAssistantDefaults[2];
-  const old = previous.entries.map((e) => e.content).join('\n');
-  assert.ok(old.includes('order_import.recognize_mark'), '上一版用的旧名字');
-  assert.equal(old.includes('chat.delete'), false);
-  assert.equal(old.includes('arrival.recognize'), false);
-  assert.equal(previous.entries.some((e) => e.name === '系统维护'), false);
-  void writeFileSync;
-});
-
-test('工具参数压成短写法：字段、选填、可选值、数组都不丢，体积小很多', () => {
-  assert.equal(compactSchema({ type: 'object', required: ['id'], properties: { id: { type: 'integer' }, note: { type: 'string' } } }), '{id:int,note?:str}');
-  assert.equal(compactSchema({ enum: ['a', 'b'] }), 'a|b');
-  assert.equal(compactSchema({ type: 'array', items: { type: 'object', required: ['x'], properties: { x: { type: 'number' } } } }), '[{x:num}]');
-  assert.equal(compactSchema({ anyOf: [{ type: 'string' }, { type: 'null' }] }), 'str|null');
-  assert.equal(compactSchema({ type: 'string', format: 'uuid' }), 'uuid');
-  assert.equal(compactSchema({ type: 'object', additionalProperties: { type: 'string' } }), 'map<str>');
-  const r = new AssistantToolRegistry(':memory:', () => true);
+test('系统状态、体检、清空预览、备份如实（tools/system.ts 只要库和备份设置）：没配备份目录明说；备份进行中拒绝第二个、结束后标记复原', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'erp-system-'));
+  const store = new Store(':memory:');
   try {
-    const tools = r.view().tools;
-    const full = tools.reduce((n, t) => n + JSON.stringify(t.parameters).length, 0);
-    const short = tools.reduce((n, t) => n + compactSchema(t.parameters).length, 0);
-    assert.ok(short < full / 2.5, '压缩后 ' + short + ' 压缩前 ' + full);
-    // 每个工具的必填字段都要出现在短写法里
-    for (const t of tools) {
-      const required: string[] = (t.parameters as any)?.required || [];
-      const text = compactSchema(t.parameters);
-      for (const key of required) assert.ok(text.includes(key + ':'), t.name + ' 缺 ' + key);
-    }
-    const arrival = compactSchema(tools.find((t) => t.name === 'arrival.receive')!.parameters);
-    assert.match(arrival, /purchaseId:int/);
-    assert.match(arrival, /requestId:uuid/);
+    const deps: SystemDeps = { store, backingUp: false, imports: { status: () => ({ workspaces: [1, 2] }) } };
+    const status = systemStatus(deps);
+    assert.equal(status.records.customers, 0);
+    assert.ok(status.schemaVersion > 0);
+    assert.equal(status.databaseMegabytes, null);
+    assert.equal(status.backups.configured, false);
+    assert.equal(systemCheck(deps).healthy, true);
+    const preview = resetPreview(deps, { scope: 'all' }, admin);
+    assert.equal(preview.workspaces, 2);
+    assert.equal(preview.message, '这只是预览，什么都没删。');
+    assert.equal(resetPreview(deps, { scope: 'business' }, admin).workspaces, undefined);
+    assert.throws(() => resetPreview(deps, { scope: 'nope' }, admin));
+    await assert.rejects(systemBackup(deps, { check: () => admin }), /没有配置备份目录/);
+    deps.backup = { dataDir: dir, backupRoot: join(dir, 'out') };
+    deps.backingUp = true;
+    await assert.rejects(systemBackup(deps, { check: () => admin }), /已经有一个备份在进行中/);
+    deps.backingUp = false;
+    const done = await systemBackup(deps, { check: () => admin });
+    assert.equal(done.verified, true);
+    assert.equal(deps.backingUp, false);
+    assert.equal(systemStatus(deps).backups.total, 1);
+    assert.equal(systemStatus(deps).backups.latest[0].kind, '手动');
   } finally {
-    r.db.close();
+    store.close();
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });

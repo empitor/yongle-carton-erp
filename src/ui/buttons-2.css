@@ -1,0 +1,38 @@
+/* 按钮：主按钮、次要、危险、图标按钮、做成链接样子的按钮（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+button.primary,
+.primary {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+button.primary:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+}
+button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+a.button {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+.button-link.secondary,
+.button-link.primary {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  text-decoration: none;
+}
+.button-link.secondary {
+  background: var(--surface);
+  color: var(--ink);
+}

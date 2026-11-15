@@ -1,0 +1,56 @@
+/* 按钮：主按钮、次要、危险、图标按钮、做成链接样子的按钮（第 3 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+:root[data-ui='refined'] button:is(.primary, .secondary, .icon-button, .danger, .danger-solid) {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: none;
+  transition:
+    background 0.15s var(--ease),
+    transform 0.12s var(--ease),
+    box-shadow 0.15s var(--ease),
+    filter 0.15s var(--ease);
+}
+:root[data-ui='refined'] button:is(.secondary, .icon-button, .danger):hover:not(:disabled) {
+  background: var(--fill-2);
+}
+:root[data-ui='refined'] button.primary {
+  background: var(--teal);
+  color: var(--on-accent);
+  box-shadow:
+    var(--primary-btn-highlight),
+    var(--btn-shadow);
+}
+:root[data-ui='refined'] button.primary:hover:not(:disabled) {
+  background: var(--teal);
+  filter: brightness(1.12);
+}
+:root[data-ui='refined'] button.danger-solid {
+  background: var(--danger-fill);
+  color: var(--on-danger);
+}
+:root[data-ui='refined'] button.danger-solid:hover:not(:disabled) {
+  background: var(--danger-fill);
+  filter: brightness(1.08);
+}
+:root[data-ui='refined'] button.danger {
+  color: var(--danger);
+}
+:root[data-ui='refined'] button.icon-button {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+:root[data-ui='refined'] button:disabled {
+  opacity: 0.45;
+}
+
+:root[data-ui='refined'] button svg {
+  flex: none;
+}

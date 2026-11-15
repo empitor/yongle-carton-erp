@@ -1,0 +1,36 @@
+/* 其余公共件：标题、链接、页脚、提示、状态标签、Markdown 等（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+button:has(> .sr-only) {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
+button:has( > .sr-only) svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 700px) {
+  /* 触控目标和防缩放：iOS 输入框小于 16px 时会自动放大页面 */
+  main button,
+  main summary {
+    min-height: 44px;
+  }
+  main input:not([type='checkbox']):not([type='radio']),
+  main select,
+  main textarea {
+    min-height: 44px;
+    font-size: var(--text-lg);
+  }
+
+  /* 页面框架 */
+  main {
+    padding: var(--space-sm) var(--space-md) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-lg)) !important;
+  }
+  main > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

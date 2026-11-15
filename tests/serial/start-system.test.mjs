@@ -245,6 +245,29 @@ test('实际 HTTP 健康检查必须成功且服务 PID 匹配运行锁；503 �
   assert.equal(await checkHealth(url, lock), false);
 });
 
+/** 在临时目录里写好替身：启动脚本副本、node/npm 替身命令、调启动器的脚本、虚构的后端服务 */
+function writeCmdHarness(dir) {
+  const launcher = pathToFileURL(resolve('scripts/start-system.mjs')).href;
+  const command = readFileSync('启动系统.cmd', 'utf8');
+  writeFileSync(join(dir, '启动系统.cmd'), command);
+  writeFileSync(
+    join(dir, 'node.cmd'),
+    `@echo off\r\n"${process.execPath}" "%~dp0harness.mjs"\r\nexit /b %errorlevel%\r\n`,
+  );
+  writeFileSync(
+    join(dir, 'npm.cmd'),
+    `@echo off\r\nif "%1"=="start" goto backend\r\necho build>>"%~dp0events.txt"\r\nexit /b 0\r\n:backend\r\n"${process.execPath}" "%~dp0fixture-server.mjs"\r\nexit /b %errorlevel%\r\n`,
+  );
+  writeFileSync(
+    join(dir, 'harness.mjs'),
+    `import {runLauncher} from ${JSON.stringify(launcher)};import{appendFileSync}from'node:fs';await runLauncher({directory:process.cwd(),pollMs:10,timeoutMs:5000,open:async url=>{appendFileSync('events.txt','browser-open\\n');await fetch(url+'/stop');}});`,
+  );
+  writeFileSync(
+    join(dir, 'fixture-server.mjs'),
+    `import{createServer}from'node:http';import{existsSync,writeFileSync,appendFileSync,mkdirSync}from'node:fs';mkdirSync('data',{recursive:true});const s=createServer((q,r)=>{if(q.url==='/stop'){r.end('ok');s.close();return;}const ready=existsSync('ready.signal');appendFileSync('events.txt',ready?'health-ready\\n':'health-pending\\n');r.writeHead(ready?200:503,{'Content-Type':'application/json'});r.end(JSON.stringify({ok:ready,app:'carton-workshop-erp',processId:process.pid}));});s.listen(Number(process.env.PORT),'127.0.0.1',()=>{writeFileSync('data/erp.sqlite.running',String(process.pid));appendFileSync('events.txt','server-listening\\n');});`,
+  );
+}
+
 test(
   'Windows CMD 实际执行：npm start 不阻塞健康轮询，包含空格中文路径正常',
   { skip: process.platform !== 'win32' },
@@ -257,25 +280,7 @@ test(
     await new Promise((r) => allocator.listen(0, '127.0.0.1', r));
     const port = allocator.address().port;
     await new Promise((r) => allocator.close(r));
-    const launcher = pathToFileURL(resolve('scripts/start-system.mjs')).href;
-    const command = readFileSync('启动系统.cmd', 'utf8');
-    writeFileSync(join(dir, '启动系统.cmd'), command);
-    writeFileSync(
-      join(dir, 'node.cmd'),
-      `@echo off\r\n"${process.execPath}" "%~dp0harness.mjs"\r\nexit /b %errorlevel%\r\n`,
-    );
-    writeFileSync(
-      join(dir, 'npm.cmd'),
-      `@echo off\r\nif "%1"=="start" goto backend\r\necho build>>"%~dp0events.txt"\r\nexit /b 0\r\n:backend\r\n"${process.execPath}" "%~dp0fixture-server.mjs"\r\nexit /b %errorlevel%\r\n`,
-    );
-    writeFileSync(
-      join(dir, 'harness.mjs'),
-      `import {runLauncher} from ${JSON.stringify(launcher)};import{appendFileSync}from'node:fs';await runLauncher({directory:process.cwd(),pollMs:10,timeoutMs:5000,open:async url=>{appendFileSync('events.txt','browser-open\\n');await fetch(url+'/stop');}});`,
-    );
-    writeFileSync(
-      join(dir, 'fixture-server.mjs'),
-      `import{createServer}from'node:http';import{existsSync,writeFileSync,appendFileSync,mkdirSync}from'node:fs';mkdirSync('data',{recursive:true});const s=createServer((q,r)=>{if(q.url==='/stop'){r.end('ok');s.close();return;}const ready=existsSync('ready.signal');appendFileSync('events.txt',ready?'health-ready\\n':'health-pending\\n');r.writeHead(ready?200:503,{'Content-Type':'application/json'});r.end(JSON.stringify({ok:ready,app:'carton-workshop-erp',processId:process.pid}));});s.listen(Number(process.env.PORT),'127.0.0.1',()=>{writeFileSync('data/erp.sqlite.running',String(process.pid));appendFileSync('events.txt','server-listening\\n');});`,
-    );
+    writeCmdHarness(dir);
     // 测试依赖CMD优先使用当前目录的替身命令；部分运行环境用这个变量禁止该行为。
     const { NoDefaultCurrentDirectoryInExePath: _ignored, ...baseEnv } = process.env;
     try {
@@ -305,7 +310,9 @@ test(
         let events = '';
         try {
           events = readFileSync(eventsFile, 'utf8');
-        } catch {}
+        } catch {
+          // 替身服务还没写出事件文件：接着等
+        }
         if (events.includes('health-pending')) {
           seenPending = true;
           assert.ok(!events.includes('browser-open'));

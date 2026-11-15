@@ -1,0 +1,198 @@
+/**
+ * 财务读业务数据的地方（成本计算读库存流水的在 costing-source.ts）。
+ *
+ * 财务不调用业务代码，按表只读单据流转、采购库存的数据（tests/module-boundaries.test.ts 登记的例外）。
+ * 读这些表的 SQL 都放在这里，财务别的文件只调这里的函数或 SQL 片段：业务改了表，财务只改这两个文件。
+ * 单据内容按库里的单据结构读（shared/business 的 flowDocumentSchema）；事件快照里抄来的单据字段怎么取见 source-snapshot.ts。
+ */
+import type { DatabaseSync } from 'node:sqlite';
+import { z } from 'zod';
+import { flowDocumentSchema, purchaseLineDocumentSchema } from '../../shared/business/index.js';
+import { exists, many, one, parseStoredJson, rows } from '../core/index.js';
+import { financeError } from './core.js';
+import type { FinanceSourceDocument } from './source-snapshot.js';
+import { snapshotLines } from './source-snapshot.js';
+import { eventSourceKinds } from './stored-values.js';
+
+type PartyKind = 'customer' | 'supplier';
+const named = z.object({ name: z.string() });
+
+/** 往来单位的名称（客户表、供应商表），找不到返回 null。 */
+export function findPartyName(db: DatabaseSync, kind: PartyKind, id: number | string): string | null {
+  const found = one(
+    db,
+    named,
+    kind === 'customer' ? 'SELECT name FROM customers WHERE id=?' : 'SELECT name FROM suppliers WHERE id=?',
+    id,
+  );
+  return found ? found.name : null;
+}
+
+/** 往来单位的名称，找不到报错。 */
+export function partyName(db: DatabaseSync, kind: PartyKind, id: number | string): string {
+  const name = findPartyName(db, kind, id);
+  if (name == null) financeError('往来单位不存在。', 404);
+  return name;
+}
+
+/**
+ * 财务扫描的来源（CTE，名字是 sources，列 kind,id,version,status,date,document,at,number）：
+ * 已确认、已撤销的送货、到货、完工单，盘点流水。
+ */
+export const sourcesCte = `WITH sources(kind,id,version,status,date,document,at,number) AS (
+      SELECT kind,cast(id AS TEXT),version,status,date,document,updated_at,number
+      FROM flow_documents WHERE kind IN ('delivery','arrival','production') AND status IN ('confirmed','reversed')
+      UNION ALL
+      SELECT 'stock',m.id,1+coalesce((SELECT max(r.id) FROM stock_movement_revisions r WHERE r.movement_id=m.id),0),
+        'confirmed',m.date,json_object('stockId',m.item_id,'deltaUnits',m.delta_units,'reason',m.notes,'createdAt',m.created_at),m.created_at,
+        -- 盘点流水没有单据号，流水编号是一串内部编号，人认不出。单号显示“库存品名 规格 调整量 单位”（如“虚构纸板 -2 张”），
+        -- 日期、“盘点”另有列。只进快照，不进来源指纹（document 不变）。数量是千分之一的整数，这里只拼成文字显示
+        (SELECT i.name||coalesce(' '||nullif(trim(json_extract(i.document,'$.specification')),''),'')||' '||
+          CASE WHEN m.delta_units>0 THEN '+' WHEN m.delta_units<0 THEN '-' ELSE '' END||
+          (abs(m.delta_units)/1000)||rtrim(rtrim('.'||substr('00'||(abs(m.delta_units)%1000),-3),'0'),'.')||' '||i.unit
+          FROM stock_items i WHERE i.id=m.item_id)
+      FROM stock_movements m WHERE m.action='adjust'
+    )`;
+
+/** sourcesCte 读出的一行：种类、编号（文字）、版本、状态、单据日期、内容、更新时间、单号（盘点流水是拼的说明） */
+export const sourceRow = z.object({
+  kind: z.enum(eventSourceKinds),
+  id: z.string(),
+  version: z.number(),
+  status: z.enum(['confirmed', 'reversed']),
+  date: z.string(),
+  document: z.string(),
+  at: z.string(),
+  number: z.string().nullable(),
+});
+export type SourceRow = z.output<typeof sourceRow>;
+
+/** 盘点流水在 sourcesCte 里拼成的内容 */
+const stockSource = z.strictObject({
+  stockId: z.number(),
+  deltaUnits: z.number(),
+  reason: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+/**
+ * 来源的内容：送货、到货、完工单按库里的单据结构读（不带种类，种类在行上），盘点流水按拼出来的那几项读。
+ * 来源指纹按它算，快照里存它加上单号。
+ */
+export function sourceContent(source: SourceRow): FinanceSourceDocument {
+  if (source.kind === 'stock')
+    return parseStoredJson(stockSource, source.document, `盘点流水 ${source.id} 拼出的来源内容`);
+  const where = `flow_documents.document（单据 ${source.id}，单号 ${source.number ?? '—'}）`;
+  const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema(source.kind), source.document, where);
+  return content;
+}
+
+/** 一段日期里已确认的送货、到货单（CTE 名字和列同 sourcesCte），参数 ?1、?2 是起止日期。月度台账、报表检查算还没同步的单据用。 */
+export const confirmedDocumentsCte = `WITH sources(kind,id,version,status,date,document,at,number) AS (
+        SELECT kind,cast(id AS TEXT),version,status,date,document,updated_at,number FROM flow_documents
+          WHERE kind IN ('delivery','arrival') AND status='confirmed' AND date BETWEEN ?1 AND ?2
+      )`;
+
+/** 观察记录 o（fin_source_observations）对应的来源已经没了（单据或盘点流水被删）。条件。 */
+export const sourceMissing = (o: string) =>
+  `((${o}.source_kind IN ('delivery','arrival','production') AND NOT EXISTS (SELECT 1 FROM flow_documents f WHERE f.id=cast(${o}.source_id AS INTEGER) AND f.kind=${o}.source_kind))
+          OR (${o}.source_kind='stock' AND NOT EXISTS (SELECT 1 FROM stock_movements m WHERE m.id=${o}.source_id)))`;
+
+/** 事件 e 来源单据（送货、到货、完工单）的单号，作为列放进同一条查询，不逐条查；别的来源是 NULL。 */
+export const sourceDocumentNumber = (e: string) =>
+  `(SELECT f.number FROM flow_documents f WHERE f.id=cast(${e}.source_id AS INTEGER) AND f.kind=${e}.source_kind)`;
+/** 财务事件 e 的来源是一张已撤销的送货单（只看单据，不看 e 是什么来源，调用方另加 e.source_kind='delivery'）。条件。 */
+export const deliveryReversed = (e: string) =>
+  `EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(${e}.source_id AS INTEGER) AND f.kind='delivery' AND f.status='reversed')`;
+
+/** 财务事件 e 的来源单据还是已确认的；notReplaced 时还要没被更正替代。条件。 */
+export const sourceConfirmed = (e: string, notReplaced = false) =>
+  `EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(${e}.source_id AS INTEGER) AND f.kind=${e}.source_kind AND f.status='confirmed'${
+    notReplaced ? ' AND f.replaced_by IS NULL' : ''
+  })`;
+
+/**
+ * 这张到货单有没有有效的采购退货：只认这批到货仍有效时的已确认退货（到货已冲销、已被更正替代的不算），
+ * 和采购已到货扣退货的口径一致（operations/fulfillment.ts 的 subtractReturnedUnits）。
+ * 到货有没有效只看状态（撤销、被更正替代的状态已经不是 confirmed）。
+ */
+export function hasConfirmedReturn(db: DatabaseSync, arrivalId: number) {
+  return exists(
+    db,
+    `SELECT 1 FROM purchase_returns r JOIN flow_documents f ON f.id=r.arrival_id
+              WHERE r.arrival_id=? AND r.status='confirmed' AND f.kind='arrival' AND f.status='confirmed' LIMIT 1`,
+    arrivalId,
+  );
+}
+
+/**
+ * 采购退货单 document 里的一行明细，财务只读到货单第几行、退了多少（别的项原样留着）。
+ * 退货单内容由单据流转写（server/flow/return-document.ts，写之前按它的结构核对），财务按表只读。
+ */
+const returnLine = z.looseObject({ lineIndex: z.number().int().nonnegative(), quantity: z.string() });
+/** 退货单行上的 lines：document 里明细数组的 JSON 文字 */
+const returnLines = z.object({ lines: z.string() });
+/** 读出退货单的明细 */
+function withLines<R extends { id: number; lines: string }>(r: R) {
+  const where = `purchase_returns.document 的明细（退货单 ${r.id}）`;
+  return { ...r, lines: parseStoredJson(z.array(returnLine), r.lines, where) };
+}
+const returnToBook = rows.purchase_returns
+  .pick({ id: true, number: true, arrival_id: true, status: true, date: true, updated_at: true })
+  .extend(returnLines.shape);
+
+/**
+ * 要在财务记一笔的采购退货：已确认、还没冲过暂估的，和已撤销、冲过还没恢复的。
+ * booked 是财务这边算“这张退货冲了多少”的 SQL 表达式（r 是退货单），由 return-estimates.ts 传进来。
+ */
+export function purchaseReturnsToBook(db: DatabaseSync, booked: string) {
+  return many(
+    db,
+    returnToBook,
+    `SELECT r.id,r.number,r.arrival_id,r.status,r.date,r.updated_at,json_extract(r.document,'$.lines') AS lines FROM purchase_returns r
+      WHERE (r.status='confirmed' AND ${booked}=0) OR (r.status='reversed' AND ${booked}>0) ORDER BY r.id`,
+  ).map(withLines);
+}
+
+const returnOfArrival = rows.purchase_returns.pick({ id: true, arrival_id: true }).extend(returnLines.shape);
+/** 几张采购退货的到货单和明细，成本计算给退货计价用 */
+export function purchaseReturnLines(db: DatabaseSync, ids: number[]) {
+  return many(
+    db,
+    returnOfArrival,
+    `SELECT r.id,r.arrival_id,json_extract(r.document,'$.lines') AS lines FROM purchase_returns r
+      WHERE r.id IN (SELECT value FROM json_each(?))`,
+    JSON.stringify(ids),
+  ).map(withLines);
+}
+
+/** 往来对应的采购单和采购明细（明细内容是 document 列的文字） */
+const purchaseOfObligation = z.object({
+  obligation_id: rows.fin_obligations.shape.id,
+  id: rows.purchases.shape.id,
+  number: rows.purchases.shape.number,
+  line_id: rows.purchase_lines.shape.id,
+  quantity_units: rows.purchase_lines.shape.quantity_units,
+  document: rows.purchase_lines.shape.document,
+});
+/** 往来（到货生成的）对应的采购明细：按事件快照里到货明细的 purchaseLineId 找采购单和采购明细。obligationIds 是 JSON 数组。 */
+export function purchaseLinesOf(db: DatabaseSync, obligationIds: string) {
+  return many(
+    db,
+    purchaseOfObligation,
+    `SELECT o.id AS obligation_id,p.id,p.number,pl.id AS line_id,pl.quantity_units,pl.document
+      FROM fin_obligations o JOIN fin_events e ON e.id=o.event_id
+      JOIN ${snapshotLines('e.snapshot')} l
+      JOIN purchase_lines pl ON pl.id=json_extract(l.value,'$.purchaseLineId')
+      JOIN purchases p ON p.id=pl.purchase_id WHERE o.id IN (SELECT value FROM json_each(?))`,
+    obligationIds,
+  );
+}
+
+/**
+ * 采购明细 document 里的纸板资料和计价方式（purchaseLineAmount 用得到的字段都在里面）。
+ * 结构用共用的 purchaseLineDocumentSchema（采购库存写读这一列也用它）。
+ */
+export function purchaseLineItem(line: { line_id: number; document: string }) {
+  return parseStoredJson(purchaseLineDocumentSchema, line.document, `purchase_lines.document（采购明细 ${line.line_id}）`);
+}

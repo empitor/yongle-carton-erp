@@ -1,0 +1,144 @@
+/* 财务里借用业务列表、表单的地方 */
+.business-status {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+.business-status[data-tone='muted'] {
+  background: var(--surface-muted);
+}
+.business-status[data-tone='info'] {
+  color: var(--info);
+  background: var(--info-soft);
+}
+.business-status[data-tone='warning'] {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.list-filter-field:last-of-type:not(:first-child) {
+  flex: 0.8 1 165px;
+}
+
+@media (max-width: 700px) {
+  .list-filter-field,
+  .list-filter-field:last-of-type:not(:first-child) {
+    flex: 1 1 135px;
+  }
+}
+
+/* 台账的筛选一行：分段、类型下拉、筛选弹层 */
+.list-filters.fin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.list-filters.fin-filters select {
+  width: auto;
+}
+/* 明细编辑表里纯文字的格子，和旁边 32px 高的输入框对齐 */
+.line-table td.fb-cell-text {
+  padding-top: var(--space-md);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.line-table td > .fb-cell-text {
+  display: block;
+  padding-top: var(--space-xs);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.line-table td.fb-cell-text small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.line-table .fb-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 合计行 */
+.line-table tr.fb-total td,
+.record-section tr.fb-total td {
+  padding-top: var(--space-sm);
+  border-bottom: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.line-table tr.fb-total td.num {
+  padding-right: var(--space-xl);
+  text-align: right;
+}
+
+/* 凭证分录：表格放得下时不加滚动条，科目下拉才不会被裁掉 */
+.line-table.fb-entries {
+  overflow: visible;
+}
+.line-table.fb-entries th.fb-col-account,
+.line-table.fb-entries td.fb-col-account {
+  width: 26%;
+  min-width: 200px;
+}
+
+@media (max-width: 960px) {
+  .line-table.fb-entries {
+    overflow-x: auto;
+  }
+  .line-table.fb-entries table {
+    min-width: 860px;
+  }
+}
+.line-table td.fb-rate {
+  width: 96px;
+}
+/* 最后一列不是删除图标的明细表：不要共用样式给末列的 36px 窄宽 */
+.line-table.fb-no-tail td:last-child {
+  width: auto;
+  padding-right: 0;
+}
+.line-table.fb-no-tail td.fb-mode {
+  width: 112px;
+}
+.line-table.fb-no-tail td.num.fb-amount {
+  width: 160px;
+}
+.form-field .fb-choice input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+.business-status[data-tone='muted'] {
+  color: var(--text-secondary);
+}
+.list-filter-field > span {
+  font-size: var(--text-xs);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: none;
+}
+.list-filter-field {
+  flex-direction: column;
+  gap: 7px;
+  display: block;
+  margin: 0;
+  flex: none;
+  min-width: 0;
+}
+.list-filter-field select {
+  width: auto;
+  max-width: 180px;
+  height: 32px;
+  min-height: 32px;
+}
+:root[data-ui='refined'] .business-status {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}

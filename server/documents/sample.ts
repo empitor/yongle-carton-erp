@@ -1,6 +1,7 @@
-import type { DocumentTemplate } from '../../shared/document-templates.js';
-import { displayAmount } from '../../shared/display-amount.js';
-import { applyDocumentTemplate, type BusinessForm } from './templates.js';
+import type { DocumentTemplate } from '../../shared/documents/index.js';
+import { displayAmount } from '../../shared/core/index.js';
+import { applyDocumentTemplate } from './apply-template.js';
+import type { BusinessForm } from '../../shared/documents/index.js';
 /** 纯展示样张，无业务ID、不创建订单、不使用真实库记录。 */
 export function sampleDocument(template: DocumentTemplate): BusinessForm {
   const purchase = template.kind === 'purchase';
@@ -48,7 +49,7 @@ export function sampleDocument(template: DocumentTemplate): BusinessForm {
               '80 × 60 cm / B楞',
               '张',
               '200',
-              '0.5 元/张',
+              '0.50 元/张',
               displayAmount('100.0000000'),
             ],
           ]

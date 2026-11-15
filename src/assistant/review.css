@@ -1,0 +1,138 @@
+/* 助手确认卡片 */
+/* 确认卡片的核对区：标题、改前改后的明细、说明、填写项和确认按钮。 */
+/*
+ * 核对区：在聊天记录和输入栏之间，分三段——标题（固定）、内容（自己滚动）、确认按钮（固定，始终完整可见）。
+ * 不透明的底、清楚的上边界，并压在聊天记录上面一层：聊天记录被它挤小，不会有文字从它下面透出来或被它的边线切开。
+ * 高度最多占面板的六成（手机上整个面板滚动时也不超过），内容多了在中间那段里滚。
+ */
+.ga-review {
+  position: relative;
+  z-index: var(--z-above);
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(60%, 560px);
+  overflow: hidden;
+  border-top: 2px solid var(--teal);
+  background: var(--surface);
+  box-shadow: var(--review-bar-shadow);
+  font-size: var(--text-xs);
+}
+.ga-compact > .ga-review {
+  max-height: min(60dvh, 560px);
+}
+.ga-review-head {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) 14px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.ga-review-head > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ga-review-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 14px var(--space-md);
+  background: var(--surface);
+}
+/* 和页面删除窗口一样分块：汇总、清单各节、说明之间留出间距 */
+.ga-review-body > p[role='status'] {
+  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+/* 核对区比页面删除窗口窄：带说明小字的一条（“订货单 DG-… · 保留，去掉这张采购单（……）”）
+   小字排到名称下面，名称占满右边一栏，单号不被右边的长说明挤成几行（手机上的删除窗口同一排法，见 sales.css） */
+.ga-review-body .sales-context-links li:has(> small) {
+  display: grid;
+  grid-template-columns: minmax(72px, max-content) minmax(0, 1fr);
+  column-gap: var(--space-sm);
+  row-gap: var(--space-3xs);
+  align-items: baseline;
+}
+.ga-review-body .sales-context-links li:has(> small) > small {
+  grid-column: 2;
+  margin-left: 0;
+}
+.ga-review-notes {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+.ga-review-notes:empty {
+  display: none;
+}
+.ga-review-notes > p {
+  margin: 0;
+  line-height: 1.6;
+}
+.ga-review label {
+  display: block;
+  margin: var(--space-md) 0 0;
+}
+.ga-review input[type='password'],
+.ga-review label > input:not([type='checkbox']) {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-xs);
+}
+.ga-review label.ga-review-policy {
+  margin: 0 0 10px;
+}
+.ga-review-policy > select {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-xs);
+}
+/* “不执行”在左、窄；确认在右、占满剩下的宽度 */
+.ga-review-actions {
+  flex: none;
+  padding: 10px 14px var(--space-md);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  gap: var(--space-sm);
+}
+.ga-review-actions > button {
+  flex: none;
+}
+.ga-review-actions > button:last-child {
+  flex: 1;
+  min-width: 0;
+}
+.ga-changes {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: 10px;
+}
+.ga-changes > div {
+  display: grid;
+  gap: var(--space-2xs);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 9px;
+}
+/* 每一项“字段：改之前 → 改之后”（新建只有内容），说法和修改历史同一套 */
+.ga-changes > div > span {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 150px;
+  overflow: auto;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  padding: var(--space-xs);
+  border-radius: var(--r-small);
+}

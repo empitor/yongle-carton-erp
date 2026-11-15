@@ -1,0 +1,32 @@
+/* 超级管理员横幅 */
+.super-mode-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: 15px 18px;
+  margin-bottom: var(--space-2xl);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--r-control);
+  color: var(--warning);
+}
+.super-mode-banner span {
+  display: block;
+  font-size: var(--text-xs);
+  margin-top: 3px;
+}
+
+/* 超级管理员横幅（src/admin/MaintenancePanel.tsx）：手机宽度下正文很长，盾牌图标不跟着被挤扁；正文可以收窄换行 */
+.super-mode-banner > svg {
+  flex-shrink: 0;
+}
+.super-mode-banner > div {
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .super-mode-banner {
+    padding: var(--space-md);
+    font-size: var(--text-xs);
+  }
+}

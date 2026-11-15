@@ -1,0 +1,84 @@
+/* 账号管理 */
+/* 账号管理：待处理申请每行一个动作，“拒绝申请”收在行尾的“更多”里 */
+.accounts-actions .more-menu {
+  display: inline-block;
+  margin-left: var(--space-2xs);
+  vertical-align: middle;
+}
+.accounts-section .accounts-actions .more-menu-list button {
+  width: 100%;
+  margin: 0;
+}
+
+/* ---- 账号管理页 ---- */
+.accounts-section {
+  margin-top: var(--space-lg);
+}
+.accounts-section h2 {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+/* 和业务列表一样：单行高密度 */
+.accounts-section .unified-table-region > table > thead > tr > th {
+  height: var(--row-h);
+  padding: 0 var(--space-sm);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.accounts-section .unified-table-region > table > tbody > tr > td {
+  height: var(--row-h);
+  padding: 0 var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.accounts-section .unified-table-region > table > tbody > tr > td.cell-wrap {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.accounts-section tbody tr.record-row {
+  cursor: pointer;
+}
+.accounts-section tbody tr.record-row:hover > td {
+  background: var(--surface-hover);
+}
+.accounts-section tbody tr.record-row.selected > td {
+  background: var(--accent-soft);
+}
+.accounts-section .sub {
+  display: inline;
+  margin: 0 0 0 var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.accounts-section .accounts-actions button {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 var(--space-sm);
+  font-size: var(--text-sm);
+}
+.accounts-actions {
+  white-space: nowrap;
+}
+.accounts-actions button + button {
+  margin-left: var(--space-sm);
+}
+
+@media (max-width: 700px) {
+  .accounts-section .unified-table-region > table > tbody > tr > td {
+    height: auto;
+    white-space: normal;
+  }
+  .accounts-section .accounts-actions button {
+    min-height: 44px;
+    height: 44px;
+    padding: 0 var(--space-md);
+  }
+}

@@ -1,17 +1,170 @@
+// 经营概览和订单的日期视图（server/business/dashboard.ts、shared/core/date-ranges.ts）：按自然月算范围，
+// 历史未完成的订单留在当前视图，概览的数字来自订单、采购、流水，查询不改数据；采购列表的组合查询用同一套数据。
+// 工作台和今日队列见 workbench.test.ts。
+import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/db.js';
+import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
+import { listen } from './http-fixture.js';
 import { OperationsService } from '../server/operations/service.js';
-import { customerSchema, productSchema, orderSchema, today } from '../shared/domain.js';
-import { monthsBefore, presetRange, orderInView } from '../shared/date-ranges.js';
+import { customerSchema, productSchema, orderSchema, today } from '../shared/core/domain.js';
+import { monthsBefore, presetRange, orderInView } from '../shared/core/date-ranges.js';
 import { buildDashboard } from '../server/business/dashboard.js';
-import { displayAmount } from '../shared/display-amount.js';
-import { changeLifecycle } from '../server/business/management.js';
+import { displayAmount } from '../shared/core/display-amount.js';
+import { changeLifecycle } from '../server/business/lifecycle.js';
+import { receiveLines } from './receive-fixture.js';
+import { z } from 'zod';
+
+const actor = pageActor({
+  id: 'overview-test',
+  name: '虚构验收',
+  permissions: ['business:edit'],
+  role: 'admin' as const,
+});
+/** 列表回答：每行的编号 */
+const idList = z.array(z.looseObject({ id: z.number() }));
+/** 首页回答里测试要看的几项（概览的订单、采购、库存、流水、动态） */
+const count = z.number();
+const dashboardAnswer = z.looseObject({
+  amountCents: count,
+  overview: z.looseObject({
+    orders: z.looseObject({ total: count, pendingAll: count, history: count }),
+    purchases: z.looseObject({ total: count, pendingAll: count, unknownPrices: count, amount: z.string(), outstanding: z.unknown() }),
+    inventory: z.looseObject({
+      finished: z.array(z.looseObject({ quantity: z.string() })),
+      raw: z.array(z.looseObject({ unit: z.string(), quantity: z.string() })),
+      zeroCount: count,
+    }),
+    products: z.looseObject({ total: count }),
+    movements: z.array(z.looseObject({ action: z.string() })),
+    activity: z.array(z.looseObject({ category: z.string(), date: z.string() })),
+  }),
+});
+/** 今天、两个月前（视图边界）、三个月前 */
+type Dates = { date: string; boundary: string; old: string };
+
+/** 四张订单（各 10 只 × 1.39 元）：两个月前已发货、三个月前已发货、三个月前生产中、三个月前已取消 */
+function seedOrders(store: Store, { date, boundary, old }: Dates) {
+  const customer = store.saveCustomer(customerSchema.parse({ name: '统计测试客户（虚构）' }));
+  const product = store.saveProduct(productSchema.parse({ name: '统计测试纸箱（虚构）' }));
+  const order = (orderDate: string, status: string) =>
+    store.saveOrder(
+      orderSchema.parse({
+        customerId: customer.id,
+        orderDate,
+        deliveryDate: date,
+        status,
+        lines: [
+          {
+            productId: product.id,
+            quantity: 10,
+            unitPriceExact: '1.3900',
+            unitPriceCents: 139,
+            unit: '只',
+          },
+        ],
+      }),
+    );
+  return {
+    recent: order(boundary, '已发货'),
+    historical: order(old, '已发货'),
+    pending: order(old, '生产中'),
+    cancelled: order(old, '已取消'),
+  };
+}
+
+/**
+ * 两家供应商的四张采购单（各 10.125 张，单价 1.2345）：甲今天一张（到货 4 张）、乙今天一张、甲三个月前一张、甲今天一张待订货没写单价；
+ * 成品三个月前入库 30 只；另有一个零库存的原材料。
+ */
+function seedPurchases(service: OperationsService, { date, old }: Dates) {
+  const supplier = service.saveSupplier({ name: '甲纸板供应商（虚构）' }, actor);
+  const second = service.saveSupplier({ name: '乙纸板供应商（虚构）' }, actor);
+  const purchase = (
+    supplierId: number,
+    orderDate: string,
+    status = '已订货',
+    unitPrice: string | null = '1.2345',
+  ) =>
+    service.savePurchase(
+      {
+        supplierId,
+        orderDate,
+        status,
+        lines: [
+          {
+            name: '瓦楞纸板',
+            specification: '测试独立规格',
+            length: 1000,
+            width: 800,
+            dimensionUnit: 'mm',
+            quantity: '10.125',
+            unit: '张',
+            unitPrice,
+          },
+        ],
+      },
+      actor,
+    );
+  const a = purchase(supplier.id, date);
+  purchase(second.id, date);
+  purchase(supplier.id, old);
+  purchase(supplier.id, date, '待订货', null);
+  receiveLines(service.store, 
+    a.id,
+    {
+      requestId: randomUUID(),
+      reference: 'test-delivery',
+      date,
+      items: [{ lineId: a.lines[0].id, quantity: '4' }],
+    },
+    actor,
+  );
+  // 成品一定关联产品：另建一个只用来入库存的产品，不碰订单上的产品
+  const stocked = service.store.saveProduct(productSchema.parse({ name: '成品（虚构）' }));
+  const finished = service.saveItem({ name: '成品（虚构）', kind: 'finished', unit: '只', productId: stocked.id }, actor);
+  service.move(
+    finished.id,
+    {
+      expectedVersion: finished.version,
+      requestId: randomUUID(),
+      action: 'in',
+      quantity: '30',
+      date: old,
+      notes: '测试历史入库',
+      acknowledged: true,
+    },
+    actor,
+  );
+  // 一个没有库存的原材料档案（原材料只有“张”，数据库也只收“张”）：汇总里数量不变，零库存多一个
+  service.saveItem({ name: '零库存（虚构）', kind: 'raw', unit: '张' }, actor);
+  return { supplier, second, a };
+}
+
+async function fixture() {
+  const store = new Store(':memory:');
+  const service = new OperationsService(store);
+  const date = today(),
+    dates = { date, boundary: monthsBefore(date, 2), old: monthsBefore(date, 3) };
+  const orders = seedOrders(store, dates),
+    purchases = seedPurchases(service, dates);
+  const server = await listen(createApp(store));
+  const base = server.origin + '/api';
+  return {
+    store,
+    actor,
+    base,
+    ...dates,
+    ...orders,
+    ...purchases,
+    async close() {
+      await server.close();
+      store.close();
+    },
+  };
+}
 
 test('自然月回退跨年、月末、闰年及包含边界，不按60天近似', () => {
   assert.equal(displayAmount('1157.5000000'), '1,157.50');
@@ -36,7 +189,7 @@ test('自然月回退跨年、月末、闰年及包含边界，不按60天近似
     orderInView({ orderDate: '2026-08-24', status: '已发货' }, range, '2026-10-25'),
     false,
   );
-  for (const status of ['草稿', '已确认', '生产中', '待发货'])
+  for (const status of ['待确认', '已确认', '生产中', '待发货'])
     assert.equal(orderInView({ orderDate: '2025-01-01', status }, range, '2026-10-25'), true);
   assert.equal(
     orderInView(
@@ -52,129 +205,6 @@ test('自然月回退跨年、月末、闰年及包含边界，不按60天近似
   );
 });
 
-async function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-overview-')),
-    file = join(dir, 'erp.sqlite'),
-    store = new Store(file);
-  const service = new OperationsService(store),
-    actor = {
-      id: 'overview-test',
-      name: '虚构验收',
-      permissions: ['business:edit'],
-      role: 'admin' as const,
-    };
-  const customer = store.saveCustomer(customerSchema.parse({ name: '统计测试客户（虚构）' }));
-  const product = store.saveProduct(productSchema.parse({ name: '统计测试纸箱（虚构）' }));
-  const date = today(),
-    boundary = monthsBefore(date, 2),
-    old = monthsBefore(date, 3);
-  const order = (orderDate: string, status: string) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate,
-        deliveryDate: date,
-        status,
-        lines: [
-          {
-            productId: product.id,
-            quantity: 10,
-            unitPriceExact: '1.3900',
-            unitPriceCents: 139,
-            unit: '只',
-          },
-        ],
-      }),
-    );
-  const recent = order(boundary, '已发货'),
-    historical = order(old, '已发货'),
-    pending = order(old, '生产中'),
-    cancelled = order(old, '已取消');
-  const supplier = service.saveSupplier({ name: '甲纸板供应商（虚构）' }, actor);
-  const second = service.saveSupplier({ name: '乙纸板供应商（虚构）' }, actor);
-  const purchase = (
-    supplierId: number,
-    orderDate: string,
-    status = '已订货',
-    unitPrice: string | null = '1.2345',
-  ) =>
-    service.savePurchase(
-      {
-        supplierId,
-        orderDate,
-        status,
-        lines: [
-          {
-            name: '瓦楞纸板',
-            specification: '测试独立规格',
-            quantity: '10.125',
-            unit: '张',
-            unitPrice,
-          },
-        ],
-      },
-      actor,
-    );
-  const a = purchase(supplier.id, date),
-    b = purchase(second.id, date),
-    oldPurchase = purchase(supplier.id, old),
-    unpriced = purchase(supplier.id, date, '待订货', null);
-  service.receive(
-    a.id,
-    {
-      expectedVersion: a.version,
-      requestId: randomUUID(),
-      reference: 'test-delivery',
-      date,
-      items: [{ lineId: a.lines[0].id, quantity: '4' }],
-      acknowledged: true,
-    },
-    actor,
-  );
-  const finished = service.saveItem({ name: '成品（虚构）', kind: 'finished', unit: '只' }, actor);
-  service.move(
-    finished.id,
-    {
-      expectedVersion: finished.version,
-      requestId: randomUUID(),
-      action: 'in',
-      quantity: '30',
-      date: old,
-      notes: '测试历史入库',
-      acknowledged: true,
-    },
-    actor,
-  );
-  service.saveItem({ name: '零库存（虚构）', kind: 'raw', unit: '平方米' }, actor);
-  const server = createApp(store).listen(0, '127.0.0.1');
-  await new Promise<void>((r) => server.once('listening', r));
-  const base = 'http://127.0.0.1:' + (server.address() as any).port + '/api';
-  return {
-    store,
-    service,
-    actor,
-    file,
-    base,
-    date,
-    boundary,
-    old,
-    recent,
-    historical,
-    pending,
-    cancelled,
-    supplier,
-    second,
-    a,
-    b,
-    oldPurchase,
-    unpriced,
-    async close() {
-      await new Promise<void>((r) => server.close(() => r()));
-      store.close();
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
-}
 test('HTTP订单日期分类保留历史未完成、归档可搜索、全部/自定义可查询且不写生命周期', async () => {
   const f = await fixture();
   try {
@@ -182,23 +212,23 @@ test('HTTP订单日期分类保留历史未完成、归档可搜索、全部/自
     const get = async (q: string) => {
       const r = await fetch(f.base + q);
       assert.equal(r.status, 200);
-      return r.json();
+      return idList.parse(await r.json());
     };
     const rows = await get(
       '/orders?view=current&retainPending=1&start=' + f.boundary + '&end=' + f.date,
     );
     assert.deepEqual(
-      rows.map((o: any) => o.id).sort((a: number, b: number) => a - b),
+      rows.map((o) => o.id).sort((a, b) => a - b),
       [f.recent.id, f.pending.id].sort((a, b) => a - b),
     );
     const history = await get('/orders?view=history&q=' + f.historical.number);
     assert.deepEqual(
-      history.map((o: any) => o.id),
+      history.map((o) => o.id),
       [f.historical.id],
     );
     const pending = await get('/orders?view=pending');
     assert.deepEqual(
-      pending.map((o: any) => o.id),
+      pending.map((o) => o.id),
       [f.pending.id],
     );
     const strict = await get('/orders?view=current&start=' + f.boundary + '&end=' + f.date);
@@ -206,9 +236,6 @@ test('HTTP订单日期分类保留历史未完成、归档可搜索、全部/自
     assert.equal((await get('/orders')).length, 4);
     assert.equal((await fetch(f.base + '/orders?start=' + f.date + '&end=' + f.old)).status, 400);
     assert.deepEqual(f.store.db.prepare('SELECT * FROM record_lifecycle').all(), before);
-    const copy = new Store(f.file);
-    assert.equal(copy.orders().length, 4);
-    copy.close();
     assert.equal(
       orderInView(f.recent, { view: 'history' }, monthsBefore(f.date, -1)),
       true,
@@ -226,11 +253,11 @@ test('HTTP订单日期分类保留历史未完成、归档可搜索、全部/自
     );
     assert.equal(removed.results[0].success, true);
     assert.deepEqual(
-      (await get('/orders?view=history')).map((o: any) => o.id),
+      (await get('/orders?view=history')).map((o) => o.id),
       [f.historical.id],
     );
     assert.deepEqual(
-      (await get('/orders?archived=1')).map((o: any) => o.id),
+      (await get('/orders?archived=1')).map((o) => o.id),
       [f.cancelled.id],
     );
     assert.equal(f.store.orders(true).length, 4, '回收站软删除与日期归档均保留业务记录');
@@ -238,6 +265,7 @@ test('HTTP订单日期分类保留历史未完成、归档可搜索、全部/自
     await f.close();
   }
 });
+
 test('供应商名称、ID、采购日期、到货状态组合查询，筛选清空恢复全部，非法日期拒绝', async () => {
   const f = await fixture();
   try {
@@ -249,15 +277,16 @@ test('供应商名称、ID、采购日期、到货状态组合查询，筛选清
       status: '部分到货',
       q: '独立规格',
     });
-    const rows = await (await fetch(f.base + '/purchases?' + query)).json();
+    const list = async (path: string) => idList.parse(await (await fetch(f.base + path)).json());
+    const rows = await list('/purchases?' + query);
     assert.deepEqual(
-      rows.map((r: any) => r.id),
+      rows.map((r) => r.id),
       [f.a.id],
     );
     query.set('supplierId', String(f.second.id));
-    assert.equal((await (await fetch(f.base + '/purchases?' + query)).json()).length, 0);
-    assert.equal((await (await fetch(f.base + '/purchases')).json()).length, 4);
-    assert.equal((await (await fetch(f.base + '/purchases?pending=1')).json()).length, 4);
+    assert.equal((await list('/purchases?' + query)).length, 0);
+    assert.equal((await list('/purchases')).length, 4);
+    assert.equal((await list('/purchases?pending=1')).length, 4);
     assert.equal(
       (await fetch(f.base + '/purchases?start=' + f.date + '&end=' + f.old)).status,
       400,
@@ -267,13 +296,14 @@ test('供应商名称、ID、采购日期、到货状态组合查询，筛选清
     await f.close();
   }
 });
+
 test('经营概览来自订单/采购/流水：实时库存不截日期，不混合单位、金额精确、页面查询不改数据', async () => {
   const f = await fixture();
   try {
     const before = f.store.db.prepare('SELECT SUM(delta_units) n FROM stock_movements').get();
-    const result = await (
+    const result = dashboardAnswer.parse(await (
       await fetch(f.base + '/dashboard?start=' + f.boundary + '&end=' + f.date)
-    ).json();
+    ).json());
     const v = result.overview;
     assert.equal(v.orders.total, 1);
     assert.equal(v.orders.pendingAll, 1);
@@ -285,14 +315,14 @@ test('经营概览来自订单/采购/流水：实时库存不截日期，不混
     assert.equal(v.purchases.amount, '24.9986250');
     assert.deepEqual(v.purchases.outstanding, [{ unit: '张', quantity: '36.5', itemCount: 4 }]);
     assert.equal(v.inventory.finished[0].quantity, '30');
-    assert.equal(v.inventory.raw.find((g: any) => g.unit === '张').quantity, '4');
-    assert.equal(v.inventory.raw.find((g: any) => g.unit === '平方米').quantity, '0');
+    assert.equal(v.inventory.raw.find((g) => g.unit === '张')?.quantity, '4');
+    assert.deepEqual(v.inventory.raw.map((g) => g.unit), ['张'], '原材料只有“张”一个单位');
     assert.equal(v.inventory.zeroCount, 1);
     assert.equal(v.products.total, f.store.products().length);
     assert.equal(v.movements.length, 1);
     assert.equal(v.movements[0].action, 'purchase');
-    assert.ok(v.activity.some((a: any) => a.category === '采购订货'));
-    assert.ok(v.activity.every((a: any) => a.date >= f.boundary));
+    assert.ok(v.activity.some((a) => a.category === '采购单'));
+    assert.ok(v.activity.every((a) => a.date >= f.boundary));
     assert.deepEqual(
       f.store.db.prepare('SELECT SUM(delta_units) n FROM stock_movements').get(),
       before,
@@ -305,3 +335,4 @@ test('经营概览来自订单/采购/流水：实时库存不截日期，不混
     await f.close();
   }
 });
+

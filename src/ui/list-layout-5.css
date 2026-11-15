@@ -1,0 +1,178 @@
+/* 列表版式：页头、统计、筛选条、表格、分页、空状态（第 5 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+:root[data-ui='refined'] .list-filters :is(select, input) {
+  height: 32px;
+  min-height: 32px;
+}
+
+/* —— 列表：白色圆角卡片，表头不填色，行之间一条淡线 —— */
+:root[data-ui='refined'] main .panel {
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+:root[data-ui='refined'] main .panel table th,
+:root[data-ui='refined'] main .unified-table-region table th {
+  height: 34px;
+  padding: 0 var(--space-md);
+  background: var(--surface);
+  border-bottom: 0.5px solid var(--sep);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+:root[data-ui='refined'] main .panel table td {
+  height: 40px;
+  padding: 0 var(--space-md);
+  border-bottom: 0.5px solid var(--sep);
+}
+:root[data-ui='refined'] main .panel tbody tr:last-child td {
+  border-bottom: 0;
+}
+:root[data-ui='refined'] main .panel tbody tr {
+  transition: background 0.12s var(--ease);
+}
+:root[data-ui='refined'] main .panel tbody tr.record-row:hover td {
+  background: var(--surface-hover);
+}
+:root[data-ui='refined'] main .panel tbody tr.record-row.selected td {
+  background: color-mix(in srgb, var(--teal) 9%, transparent);
+}
+:root[data-ui='refined'] .table-scroll-hint {
+  display: none;
+}
+:root[data-ui='refined'] .pager {
+  border-top: 0.5px solid var(--sep);
+}
+
+:root[data-ui='refined'] .business-records .unified-table-region > table > tbody > tr > td:last-child:not([colspan]) {
+  background: var(--surface);
+  box-shadow: inset 0.5px 0 0 var(--sep);
+}
+:root[data-ui='refined'] .business-records .unified-table-region > table > thead > tr > th {
+  background: var(--surface);
+  font-weight: 500;
+}
+
+/* —— 状态标签：胶囊形 —— */
+:root[data-ui='refined'] .status-chip {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  font-weight: 500;
+}
+/* 不在卡片里的列表表格（账号、收件箱、流水、财务等）也放进白色圆角卡片 */
+:root[data-ui='refined'] main .unified-table-region:not(.panel > *) {
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+:root[data-ui='refined'] main .unified-table-region table td {
+  border-bottom: 0.5px solid var(--sep);
+}
+:root[data-ui='refined'] main .unified-table-region tbody tr:last-child td {
+  border-bottom: 0;
+}
+:root[data-ui='refined'] main .unified-table-region tbody tr:hover td {
+  background: var(--surface-hover);
+}
+:root[data-ui='refined'] main .unified-table-region tbody tr.selected td {
+  background: color-mix(in srgb, var(--teal) 9%, transparent);
+}
+
+/* 列表“筛选”弹层：不常用的条件收在这里 */
+.filter-popover {
+  position: relative;
+  flex: none;
+}
+:root[data-ui='refined'] .filter-popover-toggle,
+.filter-popover-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 32px;
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.filter-popover-toggle.has-active {
+  color: var(--accent, var(--teal));
+}
+.filter-popover-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-filter-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: var(--space-md);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--pop-shadow, var(--shadow));
+}
+.filter-popover-fields {
+  display: grid;
+  gap: 10px;
+}
+.filter-popover-fields > * {
+  min-width: 0;
+}
+.filter-popover-fields :is(select, input) {
+  width: 100%;
+}
+.filter-popover-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+@media (max-width: 700px) {
+  .filter-popover-panel {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom) + 8px);
+    left: 8px;
+    width: auto;
+    max-height: 70dvh;
+    overflow: auto;
+  }
+}
+
+/* 灰色状态标签（待确认、待订货、待送货）要看得见底色：精致版式里 --surface-muted 和页面底色一样 */
+:root[data-ui='refined'] .status-chip.tone-neutral,
+:root[data-ui='refined'] .status-chip:not([class*='tone-']) {
+  background: var(--fill-1);
+  color: var(--ink);
+}
+/* 短列表下面不留一大块空白 */
+.business-records .unified-table-region {
+  min-height: 0;
+}
+
+/* —— 列表的列优先级：右侧详情打开、列表变窄时，次要列按优先级收起 ——
+   列表表格区域（TableRegion、.unified-table-region）是一个容器，按它自己的宽度判断，
+   不管变窄是因为详情面板、助手停靠还是窗口本身窄。各页面只在 th 和对应的 td 上标优先级：
+   - col-low：最先收起。表格区域窄于 900px（1440 和 1280 宽打开详情时都是）就不显示；
+   - col-mid：其次。窄于 660px（1280 宽打开详情时）也不显示；
+   - 不标的是关键列（单号或名称、状态、金额这类），一直显示。
+   同时取消几张表为宽屏定的最小宽度、把会省略的文字列（cell-wrap）收窄，关键列不靠横向滚动就能完整看到。
+   手机上表格变成卡片（m-cards），每个字段都列出来，不收列。 */
+.unified-table-region {
+  container: list-table / inline-size;
+}
+
+/* 业务列表上方“没办成”的提示（BusinessRecords：读不出、归档或恢复失败）：用公共的 Hint，四周和列表对齐 */
+.business-records > .record-hint {
+  margin: var(--space-md);
+  overflow-wrap: anywhere;
+}

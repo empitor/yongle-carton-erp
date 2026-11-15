@@ -1,0 +1,65 @@
+/* 收件箱 */
+/* 收件箱：发送人一列（来源写在下面的小字），内容占满剩下的宽度、太长省略，收到时间不被挤掉 */
+.inbox-page .unified-table-region > table {
+  width: 100%;
+}
+.inbox-page td.inbox-sender {
+  width: 1%;
+  max-width: 240px;
+}
+.inbox-page td.inbox-sender > span,
+.inbox-page td.inbox-sender > small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inbox-page td.inbox-sender > small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.inbox-page .unified-table-region > table > tbody > tr > td.inbox-sender {
+  height: auto;
+  padding-block: var(--space-xs);
+}
+.inbox-page td.inbox-content {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-page .inbox-time {
+  width: 1%;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .inbox-page td.inbox-sender,
+  .inbox-page td.inbox-content {
+    width: auto;
+    max-width: none;
+  }
+  .inbox-page td.inbox-content {
+    white-space: normal;
+  }
+}
+
+/* 收件箱 */
+.inbox-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+  height: 32px;
+}
+.inbox-channel-note {
+  margin: 0 0 var(--space-sm);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.inbox-content {
+  max-width: 520px;
+}
+.inbox-kind {
+  margin-right: var(--space-xs);
+  color: var(--muted);
+  vertical-align: -3px;
+}

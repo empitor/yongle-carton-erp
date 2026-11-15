@@ -1,385 +1,252 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { Store } from '../db.js';
-import type { Actor } from '../auth.js';
-import { OperationsService } from '../operations/service.js';
-import { FlowService } from '../flow/service.js';
-import { requirePermission, audit } from '../business/management.js';
-import { ImportError } from '../import/errors.js';
-import { documentExportSchema } from '../../shared/business-export.js';
-import { formatStockSize } from '../../shared/operations.js';
-import { sameSpecification } from '../../shared/domain.js';
-import { displayAmount } from '../../shared/display-amount.js';
-import { renderBusinessForm, applyDocumentTemplate, type BusinessForm } from './templates.js';
-import { DocumentTemplateSettings } from './settings.js';
+import type { Actor, Store } from '../core/index.js';
+import { AppError, audit, inSavepoint, requirePermission } from '../core/index.js';
+import { FlowService } from '../flow/index.js';
+import { OrderBatchService } from '../operations/index.js';
+import { toScheduleEntries } from '../../shared/business/index.js';
+import { today } from '../../shared/core/index.js';
+import {
+  batchPreviewSchema,
+  documentExportSchema,
+  previewFileSchema,
+  type BusinessForm,
+  type DocumentExport,
+  type DocumentExportStatus,
+  type DocumentKind,
+} from '../../shared/documents/index.js';
+import { deliveryForm } from './delivery-form.js';
+import {
+  checkBeforeRender,
+  checkUnchanged,
+  exportOptions,
+  purchaseStatus,
+  requestedPurchases,
+  superseded,
+  type Built,
+  type ExportRequest,
+} from './export-checks.js';
+import { orderExported, shipExported } from './export-delivery.js';
+import {
+  EXPORT_FILE_KEEP_DAYS,
+  exportBytes,
+  exportDigest,
+  insertExport,
+  markCompleted,
+  markDelivered,
+  readExport,
+} from './export-records.js';
+import { templated, type FormResult, type RawForm } from './forms.js';
+import { purchaseForm } from './purchase-form.js';
+import { renderBusinessForm } from './render.js';
+
 const hash = (v: string | Buffer) => createHash('sha256').update(v).digest('hex');
-/** 规格、尺寸、材质常常说的是同一件事（60*40*30cm 和 60 × 40 × 30 cm），单据上只留一份。 */
-export const joinSpecification = (...values: (string | null | undefined)[]) => {
-  const parts = values.filter(Boolean).flatMap((v) => v!.split(' / '));
-  const kept: string[] = [];
-  const key = (p: string) => p.replace(/\s+/g, '').replaceAll('×', 'x').toLowerCase();
-  return parts
-    .filter((p) => {
-      if (kept.some((k) => sameSpecification(k, p) || key(k).includes(key(p)))) return false;
-      kept.push(p);
-      return true;
-    })
-    .join(' / ');
+/** 一张单据拼好、还没套模板的内容 */
+const rawForms: { [K in DocumentKind]: (store: Store, id: number) => RawForm<K> } = {
+  purchase: (store, id) => purchaseForm(store, [id]),
+  delivery: deliveryForm,
 };
+/** 排好版、要存成导出记录的这一份 */
+type Rendered = { digest: string; actor: Actor; built: Built; bytes: Buffer; shipDate: string | undefined };
+const auditEntity = (kind: DocumentKind) => (kind === 'purchase' ? 'purchases' : 'flow_delivery');
+
 export class BusinessDocuments {
-  private tx<T>(job: () => T): T {
-    this.store.db.exec('SAVEPOINT document_export');
-    try {
-      const result = job();
-      this.store.db.exec('RELEASE document_export');
-      return result;
-    } catch (error) {
-      this.store.db.exec('ROLLBACK TO document_export; RELEASE document_export');
-      throw error;
-    }
-  }
   constructor(
     readonly store: Store,
     readonly render = renderBusinessForm,
   ) {}
-  form(
-    kind: 'purchase' | 'delivery',
+  /**
+   * shipping：待送货的送货单按“导出并出库”来印（预览和正式导出都用）：
+   * 导出就是出库，纸上印今天出库的实际送货日期，和出库后系统里记的一样，不是当初安排的日子。
+   * shipDate：正式导出时定下印在纸上的那一天，记进导出记录，交付完成出库时就按这一天出库。
+   */
+  form<K extends DocumentKind>(
+    kind: K,
     id: number,
     templateId?: string,
-  ): { form: BusinessForm; record: any } {
-    const { form, record } = this.rawForm(kind, id),
-      state = new DocumentTemplateSettings(this.store).get(),
-      template = state.templates.find(
-        (t) => t.id === (templateId || state.defaults[kind]) && t.kind === kind,
+    options: { shipping?: boolean; shipDate?: string } = {},
+  ): FormResult<K> {
+    const result = templated(this.store, kind, rawForms[kind](this.store, id), templateId);
+    if (options.shipping && kind === 'delivery' && result.record.status === 'draft')
+      result.form.fields = result.form.fields.map(([label, value]) =>
+        label === '预计送货日期' ? ['实际送货日期', options.shipDate ?? today()] : [label, value],
       );
-    if (!template) throw new ImportError('模板与当前单据类型不一致或已移除。');
-    return {
-      record,
-      form: applyDocumentTemplate(
-        {
-          ...form,
-          title: form.title + (record.businessStatus === '已取消' ? '（已取消，仅供存档）' : ''),
-        },
-        template,
-        state.revision,
-      ),
-    };
+    return result;
   }
-  private rawForm(kind: 'purchase' | 'delivery', id: number): { form: BusinessForm; record: any } {
-    if (kind === 'purchase') {
-      const repo = new OperationsService(this.store).repo;
-      const record = repo.purchases(true, id)[0];
-      if (!record) throw new ImportError('采购单不存在。', 404);
-      const supplier = repo.suppliers(true, record.supplierId)[0];
-      return {
-        record,
-        form: {
-          title: '采购订货单',
-          number: record.number,
-          draft: false,
-          fields: [
-            ['采购单号', record.number],
-            ['供应商', record.supplierName],
-            [
-              '供应商联系信息',
-              [supplier?.contact, supplier?.phone, supplier?.address].filter(Boolean).join(' · '),
-            ],
-            ['下单日期', record.orderDate],
-            ['预计交货日期', record.expectedDate || '未约定'],
-          ],
-          headers: [
-            '序号',
-            '产品名称',
-            '规格及尺寸',
-            '单位',
-            '订购数量',
-            '单价及计价单位',
-            '金额（元）',
-          ],
-          rows: record.lines.map((l: any, i: number) => [
-            String(i + 1),
-            l.name,
-            joinSpecification(
-              l.specification,
-              formatStockSize(l),
-              l.material === l.name ? '' : l.material,
-              l.flute,
-            ),
-            l.unit,
-            l.quantity,
-            (l.unitPrice ?? '待核价') + (l.priceBasis === 'area' ? ' 元/㎡' : ' 元/' + l.unit),
-            l.amount == null ? '待核价' : displayAmount(l.amount),
-          ]),
-          lineData: record.lines.map((l: any) => ({
-            material: l.material,
-            flute: l.flute,
-            dimensions: formatStockSize(l),
-            notes: l.notes,
-            productCode: '',
-          })),
-          total: record.totalAmount == null ? record.totalAmount : displayAmount(record.totalAmount),
-          notes: record.notes,
-          signatures: ['采购方确认', '供应商确认'],
-        },
-      };
-    }
-    const record = new FlowService(this.store).get(id);
-    if (record.kind !== 'delivery') throw new ImportError('请选择送货记录。');
-    if (['cancelled', 'reversed'].includes(record.status))
-      throw new ImportError('取消或冲销的送货单不能导出为有效送货单。', 409);
-    const customer = this.store.customer(record.customerId, true),
-      orders = new Map(this.store.ordersByIds(record.lines.map((l: any) => l.orderId), true).map((o) => [o.id, o]));
-    return {
-      record,
-      form: {
-        title: '送货单',
-        number: record.number,
-        draft: record.status !== 'confirmed',
-        fields: [
-          ['送货单号', record.number],
-          ['客户', customer?.name || '历史客户'],
-          ['收货地址', record.address || customer?.address || '未记录'],
-          [
-            '客户联系信息',
-            [record.contact || customer?.contact, record.phone || customer?.phone]
-              .filter(Boolean)
-              .join(' · ') || '未记录',
-          ],
-          [
-            '关联销售订单',
-            [
-              ...new Set(
-                record.lines.map(
-                  (l: any) => l.orderNumber || orders.get(l.orderId)?.number,
-                ),
-              ),
-            ].join(' / '),
-          ],
-          [
-            record.status === 'confirmed' ? '实际送货日期' : '预计送货日期',
-            record.status === 'confirmed'
-              ? [record.date, record.actualTime].filter(Boolean).join(' ')
-              : [record.plannedDate || record.date, record.plannedTime].filter(Boolean).join(' '),
-          ],
-          [
-            '客户采购订单号',
-            [
-              ...new Set(
-                record.lines
-                  .map(
-                    (l: any) =>
-                      l.externalPurchaseOrder ??
-                      orders.get(l.orderId)?.externalPurchaseOrder,
-                  )
-                  .filter(Boolean),
-              ),
-            ].join(' / ') || '未记录',
-          ],
-        ],
-        headers: ['序号', '产品名称', '规格及尺寸', '单位', '本批送货数量', '备注'],
-        columnKeys: ['index', 'name', 'specification', 'unit', 'quantity', 'notes'],
-        rows: record.lines.map((l: any, i: number) => {
-          const ol = orders
-            .get(l.orderId)
-            ?.lines.find((x) => x.id === l.orderLineId);
-          return [
-            String(i + 1),
-            l.productName || ol?.productName || '历史产品',
-            joinSpecification(
-              l.specification || ol?.specification,
-              l.length != null || l.width != null ? formatStockSize(l) : '',
-            ),
-            l.unit || ol?.unit || '未记录',
-            l.quantity,
-            l.notes || '',
-          ];
-        }),
-        lineData: record.lines.map((l: any) => {
-          const o = orders.get(l.orderId),
-            ol = o?.lines.find((x) => x.id === l.orderLineId);
-          return {
-            orderNumber: l.orderNumber || o?.number || '',
-            customerOrderNumber: l.externalPurchaseOrder ?? o?.externalPurchaseOrder ?? '',
-            productCode: l.customerProductCode ?? ol?.customerProductCode ?? '',
-            unitPrice: l.unitPriceExact || l.unitPrice || '未记录',
-            amount: (() => {
-              const value = String(l.amountExact || l.amount || '');
-              return /^-?\d+(\.\d+)?$/.test(value) ? displayAmount(value) : value || '未记录';
-            })(),
-            dimensions: l.length != null || l.width != null ? formatStockSize(l) : '',
-            material: l.material || '',
-            flute: l.flute || '',
-          };
-        }),
-        notes: record.notes,
-        signatures: ['送货人签字', '收货人签字'],
-      },
-    };
+  /**
+   * 单据现在的状态（查导出状态、交付完成记审计用）：只读单据，不套模板。
+   * 送货单导出以后取消、冲销了照样查得到；单据删掉了报不存在。
+   */
+  private currentStatus(kind: DocumentKind, id: number): string {
+    return kind === 'purchase' ? purchaseStatus(purchaseForm(this.store, [id]).record) : new FlowService(this.store).get(id).status;
   }
-  async generate(raw: unknown, who: Actor) {
+  /** 合并订货单：和导出时生成的是同一份内容 */
+  private batchForm(v: z.output<typeof batchPreviewSchema>) {
+    return templated(
+      this.store,
+      'purchase',
+      purchaseForm(this.store, v.purchaseIds, v.schedule ? toScheduleEntries(v.schedule) : undefined),
+      v.templateId,
+    ).form;
+  }
+  /** 合并订货单的预览：和导出时生成的是同一份内容。 */
+  batchPreview(raw: unknown): BusinessForm {
+    return this.batchForm(batchPreviewSchema.parse(raw));
+  }
+  /**
+   * 预览 Word 排版：按模板排一份 Word 只给人看，直接返回文件内容。和上面两个预览一样只看不落库——
+   * 不占订货单号（几张合并还没订货时印的是“下一个号”，和窗口里的预览一致）、不写导出记录、不写审计、
+   * 不改任何状态。权限和正式导出一样（business:edit）。
+   */
+  async previewFile(raw: unknown, who: Actor | null | undefined) {
+    requirePermission(who, 'business:edit');
+    const v = previewFileSchema.parse(raw);
+    const form =
+      v.kind === 'purchase' ? this.batchForm(v) : this.form('delivery', v.id, v.templateId, { shipping: !!v.shipping }).form;
+    return this.render(form, 'docx');
+  }
+  async generate(raw: unknown, who: Actor | null | undefined): Promise<DocumentExportStatus> {
     const actor = requirePermission(who, 'business:edit'),
       v = documentExportSchema.parse(raw),
       digest = hash(JSON.stringify({ v, actor: actor.id }));
-    const prior = this.store.db
-      .prepare(
-        "SELECT digest,result FROM operation_requests WHERE kind='document-export' AND request_id=?",
-      )
-      .get(v.requestId);
-    if (prior) {
-      if (prior.digest !== digest) throw new ImportError('导出请求编号已用于其他内容。', 409);
-      return this.status(v.requestId, actor);
-    }
-    const { form, record } = this.form(v.kind, v.id, v.templateId);
-    if (v.templateId && v.templateId !== form.templateId)
-      throw new ImportError('模板与当前单据类型不一致。');
-    if (record.version !== v.expectedVersion)
-      throw new ImportError('单据已更新，请重新读取后导出。', 409);
-    if (v.markOrdered && (record.archived || record.businessStatus === '已取消'))
-      throw new ImportError('已取消或归档的采购单不能导出并标记已订货。', 409);
-    const bytes = await this.render(form, v.format);
-    const latest = this.form(v.kind, v.id).record;
-    if (new DocumentTemplateSettings(this.store).get().revision !== form.templateRevision)
-      throw new ImportError('生成期间模板已更新，请重新导出。', 409);
-    if (latest.version !== record.version)
-      throw new ImportError('文件生成期间单据已更新，未改变状态，请重新导出。', 409);
-    const result = {
-      ...v,
-      actorId: actor.id,
-      filename:
-        record.number + '-' + form.title + (form.draft ? '-计划非正式' : '') + '.' + v.format,
-      sha256: hash(bytes),
-      bytes: bytes.toString('base64'),
-      size: bytes.length,
-      createdAt: new Date().toISOString(),
-      deliveredAt: null,
-      completedAt: null,
-      draft: form.draft,
-      statusBefore: record.businessStatus || record.status,
-      templateId: form.templateId,
-      templateRevision: form.templateRevision,
-      templateSnapshot: form.templateSnapshot,
-    };
-    return this.tx(() => {
-      const inserted = this.store.db
-        .prepare("INSERT OR IGNORE INTO operation_requests VALUES('document-export',?,?,?)")
-        .run(v.requestId, digest, JSON.stringify(result));
-      if (!inserted.changes) {
-        const saved = this.store.db
-          .prepare(
-            "SELECT digest FROM operation_requests WHERE kind='document-export' AND request_id=?",
-          )
-          .get(v.requestId);
-        if (saved?.digest !== digest) throw new ImportError('导出请求编号已用于其他内容。', 409);
-        return this.status(v.requestId, actor);
-      }
-      audit(
-        this.store,
-        actor,
-        'business-documents',
-        'generate',
-        v.kind === 'purchase' ? 'purchases' : 'flow_delivery',
-        v.id,
-        {
+    const prior = this.replayed(v.requestId, digest, actor);
+    if (prior) return prior;
+    // 导出并出库：纸上的“实际送货日期”这里定下来，记进导出记录，交付完成时按这一天出库
+    const shipDate = v.markShipped ? today() : undefined;
+    const built = this.build(v, shipDate);
+    checkBeforeRender(this.store, v, built, actor);
+    const bytes = await this.render(built.form, v.format);
+    checkUnchanged(this.store, built, this.build(v, shipDate));
+    return this.save(v, { digest, actor, built, bytes, shipDate });
+  }
+  /** 同一个请求编号已经存过：内容一样原样返回，换了内容拒绝；没存过返回 null */
+  private replayed(requestId: string, digest: string, actor: Actor): DocumentExportStatus | null {
+    const saved = exportDigest(this.store, requestId);
+    if (!saved) return null;
+    if (saved !== digest) throw new AppError('导出请求编号已用于其他内容。', 409);
+    return this.status(requestId, actor);
+  }
+  private build(v: ExportRequest, shipDate: string | undefined): Built {
+    if (v.kind === 'delivery')
+      return { kind: 'delivery', ...this.form('delivery', v.id, v.templateId, { shipping: v.markShipped, shipDate }) };
+    const ids = requestedPurchases(v).map((p) => p.id),
+      raw = purchaseForm(this.store, ids, v.schedule ? toScheduleEntries(v.schedule) : undefined);
+    return { kind: 'purchase', ...templated(this.store, 'purchase', raw, v.templateId) };
+  }
+  /** 存导出记录、占订货单号、记审计（一个保存点里） */
+  private save(v: ExportRequest, done: Rendered): DocumentExportStatus {
+    const { built, actor } = done,
+      { form, record } = built;
+    const filename = record.number + '-' + form.title + (form.draft ? '-预览未出库' : '') + '.' + v.format,
+      sha256 = hash(done.bytes),
+      // 几张合并且还没建批次时，订货单号先记在导出记录里，交付完成建批次时用同一个号
+      batchNumber = built.kind === 'purchase' && !built.record.batch && built.record.members.length > 1 ? record.number : null;
+    return inSavepoint(this.store.db, () => {
+      // 排版是异步的，两个相同的请求会交错：后到的这里看到已经有记录，原样返回，不再存一份
+      const saved = this.replayed(v.requestId, done.digest, actor);
+      if (saved) return saved;
+      // 订货单号这时才真正占住（预览和排版期间只看不占）。排版期间号被别的导出占走就拒绝，这份文件不留，
+      // 纸上不会印出重号；要放在插入之前，不然先撞上的是 batch_number 的唯一索引，报不出这句话
+      if (batchNumber) new OrderBatchService(this.store).reserveNumber(batchNumber);
+      insertExport(this.store, {
+        id: v.requestId,
+        digest: done.digest,
+        kind: v.kind,
+        recordId: v.id,
+        actorId: actor.id,
+        format: v.format,
+        filename,
+        sha256,
+        templateId: form.templateId,
+        templateRevision: form.templateRevision,
+        batchNumber,
+        // 纸上印的实际送货日期（待送货的导出出库时才有）；交付完成出库就按这一天
+        shipDate: v.markShipped && record.status === 'draft' ? (done.shipDate ?? null) : null,
+        options: exportOptions(v, built),
+        templateSnapshot: form.templateSnapshot,
+        bytes: done.bytes,
+      });
+      audit(this.store, actor, {
+        action: 'generate',
+        entity: auditEntity(v.kind),
+        id: v.id,
+        document: {
           exportId: v.requestId,
-          filename: result.filename,
-          sha256: result.sha256,
+          filename,
+          sha256,
           markOrdered: v.markOrdered,
+          markShipped: v.markShipped,
           version: record.version,
         },
-      );
+      });
       return this.status(v.requestId, actor);
     });
   }
-  private load(id: string, actor: Actor): any {
+  private load(id: string, actor: Actor): DocumentExport {
     requirePermission(actor, 'business:edit');
-    z.string().uuid().parse(id);
-    const row = this.store.db
-      .prepare(
-        "SELECT result FROM operation_requests WHERE kind='document-export' AND request_id=?",
-      )
-      .get(id);
-    if (!row) throw new ImportError('导出文件不存在。', 404);
-    const value = JSON.parse(String(row.result));
-    if (value.actorId !== actor.id) throw new ImportError('导出文件不属于当前账号。', 403);
-    return value;
+    z.uuid().parse(id);
+    const v = readExport(this.store, id);
+    if (!v) throw new AppError('导出文件不存在。', 404);
+    if (v.actorId !== actor.id) throw new AppError('导出文件不属于当前账号。', 403);
+    return v;
   }
-  private put(v: any) {
-    this.store.db
-      .prepare(
-        "UPDATE operation_requests SET result=? WHERE kind='document-export' AND request_id=?",
-      )
-      .run(JSON.stringify(v), v.requestId);
-  }
-  status(id: string, actor: Actor) {
-    const { bytes, actorId, ...v } = this.load(id, actor),
-      record = this.form(v.kind, v.id).record;
+  status(id: string, actor: Actor): DocumentExportStatus {
+    const { actorId, ...v } = this.load(id, actor);
     return {
       ...v,
       exportId: id,
       url: '/api/documents/' + id + '/file',
-      businessStatus: record.businessStatus || record.status,
+      businessStatus: this.currentStatus(v.kind, v.id),
       deliveryStatus: v.completedAt ? 'completed' : v.deliveredAt ? 'delivered' : 'ready',
       verified: true,
       message:
-        v.markOrdered && !v.completedAt
+        superseded(this.store, v) ??
+        (v.markOrdered && !v.completedAt
           ? '文件已生成；下载交付完成后才标记已订货。'
-          : '文件结果及当前业务状态已核验。',
+          : '文件结果及当前业务状态已核验。'),
     };
   }
   file(id: string, actor: Actor) {
     const v = this.load(id, actor);
-    return { ...v, buffer: Buffer.from(v.bytes, 'base64') };
-  }
-  delivered(id: string, actor: Actor) {
-    const v = this.load(id, actor);
-    if (!v.deliveredAt) {
-      v.deliveredAt = new Date().toISOString();
-      this.put(v);
-    }
-  }
-  complete(id: string, sha256: string, actor: Actor) {
-    const v = this.load(id, actor);
-    if (!v.deliveredAt || sha256 !== v.sha256)
-      throw new ImportError('文件尚未完整交付或校验失败，采购状态未修改。', 409);
-    if (v.completedAt) return this.status(id, actor);
-    this.store.db.exec('SAVEPOINT document_delivery');
-    try {
-      if (v.markOrdered) {
-        const ops = new OperationsService(this.store),
-          record = this.form('purchase', v.id).record;
-        if (record.archived || record.businessStatus === '已取消')
-          throw new ImportError('采购已取消或归档，已交付文件但未修改业务状态。', 409);
-        if (record.businessStatus !== '已订货') {
-          if (record.version !== v.expectedVersion)
-            throw new ImportError(
-              '采购单已变化，已交付文件但未标记订货，请读取最新采购单后重新导出。',
-              409,
-            );
-          ops.savePurchase({ ...record, status: '已订货', version: record.version }, actor, v.id);
-        }
-      }
-      v.completedAt = new Date().toISOString();
-      this.put(v);
-      audit(
-        this.store,
-        actor,
-        'business-documents',
-        'download-complete',
-        v.kind === 'purchase' ? 'purchases' : 'flow_delivery',
-        v.id,
-        {
-          exportId: id,
-          sha256,
-          before: v.statusBefore,
-          after:
-            this.form(v.kind, v.id).record.businessStatus || this.form(v.kind, v.id).record.status,
-        },
+    // 这几张已经按另一份订货单订了货：这份文件作废，不再发出去（交付完成那一步也会拦）
+    const conflict = superseded(this.store, v);
+    if (conflict) throw new AppError(conflict, 409, 'export_superseded');
+    const bytes = exportBytes(this.store, id);
+    // 过了保存期的文件内容已经清掉（purgeExportFiles），导出记录还在
+    if (bytes == null)
+      throw new AppError(
+        '文件已过期（导出文件只保留 ' + EXPORT_FILE_KEEP_DAYS + ' 天），请重新导出。',
+        410,
+        'export_expired',
       );
-      this.store.db.exec('RELEASE document_delivery');
+    return { ...v, buffer: bytes };
+  }
+  /** 记下文件已经完整发给浏览器；只记第一次，重复下载不变 */
+  delivered(id: string, actor: Actor) {
+    this.load(id, actor);
+    markDelivered(this.store, id);
+  }
+  complete(id: string, sha256: string, actor: Actor): DocumentExportStatus {
+    const v = this.load(id, actor);
+    // 同一组采购单先后导出了两份订货单、另一份已经交付：这份不能再记成完成，也不能另建批次或沿用别的号。
+    // 已经完成的（同一份重复点完成）这里不拦，照常原样返回
+    const conflict = superseded(this.store, v);
+    if (conflict) throw new AppError(conflict, 409, 'export_superseded');
+    if (!v.deliveredAt || sha256 !== v.sha256)
+      throw new AppError('文件尚未完整交付或校验失败，单据状态未修改。', 409);
+    if (v.completedAt) return this.status(id, actor);
+    return inSavepoint(this.store.db, () => {
+      // 送货单导出出库：文件完整交付后核对出库，变“送货中”；出库日按纸上印的那天
+      if (v.markShipped) shipExported(this.store, v, actor);
+      if (v.markOrdered) orderExported(this.store, v, id, actor);
+      markCompleted(this.store, id);
+      audit(this.store, actor, {
+        action: 'download-complete',
+        entity: auditEntity(v.kind),
+        id: v.id,
+        document: { exportId: id, sha256, before: v.statusBefore, after: this.currentStatus(v.kind, v.id) },
+      });
       return this.status(id, actor);
-    } catch (e) {
-      this.store.db.exec('ROLLBACK TO document_delivery; RELEASE document_delivery');
-      throw e;
-    }
+    });
   }
 }

@@ -1,0 +1,463 @@
+/* AI 识别导入的窗口：页头、分栏、底栏、提示 */
+/* ---------- 收件箱详情 ---------- */
+.adm-message {
+  margin: 0;
+  padding: var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  font-size: var(--text-md);
+  line-height: 22px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.adm-image {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  margin: 0 0 var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  object-fit: contain;
+}
+.adm-message + .adm-file-card,
+.adm-message + .adm-image {
+  margin-top: var(--space-sm);
+}
+
+/* 头部：识别类型 · 文件名 · 状态 …… 主操作 · 原件 · 更多 */
+.aii-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  min-height: 48px;
+  padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+}
+.aii-head-title {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 120px;
+}
+.aii-head-title strong {
+  overflow: hidden;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aii-head-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.aii-head-actions > button {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
+}
+.aii-head-actions > button.is-on {
+  border-color: var(--accent-ink);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.aii-head-actions .more-menu > summary {
+  width: 28px;
+  height: 28px;
+}
+.aii-menu-note {
+  display: block;
+  padding: var(--space-2xs) var(--space-sm) var(--space-3xs);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2xs);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+/* 页顶的错误和结果提示 */
+.aii-banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
+  border-radius: var(--r-control);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.aii-banner > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.aii-banner.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.aii-banner.tone-info {
+  background: var(--info-soft);
+  color: var(--ink);
+}
+.aii-banner > button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.aii-pane-body > .aii-progress {
+  margin: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) var(--space-lg);
+}
+
+/* 还没有草稿 */
+.aii-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  min-height: 240px;
+  height: 100%;
+  padding: var(--space-2xl);
+  color: var(--text-secondary);
+  text-align: center;
+}
+.aii-empty p {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.aii-empty span {
+  max-width: 420px;
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+
+/* 底部操作条：左边合计和疑点，右边按钮从次到主 */
+.aii-footer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-lg);
+  min-height: 52px;
+  padding: var(--space-sm) var(--space-lg);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.aii-footer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2xs) var(--space-lg);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.aii-footer-summary small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-figure {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2xs);
+  white-space: nowrap;
+}
+.aii-figure small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-figure strong {
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+.aii-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.aii-footer-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: var(--text-sm);
+}
+.aii-footer .more-menu-list {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.aii-footer-hint {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-done-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--success);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.aii-done-link:hover {
+  text-decoration: underline;
+}
+/* “让 AI 改”是 AI 操作，用紫色 */
+.aii-footer-actions > .aii-ai-button {
+  border-color: color-mix(in srgb, var(--purple) 45%, var(--border-strong));
+  background: var(--surface);
+  color: var(--purple);
+}
+.aii-footer-actions > .aii-ai-button[aria-pressed='true'],
+.aii-footer-actions > .aii-ai-button:hover:not(:disabled) {
+  background: var(--purple-soft);
+}
+
+/* ---------- 草稿正文里的公共小件 ---------- */
+.aii-section-extra {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-section-extra button {
+  font-size: var(--text-xs);
+}
+.aii-span-full {
+  grid-column: 1 / -1;
+}
+/* 草稿里的多行文字按内容自动长高，不用编辑窗默认的三行高 */
+.aii-pane-body .form-field textarea {
+  min-height: 32px;
+  resize: none;
+  overflow: hidden;
+  line-height: 20px;
+}
+.aii-compact {
+  gap: var(--space-sm) var(--space-md);
+}
+.aii-compact .form-field input,
+.aii-compact .form-field select,
+.aii-compact .form-field textarea {
+  font-size: var(--text-sm);
+}
+.aii-compact .dimension-unit-control small {
+  display: none;
+}
+.aii-status {
+  color: var(--text-secondary);
+}
+.aii-status.tone-success {
+  color: var(--success);
+}
+.aii-status.tone-warning {
+  color: var(--warning);
+  font-weight: 600;
+}
+.aii-status.tone-danger {
+  color: var(--danger);
+  font-weight: 600;
+}
+.aii-text-danger {
+  color: var(--danger);
+}
+.aii-muted {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.aii-more {
+  min-width: 0;
+}
+.aii-more > summary {
+  width: fit-content;
+  padding: var(--space-3xs) 0;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.aii-more[open] > summary {
+  margin-bottom: var(--space-sm);
+}
+/* 可以收起的一组提醒 */
+.aii-fold {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  font-size: var(--text-sm);
+}
+.aii-fold.tone-warning {
+  background: var(--warning-soft);
+}
+.aii-fold.tone-info {
+  background: var(--info-soft);
+}
+.aii-fold > summary {
+  cursor: pointer;
+}
+.aii-fold ul {
+  margin: var(--space-xs) 0 0;
+  padding-left: 18px;
+  font-size: var(--text-xs);
+  line-height: 18px;
+}
+.aii-fold li + li {
+  margin-top: var(--space-3xs);
+}
+.aii-qty {
+  display: flex;
+  gap: var(--space-2xs);
+}
+.aii-qty > .aii-field:first-child {
+  flex: 1;
+}
+.aii-qty > .aii-field:last-child {
+  flex: none;
+  width: 52px;
+}
+.aii-amount small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+.aii-dialog-agree {
+  margin-top: var(--space-lg);
+}
+.aii-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.aii-preview-lines td .status-chip {
+  vertical-align: middle;
+}
+.aii-preview-lines tfoot td {
+  background: var(--surface-muted);
+  font-weight: 600;
+}
+.aii-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--accent-ink);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+/* ---------- 草稿区变窄（开着原件预览、窄窗口、手机）：按草稿区自己的宽度排 ---------- */
+/* ai-import：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。
+   范围：AI 导入的草稿区（客户订单、到货单、唛头）、底部操作条、聊天和这一页的所有弹窗。
+   只用新类名（aii- 开头），不覆盖 design.css 的公共样式。字号 12/13/14/16，圆角 4/8。
+   紫色只用在 AI 相关的地方：“让 AI 改”、助手聊天、识别进度。 */
+.aii-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-lg);
+  container-type: inline-size;
+}
+
+@container (max-width: 640px) {
+  .aii-pane-body .ed-grid.cols-4,
+.aii-pane-body .ed-grid.cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 400px) {
+  .aii-pane-body .ed-grid.cols-2,
+.aii-pane-body .ed-grid.cols-4,
+.aii-pane-body .ed-grid.cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aii-pane-body .form-field.span-2,
+  .aii-pane-body .form-field.span-3 {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 窄窗口：头部换行；手机上整页滚动，底部按钮不再给精灵让位 ---------- */
+
+/* ---------- 右侧草稿：一张卡片，头部 + 可滚动正文 + 底部操作条 ---------- */
+.aii-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  container-type: inline-size;
+}
+
+@container (max-width: 600px) {
+  .aii-head-title {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .aii-footer-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+  .aii-pane {
+    flex: none;
+    overflow: visible;
+  }
+  .aii-pane-body {
+    overflow: visible;
+    padding: var(--space-md);
+  }
+  .aii-pane-body > .aii-progress {
+    margin: calc(-1 * var(--space-md)) calc(-1 * var(--space-md)) var(--space-md);
+  }
+  .aii-footer {
+    padding: var(--space-sm) var(--space-md);
+  }
+}
+
+/* 文件头部的“更多”写字；修改次数放在菜单最上面 */
+.aii-head-actions .more-menu > summary.more-menu-text {
+  width: auto;
+  padding: 0 10px;
+}
+.aii-footer .more-menu > summary.more-menu-text {
+  width: auto;
+  height: 32px;
+  padding: 0 10px;
+}
+
+/* 历史与归档 */
+.aii-history-tabs {
+  margin-bottom: var(--space-md);
+}

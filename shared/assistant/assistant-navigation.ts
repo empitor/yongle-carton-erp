@@ -1,0 +1,72 @@
+export const assistantManagementHash = '#ai-settings?tab=tools';
+export function aiSettingsTab(hash: string): 'api' | 'prompts' | 'tools' | 'templates' {
+  const tab = new URLSearchParams(hash.split('?')[1] || '').get('tab');
+  return tab === 'templates' ? 'templates' : tab === 'tools' ? 'tools' : tab === 'prompts' ? 'prompts' : 'api';
+}
+/** 财务页面。需要 finance:view，导航和助手都按这个判断。 */
+export const financePageTargets = {
+  finance: '财务概览（理论和实际盈亏、经营报表）',
+  'finance-flow': '月度台账（流水、补税率）',
+  'finance-ar': '应收应付（欠款明细、到期和计划、对账单、账期、保证金、利息）',
+  'finance-cash': '资金发票（收付款、银行流水、票据、发票）',
+  'finance-costs': '费用资产工资',
+  'finance-ledger': '凭证账簿',
+  'finance-reports': '报表结账',
+  'finance-settings': '财务设置',
+} as const;
+/** 只包含现有前端页面。 */
+export const erpPages = {
+  dashboard: '今日（首页、工作台、经营概览）',
+  orders: '订单（客户订单、销售订单）',
+  purchases: '采购单（采购订货）',
+  customers: '客户',
+  suppliers: '供应商',
+  products: '产品',
+  production: '生产任务（生产管理）',
+  warehouse: '库存（仓库）',
+  inbox: '收件箱',
+  'ai-import': 'AI 导入（AI智能订单导入）',
+  'ai-settings': '设置（AI设置）',
+  accounts: '账号管理（新建账号、审批申请、重置密码）',
+  trash: '归档',
+  guide: '使用说明',
+  ...financePageTargets,
+} as const;
+const isErpPage = (id: string): id is keyof typeof erpPages => Object.hasOwn(erpPages, id);
+export const erpPageIds = Object.keys(erpPages).filter(isErpPage);
+const registeredErpPageIds: string[] = erpPageIds;
+export const navigationAliases: Record<string, string> = {
+  // 设置里的几个页签（助手按名字打开）
+  'document-templates': '#ai-settings?tab=templates',
+  'ai-plugins': assistantManagementHash,
+  'ai-prompts': '#ai-settings?tab=prompts',
+  raw_inventory: '#warehouse?kind=raw',
+  finished_inventory: '#warehouse?kind=finished',
+  production_tasks: '#production',
+  production_records: '#production?view=production',
+  deliveries: '#warehouse?kind=finished&deliveries=1',
+  arrivals: '#warehouse?arrivals=1',
+  delivery_plans: '#warehouse?kind=finished&deliveries=1',
+  movements: '#warehouse?flow=1',
+};
+/** 至少有一项的列表（给 z.enum 用） */
+function nonEmpty<T>(list: T[]): [T, ...T[]] {
+  const [first, ...rest] = list;
+  if (first === undefined) throw new Error('列表是空的');
+  return [first, ...rest];
+}
+/** 助手能打开的全部页面和别名（ui.open 的 module 取值） */
+export const navigationTargets = nonEmpty([...registeredErpPageIds, ...Object.keys(navigationAliases)]);
+export function isErpNavigation(url: unknown): url is string {
+  return (
+    typeof url === 'string' &&
+    !/[\r\n\u0000]/.test(url) &&
+    /^#[a-z-]+(?:\?[^#]*)?$/.test(url) &&
+    registeredErpPageIds.includes(url.slice(1).split('?')[0])
+  );
+}
+export function pageLink(page: string, q?: string) {
+  const url = navigationAliases[page] || (registeredErpPageIds.includes(page) ? '#' + page : null);
+  if (!url) throw new Error('页面不存在。');
+  return url + (q ? (url.includes('?') ? '&' : '?') + 'q=' + encodeURIComponent(q) : '');
+}

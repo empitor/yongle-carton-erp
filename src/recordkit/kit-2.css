@@ -1,0 +1,72 @@
+/* 业务页面共用：单据表、工具栏、数量和单位、排程日期条（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+.flow-table th,
+.flow-table td {
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.flow-table tbody tr {
+  height: 36px;
+}
+.flow-records .section-heading {
+  min-height: 36px;
+  padding: var(--space-3xs) var(--space-md);
+}
+.flow-records .section-heading h3 {
+  font-weight: 400;
+}
+.text-link {
+  align-self: flex-start;
+  height: auto;
+  min-height: 0;
+  margin-top: var(--space-3xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+}
+.text-link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+.flow-records .section-heading > button {
+  margin-left: auto;
+}
+
+@media (max-width: 700px) {
+
+  /* 筛选默认收起 */
+  .list-filters-primary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+  .list-search > span {
+    display: none;
+  }
+}
+.line-card-sum {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.line-card-more {
+  margin-top: var(--space-sm);
+}
+.line-card-more > summary {
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.line-card-more[open] > summary {
+  margin-bottom: var(--space-sm);
+}
+:root[data-ui='refined'] .list-search > div {
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--field-bg);
+}

@@ -1,0 +1,131 @@
+/* 右侧详情面板和详情里的分节、事实、明细表 */
+/* 业务维护：常规操作行内，危险操作单独分区。 */
+.record-view-tabs .selected {
+  border-color: var(--border-strong);
+}
+.line-table td small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 16px;
+}
+.line-table input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  margin: 9px 0 0;
+}
+.line-table tfoot td {
+  padding-top: var(--space-sm);
+  border-bottom: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.line-table tfoot td.num {
+  text-align: right;
+}
+.line-card > .record-hint {
+  margin: 0 0 var(--space-md);
+}
+.record-view-tabs {
+  border: 0;
+}
+.record-view-tabs button.selected {
+  border-bottom-color: var(--teal);
+  font-weight: 600;
+}
+
+/* 右侧详情面板：不遮罩、不打断列表 */
+.detail-panel {
+  position: fixed;
+  top: var(--topbar-h);
+  right: var(--assistant-w);
+  bottom: 0;
+  z-index: var(--z-side-panel);
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - var(--sidebar-w) - var(--assistant-w) - 240px));
+  min-width: 420px;
+}
+.detail-panel-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 48px;
+}
+.detail-panel-head h2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-panel-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.detail-panel-actions button {
+  min-height: 28px;
+  padding: var(--space-3xs) var(--space-sm);
+  font-size: var(--text-sm);
+}
+.detail-panel-body {
+  flex: 1;
+  overflow: auto;
+}
+.detail-panel-body h3 {
+  margin: var(--space-md) 0 var(--space-2xs);
+  font-size: var(--text-md);
+}
+.detail-panel-body .table-wrap {
+  overflow: auto;
+}
+.detail-panel-body table {
+  font-size: var(--text-sm);
+}
+.detail-chain {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 1023px) {
+  .detail-panel {
+    width: 100%;
+    min-width: 0;
+  }
+}
+.detail-panel-actions .danger-text {
+  color: var(--danger);
+}
+.detail-panel-actions a.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 28px;
+  padding: var(--space-3xs) var(--space-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  font-size: var(--text-sm);
+}
+
+@media print {
+  .detail-panel,
+  .record-row > td:last-child:has(button),
+  .record-view-tabs {
+    display: none !important;
+  }
+}
+.record-row {
+  cursor: pointer;
+}
+
+/* ---- 单据详情：下一步 ---- */
+.detail-panel-actions .more-menu {
+  margin-left: auto;
+}
+.detail-panel-actions .more-menu-list {
+  z-index: var(--z-overlay);
+}

@@ -1,3 +1,4 @@
+// 悬浮助手的位置、停靠、尺寸和偏好读写（src/assistant/floating-assistant.ts 的纯函数），不起页面。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -24,7 +25,12 @@ import {
   settleFloatingMascot,
   floatingMascotKey,
   moveFloatingMascot,
-} from '../src/floating-assistant.js';
+  yieldStrip,
+  chooseYieldSide,
+  resizeFloatingRect,
+  readFloatingSize,
+  fitFloatingSize,
+} from '../src/assistant/floating-assistant.js';
 const desktop = { left: 0, top: 0, width: 1440, height: 950 },
   phone = { left: 0, top: 0, width: 390, height: 844 };
 test('默认及旧版无偏好显示精灵，尊重显式顶栏选择；损坏或禁用存储不隐藏入口', () => {
@@ -100,7 +106,11 @@ test('位置仅存UI坐标，刷新恢复；存储禁止/损坏不影响默认�
   const anchor = { x: 650, y: 710 };
   saveFloatingAnchor(storage, anchor);
   assert.deepEqual(readFloatingAnchor(storage, desktop), anchor);
-  assert.deepEqual(Object.keys(JSON.parse(map.get(floatingPositionKey)!)).sort(), [
+  const stored = map.get(floatingPositionKey);
+  assert.ok(stored, '位置没有存下');
+  const saved: unknown = JSON.parse(stored);
+  assert.ok(typeof saved === 'object' && saved !== null);
+  assert.deepEqual(Object.keys(saved).sort(), [
     'version',
     'x',
     'y',
@@ -202,17 +212,14 @@ test('键盘向内连续移动不会被再次吸回边缘，上下移动保留�
   assert.equal(moveFloatingMascot(p, mascotSize, desktop, 0, 12).dock, 'free');
 });
 
-test('三态独立持久化，旧位置迁移不覆写原配置，窗口缩小保留停靠并修正纵向位置', () => {
-  const map = new Map<string, string>([
-    [floatingPositionKey, JSON.stringify({ version: 1, x: 600, y: 700 })],
-  ]);
+test('三态独立持久化，窗口缩小保留停靠并修正纵向位置', () => {
+  const map = new Map<string, string>();
   const storage = {
     getItem: (k: string) => map.get(k) ?? null,
     setItem: (k: string, v: string) => {
       map.set(k, v);
     },
   };
-  assert.deepEqual(readFloatingMascot(storage, desktop), { x: 600, y: 700, dock: 'free' });
   for (const dock of ['free', 'dock-left', 'dock-right'] as const) {
     const placed = fitFloatingMascot({ x: 600, y: 700, dock }, desktop);
     saveFloatingMascot(storage, placed);
@@ -226,7 +233,6 @@ test('三态独立持久化，旧位置迁移不覆写原配置，窗口缩小�
     assert(panel.x >= 8 && panel.x + 374 <= phone.width - 8);
     assert(panel.y >= 8 && panel.y + 600 <= phone.height - 8);
   }
-  assert.equal(map.get(floatingPositionKey), JSON.stringify({ version: 1, x: 600, y: 700 }));
   for (const raw of [
     'oops',
     'null',
@@ -235,7 +241,7 @@ test('三态独立持久化，旧位置迁移不覆写原配置，窗口缩小�
     '{"version":3,"x":2,"y":3,"dock":"free"}',
   ]) {
     map.set(floatingMascotKey, raw);
-    assert.deepEqual(readFloatingMascot(storage, desktop), { x: 600, y: 700, dock: 'free' });
+    assert.deepEqual(readFloatingMascot(storage, desktop), { ...defaultFloatingAnchor(desktop), dock: 'free' });
   }
   const disabled = {
     getItem: () => {
@@ -276,5 +282,36 @@ test('助手上下文提示写出当前页面和正在看的记录', () => {
   assert.equal(assistantPageLabel('#orders?order=3', 'SH-1'), '订单 · SH-1');
   assert.equal(assistantPageLabel('', null), '今日');
   assert.equal(assistantPageLabel('#purchases'), '采购');
-  assert.equal(assistantPageLabel('#ai-settings', null), '');
+  assert.equal(assistantPageLabel('#ai-settings', null), '设置');
+  assert.equal(assistantPageLabel('#ai-import', null), 'AI 导入');
+  assert.equal(assistantPageLabel('#unknown-page', null), '');
+});
+
+test('小人缩边选边：按实际露出的那 32 像素算，会压到左侧导航的一边不去，两边都压东西时选压得少的', () => {
+  const rect = { left: 600, top: 400, ...mascotSize };
+  assert.deepEqual(yieldStrip('left', rect, 1440), { left: 0, top: 400, width: 32, height: mascotSize.height });
+  assert.deepEqual(yieldStrip('right', rect, 1440), { left: 1408, top: 400, width: 32, height: mascotSize.height });
+  // 近的是左边、左边是导航：右边压的东西再多也去右边
+  assert.equal(chooseYieldSide('left', { left: { hits: 3, nav: true }, right: { hits: 10, nav: false } }), 'right');
+  assert.equal(chooseYieldSide('left', { left: { hits: 0, nav: true }, right: { hits: 4, nav: false } }), 'right');
+  // 近的那边空着就留在近的那边；都不压导航时比压住多少，一样多留在近的
+  assert.equal(chooseYieldSide('left', { left: { hits: 0, nav: false }, right: { hits: 0, nav: false } }), 'left');
+  assert.equal(chooseYieldSide('right', { left: { hits: 1, nav: false }, right: { hits: 3, nav: false } }), 'left');
+  assert.equal(chooseYieldSide('right', { left: { hits: 3, nav: false }, right: { hits: 3, nav: false } }), 'right');
+  // 两边都压导航：比压住多少
+  assert.equal(chooseYieldSide('left', { left: { hits: 2, nav: true }, right: { hits: 1, nav: true } }), 'right');
+});
+
+test('浮动窗口拉宽拉高：单边、角落都限制在屏内和最小尺寸；恢复的尺寸限制在当前视区', () => {
+  const v = { left: 0, top: 0, width: 1200, height: 900 },
+    r = { x: 300, y: 200, width: 440, height: 500 };
+  assert.deepEqual(resizeFloatingRect(r, 'e', 100, 200, v), { ...r, width: 540 });
+  assert.deepEqual(resizeFloatingRect(r, 's', 100, 100, v), { ...r, height: 600 });
+  for (const d of ['n', 's', 'e', 'w', 'nw', 'ne', 'se', 'sw']) {
+    const p = resizeFloatingRect(r, d, 9999, 9999, v);
+    assert(p.x >= 8 && p.y >= 8 && p.x + p.width <= 1192 && p.y + p.height <= 892, d);
+    assert(p.width >= 300 && p.height >= 260, d);
+  }
+  assert.deepEqual(readFloatingSize({ getItem: () => JSON.stringify({ width: 900, height: 900 }) }, { left: 0, top: 0, width: 320, height: 400 }), { width: 304, height: 384 });
+  assert.deepEqual(fitFloatingSize({ width: 440, height: 690 }, { left: 0, top: 0, width: 50, height: 60 }), { width: 34, height: 44 });
 });

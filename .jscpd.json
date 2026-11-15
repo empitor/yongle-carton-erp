@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/jscpd.json",
+  "path": ["server", "shared", "src", "scripts"],
+  "format": ["typescript", "tsx", "javascript"],
+  "ignore": ["**/rows*.ts", "**/*.test.*", "**/node_modules/**"],
+  "minLines": 5,
+  "minTokens": 50,
+  "threshold": 0.26,
+  "gitignore": true,
+  "reporters": ["console", "json"],
+  "output": ".cache/jscpd",
+  "absolute": false,
+  "silent": false
+}

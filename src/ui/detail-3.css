@@ -1,0 +1,283 @@
+/* 右侧详情面板和详情里的分节、事实、明细表（第 3 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+.line-table input,
+.line-table select {
+  width: 100%;
+  min-height: 32px;
+}
+
+/* 明细卡片：一行内容太多、放不进表格时用，例如到货的每种纸板 */
+.line-card {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.line-card + .line-card {
+  margin-top: var(--space-sm);
+}
+.line-card > header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+.line-card > header strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-table th,
+.line-table thead {
+  background: transparent;
+}
+
+/* 只读唛头没有内容时，外面那一节也不占位 */
+.record-section:empty {
+  display: none;
+}
+
+/* 详情里的表格：长文字换行，数字列不换行、右对齐；链接用链接色。没有可见操作时不留空操作栏。 */
+.record-section td {
+  white-space: normal;
+}
+.record-section td a {
+  color: var(--info);
+}
+.line-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.detail-panel-actions:empty,
+.record-actions:empty {
+  display: none;
+}
+:root[data-ui='refined'] .record-view-tabs button {
+  min-height: 28px;
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--r-inner);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: none;
+}
+:root[data-ui='refined'] .record-view-tabs button:hover:not(:disabled, .selected) {
+  background: transparent;
+  color: var(--ink);
+}
+:root[data-ui='refined'] .record-view-tabs button.selected {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    var(--segment-shadow);
+}
+:root[data-ui='refined'][data-theme='dark'] .record-view-tabs button.selected {
+  background: var(--segment-selected-dark);
+}
+:root[data-ui='refined'] .detail-panel {
+  background: var(--page-bg);
+  border-left: 0.5px solid var(--border);
+  box-shadow: none;
+  animation: refined-panel-in 0.24s var(--ease);
+}
+
+@media (min-width: 1200px) {
+  :root[data-ui='refined'] .detail-panel {
+    width: var(--panel-w);
+    min-width: 420px;
+  }
+}
+:root[data-ui='refined'] .detail-panel-head {
+  padding: var(--space-lg) var(--space-lg) var(--space-2xs);
+  border: 0;
+  background: transparent;
+}
+:root[data-ui='refined'] .detail-panel-kicker {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+:root[data-ui='refined'] .detail-panel-head h2 {
+  font-size: var(--text-xl);
+  line-height: 28px;
+  font-weight: 600;
+}
+:root[data-ui='refined'] .detail-panel-subtitle {
+  padding: 0 var(--space-lg) var(--space-md);
+  color: var(--text-secondary);
+  border: 0;
+}
+:root[data-ui='refined'] .detail-panel-actions {
+  padding: 0 var(--space-lg) var(--space-md);
+  border: 0;
+  background: transparent;
+}
+:root[data-ui='refined'] .detail-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-2xs) var(--space-lg) 104px;
+}
+:root[data-ui='refined'] .detail-panel-body > :is(div, section) {
+  margin: 0;
+}
+
+/* 详情里的每一节都是一张白卡片，标题写在卡片里第一行 */
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section,
+:root[data-ui='refined'] .detail-panel-body .record-progress {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+:root[data-ui='refined'] .record-section > header {
+  margin: 0 0 var(--space-xs);
+  padding: 0;
+  border: 0;
+}
+:root[data-ui='refined'] .record-section > header h3 {
+  padding: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* 字段：一行一项，左边灰色字段名，右边内容，行之间缩进的淡线 */
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-facts {
+  display: block;
+  margin: 0 -14px calc(-1 * var(--space-md));
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-facts > div {
+  display: flex;
+  gap: var(--space-md);
+  margin: 0 0 0 14px;
+  padding: 9px 14px 9px 0;
+  border-top: 0.5px solid var(--sep);
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-facts > div:first-child {
+  border-top: 0;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-facts dt {
+  flex: none;
+  width: 96px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-facts dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/* 卡片里的表格：表头小灰字、不填色，数字等宽 */
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section > :is(table, .table-wrap) {
+  width: calc(100% + 28px);
+  max-width: none;
+  margin: 0 -14px calc(-1 * var(--space-md));
+  overflow-x: auto;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section .table-wrap > table {
+  width: 100%;
+  margin: 0;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section :is(th, td):first-child {
+  padding-left: 14px;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section :is(th, td):last-child {
+  padding-right: 14px;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section td.num {
+  white-space: nowrap;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section :is(th, td) {
+  padding: var(--space-sm) var(--space-sm);
+  white-space: normal;
+  background: transparent;
+  border: 0;
+  border-top: 0.5px solid var(--sep);
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section th:not(:first-child) {
+  white-space: nowrap;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) .record-section th {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) :is(td.num, th.num) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 进度条：细一点、圆头 */
+:root[data-ui='refined'] .record-progress-bar {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--fill-1);
+  overflow: hidden;
+}
+:root[data-ui='refined'] .record-progress-bar > span {
+  border-radius: var(--r-pill);
+  background: var(--teal);
+  transition: width 0.4s var(--ease);
+}
+/* 详情里套了一层容器的几节卡片之间也留间距 */
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) :where(div, section, article):has(> .record-section) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+:root[data-ui='refined'] :is(.detail-panel-body, .management-dialog-body) :where(div, section, article):has(> .record-section) > .record-section {
+  margin: 0;
+}
+/* 分段控件按内容宽度，不被父容器拉满 */
+
+/* —— 分段控件：灰色槽，选中项是白色小块 —— */
+:root[data-ui='refined'] .record-view-tabs {
+  gap: var(--space-3xs);
+  padding: var(--space-3xs);
+  border-radius: var(--r-control);
+  background: var(--fill-1);
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  justify-self: start;
+}
+.missing-note {
+  flex: none;
+  margin: 0;
+  padding: var(--space-sm) var(--space-xl);
+  border-top: 1px solid var(--sep, var(--line));
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.record-actions .more-menu summary.more-menu-text {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  gap: var(--space-2xs);
+  padding: 0 var(--space-md);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/* —— 详情面板：和列表并排，从右边滑进来；里面是灰底分组的白卡片 —— */
+@keyframes refined-panel-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}

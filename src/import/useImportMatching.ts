@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ImportMapping } from '../../shared/import-mapping';
-import type { ImportWorkspaceView, OrderDraft } from '../../shared/order-draft';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { errorMessage } from '../../shared/core/index';
 import {
   blocksNewProduct,
   emptyImportMapping,
@@ -9,182 +8,279 @@ import {
   productCandidatesForLine,
   productMatchKey,
   resolveCustomerCandidates,
+  type CustomerProductSpecs,
+  type ImportMapping,
   type ImportMatchData,
+  type ImportWorkspaceView,
   type MappingInvalidations,
-} from '../../shared/import-matching';
+  type OrderDraft,
+} from '../../shared/import/index';
+import { readMatches } from './workspace-api';
+
+/**
+ * 订单识别结果里客户、产品对哪个档案：读候选档案，按名字唯一对上的、本客户老产品直接选中，人改的先留在页面上，
+ * 保存时交给 onSave（保存客户与产品选择）。服务端回来的新版本没被本地改过的选择覆盖时跟着它。
+ */
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type Candidates = ReturnType<typeof productCandidatesForLine>;
+type CustomerResolution = ReturnType<typeof resolveCustomerCandidates>;
+const noInvalidations = (): MappingInvalidations => ({ products: {} });
 
 const normalized = (mapping: ImportMapping | undefined, draft: OrderDraft): ImportMapping => ({
   ...emptyImportMapping(draft),
   ...mapping,
   products: { ...emptyImportMapping(draft).products, ...mapping?.products },
 });
-export function useImportMatching(
-  workspace: ImportWorkspaceView,
-  draft: OrderDraft,
-  onSave: (mapping: ImportMapping) => Promise<ImportWorkspaceView | null>,
-) {
+
+/** 读这份文件的候选档案：只收和当前版本对得上的那一份 */
+function useMatches(workspace: ImportWorkspaceView) {
   const [matches, setMatches] = useState<ImportMatchData | null>(null),
     [readError, setReadError] = useState('');
-  const [mapping, setMapping] = useState(() => normalized(workspace.mapping, draft));
-  const [invalidated, setInvalidated] = useState<MappingInvalidations>(
-    workspace.mappingInvalidated || { products: {} },
-  );
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
-    workspace.mapping ? 'saved' : 'idle',
-  );
-  const [saveError, setSaveError] = useState('');
-  const mappingRef = useRef(mapping),
-    invalidRef = useRef(invalidated),
-    priorDraft = useRef(draft),
-    live = useRef(true),
-    saving = useRef(false),
-    customerTouched = useRef(false),
-    productTouched = useRef(new Set<string>());
-  const savedRef = useRef(normalized(workspace.mapping, draft));
-  const candidateCache = useRef(
-    new Map<
-      string,
-      {
-        key: string;
-        products: ImportMatchData['products'];
-        value: ReturnType<typeof productCandidatesForLine>;
-      }
-    >(),
-  );
-  const workspaceRef = useRef(workspace);
-  workspaceRef.current = workspace;
-  const update = (next: ImportMapping, notices = invalidRef.current) => {
-    mappingRef.current = next;
-    invalidRef.current = notices;
-    setMapping(next);
-    setInvalidated(notices);
-  };
-  useEffect(() => {
-    live.current = true;
-    return () => {
-      live.current = false;
-    };
-  }, []);
-  useEffect(() => {
-    const localDirty = JSON.stringify(mappingRef.current) !== JSON.stringify(savedRef.current);
-    savedRef.current = normalized(workspace.mapping, draft);
-    if (!localDirty && !saving.current) {
-      update(savedRef.current, workspace.mappingInvalidated || { products: {} });
-      setSaveState(workspace.mapping ? 'saved' : 'idle');
-    }
-  }, [workspace.revision]);
-  useEffect(() => {
-    const next = invalidateImportMapping(
-      mappingRef.current,
-      priorDraft.current,
-      draft,
-      invalidRef.current,
-    );
-    priorDraft.current = draft;
-    if (
-      JSON.stringify(next.mapping) !== JSON.stringify(mappingRef.current) ||
-      JSON.stringify(next.invalidated) !== JSON.stringify(invalidRef.current)
-    ) {
-      update(next.mapping!, next.invalidated);
-      setSaveState('idle');
-      setSaveError('');
-    }
-  }, [draft]);
   useEffect(() => {
     const controller = new AbortController();
     let current = true;
-    fetch('/api/ai/imports/' + workspace.id + '/matches', {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw Error(data.message || '读取失败');
-        return data as ImportMatchData;
-      })
+    readMatches(workspace.id, controller.signal)
       .then((data) => {
         if (current && data.revision === workspace.revision) {
           setMatches(data);
           setReadError('');
         }
       })
-      .catch((e) => {
-        if (current && e.name !== 'AbortError') setReadError(e.message);
+      .catch((e: unknown) => {
+        if (current && !(e instanceof Error && e.name === 'AbortError')) setReadError(errorMessage(e));
       });
     return () => {
       current = false;
       controller.abort();
     };
   }, [workspace.id, workspace.revision]);
-  const customerResolution = useMemo(() => {
-    if (!matches) return null;
-    return matches.revision === workspace.revision &&
-      importNameKey(draft.header.buyerName.value || '') ===
-        importNameKey(workspace.draft?.header.buyerName.value || '')
-      ? matches.customerResolution
-      : resolveCustomerCandidates(matches.customerRecords, draft.header.buyerName.value || '');
-  }, [matches, draft.header.buyerName.value, workspace.draft]);
+  return { matches, readError };
+}
+
+/**
+ * 页面上的客户、产品选择，和服务端存的那份怎么跟：服务端来了新版本、本地没改过（也没在保存）就跟着它；
+ * 识别结果改了（换了客户名、改了明细）按规则作废受影响的选择。
+ */
+function useMappingState(workspace: ImportWorkspaceView, draft: OrderDraft) {
+  const [mapping, setMapping] = useState(() => normalized(workspace.mapping, draft));
+  const [invalidated, setInvalidated] = useState<MappingInvalidations>(workspace.mappingInvalidated || noInvalidations());
+  const [saveState, setSaveState] = useState<SaveState>(workspace.mapping ? 'saved' : 'idle');
+  const [saveError, setSaveError] = useState('');
+  const mappingRef = useRef(mapping),
+    invalidRef = useRef(invalidated),
+    priorDraft = useRef(draft),
+    saving = useRef(false),
+    savedRef = useRef(normalized(workspace.mapping, draft));
+  // 新版本到了才跟（按版本号重跑）；跟的时候取这一刻的工作区和识别结果
+  const latest = useRef({ workspace, draft });
+  latest.current = { workspace, draft };
+  const update = useCallback((next: ImportMapping, notices = invalidRef.current) => {
+    mappingRef.current = next;
+    invalidRef.current = notices;
+    setMapping(next);
+    setInvalidated(notices);
+  }, []);
   useEffect(() => {
-    if (
-      customerResolution?.state === 'resolved' &&
-      mappingRef.current.customer.mode === 'pending' &&
-      !invalidRef.current.customer &&
-      !customerTouched.current
-    ) {
-      const c = customerResolution.customer!;
-      update({
-        ...mappingRef.current,
-        customer: { mode: 'existing', id: c.id, version: c.version },
-      });
-      setSaveState('idle');
+    const { workspace: w, draft: d } = latest.current;
+    const localDirty = JSON.stringify(mappingRef.current) !== JSON.stringify(savedRef.current);
+    savedRef.current = normalized(w.mapping, d);
+    if (!localDirty && !saving.current) {
+      update(savedRef.current, w.mappingInvalidated || noInvalidations());
+      setSaveState(w.mapping ? 'saved' : 'idle');
     }
-  }, [customerResolution]);
-  const candidates = useMemo(
+  }, [workspace.revision, update]);
+  useEffect(() => {
+    const next = invalidateImportMapping(mappingRef.current, priorDraft.current, draft, invalidRef.current);
+    priorDraft.current = draft;
+    if (
+      next.mapping &&
+      (JSON.stringify(next.mapping) !== JSON.stringify(mappingRef.current) ||
+        JSON.stringify(next.invalidated) !== JSON.stringify(invalidRef.current))
+    ) {
+      update(next.mapping, next.invalidated);
+      setSaveState('idle');
+      setSaveError('');
+    }
+  }, [draft, update]);
+  return { mapping, invalidated, saveState, setSaveState, saveError, setSaveError, mappingRef, invalidRef, saving, update };
+}
+type MappingState = ReturnType<typeof useMappingState>;
+
+/** 客户按名字找候选：候选档案和识别结果是同一版、客户名没改过就用服务端算好的，否则按眼前的客户名重算 */
+function useCustomerResolution(matches: ImportMatchData | null, draft: OrderDraft, workspace: ImportWorkspaceView) {
+  const buyer = draft.header.buyerName.value || '',
+    savedBuyer = workspace.draft?.header.buyerName.value || '',
+    revision = workspace.revision;
+  return useMemo(() => {
+    if (!matches) return null;
+    return matches.revision === revision && importNameKey(buyer) === importNameKey(savedBuyer)
+      ? matches.customerResolution
+      : resolveCustomerCandidates(matches.customerRecords, buyer);
+  }, [matches, buyer, savedBuyer, revision]);
+}
+
+/** 每行产品的候选档案（按行缓存：这一行的名称尺寸、档案、本客户老产品都没变就不重算） */
+function useCandidates(draft: OrderDraft, matches: ImportMatchData | null, history: CustomerProductSpecs | undefined) {
+  const cache = useRef(
+    new Map<
+      string,
+      { key: string; products: ImportMatchData['products']; history: CustomerProductSpecs | undefined; value: Candidates }
+    >(),
+  );
+  return useMemo(
     () =>
       Object.fromEntries(
         draft.lines.map((l) => {
           const products = matches?.products || [],
             key = productMatchKey(l),
-            cached = candidateCache.current.get(l.id);
-          if (cached?.key === key && cached.products === products) return [l.id, cached.value];
-          const value = productCandidatesForLine(l, products);
-          candidateCache.current.set(l.id, { key, products, value });
+            cached = cache.current.get(l.id);
+          if (cached?.key === key && cached.products === products && cached.history === history)
+            return [l.id, cached.value];
+          const value = productCandidatesForLine(l, products, history);
+          cache.current.set(l.id, { key, products, history, value });
           return [l.id, value];
         }),
       ),
-    [draft, matches],
+    [draft, matches, history],
   );
-  // 名称、尺寸都相同又没有冲突的唯一档案，和客户一样直接选中。每月重复下单时不用一行行点确认。
+}
+
+/**
+ * 按名字唯一对上的客户，和名称、尺寸都相同又没有冲突的唯一档案、本客户的老产品，直接选中（人没碰过、没被作废的才选）。
+ * 每月重复下单时不用一行行点确认。
+ */
+function useAutoChoose(
+  state: MappingState,
+  found: { matches: ImportMatchData | null; customer: CustomerResolution | null; candidates: Record<string, Candidates> },
+  lines: OrderDraft['lines'],
+  touched: { customer: { current: boolean }; products: { current: Set<string> } },
+) {
+  const { matches, customer, candidates } = found;
+  // 下面几样都不随渲染变（引用、useCallback 的 update、状态的设值函数），effect 只跟着候选和识别结果重跑
+  const { mappingRef, invalidRef, update, setSaveState } = state,
+    { customer: customerTouched, products: productTouched } = touched;
+  useEffect(() => {
+    if (customer?.state !== 'resolved' || mappingRef.current.customer.mode !== 'pending') return;
+    if (invalidRef.current.customer || customerTouched.current) return;
+    const c = customer.customer;
+    update({ ...mappingRef.current, customer: { mode: 'existing', id: c.id, version: c.version } });
+    setSaveState('idle');
+  }, [customer, mappingRef, invalidRef, customerTouched, update, setSaveState]);
   useEffect(() => {
     if (!matches) return;
     let next = mappingRef.current,
       changed = false;
-    for (const l of draft.lines) {
+    for (const l of lines) {
       const choice = next.products[l.id];
-      if (
-        (choice && choice.mode !== 'pending') ||
-        invalidRef.current.products[l.id] ||
-        productTouched.current.has(l.id)
-      )
+      if ((choice && choice.mode !== 'pending') || invalidRef.current.products[l.id] || productTouched.current.has(l.id))
         continue;
       const best = candidates[l.id]?.filter((c) => c.recommended) || [];
-      const product =
-        best.length === 1 ? matches.products.find((p) => p.id === best[0].id) : undefined;
+      const product = best.length === 1 ? matches.products.find((p) => p.id === best[0].id) : undefined;
       if (!product) continue;
-      next = {
-        ...next,
-        products: {
-          ...next.products,
-          [l.id]: { mode: 'existing', id: product.id, version: product.version },
-        },
-      };
+      next = { ...next, products: { ...next.products, [l.id]: { mode: 'existing', id: product.id, version: product.version } } };
       changed = true;
     }
     if (changed) {
       update(next);
       setSaveState('idle');
     }
-  }, [candidates, matches]);
+  }, [candidates, matches, lines, mappingRef, invalidRef, productTouched, update, setSaveState]);
+}
+
+/** 还有没处理完的：被作废的、客户对不上唯一一个、选的档案已经变了、有行不能新建又没选 */
+function unresolvedOf(
+  state: Pick<MappingState, 'mapping' | 'invalidated'>,
+  found: { matches: ImportMatchData | null; customer: CustomerResolution | null; candidates: Record<string, Candidates> },
+  lines: OrderDraft['lines'],
+) {
+  const { mapping, invalidated } = state,
+    { matches, customer, candidates } = found,
+    chosen = mapping.customer;
+  return (
+    !!invalidated.customer ||
+    Object.keys(invalidated.products).length > 0 ||
+    (chosen.mode === 'pending' && customer?.state === 'ambiguous') ||
+    (!!matches && chosen.mode === 'existing' && !matches.customers.some((c) => c.id === chosen.id && c.version === chosen.version)) ||
+    (!!matches &&
+      Object.values(mapping.products).some(
+        (choice) =>
+          choice.mode === 'existing' && !matches.products.some((p) => p.id === choice.id && p.version === choice.version),
+      )) ||
+    lines.some(
+      (l) =>
+        (!mapping.products[l.id] || mapping.products[l.id].mode === 'pending') && candidates[l.id]?.some(blocksNewProduct),
+    )
+  );
+}
+
+/** 保存客户与产品选择：同一时间只存一次；回来晚了的结果不盖掉这期间又改的选择 */
+function useMappingSave(
+  state: MappingState,
+  workspace: ImportWorkspaceView,
+  draft: OrderDraft,
+  onSave: (mapping: ImportMapping) => Promise<ImportWorkspaceView | null>,
+) {
+  const live = useRef(true),
+    workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
+  return async function save() {
+    const { mappingRef, saving } = state;
+    if (saving.current) return;
+    saving.current = true;
+    state.setSaveState('saving');
+    state.setSaveError('');
+    const snapshot = mappingRef.current;
+    try {
+      const result = await onSave(structuredClone(snapshot));
+      if (!live.current) return;
+      if (!result) throw Error('保存失败，当前选择已保留，请重试。');
+      if (result.revision < workspaceRef.current.revision)
+        throw Error('工作区已有后续修订，当前选择已保留，请核对后再保存。');
+      if (mappingRef.current === snapshot) {
+        state.update(normalized(result.mapping, draft), result.mappingInvalidated || noInvalidations());
+        state.setSaveState('saved');
+      } else state.setSaveState('idle');
+    } catch (e) {
+      if (live.current) {
+        state.setSaveError(errorMessage(e));
+        state.setSaveState('error');
+      }
+    } finally {
+      saving.current = false;
+    }
+  };
+}
+
+export function useImportMatching(
+  workspace: ImportWorkspaceView,
+  draft: OrderDraft,
+  onSave: (mapping: ImportMapping) => Promise<ImportWorkspaceView | null>,
+) {
+  const { matches, readError } = useMatches(workspace);
+  const state = useMappingState(workspace, draft);
+  const { mapping, invalidRef } = state;
+  const customerTouched = useRef(false),
+    productTouched = useRef(new Set<string>());
+  const save = useMappingSave(state, workspace, draft, onSave);
+  const customerResolution = useCustomerResolution(matches, draft, workspace);
+  // 本客户老产品按当前选的客户算（没选就是按名字唯一对上的那位）；换了客户，以前订过的就不算
+  const customerId =
+    mapping.customer.mode === 'existing'
+      ? mapping.customer.id
+      : customerResolution?.state === 'resolved'
+        ? customerResolution.customer.id
+        : undefined;
+  const history =
+    customerId !== undefined && matches?.customerHistory?.customerId === customerId ? matches.customerHistory.specs : undefined;
+  const candidates = useCandidates(draft, matches, history);
+  const found = { matches, customer: customerResolution, candidates };
+  useAutoChoose(state, found, draft.lines, { customer: customerTouched, products: productTouched });
   const select = (next: ImportMapping, kind: 'customer' | string) => {
     const notices = structuredClone(invalidRef.current);
     if (kind === 'customer') {
@@ -194,70 +290,22 @@ export function useImportMatching(
       productTouched.current.add(kind);
       delete notices.products[kind];
     }
-    update(next, notices);
-    setSaveState('idle');
-    setSaveError('');
+    state.update(next, notices);
+    state.setSaveState('idle');
+    state.setSaveError('');
   };
-  async function save() {
-    if (saving.current) return;
-    saving.current = true;
-    setSaveState('saving');
-    setSaveError('');
-    const snapshot = mappingRef.current;
-    try {
-      const result = await onSave(structuredClone(snapshot));
-      if (!live.current) return;
-      if (!result) throw Error('保存失败，当前选择已保留，请重试。');
-      if (result.revision < workspaceRef.current.revision)
-        throw Error('工作区已有后续修订，当前选择已保留，请核对后再保存。');
-      // A delayed response must not replace a more recent local selection.
-      if (mappingRef.current === snapshot) {
-        update(normalized(result.mapping, draft), result.mappingInvalidated || { products: {} });
-        setSaveState('saved');
-      } else setSaveState('idle');
-    } catch (e) {
-      if (live.current) {
-        setSaveError((e as Error).message);
-        setSaveState('error');
-      }
-    } finally {
-      saving.current = false;
-    }
-  }
-  const dirty = JSON.stringify(mapping) !== JSON.stringify(normalized(workspace.mapping, draft));
-  const unresolved =
-    !!invalidated.customer ||
-    Object.keys(invalidated.products).length > 0 ||
-    (mapping.customer.mode === 'pending' && customerResolution?.state === 'ambiguous') ||
-    (!!matches &&
-      mapping.customer.mode === 'existing' &&
-      !matches.customers.some(
-        (c) =>
-          c.id === (mapping.customer as any).id && c.version === (mapping.customer as any).version,
-      )) ||
-    (!!matches &&
-      Object.values(mapping.products).some(
-        (choice) =>
-          choice.mode === 'existing' &&
-          !matches.products.some((p) => p.id === choice.id && p.version === choice.version),
-      )) ||
-    draft.lines.some(
-      (l) =>
-        (!mapping.products[l.id] || mapping.products[l.id].mode === 'pending') &&
-        candidates[l.id]?.some(blocksNewProduct),
-    );
   return {
     matches,
     readError,
     mapping,
-    invalidated,
+    invalidated: state.invalidated,
     customerResolution,
     candidates,
     select,
     save,
-    saveState,
-    saveError,
-    dirty,
-    unresolved,
+    saveState: state.saveState,
+    saveError: state.saveError,
+    dirty: JSON.stringify(mapping) !== JSON.stringify(normalized(workspace.mapping, draft)),
+    unresolved: unresolvedOf(state, found, draft.lines),
   };
 }

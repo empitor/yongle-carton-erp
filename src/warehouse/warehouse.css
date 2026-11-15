@@ -1,0 +1,305 @@
+/* 仓库：到货页、待发货、库存流水 */
+.section-heading span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.section-heading > div > span {
+  display: block;
+}
+.section-heading em {
+  font-size: var(--text-xs);
+  background: var(--accent-soft);
+  color: var(--muted);
+  padding: 3px 7px;
+  border-radius: var(--r-small);
+  font-style: normal;
+  margin-left: var(--space-xs);
+}
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.text-button {
+  border: 0;
+  padding: 3px 0;
+  color: var(--accent-ink);
+  background: transparent;
+  font-size: var(--text-xs);
+}
+.text-button:hover {
+  background: transparent;
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+.op-flow-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+.movement-scope {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding: 10px var(--space-xl);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.7;
+}
+.record-context button {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  min-height: 32px;
+}
+.business-records .section-heading > div > span {
+  margin-top: 5px;
+  line-height: 1.8;
+}
+.record-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 21px;
+  background: var(--surface-muted);
+  font-size: var(--text-xs);
+  line-height: 1.8;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.movement-records .unified-table-region > table > thead > tr > th:first-child {
+  width: 170px;
+}
+.movement-positive {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.movement-negative {
+  color: var(--danger);
+  font-weight: 600;
+}
+/* 沿用ERP蓝色操作、绿/琥珀状态及现有字体，只强化逐行数量的可读性。 */
+.receipt-history table {
+  min-width: 550px;
+}
+.receipt-history td {
+  white-space: normal;
+}
+.op-flow-table td {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.arrival-warehouse {
+  gap: var(--space-lg);
+}
+.arrival-warehouse .business-records > .unified-table-region > .arrival-table > thead > tr > th:first-child,
+.arrival-warehouse .business-records > .unified-table-region > .arrival-table > tbody > tr:not(.fulfillment-expanded) > td:first-child {
+  width: 220px;
+  min-width: 220px;
+}
+
+@container list-table (max-width: 899px) {
+  .arrival-warehouse .business-records > .unified-table-region > .arrival-table > thead > tr > th:first-child,
+  .arrival-warehouse .business-records > .unified-table-region > .arrival-table > tbody > tr:not(.fulfillment-expanded) > td:first-child {
+    width: auto;
+    min-width: 0;
+  }
+}
+.arrival-warehouse .section-heading {
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.arrival-warehouse .section-heading p {
+  margin-top: var(--space-xs);
+  color: var(--text-secondary);
+}
+.ob-receive-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-lg);
+  margin-top: var(--space-sm);
+}
+.ob-receive-line label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+}
+.ob-receive-line label > span:first-child {
+  color: var(--text-secondary);
+}
+.ob-receive-line input {
+  width: 104px;
+  text-align: right;
+}
+.ob-split {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+/* ===== 到货页“待到货”、送货页“可发货”：待办列表，每行一个动作 ===== */
+.wh-pending,
+.wh-ready {
+  margin: 0;
+  padding: 0;
+}
+.wh-pending > header,
+.wh-ready > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2xs) var(--space-md);
+  padding: var(--space-md) var(--space-lg) var(--space-sm);
+}
+.wh-pending > header h2,
+.wh-ready > header h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.wh-pending ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wh-pending li {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.2fr) minmax(0, 2fr) auto auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px var(--space-lg);
+  border-top: 0.5px solid var(--sep, var(--border));
+}
+.wh-pending-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wh-pending-main span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.wh-pending-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+.wh-pending-due {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+.wh-ready-list .queue-row {
+  cursor: pointer;
+}
+.wh-ready-list .queue-row.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.wh-ready-list .queue-row input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+.queue-note.wh-late {
+  color: var(--danger);
+}
+button.wh-ready-more {
+  margin: var(--space-sm) var(--space-lg) var(--space-md);
+}
+
+@media (max-width: 760px) {
+  .wh-pending li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-xs) var(--space-md);
+  }
+  .wh-pending-rows {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .wh-pending-due {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .wh-pending li > button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  min-height: 40px;
+}
+.section-heading h2 {
+  font-size: var(--text-md);
+}
+
+/* 高密度表格 */
+.business-records .section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-sm) var(--space-lg);
+}
+
+/* 今日 */
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: var(--row-h);
+  padding: var(--space-3xs) var(--space-md);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.queue-row:hover {
+  background: var(--surface-hover);
+}
+.queue-row .queue-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queue-row .queue-note {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.arrival-table {
+  font-size: var(--text-sm);
+}
+.arrival-table th {
+  height: 32px;
+  padding: 0 var(--space-sm);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.arrival-table td {
+  padding: var(--space-2xs) var(--space-sm);
+  vertical-align: middle;
+}
+
+/* 日期条压成一行 */
+.arrival-warehouse > .section-heading {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin: 0 0 var(--space-sm);
+  min-height: 32px;
+}
+.business-records .section-heading h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.business-records .section-heading select {
+  height: 28px;
+  min-height: 28px;
+}

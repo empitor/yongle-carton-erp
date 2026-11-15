@@ -1,138 +1,115 @@
-import type { AiProfile } from '../../shared/ai-settings.js';
+import { z } from 'zod';
+import { DEEPSEEK_MODEL } from '../../shared/ai/index.js';
+import type { ChatReply, ReplyChoice } from './chat-reply.js';
+
+/** 请求的形状：只有白名单参数和计数 */
+type RequestShape = {
+  stream: boolean;
+  maxOutputTokens?: number;
+  messageCount: number;
+  roles: string[];
+  toolCount?: number;
+  toolChoice?: string;
+  fileCount: number;
+  thinking: boolean;
+  reasoningEffort?: string;
+};
+/** 回答的形状：结束原因、有没有工具调用、命中缓存的 Token 数 */
+type ResponseShape = { finishReasons?: string[]; toolCalls?: boolean; cacheHitTokens?: number };
 export type ProviderDiagnostic = {
-  protocol: 'custom-json-envelope-v1';
-  apiStyle: string;
   stage: string;
   attempt: number;
-  endpointHost: string;
   model: string;
-  request: any;
-  response?: any;
+  request: RequestShape;
+  response?: ResponseShape;
   errorType?: string;
   at: string;
 };
-export const hasDsml = (text: string) =>
-  // 这是模型自己的工具调用标记，真实返回里竖线数量和全半角都见过，只认 DSML 这几个字。
-  text.includes('DSML');
-const safeEnum = (v: unknown, allowed: string[]) =>
-  typeof v === 'string' && allowed.includes(v) ? v : 'other';
-/** 只保留白名单参数/形状/计数；不序列化消息、文件、密钥、上游错误正文或思考。 */
+
+const finishReasons = ['stop', 'length', 'tool_calls', 'content_filter', 'insufficient_system_resource', 'aborted'];
+const roles = ['system', 'user', 'assistant', 'tool', 'latest_reminder'];
+const safeEnum = (v: unknown, allowed: string[]) => (typeof v === 'string' && allowed.includes(v) ? v : 'other');
+
+/** 请求体里要数的几栏；别的（消息正文、文件、密钥）不读 */
+const requestBodySchema = z.object({
+  stream: z.unknown().optional(),
+  max_tokens: z.number().optional().catch(undefined),
+  messages: z
+    .array(
+      z
+        .object({
+          role: z.unknown().optional(),
+          content: z.array(z.object({ type: z.unknown().optional() }).catch({})).optional().catch(undefined),
+        })
+        .catch({}),
+    )
+    .catch([]),
+  tools: z.array(z.unknown()).optional().catch(undefined),
+  tool_choice: z.unknown().optional(),
+  thinking: z.object({ type: z.unknown().optional() }).optional().catch(undefined),
+  reasoning_effort: z.unknown().optional(),
+});
+type RequestBody = z.output<typeof requestBodySchema>;
+const cacheHitSchema = z.object({ prompt_cache_hit_tokens: z.number() });
+
+function requestShape(body: RequestBody): RequestShape {
+  const thinking = body.thinking?.type === 'enabled';
+  return {
+    stream: body.stream === true,
+    maxOutputTokens: body.max_tokens,
+    messageCount: body.messages.length,
+    roles: body.messages.map((m) => safeEnum(m.role, roles)),
+    ...(body.tools ? { toolCount: body.tools.length, toolChoice: safeEnum(body.tool_choice, ['auto', 'none']) } : {}),
+    fileCount: body.messages.reduce((n, m) => n + (m.content ?? []).filter((p) => p.type === 'file').length, 0),
+    thinking,
+    ...(thinking ? { reasoningEffort: safeEnum(body.reasoning_effort, ['low', 'high', 'max']) } : {}),
+  };
+}
+
+/** 只保留白名单参数、形状和计数；不序列化消息、文件、密钥、上游错误正文或思考。 */
 export class ProtocolDiagnostics {
-  private body: any = {};
+  private body: RequestBody = requestBodySchema.parse({});
   private attempt = 0;
-  private response: any;
+  private response: ResponseShape | undefined;
   constructor(
-    private profile: AiProfile,
     private key: string,
     private sink?: (v: ProviderDiagnostic) => void,
   ) {}
-  request(body: any) {
+  request(body: Record<string, unknown>) {
     this.attempt++;
-    this.body = body;
+    this.body = requestBodySchema.parse(body);
     this.response = undefined;
     this.emit('request');
   }
-  result(status: number, raw: any) {
-    if (!raw || typeof raw !== 'object') {
-      this.response = { ...(this.response || {}), httpStatus: status };
-      return;
-    }
-    const b = raw && typeof raw === 'object' ? raw : {},
-      choices = Array.isArray(b.choices) ? b.choices : [],
-      output = Array.isArray(b.output) ? b.output : [];
-    this.response = {
-      ...(this.response || {}),
-      httpStatus: status,
-      keys: [
-        'id',
-        'object',
-        'created',
-        'model',
-        'choices',
-        'usage',
-        'error',
-        'status',
-        'output',
-        'incomplete_details',
-      ].filter((k) => Object.hasOwn(b, k)),
-      finishReasons: choices.map((c: any) =>
-        safeEnum(c.finish_reason, [
-          'stop',
-          'length',
-          'tool_calls',
-          'function_call',
-          'content_filter',
-        ]),
-      ),
-      responseStatus: b.status
-        ? safeEnum(b.status, ['completed', 'incomplete', 'failed', 'in_progress', 'queued'])
-        : undefined,
-      nativeToolCalls:
-        choices.some((c: any) => !!c.message?.tool_calls?.length || !!c.message?.function_call) ||
-        output.some((o: any) => ['function_call', 'custom_tool_call'].includes(o.type)),
-      outputTypes: output.map((o: any) =>
-        safeEnum(o.type, ['message', 'reasoning', 'function_call', 'custom_tool_call']),
-      ),
-      dsml:
-        choices.some((c: any) =>
-          hasDsml(typeof c.message?.content === 'string' ? c.message.content : ''),
-        ) ||
-        output.some((o: any) =>
-          o.content?.some?.((c: any) => hasDsml(typeof c.text === 'string' ? c.text : '')),
-        ),
-    };
+  private choices(choices: ReplyChoice[], part: 'message' | 'delta') {
+    const response = (this.response ||= {});
+    const reasons = choices.filter((c) => c.finish_reason).map((c) => safeEnum(c.finish_reason, finishReasons));
+    if (reasons.length) response.finishReasons = reasons;
+    if (choices.some((c) => c[part]?.tool_calls?.length || c[part]?.function_call)) response.toolCalls = true;
+    return response;
   }
-  stream(raw: any) {
-    this.response ||= {};
-    const reasons = (raw?.choices || [])
-      .filter((c: any) => c.finish_reason)
-      .map((c: any) =>
-        safeEnum(c.finish_reason, [
-          'stop',
-          'length',
-          'tool_calls',
-          'function_call',
-          'content_filter',
-        ]),
-      );
-    if (reasons.length) this.response.finishReasons = reasons;
-    if (
-      raw?.choices?.some((c: any) => c.delta?.tool_calls?.length || c.delta?.function_call) ||
-      ['function_call', 'custom_tool_call'].includes(raw?.item?.type)
-    )
-      this.response.nativeToolCalls = true;
-    if (raw?.response) this.result(200, raw.response);
+  private reply(raw: ChatReply, part: 'message' | 'delta') {
+    const response = this.choices(raw.choices, part);
+    const usage = cacheHitSchema.safeParse(raw.usage);
+    if (usage.success) response.cacheHitTokens = usage.data.prompt_cache_hit_tokens;
   }
-  text(text: string) {
-    if (hasDsml(text)) {
-      this.response ||= {};
-      this.response.dsml = true;
-    }
+  /** 整包回答 */
+  result(raw: ChatReply) {
+    this.reply(raw, 'message');
+  }
+  /** 流式的一块 */
+  chunk(raw: ChatReply) {
+    this.reply(raw, 'delta');
   }
   emit(stage: string, errorType?: string) {
     if (!this.sink) return;
-    const messages = this.body.messages || this.body.input || [],
-      max = this.body.max_tokens ?? this.body.max_output_tokens;
-    const clean = (v: string) => (v.includes(this.key) ? '[redacted]' : v.slice(0, 100));
     this.sink({
-      protocol: 'custom-json-envelope-v1',
-      apiStyle: this.profile.apiStyle || 'chat-completions',
       stage,
       attempt: this.attempt,
-      endpointHost: clean(new URL(this.profile.endpoint).hostname),
-      model: clean(this.profile.model),
-      request: {
-        stream: this.body.stream === true,
-        jsonMode: !!(this.body.response_format || this.body.text?.format),
-        maxOutputTokens: max,
-        messageCount: messages.length,
-        roles: messages.map((m: any) => safeEnum(m.role, ['system', 'user', 'assistant'])),
-        nativeToolsDeclared: !!this.body.tools?.length,
-        thinkingDisabled:
-          this.body.thinking?.type === 'disabled' || this.body.reasoning?.effort === 'none',
-      },
+      model: DEEPSEEK_MODEL,
+      request: requestShape(this.body),
       response: this.response ? structuredClone(this.response) : undefined,
-      errorType,
+      errorType: errorType && !errorType.includes(this.key) ? errorType : errorType && '[redacted]',
       at: new Date().toISOString(),
     });
   }

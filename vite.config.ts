@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { AI_HTTP_TIMEOUT_MS } from './shared/ai-runtime';
+import { AI_HTTP_TIMEOUT_MS } from './shared/ai/index';
 const apiPort = process.env.PORT || '3001';
 const webPort = process.env.WEB_PORT || '5173';
 if (!/^\d+$/.test(apiPort) || Number(apiPort) < 1 || Number(apiPort) > 65535)

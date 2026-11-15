@@ -1,1501 +1,293 @@
-import { sameSpecification } from '../../shared/domain.js';
-import { createHash, randomUUID } from 'node:crypto';
-import { z } from 'zod';
-import type { Store } from '../db.js';
-import type { Actor } from '../auth.js';
-import { audit, requirePermission, isSuperMode } from '../business/management.js';
-import { ImportError } from '../import/errors.js';
-import { OperationsService } from '../operations/service.js';
-import { quantityUnits, quantityString, stockItemSchema, lineMoney } from '../../shared/operations.js';
+import { randomUUID } from 'node:crypto';
+import type { z } from 'zod';
+import type { Store } from '../core/index.js';
+import type { Actor } from '../core/index.js';
+import { audit, inSavepoint, isLocalAdministrator, onceByRequest, one, operationRequest, requirePermission, rows } from '../core/index.js';
+import { quantityUnits, today } from '../../shared/core/index.js';
 import {
-  flowInput,
-  sheetArea,
-  purchaseLineAmount,
-  type FlowKind,
+  flowDeliveredSchema,
+  flowSaveMetaSchema,
+  flowScheduledSchema,
   flowScheduleSchema,
-} from '../../shared/physical-flow.js';
-import { normalizedDimensions } from '../../shared/product-details.js';
-import {
-  requireDeveloper,
-  isLocalAdministrator,
-  requireLocalAdministrator,
-} from '../developer-capability.js';
-import { DatabaseMaintenanceService } from '../business/database-maintenance.js';
-import { receiptEvents, syncReceivedUnits } from '../operations/fulfillment.js';
-import { recordMovementRevision } from '../operations/repository.js';
-import { arrivalPlanInputSchema, arrivalReceiveInputSchema, arrivalQuerySchema, arrivalQuantities } from '../../shared/arrival.js';
-const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
-function fail(message: string, status = 422): never {
-  throw new ImportError(message, status);
-}
-const signature = (v: any) =>
-  JSON.stringify([
-    v.unit,
-    v.material || '',
-    v.flute || '',
-    v.specification || '',
-    v.dimensionUnit ? normalizedDimensions(v) : [v.length, v.width, v.height, null],
-  ]);
-export function flowReference(store: Store, entity: string, id: number) {
-  const column: Record<string, string> = {
-    customers: 'customer_id',
-    suppliers: 'supplier_id',
-    products: 'product_id',
-    orders: 'order_id',
-    purchases: 'purchase_id',
-    stock_items: 'stock_id',
-  };
-  return (
-    !!column[entity] &&
-    !!store.db.prepare('SELECT 1 FROM flow_refs WHERE ' + column[entity] + '=? LIMIT 1').get(id)
-  );
-}
-export function shippedUnits(store: Store, lineId: number | undefined, excluding?: number) {
-  let n = 0;
-  if (lineId === undefined) return n; // 尚未保存的新明细没有送货记录。
-  for (const row of store.db
-    .prepare(
-      "SELECT id,document FROM flow_documents WHERE kind='delivery' AND status='confirmed' AND id IN (SELECT document_id FROM flow_refs WHERE order_line_id=?)",
-    )
-    .all(lineId))
-    if (Number(row.id) !== excluding) {
-      const doc = JSON.parse(String(row.document));
-      if (!doc.reversal && !doc.replacedBy)
-        for (const l of doc.lines) if (l.orderLineId === lineId) n += quantityUnits(l.quantity);
-    }
-  return n;
-}
-export class FlowService {
+  flowViewSchema,
+  rawStockKey,
+  type FlowDocument,
+  type FlowDocView,
+  type FlowKind,
+} from '../../shared/business/index.js';
+import { OperationsService, registerAdminCascade, registerArrivalSource } from '../operations/index.js';
+import { fail, type FinishedStockInput, type FlowCommands, type NewRawItem } from './base.js';
+import { insertFlowDocument, writeFlowDocument } from './document-store.js';
+import { alignStock, detachPurchaseLines } from './maintenance-cascade.js';
+import { arrivalSource } from './arrival-source.js';
+import { rewriteRefs } from './refs.js';
+import { documentInput, validateFlow } from './validate.js';
+import { arrivalRecords } from './arrivals.js';
+import { recomputeAfterMaintenance, refreshOrderProgress, updateOrders } from './order-progress.js';
+import { draftIds, get, list, storedDocument, taskUntouched, viewOfKind, waitingGood } from './read.js';
+import { preview } from './preview.js';
+import { confirm } from './confirm.js';
+import { cancel, reverse } from './undo.js';
+
+/*
+ * 单据流转的服务：保存、排期、送达、归档写在这里，读单据、核对预览、确认、取消撤销、到货
+ * 分在同目录各自的文件里（更正在 correction.ts、说明编辑在 document-info.ts，不经过这个类），这里按原来的方法名转调（别的模块和路由都通过 FlowService 用）。
+ * 拆出去的文件只认 base.ts 的 FlowCommands，不引用这个文件。
+ */
+export class FlowService implements FlowCommands {
   readonly ops: OperationsService;
   constructor(readonly store: Store) {
     this.ops = new OperationsService(store);
   }
-  private tx<T>(job: () => T): T {
-    this.store.db.exec('SAVEPOINT physical_flow');
-    try {
-      const result = job();
-      this.store.db.exec('RELEASE physical_flow');
-      return result;
-    } catch (e) {
-      this.store.db.exec('ROLLBACK TO physical_flow; RELEASE physical_flow');
-      throw e;
-    }
+  // 读单据在 read.ts；核对预览、确认、取消和撤销在 preview.ts、confirm.ts、undo.ts，这里保留原来的调用方式
+  waitingGood(taskIds?: readonly number[], excludeId?: number) {
+    return waitingGood(this.store, taskIds, excludeId);
   }
-  private view(r: Record<string, any>, production: { date: string; good: number }[], archived: boolean) {
-    const doc = JSON.parse(String(r.document));
-    const completed = r.kind === 'task' ? production.reduce((n, p) => n + p.good, 0) : null;
-    return {
-      ...doc,
-      id: Number(r.id),
-      kind: r.kind,
-      number: r.number,
-      date: r.date,
-      status: r.status,
-      version: r.version,
-      actorName: r.actor_name,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-      ...(r.kind === 'arrival' ? { arrivalPlanState: r.status === 'cancelled' ? '已取消' : r.status === 'reversed' ? '已冲销' : r.status === 'confirmed' ? '已到货' : doc.isPlan ? '待到货' : '待验收入库' } : {}),
-      ...(['task', 'delivery'].includes(String(r.kind)) ? {
-        plannedDate: doc.plannedDate || String(r.date),
-        plannedDateSource: doc.plannedDate ? 'explicit' : 'legacy-date',
-        actualDate: r.kind === 'delivery' && r.status === 'confirmed' ? String(r.date) : null,
-      } : {}),
-      archived,
-      ...(r.kind === 'task' ? {
-        actualStartDate: production.map((p) => p.date).sort()[0] || null,
-        actualCompletionDate: completed! >= quantityUnits(doc.quantity) ? production.map((p) => p.date).sort().at(-1) || null : null,
-      } : {}),
-      ...(completed == null
-        ? {}
-        : {
-            completed: quantityString(completed),
-            progress: Math.min(100, Math.floor((completed / quantityUnits(doc.quantity)) * 100)),
-          }),
-    };
+  list<K extends FlowKind = FlowKind>(kind?: K, includeArchived = false, workbenchDate?: string, ids?: readonly number[]): FlowDocView<K>[] {
+    return list(this.store, kind, includeArchived, workbenchDate, ids);
   }
-  /** 已确认完工按任务汇总；指定任务时走flow_refs索引。 */
-  private confirmedProduction(taskId?: number) {
-    const groups = new Map<number, { date: string; good: number }[]>();
-    for (const row of this.store.db
-      .prepare(
-        "SELECT date,document FROM flow_documents WHERE kind='production' AND status='confirmed'" +
-          (taskId === undefined ? '' : ' AND id IN (SELECT document_id FROM flow_refs WHERE task_id=?)'),
-      )
-      .all(...(taskId === undefined ? [] : [taskId]))) {
-      const doc = JSON.parse(String(row.document));
-      if (doc.taskId == null) continue;
-      const group = groups.get(doc.taskId) || [];
-      group.push({ date: String(row.date), good: quantityUnits(doc.goodQuantity) });
-      groups.set(doc.taskId, group);
-    }
-    return groups;
+  draftIds(kind?: FlowKind) {
+    return draftIds(this.store, kind);
   }
-  list(kind?: FlowKind, includeArchived = false, workbenchDate?: string): any[] {
-    const conditions = kind === 'delivery' && workbenchDate
-      ? " AND (status='draft' OR (status='confirmed' AND date>=?) OR json_extract(document,'$.plannedDate')=?)"
-      : kind === 'arrival' && workbenchDate
-        ? " AND status='draft' AND coalesce(nullif(json_extract(document,'$.planSnapshot.plannedDate'),''),json_extract(document,'$.plannedDate'))=?"
-        : '';
-    const params = kind ? [kind as string] : [];
-    if (workbenchDate && kind === 'delivery') params.push(workbenchDate.slice(0, 7) + '-01', workbenchDate);
-    if (workbenchDate && kind === 'arrival') params.push(workbenchDate);
-    const rows = this.store.db
-      .prepare(
-        'SELECT * FROM flow_documents' + (kind ? ' WHERE kind=?' + conditions : '') + ' ORDER BY date DESC,id DESC',
-      )
-      .all(...params);
-    const archived = new Set(
-      this.store.db
-        .prepare("SELECT entity,record_id FROM record_lifecycle WHERE entity LIKE 'flow\\_%' ESCAPE '\\'")
-        .all()
-        .map((r) => r.entity + ':' + r.record_id),
-    );
-    const production =
-      !kind || kind === 'task' ? this.confirmedProduction() : new Map<number, { date: string; good: number }[]>();
-    return rows
-      .map((r) => ({ r, isArchived: archived.has('flow_' + r.kind + ':' + r.id) }))
-      .filter(({ isArchived }) => includeArchived || !isArchived)
-      .map(({ r, isArchived }) => this.view(r, production.get(Number(r.id)) || [], isArchived));
+  get<K extends FlowKind = FlowKind>(id: number, kind?: K): FlowDocView<K> {
+    return get(this.store, id, kind);
   }
-  get(id: number): any {
-    const row = this.store.db.prepare('SELECT * FROM flow_documents WHERE id=?').get(id);
-    if (!row) fail('业务单据不存在。', 404);
-    return this.view(
-      row!,
-      row!.kind === 'task' ? this.confirmedProduction(id).get(id) || [] : [],
-      this.store.archived('flow_' + row!.kind, id),
-    );
+  preview(id: number, who: Actor | null | undefined) {
+    return preview(this, id, who);
   }
-  private refs(id: number, doc: any, kind: FlowKind) {
-    const add = (r: Record<string, number | null>) => {
-      const columns = Object.keys(r);
-      this.store.db
-        .prepare(
-          'INSERT INTO flow_refs(document_id,' +
-            columns.join(',') +
-            ') VALUES(?,' +
-            columns.map(() => '?').join(',') +
-            ')',
-        )
-        .run(id, ...Object.values(r));
-    };
-    this.store.db.prepare('DELETE FROM flow_refs WHERE document_id=?').run(id);
-    if (kind === 'arrival') {
-      add({ supplier_id: doc.supplierId });
-      for (const l of doc.lines) {
-        const p = l.purchaseLineId
-          ? this.store.db
-              .prepare('SELECT purchase_id FROM purchase_lines WHERE id=?')
-              .get(l.purchaseLineId)
-          : null;
-        add({
-          stock_id: l.stockId,
-          purchase_line_id: l.purchaseLineId,
-          purchase_id: p ? Number(p.purchase_id) : null,
-        });
-      }
-    }
-    if (kind === 'task') {
-      add({ product_id: doc.productId });
-      for (const orderId of doc.orderIds) add({ order_id: orderId });
-    }
-    if (kind === 'production') {
-      add({ product_id: doc.productId, stock_id: doc.finishedStockId, task_id: doc.taskId });
-      for (const m of doc.materials) add({ stock_id: m.stockId });
-    }
-    if (kind === 'delivery') {
-      add({ customer_id: doc.customerId });
-      for (const l of doc.lines)
-        add({
-          order_id: l.orderId,
-          order_line_id: l.orderLineId,
-          stock_id: l.stockId,
-          product_id:
-            this.store.order(l.orderId, true)?.lines.find((x) => x.id === l.orderLineId)
-              ?.productId || null,
-        });
-    }
+  confirm(id: number, raw: unknown, who: Actor | null | undefined) {
+    return confirm(this, id, raw, who);
   }
-  save(kind: FlowKind, raw: any, who: Actor | null | undefined, id?: number) {
+  cancel(id: number, raw: unknown, who: Actor | null | undefined) {
+    return cancel(this, id, raw, who);
+  }
+  reverse(id: number, raw: unknown, who: Actor | null | undefined) {
+    return reverse(this, id, raw, who);
+  }
+  /**
+   * options.moved：本机管理员拆分送货单时新建的那张单用。它的行是从原单原样搬过来的，不是新增的发货，
+   * 不按订单剩余可发数量核对；这里也不记“新建待核对单据”的审计（新单随后沿用原单的状态，由拆单的地方记准）。
+   * 别的账号传了不生效。
+   */
+  save<K extends FlowKind>(kind: K, raw: unknown, who: Actor | null | undefined, id?: number, options: { moved?: boolean; registered?: boolean } = {}): FlowDocView<K> {
     const actor = requirePermission(who, 'business:edit'),
-      v = flowInput(kind, raw);
-    if (kind === 'task' || kind === 'delivery') v.plannedDate ||= v.date;
-    return this.tx(() => {
-      const requestId = raw.requestId === undefined ? null : z.string().uuid().parse(raw.requestId);
-      const digest = hash({
-        actor: actor.id,
-        kind,
-        id: id || null,
-        input: v,
-        version: raw.version,
-      });
-      if (requestId) {
-        const prior = this.store.db
-          .prepare(
-            "SELECT digest,result FROM operation_requests WHERE kind='flow-save' AND request_id=?",
-          )
-          .get(requestId);
-        if (prior) {
-          if (prior.digest !== digest)
-            fail('保存请求已使用，请先核对已保存单据，不能用同一请求提交不同内容。', 409);
-          return JSON.parse(String(prior.result));
-        }
-      }
-      const before = id ? this.get(id) : null;
-      if (before && (before.kind !== kind || before.status !== 'draft'))
-        fail('只能编辑未确认草稿，已确认单据请使用冲销更正。', 409);
-      if (before?.archived) fail('请先从业务回收站恢复草稿。');
-      if (before && before.version !== raw.version) fail('草稿已被修改，请刷新。', 409);
-      if (kind === 'arrival' && before) {
-        if (before.isPlan && !v.isPlan) {
-          if (v.supplierId !== before.supplierId || v.lines.some((l: any) => !before.lines.some((p: any) => p.purchaseLineId === l.purchaseLineId))) fail('计划转实收时供应商及采购明细必须匹配原计划。', 409);
-          v.planSnapshot = { id: before.id, number: before.number, plannedDate: before.plannedDate, plannedTime: before.plannedTime ?? null, lines: before.lines, notes: before.notes };
-          v.plannedDate = before.plannedDate; v.plannedTime = before.plannedTime;
-        } else if (before.planSnapshot) {
-          if (v.isPlan) fail('已转实际收货的草稿不能恢复为计划，请核对当前单据。', 409);
-          v.planSnapshot = before.planSnapshot;
-        }
-      }
-      if (v.correctionOf) {
-        const old = this.get(v.correctionOf);
-        if (!isSuperMode(actor) || old.kind !== kind || old.status !== 'reversed')
-          fail('更正仅允许已验证的超级管理员引用同类型已冲销单据。', 403);
-      }
-      this.validate(kind, v, actor, false, id);
-      const at = new Date().toISOString();
-      if (id)
-        this.store.db
-          .prepare(
-            'UPDATE flow_documents SET document=?,date=?,version=version+1,updated_at=? WHERE id=?',
-          )
-          .run(JSON.stringify(v), v.date, at, id);
-      else {
-        const n = Number(
-          this.store.db.prepare('SELECT COALESCE(MAX(id),0)+1 n FROM flow_documents').get()!.n,
-        );
-        const prefix = { arrival: 'DH', task: 'SC', production: 'DJ', delivery: 'SH' }[kind];
-        id = Number(
-          this.store.db
-            .prepare(
-              "INSERT INTO flow_documents(kind,number,date,status,document,actor_id,actor_name,created_at,updated_at) VALUES(?,?,?,'draft',?,?,?,?,?)",
-            )
-            .run(
-              kind,
-              prefix + '-' + v.date.replaceAll('-', '') + '-' + String(n).padStart(5, '0'),
-              v.date,
-              JSON.stringify(v),
-              actor.id,
-              actor.name,
-              at,
-              at,
-            ).lastInsertRowid,
-        );
-      }
-      this.refs(id, v, kind);
-      const after = this.get(id);
-      audit(
-        this.store,
-        actor,
-        'physical-flow',
-        before ? 'update-draft' : 'create-draft',
-        'flow_' + kind,
+      v: FlowDocument = documentInput(kind, raw),
+      meta = flowSaveMetaSchema.parse(raw),
+      moved = options.moved === true && isLocalAdministrator(actor);
+    const target = { id, moved, registered: options.registered === true, version: meta.version };
+    return inSavepoint(this.store.db, () => {
+      if (!meta.requestId) return viewOfKind(this.saveDocument(v, actor, target), kind);
+      const request = operationRequest('flow-save', meta.requestId, actor, { kind, id: id || null, input: v, version: meta.version });
+      return onceByRequest(this.store, request, () => viewOfKind(this.saveDocument(v, actor, target), kind), flowViewSchema(kind));
+    });
+  }
+  private saveDocument(v: FlowDocument, actor: Actor, target: SaveTarget) {
+    const before = target.id ? this.get(target.id) : null,
+      task = before ? this.editableTask(before, v, actor, target.version) : null;
+    if (v.kind === 'production') v.finishedStockId = this.finishedStockOf(v, actor, before ? '完工单 ' + before.number : undefined);
+    validateFlow(this, v, actor, false, { excludingId: target.id, skipRemaining: target.moved, registered: target.registered });
+    // 安排生产就是下达：生产任务不动库存，新建时直接存成已下达，没有“待下达”这一步
+    const issued = v.kind === 'task' && !before,
+      id = target.id ? this.rewrite(target.id, v, task) : this.insert(v, actor);
+    rewriteRefs(this.store, id, v);
+    this.refreshTaskOrders(v, issued, task);
+    const after = this.get(id);
+    if (!target.moved)
+      audit(this.store, actor, {
+        action: task ? 'update-confirmed-task' : before ? 'update-draft' : issued ? 'issue-task' : 'create-draft',
+        entity: 'flow_' + v.kind,
         id,
-        { before, after },
-      );
-      if (requestId)
-        this.store.db
-          .prepare('INSERT INTO operation_requests VALUES(?,?,?,?)')
-          .run('flow-save', requestId, digest, JSON.stringify(after));
-      return after;
-    });
-  }
-  private purchaseArrival(purchaseId: number, expectedVersion: number, items: any[]) {
-    const purchase = this.ops.repo.purchases(false, purchaseId)[0];
-    if (!purchase) fail('采购单不存在或已归档。', 404);
-    if (purchase.version !== expectedVersion) fail('采购单已更新，请重新核对到货数量。', 409);
-    if (purchase.businessStatus !== '已订货') fail('只有已订货且未取消的采购单可安排或登记到货。');
-    if (new Set(items.map((i) => i.lineId)).size !== items.length) fail('同一明细重复出现。');
-    return { purchase, lines: items.map((i) => {
-      const l = purchase.lines.find((l: any) => l.id === i.lineId);
-      if (!l) fail('到货明细不属于当前采购单。');
-      return { ...i, stockId: l.stockItemId, purchaseLineId: l.id, item: l, unitPrice: l.unitPrice, priceBasis: l.priceBasis };
-    }) };
-  }
-  saveArrivalPlan(raw: unknown, who: Actor | null | undefined) {
-    const actor = requirePermission(who, 'business:edit'), v = arrivalPlanInputSchema.parse(raw);
-    return this.tx(() => {
-      const request = { actorId: actor.id, ...v }, requestDigest = hash(request);
-      const prior = this.store.db.prepare("SELECT * FROM operation_requests WHERE kind='arrival-plan' AND request_id=?").get(v.requestId);
-      if (prior) { if (prior.digest !== requestDigest) fail('计划请求凭据已用于不同内容。', 409); return JSON.parse(String(prior.result)); }
-      const { purchase, lines } = this.purchaseArrival(v.purchaseId, v.expectedPurchaseVersion, v.items);
-      if (v.id) { const before = this.get(v.id); if (before.kind !== 'arrival' || !before.isPlan) fail('只能修改待到货的到货计划。', 409); }
-      const document = this.save('arrival', { date: v.plannedDate, plannedDate: v.plannedDate, plannedTime: v.plannedTime, isPlan: true, supplierId: purchase.supplierId, reference: '', notes: v.notes, lines, requestId: v.requestId, version: v.expectedVersion }, actor, v.id);
-      const result = { document, verified: true, inventoryChanged: false };
-      this.store.db.prepare('INSERT INTO operation_requests VALUES(?,?,?,?)').run('arrival-plan', v.requestId, requestDigest, JSON.stringify(result));
-      return result;
-    });
-  }
-  receivePurchase(raw: unknown, who: Actor | null | undefined, binding = 'purchase-arrival-service') {
-    const actor = requirePermission(who, 'business:edit'), v = arrivalReceiveInputSchema.parse(raw);
-    return this.tx(() => {
-      const request = { actorId: actor.id, ...v }, requestDigest = hash(request);
-      const prior = this.store.db.prepare("SELECT * FROM operation_requests WHERE kind='actual-arrival' AND request_id=?").get(v.requestId);
-      if (prior) { if (prior.digest !== requestDigest) fail('到货请求凭据已用于不同内容。', 409); return { ...JSON.parse(String(prior.result)), replayed: true }; }
-      const { purchase, lines } = this.purchaseArrival(v.purchaseId, v.expectedPurchaseVersion, v.items);
-      if (v.planId) {
-        const plan = this.get(v.planId);
-        if (plan.kind !== 'arrival' || !plan.isPlan || plan.status !== 'draft' || plan.supplierId !== purchase.supplierId || plan.version !== v.expectedPlanVersion || lines.some((l) => !plan.lines.some((p: any) => p.purchaseLineId === l.purchaseLineId))) fail('到货计划、采购关联或版本已变化，请刷新核对。', 409);
-      }
-      const draft = this.save('arrival', { isPlan: false, date: v.date, actualTime: v.actualTime ?? null, supplierId: purchase.supplierId, reference: v.reference || '内部批次-' + v.requestId, notes: v.notes, lines, requestId: v.requestId, version: v.expectedPlanVersion }, actor, v.planId);
-      const preview = this.preview(draft.id, actor, binding);
-      const arrival = this.confirm(draft.id, { previewId: preview.previewId, requestId: v.requestId, acknowledged: true }, actor, binding);
-      const result = { receiptId: 'flow-' + arrival.id + '-' + purchase.id, arrivalRecordId: 'flow-' + arrival.id, arrival, purchase: this.ops.repo.purchases(true, purchase.id)[0], movements: arrival.movements, verified: true,
-        summary: '已创建正式到货单' + arrival.number + '，验收、实际入库及采购进度已同步核验。' };
-      this.store.db.prepare('INSERT INTO operation_requests VALUES(?,?,?,?)').run('actual-arrival', v.requestId, requestDigest, JSON.stringify(result));
-      return result;
-    });
-  }
-  arrivalPlans(raw: unknown = {}, workbench = false) {
-    const v = arrivalQuerySchema.parse(raw), purchases = this.ops.repo.purchases(true), suppliers = this.ops.repo.suppliers(true);
-    return this.list('arrival', false, workbench ? v.date : undefined).filter((d) => (d.isPlan || d.planSnapshot) && !d.replacedBy &&
-      (!v.date || (d.planSnapshot?.plannedDate || d.plannedDate) === v.date) && (!v.supplierId || d.supplierId === v.supplierId) &&
-      (!v.purchaseId || d.lines.some((l: any) => this.store.db.prepare('SELECT 1 FROM purchase_lines WHERE id=? AND purchase_id=?').get(l.purchaseLineId, v.purchaseId!)))
-    ).filter((d) => v.includeInactive || !['cancelled', 'reversed'].includes(d.status)).map((d) => ({ ...d, supplierName: d.supplierName || suppliers.find((s) => s.id === d.supplierId)?.name || '历史供应商', plannedDate: d.planSnapshot?.plannedDate || d.plannedDate, plannedTime: d.planSnapshot?.plannedTime ?? d.plannedTime, plannedLines: (d.planSnapshot?.lines || d.lines).map((l: any) => { const p = purchases.find((p) => p.lines.some((x: any) => x.id === l.purchaseLineId)); return { ...l, purchaseId: p?.id ?? null, purchaseNumber: p?.number || '' }; }), receiptId: d.status === 'confirmed' ? 'flow-' + d.id : null }));
-  }
-  arrivalRecords(raw: unknown = {}) {
-    const v = arrivalQuerySchema.parse(raw), purchases = this.ops.repo.purchases(true), suppliers = this.ops.repo.suppliers(true);
-    return receiptEvents(this.store).filter((e) => (!v.receiptId || e.id === v.receiptId) && (!v.date || e.date === v.date) && (!v.supplierId || e.supplierId === v.supplierId) &&
-      (!v.purchaseId || e.lines.some((l) => l.purchaseId === v.purchaseId)) && (v.includeInactive || e.effective) &&
-      !(e.flowId && this.store.archived('flow_arrival', e.flowId))).reverse().map((e) => {
-      const movements = this.store.db.prepare('SELECT * FROM stock_movements WHERE (source_kind=? AND source_id=?) OR (source_kind=? AND source_id=?) ORDER BY rowid').all(
-        e.flowId || e.missingFlow ? 'flow_arrival' : 'purchase_receipt', e.flowId || e.missingFlow ? String(e.flowId || e.missingFlow) : e.id,
-        e.flowId || e.missingFlow ? 'flow_reversal' : 'purchase_receipt_reversal', e.flowId || e.missingFlow ? String(e.flowId || e.missingFlow) : e.id);
-      const lines = e.lines.map((l) => {
-        const purchase = purchases.find((p) => p.id === l.purchaseId), pl = purchase?.lines.find((p: any) => p.id === l.lineId);
-        const linkedMovements = movements.filter((m) => Number(m.item_id) === l.stockId && (m.purchase_line_id == null ? l.lineId == null : Number(m.purchase_line_id) === l.lineId));
-        const inbound = linkedMovements.filter((m) => ['flow_arrival', 'purchase_receipt'].includes(String(m.source_kind)));
-        // 同物料、同采购行的多条历史明细只能按流水顺序一一对应，不能各自重复拿总量。
-        // 已记明入库 0 的行没有流水，不参与配对，否则同物料的另一行也会被误判成待核对。
-        const peers = e.lines.filter((line) => line.stockId === l.stockId && line.lineId === l.lineId && line.stockedQuantity !== '0');
-        const balanced = inbound.length === peers.length;
-        const assigned = balanced && l.stockedQuantity !== '0' ? inbound[peers.indexOf(l)] : undefined;
-        const stockedQuantity = e.status === 'draft' ? '0' : assigned ? quantityString(Number(assigned.delta_units)) : balanced && l.stockedQuantity === '0' ? '0' : null;
-        return { ...l, stockedQuantity, inventoryMismatch: e.status !== 'draft' && l.stockedQuantity != null && stockedQuantity !== l.stockedQuantity, purchaseNumber: purchase?.number || '未关联采购', orderedQuantity: pl?.quantity ?? null, receivedQuantity: pl?.receivedQuantity ?? null,
-          remainingQuantity: pl?.remainingQuantity ?? null, arrivalStatus: pl?.arrivalStatus ?? null,
-          movements: linkedMovements,
-        };
+        document: { before, after },
       });
-      const unknown = lines.some((l) => l.acceptedQuantity == null || l.rejectedQuantity == null);
-      const rejected = lines.some((l) => l.rejectedQuantity != null && quantityUnits(l.rejectedQuantity) > 0);
-      return { ...e, number: e.document.number || (e.flowId ? this.get(e.flowId).number : e.reference), supplierName: e.document.supplierName || purchases.find((p) => p.id === e.purchaseId)?.supplierName || suppliers.find((s) => s.id === e.supplierId)?.name || '历史供应商',
-        actualTime: e.document.actualTime ?? null, lines, movements,
-        inspectionStatus: e.status === 'draft' ? '待验收' : unknown ? '历史验收未记录' : rejected ? '含不合格品' : '全部合格',
-        inventoryStatus: e.status === 'draft' ? '尚未入库' : !e.effective ? '原单已失效' : lines.some((l) => l.stockedQuantity == null || l.inventoryMismatch) ? '入库待核对' : lines.every((l) => !quantityUnits(l.stockedQuantity!)) ? '未入库' : lines.some((l) => quantityUnits(l.stockedQuantity!) < quantityUnits(l.recordedQuantity!)) ? '部分入库' : '已入库',
-        planId: e.document.planSnapshot?.id ?? null,
-      };
+    return after;
+  }
+  /**
+   * 改已有的单据之前核对：同一种、还没核对、没归档、版本和打开时一样。
+   * 已下达的生产任务能改（任务不动库存）：还没开工（没有完工登记，含待入库的）的业务账号能改；
+   * 开工以后只有本机管理员能改，不能换产品，做完了不能改计划日，计划数不能改小到已登记的完工数以下。
+   * 返回能改的已下达生产任务，别的单据是 null。
+   */
+  private editableTask(before: FlowDocView, v: FlowDocument, actor: Actor, version: unknown) {
+    const confirmed = v.kind === 'task' && before.kind === 'task' && before.status === 'confirmed' ? before : null,
+      untouched = confirmed !== null && taskUntouched(this.store, confirmed.id),
+      task = confirmed && (untouched || isLocalAdministrator(actor)) ? confirmed : null;
+    if (before.kind !== v.kind || (before.status !== 'draft' && !task))
+      fail(
+        v.kind === 'task' && before.status === 'confirmed'
+          ? '这张生产任务已经有完工单，不能再改；要少做请取消剩余任务，要多做请再安排一张。'
+          : '只能修改还没核对的单据；已生效的到货、送货、完工单改数量用“更正到货单”“更正送货单”“更正完工单”，只改备注这类用“编辑”，整张没发生用撤销。',
+        409,
+      );
+    if (before.archived) fail('这张单据已归档，请先恢复再改。');
+    if (before.version !== version) fail('单据已被修改，请刷新。', 409);
+    if (task && !untouched && v.kind === 'task') checkStartedTask(task, v);
+    return task;
+  }
+  /** 整份写回改过的单据；改已下达的任务：保留下达人和下达时间，产品名跟着新产品走 */
+  private rewrite(id: number, v: FlowDocument, task: FlowDocView<'task'> | null) {
+    const stored: FlowDocument =
+      task && v.kind === 'task'
+        ? { ...storedDocument(this.store, task.id, 'task'), ...v, productName: this.store.product(v.productId, true)?.name }
+        : v;
+    writeFlowDocument(this.store, id, stored, { date: v.date, at: new Date().toISOString() });
+    return id;
+  }
+  /** 新建一张单据，返回编号；生产任务新建就是下达：和确认后的单据一样带上产品名、下达人和下达时间 */
+  private insert(v: FlowDocument, actor: Actor) {
+    const at = new Date().toISOString();
+    return insertFlowDocument(this.store, {
+      date: v.date,
+      status: v.kind === 'task' ? 'confirmed' : 'draft',
+      document: v.kind === 'task' ? { ...v, productName: this.store.product(v.productId, true)?.name, confirmedBy: actor.name, confirmedAt: at } : v,
+      actor,
+      at,
     });
+  }
+  /** 下达了任务、已下达任务改了数量和订单：订单的生产状态重新算 */
+  private refreshTaskOrders(v: FlowDocument, issued: boolean, task: FlowDocView<'task'> | null) {
+    if (v.kind !== 'task') return;
+    if (issued) updateOrders(this, v.orderIds || []);
+    if (task) updateOrders(this, [...new Set([...(task.orderIds || []), ...(v.orderIds || [])])]);
   }
   schedule(id: number, raw: unknown, who: Actor | null | undefined) {
     const actor = requirePermission(who, 'business:edit'), input = flowScheduleSchema.parse(raw);
-    return this.tx(() => {
-      const request = { id, actorId: actor.id, ...input }, requestDigest = hash(request);
-      const prior = this.store.db.prepare("SELECT * FROM operation_requests WHERE kind='flow-schedule' AND request_id=?").get(input.requestId);
-      if (prior) {
-        if (prior.digest !== requestDigest) fail('排程请求凭据已用于不同内容。', 409);
-        return { ...JSON.parse(String(prior.result)), replayed: true };
-      }
-      const before = this.get(id);
-      if (before.version !== input.expectedVersion) fail('任务已修改，请刷新后安排日期。', 409);
-      if (before.archived || !['task', 'delivery', 'arrival'].includes(before.kind) ||
-        (before.kind === 'arrival' ? !before.isPlan || before.status !== 'draft' : before.kind === 'delivery' ? before.status !== 'draft' : !['draft', 'confirmed'].includes(before.status) || before.progress >= 100))
-        fail('仅可调整未完成生产任务、未发货草稿或待到货计划。', 409);
-      const row = this.store.db.prepare('SELECT document FROM flow_documents WHERE id=?').get(id)!;
-      const doc = { ...JSON.parse(String(row.document)), plannedDate: input.plannedDate, ...(input.plannedTime !== undefined ? { plannedTime: input.plannedTime } : {}) };
-      this.store.db.prepare('UPDATE flow_documents SET document=?,version=version+1,updated_at=? WHERE id=?')
-        .run(JSON.stringify(doc), new Date().toISOString(), id);
-      const after = this.get(id);
-      audit(this.store, actor, 'physical-flow', 'schedule', 'flow_' + before.kind, id, { before, after, requestId: input.requestId });
-      const result = { document: after, verified: after.plannedDate === input.plannedDate, inventoryChanged: false };
-      this.store.db.prepare('INSERT INTO operation_requests VALUES(?,?,?,?)').run('flow-schedule', input.requestId, requestDigest, JSON.stringify(result));
-      return result;
-    });
-  }
-  private validate(kind: FlowKind, v: any, actor: Actor, confirm: boolean, excludingId?: number) {
-    const maintenance = isLocalAdministrator(actor);
-    if (v.correctionOf) {
-      const original = this.get(v.correctionOf);
-      if (
-        (!maintenance && (!isSuperMode(actor) || original.status !== 'reversed')) ||
-        original.kind !== kind
-      )
-        fail('更正须由已验证超级管理员操作，且原单必须已冲销。', 403);
-    }
-    const stockIds = kind === 'production'
-      ? [v.finishedStockId, ...v.materials.map((m: any) => m.stockId)]
-      : kind === 'task' ? [] : v.lines.flatMap((l: any) => l.stockId ? [l.stockId] : []);
-    const items = new Map(this.ops.repo.items(true, stockIds).map((i) => [i.id, i])),
-      changes: any[] = [],
-      warnings: string[] = [],
-      lines: any[] = [];
-    const item = (id: number, k: string) => {
-      const it = items.get(id);
-      if (!it || it.kind !== k || (it.archived && !maintenance))
-        fail('请选择正常的' + (k === 'raw' ? '原材料' : '成品') + '库存品。');
-      return it;
-    };
-    const change = (it: any, delta: number, reason: string, lineId?: number, orderId?: number) => {
-      changes.push({
-        stockId: it.id,
-        name: it.name,
-        unit: it.unit,
-        deltaUnits: delta,
-        reason,
-        purchaseLineId: lineId || null,
-        orderId: orderId || null,
-      });
-    };
-    if (kind === 'arrival') {
-      if (confirm && v.isPlan) fail('到货计划不代表实收；请先登记实际到货数量、日期和验收结果，不能直接将计划入库。', 409);
-      if (this.ops.repo.supplierName(v.supplierId, maintenance) === undefined)
-        fail('供应商不存在或已停用。');
-      if (v.sourceId) {
-        const source = this.store.db
-          .prepare('SELECT * FROM flow_sources WHERE id=?')
-          .get(v.sourceId);
-        if (!source) fail('AI识别原件不存在。');
-        if (
-          createHash('sha256')
-            .update(source!.bytes as Uint8Array)
-            .digest('hex') !== source!.hash
-        )
-          fail('来源文件完整性校验失败。');
-      }
-      if (
-        new Set(v.lines.filter((l: any) => l.purchaseLineId).map((l: any) => l.purchaseLineId))
-          .size !== v.lines.filter((l: any) => l.purchaseLineId).length
-      )
-        fail('同一采购明细不能重复出现，请合并本次到货数量。');
-      const lineIds = v.lines.flatMap((l: any) => l.purchaseLineId ? [l.purchaseLineId] : []);
-      const purchaseIds = lineIds.length ? this.store.db.prepare(
-        'SELECT DISTINCT purchase_id FROM purchase_lines WHERE id IN (SELECT value FROM json_each(?))',
-      ).all(JSON.stringify(lineIds)).map((row) => Number(row.purchase_id)) : [];
-      const purchases = this.ops.repo.purchases(true, purchaseIds);
-      for (const l of v.lines) {
-        if (v.isPlan && !l.purchaseLineId) fail('到货计划必须关联真实采购明细，请先选择采购单。');
-        if (v.isPlan && ['acceptedQuantity', 'rejectedQuantity', 'stockedQuantity'].some((k) => l[k] != null)) fail('到货计划不能预填实际验收或入库结果，请在实际收货时登记。');
-        stockItemSchema.parse({ ...l.item, kind: 'raw', productId: null });
-        const qty = quantityUnits(l.quantity);
-        if (l.item.unit === '张' && qty % 1000) fail('纸板库存按整张登记，不能填写小数张。');
-        let inspection;
-        try { inspection = arrivalQuantities(l); } catch (e) { fail((e as Error).message); }
-        if (
-          l.statedQuantity !== null &&
-          quantityUnits(l.statedQuantity) !== qty &&
-          !l.differenceReason
-        )
-          fail('实收数量与送货单数量不一致，请记录差异原因。');
-        const purchase = l.purchaseLineId
-            ? purchases.find((p) => p.lines.some((x: any) => x.id === l.purchaseLineId))
-            : null,
-          pl = purchase?.lines.find((x: any) => x.id === l.purchaseLineId);
-        if (l.purchaseLineId) {
-          if (
-            !purchase ||
-            (!maintenance && purchase.archived) ||
-            (!maintenance && purchase.baseStatus !== '已订货') ||
-            purchase.supplierId !== v.supplierId
-          )
-            fail('采购明细须属于当前供应商的正常已订货采购单。');
-          if ((v.isPlan ? v.plannedDate : v.date) < purchase.orderDate) fail('到货日期不能早于采购日期。');
-          if (signature(pl) !== signature(l.item))
-            fail('实收规格、材质、楞型或单位与采购明细不符，请重新匹配或作为无采购单收货。');
-          if (pl.receivedUnits + qty > pl.quantityUnits)
-            fail('实收超过采购剩余数量；请核对采购，超出部分作为独立无采购单明细并填写差异原因。', 409);
-          if (v.isPlan) {
-            const reserved = this.list('arrival').filter((d) => d.id !== excludingId && d.status === 'draft' && (d.isPlan || d.planSnapshot)).flatMap((d) => d.isPlan ? d.lines : d.planSnapshot.lines).filter((l: any) => l.purchaseLineId === pl.id).reduce((n: number, l: any) => n + quantityUnits(l.quantity), 0);
-            if (pl.receivedUnits + reserved + qty > pl.quantityUnits) fail('该采购明细已有待到货计划，分批计划合计超过剩余数量。', 409);
-          }
-          if (pl.stockItemId && l.stockId !== pl.stockItemId)
-            fail('请使用采购明细已关联的原材料库存品。');
-        }
-        if (!l.purchaseLineId && !l.differenceReason)
-          warnings.push('无采购单收货：' + l.item.name + '，请确认供应商与实际规格。');
-        const it = l.stockId ? item(l.stockId, 'raw') : null;
-        if (it && signature(it) !== signature(l.item))
-          fail('所选库存品的尺寸、材质、楞型、规格或单位不一致，不允许合并。');
-        const area = sheetArea(l.item, l.quantity),
-          amount = purchaseLineAmount({
-            ...l.item,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            priceBasis: l.priceBasis,
-          });
-        if (area === null)
-          warnings.push(l.item.name + '缺少可换算面积的尺寸/单位，面积和面积计价金额待补充。');
-        if (l.statedArea !== null && area !== null && Number(l.statedArea) !== Number(area))
-          warnings.push(l.item.name + '单据面积与计算面积不同，请核对。');
-        const newItem = !it ? { ...l.item, kind: 'raw', productId: null } : null;
-        changes.push({
-          stockId: it?.id || null,
-          name: l.item.name,
-          unit: l.item.unit,
-          deltaUnits: quantityUnits(inspection!.stockedQuantity),
-          reason: '采购到货',
-          purchaseLineId: l.purchaseLineId,
-          orderId: purchase?.customerOrderId || null,
-          newItem,
-        });
-        lines.push({
-          ...l,
-          ...inspection!,
-          area,
-          amount,
-          purchaseId: purchase?.id || null,
-          purchaseNumber: purchase?.number || '',
-          supplierName: this.ops.repo.supplierName(v.supplierId, false),
-        });
-      }
-    }
-    if (kind === 'task') {
-      if (!this.store.product(v.productId, maintenance)) fail('产品不存在或已停用。');
-      if (new Set(v.orderIds).size !== v.orderIds.length) fail('关联客户订单重复。');
-      for (const id of v.orderIds) {
-        const order = this.store.order(id, maintenance);
-        if (
-          !order ||
-          (!maintenance && !['已确认', '生产中', '待发货'].includes(order.status)) ||
-          !order.lines.some((l) => l.productId === v.productId)
-        )
-          fail('生产任务只能关联包含当前产品的正常待完成客户订单。');
-      }
-    }
-    if (kind === 'production') {
-      if (!this.store.product(v.productId, maintenance)) fail('产品不存在或已停用。');
-      const finished = item(v.finishedStockId, 'finished');
-      if (finished.productId !== v.productId) fail('成品库存品必须关联本次生产产品。');
-      const task = v.taskId ? this.get(v.taskId) : null;
-      if (
-        task &&
-        (task.kind !== 'task' ||
-          (!maintenance && task.status !== 'confirmed') ||
-          task.productId !== v.productId ||
-          task.unit !== finished.unit ||
-          (task.archived && !maintenance))
-      )
-        fail('生产任务、产品、成品单位或状态不匹配。');
-      if (new Set(v.materials.map((m: any) => m.stockId)).size !== v.materials.length)
-        fail('同一原材料只能登记一次。');
-      for (const m of v.materials) {
-        const raw = item(m.stockId, 'raw'),
-          issued = quantityUnits(m.issued),
-          returned = quantityUnits(m.returned);
-        if (raw.unit !== '张') fail('生产领用纸板按张登记，请使用数量单位为张的原材料档案。');
-        if (issued % 1000 || returned % 1000) fail('领料、退料按整张登记。');
-        if (confirm && issued > raw.balanceUnits)
-          fail(raw.name + '库存不足，领料数量超过实际库存。', 409);
-        change(raw, -issued, '生产领料');
-        if (returned) change(raw, returned, '生产退料');
-      }
-      const good = quantityUnits(v.goodQuantity);
-      if (!good && !quantityUnits(v.scrapQuantity)) fail('请登记合格成品或报废数量。');
-      if (good) change(finished, good, '生产完工入库');
-      if (task && quantityUnits(task.completed) + good > quantityUnits(task.quantity))
-        warnings.push('本次完工后将超过生产计划数量，请核对实际产量。');
-    }
-    if (kind === 'delivery') {
-      if (!this.store.customer(v.customerId, maintenance)) fail('客户不存在或已停用。');
-      const selected = new Set<number>();
-      for (const l of v.lines) {
-        if (selected.has(l.orderLineId)) fail('同一订单明细请合并为一条发货数量。');
-        selected.add(l.orderLineId);
-        const o = this.store.order(l.orderId, maintenance),
-          ol = o?.lines.find((x) => x.id === l.orderLineId);
-        if (
-          !o ||
-          o.customerId !== v.customerId ||
-          !ol ||
-          (!maintenance && (o.status === '草稿' || o.status === '已取消'))
-        )
-          fail('请选择同一客户正常已确认订单的有效产品明细。');
-        if (
-          !maintenance &&
-          o.status === '已发货' &&
-          !this.store.db
-            .prepare(
-              "SELECT 1 FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.order_id=? AND d.kind='delivery'",
-            )
-            .get(o.id)
-        )
-          fail('该历史订单已手工标记发货，请先由超级管理员核对并重新开放订单，避免重复交付。');
-        const it = item(l.stockId, 'finished'),
-          unit = ol.unit || '';
-        if (it.productId !== ol.productId || !unit || it.unit !== unit)
-          fail('成品产品或计量单位与订单明细不一致，请先补充/核对订单单位。');
-        if (
-          it.specification &&
-          ol.specification &&
-          !sameSpecification(it.specification, ol.specification)
-        )
-          fail('成品库存型号与订单规格不同，请选择正确的成品档案，不按产品名称混合出库。');
-        const qty = quantityUnits(l.quantity),
-          shipped = shippedUnits(this.store, l.orderLineId);
-        if (qty + shipped > ol.quantity * 1000) {
-          if (!v.allowOverdelivery || !isSuperMode(actor) || !v.overdeliveryReason)
-            fail('本次发货超过订单剩余数量，须由已验证的超级管理员明确批准并填写原因。', 403);
-          warnings.push(o.number + '超订单数量发货：' + ol.productName);
-        }
-        change(it, -qty, '客户发货', undefined, o.id);
-        const dimensions = it.length != null || it.width != null ? it : this.store.product(ol.productId, true);
-        lines.push({
-          ...l,
-          productName: ol.productName,
-          specification: ol.specification,
-          unit,
-          orderNumber: o.number,
-          externalPurchaseOrder: o.externalPurchaseOrder || '',
-          customerProductCode: ol.customerProductCode || '',
-          unitPriceExact: ol.unitPriceExact ?? (ol.unitPriceCents / 100).toFixed(2),
-          amountExact: lineMoney(l.quantity, ol.unitPriceExact ?? (ol.unitPriceCents / 100).toFixed(2)),
-          taxRate: ol.taxRate || o.taxRate || '',
-          taxMode: ol.taxMode || o.taxMode || '',
-          productId: ol.productId,
-          length: dimensions?.length ?? null,
-          width: dimensions?.width ?? null,
-          height: dimensions?.height ?? null,
-          dimensionUnit: dimensions?.dimensionUnit ?? null,
-        });
-      }
-    }
-    const grouped = new Map<number, number>();
-    for (const c of changes)
-      if (c.stockId) grouped.set(c.stockId, (grouped.get(c.stockId) || 0) + c.deltaUnits);
-    if (confirm)
-      for (const [id, delta] of grouped) {
-        const it = items.get(id)!;
-        if (it.balanceUnits + delta < 0) fail(it.name + '库存不足，不能确认。', 409);
-        if (
-          !Number.isSafeInteger(it.balanceUnits + delta) ||
-          it.balanceUnits + delta > 999999999999
-        )
-          fail('库存数量超出可保存范围。');
-      }
-    return { changes, warnings: [...new Set(warnings)], lines };
-  }
-  private snapshot(doc: any) {
-    const refs = this.store.db.prepare('SELECT * FROM flow_refs WHERE document_id=?').all(doc.id),
-      snap: any[] = [];
-    const tables: Record<string, string> = {
-      customer_id: 'customers',
-      supplier_id: 'suppliers',
-      product_id: 'products',
-      order_id: 'orders',
-      purchase_id: 'purchases',
-      stock_id: 'stock_items',
-      task_id: 'flow_documents',
-    };
-    for (const r of refs)
-      for (const [k, t] of Object.entries(tables))
-        if (r[k])
-          snap.push([
-            t,
-            r[k],
-            this.store.db.prepare('SELECT version FROM ' + t + ' WHERE id=?').get(r[k])?.version,
-            this.store.archived(t, Number(r[k])),
-          ]);
-    const source = doc.sourceId
-      ? this.store.db.prepare('SELECT hash,bytes FROM flow_sources WHERE id=?').get(doc.sourceId)
-      : null;
-    if (
-      source &&
-      createHash('sha256')
-        .update(source.bytes as Uint8Array)
-        .digest('hex') !== source.hash
-    )
-      fail('来源原件校验失败。');
-    return {
-      id: doc.id,
-      version: doc.version,
-      document: doc,
-      snap,
-      sourceHash: source?.hash || null,
-    };
-  }
-  preview(id: number, who: Actor | null | undefined, binding: string) {
-    const actor = requirePermission(who, 'business:edit');
-    return this.tx(() => {
-      const doc = this.get(id);
-      if (doc.status !== 'draft' || doc.archived) fail('只有正常草稿可确认。', 409);
-      const plan = this.validate(doc.kind, doc, actor, true),
-        snapshot = this.snapshot(doc),
-        previewId = randomUUID(),
-        expiresAt = Date.now() + 10 * 60000;
-      this.store.db
-        .prepare('INSERT INTO flow_previews VALUES(?,?,?,?,?,?,?)')
-        .run(
-          previewId,
+    return inSavepoint(this.store.db, () => {
+      return onceByRequest(this.store, operationRequest('flow-schedule', input.requestId, actor, { id, ...input }), (): Scheduled => {
+        const before = this.get(id);
+        if (before.version !== input.expectedVersion) fail('任务已修改，请刷新后安排日期。', 409);
+        if (before.archived || (before.kind !== 'task' && before.kind !== 'delivery') ||
+          (before.kind === 'delivery' ? before.status !== 'draft' : before.status !== 'confirmed' || before.progress >= 100))
+          fail('仅可调整未完成生产任务或待送货的送货单。', 409);
+        const doc = { ...storedDocument(this.store, id, before.kind), plannedDate: input.plannedDate, ...(input.plannedTime !== undefined ? { plannedTime: input.plannedTime } : {}) };
+        writeFlowDocument(this.store, id, doc, { at: new Date().toISOString() });
+        const after = this.get(id, before.kind);
+        audit(this.store, actor, {
+          action: 'schedule',
+          entity: 'flow_' + before.kind,
           id,
-          actor.id,
-          binding,
-          expiresAt,
-          hash(snapshot),
-          JSON.stringify({ snapshot, plan }),
-        );
-      return { previewId, expiresAt, document: { ...doc, ...(plan.lines.length ? { lines: plan.lines } : {}) }, ...plan, sourceHash: snapshot.sourceHash };
+          document: { before, after, requestId: input.requestId },
+        });
+        return { document: after, verified: after.plannedDate === input.plannedDate, inventoryChanged: false };
+      }, flowScheduledSchema);
     });
   }
-  private movement(
-    stockId: number,
-    delta: number,
-    doc: any,
-    actor: Actor,
-    reason: string,
-    lineId: number | null = null,
-    orderId: number | null = null,
-    sourceKind?: string,
-  ) {
-    const before = this.ops.repo.balance(stockId),
-      after = before + delta;
-    if (after < 0 || !Number.isSafeInteger(after) || after > 999999999999)
-      fail('库存不足或数量超限，整张单据未提交。', 409);
-    const id = randomUUID();
-    this.store.db
-      .prepare('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(
-        id,
-        stockId,
-        delta < 0 ? 'out' : doc.kind === 'arrival' ? 'purchase' : 'in',
-        delta,
-        before,
-        after,
-        sourceKind || 'flow_' + doc.kind,
-        String(doc.id),
-        lineId,
-        orderId,
-        doc.date,
-        doc.number + ' · ' + reason,
-        actor.id,
-        actor.name,
-        new Date().toISOString(),
-      );
-    this.store.db.prepare('UPDATE stock_items SET version=version+1 WHERE id=?').run(stockId);
-    return id;
+  // 下面几个的实现在同目录的 arrivals.ts、order-progress.ts，这里保留原来的调用方式
+  arrivalRecords(raw: unknown = {}, scope?: { flowIds?: readonly number[] }) {
+    return arrivalRecords(this, raw, scope);
   }
-  /**
-   * 派生规则改了以后，把全部订单按现行规则重算一次。同一个标记只跑一次；
-   * 只写状态真的变了的订单，没变的连版本号都不动；改了哪些记一条审计。
-   */
-  recomputeOrderStatusesOnce(marker: string) {
-    const db = this.store.db;
-    if (
-      db
-        .prepare("SELECT 1 FROM operation_requests WHERE kind='order-status-recompute' AND request_id=?")
-        .get(marker)
-    )
-      return null;
-    db.exec('SAVEPOINT order_status_recompute');
-    try {
-      const before = new Map(
-        db.prepare('SELECT id,status FROM orders').all().map((r) => [Number(r.id), String(r.status)]),
-      );
-      this.updateOrders([...before.keys()], true);
-      const changed = db
-        .prepare('SELECT id,number,status FROM orders')
-        .all()
-        .filter((r) => before.get(Number(r.id)) !== String(r.status))
-        .map((r) => ({
-          id: Number(r.id),
-          number: String(r.number),
-          from: before.get(Number(r.id))!,
-          to: String(r.status),
-        }));
-      if (changed.length)
-        audit(this.store, { id: 'system', name: '系统启动' } as any, 'startup', 'recompute-order-status', 'orders', null, {
-          marker,
-          changed,
-        });
-      db.prepare('INSERT INTO operation_requests VALUES(?,?,?,?)').run(
-        'order-status-recompute',
-        marker,
-        marker,
-        JSON.stringify({ at: new Date().toISOString(), checked: before.size, changed: changed.length }),
-      );
-      db.exec('RELEASE order_status_recompute');
-      return changed;
-    } catch (error) {
-      db.exec('ROLLBACK TO order_status_recompute; RELEASE order_status_recompute');
-      throw error;
-    }
+  recomputeAfterMaintenance(affectedOrders?: number[]) {
+    recomputeAfterMaintenance(this, affectedOrders);
   }
-  private updateOrders(ids: number[], onlyChanged = false) {
-    for (const id of new Set(ids)) {
-      const order = this.store.order(id, true);
-      // 取消和草稿是人工决定，不被后续单据的重算覆盖。
-      if (!order || order.status === '已取消' || order.status === '草稿') continue;
-      const open = order.lines.filter((l) => shippedUnits(this.store, l.id!) < l.quantity * 1000),
-        any = order.lines.some((l) => shippedUnits(this.store, l.id!) > 0);
-      const tasks = this.confirmedTasksOf(id);
-      // 未发完的每个产品都要做够，才算生产完毕；只做完部分产品不能算待发货。
-      const produced = open.every((l) => this.producedEnough(order.id, l.productId, l.unit || "", tasks));
-      const status = !open.length
-        ? '已发货'
-        : tasks.length
-          ? produced
-            ? '待发货'
-            : '生产中'
-          : any
-            ? '待发货'
-            : '已确认';
-      if (onlyChanged && status === order.status) continue;
-      this.store.db
-        .prepare('UPDATE orders SET status=?,version=version+1,updated_at=? WHERE id=?')
-        .run(status, new Date().toISOString(), id);
-    }
-  }
-  /** 这张单的这个产品（同单位）是否已经做够，今日页按产品判断要不要提醒排产时用。 */
-  productionCovered(orderId: number, productId: number, unit: string) {
-    return this.producedEnough(orderId, productId, unit, this.confirmedTasksOf(orderId));
-  }
-  private confirmedTasksOf(orderId: number) {
-    return this.store.db
-      .prepare(
-        "SELECT DISTINCT d.id FROM flow_documents d JOIN flow_refs r ON r.document_id=d.id WHERE r.order_id=? AND d.kind='task' AND d.status='confirmed'",
-      )
-      .all(orderId)
-      .map((r) => this.get(Number(r.id)));
-  }
-  /**
-   * 这张单的这个产品做够了没有。同一产品分几行的合起来算；一张任务挂了几张单，
-   * 不知道各分多少，就把这几张单合起来算，总量做够才算。单位不同的任务不能换算，不算数。
-   */
-  private producedEnough(orderId: number, productId: number, unit: string, own: any[]) {
-    const matches = (t: any) => t.productId === productId && t.unit === unit;
-    if (!own.some(matches)) return false;
-    const orders = new Set<number>([orderId]),
-      tasks = new Map<number, any>();
-    let pending = [orderId];
-    while (pending.length && orders.size <= 50) {
-      const next: number[] = [];
-      for (const oid of pending)
-        for (const t of oid === orderId ? own : this.confirmedTasksOf(oid))
-          if (matches(t) && !tasks.has(t.id)) {
-            tasks.set(t.id, t);
-            for (const other of t.orderIds || [])
-              if (!orders.has(other)) {
-                orders.add(other);
-                next.push(other);
-              }
-          }
-      pending = next;
-    }
-    let need = 0;
-    for (const oid of orders) {
-      const o = this.store.order(oid, true);
-      if (!o || o.status === '已取消') continue;
-      for (const l of o.lines)
-        if (l.productId === productId && l.unit === unit) need += Math.round(l.quantity * 1000);
-    }
-    const made = [...tasks.values()].reduce((n, t) => n + quantityUnits(t.completed || '0'), 0);
-    return made >= need;
-  }
-  refreshOrderProgress(ids?: number[]) {
-    this.updateOrders(
-      ids ||
-        this.store.db
-          .prepare('SELECT DISTINCT order_id FROM flow_refs WHERE order_id IS NOT NULL')
-          .all()
-          .map((r) => Number(r.order_id)),
-    );
+  refreshOrderProgress(ids?: number[], onlyChanged = false) {
+    refreshOrderProgress(this, ids, onlyChanged);
   }
   maintenanceReferences(id: number) {
-    const d = this.get(id);
-    this.refs(id, d, d.kind);
+    rewriteRefs(this.store, id, this.get(id));
   }
-  maintenanceUpdate(id: number, raw: any, who: Actor) {
-    const actor = requireLocalAdministrator(who);
-    return this.tx(() => {
-      const before = this.get(id),
-        v = flowInput(before.kind, raw);
-      if (before.version !== raw.version) fail('记录版本已改变，请刷新。', 409);
-      if (before.status === 'draft') return this.save(before.kind, raw, actor, id);
-      if (before.planSnapshot) v.planSnapshot = before.planSnapshot;
-      if (['task', 'delivery'].includes(before.kind) && v.plannedDate && v.plannedDate !== before.plannedDate) {
-        if ((before.kind === 'delivery' && before.status !== 'draft') || (before.kind === 'task' && (!['draft', 'confirmed'].includes(before.status) || before.progress >= 100)))
-          fail('已完成或已关闭的任务不能调整计划日期。', 409);
-      }
-      if (before.kind === 'arrival' && this.ops.repo.purchases(true).some((p) => p.receipts.some((r: any) => r.flowId === id && r.dataEdits?.length)))
-        fail('这张到货存在管理员统计纠偏，请通过到货更正窗口处理，保留纠偏与库存核对历史。', 409);
-      const oldMoves = this.store.db
-        .prepare(
-          'SELECT rowid AS _rowid,* FROM stock_movements WHERE source_kind=? AND source_id=? ORDER BY rowid',
-        )
-        .all('flow_' + before.kind, String(id));
-      const orderIds =
-        before.kind === 'task'
-          ? [...before.orderIds, ...v.orderIds]
-          : before.kind === 'delivery'
-            ? [...before.lines, ...v.lines].map((l: any) => l.orderId)
-            : [];
-      if (before.status === 'confirmed') {
-        for (const r of this.store.db
-          .prepare("SELECT * FROM purchase_receipts WHERE json_extract(document,'$.flowId')=?")
-          .all(id)) {
-          const receipt = JSON.parse(String(r.document));
-          if (!receipt.reversed)
-            for (const line of receipt.items)
-              this.store.db
-                .prepare(
-                  'UPDATE purchase_lines SET received_units=MAX(0,received_units-?) WHERE id=?',
-                )
-                .run(quantityUnits(line.quantity), line.lineId);
-        }
-        this.store.db
-          .prepare("DELETE FROM purchase_receipts WHERE json_extract(document,'$.flowId')=?")
-          .run(id);
-        this.store.db
-          .prepare('DELETE FROM stock_movements WHERE source_kind=? AND source_id=?')
-          .run('flow_' + before.kind, String(id));
-        this.store.db.prepare("UPDATE flow_documents SET status='draft' WHERE id=?").run(id);
-      }
-      const plan = this.validate(before.kind, v, actor, before.status === 'confirmed');
-      const movements: string[] = [];
-      if (before.status === 'confirmed')
-        for (let i = 0; i < plan.changes.length; i++) {
-          const c = plan.changes[i],
-            prior = oldMoves[i],
-            movementId = prior ? String(prior.id) : randomUUID();
-          if (c.stockId == null) {
-            const created = this.ops.saveItem(c.newItem, actor);
-            c.stockId = created.id;
-            plan.lines[i].stockId = created.id;
-          }
-          const columns = prior
-            ? 'rowid,id,item_id,action,delta_units,before_units,after_units,source_kind,source_id,purchase_line_id,customer_order_id,date,notes,actor_id,actor_name,created_at'
-            : 'id,item_id,action,delta_units,before_units,after_units,source_kind,source_id,purchase_line_id,customer_order_id,date,notes,actor_id,actor_name,created_at';
-          const values: any[] = [
-            movementId,
-            c.stockId,
-            c.deltaUnits < 0 ? 'out' : before.kind === 'arrival' ? 'purchase' : 'in',
-            c.deltaUnits,
-            0,
-            0,
-            'flow_' + before.kind,
-            String(id),
-            c.purchaseLineId,
-            c.orderId,
-            v.date,
-            before.number + ' · 数据编辑：' + c.reason,
-            actor.id,
-            actor.name,
-            prior?.created_at || before.createdAt,
-          ];
-          if (prior) values.unshift(prior._rowid);
-          this.store.db
-            .prepare(
-              'INSERT INTO stock_movements(' +
-                columns +
-                ') VALUES(' +
-                values.map(() => '?').join(',') +
-                ')',
-            )
-            .run(...values);
-          movements.push(movementId);
-          if (prior && (Number(prior.delta_units) !== c.deltaUnits || prior.item_id !== c.stockId || prior.date !== v.date))
-            recordMovementRevision(this.store, actor, '管理员直接编辑' + before.number, prior, {
-              item_id: c.stockId,
-              delta_units: c.deltaUnits,
-              date: v.date,
-            });
-        }
-      if (before.status === 'confirmed')
-        for (const removed of oldMoves.slice(plan.changes.length))
-          recordMovementRevision(this.store, actor, '管理员直接编辑' + before.number, removed, null);
-      const next = {
-        ...v,
-        lines: plan.lines.length ? plan.lines : v.lines,
-        movements,
-        supplierName: v.supplierId
-          ? this.ops.repo.supplierName(v.supplierId, true)
-          : undefined,
-        customerName: v.customerId ? this.store.customer(v.customerId, true)?.name : undefined,
-        productName: v.productId ? this.store.product(v.productId, true)?.name : undefined,
-      };
-      this.store.db
-        .prepare(
-          'UPDATE flow_documents SET document=?,date=?,status=?,version=version+1,updated_at=? WHERE id=?',
-        )
-        .run(JSON.stringify(next), v.date, before.status, new Date().toISOString(), id);
-      this.refs(id, next, before.kind);
-      if (before.kind === 'arrival') {
-        this.store.db.prepare('DELETE FROM flow_receipt_keys WHERE document_id=?').run(id);
-        if (before.status === 'confirmed') {
-          this.store.db
-            .prepare('INSERT INTO flow_receipt_keys VALUES(?,?,?)')
-            .run(v.supplierId, v.reference.trim().normalize('NFKC').toUpperCase(), id);
-          for (const purchaseId of new Set(
-            plan.lines.map((l: any) => l.purchaseId).filter(Boolean),
-          )) {
-            const relevant = plan.lines.filter((l: any) => l.purchaseId === purchaseId);
-            this.store.db.prepare('INSERT INTO purchase_receipts VALUES(?,?,?,?,?,?,?,?)').run(
-              'flow-' + id + '-' + purchaseId,
-              purchaseId,
-              v.reference + ' [收货' + id + ']',
-              v.date,
-              JSON.stringify({
-                flowId: id,
-                items: relevant.map((l: any) => ({
-                  lineId: l.purchaseLineId,
-                  quantity: l.quantity,
-                })),
-                movements,
-              }),
-              actor.id,
-              actor.name,
-              new Date().toISOString(),
-            );
-          }
-        }
-      }
-      for (const stockId of new Set([
-        ...oldMoves.map((m) => Number(m.item_id)),
-        ...plan.changes.map((c: any) => c.stockId),
-      ]))
-        this.store.db.prepare('UPDATE stock_items SET version=version+1 WHERE id=?').run(stockId);
-      new DatabaseMaintenanceService(this.store).recompute(orderIds);
-      if (before.kind === 'production' && (before.taskId || v.taskId))
-        this.refreshOrderProgress(
-          [before.taskId, v.taskId]
-            .filter(Boolean)
-            .flatMap((taskId: number) => this.get(taskId).orderIds),
-        );
-      const result = this.get(id);
-      audit(this.store, actor, 'database-maintenance', 'edit', 'flow_' + before.kind, id, {
-        before,
-        after: result,
-      });
-      return result;
-    });
-  }
-  confirm(id: number, raw: unknown, who: Actor | null | undefined, binding: string) {
-    const actor = requirePermission(who, 'business:edit'),
-      v = z
-        .strictObject({
-          previewId: z.string().uuid(),
-          requestId: z.string().uuid(),
-          acknowledged: z.literal(true),
-        })
-        .parse(raw),
-      input = { id, actor: actor.id, ...v };
-    return this.tx(() => {
-      const replay = this.store.db
-        .prepare(
-          "SELECT digest,result FROM operation_requests WHERE kind='flow-confirm' AND request_id=?",
-        )
-        .get(v.requestId);
-      if (replay) {
-        if (replay.digest !== hash(input)) fail('请求凭据已用于不同确认内容。', 409);
-        return JSON.parse(String(replay.result));
-      }
-      const p = this.store.db.prepare('SELECT * FROM flow_previews WHERE id=?').get(v.previewId),
-        doc = this.get(id);
-      if (
-        !p ||
-        Number(p.document_id) !== id ||
-        p.actor_id !== actor.id ||
-        p.session_binding !== binding ||
-        Number(p.expires_at) < Date.now() ||
-        doc.status !== 'draft' ||
-        doc.archived
-      )
-        fail('确认预览失效，请重新核对。', 409);
-      if (p.digest !== hash(this.snapshot(doc)))
-        fail('单据、库存或关联档案已变化，请重新生成预览。', 409);
-      const plan = this.validate(doc.kind, doc, actor, true);
-      if (doc.kind === 'arrival') {
-        const key = doc.reference.trim().normalize('NFKC').toUpperCase(),
-          prior = this.store.db
-            .prepare(
-              'SELECT document_id FROM flow_receipt_keys WHERE supplier_id=? AND reference=?',
-            )
-            .get(doc.supplierId, key);
-        const legacy = this.store.db
-          .prepare(
-            'SELECT r.reference,r.document FROM purchase_receipts r JOIN purchases p ON p.id=r.purchase_id WHERE p.supplier_id=?',
-          )
-          .all(doc.supplierId)
-          .some(
-            (r) =>
-              !JSON.parse(String(r.document)).flowId &&
-              !JSON.parse(String(r.document)).reversed && !JSON.parse(String(r.document)).replacedBy && !JSON.parse(String(r.document)).cancelled &&
-              String(JSON.parse(String(r.document)).originalReference || r.reference).trim().normalize('NFKC').toUpperCase() === key,
-          );
-        if (legacy) fail('该供应商送货单号已由旧版到货登记入库，不能重复收货。', 409);
-        if (prior && Number(prior.document_id) !== doc.correctionOf)
-          fail('同一供应商送货单号已收货，不能重复入库。', 409);
-        const source = doc.sourceId
-          ? this.store.db.prepare('SELECT hash FROM flow_sources WHERE id=?').get(doc.sourceId)
-          : null;
-        const used = source
-          ? this.store.db
-              .prepare('SELECT document_id FROM flow_file_uses WHERE hash=?')
-              .get(source.hash)
-          : null;
-        if (used && Number(used.document_id) !== doc.correctionOf)
-          fail('该原始送货文件已经确认入库。', 409);
-        this.store.db
-          .prepare(
-            'INSERT INTO flow_receipt_keys VALUES(?,?,?) ON CONFLICT(supplier_id,reference) DO UPDATE SET document_id=excluded.document_id',
-          )
-          .run(doc.supplierId, key, id);
-        if (source)
-          this.store.db
-            .prepare(
-              'INSERT INTO flow_file_uses VALUES(?,?) ON CONFLICT(hash) DO UPDATE SET document_id=excluded.document_id',
-            )
-            .run(source.hash, id);
-      }
-      const movements: string[] = [];
-      for (const [index, c] of plan.changes.entries()) {
-        if (!c.stockId) {
-          const created = this.ops.saveItem(c.newItem, actor);
-          c.stockId = created.id;
-          doc.lines[index].stockId = created.id;
-          plan.lines[index].stockId = created.id;
-        }
-        if (c.deltaUnits) movements.push(
-          this.movement(c.stockId, c.deltaUnits, doc, actor, c.reason, c.purchaseLineId, c.orderId),
-        );
-        if (doc.kind === 'arrival' && c.purchaseLineId) {
-          this.store.db
-            .prepare(
-              'UPDATE purchase_lines SET stock_item_id=? WHERE id=?',
-            )
-            .run(c.stockId, c.purchaseLineId);
-        }
-      }
-      if (doc.kind === 'arrival')
-        for (const purchaseId of new Set(
-          plan.lines.map((l: any) => l.purchaseId).filter(Boolean),
-        )) {
-          const relevant = plan.lines.filter((l: any) => l.purchaseId === purchaseId),
-            reference = doc.reference + ' [收货' + id + ']';
-          this.store.db.prepare('INSERT INTO purchase_receipts VALUES(?,?,?,?,?,?,?,?)').run(
-            'flow-' + id + '-' + purchaseId,
-            purchaseId,
-            reference,
-            doc.date,
-            JSON.stringify({
-              flowId: id,
-              items: relevant.map((l: any) => ({
-                lineId: l.purchaseLineId,
-                quantity: l.quantity,
-              })),
-              movements,
-            }),
-            actor.id,
-            actor.name,
-            new Date().toISOString(),
-          );
-          this.store.db
-            .prepare('UPDATE purchases SET version=version+1,updated_at=? WHERE id=?')
-            .run(new Date().toISOString(), Number(purchaseId));
-        }
-      if (doc.kind === 'production' && doc.taskId)
-        this.store.db
-          .prepare('UPDATE flow_documents SET version=version+1,updated_at=? WHERE id=?')
-          .run(new Date().toISOString(), doc.taskId);
-      const after = {
-        ...doc,
-        supplierName: doc.supplierId
-          ? this.ops.repo.supplierName(doc.supplierId, true)
-          : undefined,
-        customerName: doc.customerId ? this.store.customer(doc.customerId, true)?.name : undefined,
-        productName: doc.productId ? this.store.product(doc.productId, true)?.name : undefined,
-        lines: plan.lines.length ? plan.lines : doc.lines,
-        movements,
-        confirmedBy: actor.name,
-        confirmedAt: new Date().toISOString(),
-      };
-      this.store.db
-        .prepare(
-          "UPDATE flow_documents SET status='confirmed',version=version+1,document=?,updated_at=? WHERE id=?",
-        )
-        .run(JSON.stringify(after), new Date().toISOString(), id);
-      this.refs(id, after, doc.kind);
-      if (doc.kind === 'arrival') syncReceivedUnits(this.store);
-      if (doc.kind === 'delivery') this.updateOrders(doc.lines.map((l: any) => l.orderId));
-      if (doc.kind === 'task') this.updateOrders(doc.orderIds);
-      if (doc.kind === 'production' && doc.taskId) this.updateOrders(this.get(doc.taskId).orderIds);
-      const result = this.get(id);
-      this.store.db
-        .prepare('INSERT INTO operation_requests VALUES(?,?,?,?)')
-        .run('flow-confirm', v.requestId, hash(input), JSON.stringify(result));
-      audit(
-        this.store,
-        actor,
-        doc.sourceId ? 'reviewed-supplier-ai' : 'physical-flow',
-        'confirm',
-        'flow_' + doc.kind,
-        id,
-        {
-          before: doc,
-          after: result,
-          plan,
-          previewId: v.previewId,
-          sourceHash: JSON.parse(String(p.document)).snapshot.sourceHash,
-        },
-      );
-      return result;
-    });
-  }
-  cancel(id: number, raw: unknown, who: Actor | null | undefined) {
-    const actor = requirePermission(who, 'business:edit'),
-      v = z
-        .strictObject({
-          version: z.number().int(),
-          reason: z.string().trim().min(1).max(1000),
-          acknowledged: z.literal(true),
-        })
-        .parse(raw);
-    return this.tx(() => {
-      const doc = this.get(id);
-      const remainingTask = doc.kind === 'task' && doc.status === 'confirmed' && doc.progress < 100;
-      if (doc.version !== v.version || (doc.status !== 'draft' && !remainingTask))
-        fail('仅未确认草稿可取消；已确认单据请冲销。', 409);
-      this.store.db
-        .prepare(
-          "UPDATE flow_documents SET status='cancelled',document=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .run(
-          JSON.stringify({
-            ...doc,
-            cancellation: { reason: v.reason, by: actor.name, at: new Date().toISOString() },
-          }),
-          new Date().toISOString(),
-          id,
-        );
-      if (remainingTask) this.updateOrders(doc.orderIds);
-      audit(this.store, actor, 'physical-flow', 'cancel', 'flow_' + doc.kind, id, {
-        before: doc,
-        reason: v.reason,
-      });
-      return this.get(id);
-    });
-  }
-  reverse(id: number, raw: unknown, who: Actor | null | undefined) {
+  /**
+   * 导出送货单就是装车出库：待送货的送货单在这一步核对并出库（扣库存、算进订单已发），状态变“送货中”。
+   * 和人工“核对并发货”是同一个确认，库存不够、订单变了照样拦下；送货单版本变了不出库。
+   * shipDate：出库日不是今天时给（导出文件和交付完成跨了零点，按纸上印的那天出库），核对规则见 confirm.ts。
+   */
+  shipDelivery(id: number, expectedVersion: number, who: Actor | null | undefined, shipDate?: string) {
     const actor = requirePermission(who, 'business:edit');
-    if (!isSuperMode(actor)) fail('冲销须先验证密码进入超级管理员模式。', 403);
-    const v = z
-      .strictObject({
-        version: z.number().int(),
-        reason: z.string().trim().min(1).max(1000),
-        acknowledged: z.literal(true),
-      })
-      .parse(raw);
-    return this.tx(() => {
-      const doc = this.get(id);
-      if (doc.status === 'reversed' && doc.reversal?.reason === v.reason) return doc;
-      if (doc.version !== v.version || doc.status !== 'confirmed')
-        fail('单据已变更或不是已确认状态。', 409);
-      if (
-        doc.kind === 'task' &&
-        this.list('production', true).some((p) => p.taskId === id && p.status === 'confirmed')
-      )
-        fail('任务已有确认生产登记，请先冲销相关生产登记。');
-      const totals = new Map<number, number>();
-      for (const r of this.store.db
-        .prepare('SELECT * FROM stock_movements WHERE source_kind=? AND source_id=?')
-        .all('flow_' + doc.kind, String(id)))
-        totals.set(Number(r.item_id), (totals.get(Number(r.item_id)) || 0) - Number(r.delta_units));
-      for (const [stockId, delta] of totals)
-        if (this.ops.repo.balance(stockId) + delta < 0) {
-          const stock = this.ops.repo.items(true, stockId)[0]!;
-          const recent = this.store.db
-            .prepare(
-              'SELECT source_kind,source_id,notes FROM stock_movements WHERE item_id=? AND delta_units<0 ORDER BY created_at DESC,id DESC LIMIT 5',
-            )
-            .all(stockId);
-          fail(
-            stock.name +
-              '（库存编号' +
-              stockId +
-              '）当前' +
-              quantityString(stock.balanceUnits) +
-              stock.unit +
-              '，冲销需扣回' +
-              quantityString(-delta) +
-              stock.unit +
-              '。相关库存已被后续业务使用，请先更正/冲销相关出库；最近可核对：' +
-              recent.map((r) => r.source_kind + '#' + r.source_id + ' ' + r.notes).join('、') +
-              '。也可仅归档上游订单保留库存历史。',
-            409,
-          );
-        }
-      const movements = [];
-      for (const [stockId, delta] of totals)
-        if (delta)
-          movements.push(
-            this.movement(
-              stockId,
-              delta,
-              {
-                ...doc,
-                date: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }),
-              },
-              actor,
-              '冲销：' + v.reason,
-              null,
-              null,
-              'flow_reversal',
-            ),
-          );
-      if (doc.kind === 'arrival') {
-        for (const l of doc.lines)
-          if (l.purchaseLineId) {
-            this.store.db
-              .prepare(
-                'UPDATE purchase_lines SET received_units=received_units-? WHERE id=? AND received_units>=?',
-              )
-              .run(quantityUnits(l.quantity), l.purchaseLineId, quantityUnits(l.quantity));
-            this.store.db
-              .prepare('UPDATE purchases SET version=version+1,updated_at=? WHERE id=?')
-              .run(new Date().toISOString(), l.purchaseId);
-          }
-        this.store.db
-          .prepare(
-            "UPDATE purchase_receipts SET document=json_set(document,'$.reversed',1) WHERE json_extract(document,'$.flowId')=?",
-          )
-          .run(id);
-      }
-      if (doc.kind === 'production' && doc.taskId)
-        this.store.db
-          .prepare('UPDATE flow_documents SET version=version+1 WHERE id=?')
-          .run(doc.taskId);
-      this.store.db
-        .prepare(
-          "UPDATE flow_documents SET status='reversed',version=version+1,document=?,updated_at=? WHERE id=?",
-        )
-        .run(
-          JSON.stringify({
-            ...doc,
-            reversal: { reason: v.reason, by: actor.name, at: new Date().toISOString(), movements },
-          }),
-          new Date().toISOString(),
-          id,
-        );
-      if (doc.kind === 'delivery') this.updateOrders(doc.lines.map((l: any) => l.orderId));
-      if (doc.kind === 'task') this.updateOrders(doc.orderIds);
-      if (doc.kind === 'production' && doc.taskId) this.updateOrders(this.get(doc.taskId).orderIds);
-      if (doc.kind === 'arrival') syncReceivedUnits(this.store);
-      audit(this.store, actor, 'super-admin', 'reverse', 'flow_' + doc.kind, id, {
-        before: doc,
-        after: this.get(id),
-        reason: v.reason,
-        movements,
-      });
-      return this.get(id);
-    });
+    const doc = this.get(id);
+    if (doc.kind !== 'delivery') fail('请选择送货单。');
+    if (doc.status === 'confirmed') return doc;
+    if (doc.version !== expectedVersion) fail('送货安排已变化，文件已交付但没有出库，请读取最新送货单后重新导出。', 409);
+    const check = this.preview(id, actor);
+    return this.confirm(
+      id,
+      { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true, ...(shipDate ? { shipDate } : {}) },
+      actor,
+    );
   }
-  developerUpdateTask(id: number, raw: any, who: Actor) {
-    const actor = requireDeveloper(who),
-      v = flowInput('task', raw);
-    return this.tx(() => {
-      const before = this.get(id);
-      if (before.kind !== 'task' || before.version !== raw.version)
-        fail('生产任务版本已变化。', 409);
-      if (
-        (before.productId !== v.productId || before.unit !== v.unit) &&
-        this.store.db.prepare('SELECT 1 FROM flow_refs WHERE task_id=?').get(id)
-      )
-        fail('已有生产登记的任务不能改变产品或数量单位。');
-      if (quantityUnits(v.quantity) < quantityUnits(before.completed || '0'))
-        fail('计划数量不能少于实际合格完工数量。');
-      this.validate('task', v, actor, true);
-      // 确认时写进单据的产品名、确认人、确认时间不在输入里，要从原单据带过来，不能被改丢。
-      const stored = JSON.parse(
-        String(this.store.db.prepare('SELECT document FROM flow_documents WHERE id=?').get(id)!.document),
-      );
-      const next = {
-        ...stored,
-        ...v,
-        plannedDate: raw.plannedDate === undefined ? stored.plannedDate : v.plannedDate,
-        productName: this.store.product(v.productId, true)?.name ?? stored.productName,
-      };
-      this.store.db
-        .prepare(
-          'UPDATE flow_documents SET document=?,date=?,version=version+1,updated_at=? WHERE id=?',
-        )
-        .run(JSON.stringify(next), v.date, new Date().toISOString(), id);
-      this.refs(id, next, 'task');
-      this.updateOrders([...(before.orderIds || []), ...(v.orderIds || [])]);
-      audit(this.store, actor, 'local-developer', 'correct-task', 'flow_task', id, {
-        before,
-        after: this.get(id),
-      });
-      return this.get(id);
-    });
-  }
-  updateMetadata(id: number, raw: any, who: Actor) {
-    const actor = requireDeveloper(who);
-    return this.tx(() => {
-      const before = this.get(id),
-        next = flowInput(before.kind, raw),
-        previous = flowInput(before.kind, before);
-      if (raw.version !== before.version) fail('单据已变化，请刷新。', 409);
-      const editable = ['notes', 'operator', 'address', 'contact', 'phone'];
-      const physical = (v: any) =>
-        Object.fromEntries(Object.entries(v).filter(([k]) => !editable.includes(k)));
-      if (hash(physical(next)) !== hash(physical(previous)))
-        fail('数量、日期或实物关联改变，须通过冲销和更正单处理。');
-      this.store.db
-        .prepare('UPDATE flow_documents SET document=?,version=version+1,updated_at=? WHERE id=?')
-        .run(JSON.stringify({ ...before, ...next }), new Date().toISOString(), id);
-      const result = this.get(id);
-      audit(
-        this.store,
-        actor,
-        'local-administrator',
-        'update-metadata',
-        'flow_' + before.kind,
-        id,
-        { before, after: result },
-      );
-      return result;
-    });
-  }
-  archive(id: number, restore: boolean, who: Actor | null | undefined, expectedVersion?: number) {
+  /** 导出送货单之前先按出库规则核对一遍（库存、订单、单位、规格），不通过就不生成文件。 */
+  checkShippable(id: number, who: Actor | null | undefined) {
     const actor = requirePermission(who, 'business:edit');
-    return this.tx(() => {
+    const doc = this.get(id);
+    if (doc.kind !== 'delivery' || doc.status !== 'draft' || doc.archived) fail('只有待送货的送货单能导出出库。', 409);
+    validateFlow(this, doc, actor, true);
+  }
+  /** 客户收到货了：只记送达，不动库存（出库在导出送货单时已经做了）。 */
+  /**
+   * 完工入哪个成品库存由产品决定：一个产品只有一个成品库存，没有就按产品建、归档了就恢复
+   * （OperationsService.finishedStockFor），传了 finishedStockId 的必须就是这个产品的那一个。
+   * 产品不存在、已归档的不建库存，留给 validate 照常报。document 是这张完工单（还没编号时用它的生产任务），
+   * 自动新建、恢复成品库存的审计里写上。
+   */
+  finishedStockOf(v: FinishedStockInput, actor: Actor, document?: string) {
+    if (!this.store.product(v.productId, isLocalAdministrator(actor))) return v.finishedStockId;
+    const task = !document && v.taskId ? one(this.store.db, rows.flow_documents.pick({ number: true }), 'SELECT number FROM flow_documents WHERE id=?', v.taskId) : null;
+    return this.ops.finishedStockFor(v.productId, actor, v.finishedStockId, document ?? (task ? '生产任务 ' + task.number : undefined)).item.id;
+  }
+  /**
+   * 到货行没选库存品：同一种原材料只有一个库存品（rawStockKey 相同就是同一种，归档的也算），
+   * 库里已经有一样的就入到它那里（归档的自动恢复），没有才新建；一张单据里一样的几行共用一个。
+   */
+  createdItem(created: Map<string, number>, item: NewRawItem, actor: Actor, document: string) {
+    const key = rawStockKey(item);
+    const id = created.get(key) ?? this.ops.rawStockFor(item, actor, document).id;
+    created.set(key, id);
+    return id;
+  }
+  markDelivered(id: number, raw: unknown, who: Actor | null | undefined) {
+    const actor = requirePermission(who, 'business:edit'),
+      v = flowDeliveredSchema.parse(raw);
+    return inSavepoint(this.store.db, () => {
       const doc = this.get(id);
-      if (expectedVersion !== undefined && doc.version !== expectedVersion)
-        fail('单据已被修改，请刷新后重新核对删除或恢复操作。', 409);
-      if (
-        !restore &&
-        doc.kind === 'task' &&
-        doc.status === 'confirmed' &&
-        Number(doc.completed || 0) < Number(doc.quantity)
-      )
-        fail('生产任务尚有未完成工作，不能归档；可以独立执行删除。');
-      if (!restore && doc.status === 'draft') fail('草稿尚未处理完成，不能归档；可以直接删除。');
-      if (restore)
-        this.store.db
-          .prepare('DELETE FROM record_lifecycle WHERE entity=? AND record_id=?')
-          .run('flow_' + doc.kind, id);
-      else
-        this.store.db
-          .prepare('INSERT OR IGNORE INTO record_lifecycle VALUES(?,?,?,?)')
-          .run('flow_' + doc.kind, id, new Date().toISOString(), actor.id);
-      this.store.db.prepare('UPDATE flow_documents SET version=version+1 WHERE id=?').run(id);
-      audit(
-        this.store,
-        actor,
-        'physical-flow',
-        restore ? 'restore' : 'archive',
-        'flow_' + doc.kind,
+      if (doc.kind !== 'delivery' || doc.status !== 'confirmed' || doc.archived) fail('只有已出库的送货单能确认送达。', 409);
+      // 已经确认过就原样返回：双击、网络重试不报“已变化”
+      if (doc.deliveredAt) return doc;
+      if (doc.version !== v.version) fail('送货单已变化，请刷新后再确认。', 409);
+      // 送达日期按业务时区算（北京时间），界面会预填今天让人确认或改
+      const date = v.date || today(),
+        shipped = today(new Date(shippedAt(doc)));
+      if (date > today()) fail('送达日期不能晚于今天。');
+      if (date < shipped) fail('送达日期不能早于出库日期 ' + shipped + '。');
+      // 在库里存的那份内容上加送达记录（不是把视图写回去），送达日期列跟着一起写
+      const stored = storedDocument(this.store, id, 'delivery');
+      writeFlowDocument(this.store, id, { ...stored, deliveredAt: date, deliveredBy: actor.name }, { at: new Date().toISOString() });
+      const after = this.get(id, 'delivery');
+      audit(this.store, actor, {
+        action: 'delivered',
+        entity: 'flow_delivery',
         id,
-        { before: doc },
-      );
-      return this.get(id);
+        document: { before: doc, after },
+      });
+      return after;
     });
   }
 }
+
+/** 保存改哪张（没有 id 是新建）、打开时的版本、是不是拆单搬过来的行（moved）、是不是登记到货按订货单存的（registered） */
+type SaveTarget = { id?: number; version: unknown; moved: boolean; registered: boolean };
+/** 排期的结果（同一请求号再交时按它核对上次存下的结果） */
+type Scheduled = z.output<typeof flowScheduledSchema>;
+/**
+ * 已开工的生产任务（本机管理员改）：不能换产品，做完了不能改计划日；
+ * 这次把计划数改小的，不能改到比已登记的完工数还少（已入库加待核对入库，和任务视图的完工进度同一口径，取消、撤销的不算）。
+ * 完工本来允许超计划（只提示），计划数没动或改大的不查，超产的任务照样能改备注、计划日
+ */
+function checkStartedTask(before: FlowDocView<'task'>, v: FlowDocument<'task'>) {
+  if (v.productId !== before.productId) fail('这张生产任务已经有完工单，不能换产品。', 409);
+  if (before.progress >= 100 && v.plannedDate !== before.plannedDate) fail('这张生产任务已完工，计划生产日期不能再改。', 409);
+  const planned = quantityUnits(v.quantity),
+    registered = quantityUnits(before.completed) + quantityUnits(before.pendingCompleted);
+  if (planned < quantityUnits(before.quantity) && planned < registered)
+    fail('计划数不能少于已登记的完工数（已入库 ' + before.completed + ' ' + before.unit + '，待核对入库 ' + before.pendingCompleted + ' ' + before.unit + '）。');
+}
+/** 已出库送货单的出库时间：确认出库时写的，没有就是这张单据有问题，说清楚，不按别的时间算 */
+function shippedAt(doc: FlowDocView<'delivery'>) {
+  if (!doc.shippedAt) return fail('送货单 ' + doc.number + ' 没有出库时间记录，不能确认送达，请先核对这张送货单。', 409);
+  return doc.shippedAt;
+}
+
+// 采购库存的管理员连带处理（见 operations/hooks.ts）：加载单据流转时登记
+registerAdminCascade({
+  alignStock: (store, before, after, actor) => alignStock(new FlowService(store), before, after, actor),
+  detachPurchaseLines: (store, purchaseId, lineIds, actor) =>
+    detachPurchaseLines(new FlowService(store), purchaseId, lineIds, actor),
+});
+// 采购库存要看的到货、单据数据（见 operations/hooks.ts 的 ArrivalSource）：加载单据流转时登记
+registerArrivalSource(arrivalSource);

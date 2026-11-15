@@ -1,0 +1,48 @@
+/* 列表版式：页头、统计、筛选条、表格、分页、空状态（第 4 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+:root[data-ui='refined'] .list-filters .record-view-tabs button {
+  min-height: 28px;
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--r-inner);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: none;
+}
+
+/* —— 页面头部：大标题一行，统计数字放在下面 —— */
+:root[data-ui='refined'] .page-heading {
+  align-items: flex-end;
+  margin: var(--space-2xs) 0 var(--space-lg);
+}
+:root[data-ui='refined'] .page-title {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3xs);
+}
+:root[data-ui='refined'] .page-title h1 {
+  font-size: var(--text-2xl);
+  line-height: 32px;
+  font-weight: 600;
+}
+:root[data-ui='refined'] .page-title .list-summary {
+  gap: var(--space-2xs) 18px;
+  font-size: var(--text-sm);
+}
+:root[data-ui='refined'] .page-title .list-summary > div > span {
+  color: var(--text-secondary);
+}
+:root[data-ui='refined'] .page-title .list-summary strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— 筛选条：同样高度的一排控件，不画外框 —— */
+:root[data-ui='refined'] .list-filters {
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}

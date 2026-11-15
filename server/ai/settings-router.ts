@@ -1,93 +1,67 @@
-import { Router } from 'express';
-import { timingSafeEqual } from 'node:crypto';
+import { Router, type NextFunction, type Request, type Response } from 'express';
+import { canEnterSuperMode, isSuperMode, route, superModeDenied, type Actor } from '../core/index.js';
 import { ZodError } from 'zod';
-import { AiSettingsManager } from './settings-manager.js';
-import { AiConnectionError } from './connection-error.js';
+import type { AiSettingsApi } from '../../shared/ai/index.js';
+import { aiPageGuard } from './page-guard.js';
+import type { AiSettingsManager } from './settings-manager.js';
+import { AiConnectionError } from './errors.js';
 
-export function aiSettingsRouter(manager: AiSettingsManager) {
+/** 挂在 /api/ai/settings 下（app.ts） */
+const MOUNT = '/ai/settings';
+/** 办设置时出的错：打上记号交给本路由器末尾的 settingsError；关卡、认人出的错不带记号，照旧交全站的出错回答 */
+class SettingsFailure extends Error {
+  constructor(readonly original: unknown) {
+    super('AI 设置操作出错', { cause: original });
+  }
+}
+const settled = async <T>(job: () => T | Promise<T>): Promise<T> => {
+  try {
+    return await job();
+  } catch (error) {
+    throw new SettingsFailure(error);
+  }
+};
+
+/**
+ * AI 设置的接口（/api/ai/settings，接口表 shared/ai/ai-settings-api.ts）。actorOf 是开了登录时认登录账号的办法：
+ * 模型配置关系到密钥和对外发送，改密钥和识别设置要先进超级管理员模式；查余额、重新测试不改配置，超级管理员账号就行；
+ * 读取放开（聊天和识别要用）；没开登录（测试）时不查。
+ */
+const checksOnly = new Set(['/balance', '/test']);
+export function aiSettingsRouter(manager: AiSettingsManager, actorOf?: (req: Request) => Actor | null | undefined) {
   const router = Router();
-  router.use((req, res, next) => {
-    res.set('Cache-Control', 'no-store');
-    if (req.headers['sec-fetch-site'] === 'cross-site')
-      return res
-        .status(403)
-        .json({ error: { code: 'permission', message: 'AI 设置只允许从本机 ERP 页面访问。' } });
-    if (req.method !== 'GET') {
-      const token = req.headers['x-erp-ai-token'];
-      if (
-        typeof token !== 'string' ||
-        !/^[a-f0-9]{64}$/.test(token) ||
-        !timingSafeEqual(Buffer.from(token), Buffer.from(manager.csrfToken))
-      )
-        return res.status(403).json({
-          error: { code: 'permission', message: '页面安全凭证无效，请刷新 AI 设置后重试。' },
-        });
-    }
-    next();
-  });
-  router.get('/', (_req, res) => res.json(manager.view()));
-  router.post('/connect', async (req, res) => {
-    try {
-      res.json(await manager.connect(req.body));
-    } catch (error) {
-      sendError(error, res);
-    }
-  });
-  for (const [path, handler] of [
-    ['/preset', (body: unknown) => manager.saveDraft(body)],
-    ['/activate', (body: unknown) => manager.activate(body)],
-    ['/delete', (body: unknown) => manager.remove(body)],
-    ['/preferences', (body: unknown) => manager.preferences(body)],
-  ] as const)
-    router.post(path, (req, res) => {
-      try {
-        res.json(handler(req.body));
-      } catch (error) {
-        sendError(error, res);
+  const on = route<AiSettingsApi>(router, MOUNT);
+  if (actorOf)
+    router.use((req, res, next) => {
+      // 拒绝的说法和类别跟全站一致（server/core/permissions.ts）
+      const who = actorOf(req);
+      const allowed = checksOnly.has(req.path) ? canEnterSuperMode(who) : isSuperMode(who);
+      if (req.method !== 'GET' && !allowed) {
+        const denied = superModeDenied(who, '修改 AI 设置');
+        return res.status(denied.status).json({ message: denied.message, code: denied.code });
       }
+      next();
     });
-  router.post('/test', async (req, res) => {
-    try {
-      res.json(await manager.test(req.body));
-    } catch (error) {
-      sendError(error, res);
-    }
-  });
-  router.post('/models', async (req, res) => {
-    try {
-      res.json(await manager.models(req.body));
-    } catch (error) {
-      sendError(error, res);
-    }
-  });
-  router.post('/save', (req, res) => {
-    try {
-      res.json(manager.save(req.body));
-    } catch (error) {
-      sendError(error, res);
-    }
-  });
-  router.post('/disable', (req, res) => {
-    try {
-      res.json(manager.disable(req.body));
-    } catch (error) {
-      sendError(error, res);
-    }
-  });
+  router.use(aiPageGuard(manager.csrfToken, 'AI 设置'));
+  on('GET /ai/settings', () => manager.view());
+  on('POST /ai/settings/key', ({ body }) => settled(() => manager.saveAndTestKey(body)));
+  on('POST /ai/settings/key/save', ({ body }) => settled(() => manager.saveKey(body)));
+  on('POST /ai/settings/key/delete', ({ body }) => settled(() => manager.removeKey(body)));
+  on('POST /ai/settings/test', ({ body }) => settled(() => manager.testKey(body)));
+  on('POST /ai/settings/balance', () => settled(() => manager.balance()));
+  on('POST /ai/settings/preferences', ({ body }) => settled(() => manager.preferences(body)));
+  router.use(settingsError);
   return router;
 }
-function sendError(error: unknown, res: import('express').Response) {
-  // 不透传 SDK/上游正文、堆栈或输入值，防止供应商回显 API Key。
+function settingsError(failure: unknown, _req: Request, res: Response, next: NextFunction) {
+  if (!(failure instanceof SettingsFailure)) return next(failure);
+  const error = failure.original;
+  // 不透传 SDK/上游正文、堆栈或输入值，防止供应商回显 API Key。回答和全站一样是 { message, code }。
   if (error instanceof AiConnectionError)
-    return res.status(error.status).json({ error: { code: error.code, message: error.message } });
-  if (error instanceof ZodError)
-    return res.status(400).json({
-      error: {
-        code: 'validation',
-        message: '请检查服务商、地址、模型、密钥长度及设置版本；提交格式不符合要求。',
-      },
-    });
-  return res.status(500).json({
-    error: { code: 'upstream', message: 'AI 设置操作失败，请刷新后重试；密钥不会写入运行日志。' },
-  });
+    return res.status(error.status).json({ message: error.message, code: error.code });
+  // 填写不合格交给全站的出错回答，按界面叫法说哪一栏不对（server/http-errors.ts，不带输入值）
+  if (error instanceof ZodError) return next(error);
+  return res
+    .status(500)
+    .json({ message: 'AI 设置操作失败，请刷新后重试；密钥不会写入运行日志。', code: 'upstream' });
 }

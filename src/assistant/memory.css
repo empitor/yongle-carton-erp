@@ -1,0 +1,126 @@
+/* 助手长期记忆 */
+/* 长期记忆（src/assistant/）：回复下面“已执行”一行里的“忘掉”（AssistantExecuted），助手窗口里的“记忆”面板（AssistantMemoryPanel） */
+.ga-panel .ga-fact-forget {
+  min-height: 22px;
+  margin-left: var(--space-xs);
+  padding: 0 var(--space-sm);
+  font-size: var(--text-xs);
+}
+.ga-panel .ga-memory-actions > button:not(.primary),
+.ga-panel .ga-memory-back {
+  min-height: 26px;
+  padding: 0 var(--space-sm);
+  font-size: var(--text-xs);
+  flex-shrink: 0;
+}
+.ga-memory {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ga-memory-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+.ga-memory-head > small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  margin-right: auto;
+}
+.ga-memory-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.ga-memory-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--text-sm);
+}
+.ga-memory-auto {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+.ga-memory-auto input {
+  margin-top: var(--space-2xs);
+}
+.ga-memory-auto small,
+.ga-memory-note,
+.ga-memory-item small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+.ga-memory-note {
+  margin: 0;
+}
+.ga-memory-add {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;
+}
+.ga-memory-add textarea,
+.ga-memory-item textarea {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  resize: vertical;
+  font-size: var(--text-sm);
+}
+.ga-memory-add .primary {
+  flex-shrink: 0;
+}
+.ga-memory-body .ga-error,
+.ga-memory-body .ga-empty {
+  padding: 0;
+  background: none;
+}
+.ga-memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.ga-memory-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-3xs) var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.ga-memory-item > p {
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.ga-memory-item > small {
+  grid-column: 1;
+}
+.ga-memory-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: flex-start;
+}
+.ga-memory-item > textarea {
+  grid-column: 1 / -1;
+}
+.ga-memory-item > textarea + .ga-memory-actions {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  justify-content: flex-end;
+}

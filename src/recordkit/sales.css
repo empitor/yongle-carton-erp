@@ -1,0 +1,169 @@
+/* 业务记录共用：订单、客户详情里的关联记录、修改历史、明细小字 */
+/* sales：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。
+   本文件在 design.css 之前加载，只用 sales- 开头的新类名；要压过共用样式时多带一层类名。 */
+
+/* ---------- 详情面板 ---------- */
+.sales-muted {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* ---------- 关联记录、修改历史、删除范围 ---------- */
+.sales-context-links li {
+  min-height: 28px;
+}
+.sales-context-links li > span:nth-child(2) {
+  min-width: 0;
+  /* 单号、日期（DH-20261109-00003、2026-11-09）放得下就整体换到下一行，不从中间拆开；
+     只有一个词比整行还长时才在词里断（anywhere 会让它为了给右边的小字让位而拆开单号） */
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 700px) {
+  .sales-context-links li:has(> small) {
+    display: grid;
+    grid-template-columns: minmax(72px, max-content) minmax(0, 1fr);
+    column-gap: var(--space-sm);
+    row-gap: var(--space-3xs);
+    align-items: baseline;
+  }
+  .sales-context-links li:has(> small) > small {
+    grid-column: 2;
+    margin-left: 0;
+  }
+}
+.sales-context-links li .status-chip {
+  margin-left: auto;
+}
+.sales-context-kind {
+  flex: none;
+  min-width: 72px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.sales-history {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sales-history > li {
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+.sales-history > li:last-child {
+  border-bottom: 0;
+}
+/* 一条修改的头一行：动作、人、（数据管理的维护记录加“数据管理”小标签）、时间；手机宽度放不下时换行 */
+.sales-history > li > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+.sales-history > li > div small {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.sales-history details > summary {
+  margin-top: var(--space-2xs);
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+/* 展开的“查看变更内容”：浅底圆角块，里面一项一行“字段名 改之前 → 改之后”（Facts），长内容换行不横向滚动 */
+.sales-history-changes {
+  margin: var(--space-2xs) 0 0;
+  padding: var(--space-3xs) 0;
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  font-size: var(--text-sm);
+}
+.sales-history-changes > .record-facts {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+}
+.sales-history-changes > p {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+}
+:root[data-ui='refined'] .sales-history .sales-history-changes > .record-facts {
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------- 订单详情：明细和进度一张列表（电脑三列，手机叠成两行） ---------- */
+.sales-progress-list {
+  display: grid;
+  font-size: var(--text-sm);
+}
+.sales-progress-head,
+.sales-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.sales-progress-list.is-closed :is(.sales-progress-head, .sales-progress-row) {
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+}
+.sales-progress-row:last-child {
+  border-bottom: 0;
+}
+.sales-progress-head {
+  padding-top: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.sales-progress-list .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sales-progress-row > div {
+  display: grid;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+.sales-progress-row strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.sales-progress-unit {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-style: normal;
+}
+
+@media (max-width: 760px) {
+  .sales-progress-head {
+    display: none;
+  }
+  .sales-progress-row,
+  .sales-progress-list.is-closed .sales-progress-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .sales-progress-row .sales-progress-name {
+    grid-column: 1 / -1;
+  }
+  .sales-progress-row > div.num {
+    text-align: left;
+  }
+  .sales-progress-row > div.num:nth-child(3) {
+    text-align: right;
+  }
+}
+/* 订单明细右边的小字（单价 · 金额、库存可用 · 未排产）按词换行，不把“未排产”拆成两行 */
+.sales-progress-row small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}

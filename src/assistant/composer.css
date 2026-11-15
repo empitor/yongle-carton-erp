@@ -1,0 +1,99 @@
+/* 助手输入区 */
+/* 输入区：输入框和发送、附件、语音按钮，报错和语音状态，当前页面那一行，思考档位。 */
+.ga-compose {
+  padding: 10px var(--space-md);
+  display: flex;
+  gap: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+.ga-compose textarea {
+  resize: none;
+  min-height: 54px;
+  max-height: 100px;
+  flex: 1;
+  font-size: var(--text-sm);
+}
+.ga-compose button {
+  min-width: 42px;
+  flex: 0 0 42px;
+  padding: 0;
+  align-self: flex-end;
+  height: 40px;
+}
+.ga-compose button > svg {
+  height: 20px;
+  flex: 0 0 20px;
+}
+.ga-compose button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.ga-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  margin: 0;
+  padding: 7px var(--space-md);
+  overflow-wrap: anywhere;
+  max-height: 70px;
+  overflow: auto;
+}
+.ga-mic-recording {
+  color: var(--danger);
+}
+.ga-compose .ga-attach-button:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.ga-compose .ga-attach-button:disabled {
+  opacity: 0.45;
+}
+.ga-compose .ga-mic-recording {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface)) !important;
+}
+.ga-speech-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 var(--space-md) 7px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.ga-context {
+  display: flex;
+  gap: 5px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px var(--space-md);
+  font-size: var(--text-xs);
+  border-top: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+.ga-compose .ga-mic-unavailable {
+  opacity: 0.45;
+}
+/* 思考档位（发送那一排）；紫色只用于 AI 的东西 */
+.ga-compose .ga-thinking {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: var(--purple);
+}
+.ga-compose .ga-thinking select {
+  width: 52px;
+  height: 26px;
+  min-width: 0;
+  padding: 0 var(--space-2xs);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--purple-soft);
+  color: var(--purple);
+  font-size: var(--text-xs);
+}

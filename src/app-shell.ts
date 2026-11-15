@@ -1,0 +1,169 @@
+import { useEffect, useRef, useState } from 'react';
+import { erpPageIds } from '../shared/assistant/index';
+import { financeOnlyPageAllowed } from '../shared/core/index';
+import { aiFilesService, inboxService } from './import/index';
+import { listen, readNotice, refreshOnReturn, type NoticeDetail } from './ui/index';
+
+/* 外壳（App）的几件事：地址栏上的页面、导航角标、底部提示、快捷键、换账号后重新加载。 */
+
+export type Page = (typeof erpPageIds)[number];
+
+/** 页头的标题 */
+export const pageNames: Record<Page, string> = {
+  dashboard: '今日',
+  orders: '订单',
+  customers: '客户',
+  products: '产品',
+  guide: '使用说明',
+  accounts: '账号管理',
+  finance: '财务概览',
+  'finance-flow': '月度台账',
+  'finance-ar': '应收应付',
+  'finance-cash': '资金发票',
+  'finance-costs': '费用资产工资',
+  'finance-ledger': '凭证账簿',
+  'finance-reports': '报表结账',
+  'finance-settings': '财务设置',
+  'ai-settings': '设置',
+  'ai-import': 'AI 导入',
+  inbox: '收件箱',
+  trash: '归档',
+  suppliers: '供应商',
+  purchases: '采购单',
+  warehouse: '仓储',
+  production: '生产管理',
+};
+/** 自己画页头的页面（财务各页、采购库存、生产、收件箱、账号管理），App 不再给它们画 */
+export const ownHeading = (page: Page) =>
+  page.startsWith('finance') || ['suppliers', 'purchases', 'warehouse', 'production', 'inbox', 'accounts'].includes(page);
+
+/** 导航上的数字（收件箱、AI 导入）多久自己重新取一次：别的设备、别的人改了，这边最多晚这么久看到 */
+const NAV_COUNTS_INTERVAL_MS = 15_000;
+
+const validHashPage = (hash: string): Page | null => {
+  const id = hash.slice(1).split('?')[0];
+  return erpPageIds.find((page) => page === id) ?? null;
+};
+
+const hashPage = (): Page => validHashPage(location.hash) ?? 'dashboard';
+
+/**
+ * 地址栏 # 后面是哪一页（routeKey 是整个 #…，同一页换了参数也算变了）。切换页面时回到顶部。
+ * 出纳这类纯财务账号只看财务页面，打开别的页面时换到财务概览。
+ */
+export function useHashPage(financeOnly: boolean) {
+  const [page, setPage] = useState<Page>(hashPage),
+    [routeKey, setRouteKey] = useState(location.hash);
+  useEffect(() => {
+    const f = () => {
+      setRouteKey(location.hash);
+      setPage(hashPage());
+    };
+    window.addEventListener('hashchange', f);
+    return () => window.removeEventListener('hashchange', f);
+  }, []);
+  useEffect(() => {
+    if (routeKey && !validHashPage(routeKey)) {
+      const target: Page = financeOnly ? 'finance' : 'dashboard';
+      history.replaceState(null, '', '#' + target);
+      setPage(target);
+      setRouteKey('#' + target);
+      return;
+    }
+    if (financeOnly && !financeOnlyPageAllowed(page)) {
+      history.replaceState(null, '', '#finance');
+      setPage('finance');
+      setRouteKey('#finance');
+    }
+  }, [financeOnly, page, routeKey]);
+  // 切换页面时回到顶部（编辑窗由 RecordPages 自己关）
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
+  return { page, routeKey };
+}
+
+/** 导航角标：收件箱待处理、AI 导入还要人处理的。和今日页用同一套识别导入的服务接口；纯财务账号不取。 */
+export function useNavCounts(actorId: string | undefined, financeOnly: boolean) {
+  const [inbox, setInbox] = useState(0),
+    [imports, setImports] = useState(0);
+  useEffect(() => {
+    if (!actorId || financeOnly) return;
+    const load = () => {
+      // 角标取不到（网断了、服务在重启）就留着上一次的数，下一轮再取，不打扰人
+      aiFilesService
+        .open()
+        .then((open) => setImports(open.length))
+        .catch(() => {});
+      inboxService
+        .pending(1)
+        .then((v) => setInbox(v.total))
+        .catch(() => {});
+    };
+    load();
+    const stopBusinessChanged = listen('erp-business-changed', load);
+    const timer = setInterval(load, NAV_COUNTS_INTERVAL_MS);
+    // 从别的窗口、别的应用切回来时，导航数字和眼前的列表都重新取（服务器不推送）
+    const stopReturn = refreshOnReturn();
+    return () => {
+      stopBusinessChanged();
+      clearInterval(timer);
+      stopReturn();
+    };
+    // 换了账号或权限变了（变成、不再是纯财务账号）都重新开始取
+  }, [actorId, financeOnly]);
+  return { inbox, imports };
+}
+
+export type Notice = { message: string; tone: 'done' | 'error' };
+/**
+ * 底部提示：弹窗里办完事就关掉窗口，提示交给这里显示，例如从订单安排生产后“已安排生产”；
+ * 窗口关了但没办成的（tone 为 error），原因也在这里用红色提示说出来，多停一会儿，来得及看清原因。
+ */
+export function useNotice() {
+  const [notice, setNotice] = useState<Notice | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), notice.tone === 'error' ? 9000 : 4500);
+    return () => clearTimeout(t);
+  }, [notice]);
+  useEffect(
+    () =>
+      listen('erp-notice', (detail: NoticeDetail) => {
+        const next = readNotice(detail);
+        if (next) setNotice(next);
+      }),
+    [],
+  );
+  const notify = (message: string, tone: 'done' | 'error' = 'done') => setNotice(message ? { message, tone } : null);
+  return { notice, notify };
+}
+
+/** Ctrl+K（Mac 上 ⌘K）打开、关上搜索面板 */
+export function usePaletteShortcut(toggle: () => void) {
+  // 快捷键只在打开页面时挂一次；toggle 每次渲染都是新函数，放进 ref 里取最新的
+  const latest = useRef(toggle);
+  useEffect(() => {
+    latest.current = toggle;
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        latest.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+}
+
+/** 另一个标签页切换了账号：这里的页面和表单还是上一个账号的，重新加载。 */
+export function useReloadOnAccountSwitch(actorId: string | undefined) {
+  const shown = useRef<string | null>(null);
+  useEffect(() => {
+    const id = actorId || null;
+    if (shown.current && id && id !== shown.current) location.reload();
+    if (id) shown.current = id;
+  }, [actorId]);
+}

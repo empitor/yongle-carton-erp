@@ -1,8 +1,10 @@
-import { precisionTotal, exactText } from '../../shared/precision.js';
+import { CENTS_PER_YUAN, roundedQuotient } from '../../shared/core/index.js';
 import { financeError } from './core.js';
 
 type Rational = { numerator: bigint; denominator: bigint };
 const zero = { numerator: 0n, denominator: 1n };
+/** 税率是百分数（13 就是 13%） */
+const PERCENT = 100n;
 function gcd(a: bigint, b: bigint): bigint {
   return b === 0n ? a : gcd(b, a % b);
 }
@@ -23,20 +25,9 @@ function decimal(value: string) {
   return ratio(BigInt(whole + fraction), 10n ** BigInt(fraction.length));
 }
 function cents(value: Rational) {
-  const n = (value.numerator * 200n + value.denominator) / (value.denominator * 2n);
+  const n = roundedQuotient(value.numerator * CENTS_PER_YUAN, value.denominator);
   if (n > BigInt(Number.MAX_SAFE_INTEGER)) financeError('单据金额超出可保存范围。');
   return Number(n);
-}
-
-export function deliveryLineExact(quantity: string, unitPriceExact: string) {
-  const q = /^(\d+)(?:\.(\d{1,3}))?$/.exec(quantity);
-  if (!q) financeError('数量单位无法换算。');
-  const units = BigInt(q[1] + (q[2] ?? '').padEnd(3, '0'));
-  if (units > BigInt(Number.MAX_SAFE_INTEGER)) financeError('数量超出可保存范围。');
-  return exactText(
-    precisionTotal([{ quantity: Number(units), unitPriceExact, unitPriceCents: 0 }]).units,
-    7,
-  );
 }
 
 export function documentMoney(lines: { exact: string; mode: string; rate: string }[]) {
@@ -44,9 +35,9 @@ export function documentMoney(lines: { exact: string; mode: string; rate: string
     if (!['含税', '未税', '不含税'].includes(mode)) financeError('含税口径未明确。');
     if (!rate) financeError('缺少税率。');
     const r = decimal(rate.replace(/%$/, ''));
-    if (r.numerator > 100n * r.denominator) financeError('税率超出范围。');
+    if (r.numerator > PERCENT * r.denominator) financeError('税率超出范围。');
     const base = decimal(exact);
-    const denominator = r.denominator * 100n;
+    const denominator = r.denominator * PERCENT;
     const numerator = denominator + r.numerator;
     const net =
       mode === '含税' ? ratio(base.numerator * denominator, base.denominator * numerator) : base;
@@ -59,7 +50,7 @@ export function documentMoney(lines: { exact: string; mode: string; rate: string
   const split = (key: 'net' | 'gross', total: number) => {
     const fractions = amounts.map((line, i) => {
       const { numerator, denominator } = line[key];
-      const scaled = numerator * 100n;
+      const scaled = numerator * CENTS_PER_YUAN;
       return { i, whole: scaled / denominator, remainder: scaled % denominator, denominator };
     });
     const result = fractions.map((line) => Number(line.whole));
@@ -92,4 +83,15 @@ export function documentMoney(lines: { exact: string; mode: string; rate: string
 
 export function theoreticalMoney(lines: { exact: string }[]) {
   return documentMoney(lines.map(({ exact }) => ({ exact, mode: '未税', rate: '0' })));
+}
+
+/** 大整数转回普通数字，超出能精确保存的范围就报错 */
+export function safeCents(value: bigint) {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER))
+    financeError('金额超出可精确保存的范围。');
+  return Number(value);
+}
+export function proportion(amount: number, numerator: number, denominator: number) {
+  if (denominator <= 0 || numerator < 0) financeError('无有效分摊基数。');
+  return safeCents(roundedQuotient(BigInt(amount) * BigInt(numerator), BigInt(denominator)));
 }

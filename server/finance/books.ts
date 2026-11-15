@@ -1,10 +1,12 @@
 import { z } from 'zod';
-import { accountCodeSchema, auxiliaryKinds, periodSchema } from '../../shared/finance.js';
-import { clampPage, parsePaging } from '../paging.js';
-import type { Actor } from '../auth.js';
-import type { Store } from '../db.js';
+import { accountCodeSchema, auxiliaryKinds, periodSchema } from '../../shared/finance/index.js';
+import { allPages } from './query.js';
+import { clampPage, count, many, one, parsePaging, rows } from '../core/index.js';
+import type { Actor } from '../core/index.js';
+import type { Store } from '../core/index.js';
 import { financeActor, financeError } from './core.js';
-import { cents, column, moneyColumn, singleSheet, textCell, totalCents, type ExportRow } from './export-workbook.js';
+import { cents, column, moneyColumn, singleSheet, textCell, totalCents, widths, type ExportRow } from './export-workbook.js';
+import { yearOf } from './days.js';
 
 const bookKinds = ['general', 'detail', 'journal', 'balance', 'auxiliary', 'cash', 'bank'] as const;
 type BookKind = (typeof bookKinds)[number];
@@ -42,12 +44,71 @@ const bookNames: Record<BookKind, string> = {
   general: '总账', detail: '明细账', journal: '序时账', balance: '科目余额表',
   auxiliary: '辅助明细账', cash: '现金日记账', bank: '银行存款日记账',
 };
+const entry = rows.fin_entries.shape;
+const voucher = rows.fin_vouchers.shape;
+/** 明细账、序时账、日记账一行：一条分录，红字凭证的金额取负 */
+const detailRow = z.object({
+  voucher_id: entry.voucher_id,
+  date: voucher.date,
+  period: voucher.period,
+  number: voucher.number,
+  reversal_of: voucher.reversal_of,
+  position: entry.position,
+  account_code: entry.account_code,
+  account_name: rows.fin_accounts.shape.name,
+  description: entry.description,
+  auxiliary_kind: entry.auxiliary_kind,
+  auxiliary_id: entry.auxiliary_id,
+  auxiliary_name: entry.auxiliary_name,
+  cash_flow: entry.cash_flow,
+  debit: z.number(),
+  credit: z.number(),
+});
+/** 总账、科目余额表、辅助明细账一行：一个科目（按辅助项分开时一个辅助项）期初、本期、本年和期末 */
+const balanceRow = z.object({
+  account_code: entry.account_code,
+  account_name: rows.fin_accounts.shape.name,
+  auxiliary_kind: z.string().nullable(),
+  auxiliary_id: z.string().nullable(),
+  auxiliary_name: z.string().nullable(),
+  opening: z.number(),
+  debit: z.number(),
+  credit: z.number(),
+  year_debit: z.number(),
+  year_credit: z.number(),
+  ending: z.number(),
+});
+type DetailRow = z.output<typeof detailRow>;
+type BalanceRow = z.output<typeof balanceRow>;
+/** 按科目汇总的几种账簿 */
+const groupedBooks = ['general', 'balance', 'auxiliary'] as const;
+type GroupedBook = (typeof groupedBooks)[number];
+/** 一页账簿：行、分页、期间、谁在看 */
+type BookPage<Row> = { rows: Row[]; page: number; pageSize: number; filteredRecords: number; period: string; viewer: string };
+const startPeriod = rows.fin_settings.pick({ start_period: true });
+const openingYearRow = z.object({ year: z.string().nullable() });
+
+/** 明细账、序时账、日记账：这个期间已记账凭证的分录，extra、args 是科目、现金银行、辅助项的筛选 */
+function detailQuery(period: string, extra: string, args: (string | null)[]) {
+  return {
+    sql: `SELECT v.id AS voucher_id,v.date,v.period,v.number,v.reversal_of,e.position,
+        e.account_code,a.name AS account_name,e.description,e.auxiliary_kind,e.auxiliary_id,e.auxiliary_name,
+        e.cash_flow,CASE WHEN v.reversal_of IS NULL THEN e.debit ELSE -e.debit END AS debit,
+        CASE WHEN v.reversal_of IS NULL THEN e.credit ELSE -e.credit END AS credit
+        FROM fin_entries e JOIN fin_vouchers v ON v.id=e.voucher_id
+        JOIN fin_accounts a ON a.code=e.account_code WHERE v.status='posted' AND v.period=? ${extra}`,
+    args: [period, ...args],
+    order: 'date,number,position',
+    columns: detailColumns,
+    schema: detailRow,
+  };
+}
 
 export class FinanceBooks {
   constructor(private readonly store: Store) {}
 
   private query(kind: BookKind, query: Filters) {
-    const group = ['general', 'balance', 'auxiliary'].includes(kind);
+    const group = groupedBooks.some((k) => k === kind);
     const auxiliary =
       kind === 'auxiliary' || query.auxiliaryKind !== undefined || query.auxiliaryId !== undefined;
     const account = query.account ? query.account + '%' : null;
@@ -66,22 +127,13 @@ export class FinanceBooks {
       query.auxiliaryId ?? null,
       query.auxiliaryId ?? null,
     ];
-    if (!group)
-      return {
-        sql: `SELECT v.id AS voucher_id,v.date,v.period,v.number,v.reversal_of,e.position,
-        e.account_code,a.name AS account_name,e.description,e.auxiliary_kind,e.auxiliary_id,e.auxiliary_name,
-        e.cash_flow,CASE WHEN v.reversal_of IS NULL THEN e.debit ELSE -e.debit END AS debit,
-        CASE WHEN v.reversal_of IS NULL THEN e.credit ELSE -e.credit END AS credit
-        FROM fin_entries e JOIN fin_vouchers v ON v.id=e.voucher_id
-        JOIN fin_accounts a ON a.code=e.account_code WHERE v.status='posted' AND v.period=? ${extra}`,
-        args: [query.period, ...args],
-        order: 'date,number,position',
-        columns: detailColumns,
-      };
-    const year = query.period.slice(0, 4);
-    const openingYear = this.store.db
-      .prepare('SELECT substr(start_period,1,4) AS year FROM fin_settings WHERE id=1')
-      .get()?.year;
+    if (!group) return detailQuery(query.period, extra, args);
+    const year = yearOf(query.period);
+    const openingYear = one(
+      this.store.db,
+      openingYearRow,
+      'SELECT substr(start_period,1,4) AS year FROM fin_settings WHERE id=1',
+    )?.year;
     const dimension = auxiliary ? 'auxiliary_kind,auxiliary_id' : 'NULL,NULL';
     return {
       sql: `WITH activity AS (
@@ -123,27 +175,35 @@ export class FinanceBooks {
       ],
       order: 'account_code,auxiliary_kind,auxiliary_id',
       columns: balanceColumns,
+      schema: balanceRow,
     };
   }
 
+  /** 读一页账簿：总账、科目余额表、辅助明细账按科目汇总（BalanceRow），明细账、序时账、日记账逐条分录（DetailRow） */
+  read(actor: Actor | null, rawKind: GroupedBook, rawQuery: unknown): BookPage<BalanceRow>;
+  read(actor: Actor | null, rawKind: Exclude<BookKind, GroupedBook>, rawQuery: unknown): BookPage<DetailRow>;
+  read(actor: Actor | null, rawKind: unknown, rawQuery: unknown): BookPage<BalanceRow> | BookPage<DetailRow>;
   read(actor: Actor | null, rawKind: unknown, rawQuery: unknown) {
     const user = financeActor(actor),
       kind = z.enum(bookKinds).parse(rawKind),
       query = filters.parse(rawQuery);
     const paging = parsePaging(rawQuery);
-    const start = this.store.db
-      .prepare('SELECT start_period FROM fin_settings WHERE id=1')
-      .get()?.start_period;
-    if (!start || query.period < String(start)) financeError('账簿期间必须在财务启用之后。');
-    const { sql, args, order } = this.query(kind, query);
     const db = this.store.db;
-    const total = Number(db.prepare(`SELECT count(*) AS n FROM (${sql})`).get(...args)?.n);
+    const start = one(db, startPeriod, 'SELECT start_period FROM fin_settings WHERE id=1')?.start_period;
+    if (!start || query.period < start) financeError('账簿期间必须在财务启用之后。');
+    const { sql, args, order, schema } = this.query(kind, query);
+    const total = count(db, `SELECT count(*) FROM (${sql})`, ...args);
     const page = clampPage(paging.page ?? 1, paging.pageSize, total);
-    const rows = db
-      .prepare(`SELECT * FROM (${sql}) ORDER BY ${order} LIMIT ? OFFSET ?`)
-      .all(...args, paging.pageSize, (page - 1) * paging.pageSize);
+    const found = many(
+      db,
+      schema,
+      `SELECT * FROM (${sql}) ORDER BY ${order} LIMIT ? OFFSET ?`,
+      ...args,
+      paging.pageSize,
+      (page - 1) * paging.pageSize,
+    );
     return {
-      rows,
+      rows: found,
       page,
       pageSize: paging.pageSize,
       filteredRecords: total,
@@ -157,56 +217,18 @@ export class FinanceBooks {
     const kind = z.enum(bookKinds).parse(rawKind),
       query = filters.parse(rawQuery);
     const { columns } = this.query(kind, query);
-    const rows: ExportRow[] = [];
-    for (let page = 1; ; page++) {
-      const data = this.read(actor, kind, { ...query, page, pageSize: 200 });
-      rows.push(...data.rows);
-      if (page * data.pageSize >= data.filteredRecords) break;
-    }
+    const rows = allPages<ExportRow>((paging) => this.read(actor, kind, { ...query, ...paging }));
     const title = bookNames[kind];
     const bytes = singleSheet(title, '期间：' + query.period, (sheet) => {
       sheet.table(
-        columns.map(([, label, monetary]) => monetary ? moneyColumn(label) : column(label, label === '摘要' ? 42 : 24)),
+        // 导出时摘要列宽一些，别的文字列一样宽
+        columns.map(([, label, monetary]) =>
+          monetary ? moneyColumn(label) : column(label, label === '摘要' ? widths.note : widths.medium),
+        ),
         rows.map((row) => columns.map(([key, , monetary]) => monetary ? cents(row[key]) : textCell(row[key]))),
         columns.map(([key, , monetary], index) => monetary ? totalCents(rows, (row) => row[key]) : index === 0 ? '合计' : null),
       );
     });
     return { title, period: query.period, bytes };
-  }
-
-  audit(actor: Actor | null, rawQuery: unknown) {
-    financeActor(actor, 'finance:close');
-    const q = z
-      .object({
-        actorId: z.string().max(100).optional(),
-        from: periodSchema.optional(),
-        to: periodSchema.optional(),
-        entity: z.string().max(80).optional(),
-        recordId: z.coerce.number().int().positive().optional(),
-      })
-      .parse(rawQuery);
-    const { page: requestedPage, pageSize } = parsePaging(rawQuery);
-    const args = [
-      q.actorId ?? null,
-      q.actorId ?? null,
-      q.from ?? null,
-      q.from ?? null,
-      q.to ?? null,
-      q.to ?? null,
-      q.entity ?? null,
-      q.entity ?? null,
-      q.recordId ?? null,
-      q.recordId ?? null,
-    ];
-    const where = `FROM business_audit WHERE source='finance'
-      AND (? IS NULL OR actor_id=?) AND (? IS NULL OR substr(at,1,7)>=?)
-      AND (? IS NULL OR substr(at,1,7)<=?) AND (? IS NULL OR entity=?) AND (? IS NULL OR record_id=?)`;
-    const total = Number(this.store.db.prepare('SELECT count(*) AS n ' + where).get(...args)?.n);
-    const page = clampPage(requestedPage ?? 1, pageSize, total);
-    const rows = this.store.db
-      .prepare('SELECT * ' + where + ' ORDER BY id DESC LIMIT ? OFFSET ?')
-      .all(...args, pageSize, (page - 1) * pageSize)
-      .map((row) => ({ ...row, document: JSON.parse(String(row.document)) as unknown }));
-    return { rows, page, pageSize, filteredRecords: total };
   }
 }

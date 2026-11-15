@@ -1,0 +1,423 @@
+/* 单据导出窗口和模板设置 */
+.export-file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-control);
+}
+.export-file-card span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+/* admin：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。
+   范围：收件箱、账号、账号菜单弹窗、单据导出、数据管理、单据模板、AI 设置与提示词、插件。
+   只用新类名（adm- 开头），不覆盖 design.css 的公共样式。字号 12/13/14/16，圆角 4/8。 */
+
+/* ---------- 通用 ---------- */
+.adm-muted {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.adm-inline-status {
+  margin: var(--space-sm) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+/* ---------- 单据导出（采购、送货详情里的一节） ---------- */
+.record-section.adm-export > header {
+  margin-bottom: var(--space-2xs);
+}
+.record-section.adm-export-bare > header {
+  margin-bottom: var(--space-md);
+}
+.record-section.adm-export-bare > header .adm-export-hint {
+  margin: 0;
+}
+.adm-export-link {
+  margin-left: auto;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+}
+.adm-export-hint {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.adm-export-template {
+  display: flex;
+  flex: 1 1 200px;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-export-template select {
+  flex: 1;
+  min-width: 0;
+}
+.adm-export-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.adm-export-buttons > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 28px;
+  padding: var(--space-3xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+.adm-export-buttons .more-menu > summary {
+  width: 28px;
+  height: 28px;
+}
+.adm-export-formal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--r-panel);
+  background: var(--surface-muted);
+}
+.adm-export-formal-text {
+  display: flex;
+  flex: 1 1 200px;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3xs);
+}
+.adm-export-formal-text strong {
+  font-size: var(--text-sm);
+}
+.adm-export-formal-text small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-export-formal select {
+  width: 140px;
+}
+.adm-export .export-file-card {
+  margin-top: var(--space-sm);
+}
+.adm-export .record-hint {
+  margin: var(--space-sm) 0 0;
+}
+.adm-word-note {
+  margin: 0 0 var(--space-sm);
+}
+/* 放进详情的操作栏时（例如生产页的送货详情）独占一行，排在按钮下面 */
+.record-actions > .adm-export {
+  flex: 1 0 100%;
+  order: 10;
+  margin-top: var(--space-2xs);
+  padding-top: var(--space-sm);
+}
+/* 导出一节里的下拉和按钮统一 13px，不跟着所在面板的大号表单走 */
+.record-section.adm-export select {
+  min-height: 32px;
+  font-size: var(--text-sm);
+}
+.record-section.adm-export .adm-export-formal > button {
+  min-height: 32px;
+  padding: var(--space-2xs) var(--space-lg);
+  font-size: var(--text-sm);
+}
+
+/* ---------- 单据模板（设置 → 单据模板） ---------- */
+.adm-template > .form-message {
+  margin-bottom: var(--space-md);
+}
+.adm-template-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+.adm-template-bar .record-view-tabs {
+  margin: 0;
+}
+.adm-template-bar > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.adm-template-bar > button:first-of-type {
+  margin-left: auto;
+}
+.adm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.adm-check.form-field {
+  flex-direction: row;
+  align-items: center;
+}
+.adm-check input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+}
+.adm-template-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+.adm-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-lg) var(--space-xl) var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.adm-color {
+  padding: var(--space-3xs) var(--space-2xs);
+  cursor: pointer;
+}
+.adm-template-preview {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.adm-template-preview > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.adm-template-preview > header > div {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.adm-template-preview h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.adm-template-preview header p {
+  margin: var(--space-3xs) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-template-preview > header button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.adm-template-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-sm);
+  min-height: 320px;
+  padding: var(--space-2xl);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.adm-template-empty strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.adm-template-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-above-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.adm-template-footer > span {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  max-width: none;
+  text-align: left;
+}
+.adm-template-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+/* 明细列：已显示的一行一列，可排序；可加入的列排成小块 */
+.adm-col-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  list-style: none;
+}
+.adm-col-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 36px;
+  padding: var(--space-3xs) var(--space-2xs) var(--space-3xs) var(--space-sm);
+}
+.adm-col-list li + li {
+  border-top: 1px solid var(--border);
+}
+.adm-col-order {
+  width: 20px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+.adm-col-list label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.adm-col-list label small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-col-list input[type='checkbox'],
+.adm-chip input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+}
+.adm-col-list .icon-button {
+  width: 28px;
+  min-height: 28px;
+  height: 28px;
+  padding: 0;
+}
+.adm-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.adm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 28px;
+  padding: var(--space-3xs) 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-control);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  cursor: pointer;
+}
+.adm-chip:hover {
+  background: var(--surface-hover);
+}
+.adm-template-more .adm-chip {
+  border-style: solid;
+}
+
+@media (max-width: 1180px) {
+  .adm-template-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .adm-template-preview {
+    position: static;
+  }
+}
+/* 页签横排；条目卡片底部不吃全局 footer 的内边距 */
+.adm-template-bar > nav.record-view-tabs {
+  display: inline-flex;
+  flex-direction: row;
+  width: auto;
+}
+
+/* 单据模板：顶部一行 分类 + 模板下拉 + 设为默认 + 更多（靠右） */
+.adm-template-bar > .more-menu {
+  margin-left: auto;
+}
+.adm-template-bar > select {
+  width: 240px;
+  max-width: 100%;
+}
+.adm-template-preview > header > .secondary {
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .adm-template-bar > select {
+    flex: 1 1 200px;
+    width: auto;
+  }
+  .adm-fieldset {
+    padding: var(--space-md);
+  }
+  .adm-template-footer > span {
+    flex-basis: 100%;
+  }
+  .adm-template-footer > .primary {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 700px) {
+  .adm-template-footer {
+    flex-wrap: wrap;
+    padding: var(--space-md);
+    bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom));
+    z-index: var(--z-above-3);
+  }
+}
+.management-dialog:has(.word-file-preview) {
+  width: min(1240px, calc(100vw - 48px));
+}
+.template-paper-scroll .business-form-pages {
+  max-height: none;
+  overflow: visible;
+}
+
+.template-paper-scroll {
+  max-height: 65vh;
+  overflow: auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--paper-bg);
+}
+.template-paper-scroll .business-form-preview {
+  max-height: none;
+  overflow: visible;
+}

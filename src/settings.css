@@ -1,0 +1,144 @@
+/* 设置总页的页签 */
+.ai-settings-tabs button {
+  min-width: 118px;
+}
+.ai-settings-tabs button[aria-selected='true'] {
+  border-color: var(--border-strong);
+}
+.import-main > .page-heading {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .oi-workspace-head .oi-account {
+    font-size: var(--text-xs);
+    padding: 3px;
+  }
+}
+
+.import-main > footer {
+  display: none;
+}
+
+/* 修改密码：沿用共用的改密表单，排成和编辑窗一样 */
+.adm-password .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.adm-password .auth-form label.password-field {
+  gap: var(--space-2xs);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+.adm-password .auth-form input:not([type='checkbox']) {
+  min-height: 32px;
+  padding: 5px 40px 5px var(--space-sm);
+  border: 1px solid var(--border-strong);
+}
+.adm-password .auth-form > button.primary {
+  align-self: flex-end;
+  min-width: 120px;
+  margin-top: var(--space-2xs);
+  height: auto;
+  min-height: 32px;
+  padding: var(--space-2xs) var(--space-lg);
+  font-size: var(--text-md);
+}
+
+/* ---------- 设置页签：和财务同一套（record-view-tabs fin-tabs）；去掉旧样式留下的最小宽度 ---------- */
+:root[data-ui='refined'] .adm-settings-tabs.fin-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  margin: 0 0 var(--space-lg);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:root[data-ui='refined'] .adm-settings-tabs.fin-tabs button {
+  flex: none;
+  min-width: 0;
+}
+
+/* 提示词：用途下拉 + 一句说明 */
+.adm-prompt-module {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.adm-prompt-module-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.adm-prompt-module-pick select {
+  width: 220px;
+  max-width: 100%;
+}
+.adm-prompt-module > .adm-muted {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: 18px;
+}
+
+@media (max-width: 700px) {
+  .adm-prompt-module-pick {
+    flex: 1 1 100%;
+  }
+  .adm-prompt-module-pick select {
+    flex: 1;
+    width: auto;
+  }
+  .adm-prompt-module > .adm-muted {
+    flex-basis: 100%;
+  }
+}
+
+/* 设置 → API 配置（非管理员）：只看用的是哪个模型、管理员填没填密钥 */
+.adm-ai-user {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 560px;
+  padding: var(--space-lg) var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.adm-ai-user .adm-muted {
+  margin: 0;
+}
+.adm-ai-user-model {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  margin: 0;
+  font-size: var(--text-md);
+}
+.adm-ai-user-model span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.oi-account {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+/* 收件箱：明细是主角，聊天默认一行 */
+.import-main {
+  padding: var(--space-sm) var(--space-md);
+}
+/* 设置：页签统一成下划线样式 */
+.ai-settings-tabs {
+  flex-direction: row;
+  flex-wrap: wrap;
+  display: flex;
+  margin: 0 0 var(--space-md);
+}

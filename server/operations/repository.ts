@@ -1,53 +1,71 @@
-import type { Store } from '../db.js';
-import {
-  quantityString,
-  quantityUnits,
-  lineMoney,
-  sumMoney,
-  formatStockSize,
-} from '../../shared/operations.js';
-import { matchesMovement, type MovementFilters } from '../../shared/movement-filters.js';
-import { purchaseLineAmount } from '../../shared/physical-flow.js';
-import { receiptEvents, effectiveReceiptUnits } from './fulfillment.js';
-import { fulfillmentSummary, arrivalLineStatus } from '../../shared/fulfillment.js';
+import { z } from 'zod';
+import type { Store } from '../core/index.js';
+import { many, one, partyView, rows } from '../core/index.js';
+import { stockKinds, type MovementFilters } from '../../shared/business/index.js';
+import type { PurchaseRowView, PurchaseView, StockItemView, SupplierView } from '../../shared/business/index.js';
+import { quantityString } from '../../shared/core/index.js';
+import { arrivalSource } from './hooks.js';
+import { MovementQueries } from './movements.js';
+import { assemblePurchases, purchaseHeads, purchaseScope } from './purchase-rows.js';
+import { noRecords, recordScope, type RecordIds } from './record-scope.js';
+import { readStockDocument } from './stock-document.js';
 
-function recordScope(ids: number | readonly number[] | undefined) {
-  if (ids === undefined) return { predicate: '', params: [] };
-  return typeof ids === 'number'
-    ? { predicate: '= ?', params: [ids] }
-    : { predicate: 'IN (SELECT value FROM json_each(?))', params: [JSON.stringify(ids)] };
+const totalRow = z.object({ n: z.number() });
+const stockTotalRow = z.object({ id: z.number(), n: z.number() });
+const stockRow = rows.stock_items.extend({ kind: z.enum(stockKinds) });
+
+/** 一个库存品的样子：库里的一行加上结余、已安排、在途（千分整数），archived 是否已归档 */
+function stockItemView(
+  r: z.output<typeof stockRow>,
+  n: { balance: number; reserved: number; onOrder: number; archived: boolean },
+): StockItemView {
+  return {
+    ...readStockDocument(r.document, r.id),
+    id: r.id,
+    name: r.name,
+    kind: r.kind,
+    unit: r.unit,
+    productId: r.product_id,
+    version: r.version,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    quantity: quantityString(n.balance),
+    balanceUnits: n.balance,
+    reservedUnits: n.reserved,
+    reserved: quantityString(n.reserved),
+    // 可用量只用于提示，可能因还没核对的单据超排而为负；实际扣减仍在确认时校验。
+    availableUnits: n.balance - n.reserved,
+    onOrderUnits: n.onOrder,
+    onOrder: quantityString(n.onOrder),
+    archived: n.archived,
+  };
 }
-/** 流水被管理员直接改写或删除前留下原值：余额仍由当前流水派生，修订台账负责追溯。 */
-export function recordMovementRevision(
-  store: Store,
-  actor: { id: string; name: string },
-  reason: string,
-  before: Record<string, unknown>,
-  after: Record<string, unknown> | null,
-) {
-  const { __rowid, _rowid, ...original } = before;
-  store.db
-    .prepare(
-      'INSERT INTO stock_movement_revisions(movement_id,item_id,at,actor_id,actor_name,reason,before_document,after_document) VALUES(?,?,?,?,?,?,?,?)',
-    )
-    .run(
-      String(before.id),
-      Number(before.item_id),
-      new Date().toISOString(),
-      actor.id,
-      actor.name,
-      reason,
-      JSON.stringify(original),
-      after ? JSON.stringify(after) : null,
-    );
-}
+
+/** 采购库存的读取：供应商、采购单、库存品、库存流水。列表按范围批量读、批量组装，不逐条查。 */
 export class OperationsRepository {
-  constructor(readonly store: Store) {}
-  suppliers(include = false, ids?: number | readonly number[]): any[] {
-    if (Array.isArray(ids) && !ids.length) return [];
+  private readonly moves: MovementQueries;
+  constructor(readonly store: Store) {
+    this.moves = new MovementQueries(store);
+  }
+  suppliers(include = false, ids?: RecordIds): SupplierView[] {
+    if (noRecords(ids)) return [];
     const { predicate, params } = recordScope(ids);
-    const history = new Map<number, any[]>();
-    for (const p of this.purchases(true, undefined, ids)) {
+    const history = this.purchaseHistory(ids);
+    const archived = this.store.archivedIds('suppliers');
+    return many(this.store.db, rows.suppliers, 'SELECT * FROM suppliers' + (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC', ...params)
+      .filter((r) => include || !archived.has(r.id))
+      .map((r) => ({
+        ...partyView(r),
+        archived: archived.has(r.id),
+        purchaseHistory: history.get(r.id) || [],
+      }));
+  }
+  /** 这几家供应商的采购历史（归档的采购单也算），按供应商分组 */
+  private purchaseHistory(supplierIds: RecordIds) {
+    const history = new Map<number, SupplierView['purchaseHistory']>();
+    // 已到货和到货进度与采购单完整视图同一个口径（单据流转没加载时读明细的缓存列，见 purchaseRows）
+    const arrivals = arrivalSource(false);
+    for (const p of this.purchaseRows(true, undefined, supplierIds, arrivals ? (pids) => arrivals.purchases(this.store, pids).receivedUnits : undefined)) {
       const group = history.get(p.supplierId) || [];
       group.push({
         id: p.id,
@@ -59,282 +77,112 @@ export class OperationsRepository {
       });
       history.set(p.supplierId, group);
     }
-    const archived = this.store.archivedIds('suppliers');
-    return this.store.db
-      .prepare(
-        'SELECT id,name,contact,phone,address,notes,version,created_at AS createdAt FROM suppliers' +
-          (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC',
-      )
-      .all(...params)
-      .filter((r) => include || !archived.has(Number(r.id)))
-      .map((r) => ({
-        ...r,
-        archived: archived.has(Number(r.id)),
-        purchaseHistory: history.get(Number(r.id)) || [],
-      }));
+    return history;
   }
   /** 只需要确认供应商或取名称时不必加载全部采购历史。 */
   supplierName(id: number, include = false): string | undefined {
     if (!include && this.store.archived('suppliers', id)) return undefined;
-    const row = this.store.db.prepare('SELECT name FROM suppliers WHERE id=?').get(id);
-    return row ? String(row.name) : undefined;
+    return one(this.store.db, rows.suppliers.pick({ name: true }), 'SELECT name FROM suppliers WHERE id=?', id)?.name;
   }
-  /** 主记录、明细和到货历史均按同一范围组装；列表仍批量读取。 */
-  purchases(include = false, ids?: number | readonly number[], supplierIds?: number | readonly number[]): any[] {
-    if (Array.isArray(ids) && !ids.length) return [];
-    const scope = recordScope(ids);
-    const suppliers = recordScope(supplierIds);
-    const conditions = [scope.predicate && 'id ' + scope.predicate, suppliers.predicate && 'supplier_id ' + suppliers.predicate].filter(Boolean);
-    const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
-    const params = [...scope.params, ...suppliers.params];
-    const archived = this.store.archivedIds('purchases');
-    const rows = this.store.db.prepare(
-      'SELECT id,number,supplier_id AS supplierId,supplier_name AS supplierName,customer_order_id AS customerOrderId,order_date AS orderDate,expected_date AS expectedDate,status AS baseStatus,notes,version,created_at AS createdAt,updated_at AS updatedAt FROM purchases' + where + ' ORDER BY id DESC',
-    ).all(...params).filter((r) => include || !archived.has(Number(r.id)));
-    const events = receiptEvents(this.store, rows.map((r) => Number(r.id))),
-      receivedUnits = effectiveReceiptUnits(events);
-    // 按明细和采购单预先分组，避免“每条明细×全部到货事件”的重复扫描。
-    const discrepanciesByLine = new Map<number, any[]>(),
-      amountsByLine = new Map<number, (string | null)[]>(),
-      eventsByPurchase = new Map<number, typeof events>();
-    const push = <K, V>(map: Map<K, V[]>, key: K, value: V) => {
-      const group = map.get(key);
-      if (group) group.push(value);
-      else map.set(key, [value]);
-    };
-    for (const e of events) {
-      const purchaseIds = new Set<number>();
-      if (e.purchaseId !== undefined) purchaseIds.add(e.purchaseId);
-      for (const line of e.lines) if (line.purchaseId) purchaseIds.add(line.purchaseId);
-      for (const id of purchaseIds) push(eventsByPurchase, id, e);
-      if (!e.effective) continue;
-      for (const d of e.discrepancies || [])
-        if (d.lineId) push(discrepanciesByLine, d.lineId, { ...d, receiptId: e.id });
-      for (const line of e.lines) if (line.lineId) push(amountsByLine, line.lineId, line.amount);
-    }
-    const linesByPurchase = new Map<number, any[]>();
-    for (const l of this.store.db
-      .prepare(
-        'SELECT id,purchase_id AS purchaseId,stock_item_id AS stockItemId,document,quantity_units AS quantityUnits,received_units AS receivedUnits FROM purchase_lines' +
-          (where ? ' WHERE purchase_id IN (SELECT id FROM purchases' + where + ')' : '') + ' ORDER BY id',
-      )
-      .all(...params))
-      push(linesByPurchase, Number(l.purchaseId), l);
-    const orderNumbers = new Map(
-      this.store.db
-        .prepare(
-          'SELECT id,number FROM orders WHERE id IN (SELECT customer_order_id FROM purchases' + where + ')',
-        )
-        .all(...params)
-        .map((o) => [Number(o.id), String(o.number)]),
-    );
-    return rows.map((r) => {
-        const lines = (linesByPurchase.get(Number(r.id)) || [])
-          .map((l) => ({
-            ...JSON.parse(String(l.document)),
-            id: Number(l.id),
-            stockItemId: l.stockItemId,
-            quantity: quantityString(Number(l.quantityUnits)),
-            receivedQuantity: quantityString(receivedUnits.get(Number(l.id)) || 0),
-            remainingQuantity: quantityString(
-              Math.max(0, Number(l.quantityUnits) - (receivedUnits.get(Number(l.id)) || 0)),
-            ),
-            remainingUnits: Math.max(
-              0,
-              Number(l.quantityUnits) - (receivedUnits.get(Number(l.id)) || 0),
-            ),
-            arrivalStatus: arrivalLineStatus(
-              Number(l.quantityUnits),
-              receivedUnits.get(Number(l.id)) || 0,
-            ),
-            quantityUnits: Number(l.quantityUnits),
-            receivedUnits: receivedUnits.get(Number(l.id)) || 0,
-            discrepancies: discrepanciesByLine.get(Number(l.id)) || [],
-            receivedAmount: sumMoney(amountsByLine.get(Number(l.id)) || []),
-            amount:
-              JSON.parse(String(l.document)).priceBasis === 'area'
-                ? purchaseLineAmount({
-                    ...JSON.parse(String(l.document)),
-                    quantity: quantityString(Number(l.quantityUnits)),
-                  })
-                : lineMoney(
-                    quantityString(Number(l.quantityUnits)),
-                    JSON.parse(String(l.document)).unitPrice,
-                  ),
-          }));
-        const summary = fulfillmentSummary(
-            lines.map((l) => l.arrivalStatus),
-            '已到齐',
-            '部分到货',
-            '未到货',
-          ),
-          arrivalProgress = summary.progress === '已到齐' ? '全部到货' : summary.progress;
-        return {
-          ...r,
-          lines,
-          businessStatus: r.baseStatus,
-          arrivalProgress,
-          discrepancies: lines.flatMap((l) => l.discrepancies),
-          reconciliationStatus: lines.some((l) => l.discrepancies.length) ? '待核对差异' : '一致',
-          arrivalSummary: { ...summary, progress: arrivalProgress },
-          status:
-            r.baseStatus === '已取消'
-              ? '已取消'
-              : arrivalProgress === '未到货'
-                ? r.baseStatus
-                : arrivalProgress,
-          customerOrderNumber: orderNumbers.get(Number(r.customerOrderId)) || '',
-          totalAmount: sumMoney(lines.map((l) => l.amount)),
-          receivedAmount: sumMoney(lines.map((l) => l.receivedAmount)),
-          archived: archived.has(Number(r.id)),
-          receipts: [...(eventsByPurchase.get(Number(r.id)) || [])]
-            .reverse()
-            .map(({ document, lines: receiptLines, ...e }) => ({
-              ...e,
-              sourceId: document.sourceId || null,
-              reason: document.correctionReason || document.reason || e.reversal?.reason || '',
-              reversed: e.status === 'reversed',
-              items: receiptLines.filter((l) => l.purchaseId === Number(r.id)),
-              correctionLines: receiptLines,
-              amount: sumMoney(receiptLines.map((l) => l.amount)),
-            })),
-        };
-      });
+  /**
+   * 采购单的完整视图：已到货按有效到货单现算，再补上到货单的信息（到货记录、待核对差异、有效到货金额），
+   * 两样都由单据流转提供（hooks.ts 的 ArrivalSource.purchases）。主记录、明细和到货历史均按同一范围组装；列表仍批量读取。
+   */
+  purchases(include = false, ids?: RecordIds, supplierIds?: RecordIds): PurchaseView[] {
+    const arrivals = arrivalSource();
+    if (noRecords(ids)) return [];
+    const scope = purchaseScope(ids, supplierIds),
+      { heads, archived } = purchaseHeads(this.store, scope, include);
+    const loaded = arrivals.purchases(this.store, heads.map((h) => h.id));
+    return loaded.apply(assemblePurchases(this.store, { heads, scope, archived, received: loaded.receivedUnits }));
   }
+  /**
+   * 采购单本身：单头、明细、已到货和到货进度，不读单据流转的表。
+   * receivedOf：按这批采购单的编号给出每条明细的已到货（千分整数）；不给时取明细的缓存列 received_units
+   * （单据流转按有效到货单、退货维护，见 server/flow/receipt-events.ts 的 syncReceivedUnits）。
+   */
+  purchaseRows(
+    include = false,
+    ids?: RecordIds,
+    supplierIds?: RecordIds,
+    receivedOf?: (purchaseIds: number[]) => Map<number, number>,
+  ): PurchaseRowView[] {
+    if (noRecords(ids)) return [];
+    const scope = purchaseScope(ids, supplierIds),
+      { heads, archived } = purchaseHeads(this.store, scope, include);
+    return assemblePurchases(this.store, { heads, scope, archived, received: receivedOf?.(heads.map((h) => h.id)) });
+  }
+  /** 这个产品的成品库存（一个产品只有一个，归档的也算），没有是 null */
+  productStock(productId: number) {
+    const row = one(this.store.db, rows.stock_items.pick({ id: true, name: true }), 'SELECT id,name FROM stock_items WHERE product_id=?', productId);
+    return row ? { id: row.id, name: row.name, archived: this.store.archived('stock_items', row.id) } : null;
+  }
+  /** 一个库存品现在的结余（千分整数），由流水合计 */
   balance(id: number) {
-    return Number(
-      this.store.db
-        .prepare('SELECT COALESCE(SUM(delta_units),0) n FROM stock_movements WHERE item_id=?')
-        .get(id)!.n,
-    );
+    const row = one(this.store.db, totalRow, 'SELECT COALESCE(SUM(delta_units),0) AS n FROM stock_movements WHERE item_id=?', id);
+    // 合计的查询总有一行
+    if (!row) throw new Error('合计库存流水的查询没有返回行');
+    return row.n;
   }
-  /** 已安排：送货草稿和生产登记草稿将要用掉、但尚未确认出库的数量。 */
-  private reservedUnits(ids?: number | readonly number[]) {
-    const units = new Map<number, number>();
-    const add = (id: number | null | undefined, quantity: number) => {
-      if (id) units.set(id, (units.get(id) || 0) + quantity);
-    };
-    for (const row of this.store.db
-      .prepare(
-        "SELECT kind,document FROM flow_documents WHERE status='draft' AND kind IN ('delivery','production') AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity IN ('flow_delivery','flow_production'))" +
-          (ids === undefined ? '' : ` AND (EXISTS(SELECT 1 FROM json_each(flow_documents.document,'$.lines') l
-            WHERE json_extract(l.value,'$.stockId') IN (SELECT value FROM json_each(?)))
-            OR EXISTS(SELECT 1 FROM json_each(flow_documents.document,'$.materials') m
-            WHERE json_extract(m.value,'$.stockId') IN (SELECT value FROM json_each(?))))`),
-      )
-      .all(...(ids === undefined ? [] : Array(2).fill(JSON.stringify(typeof ids === 'number' ? [ids] : ids))))) {
-      const doc = JSON.parse(String(row.document));
-      if (row.kind === 'delivery')
-        for (const l of doc.lines || []) add(l.stockId, quantityUnits(l.quantity));
-      else
-        for (const m of doc.materials || [])
-          add(m.stockId, quantityUnits(m.issued) - quantityUnits(m.returned || '0'));
-    }
-    return units;
+  /** 已安排：待送货的送货单和待入库的完工登记将要用掉、但尚未确认出库的数量（单据在单据流转，经 ArrivalSource 读）。 */
+  private reservedUnits(ids: RecordIds) {
+    return arrivalSource().reservedUnits(this.store, ids === undefined ? undefined : typeof ids === 'number' ? [ids] : ids);
   }
   /** 在途：已订货采购尚未到齐的数量。 */
-  private onOrderUnits(ids?: number | readonly number[]) {
+  private onOrderUnits(ids: RecordIds) {
     const { predicate, params } = recordScope(ids);
     return new Map(
-      this.store.db
-        .prepare(
-          "SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='已订货' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases')" +
+      many(
+        this.store.db,
+        stockTotalRow,
+        "SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='已订货' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases')" +
           (predicate ? ' AND l.stock_item_id ' + predicate : '') + ' GROUP BY l.stock_item_id',
-        )
-        .all(...params)
-        .map((r) => [Number(r.id), Number(r.n)]),
+        ...params,
+      ).map((r) => [r.id, r.n]),
     );
   }
-  items(include = false, ids?: number | readonly number[]): any[] {
-    if (Array.isArray(ids) && !ids.length) return [];
+  items(include = false, ids?: RecordIds): StockItemView[] {
+    if (noRecords(ids)) return [];
     const { predicate, params } = recordScope(ids);
     const archived = this.store.archivedIds('stock_items'),
       balances = new Map(
-        this.store.db
-          .prepare('SELECT item_id,SUM(delta_units) n FROM stock_movements' +
-            (predicate ? ' WHERE item_id ' + predicate : '') + ' GROUP BY item_id')
-          .all(...params)
-          .map((r) => [Number(r.item_id), Number(r.n)]),
+        many(
+          this.store.db,
+          stockTotalRow,
+          'SELECT item_id AS id,SUM(delta_units) AS n FROM stock_movements' + (predicate ? ' WHERE item_id ' + predicate : '') + ' GROUP BY item_id',
+          ...params,
+        ).map((r) => [r.id, r.n]),
       ),
       reserved = this.reservedUnits(ids),
       onOrder = this.onOrderUnits(ids);
-    return this.store.db
-      .prepare(
-        'SELECT id,name,kind,unit,document,product_id AS productId,version,created_at AS createdAt FROM stock_items' +
-          (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC',
-      )
-      .all(...params)
-      .filter((r) => include || !archived.has(Number(r.id)))
-      .map((r) => {
-        const { document, ...base } = r;
-        const balance = balances.get(Number(r.id)) || 0;
-        return {
-          ...JSON.parse(String(document)),
-          ...base,
-          quantity: quantityString(balance),
-          balanceUnits: balance,
-          reservedUnits: reserved.get(Number(r.id)) || 0,
-          reserved: quantityString(reserved.get(Number(r.id)) || 0),
-          // 可用量只用于提示，可能因草稿超排而为负；实际扣减仍在确认时校验。
-          availableUnits: balance - (reserved.get(Number(r.id)) || 0),
-          onOrderUnits: onOrder.get(Number(r.id)) || 0,
-          onOrder: quantityString(onOrder.get(Number(r.id)) || 0),
-          archived: archived.has(Number(r.id)),
-        };
-      });
+    return many(this.store.db, stockRow, 'SELECT * FROM stock_items' + (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC', ...params)
+      .filter((r) => include || !archived.has(r.id))
+      .map((r) =>
+        stockItemView(r, {
+          balance: balances.get(r.id) || 0,
+          reserved: reserved.get(r.id) || 0,
+          onOrder: onOrder.get(r.id) || 0,
+          archived: archived.has(r.id),
+        }),
+      );
   }
-  movements(query: MovementFilters = {}): any[] {
-    const flows = new Map(
-      this.store.db
-        .prepare('SELECT id,kind,number FROM flow_documents')
-        .all()
-        .map((f) => [String(f.id), f]),
-    );
-    const revisions = new Map(
-      this.store.db
-        .prepare('SELECT movement_id,COUNT(*) n FROM stock_movement_revisions GROUP BY movement_id')
-        .all()
-        .map((r) => [String(r.movement_id), Number(r.n)]),
-    );
-    return this.store.db
-      .prepare(
-        'SELECT m.*,s.name AS itemName,s.kind,s.unit,s.document AS itemDocument,p.number AS purchaseNumber,o.number AS customerOrderNumber FROM stock_movements m JOIN stock_items s ON s.id=m.item_id LEFT JOIN purchase_lines pl ON pl.id=m.purchase_line_id LEFT JOIN purchases p ON p.id=pl.purchase_id LEFT JOIN orders o ON o.id=m.customer_order_id ORDER BY m.created_at DESC,m.rowid DESC',
-      )
-      .all()
-      .map(({ itemDocument, ...row }): any => {
-        const document = JSON.parse(String(itemDocument));
-        const flow =
-          String(row.source_kind).startsWith('flow_') && row.source_id
-            ? flows.get(String(row.source_id))
-            : null;
-        return {
-          ...row,
-          flowNumber: flow?.number,
-          flowKind: flow?.kind,
-          revisionCount: revisions.get(String(row.id)) || 0,
-          itemSpecification: document.specification || formatStockSize(document),
-          material: document.material || '',
-          flute: document.flute || '',
-        };
-      })
-      .filter((r) => matchesMovement(r, query))
-      .map((r) => ({
-        ...r,
-        delta: quantityString(Math.abs(Number(r.delta_units))),
-        direction: Number(r.delta_units) < 0 ? '-' : '+',
-        before: quantityString(Number(r.before_units)),
-        after: quantityString(Number(r.after_units)),
-      }));
+  // 库存流水的查询在 movements.ts，这里保留原来的调用方式
+  movements(query: MovementFilters = {}, page?: { offset?: number; limit?: number }) {
+    return this.moves.movements(query, page);
   }
-  nextId(entity: 'suppliers' | 'purchases' | 'stock_items') {
-    return Number(
-      this.store.db
-        .prepare(
-          'SELECT MAX(n)+1 n FROM (SELECT COALESCE(MAX(id),0) n FROM ' +
-            entity +
-            ' UNION ALL SELECT COALESCE(MAX(record_id),0) n FROM permanent_record_deletions WHERE entity=?)',
-        )
-        .get(entity)!.n,
-    );
+  movementPage(query: MovementFilters, page: number, pageSize: number) {
+    return this.moves.movementPage(query, page, pageSize);
+  }
+  movementCount(query: MovementFilters = {}, extra: { inbound?: boolean; sourceKinds?: readonly string[] } = {}) {
+    return this.moves.movementCount(query, extra);
+  }
+  movementTotals(query: MovementFilters = {}) {
+    return this.moves.movementTotals(query);
+  }
+  movementItemIds(query: MovementFilters = {}) {
+    return this.moves.movementItemIds(query);
+  }
+  movementRevisions(movementId: string) {
+    return this.moves.movementRevisions(movementId);
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "carton-workshop-erp",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
@@ -13,14 +13,25 @@
     "build": "node scripts/build.mjs",
     "start": "tsx server/index.ts",
     "stop": "tsx server/stop.ts",
-    "seed": "tsx server/seed.ts",
     "backup": "tsx server/maintenance.ts backup",
     "restore": "tsx server/maintenance.ts restore",
     "reset-password": "tsx server/maintenance.ts reset-password",
-    "test": "tsx --test tests/*.test.ts tests/*.test.mjs && tsx --test tests/serial/*.test.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:isolated": "node scripts/run-tests.mjs --isolated",
+    "test:related": "node scripts/test-related.mjs",
+    "test:release": "node scripts/run-tests.mjs --release",
+    "test:coverage": "node scripts/run-tests.mjs --coverage",
+    "lint": "eslint server shared src scripts tests --quiet",
+    "lint:css": "stylelint \"src/**/*.css\"",
+    "knip": "knip --no-progress",
+    "lint:ratchet": "node scripts/complexity-ratchet.mjs",
+    "dup": "jscpd",
+    "mutation": "stryker run",
+    "check": "node scripts/check.mjs",
     "test:ui": "node scripts/ui-check/run.mjs",
     "package": "node scripts/package-release.mjs",
-    "patch-server": "node scripts/patch-server.mjs"
+    "patch-server": "node scripts/patch-server.mjs",
+    "schema:dump": "tsx scripts/schema-dump.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.13",
@@ -28,22 +39,21 @@
     "docx-preview": "^0.4.1",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
-    "fast-xml-parser": "^5.11.2",
+    "fast-xml-parser": "^5.12.1",
     "helmet": "^8.1.0",
     "lucide-react": "^0.468.0",
     "pdfjs-dist": "^6.4.299",
     "playwright-core": "1.64.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "sherpa-onnx-node": "^1.13.8",
     "tsx": "^4.20.0",
-    "word-extractor": "^1.0.4",
     "ws": "^8.22.1",
-    "xlsx": "file:vendor/xlsx-0.20.3.tgz",
     "yauzl": "^3.4.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@stryker-mutator/core": "10.1.1",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
@@ -51,13 +61,27 @@
     "@types/ws": "^8.18.2",
     "@types/yauzl": "^3.4.0",
     "@vitejs/plugin-react": "^5.1.0",
-    "prettier": "^3.9.10",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-regexp": "^3.3.3",
+    "fast-check": "4.10.2",
+    "fast-xml-validator": "^1.4.4",
+    "jscpd": "5.4.2",
+    "knip": "^6.45.1",
+    "stylelint": "^17.16.0",
+    "stylelint-declaration-strict-value": "^1.13.0",
     "typescript": "^5.9.0",
+    "typescript-eslint": "^8.72.2",
     "vite": "^7.2.0"
   },
   "overrides": {
     "exceljs": {
       "uuid": "^11.1.1"
+    },
+    "@stryker-mutator/core": {
+      "typed-rest-client": {
+        "qs": "6.16.1"
+      }
     }
   }
 }

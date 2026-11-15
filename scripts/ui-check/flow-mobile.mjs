@@ -1,4 +1,5 @@
-// 手机实测：390×844 触屏，用点按操作常用流程，并检查每个界面都没有超出屏幕。虚构数据。
+// 手机实测：390×844 触屏，用点按操作常用流程。全站页面巡检（页面清单只在这里列）：手机宽度、深色、900 宽三档，
+// 超出屏幕、页面报错、深色没生效都算问题。虚构数据。
 import { readFileSync } from 'node:fs';
 import { BASE, SERVER_SOURCE, SP, go, openChrome } from './lib.mjs';
 
@@ -53,8 +54,8 @@ await page.locator('.login-screen input').nth(1).fill(password);
 await page.locator('.login-screen input').nth(1).press('Enter');
 await page.locator('.shell').waitFor();
 
-// 所有主要页面
-for (const [hash, label] of [
+// 全站页面巡检：手机宽度逐页查超出屏幕；深色、900 宽在后面
+const sitePages = [
   ['#dashboard', '今日'], ['#inbox', '收件箱'], ['#ai-import', 'AI导入'], ['#orders', '订单'],
   ['#customers', '客户'], ['#products', '产品'], ['#purchases', '采购'], ['#suppliers', '供应商'],
   ['#production', '生产'], ['#production?view=production', '完工'], ['#warehouse', '库存'],
@@ -62,7 +63,8 @@ for (const [hash, label] of [
   ['#finance', '财务概览'], ['#finance-flow', '台账'], ['#finance-ar', '应收应付'], ['#finance-cash', '资金'],
   ['#finance-costs', '费用'], ['#finance-ledger', '凭证'], ['#finance-reports', '报表'], ['#finance-settings', '财务设置'],
   ['#ai-settings', '设置'], ['#trash', '归档'], ['#guide', '说明'],
-]) {
+];
+for (const [hash, label] of sitePages) {
   await go(page, hash);
   await check(label);
 }
@@ -92,17 +94,17 @@ await page.waitForTimeout(300);
 if (await page.locator('.mobile-backdrop').count()) fail('点遮罩抽屉没关');
 else console.log('抽屉 ok');
 
-// 筛选默认收起
+// 筛选默认收起：订单页工具栏只有搜索、待处理 / 全部 / 已归档和“筛选”，客户、状态、日期在弹层里
 await go(page, '#orders');
 await page.waitForTimeout(500);
-const status = page.locator('.list-filters select').first();
+const status = page.locator('.filter-popover-panel select').first();
 if (await status.isVisible().catch(() => false)) fail('筛选没有默认收起');
 await page.getByRole('button', { name: '筛选', exact: true }).tap();
 await page.waitForTimeout(300);
 if (!(await status.isVisible().catch(() => false))) fail('点筛选后没有展开');
 else console.log('筛选 ok');
 await check('筛选展开');
-await page.getByRole('button', { name: '收起筛选' }).tap();
+await page.locator('.filter-popover-panel').getByRole('button', { name: '完成' }).tap();
 
 // 订单卡片 → 详情 → 编辑
 await page.locator('table.m-cards tr.record-row').first().tap();
@@ -120,7 +122,10 @@ await page.waitForTimeout(400);
 
 // 到货登记：手机最常用，真的走一遍选供应商和明细
 await go(page, '#warehouse?arrivals=1');
-await page.getByRole('button', { name: /登记实际到货/ }).first().tap();
+// 没有采购单的到货（多送、样品）在页头“更多”里
+await page.locator('main summary.more-menu-text').first().tap();
+await page.waitForTimeout(300);
+await page.getByRole('menuitem', { name: '登记没有采购单的到货' }).tap();
 await page.waitForTimeout(800);
 await check('到货表单', '[role="dialog"][aria-modal="true"]');
 const supplier = dialog().getByLabel(/^供应商 */).first();
@@ -136,7 +141,8 @@ if (await option.count()) {
   else console.log('选供应商 ok');
 } else fail('到货表单的供应商选不了');
 await check('到货已选供应商', '[role="dialog"][aria-modal="true"]');
-const actions = dialog().getByRole('button', { name: /保存草稿/ });
+// 到货编辑窗的主按钮：新登记是“登记到货”，从计划转过来是“保存修改”
+const actions = dialog().getByRole('button', { name: /登记到货|保存修改/ });
 if (!(await actions.isVisible())) fail('到货表单看不到保存按钮');
 const box = await actions.boundingBox();
 if (!box || box.y + box.height > 844) fail('保存按钮在屏幕外');
@@ -163,16 +169,112 @@ if (await send.isEnabled().catch(() => false)) {
   console.log('助手发送 ok');
 } else fail('助手发送按钮不可用');
 await check('助手已发送', '.ga-panel');
-await page.getByRole('button', { name: '返回', exact: true }).tap();
+// 面板头部的“返回”和“关闭”效果一样，只留了“关闭”
+await panel.getByRole('button', { name: /关闭/ }).first().tap();
 await page.waitForTimeout(400);
-if (await panel.isVisible().catch(() => false)) fail('助手返回后没有关闭');
+if (await panel.isVisible().catch(() => false)) fail('助手关闭后还开着');
 else console.log('助手返回 ok');
+
+// 新表格和附属品：到货、送货详情的明细表，产品和成品库存里挂在主产品下面的附属品，数据管理的编辑窗
+const api = (path, method = 'GET', body) =>
+  page.evaluate(
+    async ({ path, method, body }) => {
+      const state = await (await fetch('/api/auth/state')).json();
+      const r = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': state.csrf },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return r.json();
+    },
+    { path, method, body },
+  );
+const products = await api('/api/products');
+const big = products.find((p) => p.name === '五金配件箱 大'),
+  small = products.find((p) => p.name === '五金配件箱 小');
+await api('/api/products/' + small.id, 'PUT', { ...small, parentProductId: big.id });
+// 直接调接口改的，页面里的产品缓存不知道，重新打开页面（在界面上改会自己刷新）
+await page.reload();
+await page.locator('.shell').waitFor();
+for (const [hash, label] of [
+  ['#products', '产品附属品'],
+  ['#warehouse?kind=finished', '成品附属品'],
+]) {
+  await go(page, hash);
+  await page.waitForTimeout(600);
+  if (!(await page.locator('main .record-tree-branch').count())) fail(label + '：手机上看不到附属品的连接线');
+  await check(label);
+}
+const arrival = (await api('/api/flow?kind=arrival')).find((a) => a.status === 'confirmed');
+await go(page, '#warehouse?arrivals=1&doc=' + arrival.id);
+await page.waitForTimeout(800);
+await check('到货详情', '.detail-panel');
+const delivery = (await api('/api/flow?kind=delivery')).find((d) => d.status === 'confirmed');
+await go(page, '#warehouse?kind=finished&deliveries=1&doc=' + delivery.id);
+await page.waitForTimeout(800);
+await check('送货详情', '.detail-panel');
+await page.getByRole('button', { name: '关闭详情' }).tap();
+await page.waitForTimeout(300);
+await page.getByRole('button', { name: /^账号菜单/ }).tap();
+await page.getByRole('menuitem', { name: '数据管理' }).tap();
+await page.waitForTimeout(1000);
+await check('数据管理', '[role="dialog"][aria-modal="true"]');
+const editButton = dialog().locator('.adm-data-actions button', { hasText: '编辑' }).first();
+if (await editButton.count()) {
+  await editButton.tap();
+  await page.waitForTimeout(800);
+  await check('数据管理编辑窗', '[role="dialog"][aria-modal="true"]');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+} else fail('数据管理里没有可编辑的记录');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
 
 // 深色模式
 await page.emulateMedia({ colorScheme: 'dark' });
+await page.reload();
+await page.locator('.shell').waitFor();
 await go(page, '#orders');
 await check('深色订单');
 await page.emulateMedia({ colorScheme: 'light' });
+await page.reload();
+await page.locator('.shell').waitFor();
+
+// 深色：每页没有报错、页面底色确实变深；900 宽：整页不横向溢出、没有报错
+const pageErrors = () => page.locator('main .error, main [role=alert]').allInnerTexts();
+// 主题跟随系统只在打开页面时定一次（src/ui/theme.ts），换了系统深浅要重新载入
+const scheme = async (colorScheme) => {
+  await page.emulateMedia({ colorScheme });
+  await page.reload();
+  await page.locator('.shell').waitFor();
+};
+await scheme('dark');
+for (const [hash, label] of sitePages) {
+  await go(page, hash);
+  const dark = await page.evaluate(() => {
+    // 从主区域往外找第一层有底色的
+    let bg = '';
+    for (let el = document.querySelector('main'); el; el = el.parentElement)
+      if (!/rgba\(0, 0, 0, 0\)|transparent/.test((bg = getComputedStyle(el).backgroundColor))) break;
+    const [r, g, b] = bg.match(/\d+/g).map(Number);
+    return (r + g + b) / 3 < 80;
+  });
+  const errors = await pageErrors();
+  if (!dark) fail('深色 ' + label + ' 页面底色没变深');
+  if (errors.length) fail('深色 ' + label + ' 页面报错：' + errors.join(' | ').slice(0, 120));
+}
+await scheme('light');
+console.log('深色巡检 ' + sitePages.length + ' 页 ok');
+await page.setViewportSize({ width: 900, height: 800 });
+for (const [hash, label] of sitePages) {
+  await go(page, hash);
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  const errors = await pageErrors();
+  if (over > 0) fail('900 宽 ' + label + ' 横向溢出 ' + over + 'px');
+  if (errors.length) fail('900 宽 ' + label + ' 页面报错：' + errors.join(' | ').slice(0, 120));
+}
+console.log('900 宽巡检 ' + sitePages.length + ' 页 ok');
+await page.setViewportSize({ width: WIDTH, height: 844 });
 
 const real = [...new Set(consoleErrors)].filter((e) => !/status of (401|403|404|422|503)/.test(e));
 if (real.length) fail('控制台报错 ' + real.join(' | ').slice(0, 300));

@@ -1,13 +1,10 @@
 import { join } from 'node:path';
-import type { PromptPreset } from '../../shared/prompt-presets.js';
-import { promptModules, type PromptModuleId } from '../../shared/prompt-modules.js';
+import type { PromptPreset } from '../../shared/ai/index.js';
+import { promptModules, type PromptModuleId } from '../../shared/ai/index.js';
 import { PromptPresetManager } from './prompt-presets.js';
-import { defaultPromptPreset, legacyDefaultPromptPreset } from '../import/default-prompts.js';
-import { markDefaultPreset } from '../marks/mark-ai.js';
-import { supplierDefaultPreset } from '../flow/receipt-ai.js';
-import { assistantDefaultPreset } from '../assistant/manager.js';
-import { purchaseOrderDefaultPreset } from './default-prompts/purchase-order.js';
-import { customerDeliveryDefaultPreset } from './default-prompts/customer-delivery.js';
+import { defaultPromptPreset } from './default-prompts/sales-order.js';
+import { supplierDefaultPreset } from './default-prompts/supplier-delivery.js';
+import { assistantDefaultPreset } from './default-prompts/assistant.js';
 
 /**
  * 模块标识到默认提示词工厂。每个模块仍沿用现有 PromptPresetManager 架构，
@@ -15,24 +12,15 @@ import { customerDeliveryDefaultPreset } from './default-prompts/customer-delive
  * 不会覆盖用户已保存的自定义预设。
  */
 const factories: Record<PromptModuleId, () => PromptPreset> = {
-  'shipping-mark': markDefaultPreset,
   'sales-order': defaultPromptPreset,
-  'purchase-order': purchaseOrderDefaultPreset,
   'supplier-delivery': supplierDefaultPreset,
-  'customer-delivery': customerDeliveryDefaultPreset,
   assistant: assistantDefaultPreset,
 };
-export function createPromptManagers(baseDirectory: string) {
-  const managers = {} as Record<PromptModuleId, PromptPresetManager>;
-  for (const module of promptModules)
-    managers[module.id] = new PromptPresetManager(
-      join(baseDirectory, module.storageFile),
-      factories[module.id],
-    );
-  // 订单默认规则升级：只替换从未改过的旧默认预设，保留用户自定义。
-  managers['sales-order'].upgradeUntouchedDefaults(
-    [legacyDefaultPromptPreset()],
-    'sales-order-units-customers-2026-10-29-v2',
-  );
-  return managers;
+export function createPromptManagers(baseDirectory: string): Record<PromptModuleId, PromptPresetManager> {
+  const open = (id: PromptModuleId) => {
+    const module = promptModules.find((m) => m.id === id);
+    if (!module) throw new Error('提示词模块没有登记：' + id);
+    return new PromptPresetManager(join(baseDirectory, module.storageFile), factories[id]);
+  };
+  return { 'sales-order': open('sales-order'), 'supplier-delivery': open('supplier-delivery'), assistant: open('assistant') };
 }

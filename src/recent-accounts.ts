@@ -1,15 +1,23 @@
+import { z } from 'zod';
+import { DAY_MS } from '../shared/core/index';
+
 /** 这台设备用过的账号。只记用户名，不记密码或令牌。 */
 const KEY = 'erp-recent-accounts';
 const LIMIT = 5;
-export type RecentAccount = { name: string; at: string };
+const recentAccountSchema = z.object({ name: z.string().min(1), at: z.string() });
+export type RecentAccount = z.infer<typeof recentAccountSchema>;
 type Store = Pick<Storage, 'getItem' | 'setItem'>;
 
 export function readRecentAccounts(storage: Store): RecentAccount[] {
   try {
-    const list = JSON.parse(storage.getItem(KEY) || '[]');
+    const list: unknown = JSON.parse(storage.getItem(KEY) || '[]');
     if (!Array.isArray(list)) return [];
+    // 存的东西可能被改坏或是旧版本写的：只留认得出的
     return list
-      .filter((a) => typeof a?.name === 'string' && a.name && typeof a?.at === 'string')
+      .flatMap((a: unknown) => {
+        const parsed = recentAccountSchema.safeParse(a);
+        return parsed.success ? [parsed.data] : [];
+      })
       .slice(0, LIMIT);
   } catch {
     return [];
@@ -35,7 +43,7 @@ export function lastUsedLabel(at: string, now = new Date()) {
   const then = new Date(at);
   if (Number.isNaN(then.getTime())) return '';
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((day(now) - day(then)) / 86400000);
+  const days = Math.round((day(now) - day(then)) / DAY_MS);
   if (days <= 0) return '今天用过';
   if (days === 1) return '昨天用过';
   return then.getMonth() + 1 + ' 月 ' + then.getDate() + ' 日用过';

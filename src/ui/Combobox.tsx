@@ -41,7 +41,8 @@ export default function Combobox({
     setQuery('');
   };
   return (
-    <div className="combobox">
+    // data-value 给必填引导看“选了没有”（输入框里显示的是选项文字，不能拿来判断）
+    <div className="combobox" data-value={selected?.value ?? ''}>
       <input
         ref={input}
         role="combobox"

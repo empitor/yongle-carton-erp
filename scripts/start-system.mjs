@@ -115,6 +115,18 @@ async function stopOwnedProcess(backend) {
   } else backend.child.kill('SIGTERM');
 }
 
+/** 服务的本机地址：PORT 不写是 3001，写了必须是 1 至 65535 的端口号 */
+function launchUrl(env) {
+  const portText = env.PORT || '3001';
+  if (!/^\d+$/.test(portText) || Number(portText) < 1 || Number(portText) > 65535)
+    throw new Error('PORT 必须是 1 至 65535 的端口号。');
+  return `http://127.0.0.1:${Number(portText)}`;
+}
+function requireNode24() {
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  if (major !== 24 || minor < 15) throw new Error('请安装 Node.js 24.15 或更高的 24 LTS 版本。');
+}
+
 export async function runLauncher({
   directory = root,
   env = process.env,
@@ -126,18 +138,14 @@ export async function runLauncher({
   timeoutMs = 30000,
   pollMs = 500,
 } = {}) {
-  const portText = env.PORT || '3001';
-  if (!/^\d+$/.test(portText) || Number(portText) < 1 || Number(portText) > 65535)
-    throw new Error('PORT 必须是 1 至 65535 的端口号。');
-  const url = `http://127.0.0.1:${Number(portText)}`;
+  const url = launchUrl(env);
   const lockFile = resolve(directory, env.DB_PATH || 'data/erp.sqlite') + '.running';
   if (await check(url, lockFile)) {
     log('宁波甬勒包装制品有限公司 · 管理系统已在运行，正在打开网页。');
     await open(url);
     return;
   }
-  const [major, minor] = process.versions.node.split('.').map(Number);
-  if (major !== 24 || minor < 15) throw new Error('请安装 Node.js 24.15 或更高的 24 LTS 版本。');
+  requireNode24();
   const npm = async (args) => {
     const result = await start(shell, ['/d', '/s', '/c', 'call npm.cmd ' + args], directory).done;
     if (result.failed) throw new Error(`npm ${args} 执行失败。请检查上方错误；尚未打开浏览器。`);

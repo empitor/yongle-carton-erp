@@ -1,13 +1,38 @@
 import ExcelJS from 'exceljs';
 import type { Response } from 'express';
-import { safeCents } from './query.js';
 import { financeError } from './core.js';
+import { safeCents } from './amounts.js';
 
 export type ExportRow = Record<string, unknown>;
 type Value = string | number | null;
-export type Column = { title: string; width: number; money?: boolean };
-export const column = (title: string, width = 18): Column => ({ title, width });
+type Column = { title: string; width: number; money?: boolean };
+/**
+ * 列宽（Excel 的字符宽）分几档，按列里放什么取：日期；短字（默认：凭证号、状态、类型、金额）；
+ * 部门这类中等长度；单号；科目、调节表的往来单位；资产名称；项目、往来单位；调节表的摘要；摘要
+ */
+export const widths = {
+  date: 14,
+  short: 18,
+  medium: 24,
+  number: 26,
+  name: 28,
+  title: 32,
+  wide: 34,
+  text: 38,
+  note: 42,
+} as const;
+/** 换行的格子按行数撑高：一行字多高、Excel 行高上限（磅） */
+const LINE_HEIGHT = 15;
+const MAX_ROW_HEIGHT = 409;
+export const column = (title: string, width: number = widths.short): Column => ({ title, width });
 export const moneyColumn = (title: string): Column => ({ ...column(title), money: true });
+/** 财务几张导出表共用的列和表头说明 */
+export const partyLabel = (value: unknown) =>
+  value === 'receivable' ? '应收' : value === 'payable' ? '应付' : '未分类';
+export const periodScope = (period: string) => '期间：' + period;
+export const dateColumn = column('日期', widths.date);
+export const amountColumn = moneyColumn('金额');
+export const itemColumn = column('项目', widths.wide);
 export const textCell = (value: unknown) =>
   typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 export function cents(value: unknown) {
@@ -92,7 +117,7 @@ export class ExportSheet {
           cell.fill = shade('FFE9EFF4');
         }
       });
-      if (lines > 1) row.height = Math.min(409, lines * 15);
+      if (lines > 1) row.height = Math.min(MAX_ROW_HEIGHT, lines * LINE_HEIGHT);
     };
     rows.forEach((row) => add(row));
     if (footer) add(footer, true);

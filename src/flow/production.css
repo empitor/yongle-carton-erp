@@ -1,0 +1,226 @@
+/* 生产任务：排产板、安排生产、登记完工 */
+/* 登记完工窗口：任务和纸板两张表 */
+.pb-tasks td.pb-task small {
+  white-space: normal;
+}
+
+@media (max-width: 700px) {
+
+  /* 登记完工的两张表在手机上改成一张张卡片：输入框占满一行的一半，不被挤扁 */
+  .pb-tasks table,
+  .pb-tasks tbody,
+  .pb-tasks tfoot,
+  .pb-materials table,
+  .pb-materials tbody,
+  .pb-materials tfoot {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .pb-tasks thead,
+  .pb-materials thead {
+    display: none;
+  }
+  .pb-tasks tr,
+  .pb-materials tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-sm) var(--space-md);
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pb-tasks td,
+  .pb-materials td {
+    display: block;
+    order: 1;
+    flex: 1 1 40%;
+    width: auto !important;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+  .pb-tasks td:empty,
+  .pb-materials td:empty {
+    display: none;
+  }
+  .pb-tasks td.wh-check,
+  .pb-tasks td.pb-task,
+  .pb-tasks td.pb-remove,
+  .pb-materials td.pb-material,
+  .pb-materials td.pb-remove {
+    order: 0;
+    align-self: center;
+  }
+  .pb-tasks td.wh-check,
+  .pb-tasks td.pb-remove,
+  .pb-materials td.pb-remove {
+    flex: none;
+  }
+  .pb-tasks td.wh-check input[type='checkbox'] {
+    margin: 0;
+  }
+  .pb-tasks td.pb-task,
+  .pb-materials td.pb-material {
+    flex: 1 1 calc(100% - 96px);
+    padding-top: 0;
+  }
+  .pb-materials td[data-label] {
+    flex-basis: 26%;
+  }
+  .pb-tasks td[data-label]::before,
+  .pb-materials td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: var(--space-3xs);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+  }
+  .pb-tasks select,
+  .pb-materials td input {
+    width: 100%;
+    min-width: 0;
+  }
+  .pb-tasks tfoot tr,
+  .pb-materials tfoot tr {
+    border-bottom: 0;
+    font-weight: 600;
+  }
+}
+.production-batch-form {
+  gap: var(--space-lg);
+  overflow: visible !important;
+}
+.production-batch-form table input:not([type='checkbox']) {
+  width: 100px;
+}
+.production-batch-form table select {
+  min-width: 190px;
+}
+
+/* 排产板 */
+.production-board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.board-toolbar button {
+  min-height: 28px;
+  padding: 0 var(--space-sm);
+  font-size: var(--text-sm);
+}
+.board-toolbar span {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.board-columns {
+  display: grid;
+  grid-template-columns: 170px repeat(7, minmax(130px, 1fr));
+  overflow-x: auto;
+}
+.board-column {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 190px);
+  border-right: 1px solid var(--border);
+}
+.board-column:last-child {
+  border-right: 0;
+}
+.board-column.today {
+  background: var(--accent-soft);
+}
+.board-column.over {
+  outline: 2px dashed var(--teal);
+  outline-offset: -2px;
+}
+.board-column > header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.board-column > header b {
+  font-weight: 600;
+}
+.board-column > header small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.board-column > header span {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.board-cards {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+}
+.board-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2xs);
+  /* 左右留 6px：1440 宽时单号一行排得下 */
+  padding: var(--space-sm) var(--space-xs);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  text-align: left;
+  white-space: normal;
+}
+.board-card[draggable='true'] {
+  cursor: grab;
+}
+.board-card strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.board-card small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+/* 单号不从中间折行：1440 宽排得下；更窄时尾部省略，完整单号在卡片的悬停提示里 */
+.board-card .board-card-number {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.board-card.draft {
+  border-style: dashed;
+}
+.board-progress {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  background: var(--surface-muted);
+  border-radius: var(--r-small);
+}
+.board-progress i {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+/* 排产板：逾期列只在标题提示，没有任务时不占颜色 */
+.board-column.late {
+  background: none;
+}
+.board-column.late > header {
+  background: var(--danger-soft);
+  color: var(--danger);
+}

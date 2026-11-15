@@ -1,10 +1,13 @@
+// 删会话（manager.removeThread）：清掉这个会话的消息、附件、没执行的卡片和运行记录，审计留着；只能删自己的。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import type { SQLInputValue } from 'node:sqlite';
+import { count as countRows } from '../server/core/index.js';
 import { assistantFixture, actor } from './assistant-fixture.js';
 
-const count = (f: ReturnType<typeof assistantFixture>, sql: string, ...params: any[]) =>
-  Number(f.store.db.prepare(sql).get(...params)!.n);
+const count = (f: ReturnType<typeof assistantFixture>, sql: string, ...params: SQLInputValue[]) =>
+  countRows(f.store.db, sql, ...params);
 
 test('删除会话会清理消息、附件、未执行方案和运行记录，并保留审计', () => {
   const f = assistantFixture();
@@ -14,11 +17,11 @@ test('删除会话会清理消息、附件、未执行方案和运行记录，�
       attachmentId = randomUUID(),
       now = new Date().toISOString();
     f.store.db
-      .prepare('INSERT INTO assistant_messages VALUES(?,?,?,?,?,?)')
+      .prepare('INSERT INTO assistant_messages(id,thread_id,role,text,document,created_at) VALUES(?,?,?,?,?,?)')
       .run(messageId, t.id, 'user', '测试消息', '{}', now);
     f.store.db
       .prepare(
-        'INSERT INTO assistant_attachments(id,thread_id,user_id,upload_id,name,size,mime,kind,sha256,metadata,bytes,extracted_text,image_pages,created_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO assistant_attachments(id,thread_id,user_id,upload_id,name,size,mime,kind,sha256,metadata,bytes,created_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
       )
       .run(
         attachmentId,
@@ -29,22 +32,21 @@ test('删除会话会清理消息、附件、未执行方案和运行记录，�
         4,
         'text/plain',
         'text',
-        'fictional-hash',
+        // 虚构的摘要：库里要求是 64 位十六进制
+        'f'.repeat(64),
         '{}',
-        null,
-        null,
         null,
         now,
         null,
       );
     f.store.db
-      .prepare('INSERT INTO assistant_message_attachments VALUES(?,?)')
+      .prepare('INSERT INTO assistant_message_attachments(message_id,attachment_id) VALUES(?,?)')
       .run(messageId, attachmentId);
     f.store.db
-      .prepare('INSERT INTO assistant_previews VALUES(?,?,?,?,?,?,?,NULL)')
+      .prepare('INSERT INTO assistant_previews(id,thread_id,user_id,session_binding,expires_at,digest,document,result) VALUES(?,?,?,?,?,?,?,NULL)')
       .run(randomUUID(), t.id, actor.id, 'binding', Date.now() + 60000, 'digest', '{}');
     f.store.db
-      .prepare('INSERT INTO assistant_runs VALUES(?,?,?,?,?,?)')
+      .prepare('INSERT INTO assistant_runs(id,thread_id,user_id,state,document,created_at) VALUES(?,?,?,?,?,?)')
       .run(randomUUID(), t.id, actor.id, 'completed', '{}', now);
 
     f.manager.removeThread(t.id, actor);
@@ -54,22 +56,8 @@ test('删除会话会清理消息、附件、未执行方案和运行记录，�
       count(f, 'SELECT COUNT(*) n FROM assistant_threads WHERE id=?', t.id),
       0,
     );
-    assert.equal(
-      count(f, 'SELECT COUNT(*) n FROM assistant_messages WHERE thread_id=?', t.id),
-      0,
-    );
-    assert.equal(
-      count(f, 'SELECT COUNT(*) n FROM assistant_attachments WHERE thread_id=?', t.id),
-      0,
-    );
-    assert.equal(
-      count(f, 'SELECT COUNT(*) n FROM assistant_previews WHERE thread_id=?', t.id),
-      0,
-    );
-    assert.equal(
-      count(f, 'SELECT COUNT(*) n FROM assistant_runs WHERE thread_id=?', t.id),
-      0,
-    );
+    for (const table of ['assistant_messages', 'assistant_attachments', 'assistant_previews', 'assistant_runs'])
+      assert.equal(count(f, 'SELECT COUNT(*) n FROM ' + table + ' WHERE thread_id=?', t.id), 0, table);
     assert.equal(
       count(
         f,
@@ -79,7 +67,7 @@ test('删除会话会清理消息、附件、未执行方案和运行记录，�
       1,
     );
     assert.equal(
-      f.manager.state(actor).threads.some((row: any) => row.id === t.id),
+      f.manager.state(actor).threads.some((row) => row.id === t.id),
       false,
     );
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
@@ -102,3 +90,4 @@ test('其他账号不能删除他人会话，重复删除返回不存在', () =>
     f.close();
   }
 });
+

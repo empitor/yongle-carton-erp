@@ -1,0 +1,400 @@
+/* 采购单、订货批次、库存品编辑 */
+/* purchasing：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。 */
+
+/* ---- 采购单编辑窗 ---- */
+.pur-line-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.pur-line > header .pur-reference {
+  flex: none;
+  padding: 0 var(--space-sm);
+  border-radius: var(--r-control);
+  background: var(--info-soft);
+  color: var(--info);
+  font-size: var(--text-xs);
+  line-height: 22px;
+  white-space: nowrap;
+}
+.pur-unit-select {
+  display: block;
+  min-width: 0;
+}
+.pur-unit-select select {
+  width: 100%;
+  min-height: 32px;
+}
+.editor-footer-note .pur-total {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+.pur-agreement {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  font-size: var(--text-sm);
+}
+.pur-agreement input {
+  width: auto;
+  min-height: 0;
+}
+
+@media (max-width: 760px) {
+  .pur-line .ed-grid.cols-4,
+  .pur-stock-form .ed-grid.cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  /* 纸板卡片在手机上也两列：长宽、楞型材质并排，名称这类长字段占整行 */
+  .pur-line .ed-grid.cols-4 > .span-2,
+  .pur-stock-form .ed-grid.cols-4 > .span-2 {
+    grid-column: 1 / -1;
+  }
+}
+.ob-card-rows small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.ob-schedule {
+  margin-top: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.ob-schedule-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+}
+.ob-schedule-line input:not([type='date']) {
+  width: 96px;
+  text-align: right;
+}
+.ob-schedule-line input[type='date'] {
+  width: 150px;
+}
+.ob-schedule-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ob-schedule-foot small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.ob-schedule-foot .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  min-height: 24px;
+  padding: 0 var(--space-xs);
+  background: transparent;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+}
+.ob-card-sub {
+  margin: 0 0 var(--space-xs);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.ob-card-rows {
+  margin: 0 0 var(--space-sm);
+  padding: 0;
+  list-style: none;
+}
+.ob-card-rows li {
+  padding: var(--space-xs) 0;
+  border-top: 0.5px solid var(--sep, var(--border));
+}
+.ob-card-rows li:first-child {
+  border-top: 0;
+}
+
+/* ---- 采购单详情：订货单一节右上角的状态和“编辑到货安排” ---- */
+.ob-card-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+:root[data-ui='refined'] .record-section button.ob-card-link,
+.record-section button.ob-card-link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+/* ---- 订货单导出窗：文件格式、模板放在正文，底栏只留按钮 ---- */
+.ob-hint {
+  margin: var(--space-sm) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.ob-file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
+}
+.ob-file label {
+  display: grid;
+  gap: var(--space-2xs);
+  min-width: 140px;
+}
+.ob-file label > span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.ob-preview {
+  overflow: auto;
+}
+
+/* ---- 成品库存详情：批次（每次完工一批，一批一块上下排开，不用多列表格、不横向滚动） ---- */
+.pur-batch-note {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  /* 说明末尾不留一两个孤字在第二行 */
+  text-wrap: pretty;
+}
+.pur-batches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 一批一块：白色卡片里放浅灰底圆角块，块之间留空，不靠细线分 */
+.pur-batch {
+  padding: 10px var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+}
+/* 头部两行：“日期 完工 · 完工单号”，“入库 N 只 · 估计还剩 N 只” */
+.pur-batch > header {
+  display: grid;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-sm);
+}
+.pur-batch > header:last-child {
+  margin-bottom: 0;
+}
+.pur-batch-title,
+.pur-batch-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3xs) var(--space-xs);
+  min-width: 0;
+}
+.pur-batch-date {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pur-batch-kind {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.pur-batch-dot {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+/* 完工单号：比日期小，是链接，不在连字符处断开 */
+.pur-batch-number {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pur-batch-amount {
+  align-items: center;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.pur-batch dl {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+}
+/* 字段名一列和详情里“库存”“规格”等节的字段名对齐：那边 96px 从卡片内边距算起，这里块自己有 12px 内边距 */
+.pur-batch dl > div {
+  display: flex;
+  gap: var(--space-md);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.pur-batch dt {
+  flex: none;
+  width: 84px;
+  color: var(--text-secondary);
+}
+.pur-batch dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* 单号是链接：和详情里别处的单号一样用强调色，悬停有下划线 */
+.pur-batch a {
+  color: var(--accent-ink);
+}
+.pur-batch a:hover {
+  text-decoration: underline;
+}
+/* 批次备注、其他入库的原因全文显示、自动换行，不截断 */
+.pur-batch .pur-batch-notes-text,
+.pur-batch .pur-batch-notes dd {
+  white-space: pre-wrap;
+}
+/* “写备注 / 编辑备注”：不显眼的文字按钮，有备注时另起一行紧跟在备注下面 */
+.pur-batch .pur-batch-note-edit {
+  display: flex;
+  margin-top: 0;
+  line-height: 20px;
+  white-space: normal;
+}
+.pur-batch-list {
+  display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 订单：单号不拆开；客户名放不下时整个换到下一行 */
+.pur-batch-order > a {
+  white-space: nowrap;
+}
+.pur-batch-order > span {
+  display: inline-block;
+  max-width: 100%;
+}
+/* 用料：主行“纸板名称 · 750 张”，数量不在中间断行；下面一行小字写材质、楞型 */
+.pur-batch-qty {
+  white-space: nowrap;
+}
+.pur-batch-list small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 16px;
+}
+/* 其他入库：另起一组、有小标题；块是白底细边，和浅灰底的完工批次分得开 */
+.pur-batches-group {
+  margin: var(--space-lg) 0 var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.pur-batch.is-other {
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+/* 估计已发完的：底色更浅、文字次要色，一眼看得出是旧的；单号仍是链接色 */
+.pur-batch.is-depleted {
+  background: color-mix(in srgb, var(--surface-muted) 45%, var(--surface));
+}
+.pur-batch.is-other.is-depleted {
+  border-style: dashed;
+  background: var(--surface);
+}
+.pur-batch.is-depleted,
+.pur-batch.is-depleted :is(.pur-batch-date, .pur-batch-kind, .pur-batch-amount, dd) {
+  color: var(--text-secondary);
+}
+/* 深色主题里卡片和浅灰块本来只差一点，按上面的比例混出来的已发完块几乎和卡片一样：
+   深色里改成不填底、虚线细边（和“其他入库”已发完的一样），和填了底的在库批次、和卡片都分得开。
+   边框占的 1px 从内边距里扣，块的大小不变。 */
+:root[data-theme='dark'] .pur-batch.is-depleted:not(.is-other) {
+  padding: 9px 11px;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+}
+.pur-batches-done {
+  margin-top: var(--space-lg);
+}
+.pur-batches-done > summary {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.pur-batches-done[open] > summary {
+  margin-bottom: var(--space-sm);
+}
+.pur-batches-all {
+  margin-top: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 700px) {
+  .detail-panel .pur-batch .pur-batch-note-edit {
+    align-items: center;
+    margin: calc(-1 * var(--space-md)) 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .pur-line .form-inline {
+    display: flex;
+    min-width: 0;
+  }
+  .pur-line .form-inline > input:first-child {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .ob-schedule-line {
+    flex-wrap: wrap;
+  }
+  .ob-schedule-line input:not([type='date']) {
+    flex: 1 1 72px;
+    width: auto;
+    min-width: 0;
+  }
+  .ob-schedule-line input[type='date'] {
+    flex: 1 1 140px;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* 库存品编辑窗：红色报错、黄色提示里的“打开它”（撞上已有的库存品时），要一眼看出是链接 */
+.stock-open-link {
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+.stock-open-link:hover {
+  text-decoration-thickness: 2px;
+}
+/* 几张订单生成采购单：在编辑窗最上面切换合成一张 / 每单一张 */
+.pur-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.pur-mode small {
+  flex-basis: 100%;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}

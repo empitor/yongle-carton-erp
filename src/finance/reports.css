@@ -1,0 +1,201 @@
+/* 财务概览：对照表、待办、金额 */
+.fin-compare .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 理论和实际两行对照，是概览页的主角 */
+.fin-compare {
+  font-size: var(--text-md);
+}
+.fin-compare th,
+.fin-compare td {
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 400;
+}
+.fin-compare tbody tr:last-child td,
+.fin-compare tbody tr:last-child th {
+  border-bottom: 0;
+}
+.fin-compare button.fin-amount {
+  all: unset;
+  cursor: pointer;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--teal);
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+}
+.fin-compare button.fin-amount:hover {
+  color: var(--teal);
+  text-decoration: underline;
+}
+.fin-compare button.fin-amount:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.fin-compare button.fin-amount[aria-pressed='true'] {
+  color: var(--teal);
+  font-weight: 600;
+}
+.fin-compare .fin-profit {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.fin-card {
+  padding: var(--space-md);
+  min-width: 0;
+}
+.fin-card > h2 {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-md);
+}
+.fin-card .table-wrap,
+.fin-card.business-records .unified-table-region {
+  border: 0;
+}
+.fin-todo {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fin-todo li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--border);
+}
+.fin-todo li:last-child {
+  border-bottom: 0;
+}
+.fin-todo strong {
+  font-variant-numeric: tabular-nums;
+}
+.fin-compare thead th {
+  font-size: var(--text-xs);
+  background: var(--surface-muted);
+}
+.fin-compare tbody th {
+  width: 200px;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.fin-compare tbody th small {
+  display: block;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.fin-todo button.link-button {
+  all: unset;
+  cursor: pointer;
+  color: var(--teal);
+}
+.fin-todo button.link-button:hover {
+  text-decoration: underline;
+}
+.fin-todo button.link-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+/* 财务卡片内容多少就占多高，不要通用列表的最小高度 */
+.fin-card.business-records,
+.fin-card.business-records .unified-table-region,
+.fin-card .unified-table-region {
+  min-height: 0;
+}
+
+@media (max-width: 700px) {
+  .fin-compare {
+    table-layout: fixed;
+  }
+  .fin-compare th,
+  .fin-compare td,
+  .fin-compare thead th {
+    padding: var(--space-sm) var(--space-2xs);
+  }
+  .fin-compare thead th:first-child,
+  .fin-compare tbody th {
+    width: 44px;
+  }
+  .fin-compare thead th:first-child {
+    font-size: 0;
+  }
+  .fin-compare tbody th {
+    font-size: var(--text-sm);
+  }
+  .fin-compare tbody th small {
+    display: none;
+  }
+  .fin-compare button.fin-amount,
+  .fin-compare .fin-profit {
+    font-size: var(--text-sm);
+  }
+}
+.fin-subhead {
+  margin: var(--space-md) 0 var(--space-2xs);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.fin-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+:root[data-ui='refined'] main .fin-extras button.fin-extra,
+.fin-extras button.fin-extra {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--fill-1);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  box-shadow: none;
+}
+.fin-extras button.fin-extra strong {
+  color: var(--teal);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.fin-extras button.fin-extra[aria-pressed='true'] {
+  background: var(--fill-2);
+  color: var(--ink);
+}
+/* 点得开明细的金额：蓝色、虚线下划线，一眼看出能点 */
+.fin-todo li[data-tone='warning'] strong {
+  color: var(--warning);
+}
+.fin-todo a {
+  color: var(--teal);
+}
+
+/* 没数据时一句话说原因，下面一个能解决的动作 */
+.fin-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.fin-empty p {
+  margin: 0;
+}
+/* 账龄：红字凭证还没记账、原往来仍挂着的那行，常显一句说明 */
+.fin-aging-note {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: normal;
+}

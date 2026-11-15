@@ -1,6 +1,6 @@
 // 同一脚本在目标平台打包，依赖和 Node 随对应平台安装，禁止跨平台复制 node_modules。
 // 用法：npm run package [-- --out 输出目录]。默认输出到系统临时目录。
-// 只复制白名单里的文件，绝不把 data/、backups/、密钥和语音模型打进去。
+// 只复制白名单里的文件，绝不把 data/、backups/ 和密钥打进去。
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { releaseFiles } from './release-files.mjs';
+import { scanTree } from './release-scan.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -52,8 +53,7 @@ for (const item of (windows ? ['node.exe', 'npm.cmd', 'node_modules/npm'] : ['bi
   if (!existsSync(join(nodeDir, item))) throw new Error('Node 安装目录不完整：' + item);
 
 step('复制程序文件');
-// xlsx 的本地 tgz 只给安装依赖用，装完就删，不在共用清单里。
-for (const item of [...releaseFiles(pkg.version), 'vendor/xlsx-0.20.3.tgz']) copy(item);
+for (const item of releaseFiles) copy(item);
 
 step('构建页面');
 // 和 build.mjs 一样放项目内临时目录：Windows 的 %TEMP% 可能没有权限，vite 会在编译阶段失败。
@@ -80,7 +80,6 @@ step('安装生产依赖');
 const npmCommand = windows ? process.env.ComSpec || 'cmd.exe' : process.execPath;
 const npmArgs = windows ? ['/d', '/s', '/c', 'npm.cmd ci --omit=dev --no-audit --no-fund'] : [join(nodeDir, 'lib/node_modules/npm/bin/npm-cli.js'), 'ci', '--omit=dev', '--no-audit', '--no-fund'];
 execFileSync(npmCommand, npmArgs, { cwd: stage, stdio: 'inherit' });
-rmSync(join(stage, 'vendor/xlsx-0.20.3.tgz'));
 
 step('内置 Node.js ' + process.version);
 const runtime = join(stage, 'runtime/node');
@@ -96,7 +95,7 @@ if (!windows) {
 if (existsSync(join(nodeDir, 'LICENSE'))) cpSync(join(nodeDir, 'LICENSE'), join(runtime, 'LICENSE'));
 
 step('写入发布标记');
-let baseCommit = process.env.ERP_RELEASE_BASE_COMMIT || 'unknown';
+let baseCommit = 'unknown';
 try {
   baseCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 } catch {
@@ -128,27 +127,8 @@ writeFileSync(
 );
 
 step('检查发布包内容');
-const problems = [];
-const walk = (dir) => {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name),
-      rel = relative(stage, full).replaceAll('\\', '/');
-    if (entry.isDirectory()) {
-      if (/^(data|backups|tests|work|outputs?|src|docs\/history|\.git|\.github|\.claude)(\/|$)/.test(rel))
-        problems.push('不该打包的目录：' + rel);
-      walk(full);
-      continue;
-    }
-    if (/\.(sqlite(-\w+)?|running|control|onnx|pem|key|pfx|p12)$/i.test(entry.name) || /^\.env$/.test(entry.name))
-      problems.push('不该打包的文件：' + rel);
-    if (!rel.startsWith('node_modules/') && !rel.startsWith('runtime/') && statSync(full).size < 5_000_000) {
-      const text = readFileSync(full, 'latin1');
-      if (/\bsk-(?!fictional|test|fake|mock|example|dummy)[A-Za-z0-9_-]{24,}\b|gh[pousr]_[A-Za-z0-9]{30,}|BEGIN [A-Z ]*PRIVATE KEY/.test(text))
-        problems.push('疑似密钥：' + rel);
-    }
-  }
-};
-walk(stage);
+// 规则和服务器补丁共用（scripts/release-scan.mjs），整包和补丁放行的文件始终一致。
+const problems = scanTree(stage);
 if (problems.length) throw new Error('发布包内容不合格：\n' + problems.join('\n'));
 
 function listFiles(dir) {

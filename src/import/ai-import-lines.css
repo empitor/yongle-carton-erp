@@ -1,0 +1,391 @@
+/* AI 识别导入：明细行、匹配候选、疑点 */
+/* 导入预览：同名产品要确认 */
+.aii-same-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aii-same-name p {
+  margin: 0 0 var(--space-2xs);
+}
+.aii-same-name ul {
+  margin: 0 0 var(--space-sm);
+  padding-left: var(--space-xl);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* 疑点清单：底部一句话，点开向上弹出 */
+.aii-issues {
+  position: relative;
+}
+.aii-issues > summary {
+  color: var(--warning);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aii-issues > summary.has-errors {
+  color: var(--danger);
+  font-weight: 600;
+}
+.aii-issues-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: var(--z-side-panel);
+  width: min(420px, 80vw);
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.aii-issues-pop p {
+  margin: var(--space-2xs) 0;
+  font-size: var(--text-xs);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.aii-issues-pop small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-field {
+  display: block;
+  min-width: 0;
+}
+.aii-field input,
+.aii-field textarea {
+  width: 100%;
+}
+.aii-field.is-uncertain input,
+.aii-field.is-uncertain textarea {
+  border-bottom: 2px solid var(--warning);
+}
+/* 助手改过的格子：紫色只用于 AI */
+.aii-field.is-assistant-edit input,
+.aii-field.is-assistant-edit textarea {
+  border-bottom: 2px solid var(--purple);
+}
+.aii-lines .dimension-unit-control small {
+  display: none;
+}
+.aii-stack > .aii-fold {
+  margin: 0;
+}
+
+/* 候选：一行一个，右边一个确认按钮 */
+.aii-candidates {
+  display: grid;
+  gap: var(--space-xs);
+}
+.aii-candidate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+.aii-candidate.is-recommended {
+  border-color: var(--accent-ink);
+}
+.aii-candidate > div {
+  display: grid;
+  flex: 1;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+.aii-candidate strong {
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.aii-candidate small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.aii-candidate small.aii-text-danger {
+  color: var(--danger);
+}
+.aii-candidate > button {
+  flex: none;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+}
+
+/* ---------- 客户订单：明细表 ---------- */
+.aii-lines-wrap {
+  overflow-x: auto;
+}
+.aii-lines {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.aii-lines th {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.aii-lines th.num {
+  text-align: right;
+}
+.aii-lines th:nth-child(1) {
+  width: 28%;
+}
+.aii-lines th:nth-child(2) {
+  width: 23%;
+}
+.aii-lines th:nth-child(3) {
+  width: 20%;
+}
+.aii-lines th:nth-child(4) {
+  width: 14%;
+}
+.aii-lines th:nth-child(5) {
+  width: 15%;
+}
+.aii-lines td {
+  vertical-align: top;
+}
+.aii-lines .aii-line-main td {
+  padding: 10px var(--space-sm) var(--space-xs);
+}
+.aii-lines .aii-line-sub td {
+  padding: 0 var(--space-sm) 10px 34px;
+  border-bottom: 1px solid var(--border);
+}
+.aii-lines input,
+.aii-lines textarea,
+.aii-lines select {
+  width: 100%;
+  min-height: 32px;
+  font-size: var(--text-sm);
+}
+.aii-lines td.num input {
+  text-align: right;
+}
+.aii-line-name {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+.aii-line-name > .aii-field {
+  flex: 1;
+}
+.aii-line-name textarea {
+  font-weight: 600;
+}
+.aii-line-no {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: var(--space-xs);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.aii-lines td.aii-amount {
+  padding-top: var(--space-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.aii-line-sub .aii-more {
+  margin-top: var(--space-xs);
+}
+
+/* 一行明细对应的产品档案：标签 · 状态 · 说明 · 下拉 */
+.aii-match {
+  display: grid;
+  gap: var(--space-xs);
+}
+.aii-match-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.aii-match-label {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-match-text {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aii-match-row select {
+  flex: 0 1 240px;
+  width: auto;
+  min-width: 140px;
+  height: 28px;
+  min-height: 28px;
+  font-size: var(--text-xs);
+}
+.aii-match-row > button {
+  flex: none;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+}
+.aii-match-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+}
+
+/* ---------- 弹窗 ---------- */
+.aii-stack {
+  display: grid;
+  gap: var(--space-md);
+}
+.aii-stack > .record-hint,
+.aii-stack > .form-message {
+  margin: 0;
+}
+.aii-confirm-text {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 22px;
+}
+.aii-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+  font-size: var(--text-sm);
+  line-height: 20px;
+  cursor: pointer;
+}
+.aii-agree input {
+  flex: none;
+  width: auto;
+  min-height: 0;
+  margin: 3px 0 0;
+}
+.aii-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aii-rows li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.aii-rows li > span {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aii-rows li > button {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
+}
+
+/* 到货纸板卡片第一行：名称、规格、实收、单价和计价，单价这一格要放下两个控件 */
+.aii-lines textarea {
+  overflow: hidden;
+  line-height: 20px;
+  resize: none;
+}
+
+@container (max-width: 640px) {
+  .aii-match-row {
+    flex-wrap: wrap;
+  }
+  .aii-match-text {
+    flex-basis: calc(100% - 160px);
+  }
+  .aii-match-row select {
+    flex: 1 1 100%;
+  }
+  .aii-candidate {
+    flex-wrap: wrap;
+  }
+}
+
+@container (max-width: 540px) {
+  /* 明细表改成上下排：每格上面写标签 */
+  .aii-lines,
+  .aii-lines tbody {
+    display: block;
+    min-width: 0;
+  }
+  .aii-lines thead {
+    display: none;
+  }
+  .aii-lines tr.aii-line-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-sm) var(--space-md);
+    padding-top: var(--space-md);
+  }
+  .aii-lines tr.aii-line-main td,
+  .aii-lines tr.aii-line-sub,
+  .aii-lines tr.aii-line-sub td {
+    display: block;
+    padding: 0;
+  }
+  .aii-lines tr.aii-line-main td:nth-child(-n + 2) {
+    grid-column: 1 / -1;
+  }
+  .aii-lines tr.aii-line-main td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: var(--space-2xs);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+  .aii-lines td.aii-amount {
+    padding-top: 0;
+    text-align: left;
+  }
+  .aii-lines tr.aii-line-sub td {
+    padding: var(--space-sm) 0 var(--space-md);
+  }
+}
+.aii-rows .more-menu > summary.more-menu-text {
+  width: auto;
+  height: 28px;
+  padding: 0 var(--space-sm);
+}

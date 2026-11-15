@@ -1,150 +1,170 @@
-import { Store, defaultDbPath } from './db.js';
+import { Store, defaultDbPath, type Deployment } from './core/index.js';
 import { createApp } from './app.js';
-import { acquireLock } from './lock.js';
-import { AiSettingsManager } from './ai/settings-manager.js';
+import { acquireLock } from './core/index.js';
+import { ProblemLog, RunLog, captureProcessOutput, defaultProblemLogPath, defaultRunLogPath, programSource } from './core/index.js';
+import { AiSettingsManager } from './ai/index.js';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { scheduleDailyBackup, snapshotBeforeUpgrade } from './backup.js';
-import { defaultAiSettingsPath, initializeCredentialProtection } from './ai/credential-store.js';
-import { ImportManager } from './import/manager.js';
-import { backupDirectory } from './config-paths.js';
-import { AuthManager } from './auth.js';
-import { ImportError } from './import/errors.js';
-import { AI_HTTP_TIMEOUT_MS } from '../shared/ai-runtime.js';
-import { defaultPromptSettingsPath } from './ai/prompt-presets.js';
-import { createPromptManagers } from './ai/recognition-modules.js';
-import { findImport } from './business/import-execution.js';
-import { MarkAi } from './marks/mark-ai.js';
-import { ReceiptAi } from './flow/receipt-ai.js';
-import { FlowService } from './flow/service.js';
-import { defaultAssistantToolsPath } from './assistant/tool-registry.js';
-import { AssistantManager } from './assistant/manager.js';
-import { localDevelopmentEnabled } from './developer-capability.js';
+import { SchemaError, VersionedSqliteError, scheduleDailyBackup } from './core/index.js';
+import { writeSync } from 'node:fs';
+import { purgeOperationRequests, scheduleDailyCleanup } from './core/index.js';
+import { defaultAiSettingsPath, initializeCredentialProtection } from './ai/index.js';
+import { ImportManager, defaultWorkspaceDirectory } from './import/index.js';
+import { backupDirectory } from './core/index.js';
+import { AuthManager, defaultAccountPath } from './core/index.js';
+import { AI_HTTP_TIMEOUT_MS } from '../shared/ai/index.js';
+import { DAY_MS, errorMessage } from '../shared/core/index.js';
+import { defaultPromptSettingsPath } from './ai/index.js';
+import { createPromptManagers } from './ai/index.js';
+import { workspaceHooks } from './import/index.js';
+import { ReceiptAi } from './import/index.js';
+import { defaultAssistantToolsPath } from './assistant/index.js';
+import { AssistantManager } from './assistant/index.js';
 import { createRuntimeControl } from '../scripts/runtime-control.mjs';
-import { createServer } from 'node:http';
-import { InboxService } from './inbox/service.js';
-import { WecomBotConnection } from './inbox/wecom-bot.js';
-import { WecomBotSettings, defaultWecomBotPath } from './inbox/wecom-bot-settings.js';
-import { readDeployment } from './deployment.js';
-import { checkDocumentFonts } from './documents/templates.js';
-initializeCredentialProtection();
-checkDocumentFonts();
-const port = Number(process.env.PORT || 3001);
-const deployment = readDeployment(process.env, port);
-if (deployment?.backupCopyDir) {
+import { createServer, type Server } from 'node:http';
+import { InboxService } from './inbox/index.js';
+import { BotManager, BotSettings, defaultBotSettingsPath, purgeOldInbox } from './inbox/index.js';
+import { backupExtraFiles } from './backup-extras.js';
+import { readDeployment } from './core/index.js';
+import { checkDocumentFonts, purgeExportFiles } from './documents/index.js';
+import { DEFAULT_PORT } from './local-service.js';
+
+/**
+ * 正式服务的启动入口。只有被直接运行时才启动（npm start、scripts/dev-system.mjs、Linux 的 erp.sh start）：
+ * 启动时按 DB_PATH、ERP_CONFIG_DIR（没设时用 LOCALAPPDATA）、PORT 打开真实的业务库和各个配置库、写运行锁、监听端口。
+ * 被别的文件 import 时什么都不做，免得“看看能不能加载”的脚本按默认目录起一个正式实例。
+ * 要看代码能不能加载，用类型检查，或者加载 server/app.ts 并把数据目录、配置目录指到临时目录。
+ */
+if (import.meta.main) await startServer();
+
+/** 备份复制目录（部署时另存一份备份的地方）必须在业务数据和本地备份目录之外 */
+function checkBackupCopyDir(deployment: Deployment | undefined) {
+  if (!deployment?.backupCopyDir) return;
   for (const root of [dirname(defaultDbPath), backupDirectory()]) {
     const path = relative(root, deployment.backupCopyDir);
     if (!path || (!isAbsolute(path) && path !== '..' && !path.startsWith('..' + sep)))
       throw new Error('备份复制目录必须位于业务数据和本地备份目录之外。');
   }
 }
-const unlock = acquireLock(defaultDbPath);
-process.on('exit', unlock);
-const snapshot = snapshotBeforeUpgrade(defaultDbPath);
-if (snapshot) console.log('已生成升级前业务库快照：', snapshot);
-const store = new Store();
-// 0.8.0 改了“待发货”的判断（做够订单数量才算）。老订单要等下次有单据才重算，
-// 所以第一次启动时按新规则全部重算一次；只改状态变了的，跑过就不再跑。失败不挡启动，下次再试。
-try {
-  const changed = new FlowService(store).recomputeOrderStatusesOnce('produced-enough-2026-11-07');
-  if (changed) console.log('已按新规则核对订单状态，有 ' + changed.length + ' 张订单的状态更新。');
-} catch (error) {
-  console.warn('订单状态重算没有完成，下次启动会再试：' + (error as Error).message);
+
+// 打开业务库和各个配置库：空库新建；旧一些的库先留备份再升级。0.9.0 以前的旧业务库、比程序新的库、
+// 不是本系统的文件、认不出格式的配置库、升级失败，都只把提示原样打出来、以非零码退出（不打堆栈），数据不动。
+function opening<T>(open: () => T): T {
+  try {
+    return open();
+  } catch (error) {
+    if (!(error instanceof SchemaError) && !(error instanceof VersionedSqliteError)) throw error;
+    // 同步写完再退出：异步写的话直接退出会把提示截断
+    writeSync(2, error.message + '\n');
+    process.exit(1);
+  }
 }
-const auth = new AuthManager(join(dirname(defaultDbPath), 'security', 'users.sqlite'), Date.now, {
-  localDevelopment: localDevelopmentEnabled(),
-  localAdministration: true,
-  deployment,
-});
-const aiSettings = new AiSettingsManager({
-  file: defaultAiSettingsPath(),
-  legacyFile: join(dirname(defaultDbPath), 'ai-settings.json'),
-});
-const aiWarning = deployment && aiSettings.credentialWarning();
-if (aiWarning) console.warn(aiWarning);
-void aiSettings.startup();
-const promptManagers = createPromptManagers(dirname(defaultPromptSettingsPath()));
-const promptPresets = promptManagers['sales-order'];
-const receiptPrompts = promptManagers['supplier-delivery'];
-const assistantPrompts = promptManagers['assistant'];
-const receiptAi = new ReceiptAi(store, aiSettings, receiptPrompts);
-const markAi = new MarkAi(store, aiSettings, promptManagers['shipping-mark']);
-const assistant = new AssistantManager(store, aiSettings, assistantPrompts, {
-  toolSettingsFile: defaultAssistantToolsPath(),
-  disableLocalFeatures: !!deployment,
-});
-const imports = new ImportManager({
-  directory: join(dirname(defaultDbPath), 'ai-imports'),
-  // 原件归档跟随业务库目录：服务器上程序目录只读，数据在 DB_PATH 所在目录，备份也按这个目录打包。
-  archiveDirectory: join(dirname(defaultDbPath), 'import-archive'),
-  settings: aiSettings,
-  promptPresets,
-  findImport: (id, hash) => findImport(store, id, hash),
-  validateMapping: (m) => {
-    if (m.customer.mode === 'existing') {
-      const c = store.customer(m.customer.id);
-      if (!c || c.version !== m.customer.version)
-        throw new ImportError('客户不存在或版本已变化，请重新选择', 409);
-    }
-    for (const p of Object.values(m.products))
-      if (p.mode === 'existing') {
-        const product = store.product(p.id);
-        if (!product || product.version !== p.version)
-          throw new ImportError('产品不存在或版本已变化，请重新选择', 409);
-      }
-  },
-});
-const wecomBotSettings = new WecomBotSettings(defaultWecomBotPath());
-const botWarning = deployment && wecomBotSettings.credentialWarning();
-if (botWarning) console.warn(botWarning);
-const inbox = new InboxService(store);
-const wecomBot = new WecomBotConnection({
-  credentials: () => wecomBotSettings.credentials(),
-  ingest: (incoming) => inbox.ingest(incoming),
-  exists: (channel, externalId) => inbox.has(channel, externalId),
-});
-const app = createApp(store, {
-    assistant,
-    aiSettings,
-    promptModules: promptManagers,
-    imports,
-    auth,
+
+/** 按真实目录打开各个库和服务，接好助手的只读工具 */
+function openServices(deployment: Deployment | undefined, runLog: RunLog) {
+  const store = opening(() => new Store());
+  const problems = opening(() => new ProblemLog(defaultProblemLogPath()));
+  const auth = opening(
+    () => new AuthManager(defaultAccountPath(), Date.now, { localAdministration: true, deployment }),
+  );
+  const aiSettings = new AiSettingsManager({ file: defaultAiSettingsPath() });
+  const aiWarning = deployment && aiSettings.credentialWarning();
+  if (aiWarning) console.warn(aiWarning);
+  const promptManagers = opening(() => createPromptManagers(dirname(defaultPromptSettingsPath())));
+  const receiptAi = new ReceiptAi(store, aiSettings, promptManagers['supplier-delivery']);
+  const assistant = opening(
+    () =>
+      new AssistantManager(store, aiSettings, promptManagers['assistant'], {
+        toolSettingsFile: defaultAssistantToolsPath(),
+      }),
+  );
+  const imports = opening(() => new ImportManager({
+    directory: defaultWorkspaceDirectory(),
+    // 原件归档跟随业务库目录：服务器上程序目录只读，数据在 DB_PATH 所在目录，备份也按这个目录打包。
+    archiveDirectory: join(dirname(defaultDbPath), 'import-archive'),
+    settings: aiSettings,
+    promptPresets: promptManagers['sales-order'],
+    // 导入记录、保存客户和产品选择前核对档案：问业务库的两件事由识别导入模块提供
+    ...workspaceHooks(store),
+  }));
+  const botSettings = opening(() => new BotSettings(defaultBotSettingsPath()));
+  const botWarning = deployment && botSettings.credentialWarning();
+  if (botWarning) console.warn(botWarning);
+  const inbox = new InboxService(store);
+  const bots = new BotManager(botSettings, {
+    ingest: (incoming) => inbox.ingest(incoming),
+    exists: (channel, externalId) => inbox.has(channel, externalId),
+  });
+  // 助手的只读工具要看的东西（AI 设置、账号、机器人、出错记录、运行日志、程序代码）
+  assistant.tools.connect({
+    ai: aiSettings,
+    accounts: auth,
+    bots,
     deployment,
-    receiptAi,
-    markAi,
-    wecomBot: { settings: wecomBotSettings, connection: wecomBot },
-    enableReviewedImports: true,
-});
-const listeners = (deployment ? [port, deployment.proxyPort] : [port]).map((port) => {
-  const server = createServer(app);
-  server.requestTimeout = AI_HTTP_TIMEOUT_MS;
-  server.setTimeout(0); // 响应等待由 AI 绝对期限控制。
-  return { server, port };
-});
-let closing: Promise<void> | undefined;
-let stopBackup: (() => void) | undefined;
-const shutdown = (notify = true) =>
-  (closing ||= (async () => {
-    if (notify) process.send?.({ type: 'erp-shutdown' });
-    stopBackup?.();
-    wecomBot.stop();
-    await Promise.all(listeners.map(({ server }) => new Promise<void>((done, reject) => {
-      server.close((error) => {
-        if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING')
-          reject(error);
-        else done();
-      });
-      server.closeIdleConnections();
-    })));
-    wecomBotSettings.close();
-    store.close();
-    aiSettings.close();
-    imports.close();
-    for (const manager of Object.values(promptManagers)) manager.close();
-    auth.close();
-    unlock();
-  })());
-const control = await createRuntimeControl(defaultDbPath, shutdown, () => process.exit(0));
-try {
+    registry: assistant.registry,
+    problems,
+    runLog,
+    source: programSource(),
+    accountsDb: auth.db,
+  });
+  return { store, problems, auth, aiSettings, promptManagers, receiptAi, assistant, imports, botSettings, bots };
+}
+type Services = ReturnType<typeof openServices>;
+type Listener = { server: Server; port: number };
+
+/** 每日清理和定期整理查询统计；返回停掉它们的办法 */
+function scheduleUpkeep(store: Store) {
+  // 每日清理（启动五分钟后第一次，之后每小时看一次、满 24 小时再清，本机每天关机也能跑到）：
+  // 清过期的防重复提交记录、导出文件内容（导出记录本身留着）和没转成单据的收件箱消息，保留天数是各清理函数自己的常量
+  // OPERATION_REQUEST_KEEP_DAYS、EXPORT_FILE_KEEP_DAYS、INBOX_KEEP_DAYS；最后把删掉数据后空出来的空间还给磁盘（按页计）。
+  // 库正开着事务时整轮跳过，下个小时再看
+  const stopCleanup = scheduleDailyCleanup(store, [
+    { name: '过期的防重复提交记录', run: () => purgeOperationRequests(store) },
+    { name: '过期的导出文件内容', run: () => purgeExportFiles(store) },
+    { name: '过期的收件箱消息', run: () => purgeOldInbox(store) },
+    { name: '业务库还给磁盘的空间', run: () => store.reclaimSpace(), unit: '页' },
+  ]);
+  // 连续运行满 24 小时更新一次查询计划用的统计信息（PRAGMA optimize），关闭时 Store 还会再跑一次
+  const optimizeTimer = setInterval(() => store.optimize(), DAY_MS);
+  optimizeTimer.unref();
+  return { stopCleanup, optimizeTimer };
+}
+type Running = {
+  services: Services;
+  listeners: Listener[];
+  upkeep: ReturnType<typeof scheduleUpkeep> & { stopBackup?: () => void };
+  unlock: () => void;
+};
+
+function closeServer(server: Server) {
+  return new Promise<void>((done, reject) => {
+    server.close((error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING')
+        reject(error);
+      else done();
+    });
+    server.closeIdleConnections();
+  });
+}
+
+/** 停掉定时任务和监听，关掉各个库，最后放开运行锁 */
+async function closeAll({ services, listeners, upkeep, unlock }: Running, notify: boolean) {
+  if (notify) process.send?.({ type: 'erp-shutdown' });
+  upkeep.stopBackup?.();
+  upkeep.stopCleanup();
+  clearInterval(upkeep.optimizeTimer);
+  services.bots.stop();
+  await Promise.all(listeners.map(({ server }) => closeServer(server)));
+  services.botSettings.close();
+  services.store.close();
+  services.problems.close();
+  services.aiSettings.close();
+  services.imports.close();
+  for (const manager of Object.values(services.promptManagers)) manager.close();
+  services.auth.close();
+  unlock();
+}
+
+async function listenAll(listeners: Listener[]) {
   for (const { server, port } of listeners)
     await new Promise<void>((done, reject) => {
       server.once('error', reject);
@@ -153,45 +173,79 @@ try {
         done();
       });
     });
-} catch (error) {
-  console.error('服务启动失败：', (error as Error).message);
-  await shutdown(false).finally(() => control.close());
-  process.exit(1);
 }
-assistant.connectExtras({
-  backup: {
+
+async function startServer() {
+  initializeCredentialProtection();
+  checkDocumentFonts();
+  const port = Number(process.env.PORT || DEFAULT_PORT);
+  const deployment = readDeployment(process.env, port);
+  checkBackupCopyDir(deployment);
+  const unlock = acquireLock(defaultDbPath);
+  process.on('exit', unlock);
+  // 运行日志：从这里起服务的输出和报错都另存一份到 logs/run.log，助手和管理员排查时看
+  const runLog = new RunLog(defaultRunLogPath());
+  captureProcessOutput(runLog);
+  const services = openServices(deployment, runLog);
+  const { assistant, bots } = services;
+  const app = createApp(services.store, {
+      assistant,
+      aiSettings: services.aiSettings,
+      promptModules: services.promptManagers,
+      imports: services.imports,
+      auth: services.auth,
+      deployment,
+      receiptAi: services.receiptAi,
+      problems: services.problems,
+      bots,
+      enableReviewedImports: true,
+  });
+  const listeners = (deployment ? [port, deployment.proxyPort] : [port]).map((port) => {
+    const server = createServer(app);
+    server.requestTimeout = AI_HTTP_TIMEOUT_MS;
+    server.setTimeout(0); // 响应等待由 AI 绝对期限控制。
+    return { server, port };
+  });
+  const running: Running = { services, listeners, upkeep: scheduleUpkeep(services.store), unlock };
+  let closing: Promise<void> | undefined;
+  const shutdown = (notify = true) => (closing ||= closeAll(running, notify));
+  const control = await createRuntimeControl(defaultDbPath, shutdown, () => process.exit(0));
+  try {
+    await listenAll(listeners);
+  } catch (error) {
+    console.error('服务启动失败：', errorMessage(error));
+    await shutdown(false).finally(() => control.close());
+    process.exit(1);
+  }
+  assistant.connectExtras({
+    backup: {
+      dataDir: dirname(defaultDbPath),
+      backupRoot: backupDirectory(),
+      extraFiles: backupExtraFiles(),
+    },
+  });
+  running.upkeep.stopBackup = scheduleDailyBackup({
     dataDir: dirname(defaultDbPath),
     backupRoot: backupDirectory(),
-    extraFiles: {
-      'ai-settings.sqlite': defaultAiSettingsPath(),
-      'wecom-bot.sqlite': defaultWecomBotPath(),
-    },
-  },
-});
-stopBackup = scheduleDailyBackup({
-  dataDir: dirname(defaultDbPath),
-  backupRoot: backupDirectory(),
-  copyDir: deployment?.backupCopyDir,
-  copyKeep: deployment?.backupCopyKeep,
-  extraFiles: {
-    'ai-settings.sqlite': defaultAiSettingsPath(),
-    'wecom-bot.sqlite': defaultWecomBotPath(),
-  },
-});
-console.log(
-  `宁波甬勒包装制品有限公司 · 管理系统：http://127.0.0.1:${port}\n数据库：${defaultDbPath}\n` +
-  (deployment ? `部署模式，反向代理入口 127.0.0.1:${deployment.proxyPort}` : '本机验收版，正式导入与业务写入需登录管理账号。'),
-);
-wecomBot.start();
-for (const signal of ['SIGINT', 'SIGTERM'] as const)
-  process.on(signal, () => {
-    void shutdown()
-      .then(() => control.close())
-      .then(
-        () => process.exit(0),
-        (error) => {
-          console.error('服务关闭失败：', error.message);
-          process.exitCode = 1;
-        },
-      );
+    copyDir: deployment?.backupCopyDir,
+    copyKeep: deployment?.backupCopyKeep,
+    extraFiles: backupExtraFiles(),
   });
+  console.log(
+    `宁波甬勒包装制品有限公司 · 管理系统：http://127.0.0.1:${port}\n数据库：${defaultDbPath}\n` +
+    (deployment ? `部署模式，反向代理入口 127.0.0.1:${deployment.proxyPort}` : '本机验收版，正式导入与业务写入需登录管理账号。'),
+  );
+  bots.start();
+  for (const signal of ['SIGINT', 'SIGTERM'] as const)
+    process.on(signal, () => {
+      void shutdown()
+        .then(() => control.close())
+        .then(
+          () => process.exit(0),
+          (error: unknown) => {
+            console.error('服务关闭失败：', errorMessage(error));
+            process.exitCode = 1;
+          },
+        );
+    });
+}

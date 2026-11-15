@@ -1,21 +1,17 @@
-import type { Store } from '../db.js';
-import { importNameKey, resolveCustomerCandidates } from '../../shared/import-matching.js';
-export const customerNameKey = importNameKey;
-/** Only exact names, real historical identity or an explicit current-batch receipt prove identity. */
-export function resolveImportCustomer(
-  store: Store,
-  name: string,
-  confirmedCustomerIds: number[] = [],
-) {
-  const active = new Set(store.customers().map((c) => c.id));
-  const historyIds = store
-    .orders(true)
-    .filter((o) => customerNameKey(o.customerName) === customerNameKey(name))
-    .map((o) => o.customerId);
+import type { Store } from '../core/index.js';
+import { resolveCustomerCandidates } from '../../shared/import/index.js';
+import { historyCustomerIds } from './order-lookup.js';
+
+/**
+ * 按名字对应客户：名字一样、只差公司后缀、以前的订单用过这个名字，或者本批里已确认是同一家，才算同一家。
+ * 相近的只列候选。要和全部客户比相似度，所以读一次全部客户（含归档，归档的标出来）。
+ */
+export function resolveImportCustomer(store: Store, name: string, confirmedCustomerIds: number[] = []) {
+  const archived = store.archivedIds('customers');
   return resolveCustomerCandidates(
-    store.customers(true).map((c) => ({ ...c, archived: !active.has(c.id) })),
+    store.customers(true).map((c) => ({ ...c, archived: archived.has(c.id) })),
     name,
-    historyIds,
+    historyCustomerIds(store, name),
     confirmedCustomerIds,
   );
 }

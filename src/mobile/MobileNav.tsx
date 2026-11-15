@@ -1,26 +1,18 @@
-import { useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardList, Factory, Warehouse, type LucideIcon } from 'lucide-react';
-import YlSpirits from '../YlSpirits';
-
-const PHONE_QUERY = '(max-width: 700px)';
-
-/** 非渲染场景（服务端渲染、测试）下按电脑处理。 */
-export function isPhoneNow() {
-  return typeof window !== 'undefined' && !!window.matchMedia?.(PHONE_QUERY).matches;
-}
-
-export function useIsPhone() {
-  const [phone, setPhone] = useState(isPhoneNow);
-  useEffect(() => {
-    if (!window.matchMedia) return;
-    const query = window.matchMedia(PHONE_QUERY);
-    const update = () => setPhone(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return phone;
-}
+import { useEffect } from 'react';
+import {
+  BookOpen,
+  CalendarCheck,
+  ClipboardList,
+  Factory,
+  HandCoins,
+  Landmark,
+  Wallet,
+  Warehouse,
+  type LucideIcon,
+} from 'lucide-react';
+import { YlSpirits } from '../assistant/index';
+import { useIsPhone } from '../ui/index';
+import { emit } from '../ui/index';
 
 /**
  * 手机上把表格变成卡片：给每个单元格写上列名，第一列当标题，空值和批量勾选不显示。
@@ -83,9 +75,12 @@ export function useMobileTables() {
 export function MobileTabBar({
   page,
   navigate,
+  financeOnly = false,
 }: {
   page: string;
   navigate: (target: string) => void;
+  /** 出纳这类纯财务账号：底部换成财务入口。 */
+  financeOnly?: boolean;
 }) {
   const tab = (target: string, label: string, Icon: LucideIcon, pages: string[]) => {
     const selected = pages.includes(page);
@@ -101,30 +96,43 @@ export function MobileTabBar({
       </button>
     );
   };
+  const assistant = (
+    <button
+      type="button"
+      className="mobile-tab mobile-tab-ai"
+      onClick={() => emit('erp-open-assistant')}
+    >
+      <span>
+        <YlSpirits still />
+      </span>
+      助手
+    </button>
+  );
+  if (financeOnly)
+    return (
+      <nav className="mobile-tabbar" aria-label="手机底部导航">
+        {tab('finance', '概览', Landmark, ['finance'])}
+        {tab('finance-ar', '应收应付', HandCoins, ['finance-ar'])}
+        {assistant}
+        {tab('finance-cash', '资金', Wallet, ['finance-cash'])}
+        {tab('finance-ledger', '凭证', BookOpen, ['finance-ledger'])}
+      </nav>
+    );
   return (
     <nav className="mobile-tabbar" aria-label="手机底部导航">
       {tab('dashboard', '今日', CalendarCheck, ['dashboard'])}
       {tab('orders', '订单', ClipboardList, ['orders'])}
-      <button
-        type="button"
-        className="mobile-tab mobile-tab-ai"
-        onClick={() => window.dispatchEvent(new Event('erp-open-assistant'))}
-      >
-        <span>
-          <YlSpirits still />
-        </span>
-        助手
-      </button>
+      {assistant}
       {tab('production', '生产', Factory, ['production'])}
-      {tab('warehouse', '仓库', Warehouse, ['warehouse', 'arrivals'])}
+      {tab('warehouse', '仓库', Warehouse, ['warehouse'])}
     </nav>
   );
 }
 
 const warehouseViews = [
-  ['warehouse', '库存', (p: URLSearchParams) => !['arrivals', 'deliveries', 'flow', 'arrivalPlans', 'deliveryPlans'].some((k) => p.get(k) === '1')],
-  ['warehouse?arrivals=1', '到货', (p: URLSearchParams) => p.get('arrivals') === '1' || p.get('arrivalPlans') === '1'],
-  ['warehouse?deliveries=1&kind=finished', '送货', (p: URLSearchParams) => p.get('deliveries') === '1' || p.get('deliveryPlans') === '1'],
+  ['warehouse', '库存', (p: URLSearchParams) => !['arrivals', 'deliveries', 'flow'].some((k) => p.get(k) === '1')],
+  ['warehouse?arrivals=1', '到货', (p: URLSearchParams) => p.get('arrivals') === '1'],
+  ['warehouse?deliveries=1&kind=finished', '送货', (p: URLSearchParams) => p.get('deliveries') === '1'],
   ['warehouse?flow=1', '流水', (p: URLSearchParams) => p.get('flow') === '1'],
 ] as const;
 const productionViews = [

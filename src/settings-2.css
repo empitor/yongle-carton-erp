@@ -1,0 +1,42 @@
+/* 设置总页的页签（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+.ai-settings-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--accent-ink);
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+body:has(.ga-launcher) main.import-main {
+  padding-bottom: var(--space-md);
+}
+
+@media (max-width: 700px) {
+  main.import-main {
+    padding: var(--space-sm) var(--space-md) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-lg)) !important;
+  }
+  .import-main {
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+.oi-account .account-avatar {
+  width: 24px;
+  height: 24px;
+}
+.oi-account-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.oi-account-level {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 700px) {
+  .oi-account .account-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+  }
+}

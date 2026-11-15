@@ -1,0 +1,244 @@
+/* 登录页和密码框 */
+.auth-form label {
+  display: block;
+  margin: var(--space-md) 0;
+  font-size: var(--text-xs);
+}
+.auth-form label input {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+}
+.auth-form button {
+  margin-top: var(--space-md);
+}
+.auth-form p[role='alert'] {
+  color: var(--danger);
+}
+
+@media (max-width: 700px) {
+  .login-screen input {
+    min-height: 44px;
+    font-size: var(--text-lg);
+  }
+}
+
+/* ---- 登录页 ---- */
+.login-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-2xl);
+  background: var(--page-bg);
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  width: min(400px, 100%);
+  padding: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-sm);
+}
+.login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+}
+.login-head .brand-logo {
+  margin-bottom: var(--space-md);
+}
+.login-head h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--ink);
+}
+.login-head h2 {
+  margin: var(--space-md) 0 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+.login-head p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.login-card .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.login-card .auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.login-card .auth-form label input {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+}
+.login-card .auth-form > button {
+  width: 100%;
+  min-height: 40px;
+  margin: var(--space-2xs) 0 0;
+}
+.login-card > button:not(.login-link) {
+  width: 100%;
+  min-height: 40px;
+}
+.login-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.login-links {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.login-card .login-link {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.login-card .login-link:hover {
+  text-decoration: underline;
+  background: none;
+}
+.login-card .login-link-center {
+  align-self: center;
+}
+.login-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.login-accounts li {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.login-accounts li:hover {
+  background: var(--surface-hover);
+}
+.login-card .login-account {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.login-account-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.login-account-text strong {
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.login-account-text small {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.login-card .login-account-remove {
+  display: inline-flex;
+  flex: none;
+  width: 36px;
+  min-height: 36px;
+  margin-right: var(--space-sm);
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.auth-form p.form-alert[role='alert'] {
+  margin: 0;
+  padding: var(--space-sm);
+  border-radius: var(--r-control);
+  background: var(--danger-soft);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--danger);
+}
+.auth-form .password-field-box input,
+.login-card .auth-form label .password-field-box input {
+  width: 100%;
+  margin: 0;
+  padding-right: 40px;
+}
+.auth-form .password-field-box .password-toggle,
+.login-card .auth-form .password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  width: 36px;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 700px) {
+  .login-screen {
+    align-items: start;
+    padding: var(--space-lg);
+  }
+  .login-card {
+    padding: var(--space-2xl) var(--space-lg);
+    box-shadow: none;
+  }
+  .login-card .auth-form label input,
+  .login-card .auth-form > button,
+  .login-card > button:not(.login-link) {
+    min-height: 44px;
+    font-size: var(--text-lg);
+  }
+  .login-card .login-link {
+    min-height: 32px;
+    font-size: var(--text-md);
+  }
+}

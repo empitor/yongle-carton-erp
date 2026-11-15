@@ -1,28 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Download, ZoomIn, ZoomOut, Maximize2, FileText } from 'lucide-react';
-import type { ImportWorkspaceView as Workspace } from '../../shared/order-draft';
-export default function FilePreview({
-  workspace,
-  compatible = false,
-}: {
-  workspace?: Workspace;
-  compatible?: boolean;
-}) {
+import type { ImportWorkspaceView as Workspace } from '../../shared/import/index';
+import { KIB } from '../../shared/core/index';
+import { workspaceFileUrl } from './workspace-api';
+/** 原件预览：图片直接显示（可缩放），别的格式给下载。 */
+export default function FilePreview({ workspace }: { workspace?: Workspace }) {
   const [zoom, setZoom] = useState(1);
   useEffect(() => setZoom(1), [workspace?.id]);
   if (!workspace)
     return (
       <div className="oi-empty">
-        <p>上传原始订单文件</p>
-        <span>
-          支持Excel、Word、PDF及图片
-          <br />
-          上传先保留原件，识别方式以当前服务能力与外发确认说明为准
-        </span>
+        <span>选中文件后，在这里看原件。</span>
       </div>
     );
   const image = ['jpg', 'png'].includes(workspace.parsed.format),
-    url = '/api/ai/imports/' + workspace.id + '/file';
+    url = workspaceFileUrl(workspace.id);
   return (
     <section className="oi-preview">
       <header>
@@ -64,20 +56,12 @@ export default function FilePreview({
         ) : (
           <div className="oi-empty">
             <FileText size={30} />
-            <p>{workspace.parsed.format.toUpperCase()}原件已保存</p>
+            <p>{workspace.parsed.format.toUpperCase()} 原件已保存</p>
             <span>
-              {(workspace.size / 1024).toFixed(1)} KB · 字节保持不变
-              <br />
-              {compatible
-                ? 'DeepSeek：提取文字，扫描PDF转图后发送'
-                : '不做本地文字提取、解压或解析预览'}
-              <br />
-              {compatible
-                ? '原件保留；内嵌图片和复杂排版需人工核对'
-                : '识别时通过Responses直接发送原件'}
+              {(workspace.size / KIB).toFixed(1)} KB · 这类文件不能在这里预览，下载后对照核对
             </span>
             <a href={url} download>
-              下载原件核对
+              下载原件
             </a>
           </div>
         )}

@@ -1,24 +1,191 @@
-import { blocksNewProduct } from '../../shared/import-matching';
-import { Fragment, useState, useEffect } from 'react';
-import { DraftText as WrappedText } from './DraftUI';
+import { Fragment, useState, useEffect, useRef, type ReactNode } from 'react';
+import { ORDER_LINES_TITLE } from '../recordkit/index';
 import {
   fieldLabels,
   headerFields,
   lineFields,
-  type OrderDraft,
+  mappingSchema,
   type DraftField,
+  type ImportMapping,
   type ImportWorkspaceView as Workspace,
-} from '../../shared/order-draft';
-import type { ImportMapping } from '../../shared/import-mapping';
-import { productCandidateDetails } from '../../shared/import-matching';
+  type OrderDraft,
+} from '../../shared/import/index';
 import { useImportMatching } from './useImportMatching';
-import DimensionUnitSelect from '../DimensionUnitSelect';
-import {
-  dimensionKeys,
-  parseDimension,
-  convertDimension,
-  normalizeDimensionUnit,
-} from '../../shared/product-details';
+import { FormField, FormSection } from '../ui/index';
+import { CustomerMatch } from './CustomerMatch';
+import { ProductMatch } from './ImportMatch';
+import { DraftInput, type ChangeField, type DraftKey } from './DraftInput';
+import { MappingSaveState, OrderNotices } from './OrderDraftNotices';
+
+const mainHeader = ['buyerName', 'purchaseOrderNumber', 'orderDate', 'deliveryDate'] as const;
+const mainLine: readonly string[] = ['productName', 'specification', 'quantity', 'unit', 'unitPrice'];
+type Match = ReturnType<typeof useImportMatching>;
+type DraftLine = OrderDraft['lines'][number];
+/** 画一栏的输入框：明细的带哪一行、第几行 */
+type Input = (k: DraftKey, field: DraftField, line?: { line: DraftLine; index: number }) => ReactNode;
+
+/**
+ * 选了就保存（以前要多点一次“保存选择”，否则导入按钮是灰的，用户不知道为什么）；
+ * 还有没确认完的客户、产品时告诉页面（导入按钮旁边的提示）。
+ */
+function useMappingAutosave(match: Match, locked: boolean, imported: boolean, onPending?: (pending: boolean) => void) {
+  const { mapping, dirty, saveState, unresolved } = match,
+    loaded = !!match.matches;
+  // save 每次渲染都是新函数：放进 ref 取最新的，只按选择和保存状态的变化决定要不要存
+  const latestSave = useRef(match.save);
+  useEffect(() => {
+    latestSave.current = match.save;
+  });
+  useEffect(() => {
+    if (!locked && !imported && loaded && dirty && saveState === 'idle') void latestSave.current();
+  }, [mapping, loaded, locked, imported, dirty, saveState]);
+  useEffect(() => onPending?.(!loaded || dirty || unresolved), [loaded, dirty, unresolved, onPending]);
+}
+
+/** 客户和订单：主要的几栏、客户档案、金额结算，其他字段收进折叠 */
+function OrderHeader({
+  draft,
+  match,
+  workspace,
+  locked,
+  input,
+}: {
+  draft: OrderDraft;
+  match: Match;
+  workspace: Workspace;
+  locked: boolean;
+  input: Input;
+}) {
+  const imported = !!workspace.imported,
+    { mapping } = match;
+  return (
+    <FormSection
+      title="客户和订单"
+      columns={4}
+      extra={!imported && <MappingSaveState match={match} saved={!!workspace.mapping} locked={locked} />}
+    >
+      {mainHeader.map((k) => (
+        <FormField key={k} label={fieldLabels[k]}>
+          {input(k, draft.header[k])}
+        </FormField>
+      ))}
+      {!imported && <CustomerMatch match={match} buyerName={draft.header.buyerName.value} locked={locked} />}
+      <FormField label="金额结算" span={imported ? 'full' : 2}>
+        <select
+          aria-label="金额结算规则"
+          disabled={locked}
+          value={mapping.roundingPolicy}
+          onChange={(e) => {
+            const policy = mappingSchema.shape.roundingPolicy.safeParse(e.target.value);
+            if (policy.success) match.select({ ...mapping, roundingPolicy: policy.data }, 'rounding');
+          }}
+        >
+          <option value="exact-cents">精确到分，不自动舍入</option>
+          <option value="half-up-cent">整单四舍五入到分（明确确认）</option>
+        </select>
+      </FormField>
+      <details className="aii-more aii-span-full">
+        <summary>其他订单字段：供应方、币种、税率、备注、合同条件、原文合计</summary>
+        <div className="ed-grid cols-4 aii-compact">
+          {headerFields
+            .filter((k) => !(mainHeader as readonly string[]).includes(k))
+            .map((k) => (
+              <FormField key={k} label={fieldLabels[k]}>
+                {input(k, draft.header[k])}
+              </FormField>
+            ))}
+        </div>
+      </details>
+    </FormSection>
+  );
+}
+
+/** 产品明细：每行主要几栏和程序算的金额，下面一行是产品档案对应到哪，少用的字段收进折叠 */
+function OrderLines({
+  draft,
+  match,
+  workspace,
+  locked,
+  input,
+}: {
+  draft: OrderDraft;
+  match: Match;
+  workspace: Workspace;
+  locked: boolean;
+  input: Input;
+}) {
+  const imported = !!workspace.imported;
+  return (
+    <FormSection title={ORDER_LINES_TITLE} columns={1}>
+      <div className="aii-lines-wrap">
+        <table className="aii-lines">
+          <thead>
+            <tr>
+              <th>产品名称</th>
+              <th>规格</th>
+              <th>数量 / 单位</th>
+              <th className="num">单价 / 元</th>
+              <th className="num">计算金额</th>
+            </tr>
+          </thead>
+          <tbody>
+            {draft.lines.map((l, i) => {
+              const at = { line: l, index: i };
+              return (
+                <Fragment key={l.id}>
+                  <tr className="aii-line-main">
+                    <td data-label="产品名称">
+                      <div className="aii-line-name">
+                        <span className="aii-line-no">{i + 1}</span>
+                        {input('productName', l.fields.productName, at)}
+                      </div>
+                    </td>
+                    <td data-label="规格">{input('specification', l.fields.specification, at)}</td>
+                    <td data-label="数量 / 单位">
+                      <div className="aii-qty">
+                        {input('quantity', l.fields.quantity, at)}
+                        {input('unit', l.fields.unit, at)}
+                      </div>
+                    </td>
+                    <td className="num" data-label="单价 / 元">
+                      {input('unitPrice', l.fields.unitPrice, at)}
+                    </td>
+                    <td className="num aii-amount" data-label="计算金额">
+                      {workspace.evaluation?.lineAmounts[l.id] || '待核对'}
+                      <small>原文 {l.fields.statedAmount.value || '—'}</small>
+                    </td>
+                  </tr>
+                  <tr className="aii-line-sub">
+                    <td colSpan={5}>
+                      {!imported && <ProductMatch match={match} lineId={l.id} index={i} locked={locked} />}
+                      <details className="aii-more">
+                        <summary>备注、编码、尺寸、配纸等</summary>
+                        <div className="ed-grid cols-4 aii-compact">
+                          {lineFields
+                            .filter((k) => !mainLine.includes(k))
+                            .map((k) => (
+                              <FormField key={k} label={fieldLabels[k]} span={k === 'notes' || k === 'requirements' ? 2 : 1}>
+                                {input(k, l.fields[k], at)}
+                              </FormField>
+                            ))}
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </FormSection>
+  );
+}
+
+/**
+ * 订单草稿核对：上面“客户和订单”，下面“产品明细”。每行明细下面一行写产品档案对应到哪，
+ * 少用的字段（备注、编码、配纸）收进这一行的折叠里。所有内容都可以改。
+ */
 export default function OrderDraftTable({
   workspace,
   draft,
@@ -31,633 +198,23 @@ export default function OrderDraftTable({
   workspace: Workspace;
   draft: OrderDraft;
   locked: boolean;
-  change: (k: string, v: string, line?: string) => void;
+  change: ChangeField;
   onMapping: (m: ImportMapping) => Promise<Workspace | null>;
   onMappingPending?: (pending: boolean) => void;
   mappingError?: string;
 }) {
   const match = useImportMatching(workspace, draft, onMapping);
-  const { matches, mapping, invalidated, customerResolution, candidates } = match;
   const locked = externallyLocked || match.saveState === 'saving';
-  const imported = !!workspace.imported;
-  // 选了就保存。以前要多点一次“保存选择”，否则导入按钮是灰的，用户不知道为什么。
-  useEffect(() => {
-    if (!locked && !imported && matches && match.dirty && match.saveState === 'idle')
-      void match.save();
-  }, [mapping, !!matches, locked, imported, match.dirty, match.saveState]);
-  useEffect(
-    () => onMappingPending?.(!matches || match.dirty || match.unresolved),
-    [!!matches, match.dirty, match.unresolved, onMappingPending],
+  useMappingAutosave(match, locked, !!workspace.imported, onMappingPending);
+  const [dimensionError, setDimensionError] = useState('');
+  const input: Input = (k, field, line) => (
+    <DraftInput k={k} field={field} line={line} locked={locked} change={change} setDimensionError={setDimensionError} />
   );
-  const [standard, setStandard] = useState<{
-      issues: string[];
-      notices?: string[];
-      fields: any;
-    } | null>(null),
-    [dimensionError, setDimensionError] = useState('');
-  useEffect(() => {
-    let live = true;
-    fetch('/api/ai/imports/' + workspace.id + '/standard-order', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => live && setStandard(d))
-      .catch(() => live && setStandard(null));
-    return () => {
-      live = false;
-    };
-  }, [workspace.id, workspace.revision]);
-  // 没选产品时导入会新建，不算没处理完
-  const standardIssues = (standard?.issues || []).filter((s) => !s.startsWith('产品尚未选择'));
-  function input(k: string, f: DraftField, line?: string) {
-    if (k === 'dimensionUnit' && line) {
-      const l = draft.lines.find((l) => l.id === line)!;
-      return (
-        <DimensionUnitSelect
-          label={'明细' + (draft.lines.indexOf(l) + 1) + ' 尺寸单位'}
-          unit={f.value}
-          disabled={locked}
-          hasValues={dimensionKeys.some((k) => !!l.fields[k].value)}
-          onChange={(to) => {
-            try {
-              const from = normalizeDimensionUnit(f.value);
-              const values =
-                from && to
-                  ? dimensionKeys.map(
-                      (k) =>
-                        [k, convertDimension(parseDimension(l.fields[k].value), from, to)] as const,
-                    )
-                  : [];
-              for (const [k, v] of values) change(k, v === null ? '' : String(v), line);
-              change('dimensionUnit', to || '', line);
-              setDimensionError('');
-            } catch {
-              setDimensionError('当前尺寸不是有效正数，请修正或清空后再切换单位。');
-            }
-          }}
-        />
-      );
-    }
-    const label =
-      (line ? '明细' + (draft.lines.findIndex((l) => l.id === line) + 1) + ' ' : '') +
-      (fieldLabels as any)[k];
-    return (
-      <span className={'oi-field ' + (f.certainty === 'needs-review' ? 'uncertain' : '')}>
-        {line && ['productName', 'specification', 'notes'].includes(k) ? (
-          <WrappedText label={label} field={f} locked={locked} change={(v) => change(k, v, line)} />
-        ) : (
-          <input
-            aria-label={label}
-            title={f.note || ''}
-            disabled={locked}
-            value={f.value || ''}
-            placeholder="待确认"
-            onChange={(e) => change(k, e.target.value, line)}
-          />
-        )}
-      </span>
-    );
-  }
-  const selectChoice = (value: string, items: { id: number; version: number }[]) =>
-    value === 'new'
-      ? { mode: 'new' as const }
-      : value
-        ? {
-            mode: 'existing' as const,
-            id: Number(value),
-            version: items.find((i) => i.id === Number(value))!.version,
-          }
-        : { mode: 'pending' as const };
-  const choiceValue = (c: any) =>
-    c?.mode === 'existing' ? String(c.id) : c?.mode === 'new' ? 'new' : '';
-  const selectedCustomer =
-    mapping.customer.mode === 'existing'
-      ? matches?.customers.find((c) => c.id === (mapping.customer as any).id)
-      : undefined;
-  const customerUnavailable =
-    !!matches &&
-    mapping.customer.mode === 'existing' &&
-    (!selectedCustomer || selectedCustomer.version !== mapping.customer.version);
   return (
-    <>
-      <div className="oi-match-savebar" aria-label="客户与产品选择保存" hidden={imported}>
-        <div>
-          <strong>客户与产品选择</strong>
-        </div>
-        <span
-          role="status"
-          aria-live="polite"
-          className={'oi-match-save-state ' + (match.saveState === 'error' ? 'is-error' : '')}
-        >
-          {match.saveState === 'saving'
-            ? '保存中…'
-            : match.saveState === 'error'
-              ? '保存失败 · 当前选择已保留'
-              : match.dirty
-                ? '有选择待保存'
-                : workspace.mapping
-                  ? '已保存'
-                  : '尚未保存选择'}
-        </span>
-        <button
-          type="button"
-          className={match.dirty ? 'primary' : ''}
-          disabled={locked || !matches || !match.dirty}
-          onClick={() => void match.save()}
-        >
-          {match.saveState === 'saving' ? '保存中…' : '保存客户与产品选择'}
-        </button>
-        {match.saveState === 'error' && <p role="alert">{mappingError || match.saveError}</p>}
-      </div>
-      <div className="oi-order-fields">
-        {(['buyerName', 'purchaseOrderNumber', 'orderDate', 'deliveryDate'] as const).map((k) => (
-          <label key={k}>
-            {fieldLabels[k]}
-            {input(k, draft.header[k])}
-          </label>
-        ))}
-      </div>
-      <div className="oi-customer-match">
-        <span hidden={imported}>客户档案</span>
-        <select
-          hidden={imported}
-          aria-label="客户匹配"
-          disabled={locked || !matches}
-          value={choiceValue(mapping.customer)}
-          onChange={(e) =>
-            match.select(
-              {
-                ...mapping,
-                customer: selectChoice(e.target.value, matches?.customers || []),
-              },
-              'customer',
-            )
-          }
-        >
-          <option value="">待确认，选择已有或新建</option>
-          <option value="new">
-            计划创建新客户：{draft.header.buyerName.value || '请先填名称'}
-          </option>
-          {matches?.customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {mapping.customer.mode === 'existing' && mapping.customer.id === c.id
-                ? '已选择 · '
-                : customerResolution?.candidates.some((x) => x.id === c.id)
-                  ? '候选 · '
-                  : ''}
-              {c.name} · #{c.id}
-              {c.contact ? ' · ' + c.contact : ''}
-              {c.phone ? ' · ' + c.phone : ''}
-            </option>
-          ))}
-        </select>
-        <details>
-          <summary>其他订单字段</summary>
-          <div className="oi-extra-fields">
-            {headerFields
-              .filter(
-                (k) =>
-                  !['buyerName', 'purchaseOrderNumber', 'orderDate', 'deliveryDate'].includes(k),
-              )
-              .map((k) => (
-                <label key={k}>
-                  {fieldLabels[k]}
-                  {input(k, draft.header[k])}
-                </label>
-              ))}
-          </div>
-        </details>
-      </div>
-      <div className="oi-customer-candidates" aria-label="客户匹配状态" hidden={imported}>
-        {invalidated.customer && mapping.customer.mode === 'pending' && (
-          <p className="oi-match-invalid" role="alert">
-            {invalidated.customer}
-          </p>
-        )}
-        {mapping.customer.mode === 'existing' ? (
-          <div className={customerUnavailable ? 'oi-match-invalid' : 'oi-match-success'}>
-            <strong>
-              {customerUnavailable ? '原客户选择已失效，请重新选择' : '已匹配到已有档案'}
-            </strong>
-            <span>
-              {matches?.customers.find((c) => c.id === (mapping.customer as any).id)?.name ||
-                (matches ? '档案待核对' : '正在读取档案…')}
-            </span>
-            {customerUnavailable && selectedCustomer && (
-              <button
-                type="button"
-                disabled={locked}
-                onClick={() =>
-                  match.select(
-                    {
-                      ...mapping,
-                      customer: {
-                        mode: 'existing',
-                        id: selectedCustomer.id,
-                        version: selectedCustomer.version,
-                      },
-                    },
-                    'customer',
-                  )
-                }
-              >
-                重新确认此客户
-              </button>
-            )}
-            <details>
-              <summary>查看客户档案</summary>
-              {matches?.customers
-                .filter((c) => c.id === (mapping.customer as any).id)
-                .map((c) => (
-                  <p key={c.id}>
-                    档案 #{c.id} · 联系人 {c.contact || '未填写'} · 电话 {c.phone || '未填写'} ·
-                    地址 {c.address || '未填写'}
-                  </p>
-                ))}
-            </details>
-          </div>
-        ) : mapping.customer.mode === 'new' ? (
-          <p>已选择计划新建客户；仅保存草稿计划。</p>
-        ) : (
-          <p>
-            {customerResolution?.candidates.length
-              ? '找到客户候选，等待确认'
-              : !matches
-                ? '正在读取客户候选…'
-                : '没有匹配档案，导入时新建客户。'}
-          </p>
-        )}
-        {mapping.customer.mode !== 'existing' &&
-          customerResolution?.candidates.map((c) => (
-            <div className="oi-match-candidate" key={c.id}>
-              <div>
-                <strong>
-                  {c.name} · #{c.id}
-                </strong>
-                <small>
-                  {[c.contact, c.phone, c.address].filter(Boolean).join(' · ') ||
-                    '联系人资料未填写'}
-                </small>
-                <small>
-                  {c.reason}
-                  {c.archived ? ' · 已归档，请先恢复' : ''}
-                </small>
-              </div>
-              <button
-                type="button"
-                aria-label={'选择客户候选 ' + c.id}
-                disabled={locked || c.archived}
-                onClick={() =>
-                  match.select(
-                    { ...mapping, customer: { mode: 'existing', id: c.id, version: c.version } },
-                    'customer',
-                  )
-                }
-              >
-                选择此客户
-              </button>
-            </div>
-          ))}
-      </div>
-      {match.readError && (
-        <div className="oi-inline-error">档案候选读取失败：{match.readError}</div>
-      )}
-      {dimensionError && (
-        <div className="oi-inline-error" role="alert">
-          {dimensionError}
-        </div>
-      )}
-      {!!workspace.evaluation?.issues.some((i) => i.path === 'products.optional') && (
-        <details className="oi-product-notices">
-          <summary>产品资料提醒（允许后补，不阻止导入）</summary>
-          {[
-            ...new Set(
-              workspace.evaluation.issues
-                .filter((i) => i.path === 'products.optional')
-                .map((i) => i.message),
-            ),
-          ].map((s) => (
-            <p key={s}>{s}</p>
-          ))}
-        </details>
-      )}
-      {!!standardIssues.length && workspace.mapping && !imported && (
-        <details className="oi-standard-check">
-          <summary>标准订单资料仍需处理 {standardIssues.length} 项</summary>
-          {[...new Set(standardIssues)].map((s, i) => (
-            <p key={i}>{s}</p>
-          ))}
-        </details>
-      )}
-      {!!matches?.duplicateOrders.length && !imported && (
-        <div className="oi-inline-error">
-          发现相同采购单号：
-          {matches.duplicateOrders.map((o) => o.number + '（' + o.customerName + '）').join('、')}
-          ，请核对重复订单。
-        </div>
-      )}
-      <div className="oi-lines-scroll">
-        <table className="oi-lines">
-          <thead>
-            <tr>
-              <th>产品名称</th>
-              <th>规格型号</th>
-              <th>数量 / 单位</th>
-              <th>单价 / 元</th>
-              <th>计算金额</th>
-            </tr>
-          </thead>
-          <tbody>
-            {draft.lines.map((l, i) => (
-              <Fragment key={l.id}>
-                <tr>
-                  <td>
-                    <div className="oi-line-name">
-                      <span>{i + 1}</span>
-                      {input('productName', l.fields.productName, l.id)}
-                    </div>
-                    <details className="oi-line-details">
-                      <summary>备注、编码、配纸等</summary>
-                      <div className="oi-extra-fields">
-                        {lineFields
-                          .filter(
-                            (k) =>
-                              ![
-                                'productName',
-                                'specification',
-                                'quantity',
-                                'unit',
-                                'unitPrice',
-                              ].includes(k),
-                          )
-                          .map((k) => (
-                            <label key={k}>
-                              {fieldLabels[k]}
-                              {input(k, l.fields[k], l.id)}
-                            </label>
-                          ))}
-                      </div>
-                    </details>
-                  </td>
-                  <td>{input('specification', l.fields.specification, l.id)}</td>
-                  <td>
-                    {input('quantity', l.fields.quantity, l.id)}
-                    {input('unit', l.fields.unit, l.id)}
-                  </td>
-                  <td>
-                    {input('unitPrice', l.fields.unitPrice, l.id)}
-                    <small>保留四位精度</small>
-                  </td>
-                  <td className="oi-line-money">
-                    {workspace.evaluation?.lineAmounts[l.id] || '待核对'}
-                    <small>原文 {l.fields.statedAmount.value || '未提供'}</small>
-                  </td>
-                </tr>
-                <tr className="oi-product-matching-row">
-                  <td colSpan={5}>
-                    <details hidden={imported}
-                      className="oi-product-matching-fold"
-                      open={!['existing', 'new'].includes(mapping.products[l.id]?.mode)}
-                    >
-                      <summary
-                        className={
-                          ['existing', 'new'].includes(mapping.products[l.id]?.mode) ? '' : 'needs-attention'
-                        }
-                      >
-                        产品档案 ·{' '}
-                        {mapping.products[l.id]?.mode === 'existing'
-                          ? '已匹配 ' +
-                            (matches?.products.find(
-                              (p) => p.id === (mapping.products[l.id] as any).id,
-                            )?.name || '')
-                          : mapping.products[l.id]?.mode === 'new'
-                            ? '计划新建'
-                            : candidates[l.id]?.some(blocksNewProduct)
-                              ? '待确认（' + candidates[l.id].length + ' 个候选）'
-                              : '导入时新建' +
-                                (candidates[l.id]?.length ? '，有尺寸相同的产品可选' : '')}
-                      </summary>
-                    <div
-                      className="oi-product-matching"
-                      aria-label={'明细' + (i + 1) + ' 产品档案匹配'}
-                    >
-                      <strong className="oi-match-line-label">明细 {i + 1} · 产品档案</strong>
-                      {invalidated.products[l.id] && mapping.products[l.id]?.mode === 'pending' && (
-                        <p className="oi-match-invalid" role="alert">
-                          {invalidated.products[l.id]}
-                        </p>
-                      )}
-                      {mapping.products[l.id]?.mode === 'existing' ? (
-                        (() => {
-                          const product = matches?.products.find(
-                            (p) => p.id === (mapping.products[l.id] as any).id,
-                          );
-                          const missing = product
-                            ? [
-                                !product.material?.trim() ? '材质' : '',
-                                !product.flute?.trim() ? '楞型' : '',
-                              ].filter(Boolean)
-                            : [];
-                          const unavailable =
-                            !!matches &&
-                            (!product ||
-                              product.version !== (mapping.products[l.id] as any).version);
-                          return (
-                            <div
-                              className={
-                                unavailable
-                                  ? 'oi-match-invalid'
-                                  : missing.length
-                                    ? 'oi-match-incomplete'
-                                    : 'oi-match-success'
-                              }
-                            >
-                              <strong>
-                                {unavailable
-                                  ? '原产品选择已失效，请重新选择'
-                                  : missing.length
-                                    ? '已匹配到已有产品，但档案资料不完整'
-                                    : '已匹配到已有档案'}
-                              </strong>
-                              <small>
-                                {product
-                                  ? productCandidateDetails(product)
-                                  : !matches
-                                    ? '正在读取档案…'
-                                    : '关联档案不可用，请重新选择'}
-                              </small>
-                              {!!missing.length && (
-                                <small>档案资料不完整：缺少{missing.join(' / ')}（允许后补）</small>
-                              )}
-                              {unavailable && product && (
-                                <button
-                                  type="button"
-                                  disabled={locked}
-                                  onClick={() =>
-                                    match.select(
-                                      {
-                                        ...mapping,
-                                        products: {
-                                          ...mapping.products,
-                                          [l.id]: {
-                                            mode: 'existing',
-                                            id: product.id,
-                                            version: product.version,
-                                          },
-                                        },
-                                      },
-                                      l.id,
-                                    )
-                                  }
-                                >
-                                  重新确认此产品
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })()
-                      ) : mapping.products[l.id]?.mode === 'new' ? (
-                        <p className="oi-match-planned">已选择计划新建产品；保存不建档</p>
-                      ) : (
-                        <div className="oi-match-pending">
-                          <strong>
-                            {candidates[l.id]?.some(blocksNewProduct)
-                              ? '匹配候选 · 等待确认'
-                              : !matches
-                                ? '正在读取产品候选…'
-                                : candidates[l.id]?.length
-                                  ? '没有同名档案，导入时新建；如果是下面这款，请点确认'
-                                  : '没有匹配档案，导入时新建'}
-                          </strong>
-                          {candidates[l.id]?.length > 1 && (
-                            <small>有多个候选，请按规格、料号及差异核对。</small>
-                          )}
-                        </div>
-                      )}
-                      {mapping.products[l.id]?.mode !== 'existing' &&
-                        mapping.products[l.id]?.mode !== 'new' &&
-                        candidates[l.id]?.slice(0, 4).map((c) => {
-                          const product = matches!.products.find((p) => p.id === c.id)!;
-                          return (
-                            <div
-                              className={
-                                'oi-match-candidate' + (c.recommended ? ' is-recommended' : '')
-                              }
-                              style={{
-                                gridColumn: candidates[l.id].length === 1 ? '1 / -1' : undefined,
-                              }}
-                              key={c.id}
-                            >
-                              <div>
-                                <strong>
-                                  {c.name} · #{c.id}
-                                </strong>
-                                <small>{productCandidateDetails(product)}</small>
-                                <small>{c.reasons.join('、')}</small>
-                                {!!c.conflicts.length && (
-                                  <small className="oi-match-invalid">
-                                    需核对：{c.conflicts.join('、')}
-                                  </small>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                disabled={locked}
-                                aria-label={'明细' + (i + 1) + ' 确认产品候选 ' + c.id}
-                                onClick={() =>
-                                  match.select(
-                                    {
-                                      ...mapping,
-                                      products: {
-                                        ...mapping.products,
-                                        [l.id]: {
-                                          mode: 'existing',
-                                          id: product.id,
-                                          version: product.version,
-                                        },
-                                      },
-                                    },
-                                    l.id,
-                                  )
-                                }
-                              >
-                                确认此候选
-                              </button>
-                            </div>
-                          );
-                        })}
-                      <select
-                        aria-label={'明细' + (i + 1) + ' 产品匹配'}
-                        value={
-                          choiceValue(mapping.products[l.id]) ||
-                          (() => {
-                            const best = candidates[l.id]?.filter((c) => c.recommended) || [];
-                            return best.length === 1 ? String(best[0].id) : '';
-                          })()
-                        }
-                        disabled={locked || !matches}
-                        onChange={(e) =>
-                          match.select(
-                            {
-                              ...mapping,
-                              products: {
-                                ...mapping.products,
-                                [l.id]: selectChoice(e.target.value, matches?.products || []),
-                              },
-                            },
-                            l.id,
-                          )
-                        }
-                      >
-                        <option value="">待确认</option>
-                        <option value="new">计划创建新产品</option>
-                        {matches?.products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {mapping.products[l.id]?.mode === 'existing' &&
-                            (mapping.products[l.id] as any).id === p.id
-                              ? '已选择 · '
-                              : candidates[l.id]?.some((x) => x.id === p.id)
-                                ? '候选 · '
-                                : ''}
-                            {p.name} · #{p.id} · {productCandidateDetails(p)}
-                          </option>
-                        ))}
-                      </select>
-                      {mapping.products[l.id]?.mode === 'pending' &&
-                        candidates[l.id]?.length > 4 && (
-                          <small>
-                            另有 {candidates[l.id].length - 4} 个候选，可在上方产品选择中查看。
-                          </small>
-                        )}
-                    </div>
-                    </details>
-                  </td>
-                </tr>
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="oi-mapping-tools">
-        <label>
-          结算规则
-          <select
-            aria-label="金额结算规则"
-            value={mapping.roundingPolicy}
-            onChange={(e) =>
-              match.select(
-                {
-                  ...mapping,
-                  roundingPolicy: e.target.value as ImportMapping['roundingPolicy'],
-                },
-                'rounding',
-              )
-            }
-          >
-            <option value="exact-cents">精确到分，不自动舍入</option>
-            <option value="half-up-cent">整单四舍五入到分（明确确认）</option>
-          </select>
-        </label>
-        <span>仅保存草稿计划，不创建档案</span>
-      </div>
-    </>
+    <div className="aii-order">
+      <OrderNotices match={match} workspace={workspace} mappingError={mappingError} dimensionError={dimensionError} />
+      <OrderHeader draft={draft} match={match} workspace={workspace} locked={locked} input={input} />
+      <OrderLines draft={draft} match={match} workspace={workspace} locked={locked} input={input} />
+    </div>
   );
 }

@@ -1,0 +1,446 @@
+/* 小甬小勒：身体、转轴、平时的动作 */
+[data-theme='dark'] .yl-duo {
+  --yl-y-ink: var(--yl-y-ink-dark);
+  --yl-y-open: var(--yl-y-ink-dark);
+}
+.yl-duo * {
+  transform-box: view-box;
+}
+
+/* 身体 */
+.yl-y-body path {
+  fill: var(--teal);
+  stroke: var(--teal);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.yl-l-stem {
+  fill: var(--kraft);
+  stroke: var(--kraft);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.yl-foot-board {
+  fill: var(--kraft-deep);
+  stroke: var(--kraft-deep);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.yl-box-body {
+  fill: var(--yl-box);
+  stroke: var(--yl-box-edge);
+  stroke-width: 1.4;
+}
+.yl-box-tape {
+  fill: var(--yl-tape);
+  stroke: var(--yl-tape-edge);
+  stroke-width: 0.8;
+}
+.yl-star path {
+  fill: var(--yl-star);
+}
+.yl-star circle {
+  fill: var(--yl-star-glow);
+}
+.yl-white {
+  fill: var(--yl-eye-white);
+}
+.yl-pupil {
+  fill: var(--yl-pupil);
+}
+.yl-glint {
+  fill: var(--yl-eye-white);
+}
+.yl-cheeks ellipse {
+  fill: var(--yl-cheek);
+  opacity: 0.75;
+}
+.yl-smile {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.yl-smile-y {
+  stroke: var(--yl-y-ink);
+}
+.yl-smile-l {
+  stroke: var(--yl-l-ink);
+}
+.yl-open {
+  opacity: 0;
+}
+.yl-open-y {
+  fill: var(--yl-y-open);
+}
+.yl-open-l {
+  fill: var(--yl-l-ink);
+}
+.yl-shadow {
+  fill: var(--yl-ground-shadow);
+  opacity: 0.18;
+  transition: opacity 0.2s ease;
+}
+.yl-shadow-y {
+  transform-origin: 35px 105px;
+}
+.yl-shadow-l {
+  transform-origin: 78px 105px;
+}
+
+/* 小甬和小勒。只用 transform 和 opacity，不用滤镜，长期显示也不占 CPU。
+   坐标都是 SVG 的 viewBox 单位（0 0 108 112）。 */
+.yl-duo {
+  --yl-y-ink: var(--yl-y-ink-light);
+  --yl-y-open: var(--yl-y-mouth);
+  --yl-l-ink: var(--yl-l-ink-base);
+  --yl-gaze-y: 0.9px;
+  --yl-gaze-l: -0.9px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transition: transform 0.3s ease;
+}
+.yl-y-pose,
+.yl-l-pose {
+  transition: transform 0.44s cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+.yl-y-pose {
+  transform-origin: 35px 60px;
+}
+.yl-l-pose {
+  transform-origin: 63px 56px;
+  transition-delay: 0.08s;
+}
+.yl-y-act,
+.yl-y-breathe {
+  transform-origin: 35px 98px;
+}
+.yl-l-act,
+.yl-l-breathe {
+  transform-origin: 63px 97px;
+}
+.yl-arm-l {
+  transform-origin: 30px 46px;
+  transition: transform 0.2s ease;
+}
+.yl-arm-r {
+  transform-origin: 40px 46px;
+  transition: transform 0.2s ease;
+}
+.yl-foot {
+  transform-origin: 62px 92px;
+  transition: transform 0.24s cubic-bezier(0.22, 1.3, 0.36, 1);
+}
+.yl-cargo {
+  transition: transform 0.36s cubic-bezier(0.22, 1.12, 0.36, 1);
+}
+.yl-box {
+  transform-origin: 90px 67px;
+}
+/* 平时两个人互相看；鼠标靠近时看鼠标 */
+.yl-pupils-y {
+  transform: translate(var(--yl-track-x, var(--yl-gaze-y)), var(--yl-track-y, 0));
+  transition: transform 0.18s ease;
+}
+.yl-pupils-l {
+  transform: translate(var(--yl-track-x, var(--yl-gaze-l)), var(--yl-track-y, 0));
+  transition: transform 0.18s ease;
+}
+
+/* 平时：错开节奏呼吸、眨眼，小星闪 */
+.yl-y-breathe {
+  animation: yl-breathe 4.4s ease-in-out infinite;
+}
+.yl-l-breathe {
+  animation: yl-breathe 5.4s ease-in-out -1.6s infinite;
+}
+.yl-eyes-y {
+  transform-origin: 35px 55px;
+  animation: yl-blink 6.2s linear infinite;
+}
+.yl-eyes-l {
+  transform-origin: 63px 56px;
+  animation: yl-blink 7.7s linear -2.4s infinite;
+}
+.yl-star {
+  transform-origin: 90px 42px;
+  animation: yl-twinkle 3.4s ease-in-out infinite;
+}
+
+/* 重新出现时依次跳出来 */
+.yl-y-enter {
+  transform-origin: 35px 98px;
+}
+.yl-l-enter {
+  transform-origin: 63px 97px;
+}
+.yl-duo[data-fresh] .yl-y-enter {
+  animation: yl-enter 0.6s cubic-bezier(0.22, 1.3, 0.36, 1) backwards;
+}
+.yl-duo[data-fresh] .yl-l-enter {
+  animation: yl-enter 0.6s cubic-bezier(0.22, 1.3, 0.36, 1) 0.12s backwards;
+}
+
+/* 鼠标移上去：小甬挥手，小勒把箱子往上托 */
+.ga-launcher:hover .yl-duo:not([data-scene]):not([data-busy]) .yl-arm-l {
+  animation: yl-wave-l 0.9s ease-in-out 2;
+}
+.ga-launcher:hover .yl-duo:not([data-scene]):not([data-busy]) .yl-arm-r {
+  animation: yl-wave-r 0.9s ease-in-out 2;
+}
+.ga-launcher:hover .yl-duo:not([data-scene]) .yl-foot {
+  transform: rotate(-7deg);
+}
+.ga-launcher:hover .yl-duo:not([data-scene]) .yl-box {
+  animation: yl-box-hop 0.6s ease-in-out infinite;
+}
+.ga-launcher:hover .yl-open {
+  opacity: 1;
+}
+.ga-launcher:hover .yl-smile {
+  opacity: 0;
+}
+.ga-launcher:active .yl-y-act,
+.ga-launcher:active .yl-l-act {
+  transform: scale(1.04, 0.92);
+}
+
+/* 拖动：手臂张开，脚抬起，箱子晃 */
+.ga-moving .yl-arm-l {
+  transform: rotate(-13deg);
+}
+.ga-moving .yl-arm-r {
+  transform: rotate(13deg);
+}
+.ga-moving .yl-foot {
+  transform: rotate(-10deg);
+}
+.ga-moving .yl-y-act {
+  transform: rotate(-3deg);
+  animation: none;
+}
+.ga-moving .yl-l-act {
+  transform: rotate(3deg);
+  animation: none;
+}
+.ga-moving .yl-box {
+  animation: yl-box-shake 0.4s ease-in-out infinite;
+}
+.ga-moving .yl-open {
+  opacity: 1;
+}
+.ga-moving .yl-smile {
+  opacity: 0;
+}
+.ga-moving .yl-y-breathe,
+.ga-moving .yl-l-breathe {
+  animation-play-state: paused;
+}
+
+/* AI 处理中：两个人轮流点头干活，小星绕着箱子转，头上冒点点 */
+.yl-duo[data-busy]:not([data-speaker='le']) .yl-y-act {
+  animation: yl-work 1.2s ease-in-out infinite;
+}
+.yl-duo[data-busy]:not([data-speaker='yong']) .yl-l-act {
+  animation: yl-work 1.2s ease-in-out -0.6s infinite;
+}
+.yl-duo[data-busy]:not([data-speaker='yong']) .yl-foot {
+  animation: yl-work-foot 1.2s ease-in-out -0.6s infinite;
+}
+.yl-duo[data-busy] .yl-star {
+  animation: yl-think 1.6s ease-in-out infinite;
+}
+.yl-duo[data-busy] .yl-look {
+  transform: translate(0.8px, -1.2px);
+}
+.yl-duo[data-busy] .yl-dots {
+  opacity: 1;
+}
+.yl-duo[data-busy] .yl-dots circle:nth-child(1) {
+  animation: yl-dot 1.2s ease-in-out infinite;
+}
+.yl-duo[data-busy] .yl-dots circle:nth-child(2) {
+  animation: yl-dot 1.2s ease-in-out 0.2s infinite;
+}
+.yl-duo[data-busy] .yl-dots circle:nth-child(3) {
+  animation: yl-dot 1.2s ease-in-out 0.4s infinite;
+}
+
+/* 效果默认不显示 */
+.yl-dots {
+  opacity: 0;
+}
+.yl-dots circle {
+  fill: var(--text-secondary);
+}
+.yl-heart {
+  fill: var(--yl-heart);
+  opacity: 0;
+  transform-origin: 62px 8px;
+}
+.yl-burst {
+  opacity: 0;
+  transform-origin: 70px 12px;
+}
+.yl-burst path {
+  fill: none;
+  stroke: var(--kraft);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.yl-burst circle {
+  fill: var(--kraft);
+}
+
+@keyframes yl-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.012, 0.982);
+  }
+}
+
+@keyframes yl-blink {
+  0%,
+  92%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  94% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes yl-twinkle {
+  0%,
+  100% {
+    transform: scale(0.88) rotate(0);
+    opacity: 0.86;
+  }
+  50% {
+    transform: scale(1.1) rotate(10deg);
+    opacity: 1;
+  }
+}
+
+@keyframes yl-enter {
+  0% {
+    transform: translateY(14px) scale(0.7, 0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: translateY(-4px) scale(0.98, 1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes yl-wave-l {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-11deg);
+  }
+  55% {
+    transform: rotate(4deg);
+  }
+  80% {
+    transform: rotate(-7deg);
+  }
+}
+
+@keyframes yl-wave-r {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(11deg);
+  }
+  55% {
+    transform: rotate(-4deg);
+  }
+  80% {
+    transform: rotate(7deg);
+  }
+}
+
+@keyframes yl-box-hop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-3px) rotate(-3deg);
+  }
+}
+
+@keyframes yl-box-shake {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes yl-work {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(1.04, 0.94);
+  }
+  60% {
+    transform: scale(0.98, 1.03) translateY(-1.5px);
+  }
+}
+
+@keyframes yl-work-foot {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  60% {
+    transform: rotate(-5deg);
+  }
+}
+
+@keyframes yl-think {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(0.9);
+  }
+  25% {
+    transform: translate(7px, 4px) scale(1.15) rotate(30deg);
+  }
+  50% {
+    transform: translate(0, 7px) scale(0.85) rotate(60deg);
+  }
+  75% {
+    transform: translate(-7px, 3px) scale(1.15) rotate(90deg);
+  }
+}
+
+@keyframes yl-dot {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-2.5px);
+    opacity: 1;
+  }
+}

@@ -1,0 +1,183 @@
+/* 右上角账号菜单 */
+.super-account {
+  background: var(--warning-soft) !important;
+  border: 1px solid var(--warning-border) !important;
+  color: var(--warning) !important;
+}
+.theme-switcher svg {
+  flex-shrink: 0;
+  color: var(--accent-ink);
+}
+.theme-switcher option {
+  background: var(--surface);
+}
+
+@media (max-width: 760px) {
+  .theme-switcher select {
+    max-width: 96px;
+  }
+}
+
+/* 账号菜单里的“外观”：主题切换从顶栏搬到这里 */
+.account-menu-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 36px;
+  padding: var(--space-2xs) 10px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.account-menu-theme .theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+}
+.account-menu-theme .theme-switcher select {
+  min-height: 30px;
+  font-size: var(--text-sm);
+}
+.theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  height: 32px;
+  padding: 0 var(--space-2xs);
+  border-color: var(--border-strong);
+  border-radius: var(--r-control);
+  background: none;
+  width: auto;
+}
+.theme-switcher select {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 var(--space-3xs);
+  font-size: var(--text-sm);
+  width: 92px;
+}
+.account-avatar {
+  display: inline-flex;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-circle);
+  background: var(--surface-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* ---- 右上角账号菜单 ---- */
+.account-menu-wrap {
+  position: relative;
+  display: flex;
+}
+.account-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-circle);
+  background: var(--danger);
+}
+.account-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  padding: var(--space-2xs);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-sm);
+}
+.account-menu-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  margin-bottom: var(--space-2xs);
+  border-bottom: 1px solid var(--border);
+}
+.account-menu-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.account-menu-who strong {
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.account-menu-who small {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.account-menu > button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.account-menu > button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.account-menu > button svg {
+  flex: none;
+  color: var(--text-secondary);
+}
+.account-menu > button .nav-count {
+  margin-left: auto;
+}
+.account-menu hr {
+  width: 100%;
+  margin: var(--space-2xs) 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 700px) {
+  /* 菜单从底部弹出 */
+  .account-menu-backdrop {
+    z-index: var(--z-overlay-menu);
+  }
+  .account-menu {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-overlay-menu-top);
+    width: auto;
+    padding: var(--space-sm) var(--space-sm) calc(var(--space-sm) + env(safe-area-inset-bottom));
+    border-radius: var(--r-panel) var(--r-panel) 0 0;
+    border-width: 1px 0 0;
+  }
+  .account-menu > button {
+    min-height: 44px;
+    font-size: var(--text-md);
+  }
+}

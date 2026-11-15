@@ -1,4 +1,4 @@
-// 账号流程：登录页版式、申请账号、管理员审批、切换账号、忘记密码、临时密码强制改密、手机菜单。虚构数据。
+// 账号流程：登录页版式、申请账号、管理员审批、改级别要确认、退出换账号、忘记密码、重置密码（临时密码）强制改密、手机菜单。虚构数据。
 // 只动这里新建的账号，不改种子账号的密码，其他流程还要用。
 import { readFileSync } from 'node:fs';
 import { BASE, SERVER_SOURCE, SP, openChrome } from './lib.mjs';
@@ -25,11 +25,15 @@ const openMenu = async () => {
   await page.locator('.account-menu').waitFor();
 };
 const menuItem = (name) => page.locator('.account-menu').getByRole('menuitem', { name });
+// 换账号就是退出登录（菜单里没有单独的“切换账号”了），不弹确认窗
 const switchAccount = async () => {
   await openMenu();
-  await menuItem('切换账号').click();
-  await dialog().getByRole('button', { name: '切换账号' }).click();
+  await menuItem('退出登录').click();
   await page.locator('.login-card').waitFor();
+};
+const openAccounts = async () => {
+  await page.locator('.sidebar .erp-nav-item', { hasText: '账号管理' }).click();
+  await page.locator('.accounts-page').waitFor();
 };
 
 await page.goto(BASE);
@@ -104,9 +108,12 @@ if (!trigger.includes(adminName) || !trigger.includes('管理员')) fail('右上
 await page.waitForTimeout(300);
 await openMenu();
 await shot('账号菜单');
-if (!(await menuItem('账号管理').locator('.nav-count').count())) fail('菜单没有待处理数量');
-await menuItem('账号管理').click();
-await page.locator('.accounts-page').waitFor();
+if (await menuItem('账号管理').count()) fail('账号菜单里还有“账号管理”（侧栏已经有了）');
+if (await menuItem('切换账号').count()) fail('账号菜单里还有“切换账号”（和退出登录一样）');
+await page.keyboard.press('Escape');
+if (!(await page.locator('.sidebar .erp-nav-item', { hasText: '账号管理' }).locator('.nav-count').count()))
+  fail('侧栏“账号管理”没有待处理数量');
+await openAccounts();
 await page.getByRole('heading', { name: '待处理' }).waitFor();
 await shot('账号管理');
 const row = page.locator('.accounts-section tr', { hasText: newName });
@@ -126,15 +133,36 @@ await page.getByRole('button', { name: '关闭详情' }).click();
 await page.locator('.record-row', { hasText: newName }).click();
 await page.locator('.detail-panel').getByRole('button', { name: '重置密码' }).waitFor();
 await shot('账号面板');
+
+// 改级别：选了先弹确认窗，取消不改，确认才改
+const levelSelect = page.locator('.detail-panel').getByLabel('级别');
+await levelSelect.selectOption('staff');
+await dialog().getByRole('button', { name: '修改级别' }).waitFor();
+await shot('改级别确认');
+await dialog().getByRole('button', { name: '取消' }).click();
+await dialog().waitFor({ state: 'detached' });
+if ((await levelSelect.inputValue()) !== 'viewer') fail('取消后级别还是变了');
+if (!(await page.locator('.record-row', { hasText: newName }).innerText()).includes('只读')) fail('取消后列表里的级别变了');
+await levelSelect.selectOption('staff');
+await dialog().getByRole('button', { name: '修改级别' }).click();
+await dialog().waitFor({ state: 'detached' });
+await page.locator('.record-row', { hasText: newName }).filter({ hasNotText: '只读' }).waitFor();
+// 改回只读，后面的流程按只读账号检查
+await levelSelect.selectOption('viewer');
+await dialog().getByRole('button', { name: '修改级别' }).click();
+await dialog().waitFor({ state: 'detached' });
+await page.locator('.record-row', { hasText: newName }).filter({ hasText: '只读' }).waitFor();
+console.log('改级别要确认 ok');
 await page.getByRole('button', { name: '关闭详情' }).click();
 
-// 系统维护：原来账号弹窗里的本机数据管理搬到了这里
+// 数据管理：本机管理员从账号菜单直接打开数据管理大窗（不在本机的管理员才有“系统维护”）
 await openMenu();
-await menuItem('系统维护').click();
-await dialog().getByRole('button', { name: '打开数据管理' }).waitFor();
-await shot('系统维护');
+await menuItem('数据管理').click();
+await dialog().getByRole('heading', { name: '业务数据管理' }).waitFor();
+await shot('数据管理');
 await dialog().getByRole('button', { name: '关闭窗口' }).click();
-console.log('系统维护 ok');
+await dialog().waitFor({ state: 'detached' }).catch(() => {});
+console.log('数据管理 ok');
 
 // 切换账号：登录页列出这台设备用过的账号，不带密码
 await switchAccount();
@@ -151,16 +179,19 @@ if (!viewer.includes(newName) || !viewer.includes('只读')) fail('只读账号�
 await openMenu();
 if (await menuItem('账号管理').count()) fail('只读账号看到了账号管理');
 if (await menuItem('系统维护').count()) fail('只读账号看到了系统维护');
+if (await menuItem('数据管理').count()) fail('只读账号看到了数据管理');
 await page.keyboard.press('Escape');
 await page.evaluate(() => (location.hash = '#accounts'));
 await page.getByText('只有管理员能管理账号').waitFor();
 console.log('切换账号和权限 ok');
 
-// 修改密码弹窗能打开
+// 修改密码弹窗：有底栏“取消”和“保存新密码”
 await openMenu();
 await menuItem('修改密码').click();
+await dialog().getByRole('button', { name: '保存新密码' }).waitFor();
 await shot('修改密码');
-await dialog().getByRole('button', { name: '关闭窗口' }).click();
+await dialog().getByRole('button', { name: '取消', exact: true }).click();
+await dialog().waitFor({ state: 'detached' }).catch(() => {});
 
 // 忘记密码
 await openMenu();
@@ -173,14 +204,15 @@ await card.getByRole('button', { name: '提交申请' }).click();
 await card.getByText('请联系管理员').waitFor();
 await card.getByRole('button', { name: '返回登录' }).click();
 
-// 管理员生成临时密码
+// 管理员重置密码：按钮叫“重置密码”，结果窗说生成了临时密码
 await fillLogin(adminName, adminPassword);
 await page.locator('.shell').waitFor();
 await page.evaluate(() => (location.hash = '#accounts'));
 await page.getByRole('heading', { name: '待处理' }).waitFor();
-await page.locator('.accounts-section tr', { hasText: newName }).getByRole('button', { name: '生成临时密码' }).click();
-await dialog().getByRole('button', { name: '生成临时密码' }).click();
+await page.locator('.accounts-section tr', { hasText: newName }).getByRole('button', { name: '重置密码' }).click();
+await dialog().getByRole('button', { name: '重置密码' }).click();
 await page.locator('.temp-password').waitFor();
+await dialog().getByRole('heading', { name: '已生成临时密码' }).waitFor();
 await shot('临时密码');
 const temporary = (await page.locator('.temp-password').innerText()).trim();
 if (!/^[a-z2-9]{4}(-[a-z2-9]{4}){3}$/.test(temporary)) fail('临时密码格式不对');
@@ -204,8 +236,46 @@ await card.getByRole('button', { name: '保存并进入系统' }).click();
 await page.locator('.shell').waitFor();
 console.log('临时密码强制改密 ok');
 
-// 移除用过的账号
+// 未知 hash 自动修正为 #dashboard，后退不卡在未知 hash
+await page.goto(BASE + '#orders');
+await page.locator('.shell').waitFor();
+await page.goto(BASE + '#不存在的页');
+await page.locator('main').getByText('今日待办').first().waitFor();
+await page.waitForTimeout(100);
+if ((await page.evaluate(() => location.hash)) !== '#dashboard') {
+  fail('未知 hash 未修正为 #dashboard：' + (await page.evaluate(() => location.hash)));
+}
+await page.goBack();
+await page.waitForTimeout(100);
+if ((await page.evaluate(() => location.hash)) !== '#orders') {
+  fail('从修正后的 #dashboard 后退没有回到上一页 #orders：' + (await page.evaluate(() => location.hash)));
+}
+console.log('未知 hash 修正为 #dashboard ok');
+
+// 跨标签页同步主题（第二个标签页不打开账号菜单、不刷新）
+const tab2 = await context.newPage();
+await tab2.goto(BASE + '#orders');
+await tab2.locator('.shell').waitFor();
 await openMenu();
+await page.locator('.account-menu .theme-switcher select').selectOption('dark');
+await tab2.waitForFunction(() => document.documentElement.dataset.theme === 'dark', null, { timeout: 3000 });
+if ((await tab2.evaluate(() => document.documentElement.dataset.themePreference)) !== 'dark') {
+  fail('第二个标签页未同步深色主题偏好');
+}
+await page.locator('.account-menu .theme-switcher select').selectOption('system');
+await tab2.waitForFunction(() => document.documentElement.dataset.themePreference === 'system', null, { timeout: 3000 });
+// 反过来：账号菜单一直开着的标签页，别的标签页换了外观，菜单里的下拉框也要跟着变
+const themeKey = await page.locator('.account-menu .theme-switcher select').getAttribute('name');
+for (const value of ['dark', 'system']) {
+  await tab2.evaluate(([key, theme]) => localStorage.setItem(key, theme), [themeKey, value]);
+  await page
+    .waitForFunction((v) => document.querySelector('.account-menu .theme-switcher select')?.value === v, value, { timeout: 3000 })
+    .catch(() => fail('别的标签页换成“' + value + '”后，开着的账号菜单里下拉框没有跟着变'));
+}
+await tab2.close();
+console.log('跨标签页同步主题 ok');
+
+// 移除用过的账号
 await menuItem('退出登录').click();
 await card.getByText('选择账号').waitFor();
 await card.getByRole('button', { name: '从这台设备移除 ' + newName }).click();
@@ -249,7 +319,23 @@ await p.locator('.account-menu').waitFor();
 await phoneShot('账号菜单');
 const sheet = await p.locator('.account-menu').boundingBox();
 if (!sheet || sheet.width < 389 || Math.abs(sheet.y + sheet.height - 844) > 1) fail('手机账号菜单没有贴底：' + JSON.stringify(sheet));
-await p.locator('.account-menu').getByRole('menuitem', { name: '账号管理' }).tap();
+const mobileTheme = await p.evaluate(() => {
+  const row = document.querySelector('.account-menu-theme');
+  const select = document.querySelector('.account-menu .theme-switcher select');
+  const label = row?.querySelector('span');
+  return {
+    visible: Boolean(select && getComputedStyle(select).display !== 'none' && select.getBoundingClientRect().width > 40),
+    labelHeight: label ? Math.round(label.getBoundingClientRect().height) : 999,
+  };
+});
+if (!mobileTheme.visible) fail('手机账号菜单里看不见主题切换下拉框：' + JSON.stringify(mobileTheme));
+if (mobileTheme.labelHeight > 28) fail('手机账号菜单“外观”标签被挤换行：' + mobileTheme.labelHeight);
+await p.locator('.account-menu .theme-switcher select').selectOption('dark');
+if ((await p.evaluate(() => document.documentElement.dataset.theme)) !== 'dark') fail('手机账号菜单切换深色模式未生效');
+await p.locator('.account-menu .theme-switcher select').selectOption('light');
+if ((await p.evaluate(() => document.documentElement.dataset.theme)) !== 'light') fail('手机账号菜单切回浅色模式未生效');
+await p.locator('.account-menu-backdrop').tap({ position: { x: 200, y: 100 } });
+await p.evaluate(() => (location.hash = '#accounts'));
 await p.locator('.accounts-page').waitFor();
 await p.waitForTimeout(400);
 await phoneShot('账号管理');

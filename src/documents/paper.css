@@ -1,0 +1,209 @@
+/* 单据导出的版式预览（纸张、表头、签字栏） */
+.word-file-preview {
+  max-height: 65vh;
+  overflow: auto;
+  min-width: 0;
+}
+.word-file-preview article {
+  color: var(--paper-ink);
+}
+/* docx-preview 不支持浮动表格：页眉里竖排的联次说明按 Word 的效果钉在正文右侧，不挤占正文。 */
+.word-file-preview header {
+  position: relative;
+}
+.word-file-preview header > table[style*='float'] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  float: none !important;
+}
+.business-form-preview h3 {
+  text-align: center;
+}
+.business-form-preview thead th {
+  background: transparent;
+  color: inherit;
+}
+.business-form-preview {
+  min-width: 850px;
+  background: var(--paper-bg);
+  color: var(--paper-ink);
+  padding: var(--space-2xl);
+  max-height: 65vh;
+  overflow: auto;
+  display: flex;
+  gap: 4mm;
+  line-height: 1.45;
+}
+.business-form-preview.paper-a4.paper-portrait {
+  width: 210mm;
+  min-width: 0;
+}
+.business-form-preview.paper-a4.paper-landscape {
+  width: 297mm;
+}
+.business-form-preview.paper-continuous-241x140,
+.business-form-preview.paper-continuous-241x93 {
+  width: 241mm;
+}
+.business-form-preview.paper-a5 {
+  width: 210mm;
+}
+.business-form-pages {
+  display: grid;
+  gap: var(--space-lg);
+  max-height: 65vh;
+  overflow: auto;
+  background: var(--paper-bg);
+}
+.business-form-pages .business-form-preview {
+  max-height: none;
+  overflow: visible;
+}
+.business-form-pages .business-form-preview + .business-form-preview {
+  border-top: 1px dashed var(--paper-rule);
+}
+.paper-capacity {
+  margin: 0;
+  padding: var(--space-sm) var(--space-2xl) 0;
+  font-size: var(--text-xs);
+  color: var(--paper-muted);
+}
+.business-form-preview .paper-body {
+  flex: 1;
+  min-width: 0;
+}
+.paper-head {
+  display: grid;
+  grid-template-columns: 36% 28% 36%;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: 10px;
+}
+.paper-company > .brand-logo {
+  --teal: var(--paper-logo-teal);
+  --kraft: var(--paper-logo-kraft);
+  --kraft-deep: var(--paper-logo-kraft-deep);
+}
+.paper-company {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.paper-company strong {
+  font-family: '黑体', 'Microsoft YaHei', sans-serif;
+  font-size: var(--paper-text-company);
+  color: var(--paper-brand);
+}
+.paper-company span,
+.paper-number span {
+  font-size: var(--paper-text-small);
+  color: var(--paper-meta);
+}
+.business-form-preview .paper-title {
+  text-align: center;
+}
+.business-form-preview .paper-title h3 {
+  margin: 0;
+  padding-bottom: var(--space-3xs);
+  border-bottom: 3px double var(--paper-ink);
+  font-family: '黑体', 'Microsoft YaHei', sans-serif;
+  font-size: var(--paper-text-title);
+  color: var(--paper-ink);
+}
+.business-form-preview .paper-title h3.spaced {
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+}
+.paper-title em {
+  display: block;
+  margin-top: var(--space-3xs);
+  font-size: var(--paper-text-small);
+  font-style: normal;
+  font-weight: 700;
+  color: var(--paper-red);
+}
+.paper-number {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2xs);
+}
+.paper-number b {
+  font-size: var(--paper-text-number);
+  color: var(--paper-red);
+}
+.business-form-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  border: 1.5px solid var(--paper-rule-strong);
+}
+.business-form-preview th,
+.business-form-preview td {
+  color: var(--paper-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--paper-rule);
+  font-size: inherit;
+  vertical-align: middle;
+  line-height: 1.45;
+}
+.business-form-preview tbody tr:hover td {
+  background: var(--paper-bg);
+}
+.business-form-preview .paper-info {
+  margin-bottom: var(--space-sm);
+  table-layout: fixed;
+}
+.business-form-preview .paper-info-label {
+  color: var(--paper-label);
+  font-size: var(--paper-text-note);
+}
+.business-form-preview .paper-lines thead th {
+  font-weight: 700;
+  text-align: center;
+}
+.business-form-preview .paper-notes th {
+  background: var(--paper-head-bg);
+  color: var(--paper-rule-strong);
+  white-space: nowrap;
+  font-weight: 700;
+}
+.business-form-preview .paper-total td {
+  font-weight: 700;
+  text-align: right;
+}
+.paper-terms {
+  margin: var(--space-xs) 0 0;
+  padding-left: 1.6em;
+  font-size: var(--paper-text-note);
+  color: var(--paper-terms);
+}
+.paper-signatures {
+  display: flex;
+  gap: var(--space-2xl);
+  padding: var(--space-lg) 0 var(--space-xs);
+}
+.paper-signatures span {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+.paper-signatures i {
+  flex: 1;
+  border-bottom: 1px solid var(--paper-ink);
+}
+.paper-copy-labels {
+  writing-mode: vertical-rl;
+  align-self: center;
+  font-size: var(--paper-text-copy);
+  letter-spacing: 1px;
+  color: var(--paper-meta);
+}
+.paper-running-text {
+  font-size: var(--paper-text-running);
+  padding: var(--space-2xs) 0;
+  color: var(--paper-muted);
+}

@@ -1,33 +1,53 @@
-import { Component, type ReactNode } from 'react';
-import OverviewPage from './OverviewPage';
-import FlowLedgerPage from './FlowLedgerPage';
-import PartiesPage from './PartiesPage';
-import CashPage from './CashPage';
-import CostsPage from './CostsPage';
-import LedgerPage from './LedgerPage';
-import ReportsPage from './ReportsPage';
-import SettingsPage from './SettingsPage';
+import { useEffect, useRef } from 'react';
+import { ErrorBoundary } from '../ui/index';
+import OverviewPage from './overview/OverviewPage';
+import FlowLedgerPage from './flow/FlowLedgerPage';
+import PartiesPage from './parties/PartiesPage';
+import CashPage from './cash/CashPage';
+import CostsPage from './costs/CostsPage';
+import LedgerPage from './ledger/LedgerPage';
+import ReportsPage from './reports/ReportsPage';
+import SettingsPage from './settings/SettingsPage';
+import { financePageTitles } from './page-titles';
 
-/** 单个页面出错时只影响这一页，不让整个系统白屏。 */
-class PageBoundary extends Component<{ children: ReactNode }, { error: string }> {
-  state = { error: '' };
-  static getDerivedStateFromError(error: Error) {
-    return { error: error.message };
-  }
-  render() {
-    return this.state.error ? (
-      <div className="error" role="alert">
-        这个页面出错了，请刷新后重试。{this.state.error}
+
+/** 财务页面之间的页签：电脑一行排开，手机横向滑动、不折行，当前页自动滑到看得见的位置。 */
+function FinanceNav({ page }: { page: string }) {
+  const track = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = track.current,
+      current = box?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!box || !current) return;
+    // 只横向滚这一排，不带动整个页面上下滚
+    const left = current.offsetLeft - (box.clientWidth - current.offsetWidth) / 2;
+    box.scrollLeft = Math.max(0, left);
+  }, [page]);
+  return (
+    <nav className="fin-nav" aria-label="财务页面">
+      <div className="fin-nav-track" ref={track}>
+        {Object.entries(financePageTitles).map(([key, label]) => (
+          <a
+            key={key}
+            href={'#' + key}
+            className={page === key ? 'selected' : undefined}
+            aria-current={page === key ? 'page' : undefined}
+          >
+            {label}
+          </a>
+        ))}
       </div>
-    ) : (
-      this.props.children
-    );
-  }
+    </nav>
+  );
 }
 
 /** 财务页面单独打包，不用财务的账号不下载这部分代码。 */
 export default function FinancePages({ page }: { page: string }) {
-  return <PageBoundary key={page}>{pageOf(page)}</PageBoundary>;
+  return (
+    <>
+      <FinanceNav page={page} />
+      <ErrorBoundary key={page}>{pageOf(page)}</ErrorBoundary>
+    </>
+  );
 }
 function pageOf(page: string) {
   switch (page) {

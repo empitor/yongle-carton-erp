@@ -1,42 +1,101 @@
 import { z } from 'zod';
-import type { Actor } from '../auth.js';
-import type { Store } from '../db.js';
-import { snapshotBeforeDestructive } from '../backup.js';
-import {
-  accountCodeSchema,
-  accountSchema,
-  openingSchema,
-  requestIdSchema,
-  settingsPatchSchema,
-  versionSchema,
-} from '../../shared/finance.js';
+import type { DatabaseSync } from 'node:sqlite';
+import type { Actor } from '../core/index.js';
+import type { Store } from '../core/index.js';
+import { exists, many, one, parseStoredJson, rows } from '../core/index.js';
+import { accountChangeSchema, openingSchema, settingsPatchSchema, type accountSchema } from '../../shared/finance/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
+import { expectRow } from './finance-rows.js';
+import { enableOpening } from './opening.js';
 
-const accountChange = z.strictObject({
-  account: accountSchema,
-  version: versionSchema.optional(),
-  requestId: requestIdSchema,
+type AccountInput = z.output<typeof accountSchema>;
+
+/** 科目代码：一级 4 位，往下每级多 2 位 */
+const TOP_LEVEL_DIGITS = 4;
+const LEVEL_DIGITS = 2;
+
+const patch = settingsPatchSchema.shape;
+/** fin_settings 一行：几个枚举列按取值收窄；账龄分段（aging_days）、小税种税率（tax_rates）存的是改设置时校验过的样子 */
+const settingsRow = rows.fin_settings.extend({
+  taxpayer: patch.taxpayer.unwrap().nullable(),
+  revenue_recognition: patch.revenueRecognition.unwrap(),
+  cost_allocation: patch.costAllocation.unwrap(),
 });
-const accountDelete = z.strictObject({
-  code: accountCodeSchema,
-  version: versionSchema,
-  requestId: requestIdSchema,
+const agingDays = patch.agingDays.unwrap();
+const taxRates = patch.taxRates.unwrap();
+/** 页面看到的财务设置（get 返回、改设置和启用的结果） */
+const settingsView = z.object({
+  version: z.number(),
+  startPeriod: z.string().nullable(),
+  taxpayer: settingsRow.shape.taxpayer,
+  requireSeparateApprover: z.boolean(),
+  revenueRecognition: settingsRow.shape.revenue_recognition,
+  costAllocation: settingsRow.shape.cost_allocation,
+  agingDays,
+  archiveRetention: z.object({
+    voucherYears: z.number(),
+    ledgerYears: z.number(),
+    bankYears: z.number(),
+    taxWorkpaperYears: z.number(),
+    starts: z.string(),
+  }),
+  taxRates,
 });
+type SettingsView = z.output<typeof settingsView>;
+
+/** 财务设置那一行（建库时预置，只有一行），两列 JSON 解析好 */
+export function readFinanceSettings(db: DatabaseSync) {
+  const row = expectRow(one(db, settingsRow, 'SELECT * FROM fin_settings WHERE id=1'), '财务设置');
+  return {
+    ...row,
+    agingDays: parseStoredJson(agingDays, row.aging_days, 'fin_settings.aging_days'),
+    taxRates: parseStoredJson(taxRates, row.tax_rates, 'fin_settings.tax_rates'),
+  };
+}
+
+/** 科目一行，leaf 是不是末级（没有下级科目为 1） */
+const accountRow = rows.fin_accounts.extend({ leaf: z.number() });
+const accountByCode = (db: DatabaseSync, code: string) =>
+  one(db, rows.fin_accounts, 'SELECT * FROM fin_accounts WHERE code=?', code);
+type StoredAccount = z.output<typeof rows.fin_accounts>;
+
+/** 新增下级科目：上级要在、类别一致、启用；已用过的科目不能再加下级 */
+function checkParent(db: DatabaseSync, a: AccountInput, parentCode: string, isNew: boolean) {
+  const parent = accountByCode(db, parentCode);
+  if (!parent || parent.category !== a.category) financeError('上级科目必须存在，且类别应一致。');
+  if (a.enabled && !parent.enabled) financeError('请先启用上级科目。');
+  if (isNew && parent.used) financeError('已使用的科目不能增加下级。', 409);
+}
+
+/** 改已有科目：有下级的不能改类别、不能在下级还启用时停用，已用过的只能改启用状态 */
+function checkAccountChange(db: DatabaseSync, a: AccountInput, before: StoredAccount) {
+  if (before.category !== a.category && exists(db, 'SELECT 1 FROM fin_accounts WHERE parent_code=? LIMIT 1', a.code))
+    financeError('请先处理下级科目。', 409);
+  if (!a.enabled && exists(db, 'SELECT 1 FROM fin_accounts WHERE parent_code=? AND enabled=1', a.code))
+    financeError('请先停用下级科目。', 409);
+  const changed =
+    a.category !== before.category ||
+    a.name !== before.name ||
+    a.direction !== before.direction ||
+    a.cashKind !== before.cash_kind ||
+    a.auxiliary !== before.auxiliary;
+  if (before.used && changed) financeError('已使用的科目仅可修改启用状态。', 409);
+}
 
 export class FinanceSettings {
   constructor(private store: Store) {}
 
-  get(actor: Actor | null) {
+  get(actor: Actor | null): SettingsView {
     financeActor(actor);
-    const row = this.store.db.prepare('SELECT * FROM fin_settings WHERE id=1').get()!;
+    const row = readFinanceSettings(this.store.db);
     return {
-      version: Number(row.version),
-      startPeriod: row.start_period as string | null,
-      taxpayer: row.taxpayer as string | null,
+      version: row.version,
+      startPeriod: row.start_period,
+      taxpayer: row.taxpayer,
       requireSeparateApprover: row.require_separate_approver === 1,
-      revenueRecognition: String(row.revenue_recognition),
-      costAllocation: String(row.cost_allocation),
-      agingDays: JSON.parse(String(row.aging_days)) as number[],
+      revenueRecognition: row.revenue_recognition,
+      costAllocation: row.cost_allocation,
+      agingDays: row.agingDays,
       archiveRetention: {
         voucherYears: 30,
         ledgerYears: 30,
@@ -44,9 +103,7 @@ export class FinanceSettings {
         taxWorkpaperYears: 10,
         starts: '会计年度结束后第一天起算',
       },
-      taxRates: JSON.parse(String(row.tax_rates)) as z.infer<
-        typeof settingsPatchSchema
-      >['taxRates'],
+      taxRates: row.taxRates,
     };
   }
 
@@ -55,75 +112,79 @@ export class FinanceSettings {
     const input = settingsPatchSchema.parse(raw);
     if (input.requireSeparateApprover !== undefined && user.role !== 'super_admin')
       financeError('仅管理员可修改制单与审核分离设置。', 403);
-    return financeWrite(this.store, user, 'settings.update', input, () => {
+    return financeWrite(this.store, user, { action: 'settings.update', input, result: settingsView }, () => {
       const before = this.get(user);
       checkVersion(before, input.version);
-      const db = this.store.db;
-      db.prepare(
-        `UPDATE fin_settings SET version=version+1, taxpayer=?, require_separate_approver=?,
+      // 启用时纳税人身份和期初一起锁定：留抵、附加税都按它算，中途改了以前的月份就对不上了。
+      if (before.startPeriod && input.taxpayer !== undefined && input.taxpayer !== before.taxpayer)
+        financeError('财务启用后纳税人身份已锁定，不能再改。', 409);
+      this.store.db
+        .prepare(
+          `UPDATE fin_settings SET version=version+1, taxpayer=?, require_separate_approver=?,
         revenue_recognition=?, cost_allocation=?, aging_days=?, tax_rates=? WHERE id=1`,
-      ).run(
-        input.taxpayer ?? before.taxpayer,
-        Number(input.requireSeparateApprover ?? before.requireSeparateApprover),
-        input.revenueRecognition ?? before.revenueRecognition,
-        input.costAllocation ?? before.costAllocation,
-        JSON.stringify(input.agingDays ?? before.agingDays),
-        JSON.stringify(input.taxRates ?? before.taxRates),
-      );
+        )
+        .run(
+          input.taxpayer ?? before.taxpayer,
+          Number(input.requireSeparateApprover ?? before.requireSeparateApprover),
+          input.revenueRecognition ?? before.revenueRecognition,
+          input.costAllocation ?? before.costAllocation,
+          JSON.stringify(agingDays.parse(input.agingDays ?? before.agingDays)),
+          JSON.stringify(taxRates.parse(input.taxRates ?? before.taxRates)),
+        );
       const after = this.get(user);
-      financeAudit(this.store, user, 'update', 'fin_settings', 1, before, after);
+      this.recordHistory(user, after);
+      financeAudit(this.store, user, { action: 'update', entity: 'fin_settings', id: 1, before, after });
       return { ...after };
     });
   }
 
+  /**
+   * 财务设置每改一次，把改完以后的样子记进 fin_settings_history。
+   * “某个时间点按什么口径”（现在是收入确认方式）查这张表，不查审计；审计照常另写。
+   */
+  private recordHistory(user: Actor, after: SettingsView) {
+    this.store.db
+      .prepare(
+        `INSERT INTO fin_settings_history(changed_at,settings_version,taxpayer,require_separate_approver,
+        revenue_recognition,cost_allocation,aging_days,tax_rates,actor_id,actor_name) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        new Date().toISOString(),
+        after.version,
+        after.taxpayer,
+        Number(after.requireSeparateApprover),
+        after.revenueRecognition,
+        after.costAllocation,
+        JSON.stringify(agingDays.parse(after.agingDays)),
+        JSON.stringify(taxRates.parse(after.taxRates)),
+        user.id,
+        user.name,
+      );
+  }
+
   accounts(actor: Actor | null) {
     financeActor(actor);
-    return this.store.db
-      .prepare(
-        `SELECT a.*, NOT EXISTS(
-      SELECT 1 FROM fin_accounts WHERE parent_code=a.code) AS leaf
+    return many(
+      this.store.db,
+      accountRow,
+      `SELECT a.*, NOT EXISTS(SELECT 1 FROM fin_accounts WHERE parent_code=a.code) AS leaf
       FROM fin_accounts a ORDER BY code`,
-      )
-      .all();
+    );
   }
 
   saveAccount(actor: Actor | null, raw: unknown) {
     const user = financeActor(actor, 'finance:close');
-    const input = accountChange.parse(raw);
-    return financeWrite(this.store, user, 'accounts.save', input, () => {
+    const input = accountChangeSchema.parse(raw);
+    return financeWrite(this.store, user, { action: 'accounts.save', input, result: rows.fin_accounts }, () => {
       const db = this.store.db,
         a = input.account;
-      const find = db.prepare('SELECT * FROM fin_accounts WHERE code=?');
-      const before = find.get(a.code);
-      const parentCode = a.code.length > 4 ? a.code.slice(0, -2) : null;
-      if (parentCode) {
-        const parent = find.get(parentCode);
-        if (!parent || parent.category !== a.category)
-          financeError('上级科目必须存在，且类别应一致。');
-        if (a.enabled && !parent.enabled) financeError('请先启用上级科目。');
-        if (!before && parent.used) financeError('已使用的科目不能增加下级。', 409);
-      }
-      const hasChild = db
-        .prepare('SELECT 1 FROM fin_accounts WHERE parent_code=? LIMIT 1')
-        .get(a.code);
+      const before = accountByCode(db, a.code);
+      const parentCode = a.code.length > TOP_LEVEL_DIGITS ? a.code.slice(0, -LEVEL_DIGITS) : null;
+      if (parentCode) checkParent(db, a, parentCode, !before);
       if (before) {
         if (input.version === undefined) financeError('科目已存在。', 409);
         checkVersion(before, input.version);
-        if (hasChild && before.category !== a.category) financeError('请先处理下级科目。', 409);
-        if (
-          !a.enabled &&
-          db.prepare('SELECT 1 FROM fin_accounts WHERE parent_code=? AND enabled=1').get(a.code)
-        )
-          financeError('请先停用下级科目。', 409);
-        if (
-          before.used &&
-          (a.category !== before.category ||
-            a.name !== before.name ||
-            a.direction !== before.direction ||
-            a.cashKind !== before.cash_kind ||
-            a.auxiliary !== before.auxiliary)
-        )
-          financeError('已使用的科目仅可修改启用状态。', 409);
+        checkAccountChange(db, a, before);
         db.prepare(
           `UPDATE fin_accounts SET name=?,category=?,direction=?,cash_kind=?,auxiliary=?,
           enabled=?,version=version+1 WHERE code=?`,
@@ -133,40 +194,11 @@ export class FinanceSettings {
         db.prepare(
           `INSERT INTO fin_accounts(code,parent_code,name,category,direction,cash_kind,auxiliary,enabled)
           VALUES(?,?,?,?,?,?,?,?)`,
-        ).run(
-          a.code,
-          parentCode,
-          a.name,
-          a.category,
-          a.direction,
-          a.cashKind,
-          a.auxiliary,
-          Number(a.enabled),
-        );
+        ).run(a.code, parentCode, a.name, a.category, a.direction, a.cashKind, a.auxiliary, Number(a.enabled));
       }
-      const after = find.get(a.code)!;
-      financeAudit(this.store, user, 'save', 'fin_accounts', null, before ?? null, after);
+      const after = expectRow(accountByCode(db, a.code), '科目 ' + a.code);
+      financeAudit(this.store, user, { action: 'save', entity: 'fin_accounts', id: null, before: before ?? null, after });
       return { ...after };
-    });
-  }
-
-  deleteAccount(actor: Actor | null, raw: unknown) {
-    const user = financeActor(actor, 'finance:close');
-    const input = accountDelete.parse(raw);
-    snapshotBeforeDestructive(this.store, 'finance-account');
-    return financeWrite(this.store, user, 'accounts.delete', input, () => {
-      const db = this.store.db;
-      const before = db.prepare('SELECT * FROM fin_accounts WHERE code=?').get(input.code);
-      if (!before) financeError('科目不存在。', 404);
-      checkVersion(before, input.version);
-      if (
-        before.used ||
-        db.prepare('SELECT 1 FROM fin_accounts WHERE parent_code=? LIMIT 1').get(input.code)
-      )
-        financeError('已使用的科目及有下级的科目不能删除。', 409);
-      db.prepare('DELETE FROM fin_accounts WHERE code=?').run(input.code);
-      financeAudit(this.store, user, 'delete', 'fin_accounts', null, before, null);
-      return { code: input.code };
     });
   }
 
@@ -174,100 +206,35 @@ export class FinanceSettings {
     const user = financeActor(actor, 'finance:close');
     return {
       period: this.get(user).startPeriod,
-      rows: this.store.db
-        .prepare('SELECT * FROM fin_opening ORDER BY account_code, auxiliary_id')
-        .all(),
+      rows: many(this.store.db, rows.fin_opening, 'SELECT * FROM fin_opening ORDER BY account_code, auxiliary_id'),
     };
   }
 
   enable(actor: Actor | null, raw: unknown) {
     const user = financeActor(actor, 'finance:close');
     const input = openingSchema.parse(raw);
-    return financeWrite(this.store, user, 'opening.enable', input, () => {
-      const db = this.store.db;
+    return financeWrite(this.store, user, { action: 'opening.enable', input, result: settingsView }, () => {
       const before = this.get(user);
       checkVersion(before, input.version);
       if (before.startPeriod) financeError('期初已启用并锁定。', 409);
       const accounts = new Map(this.accounts(user).map((row) => [row.code, row]));
-      const balances = new Map<string, { control?: bigint[]; detail: bigint[] }>();
-      const unique = new Set<string>();
-      const insert = db.prepare(`INSERT INTO fin_opening
-        (account_code,auxiliary_kind,auxiliary_id,auxiliary_name,debit,credit,year_debit,year_credit)
-        VALUES(?,?,?,?,?,?,?,?)`);
-      let net = 0n,
-        yearNet = 0n;
-      for (const row of input.rows) {
-        const account = accounts.get(row.accountCode),
-          auxiliary = row.auxiliary;
-        if (!account?.enabled || !account.leaf) financeError('期初科目必须启用且为末级。');
-        if (row.debit > 0 && row.credit > 0) financeError('期初余额只可填一方。');
-        if (auxiliary && account.auxiliary !== auxiliary.kind)
-          financeError('期初辅助项与科目不一致。');
-        const key = JSON.stringify([row.accountCode, auxiliary?.id]);
-        if (unique.has(key)) financeError('期初科目或辅助明细重复。');
-        unique.add(key);
-        const amounts = [row.debit, row.credit, row.yearDebit, row.yearCredit].map(BigInt);
-        if (account.auxiliary) {
-          const group = balances.get(row.accountCode) ?? { detail: [0n, 0n, 0n, 0n] };
-          if (auxiliary)
-            group.detail = group.detail.map((amount, index) => amount + amounts[index]);
-          else group.control = amounts;
-          balances.set(row.accountCode, group);
-        }
-        if (!auxiliary) {
-          net += amounts[0] - amounts[1];
-          yearNet += amounts[2] - amounts[3];
-        }
-        insert.run(
-          row.accountCode,
-          auxiliary?.kind ?? null,
-          auxiliary?.id ?? null,
-          auxiliary?.name ?? null,
-          row.debit,
-          row.credit,
-          row.yearDebit,
-          row.yearCredit,
-        );
-        db.prepare('UPDATE fin_accounts SET used=1 WHERE code=?').run(row.accountCode);
-      }
-      for (const [code, group] of balances) {
-        const { control, detail } = group;
-        if (
-          !control ||
-          control[0] - control[1] !== detail[0] - detail[1] ||
-          control[2] !== detail[2] ||
-          control[3] !== detail[3]
-        )
-          financeError(`科目 ${code} 的期初及本年累计与辅助明细不一致。`);
-      }
-      if (net !== 0n || yearNet !== 0n) financeError('期初余额和本年累计必须分别借贷平衡。');
-      db.prepare("INSERT INTO fin_periods(period,status) VALUES(?,'open')").run(input.period);
-      db.prepare(
-        'UPDATE fin_settings SET start_period=?,taxpayer=?,version=version+1 WHERE id=1',
-      ).run(input.period, input.taxpayer);
-      db.prepare(
-        `INSERT INTO fin_obligations(kind,party_id,party_name,date,amount_cents,description,opening_id)
-        SELECT CASE WHEN account_code LIKE '1122%' THEN 'receivable' ELSE 'payable' END,
-          auxiliary_id,auxiliary_name,?,CASE WHEN account_code LIKE '1122%' THEN debit-credit ELSE credit-debit END,'期初往来',id
-        FROM fin_opening WHERE auxiliary_id IS NOT NULL AND debit<>credit AND
-          (account_code LIKE '1122%' OR account_code LIKE '2202%')`,
-      ).run(input.period + '-01');
+      const rows = enableOpening(this.store.db, input, accounts);
       const after = this.get(user);
-      financeAudit(
-        this.store,
-        user,
-        'enable',
-        'fin_opening',
-        null,
-        { settings: before, rows: [] },
-        { settings: after, rows: input.rows },
-      );
+      // 纳税人身份在启用时定下来，也是一次设置变更
+      this.recordHistory(user, after);
+      financeAudit(this.store, user, {
+        action: 'enable',
+        entity: 'fin_opening',
+        id: null,
+        before: { settings: before, rows: [] },
+        after: { settings: after, rows },
+      });
       return after;
     });
   }
 
   periods(actor: Actor | null) {
     financeActor(actor);
-    return this.store.db.prepare('SELECT * FROM fin_periods ORDER BY period').all();
+    return many(this.store.db, rows.fin_periods, 'SELECT * FROM fin_periods ORDER BY period');
   }
 }

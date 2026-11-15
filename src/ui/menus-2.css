@@ -1,0 +1,108 @@
+/* “更多”菜单、可搜索下拉、勾选后的操作条（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+/* 详情的“更多”写上字、做成灰色按钮：删除、撤销、归档都在里面，只有一个淡淡的“⋯”时用户找不到 */
+.more-menu > summary.more-menu-text,
+:root[data-ui='refined'] .more-menu > summary.more-menu-text {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  gap: var(--space-2xs);
+  padding: 0 var(--space-md);
+  background: var(--fill-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+:root[data-ui='refined'] .more-menu > summary.more-menu-text:hover,
+:root[data-ui='refined'] .more-menu[open] > summary.more-menu-text {
+  background: var(--fill-2);
+}
+
+/* ===== 全站公共件（docs/界面规范.md） ===== */
+
+/* “更多”菜单：危险项红色、和普通项之间有分隔线；固定定位，弹窗里也不会被裁掉 */
+:root[data-ui='refined'] .more-menu-list :is(button, a).danger-text,
+.more-menu-list :is(button, a).danger-text {
+  color: var(--danger);
+}
+:root[data-ui='refined'] .more-menu-list :is(button, a).danger-text:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+.more-menu-sep {
+  height: 0;
+  margin: var(--space-2xs) var(--space-xs);
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.more-menu[open] > .more-menu-list {
+  z-index: var(--z-popover-menu);
+}
+/* 菜单在浏览器顶层打开（MoreMenu 加的 popover）：去掉浏览器给 popover 的居中外边距和默认配色 */
+.more-menu-list[popover] {
+  margin: 0;
+  color: inherit;
+}
+
+/* 列表勾选后的操作条：固定在屏幕底部 */
+.selection-bar {
+  position: fixed;
+  right: 0;
+  bottom: 20px;
+  left: 0;
+  z-index: var(--z-drawer);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0 auto;
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--pop-shadow, var(--shadow));
+}
+.selection-count {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.selection-note {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+:root[data-ui='refined'] .selection-bar button.selection-clear,
+.selection-bar button.selection-clear {
+  min-height: 32px;
+  padding: 0 var(--space-sm);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary, var(--muted));
+  font-size: var(--text-sm);
+}
+.selection-bar .more-menu > summary.more-menu-text {
+  height: 32px;
+}
+
+@media (max-width: 700px) {
+  .selection-bar {
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom) + 8px);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    width: auto;
+    max-width: none;
+    margin: 0;
+  }
+}
+/* “更多”菜单项：不吃页头按钮的通用内边距，按钮和链接左对齐 */
+:root[data-ui='refined'] .more-menu-list > :is(button, a) {
+  justify-content: flex-start;
+  padding: 0 10px;
+  font-weight: 400;
+  text-align: left;
+}

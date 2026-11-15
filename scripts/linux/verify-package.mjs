@@ -17,8 +17,10 @@ assert.equal(marker.version, JSON.parse(readFileSync(join(root, 'package.json'),
 assert.ok(process.execPath.startsWith(join(root, 'runtime')));
 assert.equal(existsSync(join(root, 'data')), false);
 assert.equal(existsSync(join(root, 'backups')), false);
-const { getSpeechEngine } = await import('../../server/speech/engine.ts');
-await assert.rejects(getSpeechEngine(), (error) => error.status === 503 && error.code === 'speech-model');
+// 语音交给 DeepSeek 识别（这里不连网，换成假的识别）：1 秒录音包成 WAV，头 44 字节、采样率 16 kHz、16 位
+const { transcribePcm } = await import('../../server/speech/index.ts');
+const heard = await transcribePcm({ speechToText: async (wav) => ({ text: [wav.subarray(0, 4), wav.length, wav.readUInt32LE(24), wav.readUInt16LE(34)].join(' '), durationMs: 0 }) }, Buffer.alloc(32000), 'package-check');
+assert.deepEqual(heard, { text: 'RIFF 32044 16000 16', durationMs: 1000 });
 const dir = mkdtempSync(join(tmpdir(), 'erp-package-check-'));
 const data = join(dir, 'fictional-data'); mkdirSync(data);
 Object.assign(process.env, {
@@ -27,10 +29,10 @@ Object.assign(process.env, {
   ERP_ENV_FILE: join(dir, 'absent.env'), ERP_NO_BROWSER: '1', NODE_ENV: 'production',
   ERP_DEPLOYMENT: '0', ERP_BACKUP_COPY_DIR: '',
 });
-const { Store } = await import('../../server/db.ts');
-const { OperationsService } = await import('../../server/operations/service.ts');
-const { FlowService } = await import('../../server/flow/service.ts');
-const { customerSchema, productSchema, orderSchema } = await import('../../shared/domain.ts');
+const { Store } = await import('../../server/core/index.ts');
+const { OperationsService } = await import('../../server/operations/index.ts');
+const { FlowService } = await import('../../server/flow/index.ts');
+const { customerSchema, productSchema, orderSchema } = await import('../../shared/core/index.ts');
 const store = new Store(), ops = new OperationsService(store), flow = new FlowService(store);
 const actor = { id: 'fictional-package-check', name: '虚构安装包验收', role: 'admin', permissions: ['business:edit'] };
 const supplier = ops.saveSupplier({ name: '虚构供应商', contact: '', phone: '', address: '' }, actor);
@@ -70,7 +72,7 @@ try {
   let state;
   for (let i = 0; i < 100; i++) {
     if (child.exitCode !== null) throw new Error('隔离服务提前退出：' + log);
-    try { const r = await fetch(origin + '/api/auth/state'); if (r.ok) { state = await r.json(); break; } } catch {}
+    try { const r = await fetch(origin + '/api/auth/state'); if (r.ok) { state = await r.json(); break; } } catch { /* 服务还没监听：歇一下再查 */ }
     await new Promise((r) => setTimeout(r, 300));
   }
   assert.ok(state, '隔离服务启动超时：' + log);

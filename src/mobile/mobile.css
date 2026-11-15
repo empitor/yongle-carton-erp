@@ -1,0 +1,277 @@
+/* 手机：底部导航、卡片列表 */
+.fin-lines input,
+.fin-lines select {
+  width: 100%;
+  min-width: 64px;
+}
+.fin-lines th,
+.fin-lines td {
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 700px) {
+  /* 手机卡片表格里“没有记录”那一格不受行高 40px 限制，否则说明文字被卡片裁掉 */
+  :root[data-ui='refined'] main .fin-page table.m-cards td.m-plain {
+    height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .business-records table.m-cards tr.record-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3xs) var(--space-md);
+    padding: 10px 14px;
+  }
+  .business-records table.m-cards tr.record-row > td {
+    flex: 0 1 auto;
+    gap: var(--space-2xs);
+    height: auto !important;
+    min-height: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    font-size: var(--text-sm);
+    line-height: 20px;
+    text-align: left;
+  }
+  .business-records table.m-cards tr.record-row > td[data-label]::before {
+    max-width: none;
+    font-size: var(--text-xs);
+  }
+  .business-records table.m-cards tr.record-row > td.m-title {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: var(--text-md);
+  }
+  /* 地址、备注、加工要求这类长字段手机上不占行，点开详情看。
+     按类名 m-long 隐藏（src/records/BusinessRecords.tsx 里标在这几格上），不按列的序号：列一调整，按序号会藏错列
+     （原来采购单的“金额”、订单的“进度”就是这样被藏掉的）。m-hide 由手机卡片脚本按“空值”开关，不能拿来标。 */
+  .business-records table.m-cards td.m-long {
+    display: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+
+  /* 列表卡片：一条两三行高，字段之间不画线 */
+  :root[data-ui='refined'] main table.m-cards:is(.flow-table, .op-flow-table, .movement-summary-table) td {
+    height: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+  :root[data-ui='refined'] main table.m-cards:is(.flow-table, .op-flow-table, .movement-summary-table) tr {
+    height: auto;
+    border-bottom: 0.5px solid var(--sep, var(--border));
+  }
+  table.m-cards.flow-table .inline-progress .board-progress {
+    width: 48px;
+  }
+}
+
+/* ============ 手机（700px 以下）：底部导航、卡片列表、全屏表单和助手 ============ */
+.mobile-tabbar,
+.mobile-subnav {
+  display: none;
+}
+
+@media (max-width: 700px) {
+
+  /* 底部导航 */
+  .mobile-tabbar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-sidebar);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .mobile-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3xs);
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+  }
+  .mobile-tab.selected {
+    color: var(--ink);
+    font-weight: 600;
+    background: var(--sidebar-selected);
+  }
+  /* 手指点过的格子会一直留着按钮的悬停底色，换到别的页面后看着像选中：只有当前页面那格有底色 */
+  .mobile-tab:hover:not(:disabled) {
+    background: transparent;
+  }
+  .mobile-tab.selected:hover:not(:disabled) {
+    background: var(--sidebar-selected);
+  }
+  .mobile-tab-ai {
+    color: var(--purple);
+  }
+  .mobile-tab-ai span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 26px;
+    border-radius: var(--r-control);
+    background: var(--purple-soft);
+  }
+  .mobile-tab-ai span .yl-duo {
+    width: 22px;
+    height: 23px;
+  }
+  .mobile-subnav button {
+    flex: 1;
+    min-height: 40px;
+    padding: 0 var(--space-2xs);
+    border: 0;
+    border-radius: var(--r-small);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-md);
+  }
+  .mobile-subnav button.selected {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* 表格变卡片 */
+  table.m-cards {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto;
+  }
+  table.m-cards thead {
+    display: none;
+  }
+  table.m-cards tbody {
+    display: block;
+  }
+  table.m-cards tr:last-child {
+    border-bottom: 0;
+  }
+  table.m-cards td.m-title::before {
+    display: none;
+  }
+  .mobile-subnav {
+    display: flex;
+    gap: var(--space-2xs);
+    margin-bottom: var(--space-sm);
+    padding: var(--space-2xs);
+    background: var(--surface-muted);
+    border-radius: var(--r-control);
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 700px) {
+  /* 手机列表紧凑行：第一列做标题占一行，其余字段排成“字段名 值”的小字，自动换行，一条两三行高 */
+  table.m-cards tr {
+    height: auto;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-3xs) var(--space-md);
+    padding: 10px var(--space-md);
+  }
+  table.m-cards td {
+    position: static !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    background: transparent !important;
+    display: inline-flex;
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: var(--space-2xs);
+    min-height: 0;
+    padding: 0;
+    font-size: var(--text-sm);
+    line-height: 20px;
+    text-align: left;
+  }
+  table.m-cards td[data-label]::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--text-secondary);
+    text-align: left;
+    max-width: none;
+    font-size: var(--text-xs);
+  }
+  table.m-cards td.m-title {
+    justify-content: flex-start;
+    font-weight: 600;
+    text-align: left;
+    flex: 1 0 100%;
+    margin-bottom: 0;
+    font-size: var(--text-md);
+  }
+  table.m-cards td.m-plain {
+    display: block;
+    text-align: center;
+    flex: 1 0 100%;
+  }
+  table.m-cards td.m-hide {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  /* 手机卡片里的格子：不要表格的固定行高和分隔线，“没有记录”这类提示不被裁掉 */
+  :root[data-ui='refined'] main .panel table.m-cards td,
+  :root[data-ui='refined'] table.m-cards td {
+    height: auto;
+    border-bottom: 0;
+  }
+}
+
+@container list-table (max-width: 899px) {
+  table:not(.m-cards) :is(th, td).col-low {
+    display: none;
+  }
+  .business-records[data-entity] > .unified-table-region > table:not(.m-cards),
+  .unified-table-region > table:not(.m-cards) {
+    min-width: 0;
+  }
+  .unified-table-region > table:not(.m-cards) > tbody > tr > td.cell-wrap {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 格子左右留白从 12 收到 8，七八列省下五六十像素 */
+  :root[data-ui='refined'] .unified-table-region > table:not(.m-cards) > :is(thead, tbody) > tr > :is(th, td) {
+    padding-inline: var(--space-sm);
+  }
+}
+
+@container list-table (max-width: 659px) {
+  table:not(.m-cards) :is(th, td).col-mid {
+    display: none;
+  }
+  .unified-table-region > table:not(.m-cards) > tbody > tr > td.cell-wrap {
+    max-width: 160px;
+  }
+}

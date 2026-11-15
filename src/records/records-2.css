@@ -1,0 +1,51 @@
+/* 业务列表页和单据详情（订单、采购、库存、回收站）（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+:root[data-ui='refined'] .detail-panel-body .rb-related > details {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+:root[data-ui='refined'] .detail-panel-body .sales-order-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+:root[data-ui='refined'] .detail-panel-body .rb-next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+:root[data-ui='refined'] .detail-panel-body .rb-related {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+:root[data-ui='refined'] .rb-related > details > summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 产品附属关系：附属品挂在它附属的产品下面，名称前一条“└”形连接线（像主会话下面的子会话） */
+.record-tree-cell {
+  white-space: nowrap;
+}
+.record-family-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.record-family-list li {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  font-size: var(--text-sm);
+}

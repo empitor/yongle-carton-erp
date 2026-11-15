@@ -1,467 +1,208 @@
+// 助手工具注册表（tool-registry.ts）：目录和参数结构只定义一处；启停只有超级管理员能改、重开还在；
+// 分派前按账号核对权限（界限 1 的分派层）；没注册的命令不执行。内存库或临时目录、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { actor, superActor, assistantFixture } from './assistant-fixture.js';
-import {
-  legacyAssistantDefaults,
-  assistantDefaultPreset,
-} from '../server/assistant/default-preset.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { erpPageIds, isErpNavigation, pageLink } from '../shared/assistant-navigation.js';
-import { imageFixture } from './import-fixtures.js';
-import { toolCatalog } from '../server/assistant/tools.js';
-import { AuthManager } from '../server/auth.js';
-import { createApp } from '../server/app.js';
-import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
-import { AiConnectionError } from '../server/ai/connection-error.js';
+import { DatabaseSync } from 'node:sqlite';
+import { AssistantToolRegistry, superAdminTools } from '../server/assistant/tool-registry.js';
+import { toolCatalog, toolDefinitions } from '../server/assistant/tool-catalog.js';
+import { pageToolDefinitions } from '../server/assistant/tools/page.js';
+import { sessionTools } from '../server/assistant/tools/session.js';
+import { orderImportTools } from '../server/assistant/tools/order-import.js';
+import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { pragmaInteger } from '../server/core/sql.js';
+import { erpPageIds, isErpNavigation, pageLink } from '../shared/assistant/assistant-navigation.js';
+import { actor, superActor, assistantFixture, readAs } from './assistant-fixture.js';
 
-test('同文件在现有工作区已选择到货模式时，订单工具不能复制为销售单；类型参数必须明确', async () => {
-  const f = createOrderWorkflowFixture();
+const tempDir = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
+// Windows 上杀毒扫描会短暂占住刚建的 SQLite 文件，删目录要重试几次
+const removeDir = (dir: string) => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+const counting = () => {
+  let count = 0;
+  const run = () => void count++;
+  return { handlers: { read: run, business: run, workflow: run }, count: () => count };
+};
+
+function named<T extends { name: string }>(items: readonly T[], name: string) {
+  const item = items.find((entry) => entry.name === name);
+  assert.ok(item, name);
+  return item;
+}
+
+test('工具定义只写一处：目录和定义一一对应、每个都带参数结构；页面、会话、AI 导入的参数照常校验', () => {
+  assert.equal(new Set(toolDefinitions.map((t) => t.name)).size, toolDefinitions.length);
+  assert.deepEqual(toolCatalog.map((t) => t.name), toolDefinitions.map((t) => t.name));
+  for (const t of toolCatalog) assert.equal('schema' in t, false, t.name);
+  for (const t of toolDefinitions) assert.ok(t.schema, t.name);
+  const observe = named(pageToolDefinitions, 'page.observe').schema;
+  assert.equal(observe.safeParse({ mode: '不认识的' }).success, false);
+  assert.equal(observe.safeParse({ mode: 'summary' }).success, true);
+  assert.deepEqual(pageToolDefinitions.map((t) => t.name), ['page.observe'], '看页面只有这一个工具');
+  const deleteChat = named(sessionTools, 'chat.delete').schema;
+  assert.equal(deleteChat.safeParse({ all: true }).success, true);
+  assert.equal(deleteChat.safeParse({ threadIds: ['不是UUID'] }).success, false);
+  assert.deepEqual(named(orderImportTools, 'order_import.start').schema.parse({}), { recognitionType: 'order' });
+  assert.equal(named(orderImportTools, 'order_import.get').schema.safeParse({ taskId: randomUUID(), extra: 1 }).success, false);
+  const registry = new AssistantToolRegistry(':memory:', () => true);
   try {
-    const file = await f.manager.attachments.upload(
-      f.thread.id,
-      imageFixture(),
-      '模式边界.png',
-      randomUUID(),
-      actor,
-    );
-    const w = (await f.imports.upload(imageFixture(), '模式边界.png', true)).workspace;
-    f.imports.setMode(w.id, { expectedRevision: w.revision, mode: 'arrival' });
-    f.replies.push({
-      message: '遵守现有模式',
-      toolCalls: [{ name: 'order_import.start', args: { recognitionType: 'order' } }],
-    });
-    const who = { ...actor, permissions: ['business:edit', 'import:execute'] };
-    const result = await f.manager.chat(
-      f.thread.id,
-      {
-        text: '处理这张单据',
-        attachmentIds: [file.id],
-        requestId: randomUUID(),
-        profile: f.settings.view().active,
-        context: { page: '#ai-import?workspace=' + w.id },
-      },
-      who,
-      's',
-      () => {},
-      () => who,
-    );
-    assert.match(result.messages.at(-1)!.text, /到货/);
-    assert.equal(f.recognitionCalls(), 0);
-    assert.equal(f.store.orders().length, 0);
-    await assert.rejects(() =>
-      f.manager.registry.dispatch('order_import.start', {}, actor, {
-        read: () => {},
-        business: () => {},
-        workflow: () => {
-          throw Error('不应调度');
-        },
-      }),
-    );
+    assert.deepEqual(registry.view().tools.map((t) => t.name), toolCatalog.map((t) => t.name));
+    const schema = named(registry.view().tools, 'records.propose_save').parameters;
+    // 改一条、新建一条传 patch，一次新建几条传 items：两样都不是必填，二选一由校验管
+    assert.deepEqual(schema.required, ['module']);
+    assert.ok(schema.properties?.patch && schema.properties?.items);
   } finally {
-    f.close();
+    registry.close();
   }
 });
 
-test('多工具中后续API中断保留已成功写入的真实结果，重放不重复创建', async () => {
-  const f = assistantFixture();
-  try {
-    const t = f.manager.create(actor);
-    let n = 0;
-    f.settings.completeOrderJson = async () => {
-      if (++n === 1)
-        return {
-          message: '创建客户',
-          toolCalls: [
-            {
-              name: 'records.propose_save',
-              args: { module: 'customers', patch: { name: '中断测试客户' } },
-            },
-          ],
-        };
-      throw new AiConnectionError('network', '虚构连接中断');
-    };
-    const input = f.input('创建中断测试客户', randomUUID());
-    await assert.rejects(
-      () =>
-        f.manager.chat(
-          t.id,
-          input,
-          actor,
-          's',
-          () => {},
-          () => actor,
-        ),
-      /此前已实际执行/,
-    );
-    const view = f.manager.view(t.id, actor);
-    assert.equal(f.store.customers().length, 1);
-    assert.equal(view.messages.at(-1)!.executed.tool, 'records.propose_save');
-    await f.manager.chat(
-      t.id,
-      input,
-      actor,
-      's',
-      () => {},
-      () => actor,
-    );
-    assert.equal(n, 4);
-    assert.equal(f.store.customers().length, 1);
-  } finally {
-    f.close();
-  }
-});
-
-test('注册目录、参数结构、持久启停、并发版本及执行端拒绝一致', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-tool-registry-')),
+test('启停：只有超级管理员能改、版本过期拒绝；停用的模型看不到、分派也拒绝；重开还在；参数不对和没注册的不执行', async () => {
+  const dir = tempDir('erp-tool-registry-'),
     path = join(dir, 'tools.sqlite');
   let r = new AssistantToolRegistry(path, () => true);
+  const { handlers, count } = counting();
   try {
-    assert.deepEqual(
-      r.view().tools.map((t) => t.name),
-      toolCatalog.map((t) => t.name),
-    );
-    const schema = r.view().tools.find((t) => t.name === 'records.propose_save')!.parameters;
-    assert.deepEqual(schema.required, ['module', 'patch']);
-    assert.throws(
-      () => r.set({ name: 'ui.open', enabled: false, expectedRevision: 0 }, actor),
-      /超级管理员/,
-    );
+    assert.throws(() => r.set({ name: 'ui.open', enabled: false, expectedRevision: 0 }, actor), /超级管理员/);
     r.set({ name: 'ui.open', enabled: false, expectedRevision: 0 }, superActor());
-    assert.throws(
-      () => r.set({ name: 'records.get', enabled: false, expectedRevision: 0 }, superActor()),
-      /刷新/,
-    );
-    let invoked = 0;
-    const handlers = {
-      read: () => invoked++,
-      business: () => invoked++,
-      workflow: () => invoked++,
-    };
-    await assert.rejects(
-      () => r.dispatch('ui.open', { page: 'warehouse' }, actor, handlers),
-      /停用/,
-    );
-    await assert.rejects(() =>
-      r.dispatch('records.get', { module: 'customers', id: -1 }, actor, handlers),
-    );
+    assert.throws(() => r.set({ name: 'records.get', enabled: false, expectedRevision: 0 }, superActor()), /刷新/);
+    await assert.rejects(() => r.dispatch('ui.open', { module: 'warehouse' }, actor, handlers), /停用/);
+    await assert.rejects(() => r.dispatch('records.get', { module: 'customers', id: -1 }, actor, handlers));
     await assert.rejects(() => r.dispatch('shell.execute', {}, actor, handlers), /未注册/);
-    assert.equal(invoked, 0);
+    assert.equal(count(), 0);
     r.close();
     r = new AssistantToolRegistry(path, () => true);
-    assert.equal(r.view().tools.find((t) => t.name === 'ui.open')!.enabled, false);
+    assert.equal(named(r.view().tools, 'ui.open').enabled, false);
     assert(!r.exposed().some((t) => t.name === 'ui.open'));
     r.set({ name: 'ui.open', enabled: true, expectedRevision: 1 }, superActor());
-    await r.dispatch('ui.open', { page: 'warehouse' }, actor, handlers);
-    assert.equal(invoked, 1);
+    await r.dispatch('ui.open', { module: 'warehouse' }, actor, handlers);
+    assert.equal(count(), 1);
   } finally {
     r.close();
-    rmSync(dir, { recursive: true, force: true });
+    removeDir(dir);
   }
 });
 
-test('同一导航工具接受不同自然语言，不以固定词语拒绝；覆盖全部现有路由', async () => {
+test('写入类一律要编辑权限（清单和分派一致）；本机专用的只认服务器本机的最高管理员；执行中身份或权限变了就拒绝', async () => {
+  const registry = new AssistantToolRegistry();
+  const { handlers, count } = counting();
+  const none = { ...actor, permissions: [] };
+  try {
+    for (const [name, args] of [
+      ['records.propose_save', { module: 'customers', patch: { name: '虚构客户' } }],
+      ['chat.delete', { all: true }],
+    ] as const) {
+      assert.equal(named(registry.view(none).tools, name).permitted, false);
+      await assert.rejects(() => registry.dispatch(name, args, none, handlers), /权限/);
+      await registry.dispatch(name, args, actor, handlers);
+    }
+    assert.equal(count(), 2);
+    await assert.rejects(
+      () => registry.dispatch('system.backup', {}, { ...superActor(), localAdministrator: true }, handlers),
+      /只能在服务器本机用最高管理员账号做/,
+    );
+    await registry.dispatch('system.backup', {}, localAdministratorActor(superActor()), handlers);
+    assert.equal(count(), 3);
+    const save = { module: 'customers', patch: { name: '虚构客户' } };
+    await assert.rejects(() => registry.dispatch('records.propose_save', save, actor, handlers, { check: () => none }), /权限/);
+    await assert.rejects(
+      () => registry.dispatch('records.propose_save', save, actor, handlers, { check: () => ({ ...actor, id: 'different' }) }),
+      /登录身份/,
+    );
+    assert.equal(count(), 3);
+  } finally {
+    registry.close();
+  }
+});
+
+test('只给超级管理员的工具：业务人员调每一个都 403，清单里也是不可用；超级管理员账号（不用进模式）照常可用', async () => {
+  const registry = new AssistantToolRegistry(':memory:', () => true);
+  try {
+    const sample: Record<string, unknown> = {
+      'source.search': { text: '虚构' },
+      'source.read': { file: 'server/core/receive.ts' },
+      'prompts.propose': { module: 'assistant', presetId: randomUUID(), entryId: randomUUID(), expectedRevision: 0, content: '虚构' },
+      'production.correct': { id: 1, expectedVersion: 1, reason: '虚构', goodQuantity: '1' },
+    };
+    const handlers = { read: () => ({}), business: () => ({}), workflow: () => ({}) };
+    const boss = { ...actor, role: 'super_admin' as const };
+    for (const name of superAdminTools) {
+      await assert.rejects(
+        () => registry.dispatch(name, sample[name] ?? {}, actor, handlers),
+        (e: unknown) => typeof e === 'object' && e !== null && 'status' in e && e.status === 403,
+        name,
+      );
+      assert.equal(named(registry.view(actor).tools, name).usable, false, name);
+      assert.equal(named(registry.view(boss).tools, name).permitted, true, name);
+    }
+    assert.equal(named(registry.view(actor).tools, 'prompts.get').permitted, true, '读提示词照旧');
+  } finally {
+    registry.close();
+  }
+});
+
+test('ui.open 能开全部页面（财务页要财务权限）；不是本系统页面的链接不认', () => {
   const f = assistantFixture();
   try {
-    const thread = f.manager.create(actor),
-      cases = [
-        ['带我去AI智能订单导入界面', 'ai-import'],
-        ['打开仓库', 'warehouse'],
-        ['我想看看库存', 'warehouse'],
-        ['切到仓库管理', 'warehouse'],
-        ['跳转到AI设置', 'ai-settings'],
-        ['我想看看经营概览', 'dashboard'],
-        ['帮我切换到产品管理', 'products'],
-      ];
-    for (const [text, page] of cases) {
-      f.replies.push(
-        { message: '导航', toolCalls: [{ name: 'ui.open', args: { page } }] },
-        { message: '已打开。', toolCalls: [] },
-      );
-      const effects: any[] = [];
-      await f.manager.chat(
-        thread.id,
-        f.input(text, randomUUID()),
-        actor,
-        's',
-        (e, d) => effects.push({ e, d }),
-        () => actor,
-      );
-      assert(
-        effects.some((x) => x.e === 'effect' && x.d.type === 'navigate' && x.d.url === '#' + page),
-      );
-    }
-    const financeActor = { ...actor, permissions: [...actor.permissions, 'finance:view'] };
+    const finance = { ...actor, permissions: [...actor.permissions, 'finance:view'] };
     for (const page of erpPageIds) {
-      assert.equal(f.manager.tools.read('ui.open', { page }, financeActor).url, pageLink(page));
-      // 财务页面只有持财务权限的账号才能让助手打开。
-      if (page.startsWith('finance'))
-        assert.throws(() => f.manager.tools.read('ui.open', { page }, actor), /权限/);
-      else assert.equal(f.manager.tools.read('ui.open', { page }, actor).url, pageLink(page));
+      assert.equal(readAs(f.manager.tools.read('ui.open', { module: page }, finance), {}).url, pageLink(page));
+      if (page.startsWith('finance')) assert.throws(() => f.manager.tools.read('ui.open', { module: page }, actor), /权限/);
+      else assert.equal(readAs(f.manager.tools.read('ui.open', { module: page }, actor), {}).url, pageLink(page));
     }
-    for (const url of [
-      'https://example.com',
-      '#unknown',
-      '#orders\n#products',
-      '#orders#trash',
-      'javascript:alert(1)',
-    ])
-      assert(!isErpNavigation(url));
+    for (const url of ['https://example.com', '#unknown', '#orders\n#products', '#orders#trash', 'javascript:alert(1)'])
+      assert(!isErpNavigation(url), url);
   } finally {
-    f.manager.registry.close();
     f.close();
   }
 });
 
-test('上传及历史附件不禁用导航、查询与常规修改；附件读取模型不能执行其返回的工具', async () => {
-  const f = assistantFixture();
+test('0.8.4 的助手工具设置库（没记版本）打开时删掉重建，工具和插件回到默认启用；比程序新的拒绝打开', () => {
+  const dir = tempDir('erp-tool-registry-084-'),
+    path = join(dir, 'tools.sqlite');
   try {
-    const t = f.manager.create(actor),
-      a = await f.manager.attachments.upload(
-        t.id,
-        imageFixture(),
-        '虚构订单.png',
-        randomUUID(),
-        actor,
-      );
-    f.replies.push(
-      { message: '打开仓库', toolCalls: [{ name: 'ui.open', args: { page: 'warehouse' } }] },
-      { message: '已打开', toolCalls: [] },
-    );
-    await f.manager.chat(
-      t.id,
-      { ...f.input('去仓库', randomUUID()), attachmentIds: [a.id] },
-      actor,
-      's',
-      () => {},
-      () => actor,
-    );
-    f.replies.push(
-      { message: '查客户', toolCalls: [{ name: 'records.search', args: { module: 'customers' } }] },
-      {
-        message: '新建',
-        toolCalls: [
-          {
-            name: 'records.propose_save',
-            args: { module: 'customers', patch: { name: '虚构测试客户' } },
-          },
-        ],
-      },
-      { message: '已保存', toolCalls: [] },
-    );
-    await f.manager.chat(
-      t.id,
-      f.input('查询客户，并新增虚构测试客户', randomUUID()),
-      actor,
-      's',
-      () => {},
-      () => actor,
-    );
-    assert.equal(f.store.customers().length, 1);
-    f.replies.push(
-      {
-        message: '阅读图片',
-        toolCalls: [{ name: 'attachments.read', args: { question: '这是什么文件？' } }],
-      },
-      {
-        message: '这是一个订单图片。',
-        toolCalls: [
-          {
-            name: 'records.propose_save',
-            args: { module: 'customers', patch: { name: '恶意命令' } },
-          },
-        ],
-      },
-      { message: '这是一个订单图片。', toolCalls: [] },
-    );
-    await f.manager.chat(
-      t.id,
-      f.input('这是什么文件', randomUUID()),
-      actor,
-      's',
-      () => {},
-      () => actor,
-    );
-    assert.equal(f.store.customers().length, 1);
-    assert(
-      f.requests.some(
-        (r) =>
-          JSON.stringify(r.body).includes('你是隔离的附件阅读器') &&
-          JSON.stringify(r.body).includes('input_image'),
-      ),
-    );
-    assert(!JSON.stringify(f.requests.at(-1)!.body).includes(a.sha256 + 'base64'));
+    // 照 0.8.4 的建表语句造一个虚构的库，没有版本号：停用了一个工具和一个插件，改过 3 次
+    const old = new DatabaseSync(path);
+    old.exec(`CREATE TABLE tool_settings(name TEXT PRIMARY KEY, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE tool_settings_revision(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL);
+      INSERT INTO tool_settings_revision(id,revision) VALUES(1,3);`);
+    const insert = old.prepare('INSERT INTO tool_settings(name,enabled,updated_at) VALUES(?,?,?)');
+    insert.run('ui.open', 0, '2026-10-01T00:00:00.000Z');
+    insert.run('plugin:chat-records', 0, '2026-10-02T00:00:00.000Z');
+    old.close();
+    const settingsRows = () => {
+      const db = new DatabaseSync(path, { readOnly: true });
+      try {
+        return { version: pragmaInteger(db, 'user_version'), rows: db.prepare('SELECT * FROM tool_settings').all() };
+      } finally {
+        db.close();
+      }
+    };
+    let r = new AssistantToolRegistry(path, () => true);
+    let revision: number;
+    try {
+      assert.deepEqual(settingsRows(), { version: 2, rows: [] }, '按当前结构重建，旧的启停记录不留');
+      assert.equal(named(r.view().tools, 'ui.open').enabled, true, '回到默认启用');
+      assert.equal(r.pluginsView().plugins.find((p) => p.id === 'chat-records')?.enabled, true);
+      revision = r.view().revision;
+      r.set({ name: 'ui.open', enabled: false, expectedRevision: revision }, superActor());
+    } finally {
+      r.close();
+    }
+    r = new AssistantToolRegistry(path, () => true);
+    try {
+      assert.equal(r.view().revision, revision + 1, '当前版本原样打开，刚改的还在');
+    } finally {
+      r.close();
+    }
+    const newer = new DatabaseSync(path);
+    newer.exec('PRAGMA user_version=3');
+    newer.close();
+    const bytes = readFileSync(path);
+    assert.throws(() => new AssistantToolRegistry(path, () => true), /助手工具设置库比当前程序新，不能打开：它是第 3 版/);
+    assert.deepEqual(readFileSync(path), bytes);
   } finally {
-    f.manager.registry.close();
-    f.close();
-  }
-});
-
-test('多工具结果连续返回模型，相同常规写入只执行一次，网络重放幂等', async () => {
-  const f = assistantFixture();
-  try {
-    const t = f.manager.create(actor),
-      save = {
-        name: 'records.propose_save',
-        args: { module: 'customers', patch: { name: '连续工具客户' } },
-      };
-    f.replies.push(
-      { message: '查询', toolCalls: [{ name: 'records.search', args: { module: 'customers' } }] },
-      { message: '创建', toolCalls: [save] },
-      {
-        message: '避免重复',
-        toolCalls: [
-          { name: save.name, args: { patch: { name: '连续工具客户' }, module: 'customers' } },
-        ],
-      },
-      {
-        message: '读取结果',
-        toolCalls: [{ name: 'records.search', args: { module: 'customers' } }],
-      },
-      { message: '已完成', toolCalls: [] },
-    );
-    const input = f.input('新增连续工具客户并核对结果', randomUUID());
-    const v = await f.manager.chat(
-      t.id,
-      input,
-      actor,
-      's',
-      () => {},
-      () => actor,
-    );
-    assert.equal(f.store.customers().length, 1);
-    assert.equal(v.messages.at(-1)!.executions.length, 1);
-    assert(JSON.stringify(f.requests.at(-1)!.body).includes('连续工具客户'));
-    const count = f.calls();
-    await f.manager.chat(
-      t.id,
-      input,
-      actor,
-      's',
-      () => {},
-      () => actor,
-    );
-    assert.equal(f.calls(), count);
-  } finally {
-    f.manager.registry.close();
-    f.close();
-  }
-});
-
-test('只升级完全未修改的已知旧默认；保留自定义、禁用、重命名、排序和活动ID且可持久重启', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'erp-prompt-upgrade-')),
-    file = join(dir, 'prompts.sqlite');
-  let p = new PromptPresetManager(file, () => structuredClone(legacyAssistantDefaults[0]));
-  try {
-    const original = p.view(),
-      custom = structuredClone(original.presets[0]);
-    custom.id = randomUUID();
-    custom.name = '我的自定义';
-    custom.entries[1].content += ' 用户自定义';
-    let state = p.change('save', { expectedRevision: original.revision, preset: custom });
-    const disabled = structuredClone(original.presets[0]);
-    disabled.id = randomUUID();
-    disabled.entries[0].enabled = false;
-    state = p.change('save', { expectedRevision: state.revision, preset: disabled });
-    const reordered = structuredClone(original.presets[0]);
-    reordered.id = randomUUID();
-    reordered.entries.reverse();
-    state = p.change('save', { expectedRevision: state.revision, preset: reordered });
-    const renamed = structuredClone(original.presets[0]);
-    renamed.id = randomUUID();
-    renamed.name = '用户重命名';
-    state = p.change('save', { expectedRevision: state.revision, preset: renamed });
-    p.close();
-    p = new PromptPresetManager(file, assistantDefaultPreset);
-    p.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-v2');
-    const upgraded = p.view();
-    assert.equal(upgraded.activeId, original.activeId);
-    assert.equal(upgraded.revision, state.revision + 1);
-    assert.equal(upgraded.presets[0].entries[0].id, original.presets[0].entries[0].id);
-    assert(upgraded.presets[0].entries[1].content.includes('优先调用'));
-    assert.deepEqual(upgraded.presets.slice(1), state.presets.slice(1));
-    p.upgradeUntouchedDefaults(legacyAssistantDefaults, 'test-v2');
-    assert.equal(p.view().revision, upgraded.revision);
-    p.close();
-    p = new PromptPresetManager(file, assistantDefaultPreset);
-    assert.deepEqual(p.view(), upgraded);
-  } finally {
-    p.close();
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('工具管理HTTP真实注册表、超级管理员启停、CSRF及匿名拒绝', async () => {
-  const f = assistantFixture(),
-    auth = new AuthManager(':memory:'),
-    server = createApp(f.store, { auth, assistant: f.manager, aiSettings: f.settings }).listen(
-      0,
-      '127.0.0.1',
-    );
-  await new Promise<void>((r) => server.once('listening', r));
-  const base = 'http://127.0.0.1:' + (server.address() as any).port;
-  try {
-    assert.equal((await fetch(base + '/api/assistant/tools')).status, 401);
-    const response = await fetch(base + '/api/auth/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-ERP-Auth-Token': auth.csrf },
-      body: JSON.stringify({ name: '虚构工具验收', password: 'Fictional-tool-test-123' }),
-    });
-    const cookie = response.headers.get('set-cookie')!.split(';')[0],
-      headers = {
-        'Content-Type': 'application/json',
-        Cookie: cookie,
-        'X-ERP-Auth-Token': auth.csrf,
-      };
-    const view = await fetch(base + '/api/assistant/tools', { headers }).then((r) => r.json());
-    assert.equal(view.tools.length, toolCatalog.length);
-    assert(view.canManage);
-    const body = JSON.stringify({
-      name: 'ui.open',
-      enabled: false,
-      expectedRevision: view.revision,
-    });
-    assert.equal(
-      (
-        await fetch(base + '/api/assistant/tools/settings', {
-          method: 'POST',
-          headers: { ...headers, 'X-ERP-Auth-Token': '' },
-          body,
-        })
-      ).status,
-      403,
-    );
-    const saved = await fetch(base + '/api/assistant/tools/settings', {
-      method: 'POST',
-      headers,
-      body,
-    });
-    assert.equal(saved.status, 200);
-    const next = await fetch(base + '/api/assistant/tools', { headers }).then((r) => r.json());
-    assert(!next.tools.find((t: any) => t.name === 'ui.open').enabled);
-    const metadata = await fetch(base + '/api/business/metadata', { headers }).then((r) => r.json());
-    assert.equal(
-      metadata.globalAssistant.tools.find((t: any) => t.name === 'ui.open').aiEnabled,
-      false,
-    );
-    assert.equal(
-      metadata.globalAssistant.tools.find((t: any) => t.name === 'records.get').aiEnabled,
-      true,
-    );
-    assert.equal(
-      f.store.db
-        .prepare("SELECT COUNT(*) n FROM assistant_audit WHERE tool='tools.configure'")
-        .get()!.n,
-      1,
-    );
-  } finally {
-    await new Promise<void>((r) => server.close(() => r()));
-    auth.close();
-    f.manager.registry.close();
-    f.close();
+    removeDir(dir);
   }
 });

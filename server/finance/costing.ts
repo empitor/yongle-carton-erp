@@ -1,65 +1,49 @@
 import { z } from 'zod';
-import { periodSchema, centsSchema, accountCodeSchema } from '../../shared/finance.js';
-import type { Actor } from '../auth.js';
-import type { Store } from '../db.js';
+import { periodSchema } from '../../shared/finance/index.js';
+import { errorMessage } from '../../shared/core/index.js';
+import type { Actor } from '../core/index.js';
+import type { Store } from '../core/index.js';
+import { exists, isConstraintError, many, rehearse, rows as tableRows } from '../core/index.js';
 import { financeActor, financeAudit, financeError, financeWrite } from './core.js';
 import { FinanceLedger } from './ledger.js';
-import { periodJob } from './jobs.js';
+import { entryNet, expectedVoucher, jobVoucherNet, periodJob, periodJobResult, sameNet, withdrawJob } from './jobs.js';
+import { id, pageSql, request } from './query.js';
 import {
-  adjacentPeriod,
-  endOfMonth,
-  entry,
-  id,
-  label,
-  pageSql,
-  proportion,
-  request,
-} from './query.js';
-import { quantityUnits } from '../../shared/operations.js';
-import { financeTemplate } from './template.js';
-import type { FinanceSourceSnapshot } from './source-snapshot.js';
+  adjustMovementIds,
+  manualMovements,
+  maxMovementRowid,
+  movementSource,
+  openingStocks,
+  type Mark,
+} from './costing-source.js';
+import { invoiceAdjustments } from './costing-invoice-adjust.js';
+import { computeCosting } from './costing-compute.js';
+import { costingDetails, manual, markOf, opening, readCostingDetails } from './costing-details.js';
+import type { Item } from './costing-month.js';
+import { costingJob, lateMovements, originOf } from './costing-origins.js';
+import { adjacentPeriod, endOfMonth } from './periods.js';
+import { readFinanceSettings } from './settings.js';
 
-type Movement = {
-  id: string;
-  item_id: number;
-  delta_units: number;
-  source_kind: string;
-  source_id: string;
-  date: string;
-  customer_order_id: number | null;
-  stock_name: string;
-  kind: 'raw' | 'finished';
-  unit: string;
-  product_id: number | null;
-  customer_id: number | null;
-};
-type Item = {
-  stockId: number;
-  name: string;
-  kind: string;
-  unit: string;
-  openingQty: number;
-  openingCents: number;
-  inQty: number;
-  inCents: number;
-  outQty: number;
-  outCents: number;
-  endQty: number;
-  endCents: number;
-};
-const opening = z.strictObject({
-  stockId: id,
-  unit: label,
-  quantity: z.number().int().nonnegative(),
-  amount: centsSchema,
-});
-const manual = z.strictObject({
-  movementId: label,
-  unit: label,
-  amount: centsSchema,
-  counterAccount: accountCodeSchema.optional(),
-  reason: label,
-});
+/** 一次计算成本最多填几行期初成本、几笔出入库金额 */
+const COSTING_INPUT_MAX = 2000;
+type Opening = z.output<typeof opening>;
+type Valuation = z.output<typeof manual>;
+
+/** 有数的库存品行（期初、入库、出库有一项不是 0） */
+const hasMovement = (r: Item) => r.openingQty || r.openingCents || r.inQty || r.inCents || r.outQty || r.outCents;
+/** 比较两次计算各库存品的数量金额用的键（全是 0 的行不比：之后才登记流水的库存品会多出一行空的） */
+const itemKeys = (items: Item[]) =>
+  items
+    .filter(hasMovement)
+    .map((r) => [r.stockId, r.unit, r.openingQty, r.openingCents, r.inQty, r.inCents, r.outQty, r.outCents].join('|'))
+    .sort();
+
+/** 启用月的期初成本：那次计算记下的各库存品里有期初数量或金额的 */
+const openingOf = (items: Item[]): Opening[] =>
+  items
+    .filter((r) => r.openingQty || r.openingCents)
+    .map((r) => ({ stockId: r.stockId, unit: r.unit, quantity: r.openingQty, amount: r.openingCents }));
+
 export class FinanceCosting {
   private ledger: FinanceLedger;
   constructor(private store: Store) {
@@ -74,52 +58,137 @@ export class FinanceCosting {
     const q = z.object({ period: periodSchema, stockId: id.optional() }).parse(raw);
     return pageSql(
       this.db,
-      'SELECT * FROM fin_inventory_costs WHERE period=? AND (? IS NULL OR stock_id=?)',
-      [q.period, q.stockId ?? null, q.stockId ?? null],
+      {
+        schema: tableRows.fin_inventory_costs,
+        sql: 'SELECT * FROM fin_inventory_costs WHERE period=? AND (? IS NULL OR stock_id=?)',
+        values: [q.period, q.stockId ?? null, q.stockId ?? null],
+        order: 'stock_id',
+      },
       raw,
-      'stock_id',
     );
+  }
+
+  /**
+   * 撤回这个月和以后月份已算的成本（从后往前）：凭证红冲或作废，执行记录改名留底，
+   * 库存成本和销售成本明细删掉重算（原来的数在留底的执行记录里）。
+   */
+  private withdraw(user: Actor, period: string, expectedVoucherId?: number | null) {
+    const jobs = many(
+      this.db,
+      tableRows.fin_period_jobs.pick({ period: true }),
+      "SELECT period FROM fin_period_jobs WHERE kind='costing' AND period>=? ORDER BY period DESC",
+      period,
+    ).map((r) => r.period);
+    if (!jobs.includes(period)) financeError('这个月还没算成本，不用重做。', 409);
+    for (const p of jobs) {
+      withdrawJob(this.store, user, {
+        period: p,
+        kind: 'costing',
+        reason: '重做 ' + period + ' 成本',
+        expectedVoucherId: p === period ? expectedVoucherId : undefined,
+      });
+      const rows = many(this.db, tableRows.fin_inventory_costs, 'SELECT * FROM fin_inventory_costs WHERE period=?', p);
+      const sales = many(this.db, tableRows.fin_cost_sales, 'SELECT * FROM fin_cost_sales WHERE period=?', p);
+      this.db.prepare('DELETE FROM fin_inventory_costs WHERE period=?').run(p);
+      this.db.prepare('DELETE FROM fin_cost_sales WHERE period=?').run(p);
+      financeAudit(this.store, user, {
+        action: 'withdraw',
+        entity: 'fin_inventory_costs',
+        id: null,
+        before: { period: p, rows, sales },
+        after: null,
+      });
+    }
+  }
+
+  /**
+   * 结账检查用：按那次计算时已有的流水、到票调差和当时填的金额，用现在的数重算一遍，
+   * 结果（凭证、各库存品的数量金额）和那次不一样就要重做。之后才补登的流水和调差按口径计入以后月份，不算在内。
+   */
+  stale(actor: Actor | null, rawPeriod: unknown): { stale: boolean; reason: string | null } | null {
+    financeActor(actor);
+    const period = periodSchema.parse(rawPeriod);
+    const job = costingJob(this.db, period);
+    if (!job) return null;
+    const details = readCostingDetails(job);
+    const openingRows = period === readFinanceSettings(this.db).start_period ? openingOf(details.rows) : [];
+    try {
+      return rehearse(this.db, () => {
+        // 在保存点里先把这个月的执行记录拿掉，compute 才会当成“这个月还没算过”重算一遍；最后一定退回保存点，记录原样还在
+        this.db.prepare("DELETE FROM fin_period_jobs WHERE period=? AND kind='costing'").run(period);
+        const result = this.compute(period, openingRows, details.valuations, {
+          mark: markOf(details),
+          applied: new Set(details.applied),
+        });
+        const sameRows = JSON.stringify(itemKeys(result.items)) === JSON.stringify(itemKeys(details.rows));
+        const same = sameRows && sameNet(entryNet(result.entries), jobVoucherNet(this.store, job.voucher_id));
+        return {
+          stale: !same,
+          reason: same ? null : '成本算完以后，这个月的出入库、费用或上月成本变了。',
+        };
+      });
+    } catch (error) {
+      // 重算时报的业务提示（数量对不上、单位变了……）就是要重做的原因；数据库约束挡下的写入是程序问题，原样抛出，不当成“要重做”
+      if (isConstraintError(error)) throw error;
+      return { stale: true, reason: errorMessage(error) };
+    }
+  }
+
+  /**
+   * 入库要填金额；非手工的出入库都要选对方科目，手工流水默认走待处理财产损溢。
+   * 冲销送货、完工单退回的库存，查得到原出库成本的系统按原成本冲回；冲销完工单扣回的成品，
+   * 查得到原完工成本的按原成本冲回生产成本，都不用填。
+   */
+  private valuationsToFill(period: string, lateIds: string[]) {
+    const start = period + '-01';
+    return manualMovements(this.db, start, endOfMonth(period), lateIds).flatMap(({ item_id, source_id, ...m }) => {
+      const movement = { item_id, delta_units: m.quantity, source_id, date: m.date, kind: m.kind };
+      if (m.source_kind === movementSource.reversal && originOf(this.db, movement, start).origin) return [];
+      const needs = { needsAmount: m.quantity > 0, needsCounter: m.source_kind !== movementSource.manual };
+      return [{ ...m, late: m.date < start, ...needs }];
+    });
   }
 
   /** 算成本前要人填的内容：启用月已有库存的期初成本，和系统算不出来的手工出入库。 */
   requirements(actor: Actor | null, raw: unknown) {
     financeActor(actor);
     const { period } = z.object({ period: periodSchema }).parse(raw);
-    const settings = this.db.prepare('SELECT start_period FROM fin_settings WHERE id=1').get()!;
-    const previous = adjacentPeriod(period, -1);
-    const done = !!this.db
-      .prepare("SELECT 1 FROM fin_period_jobs WHERE kind='costing' AND period=?")
-      .get(period);
-    const opening = this.db
-      .prepare(
-        `SELECT s.id AS stockId,s.name,s.unit,coalesce(sum(m.delta_units),0) AS quantity
-        FROM stock_items s JOIN stock_movements m ON m.item_id=s.id AND m.date<?
-        WHERE NOT EXISTS(SELECT 1 FROM fin_inventory_costs c WHERE c.period=? AND c.stock_id=s.id)
-        GROUP BY s.id HAVING quantity<>0 ORDER BY s.kind DESC,s.name`,
-      )
-      .all(period + '-01', previous);
-    const manual = this.db
-      .prepare(
-        `SELECT m.id,m.date,m.delta_units AS quantity,m.source_kind,m.notes,s.name,s.unit,s.kind
-        FROM stock_movements m JOIN stock_items s ON s.id=m.item_id
-        WHERE m.date BETWEEN ? AND ?
-        AND NOT (m.source_kind='flow_production')
-        AND NOT (m.delta_units>0 AND m.source_kind IN ('flow_arrival','purchase_receipt'))
-        AND NOT (m.delta_units<0 AND s.kind='finished' AND m.source_kind='flow_delivery')
-        ORDER BY m.date,m.rowid`,
-      )
-      .all(period + '-01', endOfMonth(period));
+    const isStart = period === readFinanceSettings(this.db).start_period;
+    const job = costingJob(this.db, period);
+    const details = job ? readCostingDetails(job) : null;
+    // 重做时用这些：算这个月时会一起算进来的跨期补登（已算过的话按重做时的口径），上次填过的金额
+    const late = lateMovements(this.db, period);
     return {
       period,
-      done,
-      isStart: period === settings.start_period,
-      opening: period === settings.start_period ? opening : [],
-      /** 入库要填金额；非手工的出库要填对方科目，手工流水默认走待处理财产损溢。 */
-      valuations: manual.map((m) => ({
-        ...m,
-        needsAmount: Number(m.quantity) > 0,
-        needsCounter: Number(m.quantity) < 0 && m.source_kind !== 'manual',
+      done: !!job,
+      isStart,
+      opening: isStart ? openingStocks(this.db, period + '-01', adjacentPeriod(period, -1)) : [],
+      /** 跨期补登：日期在已算成本的月份、算完以后才登记的流水，计入这个月 */
+      late: late.map((m) => ({
+        id: m.id,
+        date: m.date,
+        name: m.stock_name,
+        unit: m.unit,
+        quantity: m.delta_units,
+        source_kind: m.source_kind,
       })),
+      /** 上次算这个月时填的金额和对方科目、期初金额，重做时带出来；原凭证号重做时带回来校验 */
+      previousValuations: details ? details.valuations : [],
+      previousOpening: details ? openingOf(details.rows).map((r) => ({ stockId: r.stockId, amount: r.amount })) : [],
+      voucherId: job ? job.voucher_id : null,
+      valuations: this.valuationsToFill(period, late.map((m) => m.id)),
+    };
+  }
+
+  /**
+   * 已记账、发票日期不晚于该月末、还没被成本计算用过的到票调差和红票冲减（分）。
+   * 月成本算完以后才记账的会留在这里，下个月的成本计算会把它算进库存；结账对账库存和 1403 时可以用来解释差额。
+   */
+  pendingInvoiceAdjustments(period: string) {
+    const pending = invoiceAdjustments(this.db, endOfMonth(periodSchema.parse(period)));
+    return {
+      cents: [...pending.delta.values()].reduce((n, x) => n + x, 0),
+      events: [...pending.delta].filter(([, x]) => x !== 0).map(([event]) => event),
     };
   }
 
@@ -128,408 +197,100 @@ export class FinanceCosting {
     const v = request
       .extend({
         period: periodSchema,
-        opening: z.array(opening).max(2000).default([]),
-        valuations: z.array(manual).max(2000).default([]),
+        opening: z.array(opening).max(COSTING_INPUT_MAX).default([]),
+        valuations: z.array(manual).max(COSTING_INPUT_MAX).default([]),
+        /** 这个月已经算过：撤回原来的（以后月份算过的一起撤回），按现在的数重算 */
+        redo: z.boolean().default(false),
+        expectedVoucherId: expectedVoucher,
       })
       .parse(raw);
-    return financeWrite(this.store, user, 'costing.run', v, () => {
-      const date = endOfMonth(v.period),
-        previous = adjacentPeriod(v.period, -1);
-      this.ledger.openPeriod(user, date);
-      if (
-        this.db
-          .prepare("SELECT 1 FROM fin_period_jobs WHERE kind='costing' AND period>=?")
-          .get(v.period)
-      )
-        financeError('成本须按月顺序结转且不能重复。', 409);
-      const before = this.db
-        .prepare('SELECT start_period,cost_allocation FROM fin_settings WHERE id=1')
-        .get()!;
-      if (
-        v.period !== before.start_period &&
-        !this.db
-          .prepare("SELECT 1 FROM fin_period_jobs WHERE period=? AND kind='costing'")
-          .get(previous)
-      )
+    return financeWrite(this.store, user, { action: 'costing.run', input: v, result: periodJobResult(costingDetails) }, () => {
+      this.ledger.openPeriod(user, endOfMonth(v.period));
+      if (v.redo) this.withdraw(user, v.period, v.expectedVoucherId);
+      if (exists(this.db, "SELECT 1 FROM fin_period_jobs WHERE kind='costing' AND period>=?", v.period))
+        financeError('成本须按月顺序结转且不能重复；要按现在的数重算，用“重做成本”。', 409);
+      const start = readFinanceSettings(this.db).start_period;
+      if (v.period !== start && !costingJob(this.db, adjacentPeriod(v.period, -1)))
         financeError('请先完成上一期成本。', 409);
-      if (v.period !== before.start_period && v.opening.length)
-        financeError('仅启用期间可录入库存期初成本。');
-      const openingMap = new Map(v.opening.map((r) => [r.stockId, r]));
-      const manualMap = new Map(v.valuations.map((r) => [r.movementId, r]));
-      if (openingMap.size !== v.opening.length || manualMap.size !== v.valuations.length)
-        financeError('成本输入存在重复记录。');
-      const moves = this.db
-        .prepare(
-          `SELECT m.*,s.name AS stock_name,s.unit,s.kind,s.product_id,o.customer_id
-        FROM stock_movements m JOIN stock_items s ON s.id=m.item_id LEFT JOIN orders o ON o.id=m.customer_order_id
-        WHERE m.date BETWEEN ? AND ? ORDER BY m.date,m.rowid`,
-        )
-        .all(v.period + '-01', date) as unknown as Movement[];
-      const items = new Map<number, Item>();
-      const stocks = this.db
-        .prepare(
-          `SELECT s.*,coalesce((SELECT sum(delta_units) FROM stock_movements WHERE item_id=s.id AND date<?),0) AS qty
-        FROM stock_items s WHERE EXISTS(SELECT 1 FROM stock_movements WHERE item_id=s.id AND date<=?)`,
-        )
-        .all(v.period + '-01', date);
-      for (const stock of stocks) {
-        const key = Number(stock.id),
-          initial = Number(stock.qty),
-          provided = openingMap.get(key);
-        const prior = this.db
-          .prepare(
-            'SELECT end_qty,end_cents,unit FROM fin_inventory_costs WHERE period=? AND stock_id=?',
-          )
-          .get(previous, key);
-        if (provided && (provided.unit !== stock.unit || provided.quantity !== initial))
-          financeError('库存期初数量或单位不一致。');
-        if (prior && (prior.unit !== stock.unit || prior.end_qty !== initial))
-          financeError('库存单位或期初数量与上期成本不一致。');
-        if (initial && !prior && !provided)
-          financeError('缺少库存期初成本：' + stock.name + '，请在“计算成本”窗口填写。');
-        items.set(key, {
-          stockId: key,
-          name: String(stock.name),
-          kind: String(stock.kind),
-          unit: String(stock.unit),
-          openingQty: initial,
-          openingCents: Number(prior?.end_cents ?? provided?.amount ?? 0),
-          inQty: 0,
-          inCents: 0,
-          outQty: 0,
-          outCents: 0,
-          endQty: 0,
-          endCents: 0,
-        });
-      }
-      const balances = new Map<string, number>();
-      const mapping = financeTemplate(this.store, 'inventory');
-      const post = (code: string, delta: number) =>
-        balances.set(code, (balances.get(code) ?? 0) + delta);
-      const adjustments = this.db
-        .prepare(
-          `SELECT e.id,e.date,e.snapshot,sum(l.net_cents-l.estimate_cents) AS amount
-        FROM fin_invoice_links l JOIN fin_invoices i ON i.id=l.invoice_id JOIN fin_vouchers v ON v.id=i.voucher_id
-        JOIN fin_obligations o ON o.id=l.obligation_id JOIN fin_events e ON e.id=o.event_id
-        WHERE i.direction='purchase' AND i.date BETWEEN ? AND ? AND v.status='posted' AND l.estimate_cents IS NOT NULL
-        GROUP BY e.id`,
-        )
-        .all(v.period + '-01', date);
-      const byEvent = new Map(adjustments.map((r) => [r.id, Number(r.amount)]));
-      const spread = (snapshot: FinanceSourceSnapshot, delta: number) => {
-        const lines = (snapshot.doc.lines ?? snapshot.doc.items)!;
-        const basis = Number(snapshot.money?.net);
-        if (delta && (!basis || basis + delta < 0))
-          financeError('到票调差缺少有效的原暂估分摊金额。');
-        let used = 0,
-          cumulative = 0;
-        return lines.map((line, i) => {
-          const original = Number(snapshot.money?.lines[i]?.net ?? 0);
-          cumulative += original;
-          const apportioned = delta
-            ? Math.sign(delta) * proportion(Math.abs(delta), cumulative, basis)
-            : 0;
-          const change = apportioned - used;
-          used = apportioned;
-          return { line, amount: original + change, change };
-        });
-      };
-      const lateStocks = new Set<number>();
-      for (const adjustment of adjustments.filter(
-        (r) => String(r.date) < v.period + '-01' && Number(r.amount) !== 0,
-      )) {
-        for (const { line, change } of spread(
-          JSON.parse(String(adjustment.snapshot)),
-          Number(adjustment.amount),
-        )) {
-          if (!change) continue;
-          const item = items.get(Number(line.stockId));
-          if (!item || item.kind !== 'raw' || item.unit !== line.item?.unit)
-            financeError('跨期到票调差缺少对应原材料库存品或单位。');
-          item.inCents += change;
-          lateStocks.add(item.stockId);
-        }
-      }
-      const production = new Map<
-        string,
-        { materials: number; qty: number; unit: string; stockId: number; cost: number }
-      >();
-      for (const m of moves.filter(
-        (r) => r.kind === 'finished' && r.source_kind === 'flow_production' && r.delta_units > 0,
-      )) {
-        if (production.has(m.source_id)) financeError('完工记录对应多个入库批次，需先核对。');
-        production.set(m.source_id, {
-          materials: 0,
-          qty: m.delta_units,
-          unit: m.unit,
-          stockId: m.item_id,
-          cost: 0,
-        });
-      }
-      const inbound = (m: Movement) => {
-        const item = items.get(m.item_id)!,
-          explicit = manualMap.get(m.id);
-        let amount: number | null = null,
-          counter: string | null = null;
-        if (m.source_kind === 'flow_production' && m.kind === 'finished')
-          amount = production.get(m.source_id)?.cost ?? null;
-        else if (m.source_kind === 'flow_arrival' || m.source_kind === 'purchase_receipt') {
-          const kind = m.source_kind === 'flow_arrival' ? 'arrival' : 'legacy_arrival';
-          const event = this.db
-            .prepare(
-              `SELECT e.id,e.snapshot,e.status FROM fin_source_observations x JOIN fin_events e ON e.id=x.event_id
-            LEFT JOIN fin_obligations o ON o.event_id=e.id AND o.amount_cents>0
-            WHERE x.source_kind=? AND x.source_id=? ORDER BY o.id DESC LIMIT 1`,
-            )
-            .get(kind, m.source_id);
-          if (event?.status !== 'generated')
-            financeError('原材料到货财务资料未完成，请核对入库记录：' + item.name + '，' + m.date);
-          const snap = JSON.parse(String(event.snapshot));
-          const lines = spread(snap, byEvent.get(event.id) ?? 0).filter(
-            ({ line }) => Number(line.stockId) === m.item_id,
-          );
-          if (lines.some(({ line }) => line.item?.unit !== m.unit))
-            financeError('到货单位与库存单位不一致。');
-          const matching = lines.filter(
-            ({ line }) => quantityUnits(String(line.stockedQuantity ?? '0')) === m.delta_units,
-          );
-          if (matching.length === 1) amount = matching[0].amount;
-        }
-        if (explicit) {
-          if (explicit.unit !== m.unit) financeError('成本输入单位与原流水不一致。');
-          amount = explicit.amount;
-          counter =
-            explicit.counterAccount ?? (m.source_kind === 'manual' ? mapping('adjustment') : null);
-        }
-        if (amount === null) financeError('缺少入库成本或无法确认数量对应关系：' + item.name + '，' + m.date);
-        item.inQty += m.delta_units;
-        item.inCents += amount;
-        if (counter && amount) {
-          post(mapping(m.kind), amount);
-          post(counter, -amount);
-        }
-      };
-      const sales: {
-        id: string;
-        orderId: number | null;
-        customerId: number | null;
-        productId: number | null;
-        cost: number;
-      }[] = [];
-      const outbound = (m: Movement) => {
-        const item = items.get(m.item_id)!,
-          qty = -m.delta_units,
-          explicit = manualMap.get(m.id);
-        if (explicit && explicit.unit !== m.unit) financeError('出库成本单位与原流水不一致。');
-        if (item.outQty + qty > item.openingQty + item.inQty)
-          financeError('出库量超过可计价库存 ' + item.name);
-        const amount =
-          proportion(
-            item.openingCents + item.inCents,
-            item.outQty + qty,
-            item.openingQty + item.inQty,
-          ) - item.outCents;
-        item.outQty += qty;
-        item.outCents += amount;
-        if (m.kind === 'raw' && m.source_kind === 'flow_production') {
-          const job = production.get(m.source_id);
-          if (!job) financeError('领料缺少对应的完工入库，请核对领料记录：' + item.name + '，' + m.date);
-          job.materials += amount;
-          post(mapping('material'), amount);
-          post(mapping('raw'), -amount);
-        } else if (m.kind === 'finished' && m.source_kind === 'flow_delivery') {
-          sales.push({
-            id: m.id,
-            orderId: m.customer_order_id,
-            customerId: m.customer_id,
-            productId: m.product_id,
-            cost: amount,
-          });
-          post(mapping('sales'), amount);
-          post(mapping('finished'), -amount);
-        } else {
-          const counter =
-            explicit?.counterAccount ?? (m.source_kind === 'manual' ? mapping('adjustment') : null);
-          if (!counter) financeError('请核对库存出库或冲销的对方科目：' + item.name + '，' + m.date);
-          post(counter, amount);
-          post(mapping(m.kind), -amount);
-        }
-      };
-      for (const m of moves.filter((m) => m.kind === 'raw' && m.delta_units > 0)) inbound(m);
-      for (const key of lateStocks) {
-        const item = items.get(key)!;
-        if (!(item.openingQty + item.inQty) || item.openingCents + item.inCents < 0)
-          financeError('跨期到票调差没有可计价原材料或使成本为负，需先核对 ' + item.name);
-      }
-      for (const m of moves.filter((m) => m.kind === 'raw' && m.delta_units < 0)) outbound(m);
-      const pools = this.db
-        .prepare(
-          `SELECT e.account_code,sum((e.debit-e.credit)*(CASE WHEN v.reversal_of IS NULL THEN 1 ELSE -1 END)) AS amount
-        FROM fin_entries e JOIN fin_vouchers v ON v.id=e.voucher_id WHERE v.status='posted' AND v.period=?
-        AND (e.account_code IN ('400102','400103') OR e.account_code LIKE '4101%') GROUP BY e.account_code`,
-        )
-        .all(v.period);
-      const pool = pools.reduce((n, r) => n + Number(r.amount), 0),
-        jobs = [...production.values()];
-      const useOutput = before.cost_allocation === 'output';
-      if (pool < 0) financeError('制造费用或人工净额为负，须人工核对。');
-      if (pool && useOutput && new Set(jobs.map((j) => j.unit)).size > 1)
-        financeError('完工产量单位不同，不能按产量合并分摊。');
-      const basis = (job: (typeof jobs)[number]) => (useOutput ? job.qty : job.materials);
-      const totalBasis = jobs.reduce((n, j) => n + basis(j), 0);
-      if (pool && !totalBasis) financeError('缺少完工分摊基数。');
-      let used = 0,
-        cumulative = 0;
-      for (const job of jobs) {
-        cumulative += basis(job);
-        const allocated = pool ? proportion(pool, cumulative, totalBasis) : 0;
-        job.cost = job.materials + allocated - used;
-        used = allocated;
-        post(mapping('finished'), job.cost);
-        post(mapping('material'), -job.materials);
-      }
-      for (const r of pools) post(String(r.account_code), -Number(r.amount));
-      for (const m of moves.filter((m) => m.kind === 'finished' && m.delta_units > 0)) inbound(m);
-      for (const m of moves.filter((m) => m.kind === 'finished' && m.delta_units < 0)) outbound(m);
-      const entries = [...balances]
-        .filter(([, amount]) => amount !== 0)
-        .map(([code, amount]) => entry(code, Math.max(0, amount), Math.max(0, -amount)));
-      const voucher = entries.length
-        ? Number(
-            this.ledger.createLinked(
-              user,
-              'costing',
-              Number(v.period.replace('-', '')),
-              { date, description: '月末加权平均成本结转', requestId: v.requestId, entries },
-              'finance:close',
-            ).header.id,
-          )
-        : null;
-      const insert = this.db.prepare(
-        'INSERT INTO fin_inventory_costs VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-      );
-      for (const item of items.values()) {
-        item.endQty = item.openingQty + item.inQty - item.outQty;
-        item.endCents = item.openingCents + item.inCents - item.outCents;
-        insert.run(
-          item.stockId,
-          v.period,
-          item.name,
-          item.unit,
-          item.openingQty,
-          item.openingCents,
-          item.inQty,
-          item.inCents,
-          item.outQty,
-          item.outCents,
-          item.endQty,
-          item.endCents,
-        );
-      }
-      const sale = this.db.prepare('INSERT INTO fin_cost_sales VALUES(?,?,?,?,?,?)');
-      for (const m of sales) sale.run(v.period, m.id, m.orderId, m.customerId, m.productId, m.cost);
-      const pending = this.db
-        .prepare(
-          `SELECT * FROM fin_events WHERE substr(date,1,7)=? AND (
-          status='cost_pending' OR (source_kind='stock' AND status='difference' AND source_id IN (
-            SELECT id FROM stock_movements WHERE action='adjust' AND substr(date,1,7)=?)))`,
-        )
-        .all(v.period, v.period);
-      for (const e of pending) {
-        this.db
-          .prepare("UPDATE fin_events SET status='costed',version=version+1 WHERE id=?")
-          .run(e.id);
-        financeAudit(this.store, user, 'cost', 'fin_events', Number(e.id), e, {
-          ...e,
-          status: 'costed',
-          version: Number(e.version) + 1,
-        });
-      }
-      return periodJob(this.store, user, v.period, 'costing', voucher, {
-        rows: [...items.values()],
-        sales,
-        valuations: v.valuations,
-      });
+      if (v.period !== start && v.opening.length) financeError('仅启用期间可录入库存期初成本。');
+      return this.commit(user, v, this.compute(v.period, v.opening, v.valuations));
     });
   }
 
-  margin(actor: Actor | null, raw: unknown) {
-    financeActor(actor);
-    const q = z
-      .object({
-        period: periodSchema,
-        group: z.enum(['order', 'customer', 'product', 'month']).default('order'),
-      })
-      .parse(raw);
-    const group = {
-      order: 'order_id',
-      customer: 'customer_id',
-      product: 'product_id',
-      month: 'period',
-    }[q.group];
-    const data = pageSql(
+  /** 算一个月的成本（costing-compute.ts）。单独一个方法：结账检查的测试要替换它来模拟算的时候出错。 */
+  private compute(
+    period: string,
+    openingRows: Opening[],
+    valuations: Valuation[],
+    asOf?: { mark: Mark; applied: Set<string> },
+  ) {
+    return computeCosting(this.store, period, openingRows, valuations, asOf);
+  }
+
+  /**
+   * 本月和以前月份还在等成本的都算处理了：以前月份已算过成本后才冲销的完工单、
+   * 管理员改过的盘点流水，数量差异作为跨期调整进了这次的成本计算，不能永远挂着卡结账。
+   */
+  private markCosted(user: Actor, date: string) {
+    const pending = many(
       this.db,
-      `WITH revenue AS (
-      SELECT json_extract(line.value,'$.orderId') AS order_id,json_extract(e.snapshot,'$.doc.customerId') AS customer_id,
-        json_extract(line.value,'$.productId') AS product_id,substr(e.date,1,7) AS period,
-        coalesce(json_extract(e.snapshot,'$.money.lines['||line.key||'].net'),0) AS amount
-      FROM fin_source_observations x JOIN fin_events e ON e.id=x.event_id,json_each(e.snapshot,'$.doc.lines') line
-      WHERE e.source_kind='delivery' AND x.status='confirmed' AND e.status NOT IN ('source_deleted','before_opening')
-      AND substr(e.date,1,7)=?
-    ), facts AS (SELECT ${group} AS group_id,amount AS revenue,NULL AS cost FROM revenue
-      UNION ALL SELECT ${group},0,cost_cents FROM fin_cost_sales WHERE period=?)
-    SELECT group_id,sum(revenue) AS revenue,sum(cost) AS cost,sum(revenue)-sum(cost) AS margin,
-      (sum(cost) IS NULL OR NOT EXISTS(SELECT 1 FROM fin_period_jobs WHERE period=? AND kind='costing')) AS estimated
-      FROM facts GROUP BY group_id`,
-      [q.period, q.period, q.period],
-      raw,
-      'group_id',
+      tableRows.fin_events,
+      `SELECT * FROM fin_events WHERE date<=? AND (status='cost_pending'
+          OR (source_kind='stock' AND status='difference' AND source_id IN (
+            ${adjustMovementIds})))`,
+      date,
+      date,
     );
-    const selected = data.rows.filter((r) => r.estimated && r.cost == null).map((r) => r.group_id);
-    if (!selected.length) return data;
-    const keys = {
-      order: 'm.customer_order_id',
-      customer: 'o.customer_id',
-      product: 's.product_id',
-      month: 'substr(m.date,1,7)',
-    };
-    const key = keys[q.group];
-    const facts = this.db
-      .prepare(
-        `SELECT ${key} AS group_id,m.item_id,sum(-m.delta_units) AS quantity,
-      c.opening_qty+c.in_qty AS cost_quantity,c.opening_cents+c.in_cents AS cost_amount
-      FROM stock_movements m JOIN stock_items s ON s.id=m.item_id LEFT JOIN orders o ON o.id=m.customer_order_id
-      JOIN flow_documents f ON f.id=cast(m.source_id AS INTEGER) AND f.kind='delivery' AND f.status='confirmed'
-      LEFT JOIN fin_inventory_costs c ON c.stock_id=m.item_id AND c.unit=s.unit AND c.period=(
-        SELECT max(prior.period) FROM fin_inventory_costs prior WHERE prior.stock_id=m.item_id AND prior.unit=s.unit AND prior.period<?)
-      WHERE m.source_kind='flow_delivery' AND m.delta_units<0 AND substr(m.date,1,7)=?
-      AND EXISTS(SELECT 1 FROM json_each(?) j WHERE j.value IS ${key}) GROUP BY group_id,m.item_id`,
-      )
-      .all(q.period, q.period, JSON.stringify(selected));
-    const estimates = new Map<unknown, { cost: number; missing: number }>();
-    for (const f of facts) {
-      const value = estimates.get(f.group_id) ?? { cost: 0, missing: 0 };
-      if (!Number(f.cost_quantity)) value.missing++;
-      else
-        value.cost += proportion(
-          Number(f.cost_amount),
-          Number(f.quantity),
-          Number(f.cost_quantity),
-        );
-      estimates.set(f.group_id, value);
+    for (const e of pending) {
+      this.db.prepare("UPDATE fin_events SET status='costed',version=version+1 WHERE id=?").run(e.id);
+      const after = { ...e, status: 'costed', version: e.version + 1 };
+      financeAudit(this.store, user, { action: 'cost', entity: 'fin_events', id: e.id, before: e, after });
     }
-    return {
-      ...data,
-      rows: data.rows.map((row) => {
-        const value = estimates.get(row.group_id);
-        if (!row.estimated || row.cost != null || !value) return row;
-        return {
-          ...row,
-          cost: value.missing ? null : value.cost,
-          margin: value.missing ? null : Number(row.revenue) - value.cost,
-          missingCostStocks: value.missing,
-        };
-      }),
+  }
+
+  private commit(
+    user: Actor,
+    v: { period: string; requestId: string; valuations: Valuation[] },
+    result: ReturnType<FinanceCosting['compute']>,
+  ) {
+    const date = endOfMonth(v.period);
+    const { entries, items, sales } = result;
+    const description = '月末加权平均成本结转';
+    const voucher = entries.length
+      ? this.ledger.createLinked(
+          user,
+          'costing',
+          Number(v.period.replace('-', '')),
+          { date, description, requestId: v.requestId, entries },
+          'finance:close',
+        ).header.id
+      : null;
+    const insert = this.db.prepare(
+      'INSERT INTO fin_inventory_costs(stock_id,period,stock_name,unit,opening_qty,opening_cents,in_qty,in_cents,out_qty,out_cents,end_qty,end_cents) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+    );
+    for (const item of items) {
+      const { stockId, name, unit, openingQty, openingCents, inQty, inCents, outQty, outCents, endQty, endCents } = item;
+      insert.run(stockId, v.period, name, unit, openingQty, openingCents, inQty, inCents, outQty, outCents, endQty, endCents);
+    }
+    const sale = this.db.prepare(
+      'INSERT INTO fin_cost_sales(period,movement_id,order_id,customer_id,product_id,cost_cents) VALUES(?,?,?,?,?,?)',
+    );
+    for (const m of sales) sale.run(v.period, m.id, m.orderId, m.customerId, m.productId, m.cost);
+    this.markCosted(user, date);
+    const { applied, issues, receipts, residuals, late } = result;
+    const details = {
+      rows: items,
+      sales,
+      valuations: v.valuations,
+      applied,
+      issues,
+      receipts,
+      residuals,
+      late,
+      /** 这次计算的时间和当时流水的最大行号：以后才登记、日期在这个月及以前的流水算跨期补登 */
+      ranAt: new Date().toISOString(),
+      maxRowid: maxMovementRowid(this.db),
     };
+    return periodJob(this.store, user, { period: v.period, kind: 'costing', voucher, schema: costingDetails, details });
   }
 }

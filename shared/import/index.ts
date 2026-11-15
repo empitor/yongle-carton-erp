@@ -1,0 +1,22 @@
+// 对外接口：别的模块只能从这里引用这个模块
+export type { ImportFailureRecord } from './failure-record.js';
+export { importStateLabel, importStateLabels } from './import-words.js';
+export { mappingSchema } from './import-mapping.js';
+export type { ImportMapping, MappingInvalidations } from './import-mapping.js';
+export { REPEAT_ORDER_REASON, blocksNewProduct, emptyImportMapping, importNameKey, invalidateImportMapping, productCandidateDetails, productCandidatesForLine, productMatchKey, resolveCustomerCandidates } from './import-matching.js';
+export type { CustomerProductSpecs, ImportMatchData } from './import-matching.js';
+export { INBOX_MAX_FILE, INBOX_MAX_FILE_TEXT, botChannels, botCredentialLabels, botSettingsSchema, botStateLabels, convertedKinds, inboxChannelLabels, inboxChannels, inboxConvertSchema, inboxFilterSchema, inboxKinds, inboxStatusSchema, inboxStatuses, inboxTextSchema } from './inbox.js';
+export type { InboxApi, InboxChannelOption, InboxList } from './inbox-api.js';
+export type { ImportsApi } from './imports-api.js';
+export { aiProgressSchema, importWorkspaceViewSchema } from './workspace-view.js';
+export type { ArchivedWorkspace, ImportList, UnreadableWorkspace, WorkspaceSummary } from './workspace-list.js';
+export type { CustomerPlanRef, ImportPreview, ImportReceipt, Plan, ProductPlanRef, SameNameConfirmation } from './import-plan.js';
+export { receiptResultSchema } from './arrival-source.js';
+export type { ArrivalSource, ReceiptResult } from './arrival-source.js';
+export { FAILURE_PAGE, MAX_DRAFT_OPERATIONS, ORIGINAL_MAX_MB, arrivalLinkSchema, diagnosticsQuerySchema, importExecuteSchema, recognitionModes, workspaceDeleteSchema, workspaceEditSchema, workspaceEnqueueSchema, workspaceId, workspaceMappingSchema, workspaceModeSchema, workspaceRevisionSchema, WORKSPACE_FIRST_VERSION } from './workspace-inputs.js';
+export type { RecognitionMode } from './workspace-inputs.js';
+export type { BotChannel, BotState, BotStatus, BotView, ConvertedKind, InboxChannel, InboxIncoming, InboxItem, InboxKind, InboxStatus } from './inbox.js';
+export { evaluateDraft } from './draft-evaluation.js';
+export { DRAFT_NOTE_MAX, DRAFT_VALUE_MAX, fieldLabels, headerFields, importStillOpen, lineFields, orderDraftSchema, patchOperationSchema } from './order-draft.js';
+export { doubtColumns, draftFromForm, formCell, orderFormSchema, orderFormTool, toolParameters } from './order-form.js';
+export type { DraftChange, DraftEvaluation, DraftField, DraftOperation, ImportWorkspaceView, LineField, OrderDraft, ParsedFile } from './order-draft.js';

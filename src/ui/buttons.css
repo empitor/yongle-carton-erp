@@ -1,0 +1,61 @@
+/* 按钮：主按钮、次要、危险、图标按钮、做成链接样子的按钮 */
+button:hover {
+  background: var(--accent-soft);
+}
+button:disabled {
+  cursor: default;
+}
+.primary {
+  padding: 10px 17px;
+}
+.primary:hover {
+  background: var(--accent-hover);
+}
+.icon-button {
+  border: 0;
+  background: transparent;
+  padding: var(--space-xs);
+  color: var(--muted);
+}
+button.danger-solid:hover {
+  background: var(--danger-hover);
+}
+button {
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-weight: 500;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+  border-radius: var(--r-control);
+  min-height: 32px;
+  padding: var(--space-2xs) var(--space-md);
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+button.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+button.danger-solid {
+  border-color: var(--danger-fill);
+}
+button.danger-solid:hover:not(:disabled) {
+  color: var(--on-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+}

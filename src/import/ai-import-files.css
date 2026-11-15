@@ -1,0 +1,171 @@
+/* AI 识别导入：上传、文件列表、筛选 */
+.adm-file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  color: var(--text-secondary);
+}
+.adm-file-card > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-file-card > .button-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 28px;
+  padding: var(--space-3xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+.aii-kind {
+  display: inline-flex;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+}
+.aii-kind button {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-kind button + button {
+  border-left: 1px solid var(--border);
+}
+.aii-kind button.is-on {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* AI 识别进度：紫色细条 */
+.aii-progress {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: var(--purple-soft);
+  color: var(--ink);
+  font-size: var(--text-xs);
+}
+.aii-progress svg {
+  flex: none;
+  color: var(--purple);
+}
+.aii-progress small {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-file-names {
+  max-height: 128px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  list-style: none;
+}
+.aii-file-names li {
+  overflow: hidden;
+  padding: var(--space-xs) 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aii-file-names li:last-child {
+  border-bottom: 0;
+}
+.aii-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+  font-size: var(--text-sm);
+}
+.aii-filter-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  cursor: pointer;
+}
+.aii-filter-bar label input {
+  width: auto;
+  min-height: 0;
+}
+.aii-filter-bar > span {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+.aii-filter-bar > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-sm);
+}
+
+/* 没有文件时整页一个拖入区，里面一个上传主按钮 */
+.aii-dropzone {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 320px;
+  padding: 32px var(--space-lg);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.aii-dropzone > strong {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.aii-dropzone > svg {
+  color: var(--text-secondary);
+}
+.aii-dropzone > button {
+  margin-top: var(--space-sm);
+}
+.aii-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.aii-pager > span {
+  margin-right: auto;
+}
+
+@media (max-width: 760px) {
+  .aii-dropzone {
+    min-height: 240px;
+  }
+}

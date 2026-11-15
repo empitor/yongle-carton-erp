@@ -1,5 +1,5 @@
-import type { DraftField, LineField } from '../../shared/order-draft.js';
-import { parseDimension, normalizeDimensionUnit } from '../../shared/product-details.js';
+import type { DraftField, LineField } from '../../shared/import/index.js';
+import { parseDimension, normalizeDimensionUnit } from '../../shared/core/index.js';
 export function productFieldsFromDraft(f: Record<LineField, DraftField>) {
   const raw = f.dimensionUnit.value?.trim() || '',
     dimensionUnit = normalizeDimensionUnit(raw);

@@ -1,124 +1,160 @@
 import express, { Router, type Request } from 'express';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { Store } from '../db.js';
-import type { AuthManager } from '../auth.js';
-import { ImportError } from '../import/errors.js';
-import { audit, requirePermission } from '../business/management.js';
-import { InboxService, filterSchema, statusSchema, type InboxImportTarget } from './service.js';
-import { listInboxChannels } from './channels.js';
-import type { WecomBotConnection } from './wecom-bot.js';
-import type { WecomBotSettings } from './wecom-bot-settings.js';
-export type WecomBotControl = { settings: WecomBotSettings; connection: WecomBotConnection };
-export function inboxRouter(
-  store: Store,
-  auth?: AuthManager,
-  imports?: InboxImportTarget,
-  bot?: WecomBotControl,
-) {
-  const router = Router(),
-    service = new InboxService(store);
-  const botView = () => ({ ...bot!.settings.view(), status: bot!.connection.status() });
-  /** 机器人凭据只有管理员能看和改。 */
-  const botAdmin = (req: Request) => {
+import type { Store } from '../core/index.js';
+import type { AuthManager } from '../core/index.js';
+import { AppError, route } from '../core/index.js';
+import { audit, canEnterSuperMode, requirePermission, requireSuperModeFor, superModeDenied } from '../core/index.js';
+import { INBOX_MAX_FILE, botChannels, inboxFilterSchema, inboxStatusSchema, inboxTextSchema, type InboxApi } from '../../shared/import/index.js';
+import { InboxService, type InboxImportTarget } from './service.js';
+import { inboxChannelList, type BotManager } from './bots/manager.js';
+
+/*
+ * 收件箱的地址（挂在 /api/inbox 下，接口表 shared/import/inbox-api.ts）。
+ * 下载原件（回文件）和上传文件（收原始字节，先过 express.raw）不是 JSON 来回，照旧用 express 注册。
+ */
+type InboxRoutes = {
+  router: Router;
+  on: ReturnType<typeof route<InboxApi>>;
+  store: Store;
+  service: InboxService;
+  auth?: AuthManager;
+  imports?: InboxImportTarget;
+  bots?: BotManager;
+  /** 写操作：要页面凭证和业务编辑权限 */
+  actor: (req: Request) => ReturnType<typeof requirePermission>;
+  id: (raw: string) => number;
+};
+
+/** 百分号编码用十六进制 */
+const HEX = 16;
+/** 下载时的文件名：RFC 5987 的写法，' ( ) * 也编码，浏览器才不会截断 */
+const contentDisposition = (name: string) =>
+  `attachment; filename="download"; filename*=UTF-8''${encodeURIComponent(name).replace(/['()*]/g, (c) => '%' + c.charCodeAt(0).toString(HEX))}`;
+
+/**
+ * 机器人凭据只有超级管理员账号能看，改要先进超级管理员模式（偷到登录状态的人不能换掉凭据）；
+ * 拒绝的说法和类别跟全站一致（server/core/permissions.ts）。设置里有应用编号，和 AI 设置一样不让浏览器和代理缓存。
+ */
+function botRoutes({ router, on, store, auth, bots, actor }: InboxRoutes) {
+  const botAdmin = (req: Request, change = false) => {
     const who = auth?.actor(req);
-    if (who?.role !== 'super_admin') throw new ImportError('只有管理员可以设置企业微信机器人。', 403);
-    if (!bot) throw new ImportError('企业微信机器人未启用。', 503);
-    return who;
+    if (change) requireSuperModeFor(who, '设置机器人');
+    else if (!canEnterSuperMode(who)) throw superModeDenied(who, '设置机器人');
+    if (!bots) throw new AppError('机器人接入未启用。', 503);
+    return bots;
   };
-  const actor = (req: Request) => {
-    if (!auth || req.headers['x-erp-auth-token'] !== auth.csrf)
-      throw new ImportError('请登录并刷新页面凭据。', 403);
-    return requirePermission(auth.actor(req), 'business:edit');
-  };
-  const id = (req: Request) => z.coerce.number().int().positive().parse(req.params.id);
-  router.get('/', (req, res) => res.json(service.list(filterSchema.parse(req.query), req.query)));
-  router.get('/channels', (_req, res) => {
-    if (!bot) return res.json(listInboxChannels());
-    const view = bot.settings.view();
-    res.json(
-      listInboxChannels({
-        configured: view.enabled && view.hasSecret,
-        state: bot.connection.status().state,
-      }),
-    );
+  router.use('/bots', (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
   });
-  router.get('/wecom-bot', (req, res) => {
-    botAdmin(req);
-    res.json(botView());
-  });
-  router.post('/wecom-bot', (req, res) => {
-    const who = actor(req);
-    botAdmin(req);
-    const saved = bot!.settings.save(req.body);
-    audit(store, who, 'manual-ui', 'wecom-bot-settings', 'inbox_channel', null, {
-      botId: saved.botId,
-      enabled: saved.enabled,
-      secretChanged: saved.secretChanged,
+  on('GET /inbox/bots', ({ req }) => botAdmin(req).views());
+  on('POST /inbox/bots/:channel', ({ param, body, req }) => {
+    const who = actor(req),
+      manager = botAdmin(req, true),
+      channel = z.enum(botChannels).parse(param('channel'));
+    const previous = manager.settings.view(channel);
+    const saved = manager.settings.save(channel, body);
+    // 审计只记改没改，不记应用编号和 Secret 本身
+    audit(store, who, {
+      action: 'bot-settings',
+      entity: 'inbox_channel',
+      id: null,
+      document: {
+        channel,
+        enabled: saved.enabled,
+        enabledChanged: previous.enabled !== saved.enabled,
+        appIdChanged: previous.appId !== saved.appId,
+        secretChanged: saved.secretChanged,
+      },
     });
-    bot!.connection.start();
-    res.json(botView());
+    manager.restart(channel);
+    return manager.views();
   });
-  router.get('/:id', (req, res) => res.json(service.get(id(req))));
-  router.get('/:id/file', (req, res) => {
-    const file = service.file(id(req));
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="download"; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g, (c) => '%' + c.charCodeAt(0).toString(16))}`,
-    );
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.type(file.mime).send(Buffer.from(file.content));
-  });
-  router.post('/', (req, res) => {
-    actor(req);
-    const v = z.object({ text: z.string().min(1) }).parse(req.body);
-    res
-      .status(201)
-      .json(
-        service.ingest({
-          channel: 'manual',
-          externalId: randomUUID(),
-          kind: 'text',
-          text: v.text,
-          receivedAt: new Date().toISOString(),
-        }),
-      );
-  });
+}
+
+/** 手动添加：一段文字，或上传一个文件（原样存，按类型分图片和文件） */
+function addRoutes({ router, on, service, actor }: InboxRoutes) {
+  on(
+    'POST /inbox',
+    ({ body, req }) => {
+      actor(req);
+      const v = inboxTextSchema.parse(body);
+      return service.ingest({ channel: 'manual', externalId: randomUUID(), kind: 'text', text: v.text, receivedAt: new Date().toISOString() });
+    },
+    { status: 201 },
+  );
   router.post(
     '/upload',
     (req, _res, next) => {
       actor(req);
       next();
     },
-    express.raw({ type: () => true, limit: '20mb' }),
+    express.raw({ type: () => true, limit: INBOX_MAX_FILE }),
     (req, res) => {
       const name = z.string().min(1).parse(req.query.name),
         mime = req.get('Content-Type') || 'application/octet-stream';
       const bytes = z.instanceof(Uint8Array).parse(req.body);
-      res
-        .status(201)
-        .json(
-          service.ingest({
-            channel: 'manual',
-            externalId: randomUUID(),
-            kind: mime.startsWith('image/') ? 'image' : 'file',
-            file: { name, mime, bytes },
-            receivedAt: new Date().toISOString(),
-          }),
-        );
+      res.status(201).json(
+        service.ingest({
+          channel: 'manual',
+          externalId: randomUUID(),
+          kind: mime.startsWith('image/') ? 'image' : 'file',
+          file: { name, mime, bytes },
+          receivedAt: new Date().toISOString(),
+        }),
+      );
     },
   );
-  router.post('/:id/convert', async (req, res, next) => {
-    try {
-      const who = actor(req);
-      if (!imports) throw new ImportError('AI 导入服务未启用。', 503);
-      res.json(await service.toImport(id(req), req.body, who, imports));
-    } catch (e) {
-      next(e);
-    }
+}
+
+/** 一条收件：看、下载原件、转入 AI 导入、改处理状态 */
+function itemRoutes({ router, on, service, imports, actor, id }: InboxRoutes) {
+  on('GET /inbox/:id', ({ param }) => service.get(id(param('id'))));
+  router.get('/:id/file', (req, res) => {
+    const file = service.file(id(String(req.params.id)));
+    res.setHeader('Content-Disposition', contentDisposition(file.name));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type(file.mime).send(Buffer.from(file.content));
   });
-  router.post('/:id/status', (req, res) =>
-    res.json(service.setStatus(id(req), statusSchema.parse(req.body), actor(req))),
+  on('POST /inbox/:id/convert', async ({ param, body, req }) => {
+    const who = actor(req);
+    if (!imports) throw new AppError('AI 导入服务未启用。', 503);
+    return service.toImport(id(param('id')), body, who, imports);
+  });
+  on('POST /inbox/:id/status', ({ param, body, req }) =>
+    service.setStatus(id(param('id')), inboxStatusSchema.parse(body), actor(req)),
   );
+}
+
+export function inboxRouter(
+  store: Store,
+  auth?: AuthManager,
+  imports?: InboxImportTarget,
+  bots?: BotManager,
+) {
+  const router = Router(),
+    service = new InboxService(store);
+  const routes: InboxRoutes = {
+    router,
+    on: route<InboxApi>(router, '/inbox'),
+    store,
+    service,
+    auth,
+    imports,
+    bots,
+    actor: (req) => {
+      if (!auth || req.headers['x-erp-auth-token'] !== auth.csrf)
+        throw new AppError('请登录并刷新页面凭据。', 403);
+      return requirePermission(auth.actor(req), 'business:edit');
+    },
+    id: (raw) => z.coerce.number().int().positive().parse(raw),
+  };
+  // 先挂固定地址（/channels、/bots），再挂 /:id，免得被它接走
+  routes.on('GET /inbox', ({ query }) => service.list(inboxFilterSchema.parse(query), query));
+  routes.on('GET /inbox/channels', () => inboxChannelList(bots));
+  botRoutes(routes);
+  itemRoutes(routes);
+  addRoutes(routes);
   return router;
 }

@@ -1,374 +1,305 @@
+// 部署模式：配置校验、两个入口（本机维护入口、给 Caddy 的代理入口）各自的规矩、登录 Cookie、会话存账号库。虚构数据。
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { createApp } from '../server/app.js';
-import { AuthManager } from '../server/auth.js';
-import { Store } from '../server/db.js';
-import { readDeployment } from '../server/deployment.js';
+import { AuthManager } from '../server/core/auth.js';
+import { Store } from '../server/core/db.js';
+import { readDeployment } from '../server/core/deployment.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { AssistantManager, assistantDefaultPreset } from '../server/assistant/manager.js';
-import { setSpeechEngineForTests, speechModelInstalled } from '../server/speech/engine.js';
+import { AssistantManager } from '../server/assistant/manager.js';
+import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { fakeDeepSeek, testProtector } from './fake-deepseek.js';
+import { cookieOf, setCookieOf, startProxied, stateActor, userList, type AppOptions } from './http-fixture.js';
 
-test('部署代理入口校验 Host、来源和访客地址，管理员能力和会话按入口及重启隔离', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'erp-deployment-test-'));
-  const file = join(directory, 'users.sqlite');
-  const store = new Store(':memory:');
-  const settings = new AiSettingsManager();
-  const prompts = new PromptPresetManager(':memory:', assistantDefaultPreset);
-  const assistant = new AssistantManager(store, settings, prompts, { disableLocalFeatures: true });
-  let handle: (req: IncomingMessage, res: ServerResponse) => void;
-  const handler = (req: IncomingMessage, res: ServerResponse) => handle(req, res);
-  const local = createServer(handler);
-  const proxy = createServer(handler);
-  const listen = async (server: typeof local) => {
-    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
-    const address = server.address();
-    assert.ok(address && typeof address !== 'string');
-    return address.port;
-  };
-  const localPort = await listen(local),
-    proxyPort = await listen(proxy);
-  const host = 'erp.example.invalid';
-  const deployment = readDeployment(
-    {
-      ERP_DEPLOYMENT: '1',
-      ERP_ALLOWED_HOSTS: host,
-      ERP_PROXY_PORT: String(proxyPort),
+const owner = { name: '虚构维护员', password: 'Fictional-owner-password' };
+const host = 'erp.example.invalid';
+
+test('部署配置：不合规的值都拒绝启动，并说清是哪一项', () => {
+  const ok = { ERP_DEPLOYMENT: '1', ERP_ALLOWED_HOSTS: host };
+  const cases: [Record<string, string>, RegExp][] = [
+    [{ ...ok, ERP_DEPLOYMENT: '2' }, /ERP_DEPLOYMENT 只接受 0 或 1/],
+    [{ ...ok, ERP_PROXY_PORT: '3001' }, /ERP_PROXY_PORT 必须是与 PORT 不同的有效端口/],
+    [{ ...ok, ERP_PROXY_PORT: '70000' }, /ERP_PROXY_PORT/],
+    [{ ERP_DEPLOYMENT: '1' }, /ERP_ALLOWED_HOSTS 必须填写有效的公网域名/],
+    [{ ...ok, ERP_ALLOWED_HOSTS: 'localhost' }, /ERP_ALLOWED_HOSTS/],
+    [{ ...ok, ERP_ALLOWED_HOSTS: '127.0.0.1' }, /ERP_ALLOWED_HOSTS/],
+    [{ ...ok, ERP_ALLOWED_ORIGINS: 'http://' + host }, /ERP_ALLOWED_ORIGINS 必须是允许域名的 HTTPS 来源/],
+    [{ ...ok, ERP_ALLOWED_ORIGINS: 'https://other.example.invalid' }, /ERP_ALLOWED_ORIGINS/],
+    [{ ...ok, ERP_BACKUP_COPY_DIR: 'relative/copies' }, /ERP_BACKUP_COPY_DIR 必须使用绝对路径/],
+    [{ ...ok, ERP_BACKUP_COPY_KEEP: '3' }, /ERP_BACKUP_COPY_KEEP 必须是正整数，且需要配置备份复制目录/],
+    [{ ...ok, ERP_BACKUP_COPY_DIR: join(tmpdir(), 'copies'), ERP_BACKUP_COPY_KEEP: '0' }, /ERP_BACKUP_COPY_KEEP/],
+  ];
+  for (const [env, message] of cases) assert.throws(() => readDeployment(env, 3001), message, JSON.stringify(env));
+});
+
+test('部署配置：省略或 0 是本机模式；只给域名时来源默认是 https 加域名、代理端口默认 3002', () => {
+  assert.equal(readDeployment({}, 3001), undefined);
+  assert.equal(readDeployment({ ERP_DEPLOYMENT: '0' }, 3001), undefined);
+  const d = readDeployment({ ERP_DEPLOYMENT: '1', ERP_ALLOWED_HOSTS: 'ERP.Example.invalid' }, 3001);
+  assert.ok(d);
+  assert.equal(d.proxyPort, 3002);
+  assert.deepEqual([...d.hosts], [host]);
+  assert.deepEqual([...d.origins], ['https://' + host]);
+});
+
+/** 部署模式的两个入口；账号库是临时目录里的文件、时钟可拨；维护员从本机入口建好 */
+async function deployed(options: Omit<AppOptions, 'auth' | 'deployment'> = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'erp-deployment-')),
+    file = join(dir, 'users.sqlite'),
+    clock = { now: Date.now() },
+    store = new Store(':memory:');
+  const p = await startProxied(store, options, {
+    makeAuth: (deployment) => new AuthManager(file, () => clock.now, { deployment, localAdministration: true }),
+  });
+  const setup = await p.call(p.localPort, '/auth/setup', { body: owner });
+  assert.equal(setup.code, 200);
+  const remoteLogin = async (account = owner) =>
+    cookieOf(await p.call(p.proxyPort, '/auth/login', { headers: p.remote, body: account }));
+  const remoteActor = async (cookie: string) =>
+    stateActor((await p.call(p.proxyPort, '/auth/state', { headers: p.remote, cookie })).value);
+  return {
+    p,
+    file,
+    clock,
+    store,
+    local: cookieOf(setup),
+    setup,
+    remoteLogin,
+    remoteActor,
+    async close() {
+      await p.close();
+      store.close();
+      rmSync(dir, { recursive: true, force: true });
     },
-    localPort,
-  )!;
-  let now = Date.now();
-  let auth = new AuthManager(file, () => now, { deployment, localAdministration: true });
-  const init = () => {
-    handle = createApp(store, { auth, deployment, assistant });
   };
-  init();
-  const owner = { name: '虚构维护员', password: 'Fictional-owner-password' };
-  async function call(
-    port: number,
-    path: string,
-    options: {
-      body?: unknown;
-      headers?: Record<string, string>;
-      cookie?: string;
-      method?: string;
-      raw?: Buffer;
-    } = {},
-  ) {
-    const data = options.raw ?? (options.body === undefined ? '' : JSON.stringify(options.body));
-    return await new Promise<{ code: number; headers: IncomingMessage['headers']; value: any }>(
-      (done, reject) => {
-        const req = request(
-          {
-            hostname: '127.0.0.1',
-            port,
-            path: '/api' + path,
-            method: options.method ?? (data ? 'POST' : 'GET'),
-            headers: {
-              'content-type': 'application/json',
-              'x-erp-auth-token': auth.csrf,
-              ...(data ? { 'content-length': Buffer.byteLength(data) } : {}),
-              ...(options.cookie ? { cookie: options.cookie } : {}),
-              ...options.headers,
-            },
-          },
-          (res) => {
-            const chunks: Buffer[] = [];
-            res.on('data', (chunk) => chunks.push(chunk));
-            res.on('end', () => {
-              const raw = Buffer.concat(chunks).toString();
-              done({
-                code: res.statusCode!,
-                headers: res.headers,
-                value: raw.startsWith('{') ? JSON.parse(raw) : raw,
-              });
-            });
-          },
-        );
-        req.on('error', reject);
-        req.end(data);
-      },
-    );
-  }
-  const remote = { host, origin: 'https://' + host, 'x-erp-client-ip': '192.0.2.8' };
+}
+
+test('代理入口只认登记的域名和本机转来的单个访客地址；本机入口带转发头就拒', async () => {
+  const s = await deployed();
+  const { p } = s;
   try {
     for (const headers of [
       { host },
-      { ...remote, host: 'localhost' },
-      { ...remote, host: 'other.example.invalid' },
-      { ...remote, 'x-erp-client-ip': '192.0.2.8, 192.0.2.9' },
+      { ...p.remote, host: 'localhost' },
+      { ...p.remote, host: 'other.example.invalid' },
+      { ...p.remote, 'x-erp-client-ip': '192.0.2.8, 192.0.2.9' },
     ])
-      assert.equal((await call(proxyPort, '/health', { headers })).code, 403);
-    assert.equal((await call(localPort, '/health', { headers: remote })).code, 403);
+      assert.equal((await p.call(p.proxyPort, '/health', { headers })).code, 403, JSON.stringify(headers));
+    assert.equal((await p.call(p.localPort, '/health', { headers: p.remote })).code, 403);
+    assert.equal((await p.call(p.localPort, '/health', { headers: { 'x-forwarded-for': '127.0.0.1' } })).code, 403);
+    assert.equal((await p.call(p.proxyPort, '/health', { headers: p.remote })).code, 200);
+  } finally {
+    await s.close();
+  }
+});
+
+test('首个管理员只能在本机入口建；SSH 隧道换了端口时，来源和 Host 一致才放行', async () => {
+  const store = new Store(':memory:'),
+    p = await startProxied(store);
+  const tunnel = 'http://127.0.0.1:13001';
+  try {
+    assert.equal((await p.call(p.proxyPort, '/auth/setup', { headers: p.remote, body: owner })).code, 403);
+    assert.equal((await p.call(p.localPort, '/auth/setup', { headers: { origin: tunnel }, body: owner })).code, 403);
     assert.equal(
-      (await call(localPort, '/health', { headers: { 'x-forwarded-for': '127.0.0.1' } })).code,
-      403,
-    );
-    assert.equal(
-      (await call(proxyPort, '/auth/setup', { headers: remote, body: owner })).code,
-      403,
-    );
-    // SSH 隧道把维护端口映射到别的本机端口：来源和 Host 一致才放行，来源对不上 Host 仍拒绝。
-    const tunnel = 'http://127.0.0.1:13001';
-    assert.equal(
-      (await call(localPort, '/auth/setup', { headers: { origin: tunnel }, body: {} })).code,
-      403,
-    );
-    assert.notEqual(
-      (
-        await call(localPort, '/auth/setup', {
-          headers: { host: '127.0.0.1:13001', origin: tunnel },
-          body: {},
-        })
-      ).code,
-      403,
-    );
-    const localLogin = await call(localPort, '/auth/setup', { body: owner });
-    assert.equal(localLogin.code, 200);
-    assert.equal(localLogin.headers['strict-transport-security'], undefined);
-    assert.doesNotMatch(localLogin.headers['set-cookie']![0], /; Secure/);
-    const localCookie = localLogin.headers['set-cookie']![0].split(';')[0];
-    assert.equal(
-      (await call(localPort, '/auth/state', { cookie: localCookie })).value.actor
-        .localAdministrator,
-      true,
-    );
-    assert.equal(
-      (
-        await call(proxyPort, '/auth/login', {
-          headers: { ...remote, origin: 'https://bad.invalid' },
-          body: owner,
-        })
-      ).code,
-      403,
-    );
-    for (let i = 0; i < 6; i++) {
-      const response = await call(proxyPort, '/auth/login', {
-        body: { ...owner, password: 'Fictional-wrong-password' },
-        headers: { ...remote, 'x-forwarded-for': '198.51.100.' + i },
-      });
-      assert.equal(response.code, i < 5 ? 401 : 429);
-    }
-    // 同一公网 IP 下的其他账号不受影响：办公室共用出口时，一个人输错不能锁住全公司。
-    assert.equal(
-      (
-        await call(proxyPort, '/auth/login', {
-          body: { name: '虚构同事', password: 'Fictional-wrong-password' },
-          headers: remote,
-        })
-      ).code,
-      401,
-    );
-    remote['x-erp-client-ip'] = '192.0.2.9';
-    const login = await call(proxyPort, '/auth/login', { headers: remote, body: owner });
-    assert.equal(login.code, 200);
-    assert.match(login.headers['set-cookie']![0], /; Secure/);
-    assert.equal(login.headers['strict-transport-security'], 'max-age=31536000');
-    assert.equal(login.headers['x-content-type-options'], 'nosniff');
-    assert.ok(login.headers['x-frame-options']);
-    const cookie = login.headers['set-cookie']![0].split(';')[0];
-    const tokenHash = createHash('sha256').update(cookie.split('=')[1]).digest('hex');
-    const db = new DatabaseSync(file, { readOnly: true });
-    try {
-      assert.ok(db.prepare('SELECT 1 FROM auth_sessions WHERE token_hash=?').get(tokenHash));
-      assert.deepEqual(
-        db
-          .prepare('PRAGMA table_info(auth_sessions)')
-          .all()
-          .map((r) => r.name),
-        ['token_hash', 'user_id', 'expires'],
-      );
-    } finally {
-      db.close();
-    }
-    const state = () => call(proxyPort, '/auth/state', { headers: remote, cookie });
-    assert.equal((await state()).value.actor.superAdminMode, false);
-    assert.equal(
-      (
-        await call(proxyPort, '/auth/super-admin/enter', {
-          headers: remote,
-          cookie,
-          body: { password: owner.password },
-        })
-      ).value.actor.superAdminMode,
-      true,
-    );
-    assert.equal(
-      (
-        await call(proxyPort, '/admin/permanent-deletions/preview', {
-          headers: remote,
-          cookie,
-          body: {},
-        })
-      ).code,
-      403,
-    );
-    const assistantState = (await call(proxyPort, '/assistant', { headers: remote, cookie })).value;
-    assert.equal(assistantState.localFeaturesAvailable, false);
-    assert.equal(
-      assistantState.tools.find((tool: { name: string }) => tool.name === 'page.observe').usable,
-      true,
-    );
-    assert.equal(
-      assistantState.tools.find((tool: { name: string }) => tool.name === 'browser.capture').usable,
-      false,
-    );
-    assert.throws(() => assistant.registry.assertAvailable('browser.act'), /部署模式已关闭/);
-    assert.match(
-      (await call(proxyPort, '/assistant/browser/connect', { headers: remote, cookie, body: {} }))
-        .value.message,
-      /部署模式已关闭/,
-    );
-    // 语音不跟服务器浏览器一起关：录音传到本服务器识别，模型在就能用。
-    assert.equal(assistantState.speechAvailable, speechModelInstalled());
-    setSpeechEngineForTests({ transcribe: () => '虚构语音内容' });
-    try {
-      assert.equal(
-        (await call(proxyPort, '/assistant', { headers: remote, cookie })).value.speechAvailable,
-        true,
-      );
-      const spoken = await call(proxyPort, '/assistant/transcribe', {
-        headers: { ...remote, 'content-type': 'application/octet-stream' },
-        cookie,
-        raw: Buffer.alloc(16000 * 2),
-      });
-      assert.equal(spoken.code, 200);
-      assert.equal(spoken.value.text, '虚构语音内容');
-    } finally {
-      setSpeechEngineForTests(null);
-    }
-    auth.close();
-    auth = new AuthManager(file, () => now, { deployment, localAdministration: true });
-    init();
-    assert.equal((await state()).value.actor.name, owner.name);
-    assert.equal((await state()).value.actor.superAdminMode, false);
-    assert.equal(
-      (await call(proxyPort, '/auth/logout', { headers: remote, cookie, body: {} })).code,
+      (await p.call(p.localPort, '/auth/setup', { headers: { host: '127.0.0.1:13001', origin: tunnel }, body: owner })).code,
       200,
     );
-    assert.equal((await state()).value.actor, null);
-    const staffLogin = await call(proxyPort, '/auth/login', { headers: remote, body: owner });
-    const staffCookie = staffLogin.headers['set-cookie']![0].split(';')[0];
-    const account = await call(localPort, '/auth/users', {
-      cookie: localCookie,
+  } finally {
+    await p.close();
+    store.close();
+  }
+});
+
+test('代理入口的写请求来源不是登记的 HTTPS 来源就拒', async () => {
+  const s = await deployed();
+  try {
+    const r = await s.p.call(s.p.proxyPort, '/auth/login', { headers: { ...s.p.remote, origin: 'https://bad.invalid' }, body: owner });
+    assert.equal(r.code, 403);
+  } finally {
+    await s.close();
+  }
+});
+
+test('代理入口的回答带 HSTS 和安全头（图片只多放行 blob:），本机入口不带 HSTS', async () => {
+  const s = await deployed();
+  try {
+    assert.equal(s.setup.headers['strict-transport-security'], undefined);
+    const r = await s.p.call(s.p.proxyPort, '/auth/state', { headers: s.p.remote });
+    assert.equal(r.headers['strict-transport-security'], 'max-age=31536000');
+    assert.equal(r.headers['x-content-type-options'], 'nosniff');
+    assert.ok(r.headers['x-frame-options']);
+    const csp = String(r.headers['content-security-policy'] || '');
+    assert.match(csp, /(^|;)img-src 'self' data: blob:(;|$)/);
+    assert.match(csp, /(^|;)script-src 'self'(;|$)/);
+    assert.match(csp, /(^|;)default-src 'self'(;|$)/);
+    assert.doesNotMatch(csp, /upgrade-insecure-requests/);
+  } finally {
+    await s.close();
+  }
+});
+
+test('健康检查：从域名进来只回 ok，版本号和进程号只给本机入口', async () => {
+  const store = new Store(':memory:');
+  const p = await startProxied(store);
+  try {
+    assert.deepEqual((await p.call(p.proxyPort, '/health', { headers: p.remote })).value, { ok: true });
+    const local = (await p.call(p.localPort, '/health')).value;
+    assert.equal(local.processId, process.pid);
+    assert.ok(local.version);
+  } finally {
+    await p.close();
+    store.close();
+  }
+});
+
+test('登录 Cookie：域名入口用 __Host- 前缀加 Secure，本机入口用原名，各入口只认自己的名字', async () => {
+  const s = await deployed();
+  const { p } = s;
+  const value = (cookie: string) => cookie.split('=')[1];
+  try {
+    const local = setCookieOf(s.setup);
+    assert.match(local, /^erp_session=[0-9a-f]{64}; /);
+    assert.doesNotMatch(local, /; Secure/);
+    const remote = setCookieOf(await p.call(p.proxyPort, '/auth/login', { headers: p.remote, body: owner }));
+    assert.match(remote, /^__Host-erp_session=[0-9a-f]{64}; /);
+    assert.match(remote, /; Path=\/;/);
+    assert.match(remote, /; Secure/);
+    assert.doesNotMatch(remote, /Domain=/i);
+    const token = value(remote.split(';')[0]);
+    assert.equal((await s.remoteActor('__Host-erp_session=' + token))?.name, owner.name);
+    assert.equal(await s.remoteActor('erp_session=' + token), null);
+    const localState = await p.call(p.localPort, '/auth/state', { cookie: '__Host-erp_session=' + value(s.local) });
+    assert.equal(localState.value.actor, null);
+    const out = await p.call(p.proxyPort, '/auth/logout', { headers: p.remote, cookie: '__Host-erp_session=' + token, body: {} });
+    assert.match(
+      setCookieOf(out),
+      /^__Host-erp_session=; Path=\/; Expires=Thu, 01 Jan 1970 [^;]+; HttpOnly; Secure; SameSite=Strict$/,
+    );
+  } finally {
+    await s.close();
+  }
+});
+
+test('同一个超级管理员账号：本机入口登录就是本机管理员，从域名登录的不是，要验证密码进模式', async () => {
+  const s = await deployed();
+  try {
+    assert.equal(stateActor((await s.p.call(s.p.localPort, '/auth/state', { cookie: s.local })).value)?.localAdministrator, true);
+    const cookie = await s.remoteLogin();
+    const actor = await s.remoteActor(cookie);
+    assert.ok(actor);
+    assert.equal(actor.localAdministrator, undefined);
+    assert.equal(actor.superAdminMode, false);
+    const entered = await s.p.call(s.p.proxyPort, '/auth/super-admin/enter', { headers: s.p.remote, cookie, body: { password: owner.password } });
+    assert.equal(stateActor(entered.value)?.superAdminMode, true);
+  } finally {
+    await s.close();
+  }
+});
+
+test('部署模式的会话存进账号库，只存令牌的哈希；重启后还在，超级管理员模式要重进', async () => {
+  const s = await deployed();
+  try {
+    const cookie = await s.remoteLogin();
+    await s.p.call(s.p.proxyPort, '/auth/super-admin/enter', { headers: s.p.remote, cookie, body: { password: owner.password } });
+    const token = cookie.split('=')[1];
+    const rows = s.p.auth.db.prepare('SELECT token_hash FROM auth_sessions').all().map((r) => r.token_hash);
+    assert.ok(rows.includes(createHash('sha256').update(token).digest('hex')));
+    assert.ok(!rows.includes(token));
+    s.p.restart();
+    const actor = await s.remoteActor(cookie);
+    assert.ok(actor);
+    assert.equal(actor.name, owner.name);
+    assert.equal(actor.superAdminMode, false);
+  } finally {
+    await s.close();
+  }
+});
+
+test('部署模式的会话：退出、停用、8 小时到期都让它失效', async () => {
+  const s = await deployed();
+  const { p } = s;
+  try {
+    const out = await s.remoteLogin();
+    await p.call(p.proxyPort, '/auth/logout', { headers: p.remote, cookie: out, body: {} });
+    assert.equal(await s.remoteActor(out), null, '退出');
+    const made = await p.call(p.localPort, '/auth/users', {
+      cookie: s.local,
       body: { name: '虚构员工', password: 'Fictional-employee-password', level: 'staff' },
     });
-    const employee = account.value.users.find((user: { name: string }) => user.name === '虚构员工');
-    const staff = await call(proxyPort, '/auth/login', {
-      headers: remote,
-      body: { name: employee.name, password: 'Fictional-employee-password' },
-    });
-    const employeeCookie = staff.headers['set-cookie']![0].split(';')[0];
-    for (const disabled of [true, false]) {
-      assert.equal(
-        (
-          await call(localPort, '/auth/users/' + employee.id, {
-            cookie: localCookie,
-            body: { disabled },
-            method: 'PUT',
-          })
-        ).code,
-        200,
-      );
-      assert.equal(
-        (await call(proxyPort, '/auth/state', { headers: remote, cookie: employeeCookie })).value
-          .actor,
-        null,
-      );
-    }
-    const cli = new AuthManager(file);
-    let temporary = '';
+    const employee = userList(made.value).find((u: { name: string }) => u.name === '虚构员工');
+    assert.ok(employee);
+    const staff = await s.remoteLogin({ name: employee.name, password: 'Fictional-employee-password' });
+    await p.call(p.localPort, '/auth/users/' + employee.id, { cookie: s.local, body: { disabled: true }, method: 'PUT' });
+    assert.equal(await s.remoteActor(staff), null, '停用');
+    const later = await s.remoteLogin();
+    s.clock.now += 8 * 3600_000 + 1;
+    assert.equal(await s.remoteActor(later), null, '到期');
+  } finally {
+    await s.close();
+  }
+});
+
+test('部署模式：服务器上命令行重置密码，正在跑的服务里这个账号的会话立即失效', async () => {
+  const s = await deployed();
+  try {
+    const cookie = await s.remoteLogin();
+    const cli = new AuthManager(s.file);
     try {
-      temporary = cli.resetPassword(owner.name);
+      cli.resetPassword(owner.name);
     } finally {
       cli.close();
     }
-    assert.equal(
-      (await call(proxyPort, '/auth/state', { headers: remote, cookie: staffCookie })).value.actor,
-      null,
-    );
-    const updated = await call(proxyPort, '/auth/login', {
-      headers: remote,
-      body: { ...owner, password: temporary },
-    });
-    const updatedCookie = updated.headers['set-cookie']![0].split(';')[0];
-    const otherDevice = await call(proxyPort, '/auth/login', {
-      headers: remote,
-      body: { ...owner, password: temporary },
-    });
-    const otherCookie = otherDevice.headers['set-cookie']![0].split(';')[0];
-    assert.equal(
-      (
-        await call(proxyPort, '/auth/password', {
-          headers: remote,
-          cookie: updatedCookie,
-          body: { current: temporary, password: 'Fictional-final-password' },
-        })
-      ).code,
-      200,
-    );
-    // 改密后当前设备保持登录，其他设备立即失效，和页面提示一致。
-    assert.equal(
-      (await call(proxyPort, '/auth/state', { headers: remote, cookie: updatedCookie })).value.actor
-        .name,
-      owner.name,
-    );
-    assert.equal(
-      (await call(proxyPort, '/auth/state', { headers: remote, cookie: otherCookie })).value.actor,
-      null,
-    );
-    const current = await call(proxyPort, '/auth/login', {
-      headers: remote,
-      body: { ...owner, password: 'Fictional-final-password' },
-    });
-    const expiredCookie = current.headers['set-cookie']![0].split(';')[0];
-    now += 9 * 3600_000;
-    assert.equal(
-      (await call(proxyPort, '/auth/state', { headers: remote, cookie: expiredCookie })).value
-        .actor,
-      null,
-    );
-    // 申请账号和忘记密码走公网入口，记录的是访客地址，不是代理地址。
-    assert.equal(
-      (
-        await call(proxyPort, '/auth/apply', {
-          headers: remote,
-          body: { name: '虚构申请人', password: 'Fictional-applicant-1', note: '虚构仓库' },
-        })
-      ).code,
-      202,
-    );
-    assert.equal(
-      (await call(proxyPort, '/auth/forgot', { headers: remote, body: { name: '查无此人' } })).code,
-      202,
-    );
-    const reviewer = await call(proxyPort, '/auth/login', {
-      headers: remote,
-      body: { ...owner, password: 'Fictional-final-password' },
-    });
-    const pending = await call(proxyPort, '/auth/requests', {
-      headers: remote,
-      cookie: reviewer.headers['set-cookie']![0].split(';')[0],
-    });
-    assert.deepEqual(
-      pending.value.requests.map((r: any) => [r.name, r.client]),
-      [['虚构申请人', remote['x-erp-client-ip']]],
-    );
+    assert.equal(await s.remoteActor(cookie), null);
   } finally {
-    await Promise.all(
-      [local, proxy].map((server) => new Promise<void>((done) => server.close(() => done()))),
-    );
-    auth.close();
+    await s.close();
+  }
+});
+
+test('部署模式：改密后当前设备保持登录，同一账号的其他设备立即失效', async () => {
+  const s = await deployed();
+  try {
+    const current = await s.remoteLogin(),
+      other = await s.remoteLogin();
+    const changed = await s.p.call(s.p.proxyPort, '/auth/password', {
+      headers: s.p.remote,
+      cookie: current,
+      body: { current: owner.password, password: 'Fictional-final-password' },
+    });
+    assert.equal(changed.code, 200);
+    assert.equal((await s.remoteActor(current))?.name, owner.name);
+    assert.equal(await s.remoteActor(other), null);
+  } finally {
+    await s.close();
+  }
+});
+
+test('从域名进来，助手的语音转写照常能用', async () => {
+  const fake = fakeDeepSeek({ asrText: '虚构部署语音' });
+  const settings = new AiSettingsManager({ protector: testProtector, transport: fake.transport }),
+    prompts = new PromptPresetManager(':memory:', assistantDefaultPreset);
+  settings.saveKey({ apiKey: fake.key, expectedRevision: settings.view().revision });
+  const store = new Store(':memory:'),
+    assistant = new AssistantManager(store, settings, prompts, {});
+  const p = await startProxied(store, { assistant });
+  try {
+    await p.call(p.localPort, '/auth/setup', { body: owner });
+    const cookie = cookieOf(await p.call(p.proxyPort, '/auth/login', { headers: p.remote, body: owner }));
+    const heard = await p.call(p.proxyPort, '/assistant/transcribe', {
+      headers: { ...p.remote, 'content-type': 'application/octet-stream' },
+      cookie,
+      raw: Buffer.alloc(16000 * 2),
+    });
+    assert.equal(heard.code, 200);
+    assert.equal(heard.value.text, '虚构部署语音');
+  } finally {
+    await p.close();
     assistant.registry.close();
     settings.close();
     prompts.close();
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
