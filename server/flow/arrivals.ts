@@ -95,15 +95,19 @@ function sourceEvents(flow: FlowCommands, v: z.output<typeof arrivalQuerySchema>
 }
 
 /**
- * scope：只组装这几张到货单（按主键）。按采购单或记录编号查询时也只读相关到货事件；
+ * scope：只组装这几张到货单（按主键），includeArchived 为真时已归档的也组装（点开一张已归档的详情）。按采购单或记录编号查询时也只读相关到货事件；
  * 采购单、供应商名称和库存流水都按事件里出现的主键批量读取，不全量加载后再查找。
  */
-export function arrivalRecords(flow: FlowCommands, raw: unknown = {}, scope?: { flowIds?: readonly number[] }): ArrivalRecord<MovementRow>[] {
+export function arrivalRecords(
+  flow: FlowCommands,
+  raw: unknown = {},
+  scope?: { flowIds?: readonly number[]; includeArchived?: boolean },
+): ArrivalRecord<MovementRow>[] {
   const v = arrivalQuerySchema.parse(raw);
-  const archived = flow.store.archivedIds('flow_arrival');
+  const archived = scope?.includeArchived ? null : flow.store.archivedIds('flow_arrival');
   const events = sourceEvents(flow, v, scope).filter((e) => (!v.receiptId || e.id === v.receiptId) && (!v.date || e.date === v.date) && (!v.supplierId || e.supplierId === v.supplierId) &&
     (!v.purchaseId || e.lines.some((l) => l.purchaseId === v.purchaseId)) && (v.includeInactive || e.effective) &&
-    !archived.has(e.flowId)).reverse();
+    !archived?.has(e.flowId)).reverse();
   const purchases = new Map<number, PurchaseView>(
     flow.ops.repo
       .purchases(true, [...new Set(events.flatMap((e) => e.lines.map((l) => l.purchaseId)).filter((id): id is number => typeof id === 'number'))])

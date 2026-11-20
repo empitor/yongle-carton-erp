@@ -5,7 +5,6 @@ import { readFlowDaily, readFlowList } from '../flow/flow-api';
 import { readOrderBatches, type OrderBatch } from './order-batch-api';
 import {
   isWarehouseDoc,
-  warehouseRecords,
   type WarehouseKind,
   type WarehousePurchase,
   type WarehouseScope,
@@ -29,7 +28,7 @@ export function useWarehouseData(kind: WarehouseKind, scope: WarehouseScope, ful
   const main = useLoad(actorId ? [kind, full, revision, actorId].join('|') : null, () =>
     Promise.all([readFlowDaily(kind, full ? null : RECENT_DAYS), readPurchases(kind), readBatches(kind)]).then(
       ([d, purchases, batches]) => ({
-        records: warehouseRecords(d),
+        records: d.records,
         recentFrom: full ? '' : d.from || '',
         purchases,
         batches,

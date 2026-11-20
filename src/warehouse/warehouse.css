@@ -65,21 +65,6 @@
 .movement-records .unified-table-region > table > thead > tr > th:first-child {
   width: 170px;
 }
-.movement-positive {
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-.movement-negative {
-  color: var(--danger);
-  font-weight: 600;
-}
-/* 沿用ERP蓝色操作、绿/琥珀状态及现有字体，只强化逐行数量的可读性。 */
-.receipt-history table {
-  min-width: 550px;
-}
-.receipt-history td {
-  white-space: normal;
-}
 .op-flow-table td {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

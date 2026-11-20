@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { businessLayerBacklog, compareBacklog } from './layer-backlog.js';
-import { all, canUse, covers, exportSources, inModules, isCode, isEntry, layerOf, matchOf, moduleOf, modules, refsOf, tools, type Ref, type Rule } from './module-map.js';
+import { all, canUse, covers, exportSources, inModules, isCode, isEntry, isLazyEntry, layerOf, lazyEntries, matchOf, moduleOf, modules, refsOf, tools, type Ref, type Rule } from './module-map.js';
 
 /** 登记过的例外：from 文件 → to 文件（或目录前缀），每条写明为什么不能按规则来。 */
 const exceptions: { from: string; to: string; why: string }[] = [];
@@ -87,7 +87,7 @@ function interfaceViolations(f: string, refs: Ref[] = refsOf(f)) {
       continue;
     }
     if (/^(server|shared|src)\/[a-z]+\/index\.ts$/.test(r.target) && (r.how === 'import' || r.how === 'import()')) continue;
-    if (r.how === 'import()' && /^src\/[a-z]+\/pages\.ts$/.test(r.target)) continue;
+    if (r.how === 'import()' && isLazyEntry(r.target)) continue;
     out.push(f + ':' + r.line + ' → ' + r.target + (r.how === 'import' ? '' : '（' + r.how + '）'));
   }
   return out;
@@ -218,7 +218,11 @@ test('每条例外都还用得上，不留过期的登记', () => {
     existsSync(from) && refsOf(from).some((r) => !!r.target && (to.endsWith('/') ? r.target.startsWith(to) : r.target === to));
   const stale = [...exceptions, ...outsideRefs, ...toolInternalRefs].filter((e) => !uses(e.from, e.to)).map((e) => e.from + ' → ' + e.to);
   const staleDynamic = dynamicLoads.filter((e) => !existsSync(e.file) || !refsOf(e.file).some((r) => r.unresolved !== undefined));
-  assert.deepEqual([...stale, ...staleDynamic.map((e) => e.file)], []);
+  // 另立的按需入口：文件还在，而且至少有一处 import() 它
+  const staleLazy = lazyEntries.filter(
+    (e) => !existsSync(e.file) || !all.some((f) => refsOf(f).some((r) => r.how === 'import()' && r.target === e.file)),
+  );
+  assert.deepEqual([...stale, ...staleDynamic.map((e) => e.file), ...staleLazy.map((e) => e.file)], []);
 });
 
 /** Tarjan 强连通分量：图里大于一个文件的分量就是循环（每个分量里的文件排好序） */
@@ -298,12 +302,12 @@ test('入口文件里列的名字都有别的模块在用（接口清单和实�
   // 脚本也算使用者：单据导出的排版自检那几个名字只有 scripts/linux 的部署自检在用
   for (const f of [...all, ...tools]) {
     for (const { target, names } of refsOf(f)) if (target && names) names.forEach((n) => mark(target, n));
-    // 按需加载的页面：lazy(() => import('./x/pages').then((m) => ({ default: m.Page })))
+    // 按需加载的入口：lazy(() => import('./x/pages').then((m) => ({ default: m.Page })))
     if (!f.startsWith('src/')) continue;
     const text = readFileSync(f, 'utf8');
-    for (const m of text.matchAll(/import\('([^']+\/pages)'\)\.then\(\(m\) => \(\{ default: m\.(\w+) \}\)\)/g)) {
+    for (const m of text.matchAll(/import\('([^']+)'\)\.then\(\(m\) => \(\{ default: m\.(\w+) \}\)\)/g)) {
       const t = refsOf(f).find((r) => r.spec === m[1])?.target;
-      if (t) mark(t, m[2]);
+      if (t && isLazyEntry(t)) mark(t, m[2]);
     }
   }
   const unused: string[] = [];
@@ -435,6 +439,10 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     // 登记过的工具才放行：别的脚本引同一个内部文件照样拦
     ['scripts/linux/verify-package.mjs', "await import('../../server/inbox/service.ts');", '（识别导入 的内部文件）'],
     ['src/records/Sample.tsx', "import '../finance/finance.css';", '（别的模块的样式、资源）'],
+    // 按需入口只认 pages.ts 和登记过的：直接 import() 别的模块的组件照样拦
+    ['src/Sample.tsx', "const R = lazy(() => import('./finance/FinanceRelated'));", '→ src/finance/FinanceRelated.tsx（import()）'],
+    // 登记的按需入口也只许 import()：静态引用会把财务段打回首屏
+    ['src/Sample.tsx', "import { FinanceRelated } from './finance/related-pages';", '→ src/finance/related-pages.ts'],
     ['scripts/sample.mjs', "await import('../server/core/db.ts');", '（基础 的内部文件）'],
     ['scripts/sample.mjs', "const P = new URL('../', import.meta.url).href;\nawait import(P + 'server/core/index.ts');", '的目标看不出来'],
     ['scripts/sample.mjs', "spawnSync(process.execPath, ['--import', 'tsx', 'server/flow/service.ts']);", '（单据流转 的内部文件）'],
@@ -450,6 +458,8 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     ['server/import/sample.ts', "new URL('./manager.ts?no-inline', import.meta.url);"],
     ['src/main.tsx', "import './finance/finance.css';\nimport './ui/list-layout.css';"],
     ['src/App.tsx', "const FinancePages = lazy(() => import('./finance/pages'));"],
+    // 登记过的另一个按需入口
+    ['src/Sample.tsx', "const R = lazy(() => import('./finance/related-pages'));"],
     ['scripts/sample.mjs', "await import('../server/core/index.ts');\nawait import('../server/app.ts');\nspawnSync('node', ['server/index.ts']);"],
     ['scripts/sample.mjs', "await import('../tests/assistant-workflow-fixture.ts');\nconst { createCanvas } = require('@napi-rs/canvas');"],
     ['scripts/linux/verify-package.mjs', "await import('../../server/speech/index.ts');"],

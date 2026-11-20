@@ -1,7 +1,8 @@
-import type { PurchaseView } from '../../shared/business/index';
+import { useEffect, useState } from 'react';
+import { ARRIVAL_HISTORY_TITLE, type PurchaseView } from '../../shared/business/index';
 import { businessStatusTone } from '../recordkit/record-meta';
-import { StatusChip } from '../ui/index';
-import { flowSourceFileUrl } from '../flow/flow-api';
+import { Section, StatusChip } from '../ui/index';
+import { flowSourceFileUrl } from './flow-api';
 
 /** 采购单的一条到货记录（一张到货单）：挂在这张采购单上的行、更正关系、原件 */
 type Receipt = PurchaseView['receipts'][number];
@@ -118,5 +119,38 @@ export function ReceiptHistory({ row, lineId, correct }: Props) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * 到货单详情里的“到货记录”：这张到货单对应的采购单的全部到货批次，点开才列（换了一张到货单就收起）。
+ * 有编辑权限的，有效的那批能“更正到货单”。
+ */
+export function ArrivalHistorySection({
+  arrivalId,
+  purchase,
+  correct,
+}: {
+  arrivalId: number;
+  purchase: PurchaseView;
+  correct?: (receipt: Receipt) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [arrivalId]);
+  return (
+    <Section
+      title={ARRIVAL_HISTORY_TITLE}
+      extra={
+        <button type="button" className="wh-link" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? '收起' : '展开 ' + purchase.receipts.length + ' 批'}
+        </button>
+      }
+    >
+      {open ? (
+        <ReceiptHistory row={purchase} correct={correct} />
+      ) : (
+        <p className="wh-muted">采购单 {purchase.number} 的全部到货批次，更正过的能看到原始记录。</p>
+      )}
+    </Section>
   );
 }

@@ -24,7 +24,7 @@ export { ActionBar, Facts, Hint, Progress, Section, StatusChip } from './Record'
 export type { RecordAction, Tone } from './Record';
 export { default as Segmented } from './Segmented';
 export { default as SelectionBar } from './SelectionBar';
-export { authChanged, canEditBusiness, parseAuthState, readOnlyNotice, useAuthState } from './auth-state';
+export { authChanged, canEditBusiness, canViewFinance, parseAuthState, readOnlyNotice, useAuthState } from './auth-state';
 export type { AuthState } from './auth-state';
 export { readJson, textField } from './read-body';
 export { readEventStream } from './event-stream';

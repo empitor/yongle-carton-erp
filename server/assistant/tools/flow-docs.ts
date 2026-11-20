@@ -34,7 +34,11 @@ export const flowDocTools = [
     name: 'flow.daily',
     risk: 'read',
     description: '查某天的生产任务或送货、到货：当天计划、实际完成和待执行的；取消、冲销的不算待执行。',
-    arguments: { kind: 'arrival/delivery/task', date: 'YYYY-MM-DD' },
+    arguments: {
+      kind: 'arrival/delivery/task',
+      date: 'YYYY-MM-DD',
+      doc: '到货单或送货单的编号（可不给）：只看这一张的验收入库、明细进度和流水，已归档的也读，给了就不看 date',
+    },
     schema: dailyQuerySchema,
   },
   {

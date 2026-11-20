@@ -25,7 +25,7 @@ const taskProductions: LookupNeed[] = [
   ['items', false],
 ];
 /**
- * 详情只拿档案显示名称和单号；已确认的到货单要按采购的收货记录判断能否更正，必须是最新的采购。
+ * 详情只拿档案显示名称和单号（到货单另列采购单的到货记录）；已确认的到货单要按采购的收货记录判断能否更正，必须是最新的采购。
  */
 export function detailLookups(d: FlowDocView | null | undefined): LookupNeed[] {
   if (!d) return [];
@@ -36,9 +36,12 @@ export function detailLookups(d: FlowDocView | null | undefined): LookupNeed[] {
       ['customers', false],
       ['orders', false],
     ];
-  if (d.status === 'confirmed') return [['purchases', true]];
-  // 挂了采购明细、单据里还没存采购单号的（待入库）才去读采购单显示单号；没挂采购的显示“无采购单”，不用读
-  return d.lines.some((l) => l.purchaseLineId && !l.purchaseNumber) ? [['purchases', false]] : [];
+  // 单据里还没存供应商名的（待入库）读供应商，详情标题下面那行要写
+  const supplier: LookupNeed[] = d.supplierName ? [] : [['suppliers', false]];
+  if (d.status === 'confirmed') return [['purchases', true], ...supplier];
+  // 挂了采购的读采购单：显示单号、列这张采购单的到货记录；没挂采购的显示“无采购单”，不用读
+  const purchases: LookupNeed[] = d.lines.some((l) => l.purchaseLineId || l.purchaseId) ? [['purchases', false]] : [];
+  return [...purchases, ...supplier];
 }
 
 /** 列表名称列要看的：单据里存的往来方或产品名称，和它的编号（还没核对的单据没存名称） */

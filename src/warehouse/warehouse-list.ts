@@ -1,4 +1,4 @@
-import type { ArrivalDaily, DeliveryDaily, FlowDocView, PurchaseView, WarehouseDailyResult } from '../../shared/business/index';
+import type { ArrivalDaily, DeliveryDaily, FlowDocView, PurchaseView } from '../../shared/business/index';
 import { flowStatusText, matchesFlowStatus } from '../../shared/business/index';
 import { today } from '../../shared/core/index';
 import { shipDate } from '../flow/flow-dates';
@@ -55,11 +55,6 @@ type ListRow = {
 /** 找采购单：按到货明细在对照的采购单里找 */
 export type PurchaseLookup = (l: ListLine) => WarehousePurchase | undefined;
 
-/** 台账回的到货、送货记录（按到货、送货读的，回答不会是生产任务） */
-export function warehouseRecords(d: WarehouseDailyResult): WarehouseRecord[] {
-  if (d.kind === 'task') throw new Error('仓库台账要的是到货、送货记录，读到的却是生产任务。');
-  return d.records;
-}
 /** 已归档这一档的行是单据本身（/flow 读到的），不是台账记录：没有台账记录的 pending 标记 */
 export const isFlowDoc = (r: WarehouseRow): r is FlowDocView<WarehouseKind> => !('pending' in r);
 /** “已归档”这一档：/flow 读到的单据里这一种的 */

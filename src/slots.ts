@@ -7,8 +7,8 @@ import { adminService } from './admin/index';
 import { inAndroidApp, startAppBridge } from './app-bridge';
 import { APP_SAVE_TIMEOUT_MS, createAppSaver } from './app-save';
 
-// 订单、送货、到货详情里的财务段：只有有财务权限的账号用得上，按需加载，不把财务公共件带进主包
-const FinanceRelated = lazy(() => import('./finance/pages').then((m) => ({ default: m.FinanceRelated })));
+// 订单、送货、到货详情里的财务段：只有有财务权限的账号用得上（插槽先看权限），按需加载自己的小入口，不带整套财务页面
+const FinanceRelated = lazy(() => import('./finance/related-pages').then((m) => ({ default: m.FinanceRelated })));
 // 数据管理编辑窗：只有本机管理员用，按需加载
 const DataManagementEditor = lazy(() => import('./admin/pages').then((m) => ({ default: m.DataManagementEditor })));
 

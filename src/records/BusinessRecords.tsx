@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { compareRecords, type RecordSort } from '../../shared/core/index';
 import { type RecordEntity } from '../../shared/business/index';
 import { canEditBusiness, useAuthState, LIST_PAGE_SIZE } from '../ui/index';
 import { Hint, Pagination } from '../ui/index';
 import RecordTable from './RecordTable';
 import RecordSelectionBar from './RecordSelectionBar';
-import DatabaseDeleteDialog from '../recordkit/DatabaseDeleteDialog';
 import RecordPanel from './RecordPanel';
-import CorrectionDialog from '../flow/CorrectionDialog';
 import RecordContextDialog from '../recordkit/RecordContext';
 import SortHead from './SortHead';
 import { useRecordFamily } from '../recordkit/useProductFamily';
 import { useRecordSelection, type RecordPaging, type RecordSelection } from './useRecordSelection';
 import { readRecord } from '../recordkit/record-api';
 import { recordLabel, type RecordRow, type RecordRowOf } from './record-rows';
+
+// 删除窗、更正到货单窗口点了才用，按需加载
+const DatabaseDeleteDialog = lazy(() => import('../recordkit/DatabaseDeleteDialog'));
+const CorrectionDialog = lazy(() => import('../flow/CorrectionDialog'));
 
 const nouns: Record<RecordEntity, { noun: string; unit: string }> = {
   customers: { noun: '客户', unit: '家' },
@@ -232,10 +234,12 @@ export default function BusinessRecords<E extends RecordEntity>({
           remove={setPermanent}
         />
       )}
-      {permanent && (
-        <DeleteRecords entity={entity} rows={permanent} s={s} close={() => setPermanent(null)} changed={changed} />
-      )}
-      {s.correction && <CorrectArrival id={s.correction.id} s={s} changed={changed} />}
+      <Suspense fallback={<p role="status">正在打开…</p>}>
+        {permanent && (
+          <DeleteRecords entity={entity} rows={permanent} s={s} close={() => setPermanent(null)} changed={changed} />
+        )}
+        {s.correction && <CorrectArrival id={s.correction.id} s={s} changed={changed} />}
+      </Suspense>
     </section>
   );
 }

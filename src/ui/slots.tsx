@@ -1,5 +1,6 @@
 import { Suspense, createContext, useContext, type ComponentType } from 'react';
 import type { ArchiveResult } from '../../shared/core/index';
+import { canViewFinance, useAuthState } from './auth-state';
 
 /**
  * 插槽：前端模块用别的模块的东西，只通过这里定义的两种接口。
@@ -98,9 +99,15 @@ export function useAdmin(): AdminService {
   return useSlots().admin ?? { forkWorkspace: adminMissing };
 }
 
-export function FinanceRelatedSlot(props: { kind: 'orders' | 'delivery' | 'arrival'; id: number }) {
+type FinanceRelatedProps = { kind: 'orders' | 'delivery' | 'arrival'; id: number };
+/** 财务段：没有财务查看权限的账号不渲染，也就不下载财务段的包 */
+export function FinanceRelatedSlot(props: FinanceRelatedProps) {
+  return <FinanceRelatedFor auth={useAuthState()} {...props} />;
+}
+/** 按传进来的登录状态决定画不画财务段（登录状态由 FinanceRelatedSlot 读） */
+export function FinanceRelatedFor({ auth, ...props }: FinanceRelatedProps & { auth: Parameters<typeof canViewFinance>[0] }) {
   const Impl = useSlots().FinanceRelated;
-  return Impl ? (
+  return Impl && canViewFinance(auth) ? (
     <Suspense fallback={null}>
       <Impl {...props} />
     </Suspense>

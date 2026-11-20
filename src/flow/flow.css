@@ -303,3 +303,19 @@ table.wh-table td {
 .form-message .delivery-blockers ~ button {
   margin: 0 var(--space-sm) 0 0;
 }
+/* 流水的数量：入库加、出库减（单据详情的流水、流水页都用） */
+.movement-positive {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.movement-negative {
+  color: var(--danger);
+  font-weight: 600;
+}
+/* 采购单的到货记录表（到货单详情、采购单详情）：沿用ERP蓝色操作、绿/琥珀状态及现有字体，只强化逐行数量的可读性 */
+.receipt-history table {
+  min-width: 550px;
+}
+.receipt-history td {
+  white-space: normal;
+}

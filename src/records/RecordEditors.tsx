@@ -1,11 +1,13 @@
-import { useEffect, useEffectEvent, useState } from 'react';
+import { lazy, Suspense, useEffect, useEffectEvent, useState } from 'react';
 import type { Customer, Order, Product } from '../../shared/core/index';
 import { emit, listen, readOnlyNotice } from '../ui/index';
 import { readRecord } from '../recordkit/record-api';
-import CustomerEditor from '../editors/CustomerEditor';
-import OrderEditor from '../editors/OrderEditor';
-import ProductEditor from '../editors/ProductEditor';
 import { idList } from '../recordkit/launch';
+
+// 编辑窗点了才用，按需加载
+const CustomerEditor = lazy(() => import('../editors/CustomerEditor'));
+const OrderEditor = lazy(() => import('../editors/OrderEditor'));
+const ProductEditor = lazy(() => import('../editors/ProductEditor'));
 
 /** 订单、客户、产品页开着的编辑窗：编辑哪一条，或新建（订单可以带客户、产品、收件箱原文） */
 export type RecordEditor =
@@ -130,21 +132,23 @@ export default function RecordEditors({
           style={{ position: 'fixed', width: 1, height: 1, left: 0, top: 0 }}
         />
       )}
-      {editor?.kind === 'customers' && <CustomerEditor value={editor.value} close={close} saved={saved} />}
-      {editor?.kind === 'products' && <ProductEditor value={editor.value} close={close} saved={saved} />}
-      {editor?.kind === 'orders' && (
-        <OrderEditor
-          loading={loading}
-          key={editor.value ? editor.value.id + ':' + editor.value.version : 'new:' + routeKey}
-          value={editor.value}
-          inboxId={editor.inboxId}
-          preset={editor.preset}
-          customers={customers}
-          products={products}
-          close={close}
-          saved={saved}
-        />
-      )}
+      <Suspense fallback={<p role="status">正在打开…</p>}>
+        {editor?.kind === 'customers' && <CustomerEditor value={editor.value} close={close} saved={saved} />}
+        {editor?.kind === 'products' && <ProductEditor value={editor.value} close={close} saved={saved} />}
+        {editor?.kind === 'orders' && (
+          <OrderEditor
+            loading={loading}
+            key={editor.value ? editor.value.id + ':' + editor.value.version : 'new:' + routeKey}
+            value={editor.value}
+            inboxId={editor.inboxId}
+            preset={editor.preset}
+            customers={customers}
+            products={products}
+            close={close}
+            saved={saved}
+          />
+        )}
+      </Suspense>
     </>
   );
 }
