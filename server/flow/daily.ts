@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   dailyQuerySchema,
+  flowDocNames,
+  isFlowKind,
   shiftDate,
   type ArrivalDaily as ArrivalDailyOf,
   type DailyResult,
@@ -10,7 +12,8 @@ import {
   type WarehouseDailyResult,
 } from '../../shared/business/index.js';
 import type { Store } from '../core/index.js';
-import { many, rows } from '../core/index.js';
+import { many, notFound, one, rows } from '../core/index.js';
+import { arrivalRecords } from './arrivals.js';
 import { deliveryRecords } from './daily-deliveries.js';
 import { FlowService } from './service.js';
 
@@ -37,8 +40,8 @@ type DailyHead = {
   /** 对应的业务单据，按主键组装完整记录时用。 */
   flowId?: number;
 };
-/** 按主键只组装这几张单据（flowIds）。 */
-type DailySelection = { flowIds?: readonly number[] };
+/** 按主键只组装这几张单据（flowIds）；includeArchived：点开一张时连已归档的也读（列表不带） */
+type DailySelection = { flowIds?: readonly number[]; includeArchived?: boolean };
 type MovementRow = z.output<typeof rows.stock_movements>;
 type ArrivalDaily = ArrivalDailyOf<MovementRow>;
 type DeliveryDaily = DeliveryDailyOf<MovementRow>;
@@ -47,9 +50,11 @@ type DailyResults = WarehouseDailyResult<MovementRow>;
 
 /** 台账里的到货单：到货记录加上台账的日期和状态（到货没有计划日，到货安排在订货单上） */
 function arrivalLedger(store: Store, selection?: DailySelection): ArrivalDaily[] {
-  return new FlowService(store)
-    .arrivalRecords({ includeInactive: true }, selection && { flowIds: selection.flowIds || [] })
-    .map((r) => ({
+  return arrivalRecords(
+    new FlowService(store),
+    { includeInactive: true },
+    selection && { flowIds: selection.flowIds || [], includeArchived: selection.includeArchived },
+  ).map((r) => ({
       ...r,
       actualDate: r.status === 'confirmed' ? r.date : null,
       plannedDate: null,
@@ -119,7 +124,7 @@ export class WarehouseDaily {
       case 'task':
         return new FlowService(this.store).list('task');
       case 'delivery':
-        return deliveryRecords(this.store, workbenchDate, selection && (selection.flowIds || []));
+        return deliveryRecords(this.store, workbenchDate, selection && (selection.flowIds || []), selection?.includeArchived);
     }
   }
   /**
@@ -182,11 +187,22 @@ export class WarehouseDaily {
     switch (q.kind) {
       case 'task':
         return { kind: q.kind, date: q.date, records: this.tasksOn(q.date, q.scope) };
+      // 点开一张（doc）：只组装这一张，已归档的也读
       case 'arrival':
+        if (q.doc) return { kind: q.kind, date: q.date, records: this.records('arrival', undefined, this.single(q.kind, q.doc)) };
         return this.ledger(q.kind, q, () => this.records('arrival'), (heads) => this.recordsFor('arrival', heads));
       case 'delivery':
+        if (q.doc) return { kind: q.kind, date: q.date, records: this.records('delivery', undefined, this.single(q.kind, q.doc)) };
         return this.ledger(q.kind, q, () => this.records('delivery'), (heads) => this.recordsFor('delivery', heads));
     }
+  }
+  /** 点开一张（doc）：按主键认这张单据，编号不存在、不是这种单据报 404 说清楚；只组装它，已归档的也读 */
+  private single(kind: Ledger, id: number): DailySelection {
+    const row = one(this.store.db, rows.flow_documents.pick({ kind: true }), 'SELECT kind FROM flow_documents WHERE id=?', id);
+    if (!row) notFound('没有编号 ' + id + ' 的单据，可能已经删掉了。');
+    if (row.kind !== kind)
+      notFound('编号 ' + id + ' 的单据' + (isFlowKind(row.kind) ? '是' + flowDocNames[row.kind] : '') + '，不是' + flowDocNames[kind] + '。');
+    return { flowIds: [id], includeArchived: true };
   }
   /** 计划在这天的生产任务：按计划日列（有索引）圈出编号，再按主键组装；all 是读全部再筛 */
   private tasksOn(date: string, scope: DailyQuery['scope']) {

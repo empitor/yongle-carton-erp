@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Listed } from '../../shared/business/index';
 import { errorMessage, type Order } from '../../shared/core/index';
-import { listen, useAuthState, useSlots, type Slots } from '../ui/index';
+import { canViewFinance, listen, useAuthState, useSlots, type Slots } from '../ui/index';
 import { TODAY_SHOWN } from './today-groups';
 import { loadPendingConfirm, loadToday } from './list-api';
 
@@ -50,7 +50,7 @@ export function useTodayData() {
   }, [load]);
   // 到期应收应付：只有能看财务的账号才去取（业务员、只读账号不发这个请求，免得控制台一条 403），其他账号右栏不显示这一块。
   // 登录状态读到以后才知道有没有财务权限，所以单独取、跟着权限变。
-  const canSeeFinance = !!auth?.actor?.permissions.includes('finance:view');
+  const canSeeFinance = canViewFinance(auth);
   useEffect(() => {
     if (!canSeeFinance || !finance) {
       setDueRows([]);

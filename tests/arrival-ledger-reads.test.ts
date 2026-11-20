@@ -138,6 +138,36 @@ test('送货台账：计划日、出库日各自归属，撤销的不算但它�
   }
 });
 
+test('点开一张（doc）：已归档的到货单、送货单按编号也读得到验收入库和流水；列表照旧不带已归档的', () => {
+  const w = world(),
+    s = withShipping(w);
+  try {
+    archiveDoc(w.flow, s.d1.id, false, clerk, w.flow.get(s.d1.id).version);
+    const daily = new WarehouseDaily(w.store);
+    const arrival = daily.get({ kind: 'arrival', doc: w.a4.id });
+    assert.ok(arrival.kind === 'arrival');
+    assert.deepEqual(
+      arrival.records.map((r) => [r.flowId, r.inspectionStatus, r.inventoryStatus, r.lines[0].movements.length]),
+      [[w.a4.id, '全部合格', '已入库', 1]],
+    );
+    const delivery = daily.get({ kind: 'delivery', doc: s.d1.id });
+    assert.ok(delivery.kind === 'delivery');
+    assert.deepEqual(delivery.records.map((r) => [r.id, r.lines[0].movements.length]), [[s.d1.id, 1]]);
+    assert.ok(!docIds(daily.get({ kind: 'arrival', date: '2026-10-12', scope: 'all' })).includes(w.a4.id));
+    assert.ok(!docIds(daily.get({ kind: 'delivery', date: '2026-10-22', scope: 'all' })).includes(s.d1.id));
+    assert.throws(() => daily.get({ kind: 'task', doc: s.t1.id }), /只有到货单、送货单/);
+    // 在用的也一样：只回这一张
+    const own = (kind: 'arrival' | 'delivery', doc: number) => docIds(daily.get({ kind, doc }));
+    assert.deepEqual(own('arrival', w.a1.id), [w.a1.id]);
+    assert.deepEqual(own('delivery', s.d2.id), [s.d2.id]);
+    // 种类不对、编号不存在：报 404 说清楚，不回空列表
+    assert.throws(() => daily.get({ kind: 'arrival', doc: s.d2.id }), (e: unknown) => e instanceof Error && 'status' in e && e.status === 404 && /是送货单，不是到货单/.test(e.message));
+    assert.throws(() => daily.get({ kind: 'delivery', doc: 999999 }), /没有编号 999999 的单据/);
+  } finally {
+    w.store.close();
+  }
+});
+
 test('工作台按天数：待入库、待送货不分日期，当天到货、入库流水、出库、计划的生产任务按这天；首页可以不带工作台，助手的概览带上', () => {
   const w = world();
   withShipping(w);

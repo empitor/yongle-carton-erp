@@ -8,7 +8,7 @@ import { docIdOf, isFlowDoc, needsWork, type WarehouseKind, type WarehouseRow } 
 
 /**
  * 到货、送货页打开的那一条：点一行读它的单据（按钮按单据现在的状态算）、地址栏带着 doc 时打开那一张、
- * 业务数据变了重读打开着的单据。desk.view 是打开的单据，selected 是它在列表里的那一行。
+ * 业务数据变了重读打开着的单据。desk.view 是打开的单据。
  */
 export function useWarehouseView(kind: WarehouseKind, list: WarehouseList, desk: FlowDesk) {
   const { records, archivedScope, loaded, revision } = list;
@@ -58,6 +58,5 @@ export function useWarehouseView(kind: WarehouseKind, list: WarehouseList, desk:
       active = false;
     };
   }, [revision, setView]);
-  const selected = !archivedScope && view ? records.find((r) => docIdOf(r) === view.id) : undefined;
-  return { open, openError, selected };
+  return { open, openError };
 }

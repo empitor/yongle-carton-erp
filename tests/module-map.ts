@@ -169,8 +169,23 @@ export const ownerModule = (f: string): Rule => {
   return m;
 };
 export const inModules = (f: string) => /^(server|shared|src)\//.test(f);
-/** 模块的对外接口文件：index.ts，按需加载的页面 pages.ts */
-export const isEntry = (t: string) => /^(server|shared|src)\/[a-z]+\/(index|pages)\.ts$/.test(t);
+/**
+ * pages.ts 之外另立的按需加载入口：别的模块只用页面里的一小段、不该连带下载整套页面时才登记，写明理由。
+ * 和 pages.ts 一样只许 import()、只列自己模块的东西。
+ */
+export const lazyEntries: { file: string; why: string }[] = [
+  {
+    file: 'src/finance/related-pages.ts',
+    why:
+      '订单、送货、到货详情里的财务段：业务页面用，走 pages.ts 会把整套财务页面一起下载；' +
+      '在 pages.ts 里给整套页面再套一层 lazy 会让页面变成两层按需加载、入口名不对应实际组件，' +
+      '新开一个顶层目录放一个组件又要把财务模块拆到两个目录，都比登记一个入口更绕',
+  },
+];
+/** 按需加载的入口：各模块的 pages.ts 和上面登记的 */
+export const isLazyEntry = (t: string) => /^src\/[a-z]+\/pages\.ts$/.test(t) || lazyEntries.some((e) => e.file === t);
+/** 模块的对外接口文件：index.ts，按需加载的入口 */
+export const isEntry = (t: string) => /^(server|shared|src)\/[a-z]+\/(index|pages)\.ts$/.test(t) || isLazyEntry(t);
 /** 引用写法里 ? 和后面的部分（Vite 的 ?no-inline、?url 这类）不是文件名，解析时去掉；引用里照原样记 */
 const withoutQuery = (spec: string) => spec.replace(/\?.*$/, '');
 /** 相对路径 → 项目里的文件（.js 写法对应 .ts 源文件，目录对应 index.ts）；找不到返回 null */

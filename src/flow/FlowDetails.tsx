@@ -1,19 +1,27 @@
 import { FINISHED_UNIT, finishedUnit } from '../../shared/core/index';
-import { flowStatusText, type FlowDocView, type FlowKind } from '../../shared/business/index';
+import {
+  flowStatusText,
+  type ArrivalDaily,
+  type DeliveryDaily,
+  type FlowDocView,
+  type FlowKind,
+} from '../../shared/business/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { businessStatusTone, useRecordContext } from '../recordkit/record-meta';
 import ProductMarks from '../marks/ProductMarks';
-import { ArrivalLines, DeliveryLines } from './DocLines';
 import { planDate } from '../../shared/business/index';
 import { Facts, Hint, Progress, Section, StatusChip, type Tone } from '../ui/index';
 import { MaterialsTable, TaskProduction } from './FlowTaskSections';
-import { flowOverdue, shipDate } from './flow-dates';
+import { flowOverdue } from './flow-dates';
 import { waitingText } from './task-progress';
 import CorrectionNote from './CorrectionNote';
-import { flowSourceFileUrl } from './flow-api';
+import { ArrivalSections, DeliverySections, handler } from './FlowDocSections';
 
 /** 详情要对照的档案（显示名称、单号、单位用）：单据页读的全部清单，AI 导入的到货单只读了到货要的几份 */
 type DetailData = Partial<CatalogLists>;
+/** 到货单、送货单在台账里的样子（flow-api.ts 的 readFlowRecord 读的）：验收入库、每行的进度和流水 */
+export type FlowRecord = ArrivalDaily | DeliveryDaily;
+type DetailProps = { doc: FlowDocView; data: DetailData; record?: FlowRecord };
 
 const agentModule: Record<FlowKind, string> = {
   arrival: 'arrivals',
@@ -45,7 +53,7 @@ export function FlowStatus({ doc }: { doc: FlowDocView }) {
 const productNameOf = (d: { productName?: string; productId: number }, data: DetailData) =>
   d.productName || data.products?.find((p) => p.id === d.productId)?.name;
 
-/** 详情标题下面那一行：最关键的上下文。 */
+/** 详情标题下面那一行：最关键的上下文（到货、送货写往来单位和几种货）。 */
 export function flowSubtitle(d: FlowDocView, data: DetailData) {
   switch (d.kind) {
     // 成品数量都带单位“只”，和详情、列表一样
@@ -65,28 +73,32 @@ export function flowSubtitle(d: FlowDocView, data: DetailData) {
     }
     case 'delivery': {
       const customer = d.customerName || data.customers?.find((c) => c.id === d.customerId)?.name;
-      return [customer, d.address].filter(Boolean).join(' · ');
+      return [customer, d.lines.length + ' 种产品'].filter(Boolean).join(' · ');
     }
   }
 }
 
-/** 按单据种类的正文 */
-function KindDetails({ d, data, person }: { d: FlowDocView; data: DetailData; person: string }) {
+/** 按单据种类的正文；到货单、送货单的在 FlowDocSections.tsx */
+function KindDetails({ doc: d, data, record }: DetailProps) {
+  const person = handler(d);
   switch (d.kind) {
     case 'task':
       return <TaskDetails d={d} data={data} person={person} />;
     case 'production':
       return <ProductionDetails d={d} data={data} person={person} />;
     case 'arrival':
-      return <ArrivalDetails d={d} data={data} person={person} />;
+      return <ArrivalSections d={d} data={data} record={record && 'flowId' in record ? record : undefined} />;
     case 'delivery':
-      return <DeliveryDetails d={d} data={data} person={person} />;
+      return <DeliverySections d={d} data={data} record={record && !('flowId' in record) ? record : undefined} />;
   }
 }
 
-export default function FlowDetails({ doc: d, data }: { doc: FlowDocView; data: DetailData }) {
+/**
+ * 一张单据的详情正文（单据页、库存页、归档、单据窗口、核对窗都是这一份）：更正、撤销、取消、逾期的提示，再按种类的正文。
+ * record 是到货单、送货单的台账记录（核对窗里没有）。
+ */
+export default function FlowDetails({ doc: d, data, record }: DetailProps) {
   useRecordContext(agentModule[d.kind], d.id, d.number);
-  const person = d.confirmedBy || d.actorName;
   return (
     <div
       className="flow-details"
@@ -112,7 +124,7 @@ export default function FlowDetails({ doc: d, data }: { doc: FlowDocView; data: 
         </Hint>
       )}
 
-      <KindDetails d={d} data={data} person={person} />
+      <KindDetails doc={d} data={data} record={record} />
     </div>
   );
 }
@@ -194,71 +206,6 @@ function ProductionDetails({ d, data, person }: { d: FlowDocView<'production'>; 
           <ProductMarks productId={d.productId} readOnly />
         </div>
       )}
-    </>
-  );
-}
-
-/**
- * 到货单：到货明细（对上的采购单）、到货时间、送货单号、原件。
- * 过了核对这一步的（已入库、已取消、已撤销）明细的入库数没有就写“—”，还待入库的写“核对时算”（和到货页同一个判断）。
- */
-function ArrivalDetails({ d, data, person }: { d: FlowDocView<'arrival'>; data: DetailData; person: string }) {
-  return (
-    <>
-      <ArrivalLines
-        lines={d.lines}
-        confirmed={d.status !== 'draft'}
-        purchaseOf={(l) => data.purchases?.find((p) => p.lines.some((x) => x.id === l.purchaseLineId))}
-      />
-      <Section title="基本信息">
-        <Facts
-          items={[
-            { label: '实际到货', value: [d.date, d.actualTime || ''].join(' ').trim() },
-            { label: '供应商送货单号', value: d.reference },
-            { label: '经办人', value: person },
-            {
-              label: '送货单原件',
-              value: d.sourceId ? (
-                <a target="_blank" rel="noreferrer" href={flowSourceFileUrl(d.sourceId)}>
-                  查看原件
-                </a>
-              ) : (
-                ''
-              ),
-              hidden: !d.sourceId,
-            },
-            { label: '备注', value: d.notes, wide: true, hidden: !d.notes },
-          ]}
-        />
-      </Section>
-    </>
-  );
-}
-
-/** 送货单：送货明细（对上的订单明细）、计划和实际发货、送达、联系人和地址 */
-function DeliveryDetails({ d, data, person }: { d: FlowDocView<'delivery'>; data: DetailData; person: string }) {
-  return (
-    <>
-      <DeliveryLines
-        lines={d.lines}
-        orderLineOf={(l) => {
-          const order = data.orders?.find((o) => o.id === l.orderId);
-          return { order, line: order?.lines.find((x) => x.id === l.orderLineId) };
-        }}
-      />
-      <Section title="基本信息">
-        <Facts
-          items={[
-            { label: '计划送货', value: [planDate(d), d.plannedTime].filter(Boolean).join(' ') },
-            { label: '实际发货', value: shipDate(d) || '还没出库' },
-            { label: '送达', value: d.deliveredAt, hidden: !d.deliveredAt },
-            { label: '联系人', value: [d.contact, d.phone].filter(Boolean).join(' ') },
-            { label: '经办人', value: person },
-            { label: '收货地址', value: d.address, wide: true },
-            { label: '备注', value: d.notes, wide: true, hidden: !d.notes },
-          ]}
-        />
-      </Section>
     </>
   );
 }

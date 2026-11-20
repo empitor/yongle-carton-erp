@@ -1,6 +1,6 @@
 // 采购、到货、送货、库存点到底（和 operations 同一组，接在它后面；operations 会删掉供应商虚构华美瓦楞）：
-// 新建采购单保存为待到货 → 按这张采购单登记到货，原材料库存加上；待订货的采购单导出 Excel 订货单；已入库到货单只改备注和到货时间；从订单安排送货 → 导出并出库，下载到送货单文件、成品库存扣掉；库存品手动入库再盘点调整。全部虚构数据。
-import { BASE, SP, businessDay, fail, login, notice, ok, openChrome, step as stepOn } from './lib.mjs';
+// 新建采购单保存为待到货 → 按这张采购单登记到货，原材料库存加上；待订货的采购单导出 Excel 订货单；已入库到货单只改备注和到货时间；从订单安排送货 → 导出并出库，下载到送货单文件、成品库存扣掉；库存品手动入库再盘点调整；已归档的到货单、送货单详情和在用的一样。全部虚构数据。
+import { BASE, SP, businessDay, call, fail, login, notice, ok, openChrome, step as stepOn } from './lib.mjs';
 const { context, page, consoleErrors } = await openChrome({ width: 1440, height: 900 });
 const dialog = () => page.locator('[role="dialog"][aria-modal="true"]').last();
 const panel = () => page.locator('.detail-panel');
@@ -228,6 +228,40 @@ await step('出入库和盘点', async () => {
   if (afterIn - before !== 50) fail('手动入库 50 张后余额不对：' + before + ' → ' + afterIn);
   else if (afterAdjust !== afterIn - 5) fail('盘点调整到 ' + (afterIn - 5) + ' 后余额是 ' + afterAdjust);
   else ok(spare.name + ' 手动入库 ' + before + ' → ' + afterIn + '（' + inSaid + '），盘点到 ' + afterAdjust + '（' + adjustSaid + '）');
+});
+
+// 已归档的到货单、送货单：详情和在用的同一份，验收 / 入库、出入库流水、明细里的采购单和订单链接都在。看完恢复，后面的流程照旧
+await step('已归档的到货单、送货单详情和在用的一样', async () => {
+  const archive = (action, doc) =>
+    call(page, 'POST', '/flow/batch', { action, acknowledged: true, items: [{ id: doc.id, version: doc.version }] });
+  const stocked = (kind) =>
+    api('/api/flow?kind=' + kind).then((rows) => rows.find((d) => d.status === 'confirmed' && !d.archived && !d.replacedBy));
+  const checks = [
+    { kind: 'arrival', hash: '#warehouse?arrivals=1', want: ['验收 / 入库', '入库流水', '到货记录'], link: 'a[href^="#purchases?"]' },
+    { kind: 'delivery', hash: '#warehouse?kind=finished&deliveries=1', want: ['出库流水'], link: 'a[href^="#orders?"]' },
+  ];
+  for (const c of checks) {
+    const doc = await stocked(c.kind);
+    await archive('archive', doc);
+    let text = '',
+      links = 0;
+    try {
+      await page.goto(BASE + c.hash);
+      await page.getByRole('radio', { name: '已归档' }).or(page.getByRole('button', { name: '已归档', exact: true })).first().click();
+      await page.locator('main tbody tr', { hasText: doc.number }).first().click();
+      // 正文等台账记录读到才显示；等不到就是这一步出错（step 报出来）
+      await panel().getByText(c.want[0], { exact: true }).waitFor({ timeout: 8000 });
+      text = await panel().innerText();
+      links = await panel().locator(c.link).count();
+      await shot('已归档' + (c.kind === 'arrival' ? '到货单' : '送货单') + '详情');
+    } finally {
+      // 不管看没看成都恢复，后面的流程照旧用这张单
+      await archive('restore', await api('/api/flow/' + doc.id));
+    }
+    const missing = c.want.filter((w) => !text.includes(w));
+    if (missing.length || !links) fail('已归档的 ' + doc.number + ' 详情缺：' + [...missing, links ? '' : '明细链接'].filter(Boolean).join('、'));
+    else ok('已归档的 ' + doc.number + ' 详情有 ' + c.want.join('、') + '和明细链接');
+  }
 });
 
 const real = [...new Set(consoleErrors)].filter((e) => !/status of (403|409)/.test(e));

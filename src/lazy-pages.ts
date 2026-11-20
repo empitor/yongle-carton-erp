@@ -8,3 +8,4 @@ export const OperationsPage = lazy(() => import('./records/pages').then((m) => (
 export const FlowPage = lazy(() => import('./flow/pages').then((m) => ({ default: m.FlowPage })));
 export const GlobalAssistant = lazy(() => import('./assistant/pages').then((m) => ({ default: m.GlobalAssistant })));
 export const OrderImportPage = lazy(() => import('./import/pages').then((m) => ({ default: m.OrderImportPage })));
+export const InboxPage = lazy(() => import('./import/pages').then((m) => ({ default: m.InboxPage })));

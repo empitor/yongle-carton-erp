@@ -155,6 +155,16 @@ test('已生效的送货单、完工单：“编辑”只改说明、详情留�
       assert.doesNotMatch(html, /直接编辑|按原单重新填写/, kind + ' ' + status);
     }
 });
+
+test('待送货的送货单：主按钮导出送货单，更多里有不导出直接出库、调整排程、归档、取消；打印在导出窗里，不另放', () => {
+  const pending = { id: 9, kind: 'delivery' as const, status: 'draft', number: 'SH-虚构-9', version: 2, lines: [] };
+  const bar = actions(renderToStaticMarkup(h(FlowActionBar, { view: pending, ctx: ctx() })));
+  assert.equal(bar.primary, '导出送货单');
+  assert.ok(bar.visible.includes('编辑'));
+  for (const label of ['不导出直接出库', '调整排程', '归档', '取消这次送货']) assert.ok(bar.more.includes(label), label);
+  assert.doesNotMatch(bar.more + bar.visible.join(), /打印|查看正式记录|修改 \//);
+});
+
 test('调整排程窗口显示保存没成功的原因', () => {
   const html = renderToStaticMarkup(
     h(FlowScheduleDialog, {

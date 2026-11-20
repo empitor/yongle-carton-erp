@@ -42,6 +42,8 @@ const live = (d) => d.status === 'confirmed' && !d.replacedBy && !d.archived;
 const openDelivery = async (id) => {
   await page.goto(BASE + '#warehouse?kind=finished&deliveries=1&doc=' + id);
   await panel().waitFor();
+  // 正文等关联档案和这张单的台账记录（验收入库、流水）读到才显示
+  await panel().getByText('正在读取关联档案').waitFor({ state: 'detached', timeout: 8000 });
 };
 /** 在更正窗里改第 n 个“正确数量”、写原因，等核验完再提交；返回提交后的页面提示 */
 const submitCorrection = async (index, value, reason, label) => {

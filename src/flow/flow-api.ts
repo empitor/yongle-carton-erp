@@ -20,9 +20,23 @@ export const readFlow = (id: number) => flow('GET /flow/:id', { params: { id } }
 export const readFlowList = (kind: FlowKind, archived: boolean) =>
   flow('GET /flow', { query: { kind, archived: archived ? '1' : undefined } });
 
+const readDaily = (query: FlowApi['GET /flow/daily']['query']) => flow('GET /flow/daily', { query });
+/** 到货、送货的台账回答（按到货、送货读的，不会是生产任务） */
+function ledger(d: Awaited<ReturnType<typeof readDaily>>) {
+  if (d.kind === 'task') throw new Error('仓库台账要的是到货、送货记录，读到的却是生产任务。');
+  return d;
+}
+
 /** 到货、送货页的记录：days 给了只读待处理的和最近这么多天的，不给读全部 */
 export const readFlowDaily = (kind: 'arrival' | 'delivery', days: number | null) =>
-  flow('GET /flow/daily', { query: days === null ? { kind, scope: 'all' } : { kind, scope: 'recent', days } });
+  readDaily(days === null ? { kind, scope: 'all' } : { kind, scope: 'recent', days }).then(ledger);
+
+/**
+ * 点开的这张到货单、送货单在台账里的样子（验收入库、每行的采购单或订单进度、入库出库流水），已归档的也读得到。
+ * 台账按单据编号只组装这一张；单据已经删掉时没有（null）。
+ */
+export const readFlowRecord = (kind: 'arrival' | 'delivery', id: number) =>
+  readDaily({ kind, doc: id }).then((d) => ledger(d).records.at(0) ?? null);
 
 /** 新建一张单据（正文带请求号）：没有采购单的到货、生产任务、送货；完工只走登记完工 */
 export const createFlow = (kind: Exclude<FlowKind, 'production'>, body: FlowApi['POST /flow/:kind']['body']) =>

@@ -40,6 +40,10 @@ export function parseAuthState(body: unknown): AuthState | null {
 export function canEditBusiness(auth: Pick<AuthState, 'actor'> | null | undefined): boolean {
   return !!auth?.actor && (!!auth.actor.superAdminMode || auth.actor.permissions.includes('business:edit'));
 }
+/** 能不能看财务（财务页、详情里的财务段、到期应收应付）：有财务查看权限。还没读到登录状态时算不能。 */
+export function canViewFinance(auth: Pick<AuthState, 'actor'> | null | undefined): boolean {
+  return !!auth?.actor?.permissions.includes('finance:view');
+}
 /** 只读账号从链接、搜索面板或别的页面点了新建、办理类入口时的提示。 */
 export const readOnlyNotice = '当前账号只能查看，新建和办理单据需要业务编辑权限。';
 /** 登录状态变了（登录、退出、改密码、切换超级管理员模式、接口回 401）：作废记下的登录状态，页面重新读。 */

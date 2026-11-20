@@ -174,6 +174,21 @@ await step('采购退货再撤销', async () => {
   await dialog().getByRole('button', { name: '确认退货' }).click();
   await dialog().waitFor({ state: 'detached', timeout: 8000 });
   await toast(/退货/);
+  // 从采购单详情点开这张到货单（窗口）：退货照样列出来、不能撤销（撤销到到货页办），到货记录和到货页一样有
+  await page.goto(BASE + '#purchases?record=' + target.lines[0].purchaseId);
+  await page.locator('.rb-docs button', { hasText: target.number }).first().click();
+  await dialog().locator('.flow-returns').waitFor({ timeout: 8000 });
+  const popupUndo = await dialog().getByRole('button', { name: '撤销退货' }).count();
+  const popupHistory = await dialog().getByRole('heading', { name: '到货记录' }).count();
+  // 到货记录展开后也只看：不能在窗口上再开“更正到货单”
+  if (popupHistory) await dialog().getByRole('button', { name: /^展开 \d+ 批$/ }).click();
+  await dialog().locator('.receipt-history').waitFor({ timeout: 5000 }).catch(() => fail('窗口里的到货记录点“展开”没列出来'));
+  const popupCorrect = await dialog().getByRole('button', { name: '更正到货单' }).count();
+  await shot('窗口里的到货单退货');
+  const problems = [popupUndo && '退货能撤销', !popupHistory && '没有到货记录', popupCorrect && '到货记录能更正到货单'].filter(Boolean);
+  if (problems.length) fail('从采购单点开的到货单窗口：' + problems.join('、'));
+  else ok('从采购单点开的到货单窗口：列出退货和到货记录，不能撤销退货、不能更正到货单');
+  await page.keyboard.press('Escape');
   await openArrival(target.id);
   const undo = panel().getByRole('button', { name: '撤销退货' });
   await undo.first().waitFor({ timeout: 5000 });

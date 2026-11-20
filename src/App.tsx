@@ -1,7 +1,7 @@
 import { Suspense, useState } from 'react';
 import { AlertCircle, Check, Info } from 'lucide-react';
 import { APP_VERSION, financeOnlyAccount } from '../shared/core/index';
-import { BrandLogo, canEditBusiness, ErrorBoundary, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
+import { BrandLogo, canEditBusiness, canViewFinance, ErrorBoundary, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
 import { useAppHome } from './app-bridge';
 import LoginScreen from './LoginScreen';
 import ForcedPasswordChange from './ForcedPasswordChange';
@@ -10,9 +10,18 @@ import AppTopbar from './AppTopbar';
 import { MobileSubNav, MobileTabBar, useMobileTables } from './mobile/MobileNav';
 import { useAppContentStretch } from './mobile/content-stretch';
 import CommandPalette from './CommandPalette';
-import { InboxPage, useAppShareAccount } from './import/index';
+import { useAppShareAccount } from './import/index';
 import { SuperModeBanner } from './admin/index';
-import { AccountManagement, AiSettingsHub, FinancePages, FlowPage, GlobalAssistant, OperationsPage, OrderImportPage } from './lazy-pages';
+import {
+  AccountManagement,
+  AiSettingsHub,
+  FinancePages,
+  FlowPage,
+  GlobalAssistant,
+  InboxPage,
+  OperationsPage,
+  OrderImportPage,
+} from './lazy-pages';
 import { RecordPages, recordPages } from './records/index';
 import GuidePage from './GuidePage';
 import {
@@ -44,7 +53,7 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
   const superMode = !!actor.superAdminMode,
     // 出纳这类纯财务账号只看财务页面，业务数据也不加载（后端同样会拒绝）。
     financeOnly = financeOnlyAccount(actor),
-    finance = actor.permissions.includes('finance:view'),
+    finance = canViewFinance(auth),
     canCreate = canEditBusiness(auth);
   useReloadOnAccountSwitch(actor.id);
   useMobileTables();

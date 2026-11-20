@@ -6,7 +6,6 @@ import { ListEmpty } from '../flow/ListParts';
 import { useFlowDesk, type FlowDesk } from '../flow/useFlowDesk';
 import ReadyToShip from './ReadyToShip';
 import WarehouseHeading from './WarehouseHeading';
-import WarehouseRecordPanel from './WarehouseRecordPanel';
 import WarehouseTable from './WarehouseTable';
 import WarehouseToolbar from './WarehouseToolbar';
 import {
@@ -14,7 +13,6 @@ import {
   isFlowDoc,
   partyOf,
   purchaseOfLine,
-  statusOf,
   type PurchaseLookup,
   type WarehouseKind,
   type WarehouseRow,
@@ -42,7 +40,7 @@ export default function WarehouseRecords({ kind }: { kind: WarehouseKind }) {
   const [planning, setPlanning] = useState<{ preset?: PlanPreset } | null>(null);
   const list = useWarehouseList(kind, auth?.actor?.id);
   const { archivedScope, filtered, scope } = list;
-  // 已归档的单据：详情、恢复、删除和单据页同一套（useFlowDesk），另两档用仓库自己的面板
+  // 详情、按钮和办理和单据页同一套（useFlowDesk）；已归档这一档的行本身就是单据
   const desk = useFlowDesk({
     kind,
     setKind: () => {},
@@ -56,7 +54,7 @@ export default function WarehouseRecords({ kind }: { kind: WarehouseKind }) {
     setSelected: () => {},
     setNotice: notify,
   });
-  const { open, openError, selected } = useWarehouseView(kind, list, desk);
+  const { open, openError } = useWarehouseView(kind, list, desk);
   const purchaseOf: PurchaseLookup = (l) => purchaseOfLine(list.purchases, l);
   const error = openError || list.error || desk.error;
   return (
@@ -92,26 +90,13 @@ export default function WarehouseRecords({ kind }: { kind: WarehouseKind }) {
         purchaseOf={purchaseOf}
         plan={() => setPlanning({})}
       />
-      {archivedScope && (
-        <FlowDocView
-          desk={desk}
-          {...stepper(filtered, (r) => r.id, desk.view?.id, (r, i) => {
-            open(r);
-            list.setPage(Math.floor(i / LIST_PAGE_SIZE) + 1);
-          })}
-        />
-      )}
-      {selected && desk.view && (
-        <WarehouseRecordPanel
-          kind={kind}
-          record={selected}
-          status={statusOf(kind, selected)}
-          purchase={kind === 'arrival' ? selected.lines.map(purchaseOf).find(Boolean) || null : null}
-          desk={desk}
-          close={() => desk.setView(null)}
-          {...stepper(filtered, (r) => r, selected, open)}
-        />
-      )}
+      <FlowDocView
+        desk={desk}
+        {...stepper(filtered, docIdOf, desk.view?.id, (r, i) => {
+          open(r);
+          list.setPage(Math.floor(i / LIST_PAGE_SIZE) + 1);
+        })}
+      />
       <FlowDeskDialogs desk={desk} />
       {planning && (
         <Suspense fallback={null}>

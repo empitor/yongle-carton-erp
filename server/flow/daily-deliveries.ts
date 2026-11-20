@@ -83,11 +83,16 @@ function lineView(l: DeliveryLine, o: Order | undefined, stock: StockItem | unde
 
 /**
  * 台账里的送货单。workbenchDate：今日页只要待送货、本月已出库、计划在这天的，不带流水；
- * flowIds：只组装这几张（按主键）。
+ * flowIds：只组装这几张（按主键）；includeArchived 为真时已归档的也组装（点开一张已归档的详情）。
  */
-export function deliveryRecords(store: Store, workbenchDate?: string, flowIds?: readonly number[]): DeliveryDaily<MovementRow>[] {
+export function deliveryRecords(
+  store: Store,
+  workbenchDate?: string,
+  flowIds?: readonly number[],
+  includeArchived = false,
+): DeliveryDaily<MovementRow>[] {
   const flow = new FlowService(store);
-  const deliveries = flow.list('delivery', false, workbenchDate, flowIds);
+  const deliveries = flow.list('delivery', includeArchived, workbenchDate, flowIds);
   const orders = new Map(store.ordersByIds(deliveries.flatMap((d) => d.lines.map((l) => l.orderId)), true).map((o) => [o.id, o]));
   const stocks = new Map(flow.ops.repo.items(true, deliveries.flatMap((d) => d.lines.map((l) => l.stockId))).map((s) => [s.id, s]));
   const customers = new Map(

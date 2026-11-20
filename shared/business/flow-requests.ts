@@ -35,13 +35,19 @@ export const stockBatchesQuerySchema = z.object({ depleted: z.literal('all').opt
 /** 到货记录（GET /flow/arrival-records）：地址上只收到货日期和采购单，别的查询条件（供应商、记录编号）只给服务端内部和助手用 */
 export const arrivalRecordsQuerySchema = z.object({ date: dateSchema.optional(), purchaseId: recordId.optional() });
 
-/** 仓库台账（GET /flow/daily）：哪种、哪天（默认今天）；day 按天看，all 读全部，recent 是还要处理的加最近 days 天的 */
-export const dailyQuerySchema = z.strictObject({
-  kind: z.enum(['arrival', 'delivery', 'task']),
-  date: dateSchema.default(today),
-  scope: z.enum(['day', 'all', 'recent']).default('day'),
-  days: z.coerce.number<number | string>().int().min(1).max(MAX_RECENT_DAYS).default(RECENT_DAYS),
-});
+/**
+ * 仓库台账（GET /flow/daily）：哪种、哪天（默认今天）；day 按天看，all 读全部，recent 是还要处理的加最近 days 天的。
+ * doc：点开一张到货单、送货单的详情，只读这一张（已归档的也读，列表照旧不带已归档的），日期和范围不看。
+ */
+export const dailyQuerySchema = z
+  .strictObject({
+    kind: z.enum(['arrival', 'delivery', 'task']),
+    date: dateSchema.default(today),
+    scope: z.enum(['day', 'all', 'recent']).default('day'),
+    days: z.coerce.number<number | string>().int().min(1).max(MAX_RECENT_DAYS).default(RECENT_DAYS),
+    doc: recordId.optional(),
+  })
+  .refine((q) => !q.doc || q.kind !== 'task', { message: '只有到货单、送货单能按单据读台账记录。', path: ['doc'] });
 
 /** 一张到货单下的退货记录（GET /flow/returns）：不给到货单就列最近的全部 */
 export const returnsQuerySchema = z.object({ arrivalId: recordId.optional() });
