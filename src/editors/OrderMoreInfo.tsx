@@ -1,12 +1,13 @@
+import { roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
 import { FormField, FormSection } from '../ui/index';
 import OrderCosts from './OrderCosts';
 import type { CostDraft, OrderExtras } from './order-draft';
 
-/** 金额结算的两种选法：下拉框照这里列，选中的按这里取值 */
-const roundingChoices = [
-  { value: 'exact-cents', label: '精确到分，不自动舍入' },
-  { value: 'half-up-cent', label: '明确采用整单四舍五入到分' },
-] as const satisfies readonly { value: OrderExtras['roundingPolicy']; label: string }[];
+/** 金额结算的两种选法：下拉框按共用的叫法列，选中的按这里取值 */
+const roundingChoices = roundingPolicies.map((value) => ({
+  value,
+  label: roundingPolicyLabels[value],
+})) satisfies readonly { value: OrderExtras['roundingPolicy']; label: string }[];
 
 /**
  * 订单编辑窗里收起来的“更多信息”：供应方、税率和含税口径、金额结算、合同条件、预估成本。

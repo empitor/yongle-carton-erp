@@ -53,7 +53,7 @@ export const documentInboxTools = [
     name: 'inbox.set_status',
     risk: 'review',
     description: '把收件标为已处理、已忽略或恢复待处理，不建业务单据。expectedVersion 用 inbox.list 读到的 version。',
-    arguments: { id: 1, status: ['pending', 'converted', 'ignored'], expectedVersion: 1 },
+    arguments: { id: 1, status: inboxStatuses, expectedVersion: 1 },
     schema: inboxStatusSchema,
   },
   {

@@ -21,9 +21,9 @@ const productTemplate = () => ({
   priceCents: 0,
   priceExact: '',
 });
-const stockTemplate = () => ({
+// 采购明细、到货明细的纸板资料：库存品那几格去掉“种类”“产品”（纸板就是原材料，录入结构不收这两格，放进来会被悄悄丢掉）
+const sheetTemplate = () => ({
   name: '',
-  kind: 'raw',
   unit: RAW_UNIT,
   specification: '',
   length: null,
@@ -33,8 +33,11 @@ const stockTemplate = () => ({
   material: '',
   flute: '',
   notes: '',
-  productId: null,
 });
+const stockTemplate = () => {
+  const { name, ...sheet } = sheetTemplate();
+  return { name, kind: 'raw', ...sheet, productId: null };
+};
 const orderLineTemplate = () => ({
   productId: null,
   // 产品名称不放进模板：不填就按产品档案的名称存（server/core/db.ts 保存订单），要另起名字的保存后再编辑。
@@ -62,6 +65,8 @@ const orderTemplate = (today: string) => ({
   costs: null,
   currency: 'CNY',
   externalPurchaseOrder: '',
+  // 金额结算和订单页编辑窗一样先是“精确到分，不自动舍入”；单价有不足一分的尾数时人在这一格改选
+  roundingPolicy: 'exact-cents',
 });
 const purchaseTemplate = (today: string) => ({
   supplierId: null,
@@ -70,7 +75,7 @@ const purchaseTemplate = (today: string) => ({
   expectedDate: null,
   status: '待订货',
   notes: '',
-  lines: [{ ...stockTemplate(), stockItemId: null, quantity, unitPrice: null, priceBasis: 'area' }],
+  lines: [{ ...sheetTemplate(), stockItemId: null, quantity, unitPrice: null, priceBasis: 'area' }],
 });
 const arrivalTemplate = (today: string) => ({
   date: today,
@@ -82,7 +87,7 @@ const arrivalTemplate = (today: string) => ({
     {
       stockId: null,
       purchaseLineId: null,
-      item: stockTemplate(),
+      item: sheetTemplate(),
       quantity,
       statedQuantity: null,
       unitPrice: null,

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { SelectionBar, yuan, hashParams } from '../../ui/index';
-import { errorMessage } from '../../../shared/core/index';
 import { missingAmountName } from '../../../shared/finance/index';
 import { useEnable } from '../enable';
 import TaxBatchDialog from './TaxBatchDialog';
@@ -9,7 +8,7 @@ import { ErrorLine, FinHead, PeriodInput } from '../layout';
 import { FinList, col, type Col } from '../table';
 import { FlowStatus } from '../status';
 import { documentName, metricNames, sourceMonthName } from '../labels';
-import { exportHref, syncEvents, useFinPerms, useFinRead } from '../fin-api';
+import { exportHref, useFinPerms, useFinRead, useSyncOnOpen } from '../fin-api';
 import { usePeriod } from '../page-state';
 import type { SourceRow } from '../source-detail-view';
 import { listMonthlyLedger } from './tax-api';
@@ -76,11 +75,8 @@ export default function FlowLedgerPage() {
   const [rows, setRows] = useState<SourceRow[]>([]);
   const [picked, setPicked] = useState<number[]>([]);
   const [dialog, setDialog] = useState<'picked' | 'party' | null>(null);
-  const [syncError, setSyncError] = useState('');
-  useEffect(() => {
-    // 补扫到新单据时 syncEvents 会让财务页面重读，台账跟着刷新
-    syncEvents().catch((e: unknown) => setSyncError(errorMessage(e)));
-  }, [period, enable.enabled]);
+  // 换月份、刚启用时再补扫；补扫到新单据时会让财务页面重读，台账跟着刷新
+  const sync = useSyncOnOpen(period + ':' + String(enable.enabled));
   const query = ledgerQuery(period, filter);
   const flow = useFinRead(['GET /finance/monthly-ledger', { query: { period, pageSize: 1 } }]);
   const s = flow.data?.summary;
@@ -114,7 +110,7 @@ export default function FlowLedgerPage() {
           }}
         />
       </FinHead>
-      <ErrorLine text={syncError} close={() => setSyncError('')} />
+      <ErrorLine text={sync.error} close={sync.clear} />
       <LedgerSummary s={s} missingCount={missingCount} />
       <MissingTaxHint missingCount={missingCount} enable={enable} canEdit={perms.edit} />
       <LedgerFilters filter={filter} change={change} missingCount={missingCount} />

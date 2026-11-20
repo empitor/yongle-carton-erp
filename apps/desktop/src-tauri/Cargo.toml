@@ -1,0 +1,48 @@
+[package]
+name = "yongle-erp-desktop"
+version = "0.1.0"
+description = "甬勒ERP 的 Windows 外壳"
+edition = "2021"
+publish = false
+# 客户端核心：窗口、托盘、单实例、下载、应用内更新。编成 yongle_erp_core.dll，由启动器加载进同一个进程
+[lib]
+name = "yongle_erp_core"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+# 启动器：唯一的程序（安装后改名 甬勒ERP.exe，快捷方式指向它）；只加载同目录下的核心 dll，只用标准库
+[[bin]]
+name = "yongle-erp-launcher"
+path = "src/launcher.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-opener = "2.7"
+tauri-plugin-updater = "2"
+tauri-plugin-autostart = "2"
+serde_json = "1"
+# 主页面加载的结果（WebView2 的“导航完成”事件）：和 tauri 里 wry 用的是同一份，不另引一份
+webview2-com = "0.39"
+windows-core = "0.62"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+
+# 函数规模上限（阈值在 clippy.toml）：行数 80（不算空行、注释）、参数 5，和 ERP 的代码检查一致。
+# 另外两条口径不同，只当粗筛：clippy 没有圈复杂度，cognitive_complexity 20 是“认知复杂度”；
+# excessive_nesting 4 连函数体、闭包体一起算，比 ERP 的嵌套 4 层大约严一层。
+# 不用 unwrap / expect（对应 ERP 不用非空断言）；常量网址这类一定成功的，用 #[expect(..., reason = "…")] 写明理由。
+[lints.clippy]
+too_many_lines = "deny"
+too_many_arguments = "deny"
+cognitive_complexity = "deny"
+excessive_nesting = "deny"
+unwrap_used = "deny"
+expect_used = "deny"

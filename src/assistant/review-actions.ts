@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { deliverBusinessFile } from '../documents/index';
-import { emit, isNetworkError, notify, textField } from '../ui/index';
+import { emit, isNetworkError, notify, textField, type FileSaver } from '../ui/index';
 import { errorMessage } from '../../shared/core/index';
 import type { JsonView, PlanCard, ThreadView } from '../../shared/assistant/index';
 import { changeInventoryPolicy, executePreview, rejectPreview, type AssistantState } from './assistant-api';
@@ -28,6 +28,8 @@ export type ReviewDeps = {
   onDecided: (card: CardDecision) => void;
   setReview: Dispatch<SetStateAction<ReviewPlan | null>>;
   reviewRef: RefObject<HTMLElement | null>;
+  /** 导出类方案执行后保存文件（useSaveFile） */
+  saveFile: FileSaver;
 };
 
 /** 服务器说 409：卡片上看到的已经不是现在这一版 */
@@ -76,14 +78,14 @@ export async function changeReviewPolicy(d: ReviewDeps, review: ReviewPlan, inve
 type ExecutedResult = Awaited<ReturnType<typeof executePreview>>;
 /** 执行成功以后和浏览器打交道的几件事：下载导出的文件、下载失败怎么说、告诉别的页面数据变了 */
 export type ExecutedEffects = {
-  /** 交回导出记录（下载完单据状态才改），这里只等它做完 */
+  /** 交回导出记录（文件存好后单据状态才改），这里只等它做完 */
   download: (file: JsonView) => Promise<unknown>;
   downloadFailed: (message: string) => void;
   announce: () => void;
 };
-const browserEffects: ExecutedEffects = {
-  // 导出类的卡片：文件交给浏览器下载，下载完成后单据状态才改（和人工导出同一条路）
-  download: (file) => deliverBusinessFile(readExportFile(file)),
+const pageEffects = (save: FileSaver): ExecutedEffects => ({
+  // 导出类的卡片：文件保存好（浏览器下载，安卓 App 里存进手机“下载”）之后单据状态才改（和人工导出同一条路）
+  download: (file) => deliverBusinessFile(readExportFile(file), save),
   // 助手接着办时会清掉输入框上方的出错说明，下载失败放在页面底部的提示里，看得到
   downloadFailed: (message) => notify(message, 'error'),
   announce: () => {
@@ -91,7 +93,7 @@ const browserEffects: ExecutedEffects = {
     // 识别工作区的归档、恢复、复制、删除：AI 导入页的列表跟着变
     emit('erp-ai-workspace-list-changed');
   },
-};
+});
 type AfterDeps = Pick<ReviewDeps, 'thread' | 'loadThread' | 'loadState' | 'onDecided'>;
 
 /**
@@ -126,7 +128,7 @@ export async function executeReview(d: ReviewDeps, review: ReviewPlan, password:
     clearPassword();
     if (d.userRef.current !== owner) return;
     d.setReview(null);
-    await afterExecuted(d, id, result, browserEffects);
+    await afterExecuted(d, id, result, pageEffects(d.saveFile));
   } catch (e) {
     d.setError(errorMessage(e));
     // 出卡片以后数据变了，服务器把这张卡片作废了：和点“不执行”之后一样收起核对区、交回助手，让它按最新数据重新出一张

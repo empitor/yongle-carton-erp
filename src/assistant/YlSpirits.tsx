@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { FloatingDock } from './floating-assistant';
 import type { AssistantSpeaker } from '../../shared/assistant/index';
 import { LeFigure, SceneEffects, YongFigure } from './yl-figures';
+import { prefersReducedMotion } from '../ui/index';
 
 /** 两人互动的小剧场，值是时长（毫秒），要和 yl-spirits.css 里的动画时长一致。 */
 const scenes = {
@@ -16,9 +17,6 @@ type Scene = keyof typeof scenes;
 const isScene = (name: string): name is Scene => name in scenes;
 const idleScenes = Object.keys(scenes).filter(isScene);
 const FIRST_SCENE_DELAY = 6000;
-const reducedMotion = () =>
-  typeof window !== 'undefined' &&
-  !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 /** 聊天消息前的小头像：只画头和脸，不动。 */
 export function SpeakerAvatar({ speaker }: { speaker: AssistantSpeaker }) {
@@ -48,7 +46,7 @@ function useEyeTracking(
   enabled: boolean,
 ) {
   useEffect(() => {
-    if (!enabled || reducedMotion()) return;
+    if (!enabled || prefersReducedMotion()) return;
     let frame = 0;
     let point: { x: number; y: number } | null = null;
     const apply = () => {
@@ -135,7 +133,7 @@ export default function YlSpirits({
 
   // AI 做完了：两个人击掌。
   useEffect(() => {
-    if (wasBusy.current && !busy && !still && !compact && !reducedMotion()) setScene('highfive');
+    if (wasBusy.current && !busy && !still && !compact && !prefersReducedMotion()) setScene('highfive');
     wasBusy.current = busy;
   }, [busy, still, compact]);
 
@@ -152,7 +150,7 @@ export default function YlSpirits({
 
   // 平时隔一会儿自己玩一段。贴边半隐藏、拖动、AI 处理中都不演。
   useEffect(() => {
-    if (still || compact || scene || busy || moving || pose !== 'free' || reducedMotion()) return;
+    if (still || compact || scene || busy || moving || pose !== 'free' || prefersReducedMotion()) return;
     const delay = firstScene.current ? FIRST_SCENE_DELAY : 9000 + Math.random() * 11000;
     const timer = window.setTimeout(() => {
       firstScene.current = false;

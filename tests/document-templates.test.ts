@@ -301,7 +301,7 @@ test('初始化（清空业务数据）清掉导出记录；单据模板设置�
         supplierId: f.purchase.supplierId,
         orderDate: today(),
         status: '待订货',
-        lines: [{ ...f.raw, stockItemId: f.raw.id, quantity: '20', unitPrice: '1.2345' }],
+        lines: [{ ...f.raw, stockItemId: f.raw.id, quantity: '20', unitPrice: '1.2345', priceBasis: 'quantity' }],
       },
       actor,
     );

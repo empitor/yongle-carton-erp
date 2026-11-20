@@ -10,7 +10,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, one, rows } from '../core/index.js';
 import { checkVersion, financeAudit, financeError } from './core.js';
-import { deliveryReversed } from './business-source.js';
+import { sourceReversed } from './business-source.js';
 import type { FinanceLedger } from './ledger.js';
 import { allocationReversalMessage, allocationSum, obligationBaseDate } from './obligation-sql.js';
 import { entry, id, label, money, row } from './query.js';
@@ -132,7 +132,7 @@ function checkObligationOpen(store: Store, ledger: FinanceLedger, user: Actor, b
   const db = store.db;
   if (
     before.event_id &&
-    exists(db, `SELECT 1 FROM fin_events e WHERE e.id=? AND e.source_kind='delivery' AND ${deliveryReversed('e')}`, before.event_id)
+    exists(db, `SELECT 1 FROM fin_events e WHERE e.id=? AND e.source_kind='delivery' AND ${sourceReversed('e', 'delivery')}`, before.event_id)
   )
     financeError(allocationReversalMessage, 409);
   if (before.tax_status === 'superseded' || (before.voucher_id && ledger.get(user, before.voucher_id).header.status !== 'posted'))

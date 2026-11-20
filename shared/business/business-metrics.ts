@@ -1,4 +1,4 @@
-import { QUANTITY_DECIMALS, dateSchema, today, type SpecFields } from '../core/index.js';
+import { QUANTITY_DECIMALS, dateSchema, deliverableOrder, today, type SpecFields } from '../core/index.js';
 import { normalizeDimensionUnit, normalizedDimensions, hasCompleteProductIdentity } from '../core/index.js';
 import { formatStockSize } from './operations.js';
 import { SQUARE_METRE_SHIFT } from './limits.js';
@@ -12,15 +12,13 @@ export type ListResult<T, M = Record<string, never> | null> = {
   page?: number;
   pageSize?: number;
 };
-export const pendingOrder = (row: { status: string }) =>
-  ['已确认', '生产中', '待发货'].includes(row.status);
 const pastDate = (value: unknown, date: string) =>
   typeof value === 'string' && dateSchema.safeParse(value).success && value < date;
 export function orderMetrics(rows: { status: string; deliveryDate?: unknown }[], date = today()) {
   return {
     total: rows.length,
-    pending: rows.filter(pendingOrder).length,
-    overdue: rows.filter((r) => pendingOrder(r) && pastDate(r.deliveryDate, date)).length,
+    pending: rows.filter(deliverableOrder).length,
+    overdue: rows.filter((r) => deliverableOrder(r) && pastDate(r.deliveryDate, date)).length,
   };
 }
 /** 判断采购单还差没到要用的：状态和每行订购、已到、还差的数量（千分整数；没给还差的按订购减已到） */
@@ -61,7 +59,7 @@ export function matchesProduct(row: { name?: MaybeText; material?: MaybeText; fl
     .toLowerCase()
     .includes(q.toLowerCase());
 }
-/** 供应商、采购单、库存品的关键词搜索要看的文字 */
+/** 客户、供应商、采购单、库存品的关键词搜索要看的文字 */
 type OperationalText = {
   name?: MaybeText;
   number?: MaybeText;
@@ -75,7 +73,11 @@ type OperationalText = {
   notes?: MaybeText;
   lines?: readonly { name?: MaybeText }[];
 };
-export function matchesOperationalRecord(row: OperationalText, q = '') {
+/**
+ * 一条记录能被搜到的文字（小写）：列表按整句找，命令面板按几个词都要有。
+ * 没填、这类记录没有的栏目不拼进去，字段之间只隔一个空格，“公司名 联系人”这种跨栏的整句才搜得到。
+ */
+export function operationalSearchText(row: OperationalText) {
   return [
     row.name,
     row.number,
@@ -89,10 +91,12 @@ export function matchesOperationalRecord(row: OperationalText, q = '') {
     row.notes,
     ...(row.lines || []).map((line) => line.name),
   ]
+    .filter(Boolean)
     .join(' ')
-    .toLowerCase()
-    .includes(q.toLowerCase());
+    .toLowerCase();
 }
+export const matchesOperationalRecord = (row: OperationalText, q = '') =>
+  operationalSearchText(row).includes(q.toLowerCase());
 // 以BigInt十进制累加面积，避免毫米/厘米与小数数量换算引入浮点误差。
 function decimal(value: number) {
   const [mantissa, exponent = '0'] = String(value).toLowerCase().split('e'),

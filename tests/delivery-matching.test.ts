@@ -49,6 +49,7 @@ function setup(unit?: string, specification = '虚构纸箱A-300x200x150') {
 test('订单规格只写了产品名称时不拿它和库存规格比对；写了别的规格仍要一致', () => {
   assert.equal(lineSpecification({ specification: '虚构纸箱A-300x200x150', productName: '虚构纸箱A-300x200x150' }), '');
   assert.equal(lineSpecification({ specification: '虚构纸箱A 300×200×150', productName: '虚构纸箱A-300x200x150' }), '', '空格、横线写法不同也算只写了名称');
+  assert.equal(lineSpecification({ specification: '虚构纸箱A_1', productName: '虚构纸箱A—1' }), '', '判断照抄品名时下划线、破折号也不算差别');
   assert.equal(lineSpecification({ specification: '虚构纸箱A-300x200x150 五层', productName: '虚构纸箱A-300x200x150' }), '虚构纸箱A-300x200x150 五层');
   const f = setup('只');
   assert.equal(deliveryCandidates(f.item(), f.customer.id, f.store.orders()).length, 1, '产品、单位一致就能送');
@@ -194,6 +195,9 @@ test('产品规格文字：没填的不写占位，整个都没有时是空的�
   assert.equal(sameSpecification(full, '260*110*240'), false);
   assert.equal(sameSpecification('300*200*150MM', '300x200x150mm'), true, '单位大小写不算不同');
   assert.equal(sameSpecification('K=A BC楞', 'K=K BC楞'), false, '材质不同还是要拦');
+  // 比较两段规格时横线可能是编号的一部分，去掉会把不同规格算成同一个
+  assert.equal(sameSpecification('1-12', '11-2'), false, '“1-12”和“11-2”不是同一规格');
+  assert.equal(sameSpecification('A-11', 'A1-1'), false, '“A-11”和“A1-1”不是同一规格');
   assert.equal(sameSpecification(specification(p({ length: 600, width: 400, dimensionUnit: 'mm' })), '600x400'), true);
   // 差在哪：尺寸不同只说尺寸（同一种写法并排），尺寸一样说其余那段，都没写尺寸时整段对照
   assert.equal(specificationDifference('260×110×240', full), '订单明细写的是 260 × 110 × 240，产品现在是 270 × 110 × 240 mm');

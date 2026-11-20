@@ -71,7 +71,7 @@ function baseRecords(store: Store, ops: OperationsService, who: Actor) {
       customerOrderId: order.id,
       orderDate: '2026-10-01',
       status: '已订货',
-      lines: [{ stockItemId: raw.id, name: raw.name, quantity: '1000', unit: '张' }],
+      lines: [{ stockItemId: raw.id, name: raw.name, quantity: '1000', unit: '张', priceBasis: 'quantity' }],
     },
     who,
   );

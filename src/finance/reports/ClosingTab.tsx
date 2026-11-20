@@ -139,8 +139,9 @@ function stepAction(
 ) {
   const { perms, canAct, run } = a;
   if (s.ok) return null;
+  // 要处理的不只“可记账”（有差异、待补税率、待算成本……），落到业务单据页的“全部”
   if (s.key === 'events')
-    return perms.edit || perms.close ? <a href="#finance-ledger?tab=events">去处理</a> : null;
+    return perms.edit || perms.close ? <a href="#finance-ledger?tab=events&status=all">去处理</a> : null;
   if (s.key === 'vouchers') return perms.edit || perms.approve ? <a href="#finance-ledger">去记账</a> : null;
   if (s.key === 'bank') return perms.cash ? <a href="#finance-cash?tab=bank">去匹配</a> : null;
   if (s.key === 'profit' && 'annualNext' in s && canAct)

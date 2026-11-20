@@ -266,3 +266,12 @@ test('认不出的内容只说一句，不回退成原始数据；没有变化�
   const same = historyView({ module: 'customers', action: 'update', detail: { before: { id: C, name: '甲', version: 1 }, after: { id: C, name: '甲', version: 2 } } }, refs);
   assert.deepEqual(same, { items: [], note: HISTORY_NO_CHANGE });
 });
+
+test('产品价格从没定到定了：没定价的那头和全站一样写“单价待定”', () => {
+  const priced = historyView(
+    { module: 'products', action: 'update', detail: { before: { id: P, name: '甲', priceCents: 0 }, after: { id: P, name: '甲', priceCents: 120 } } },
+    refs,
+  );
+  assert.equal(priced.items.length, 1);
+  assert.match(priced.items[0].value, /^单价待定 → /);
+});

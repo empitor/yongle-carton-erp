@@ -1,0 +1,45 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f1ec;
+  color: #1f2a2e;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+
+main {
+  text-align: center;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #56656b;
+}
+
+.retry {
+  display: inline-block;
+  min-width: 96px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  background: #1f3d44;
+  color: #fff;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.retry:hover {
+  background: #2b5560;
+}

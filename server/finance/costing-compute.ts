@@ -11,8 +11,8 @@ import { proportion } from './amounts.js';
 import type { CostLink, manual, opening } from './costing-details.js';
 import { invoiceAdjustments, spreadAdjustment, type InvoiceAdjustments } from './costing-invoice-adjust.js';
 import { isReturn, MonthCostBook, type CompletionOrigin, type Item, type ProductionJob, type ReversalOrigin } from './costing-month.js';
-import { lateMovements, originOf } from './costing-origins.js';
-import { movementsBetween, movementSource, stocksBefore, type Mark, type Movement } from './costing-source.js';
+import { awaitingRed, lateMovements, originOf } from './costing-origins.js';
+import { arrivalEventFor, movementsBetween, movementSource, stocksBefore, type Mark, type Movement } from './costing-source.js';
 import { adjacentPeriod, endOfMonth } from './periods.js';
 import { returnCosts } from './return-estimates.js';
 import { entry } from './query.js';
@@ -127,31 +127,25 @@ function productionJobs(moves: Movement[]) {
   return production;
 }
 
-/** 冲销流水找原单据：退回库存或当月冲销到货的找原流水，扣回成品的找原完工入库（人填了金额的不找） */
+/**
+ * 冲销流水找原单据（人填了金额的不找）：退回库存的找原流水，扣回成品的找原完工入库，
+ * 冲回到货的按这批还挂着的暂估（查不到的照普通出库，要人选对方科目）
+ */
 function reversalOrigins(db: DatabaseSync, moves: Movement[], manualMap: Map<string, Valuation>, start: string) {
   const reversals = moves.filter((m) => m.source_kind === movementSource.reversal && !manualMap.has(m.id));
   const origins = new Map<string, ReversalOrigin | null>();
   /** 冲销完工单扣回的成品，查得到原完工成本的 */
   const completions = new Map<string, CompletionOrigin>();
+  /** 撤销或更正冲回到货，查得到原暂估的：流水 → 要冲减的入库金额 */
+  const arrivals = new Map<string, number>();
   for (const m of reversals) {
     const found = originOf(db, m, start);
     if (found.kind === 'reversal') origins.set(m.id, found.origin);
-    else if (found.origin) completions.set(m.id, found.origin);
+    else if (found.kind === 'arrival') {
+      if (found.origin !== null) arrivals.set(m.id, found.origin);
+    } else if (found.origin) completions.set(m.id, found.origin);
   }
-  return { origins, completions };
-}
-
-const arrivalEventRow = rows.fin_events.pick({ id: true, snapshot: true, status: true });
-/** 到货流水对应的财务事件：观察记录里这张到货单的事件，挂着正数往来的取最新那条 */
-function arrivalEventOf(db: DatabaseSync, m: Movement) {
-  return one(
-    db,
-    arrivalEventRow,
-    `SELECT e.id,e.snapshot,e.status FROM fin_source_observations x JOIN fin_events e ON e.id=x.event_id
-        LEFT JOIN fin_obligations o ON o.event_id=e.id AND o.amount_cents>0
-        WHERE x.source_kind='arrival' AND x.source_id=? ORDER BY o.id DESC LIMIT 1`,
-    m.source_id,
-  );
+  return { origins, completions, arrivals };
 }
 
 /**
@@ -171,23 +165,27 @@ function valueReturns(db: DatabaseSync, items: Map<number, Item>, moves: Movemen
   }
 }
 
-/** 原材料：入库、采购退货，调差和退货数量都算进来以后再出库计价（当月入库又在当月冲销的到货成对抵消；成本为负的先归零，数量已是 0 的出库后结清） */
+/**
+ * 原材料：入库、撤销到货按原暂估冲减（红字入库）、采购退货，调差和退货数量都算进来以后再出库计价
+ * （成本为负的先归零；有调差、撤销过到货的数量已是 0 的出库后结清，撤销的到货到过票、等红票的那部分留着）
+ */
 function valueRaw(
   db: DatabaseSync,
   book: MonthCostBook,
-  items: Map<number, Item>,
   moves: Movement[],
-  adjustedStocks: Set<number>,
+  s: { items: Map<number, Item>; adjustedStocks: Set<number>; end: string; asOf?: AsOf },
 ) {
-  const raw = moves.filter((m) => m.kind === 'raw' && !book.reversedArrival(m));
+  const raw = moves.filter((m) => m.kind === 'raw');
   const sameRun = (m: Movement) => book.sameRun(m);
   for (const m of raw.filter((m) => m.delta_units > 0 && !isReturn(m) && !sameRun(m))) book.inbound(m);
-  valueReturns(db, items, raw);
-  book.floorNegative(adjustedStocks);
-  for (const m of raw.filter((m) => (m.delta_units < 0 && !isReturn(m)) || sameRun(m)))
+  for (const m of raw.filter((m) => book.isArrivalUndo(m))) book.undoArrival(m);
+  valueReturns(db, s.items, raw);
+  const settled = new Set([...s.adjustedStocks, ...book.undone]);
+  book.floorNegative(settled);
+  for (const m of raw.filter((m) => (m.delta_units < 0 && !isReturn(m) && !book.isArrivalUndo(m)) || sameRun(m)))
     if (sameRun(m)) book.reverseOut(m);
     else book.outbound(m);
-  book.clearZero(adjustedStocks);
+  book.clearZero(settled, awaitingRed(db, book.emptied(settled), { end: s.end, asOf: s.asOf }));
 }
 
 const poolRow = z.object({ account_code: rows.fin_entries.shape.account_code, amount: z.number() });
@@ -216,7 +214,7 @@ function valueFinished(book: MonthCostBook, moves: Movement[], completions: Map<
   ))
     if (sameRun(m)) book.reverseOut(m);
     else book.outbound(m);
-  book.clearZero(book.valued);
+  book.clearZero(book.valued, new Map());
 }
 
 /**
@@ -247,12 +245,12 @@ export function computeCosting(
     consumed = new Set<number>();
   earlierAdjustments(items, adjustments, { start: month.start, consumed, adjustedStocks });
   const production = productionJobs(moves);
-  const { origins, completions } = reversalOrigins(db, moves, manualMap, month.start);
+  const { origins, completions, arrivals } = reversalOrigins(db, moves, manualMap, month.start);
   const book = new MonthCostBook({
     start: month.start, items, mapping, manualMap, origins, completions, production,
-    adjustments, consumed, adjustedStocks, arrivalEvent: (m) => arrivalEventOf(db, m),
+    adjustments, consumed, adjustedStocks, arrivalEvent: (m) => arrivalEventFor(db, m.source_id), arrivals,
   });
-  valueRaw(db, book, items, moves, adjustedStocks);
+  valueRaw(db, book, moves, { items, adjustedStocks, end: month.date, asOf });
   const pools = overheadPools(db, period),
     jobs = [...production.values()];
   allocateOverhead(pools.reduce((n, r) => n + r.amount, 0), jobs, readFinanceSettings(db).cost_allocation === 'output');

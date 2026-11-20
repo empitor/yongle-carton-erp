@@ -2,17 +2,17 @@
 // 和按筛选条件挑记录：各模块共用的条件读记录上的字段，订单、采购单、单据各自的状态、待办、日期范围用各自的类型。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { ISO_DATE_LENGTH, dateSchema, orderInView } from '../../../shared/core/index.js';
+import { ISO_DATE_LENGTH, dateSchema, deliverableOrder, orderInView, orderViews, shippingProgresses } from '../../../shared/core/index.js';
 import {
   SEARCH_MAX_LENGTH,
   arrivalProgresses,
   arrivalProgressText,
   flowStatusLabel,
   matchesFlowStatus,
-  pendingOrder,
   pendingPurchase,
   purchaseBusinessStatuses,
   purchaseState,
+  stockKinds,
   type FlowKind,
 } from '../../../shared/business/index.js';
 import { MONTHS_MAX, fieldList, isFields, positive, type Fields, type ToolContext } from './context.js';
@@ -34,15 +34,15 @@ const filterShape = {
   status: z.string().max(STATUS_MAX_CHARS).optional(),
   businessStatus: z.enum(purchaseBusinessStatuses).optional(),
   arrivalProgress: z.enum(arrivalProgresses).optional(),
-  shippingProgress: z.enum(['未发货', '部分发货', '已发完']).optional(),
+  shippingProgress: z.enum(shippingProgresses).optional(),
   pending: z.boolean().optional(),
   start: dateSchema.optional(),
   end: dateSchema.optional(),
   months: z.number().int().min(1).max(MONTHS_MAX).optional(),
   archived: z.boolean().optional(),
   lifecycle: z.enum(['active', 'archived', 'all']).optional(),
-  view: z.enum(['current', 'pending', 'history', 'all']).optional(),
-  kind: z.enum(['raw', 'finished']).optional(),
+  view: z.enum([...orderViews, 'all']).optional(),
+  kind: z.enum(stockKinds).optional(),
   direction: z.enum(['in', 'out']).optional(),
 };
 export const FILTER_KEYS_HINT = '能用的筛选键：' + Object.keys(filterShape).join('、') + '；按单号、名称、规格找用 q，日期用 start、end。';
@@ -148,7 +148,7 @@ function rowMatches(r: Fields, s: FilterScope, specific: Specific) {
 function orderSpecific(r: ModuleRows['orders'][number], f: RecordFilters): Specific {
   return {
     status: (f.status === '已完成' && r.status === '已发货') || (f.status === '部分发货' && r.shippingProgress === '部分发货'),
-    pending: pendingOrder(r),
+    pending: deliverableOrder(r),
     inView: orderInView(r, {
       view: f.view === 'all' ? undefined : f.view,
       start: f.start,

@@ -1,4 +1,4 @@
-import { isRecord } from '../core/index.js';
+import { isRecord, roundingPolicyLabels } from '../core/index.js';
 import { dataManagementFieldName } from './data-management-modules.js';
 import { movementLabels } from './movement-filters.js';
 import { recordStatusActionNames } from './record-status.js';
@@ -64,7 +64,7 @@ export const historyCodeLabels: Record<string, Record<string, string>> = {
   kind: { raw: '原材料', finished: '成品' },
   dimensionUnit: { mm: '毫米', cm: '厘米' },
   priceBasis: { area: '按平方米', quantity: '按张' },
-  roundingPolicy: { 'exact-cents': '精确到分，不自动舍入', 'half-up-cent': '整单四舍五入到分' },
+  roundingPolicy: roundingPolicyLabels,
   currency: { CNY: '人民币' },
 };
 

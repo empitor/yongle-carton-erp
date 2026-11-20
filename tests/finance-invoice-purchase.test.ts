@@ -253,65 +253,32 @@ test('确认发票时再查往来：草稿关联后来源单被更正，旧往�
   }
 });
 
-test('部分到票的退货例外只认仍有效的到货：到货已冲销或被替代时，退货不再免填对应暂估', () => {
-  // 到货有没有效只看状态：撤销、被更正替代的到货单状态都是 reversed（被替代的另有 replaced_by 指向替代单）
-  for (const state of ['effective', 'reversed', 'replaced'] as const) {
-    const s = new Store(':memory:');
-    try {
-      newSettings(s, '2026-02');
-      const invoices = new FinanceInvoices(s);
-      const key = arrived(s);
-      // 虚构一张已确认的退货，直接写库模拟这个状态
-      s.db
-        .prepare(
-          `INSERT INTO purchase_returns(number,arrival_id,date,status,document,actor_id,actor_name,created_at,updated_at)
-          VALUES('FICT-R1',1,'2026-02-06','confirmed',?,?,?,?,?)`,
-        )
-        .run(
-          JSON.stringify({ lines: [{ lineIndex: 0, quantity: '4' }] }),
-          maker.id,
-          maker.name,
-          '2026-02-06T09:00:00.000Z',
-          '2026-02-06T09:00:00.000Z',
-        );
-      if (state !== 'effective') {
-        const doc = z
-          .record(z.string(), z.unknown())
-          .parse(JSON.parse(String(s.db.prepare('SELECT document FROM flow_documents WHERE id=1').get()?.document)));
-        const at = '2026-02-07T09:00:00.000Z',
-          reversal = { reason: '虚构原因', by: maker.name, at, movements: [] };
-        // 被更正替代的先建替代单，再把原单标成已撤销并指向它。这张到货单是财务测试的虚构样子（明细带税率口径），
-        // 不是库里的单据结构，不走单据表的写入函数，直接写库，镜像列和内容一起写
-        const replacedBy = state === 'replaced' ? 2 : undefined;
-        if (replacedBy) physical(s, replacedBy, 'arrival', '2026-02-05', { ...arrivalDoc('10'), correctionOf: 1 });
-        s.db
-          .prepare('UPDATE flow_documents SET document=?,replaced_by=?,status=?,updated_at=?,version=version+1 WHERE id=1')
-          .run(JSON.stringify({ ...doc, reversal, ...(replacedBy ? { replacedBy } : {}) }), replacedBy ?? null, 'reversed', at);
-        assert.deepEqual(
-          { ...s.db.prepare('SELECT status,replaced_by FROM flow_documents WHERE id=1').get() },
-          { status: 'reversed', replaced_by: replacedBy ?? null },
-        );
-      }
-      const partial = invoices.create(maker, bill('purchase', 'P-' + state, { date: '2026-02-10', gross: 6000 }));
-      invoices.link(maker, partial.id, {
-        version: 1,
-        requestId: 'link-' + state,
-        links: [{ obligationId: key, amount: 6000 }],
-      });
-      const confirm = () =>
-        new FinanceInvoiceConfirm(s).confirm(maker, partial.id, { version: 2, requestId: 'confirm-' + state });
-      if (state === 'effective') {
-        confirm();
-        postDrafts(s);
-        assert.equal(
-          Number(obligationRow(s, key).estimate_remaining),
-          0,
-          '到货有效时，退后按剩下的数量到票，整批暂估转回',
-        );
-      } else
-        assert.throws(confirm, /部分到票须填写本次对应的原暂估金额/, state + ' 的到货不算退过货');
-    } finally {
-      s.close();
-    }
+test('部分到票的退货例外：到货退过货，按退后剩下的数量到票不用填对应暂估，整批暂估转回', () => {
+  // 已撤销、被更正替代的到货不能再关联发票（finance-costing-cross-month-invoices.test.ts），这条例外只会碰到有效的到货
+  const s = new Store(':memory:');
+  try {
+    newSettings(s, '2026-02');
+    const invoices = new FinanceInvoices(s);
+    const key = arrived(s);
+    // 虚构一张已确认的退货，直接写库模拟这个状态
+    s.db
+      .prepare(
+        `INSERT INTO purchase_returns(number,arrival_id,date,status,document,actor_id,actor_name,created_at,updated_at)
+        VALUES('FICT-R1',1,'2026-02-06','confirmed',?,?,?,?,?)`,
+      )
+      .run(
+        JSON.stringify({ lines: [{ lineIndex: 0, quantity: '4' }] }),
+        maker.id,
+        maker.name,
+        '2026-02-06T09:00:00.000Z',
+        '2026-02-06T09:00:00.000Z',
+      );
+    const partial = invoices.create(maker, bill('purchase', 'P-1', { date: '2026-02-10', gross: 6000 }));
+    invoices.link(maker, partial.id, { version: 1, requestId: 'link-1', links: [{ obligationId: key, amount: 6000 }] });
+    new FinanceInvoiceConfirm(s).confirm(maker, partial.id, { version: 2, requestId: 'confirm-1' });
+    postDrafts(s);
+    assert.equal(Number(obligationRow(s, key).estimate_remaining), 0, '退后按剩下的数量到票，整批暂估转回');
+  } finally {
+    s.close();
   }
 });

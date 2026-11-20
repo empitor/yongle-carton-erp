@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseStoredJson } from '../core/index.js';
+import { priceBases } from '../../shared/core/index.js';
 import { taxModes } from './stored-values.js';
 
 /*
@@ -26,7 +27,7 @@ const sourceLine = z.object({
   productName: z.string().optional(),
   unitPrice: z.string().nullable().optional(),
   unitPriceExact: z.string().optional(),
-  priceBasis: z.enum(['area', 'quantity']).nullable().optional(),
+  priceBasis: z.enum(priceBases).nullable().optional(),
   taxMode: z.string().optional(),
   taxRate: z.string().optional(),
   stockId: z.number().nullable().optional(),

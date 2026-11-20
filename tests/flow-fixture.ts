@@ -195,7 +195,7 @@ export function workbenchFixture(who: Actor) {
       orderDate: date,
       expectedDate: '2026-11-02',
       status: '待订货',
-      lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '1.2345' }],
+      lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '1.2345', priceBasis: 'quantity' }],
     },
     who,
   );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { attachmentAccept, attachmentLimits, errorMessage } from '../../shared/core/index';
+import { attachmentAccept, attachmentLimitMb, attachmentLimits, attachmentSizeMessage, errorMessage } from '../../shared/core/index';
 import { attachmentSlots, type AttachmentSlot } from './attachment-slots';
 import { readAuthState } from '../ui/index';
 import { cancelAttachmentUpload, deleteAttachment, uploadAttachment } from './assistant-api';
@@ -77,7 +77,7 @@ function checkFiles(files: File[]) {
     const ext = '.' + f.name.split('.').at(-1)?.toLowerCase();
     if (!attachmentAccept.split(',').includes(ext))
       throw Error('不支持 ' + f.name + '，请选择图片、PDF、Word、Excel、CSV或TXT。');
-    if (!f.size || f.size > attachmentLimits.fileBytes) throw Error('每份附件须大于0且不超过10MB。');
+    if (!f.size || f.size > attachmentLimits.fileBytes) throw Error(attachmentSizeMessage);
   }
 }
 
@@ -114,7 +114,7 @@ export function useAssistantUploads(
       const account = userId,
         current = await ensureThread();
       if (owner.current !== account) return;
-      if (overLimit(ref.current, files)) throw Error('每条消息最多6份附件，合计不超过30MB。');
+      if (overLimit(ref.current, files)) throw Error('每条消息最多' + attachmentLimits.messageCount + '份附件，合计不超过' + attachmentLimitMb.message + 'MB。');
       const next = files.map((file) => ({ key: crypto.randomUUID(), file, name: file.name, size: file.size, status: 'queued' as const }));
       update((old) => [...old, ...next]);
       for (const slot of next) void queue.add({ slot, file: slot.file, threadId: current.id, account });

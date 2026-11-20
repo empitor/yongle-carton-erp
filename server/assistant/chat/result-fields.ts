@@ -2,9 +2,7 @@
 // 卡片 card-*.ts）、模型交来的参数。助手里只有这一套，别处都引它。
 // 不是对象、没有这个字段都当没有（undefined）。都不复制：交出来的就是原来那个对象、数组。
 
-/** 是不是普通对象（不是数组、不是 null） */
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+import { isRecord } from '../../../shared/core/index.js';
 
 /** 是不是数组（元素类型不定） */
 export const isList = (value: unknown): value is unknown[] => Array.isArray(value);

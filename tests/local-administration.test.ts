@@ -36,6 +36,13 @@ function storedOrder(store: Store, id: number) {
   return order;
 }
 
+/** 编辑窗给的明细（数据管理列表的 input）：明细照它改；读出来的订单、单据带着已送数量这类派生的栏目，录入不收 */
+function editorLines(f: ReturnType<typeof fixture>, module: 'orders' | 'delivery', id: number) {
+  const row = f.dataManagement.list(module, f.who).records.find((r) => r.record.id === id);
+  assert.ok(row, '列表里有这一条');
+  return row.input.lines;
+}
+
 /** 本机模式起服务：账号库是文件、时钟可拨，最高管理员从本机建好 */
 async function localServer() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-local-admin-')),
@@ -150,7 +157,7 @@ test('数据管理改已生效的完工单、送货单：改数量、日期被�
     const before = f.ops.repo.movements().length;
     const command = cmd('production', 'update', [production], { goodQuantity: '850' });
     assert.throws(() => f.dataManagement.execute(command, f.who, 's'), (e: unknown) => e instanceof AppError && e.status === 409 && /改数量请用“更正完工单”/.test(e.message));
-    assert.throws(() => f.dataManagement.execute(cmd('delivery', 'update', [delivery], { lines: [{ ...delivery.lines[0], quantity: '90' }] }), f.who, 's'), /改数量请用“更正送货单”/);
+    assert.throws(() => f.dataManagement.execute(cmd('delivery', 'update', [delivery], { lines: [{ ...editorLines(f, 'delivery', delivery.id)[0], quantity: '90' }] }), f.who, 's'), /改数量请用“更正送货单”/);
     assert.throws(() => f.dataManagement.execute(cmd('delivery', 'update', [delivery], { plannedDate: '2026-11-01' }), f.who, 's'), /更正送货单/);
     assert.equal(f.ops.repo.movements().length, before);
     assert.deepEqual([f.ops.repo.balance(f.raw.id), f.ops.repo.balance(f.finished.id)], [100000, 760000]);
@@ -181,7 +188,10 @@ test('数据管理只改已生效单据的说明（备注、操作人、地址�
     for (const e of history) assert.doesNotMatch(historyActionName(e.action), /数据管理/, e.action);
     const raw = f.ops.repo.items().find((s) => s.id === f.raw.id);
     assert.ok(raw);
-    assert.throws(() => f.dataManagement.execute(cmd('stock_items', 'update', [raw], { balanceUnits: -1 }), f.who, 's'), /字段/);
+    assert.throws(
+      () => f.dataManagement.execute(cmd('stock_items', 'update', [raw], { balanceUnits: -1 }), f.who, 's'),
+      (e: unknown) => e instanceof Error && /库存数量：是系统算出来的.*库存数量请登记盘点/.test(e.message) && !/[A-Za-z]/.test(e.message),
+    );
   } finally {
     f.store.close();
   }
@@ -256,7 +266,7 @@ test('订单只关联了生产任务时，数据管理能改客户、规格、�
     const input = {
       customerId: another.id,
       lines: [
-        { ...order.lines[0], specification: '合理修正规格', quantity: 500 },
+        { ...editorLines(f, 'orders', order.id)[0], specification: '合理修正规格', quantity: 500 },
         { productId: otherProduct.id, quantity: 100, unitPriceCents: 200, unit: '只' },
       ],
     };
@@ -266,7 +276,7 @@ test('订单只关联了生产任务时，数据管理能改客户、规格、�
     assert.equal(updated.totalCents, 70000);
     const addedId = updated.lines[1].id;
     assert.ok(addedId !== undefined);
-    const trimmed = firstResult(f.dataManagement.execute(cmd('orders', 'update', [updated], { lines: [updated.lines[0]] }), f.who, 's'));
+    const trimmed = firstResult(f.dataManagement.execute(cmd('orders', 'update', [updated], { lines: [editorLines(f, 'orders', updated.id)[0]] }), f.who, 's'));
     assert.equal(trimmed.lines.length, 1);
     assert.ok(!f.store.db.prepare('SELECT 1 FROM order_lines WHERE id=?').get(addedId));
     assert.equal(f.store.db.prepare('PRAGMA foreign_key_check').all().length, 0);

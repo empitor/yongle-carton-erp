@@ -6,7 +6,7 @@ import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
-import { financePermissions } from '../shared/core/account-scope.js';
+import { financePermissions } from '../shared/core/accounts.js';
 import { OperationsService } from '../server/operations/service.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';

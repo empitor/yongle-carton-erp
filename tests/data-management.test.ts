@@ -38,9 +38,11 @@ test('本机管理员在数据管理里改归档订单：版本、幂等、批�
     const archived = f.service.execute(command('orders', 'archive', [f.order]), f.who, 's');
     assert.equal(archived.count, 1);
     let row = must(f.store.order(f.order.id, true), '订单');
+    // 明细照编辑窗给的那份（input）改：订单读出来的样子带着已送数量这类派生的栏目，录入不收
+    const input = must(f.service.list('orders', f.who).records.find((r) => r.record.id === row.id), '订单').input;
     const edit = command('orders', 'update', [row], {
       notes: '归档后修正',
-      lines: [{ ...row.lines[0], quantity: 200, unitPriceExact: '1.2345' }],
+      lines: [{ ...input.lines[0], quantity: 200, unitPriceExact: '1.2345' }],
       roundingPolicy: 'half-up-cent',
     });
     const a = f.service.execute(edit, f.who, 's');

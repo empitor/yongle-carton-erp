@@ -5,7 +5,7 @@ import { Store } from '../server/core/db.js';
 import { SCHEMA_LATEST } from '../server/core/schema/index.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceTemplates } from '../server/finance/template.js';
-import { financePermissions } from '../shared/core/account-scope.js';
+import { financePermissions } from '../shared/core/accounts.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
 import { entry } from '../server/finance/query.js';
 import { maker, newSettings, post } from './finance-fixture.js';

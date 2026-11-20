@@ -56,4 +56,6 @@ docs/**
 AGENTS.md
 CLAUDE.md
 .claude/
+.agents/
+.codex/
 tests/claude-hooks.test.mjs

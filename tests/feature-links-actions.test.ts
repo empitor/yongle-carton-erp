@@ -15,7 +15,7 @@ import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { WORKFLOW_WRITES } from '../server/assistant/chat/workflow-cards.js';
 import { WORKFLOW_DIRECT } from '../server/assistant/chat/workflow-direct.js';
 import { serverRouteList } from './server-routes.js';
-import { pendingWritePrefixes, isWriteMethod, routeKey } from './feature-links-pending.js';
+import { isWriteMethod, routeKey } from './feature-links-pending.js';
 
 /** 同一种记录同一个动作有两条、一时合不了的：哪条记录、哪个动作、在哪、为什么还没合。合掉了要删，不然测试提醒 */
 const knownDuplicates: { record: string; verb: string; where: string; why: string }[] = [];
@@ -68,7 +68,6 @@ const label = (a: UiAction) => a.record + '·' + a.verb;
 const routes = serverRouteList();
 const routeKeys = new Set(routes.map(routeKey));
 const writeKeys = [...new Set(routes.filter((r) => isWriteMethod(r.method)).map(routeKey))];
-const pending = (key: string) => pendingWritePrefixes.some((p) => key.split(' ')[1].startsWith(p.prefix + '/'));
 
 test('业务动作登记：字段写全，能力表里有这一项，命令在工具目录里，写地址写法统一', () => {
   const capabilityIds = new Set<string>(uiCapabilities.map((c) => c.id));
@@ -88,7 +87,6 @@ test('业务动作登记：字段写全，能力表里有这一项，命令在�
 test('写地址都登记、不重复：服务端每个写地址正好属于一条动作，登记的地址都有路由', () => {
   const bad: string[] = [];
   for (const key of writeKeys) {
-    if (pending(key)) continue;
     const exact = uiActions.filter((a) => addresses(a).includes(key));
     const owners = exact.length ? exact : uiActions.filter((a) => addresses(a).some((p) => covers(p, key)));
     if (owners.length !== 1)
@@ -97,8 +95,6 @@ test('写地址都登记、不重复：服务端每个写地址正好属于一�
   for (const a of uiActions)
     for (const p of addresses(a))
       if (![...routeKeys].some((k) => k === p || covers(p, k))) bad.push(label(a) + ' 登记的 ' + p + ' 服务端没有这个路由');
-  for (const p of pendingWritePrefixes)
-    if (!writeKeys.some((k) => k.split(' ')[1].startsWith(p.prefix + '/'))) bad.push('待登记的 ' + p.prefix + ' 下已经没有写地址，删掉这条');
   assert.deepEqual(bad, []);
 });
 

@@ -10,6 +10,15 @@ export const RERUN_FILES = 6;
 
 const key = (file, name) => file + '\n' + name;
 
+/** 登记了、文件这一轮跑了，却没有这条测试（改名或删了）：[{ file, name }]。和机器快慢无关，run-tests.mjs 让命令失败 */
+export function missingSlowExemptions(records, exempt) {
+  const ran = new Set(records.map((r) => key(r.file, r.name)));
+  const ranFiles = new Set(records.map((r) => r.file));
+  return Object.entries(exempt).flatMap(([file, names]) =>
+    ranFiles.has(file) ? Object.keys(names).filter((name) => !ran.has(key(file, name))).map((name) => ({ file, name })) : [],
+  );
+}
+
 /**
  * 要单独计时的测试，按文件归拢、按文件里没登记的越线测试的最长并行用时从长到短排好：{ rerun: [{ file, names }], skipped: 超出上限没轮到的同样结构 }。
  * exempt：{ 文件: { 测试名: 原因 } }。只为复查登记项的文件排在最后。
@@ -32,11 +41,12 @@ function pickRechecks(records, exempt) {
  * 按单独跑的用时下结论。records：并行一轮的用时；solo：单独重跑的用时（同样的 { file, name, ms }）；skipped：没轮到重跑的文件。
  * slow：没登记、单独跑也超过 1 秒（重跑了却没拿到用时的也算，soloMs 为 undefined）；
  * parallelOnly：没登记、并行时越线、单独跑不超；unjudged：有没登记的越线测试、却没轮到重跑的文件；
- * registered：登记过、确实慢的条数；stale：登记了、单独跑也不超，或文件跑了却找不到这条测试，该从登记表删掉。
+ * registered：登记过、确实慢的条数；stale：登记了、单独跑也不超，该从登记表删掉（和机器快慢有关，只提示）；
+ * missing：登记了、文件跑了却找不到这条测试（missingSlowExemptions）。
  */
 function judgeSlow(records, solo, exempt, skipped) {
   const soloMs = new Map(solo.map((r) => [key(r.file, r.name), r.ms]));
-  const verdict = { slow: [], parallelOnly: [], unjudged: new Set(), registered: 0, stale: [] };
+  const verdict = { slow: [], parallelOnly: [], unjudged: new Set(), registered: 0, stale: [], missing: missingSlowExemptions(records, exempt) };
   for (const r of records) {
     const ms = soloMs.get(key(r.file, r.name));
     const soloFast = ms !== undefined && ms <= SLOW_MS;
@@ -47,17 +57,13 @@ function judgeSlow(records, solo, exempt, skipped) {
     else if (skipped.has(r.file)) verdict.unjudged.add(r.file);
     else verdict[soloFast ? 'parallelOnly' : 'slow'].push({ file: r.file, name: r.name, parallelMs: r.ms, soloMs: ms });
   }
-  const ran = new Set(records.map((r) => key(r.file, r.name)));
-  const ranFiles = new Set(records.map((r) => r.file));
-  for (const [file, names] of Object.entries(exempt))
-    for (const name of Object.keys(names)) if (ranFiles.has(file) && !ran.has(key(file, name))) verdict.stale.push({ file, name });
   verdict.slow.sort((a, b) => (b.soloMs ?? Infinity) - (a.soloMs ?? Infinity));
   return verdict;
 }
 
 const sec = (ms) => (ms === undefined ? '没拿到' : (ms / 1000).toFixed(1) + ' 秒');
 
-function printSlow({ slow, parallelOnly, unjudged, registered, stale }, log) {
+function printSlow({ slow, parallelOnly, unjudged, registered, stale, missing }, log) {
   if (slow.length) {
     log(`单独跑也超过 ${SLOW_MS / 1000} 秒、没登记原因的测试 ${slow.length} 条（改快，或在 scripts/test-exemptions.mjs 登记为什么快不了）：`);
     for (const r of slow) log(`  单独 ${sec(r.soloMs).padStart(7)}（并行 ${sec(r.parallelMs)}）  ${r.file}  ${r.name}`);
@@ -65,8 +71,12 @@ function printSlow({ slow, parallelOnly, unjudged, registered, stale }, log) {
   if (parallelOnly.length) log(`并行时越线、单独跑不慢的 ${parallelOnly.length} 条，不算慢。`);
   if (registered) log(`登记过原因的慢测试 ${registered} 条，不报。`);
   if (stale.length) {
-    log('登记了但单独跑已经不慢或找不到了，从 scripts/test-exemptions.mjs 删掉：');
+    log('登记了但单独跑已经不慢了（和机器快慢有关，只提示），确认几次都不慢就从 scripts/test-exemptions.mjs 删掉：');
     for (const r of stale) log(`  ${r.file}  ${r.name}`);
+  }
+  if (missing.length) {
+    log('登记了但这份文件里已经没有这条测试（改名或删了），这一轮算失败；从 scripts/test-exemptions.mjs 删掉或改成现在的名字：');
+    for (const r of missing) log(`  ${r.file}  ${r.name}`);
   }
   if (unjudged.size) log(`还有 ${unjudged.size} 份文件越线、这一轮没单独计时（一轮最多重跑 ${RERUN_FILES} 份）。`);
 }

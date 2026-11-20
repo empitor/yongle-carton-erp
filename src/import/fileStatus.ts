@@ -2,6 +2,7 @@ import type { Tone } from '../ui/index';
 import {
   importStateLabel,
   importStateLabels,
+  taskStillRunning,
   type ImportWorkspaceView as Workspace,
 } from '../../shared/import/index';
 
@@ -25,8 +26,7 @@ export type FileMode = 'order' | 'arrival';
 export const modeLabels: Record<FileMode, string> = { order: '客户订单', arrival: '到货单' };
 export const fileMode = (f: Pick<FileItem, 'mode'>): FileMode => f.mode || 'order';
 /** 订单识别任务还在排队或进行中。 */
-export const taskRunning = (f: FileItem) =>
-  ['running', 'queued', 'backoff'].includes(f.task?.state || '');
+export const taskRunning = (f: FileItem) => taskStillRunning(f.task?.state);
 /**
  * 刷新列表时订单识别任务的状态：running 是还在排队或识别（label 是给人看的进度词），
  * finished 是结束了（成功、失败或取消），idle 是还没开始。到货文件看 arrivalStatus。
@@ -37,8 +37,7 @@ export function taskPhase(f: FileItem): { kind: 'running'; label: string } | { k
       ? { kind: 'running', label: importStateLabels.running }
       : { kind: 'finished' };
   const state = f.task?.state;
-  if (state === 'running' || state === 'backoff' || state === 'queued')
-    return { kind: 'running', label: importStateLabels[state] };
+  if (taskStillRunning(state)) return { kind: 'running', label: importStateLabels[state] };
   if (state === 'ready' || state === 'failed' || state === 'cancelled') return { kind: 'finished' };
   return { kind: 'idle' };
 }

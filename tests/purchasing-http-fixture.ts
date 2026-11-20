@@ -101,6 +101,7 @@ const line = (patch: Record<string, unknown> = {}) => ({
   unit: '张',
   quantity: '1000',
   unitPrice: '1.3900',
+  priceBasis: 'quantity',
   ...patch,
 });
 

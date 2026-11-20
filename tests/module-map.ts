@@ -1,11 +1,18 @@
 // 模块表和取引用的解析器：每个文件属于哪个模块、能用哪些模块，一个文件引用了哪些项目文件。
 // 模块表和理由见 docs/架构说明.md“模块”一节；改这里的规则要同时改那一节。
-// 规则的检查在 module-boundaries.test.ts（引用）、module-api-owners.test.ts（前端请求的地址）、module-table-owners.test.ts（表）。
+// 规则的检查在 module-boundaries.test.ts（引用、模块内分层）、module-api-owners.test.ts（前端请求的地址）、
+// module-table-owners.test.ts（表）、css-modules.test.ts（样式的类名，前端模块和层都读这张表）。
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { posix } from 'node:path';
 import ts from 'typescript';
 
-export type Rule = { name: string; paths: string[]; allow: string[] };
+/** 模块里的一层：paths 写法和模块的一样（目录带末尾斜杠，单个文件写全名） */
+export type Layer = { name: string; paths: string[] };
+/** layers：模块内部从下往上分层，同一模块里只能引同层或下层（module-boundaries 查）；模块的每个文件都要落在某一层，入口 index.ts、pages.ts 可以不登记 */
+export type Rule = { name: string; paths: string[]; allow: string[]; layers?: Layer[] };
+
+/** 共用业务规则（shared/business）按服务端三层分的文件 */
+const business = (names: string[]) => names.map((n) => 'shared/business/' + n + '.ts');
 
 // 越往下越基础。paths 按最长前缀匹配；目录写到末尾的斜杠，单个文件写全名。
 // allow 和实际用到的一致（module-boundaries 有测试查）：新用到一个模块就在这里加上，不再用了就删掉，架构图跟着改。
@@ -43,7 +50,37 @@ export const modules: Rule[] = [
   { name: '装配', paths: ['server/'], allow: ['*'] },
   // 前后端共用，和服务端同一套分法
   { name: '共用-基础', paths: ['shared/core/'], allow: [] },
-  { name: '共用-业务', paths: ['shared/business/'], allow: ['共用-基础'] },
+  {
+    // 一个平铺的目录，按文件分成和服务端一样的三层；服务端这三层用它时也只能用同层或下层的文件（经 index.ts 引的名字按来源文件算）
+    name: '共用-业务',
+    paths: ['shared/business/'],
+    allow: ['共用-基础'],
+    layers: [
+      {
+        name: '采购库存',
+        paths: business([
+          'operations', 'operations-api', 'operations-requests', 'operations-views', 'operations-stored', 'order-batch', 'stock-identity',
+          'movement-filters', 'purchase-filters', 'limits', 'display-text', 'schedule', 'record-status', 'business-metrics',
+        ]),
+      },
+      {
+        name: '单据流转',
+        paths: business([
+          'physical-flow', 'arrival', 'flow-api', 'flow-requests', 'flow-results', 'flow-views', 'flow-correction', 'flow-correction-views',
+          'flow-document', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery',
+          'document-value', 'arrival-draft', 'production-plan', 'labels',
+        ]),
+      },
+      {
+        name: '业务汇总',
+        paths: business([
+          'records-api', 'record-queries', 'deletion-api', 'deletion-request', 'deletion-words', 'deletion-headline', 'mark-api',
+          'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain', 'product-family', 'history-fields',
+          'history-text', 'record-history', 'record-changes', 'data-management-modules', 'data-management-templates',
+        ]),
+      },
+    ],
+  },
   { name: '共用-财务', paths: ['shared/finance/'], allow: ['共用-基础'] },
   { name: '共用-单据', paths: ['shared/documents/'], allow: ['共用-基础', '共用-业务'] },
   { name: '共用-AI', paths: ['shared/ai/'], allow: [] },
@@ -54,10 +91,17 @@ export const modules: Rule[] = [
   // 前端数据管理还放着 AI 接入的模型、提示词设置页和识别导入的消息接入设置页，所以多了共用-AI、共用-识别
   { name: '前端-基础', paths: ['src/ui/'], allow: ['共用-基础'] },
   {
-    // 业务主线的页面（订单、采购、仓库、生产、送货、单据导出）互相嵌窗口很常见，前端算一个模块
+    // 业务主线的前端按界面角色分四层，只往下用：上层嵌下层的窗口，下层要打开上层的页面用页面地址，不引上层的代码。
+    // 单据在采购仓储下面（采购、仓储页面要显示到货单、送货单，单据窗口用不着采购窗口），和服务端三层的顺序不同。
     name: '前端-业务',
     paths: ['src/records/', 'src/recordkit/', 'src/flow/', 'src/warehouse/', 'src/operations/', 'src/editors/', 'src/marks/', 'src/documents/'],
     allow: ['前端-基础', '共用-基础', '共用-业务', '共用-单据'],
+    layers: [
+      { name: '业务公共件', paths: ['src/recordkit/', 'src/marks/', 'src/editors/', 'src/documents/'] },
+      { name: '单据', paths: ['src/flow/'] },
+      { name: '采购仓储', paths: ['src/operations/', 'src/warehouse/'] },
+      { name: '页面', paths: ['src/records/'] },
+    ],
   },
   { name: '前端-财务', paths: ['src/finance/'], allow: ['前端-基础', '共用-基础', '共用-财务'] },
   {
@@ -79,7 +123,8 @@ export const modules: Rule[] = [
   { name: '前端-装配', paths: ['src/', 'src/mobile/'], allow: ['前端-*', '*共用'] },
 ];
 
-const files = (dir: string): string[] =>
+/** 目录下的全部文件（跳过 node_modules），路径用正斜杠、从项目根目录写起 */
+export const files = (dir: string): string[] =>
   existsSync(dir)
     ? readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
         e.isDirectory() ? (e.name === 'node_modules' ? [] : files(dir + '/' + e.name)) : [dir + '/' + e.name],
@@ -96,12 +141,27 @@ const projectFiles = new Set([
   ...['server', 'shared', 'src', 'scripts', 'tests'].flatMap(files),
   ...readdirSync('.', { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name),
 ]);
-/** 文件属于哪个模块；不在任何模块的路径下（tests、根目录的配置）是 undefined */
-export const moduleOf = (f: string): Rule | undefined =>
+/** 模块表、层表里的一项路径管不管这个文件：目录按前缀，单个文件要全名相同 */
+export const covers = (p: string, f: string) => (p.endsWith('/') ? f.startsWith(p) : f === p);
+/** 文件按最长前缀落到的那一项：模块和它登记的路径；不在任何模块的路径下（tests、根目录的配置）是 undefined */
+export const matchOf = (f: string): { m: Rule; p: string } | undefined =>
   modules
     .flatMap((m) => m.paths.map((p) => ({ m, p })))
-    .filter(({ p }) => (p.endsWith('/') ? f.startsWith(p) : f === p))
-    .sort((a, b) => b.p.length - a.p.length)[0]?.m;
+    .filter(({ p }) => covers(p, f))
+    .sort((a, b) => b.p.length - a.p.length)[0];
+/** 文件属于哪个模块；不在任何模块的路径下（tests、根目录的配置）是 undefined */
+export const moduleOf = (f: string): Rule | undefined => matchOf(f)?.m;
+/** 模块 from 能不能用模块 to（* 是全部，前端-* 是前端的全部，*共用 是共用的全部） */
+export const canUse = (from: Rule, to: Rule) =>
+  from.allow.includes('*') ||
+  (from.allow.includes('前端-*') && to.name.startsWith('前端-')) ||
+  from.allow.includes(to.name) ||
+  (from.allow.includes('*共用') && to.name.startsWith('共用'));
+/** 文件在模块的第几层（0 是最下层）；模块没分层、或文件没登记进任何一层是 undefined */
+export const layerOf = (f: string, rule: Rule | undefined = moduleOf(f)): number | undefined => {
+  const i = rule?.layers?.findIndex((l) => l.paths.some((p) => covers(p, f))) ?? -1;
+  return i < 0 ? undefined : i;
+};
 /** server、shared、src 下的文件属于哪个模块；没登记进模块表就让测试失败 */
 export const ownerModule = (f: string): Rule => {
   const m = moduleOf(f);
@@ -133,7 +193,7 @@ export const scriptKind = (f: string) =>
  * - url：new URL('相对路径', import.meta.url) 指向代码文件（比如起 worker）
  * - path：脚本里写的项目路径 'server/xxx.ts'（起子进程、拼路径）
  * target：解析到的项目文件；null 是相对路径找不到文件。unresolved：加载目标算不出来，记下原文。
- * names：import { a, b } 引进来的名字（按对方导出的名字），import('x').A 的 A。
+ * names：import { a, b } 引进来的名字、export { a, b } from 转出去的名字（都按对方导出的名字），import('x').A 的 A。
  */
 export type Ref = {
   spec: string;
@@ -248,7 +308,10 @@ function staticRef(n: ts.Node, c: Collector) {
     return true;
   }
   if (ts.isExportDeclaration(n) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
-    if (n.moduleSpecifier.text.startsWith('.')) c.add({ spec: n.moduleSpecifier.text, how: 'import', typeOnly: n.isTypeOnly, at: n });
+    // export { a, b as c } from：记下按对方导出的名字（a、b）；export * 不记
+    const clause = n.exportClause;
+    const names = clause && ts.isNamedExports(clause) ? clause.elements.map((e) => (e.propertyName || e.name).text) : undefined;
+    if (n.moduleSpecifier.text.startsWith('.')) c.add({ spec: n.moduleSpecifier.text, how: 'import', typeOnly: n.isTypeOnly, at: n, names });
     return true;
   }
   if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) {
@@ -298,6 +361,19 @@ function projectPathRef(n: ts.Node, c: Collector) {
   const parent = n.parent;
   const isSpecifier = (ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) && parent.moduleSpecifier === n;
   if (!isSpecifier) c.add({ spec: n.text, how: 'path', typeOnly: false, at: n, fromRoot: true });
+}
+
+/** 入口文件 export { a, b as c } from './x' 转出去的名字 → 来源文件（c 对应 x）；别的模块经入口引的名字按来源文件算层 */
+export function exportSources(entry: string, text?: string): Map<string, string> {
+  const source = ts.createSourceFile(entry, text ?? readFileSync(entry, 'utf8'), ts.ScriptTarget.Latest, true, scriptKind(entry));
+  const out = new Map<string, string>();
+  for (const n of source.statements) {
+    if (!ts.isExportDeclaration(n) || !n.moduleSpecifier || !ts.isStringLiteral(n.moduleSpecifier)) continue;
+    const target = resolve(entry, n.moduleSpecifier.text);
+    if (target && n.exportClause && ts.isNamedExports(n.exportClause))
+      for (const e of n.exportClause.elements) out.set(e.name.text, target);
+  }
+  return out;
 }
 
 /** 用 TypeScript 自己的解析器取一个文件的全部引用（text 不给就读文件并记住结果；回归测试直接喂样例） */

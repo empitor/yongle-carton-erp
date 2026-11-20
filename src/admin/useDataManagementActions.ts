@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { errorMessage } from '../../shared/core/index';
+import { errorMessage, type ApiJson } from '../../shared/core/index';
 import { emit, useSlots } from '../ui/index';
 import { dataManagementCommand, executeCommand, forkWorkspaces } from './data-api';
 import { recordLabel } from './record-refs';
@@ -10,7 +10,6 @@ import {
   managedModule,
   textOf,
   type DataAction,
-  type Json,
   type ListedRecord,
 } from './record-types';
 
@@ -32,12 +31,12 @@ const missingWorkspaceFiles = {
 const workspaceChanges = ['archive', 'restore', 'delete'] as const;
 const isWorkspaceChange = (action: DataAction) => workspaceChanges.find((a) => a === action);
 /** 办完的结果：办了几条（服务端给了就按它）、逐条的结果 */
-type Outcome = { count?: number; results: readonly Json[] };
+type Outcome = { count?: number; results: readonly ApiJson[] };
 /** 逐条结果里没办成的那条：哪条、为什么 */
-const failureOf = (x: Json): { id: Json | undefined; message: string }[] =>
+const failureOf = (x: ApiJson): { id: ApiJson | undefined; message: string }[] =>
   isJsonObject(x) && x.success === false ? [{ id: x.id, message: textOf(x.message) }] : [];
 /** 复制成功时新识别任务的编号（第一条的结果） */
-const forkedId = (first: Json | undefined) =>
+const forkedId = (first: ApiJson | undefined) =>
   isJsonObject(first) && first.success && isJsonObject(first.result) ? textOf(first.result.id) : '';
 
 /**
@@ -57,7 +56,7 @@ export function useDataManagementActions(
     [message, setMessage] = useState('');
   const submission = useRef<{ key: string; id: string } | null>(null);
   const workspaceFiles = useSlots().workspaceFiles ?? missingWorkspaceFiles;
-  const labelOf = (id: Json | undefined) =>
+  const labelOf = (id: ApiJson | undefined) =>
     recordLabel(records.find((r) => String(r.record.id) === String(id))?.record);
   function send(action: DataAction, rows: ListedRecord[], patch: Record<string, unknown>): Promise<Outcome> {
     const items = rows.map((x) => ({ id: x.record.id, version: x.record.version }));

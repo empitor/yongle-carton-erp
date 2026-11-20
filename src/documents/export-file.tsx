@@ -4,38 +4,36 @@ import type { DocumentExportStatus } from '../../shared/documents/index';
 import { errorMessage } from '../../shared/core/index';
 import { completeExport, downloadExportFile } from './document-api';
 import { Hint } from '../ui/index';
-import { emit } from '../ui/index';
+import { emit, useSaveFile, type FileSaver } from '../ui/index';
 
-/** 临时下载地址留多久（毫秒） */
-const OBJECT_URL_LIFETIME = 60000;
 /** 一份导出好的文件：下载地址、校验值、文件名、导出编号，交付后改不改状态 */
 type ExportedFile = Pick<DocumentExportStatus, 'url' | 'sha256' | 'filename' | 'exportId' | 'markOrdered' | 'markShipped'>;
+/** 文件存好后单据状态怎么变（浏览器下载、安卓 App 存进手机“下载”都说得通）：导出窗、订货单窗、文件卡片共用 */
+export const afterSaved = {
+  ordered: '文件存好后变成待到货',
+  shipped: '文件存好后出库、扣成品库存，送货单变“送货中”',
+};
 /** 预览 Word 排版拿到的文件内容；exportId 只当刷新的键 */
 export type WordFile = { bytes: ArrayBuffer; exportId: string };
 
-/** 把读到的文件内容交给浏览器下载（文件名带扩展名）；临时地址一分钟后释放。 */
-export function saveBytes(bytes: ArrayBuffer, type: string, filename: string) {
-  const url = URL.createObjectURL(new Blob([bytes], { type })),
-    a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_LIFETIME);
-}
-/** 下载、核对校验值、交给浏览器保存，再告诉服务端交付完成（这时才改业务状态） */
-export async function deliverBusinessFile(file: Pick<ExportedFile, 'url' | 'sha256' | 'filename' | 'exportId'>) {
+/**
+ * 下载、核对校验值、用 save 保存好（useSaveFile：浏览器下载，安卓 App 里存进手机“下载”），
+ * 再告诉服务端交付完成（这时才改业务状态）；没存成就不改
+ */
+export async function deliverBusinessFile(file: Pick<ExportedFile, 'url' | 'sha256' | 'filename' | 'exportId'>, save: FileSaver) {
   if (!/^\/api\/documents\/[a-f0-9-]+\/file$/.test(file.url)) throw new Error('下载地址无效。');
   const { bytes, type } = await downloadExportFile(file.url),
     hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
       .map((v) => v.toString(16).padStart(2, '0'))
       .join('');
   if (hash !== file.sha256) throw new Error('文件校验失败，未修改业务状态。');
-  saveBytes(bytes, type, file.filename);
+  await save(bytes, type, file.filename);
   const result = await completeExport(file.exportId, hash);
   emit('erp-business-changed');
   return result;
 }
 export function ExportFileCard({ file }: { file: ExportedFile }) {
+  const save = useSaveFile();
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [failed, setFailed] = useState(false);
@@ -44,9 +42,9 @@ export function ExportFileCard({ file }: { file: ExportedFile }) {
       <strong>{file.filename}</strong>
       <span>
         {file.markOrdered
-          ? '完整下载后变成待到货'
+          ? afterSaved.ordered
           : file.markShipped
-            ? '完整下载后出库，送货单变“送货中”'
+            ? afterSaved.shipped
             : '重复下载不改变库存及实物状态'}
       </span>
       <button
@@ -54,7 +52,7 @@ export function ExportFileCard({ file }: { file: ExportedFile }) {
         onClick={async () => {
           setBusy(true);
           try {
-            await deliverBusinessFile(file);
+            await deliverBusinessFile(file, save);
             setFailed(false);
             setMessage('文件已交付。');
           } catch (e) {

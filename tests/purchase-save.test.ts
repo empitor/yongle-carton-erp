@@ -14,6 +14,8 @@ import { count } from '../server/core/index.js';
 import { AppError } from '../server/core/errors.js';
 import type { Actor } from '../server/core/actor.js';
 import { errorMessage } from '../shared/core/error-message.js';
+import { userError } from '../shared/core/user-errors.js';
+import { ZodError } from 'zod';
 
 test('没关联库存品的明细长、宽必填，缺哪栏说哪栏；材质选填；选了库存品的尺寸跟着库存品走', () => {
   const store = new Store(':memory:'),
@@ -21,7 +23,7 @@ test('没关联库存品的明细长、宽必填，缺哪栏说哪栏；材质�
   try {
     const supplier = ops.saveSupplier({ name: '虚构纸板厂' }, clerk);
     const save = (line: Record<string, unknown>) =>
-      ops.savePurchase({ supplierId: supplier.id, orderDate: '2026-11-01', status: '待订货', lines: [line] }, clerk);
+      ops.savePurchase({ supplierId: supplier.id, orderDate: '2026-11-01', status: '待订货', lines: [{ priceBasis: 'area', ...line }] }, clerk);
     assert.throws(
       () => save({ name: '虚构三层纸板', material: 'K=A', unit: '张', quantity: '100' }),
       (e: unknown) => /明细第1项“虚构三层纸板”没关联库存品，要填纸板的长和宽/.test(errorMessage(e)) && /不要猜/.test(errorMessage(e)),
@@ -37,6 +39,25 @@ test('没关联库存品的明细长、宽必填，缺哪栏说哪栏；材质�
     // 页面的必填标记按同一份规则
     assert.deepEqual(requiredPurchaseSize({ stockItemId: null }), ['length', 'width']);
     assert.deepEqual(requiredPurchaseSize({ stockItemId: item.id }), []);
+  } finally {
+    store.close();
+  }
+});
+
+test('采购明细没写计价方式时不让建，提示选按平方米还是按张，不按默认算钱', () => {
+  const store = new Store(':memory:'),
+    ops = new OperationsService(store);
+  try {
+    const supplier = ops.saveSupplier({ name: '虚构纸板厂' }, clerk);
+    const line = { name: '虚构三层纸板', length: 1200, width: 900, unit: '张', quantity: '100', unitPrice: '2' };
+    const save = (extra: Record<string, unknown>) =>
+      ops.savePurchase({ supplierId: supplier.id, orderDate: '2026-11-01', status: '待订货', lines: [{ ...line, ...extra }] }, clerk);
+    // 页面、接口看到的整句（server/http-errors.ts 按 shared/core/user-errors.ts 换成界面叫法）：栏目名只说一次
+    const shown = (e: unknown) => (e instanceof ZodError ? e.issues.map((i) => userError(i.path.join('.') + ': ' + i.message)).join('；') : '');
+    for (const extra of [{}, { priceBasis: 'piece' }])
+      assert.throws(() => save(extra), (e: unknown) => shown(e) === '明细第1项的计价方式：请选择按平方米还是按张', JSON.stringify(extra));
+    assert.equal(count(store.db, 'SELECT count(*) n FROM purchases'), 0, '拒收时什么都不写');
+    assert.equal(save({ priceBasis: 'area' }).lines[0].priceBasis, 'area');
   } finally {
     store.close();
   }
@@ -76,8 +97,8 @@ test('采购进度按明细行判断：一行超收盖不住另一行没到', ()
         orderDate: '2026-10-01',
         status: '已订货',
         lines: [
-          { stockItemId: f.raw.id, name: f.raw.name, quantity: '100', unit: '张' },
-          { stockItemId: f.glue.id, name: f.glue.name, quantity: '100', unit: '张' },
+          { stockItemId: f.raw.id, name: f.raw.name, quantity: '100', unit: '张', priceBasis: 'quantity' },
+          { stockItemId: f.glue.id, name: f.glue.name, quantity: '100', unit: '张', priceBasis: 'quantity' },
         ],
       },
       f.actor,
@@ -110,7 +131,7 @@ test('已登记到货的采购单：普通业务账号、不在本机的超级�
         supplierId: f.supplier.id,
         orderDate: '2026-10-01',
         status: '已订货',
-        lines: [{ stockItemId: f.raw.id, name: f.raw.name, unit: '张', quantity: '100', unitPrice: '1.2000' }],
+        lines: [{ stockItemId: f.raw.id, name: f.raw.name, unit: '张', quantity: '100', unitPrice: '1.2000', priceBasis: 'quantity' }],
       },
       f.actor,
     );

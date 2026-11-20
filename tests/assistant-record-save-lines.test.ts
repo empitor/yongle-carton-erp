@@ -17,3 +17,13 @@ test('改订单时明细里有 null 或一段文字：出方案就被拒，不�
       String(bad),
     );
 });
+
+test('助手新建采购单漏写计价方式：出方案就被拒，提示选按平方米还是按张，不按默认算钱', () => {
+  const f = flowFixture();
+  const tools = new AssistantTools(f.store);
+  const line = { ...f.raw, stockItemId: f.raw.id, quantity: '100', unitPrice: '2' };
+  const propose = (extra: Record<string, unknown>) =>
+    tools.prepare('records.propose_save', { module: 'purchases', patch: { supplierId: f.supplier.id, orderDate: '2026-11-01', status: '待订货', lines: [{ ...line, ...extra }] } }, clerk, 'test');
+  assert.throws(() => propose({}), /priceBasis[\s\S]*请选择按平方米还是按张/);
+  assert.equal(propose({ priceBasis: 'area' }).tool, 'records.propose_save');
+});

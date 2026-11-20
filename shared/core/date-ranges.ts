@@ -1,4 +1,4 @@
-import { ISO_DATE_LENGTH, today } from './domain.js';
+import { ISO_DATE_LENGTH, closedOrder, today } from './domain.js';
 export type DatePreset = '1' | '2' | '3' | 'all' | 'custom';
 /** 订单列表的范围：全部（current）、待处理（pending）、历史（history） */
 export const orderViews = ['current', 'pending', 'history'] as const;
@@ -18,7 +18,6 @@ export function presetRange(preset: DatePreset, date = today()) {
     ? { start: monthsBefore(date, Number(preset)), end: date }
     : { start: '', end: '' };
 }
-export const closedOrder = (status: string) => status === '已发货' || status === '已取消';
 export function orderInView(
   order: { orderDate: string; status: string },
   query: {
@@ -29,7 +28,7 @@ export function orderInView(
   },
   date = today(),
 ) {
-  const closed = closedOrder(order.status);
+  const closed = closedOrder(order);
   if (query.view === 'history' && !(closed && order.orderDate < monthsBefore(date, 2)))
     return false;
   if (query.view === 'pending' && closed) return false;

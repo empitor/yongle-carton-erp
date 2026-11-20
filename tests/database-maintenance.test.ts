@@ -337,7 +337,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
         supplierId: f.supplier.id,
         orderDate: '2026-10-01',
         status: '已订货',
-        lines: [{ stockItemId: f.raw.id, name: f.raw.name, quantity: '300', unit: '张', customerOrderId: other.id }],
+        lines: [{ stockItemId: f.raw.id, name: f.raw.name, quantity: '300', unit: '张', customerOrderId: other.id, priceBasis: 'quantity' }],
       },
       f.who,
     );

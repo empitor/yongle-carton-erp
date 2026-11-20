@@ -7,7 +7,7 @@ import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import { AppError, many, rehearse } from '../../core/index.js';
 import { type ToolContext } from './context.js';
-import { isRecord } from '../chat/result-fields.js';
+import { isRecord } from '../../../shared/core/index.js';
 
 /** 一条被动到的业务记录：module 和卡片、修改历史用的模块名一致（单据用 kind） */
 export type Touched = { module: string; id: number };

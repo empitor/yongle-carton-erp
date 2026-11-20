@@ -65,7 +65,7 @@ test('助手按本机管理员的权限改订单、更正已入库的完工、�
         supplierId: f.supplier.id,
         orderDate: '2026-10-27',
         status: '待订货',
-        lines: [{ name: '虚构待删纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '10' }],
+        lines: [{ name: '虚构待删纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '10', priceBasis: 'quantity' }],
       },
       f.who,
     );

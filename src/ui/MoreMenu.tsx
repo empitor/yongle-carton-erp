@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
+import { useBackLayer } from './back-layers';
 
 /**
  * 次要操作收进“更多”。点击菜单项或菜单外、按 Esc、页面滚动时关闭。
@@ -17,6 +18,14 @@ export default function MoreMenu({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
+  // 安卓 App 的返回键：菜单开着时先收起菜单
+  const [open, setOpen] = useState(false);
+  useBackLayer(
+    () => {
+      if (ref.current) ref.current.open = false;
+    },
+    { active: open },
+  );
   useEffect(() => {
     const details = ref.current;
     if (!details) return;
@@ -79,6 +88,7 @@ export default function MoreMenu({
       if (Math.abs(actual.top - top) > 0.5) list.style.top = top - (actual.top - top) + 'px';
     };
     const onToggle = () => {
+      setOpen(details.open);
       place();
       if (details.open) requestAnimationFrame(place);
     };

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动动画（0.9 秒）：Y 和 L 两个图形从两边靠拢，合成公司 YL 商标。
+     图形照公司商标（100×100），放大 1.15 倍放在 288dp 画布正中，由 App 自己的启动画面（layout 的 launch）播放 -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="288dp"
+            android:height="288dp"
+            android:viewportWidth="288"
+            android:viewportHeight="288">
+            <group
+                android:scaleX="1.15"
+                android:scaleY="1.15"
+                android:translateX="86.5"
+                android:translateY="86.5">
+                <group
+                    android:name="yong"
+                    android:translateX="-18">
+                    <path
+                        android:fillColor="@color/splash_y"
+                        android:pathData="M2,8H22L34,28 46,8H66L42,48V92H26V48Z" />
+                </group>
+                <group
+                    android:name="le"
+                    android:translateX="18">
+                    <path
+                        android:fillColor="@color/splash_l"
+                        android:pathData="M48,48L64,21.3V73.2L48,89.2Z" />
+                    <path
+                        android:fillColor="@color/splash_foot"
+                        android:pathData="M66.8,76H98L88.4,92H50.8Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="yong">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="900"
+                android:interpolator="@android:interpolator/decelerate_cubic"
+                android:propertyName="translateX"
+                android:valueFrom="-18"
+                android:valueTo="0"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="le">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="900"
+                android:interpolator="@android:interpolator/decelerate_cubic"
+                android:propertyName="translateX"
+                android:valueFrom="18"
+                android:valueTo="0"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

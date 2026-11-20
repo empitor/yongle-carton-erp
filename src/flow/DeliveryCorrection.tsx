@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { pendingOrder } from '../../shared/business/index';
-import { finishedUnit } from '../../shared/core/index';
+import { deliverableOrder, finishedUnit } from '../../shared/core/index';
 import { FormField, FormSection, RowDelete, useAuthState, useLoad } from '../ui/index';
 import { readCatalog } from '../recordkit/catalog-api';
 import { AddRow, CorrectionTable, CorrectQuantity } from './CorrectionParts';
@@ -113,7 +112,7 @@ function DeliveryCorrectionAdmin(o: {
   busy: boolean;
 }) {
   const options = o.orders
-    .filter((order) => order.customerId === o.customerId && pendingOrder(order))
+    .filter((order) => order.customerId === o.customerId && deliverableOrder(order))
     .flatMap((order) =>
       order.lines.map((line) => ({
         id: line.id,

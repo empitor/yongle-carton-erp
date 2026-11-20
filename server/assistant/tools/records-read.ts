@@ -106,7 +106,7 @@ const dependencies: Partial<Record<Module, Record<string, string>>> = {
   },
   purchases: {
     customerOrderId: '用户没说关联哪张客户订单就不填，当备货，不追问',
-    'lines.priceBasis': '用户说“X元每平方米”是 area，“X元每张”是 quantity；单价原样写，面积和金额由服务算，不再问计价方式',
+    'lines.priceBasis': '必填：用户说“X元每平方米”是 area，“X元每张”是 quantity；没说按什么计价先问，不猜。单价原样写，面积和金额由服务算',
     'lines.stockItemId': '原料还没有库存品就留空，到货入库时由服务建，不用问',
     'lines.height': '纸板只有长和宽，高度传 null，不拿厚度或别的数字凑',
   },

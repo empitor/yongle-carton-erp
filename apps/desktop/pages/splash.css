@@ -1,0 +1,76 @@
+/* 启动画面：0.9 秒靠拢（先快后慢），1.3 秒时商标淡出；和安卓启动动画同一节奏 */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+/* 合成商标后在 1.3 秒时淡出（外壳在 1.5 秒先关这个小窗、再露出主窗口） */
+.logo {
+  width: 160px;
+  height: 160px;
+  animation: fade-out 200ms ease-in 1300ms both;
+}
+
+.y {
+  fill: #27407a;
+}
+
+.l {
+  fill: #b07d3c;
+}
+
+.foot {
+  fill: #8f6229;
+}
+
+.yong {
+  animation: yong-in 900ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.le {
+  animation: le-in 900ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+@keyframes yong-in {
+  from {
+    transform: translateX(-18px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes le-in {
+  from {
+    transform: translateX(18px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yong,
+  .le,
+  .logo {
+    animation: none;
+  }
+}

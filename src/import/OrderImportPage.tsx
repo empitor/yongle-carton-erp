@@ -8,6 +8,7 @@ import ImportPageHead, { DropZone, ImportBanners } from './ImportPageHead';
 import ImportPageDialogs, { type PageDialog } from './ImportPageDialogs';
 import { fileCounts } from './page-state';
 import { useChecked, usePreviewShown, useRecognize, useUploadMode } from './useImportPage';
+import { useAppShare } from './app-share';
 
 /** 拖文件进来的那一层：拖进时整页换样子，放下就上传 */
 function dropHandlers(dragging: boolean, setDragging: (v: boolean) => void, upload: (files: File[]) => void) {
@@ -46,6 +47,8 @@ export default function OrderImportPage() {
     settingsLink = auth?.actor?.role === 'super_admin' || localAdmin;
   const uploadMode = useUploadMode();
   const api = useOrderWorkspace(uploadMode);
+  // 安卓 App 分享进来的文件：工作区读好后走同一个上传
+  useAppShare(!!api.status, api.upload);
   const [dialog, setDialog] = useState<PageDialog | null>(null),
     [dragging, setDragging] = useState(false);
   const { showPreview, togglePreview } = usePreviewShown();

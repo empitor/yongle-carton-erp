@@ -8,9 +8,10 @@
 // 或者测试里按路径读了它（检查源码写法的测试），或者改的就是测试本身。
 // 两层以外也可能受影响（比如 server/core/db.ts 几乎人人间接在用），所以收尾必须跑完整的 npm test。
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { suites } from './run-tests.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const rel = (p) => relative(root, p).replaceAll('\\', '/');
@@ -28,12 +29,9 @@ if (!changed.length) {
     .filter((f) => !f.startsWith('docs/'));
 }
 
-const testFiles = [
-  ...readdirSync(join(root, 'tests')).filter((f) => /\.test\.(ts|mjs)$/.test(f)).map((f) => 'tests/' + f),
-  ...readdirSync(join(root, 'tests/serial')).filter((f) => /\.test\.mjs$/.test(f)).map((f) => 'tests/serial/' + f),
-  // 发布检查平时不在 npm test 里；改到发布、补丁、备份脚本时也一起挑出来
-  ...readdirSync(join(root, 'tests/release')).filter((f) => /\.test\.(ts|mjs)$/.test(f)).map((f) => 'tests/release/' + f),
-];
+// 和 npm test 同一份列法（连子目录）；发布检查平时不在 npm test 里，改到发布、补丁、备份脚本时也一起挑出来
+const { main, serial, release } = suites(root);
+const testFiles = [...main, ...serial, ...release];
 // 解析 import：静态 from、动态 import()、new URL('...', import.meta.url)
 const importRe = /(?:from\s*|import\s*\(\s*|import\s+|new URL\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g;
 const resolveFrom = (file, spec) => {

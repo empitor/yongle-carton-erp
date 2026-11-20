@@ -4,7 +4,7 @@ import type { Actor } from '../core/index.js';
 import { AUDIT_SOURCE, auditSourceNames, financeOnlyAccount } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import { AppError, count, many, parseStoredJson, rows } from '../core/index.js';
-import { dataManagementModules, flowKinds, recordEntities } from '../../shared/business/index.js';
+import { dataManagementModules, flowKinds, isFlowKind, recordEntities } from '../../shared/business/index.js';
 import { OperationsRepository, purchaseOrderLinks } from '../operations/index.js';
 import { businessRecord, businessRecords } from './records.js';
 import { historyRefs } from './history-refs.js';
@@ -282,7 +282,7 @@ export function recordContext(store: Store, module: string, id: number, who: Act
       ? '这张单据改了，关联的订单进度和库存会跟着更新。归档只是收起来不显示，能恢复；删除不能恢复，删之前会列出一起处理的记录，核对后才删。'
       : '归档只是收起来不显示，能恢复；删除不能恢复，删之前会列出一起删掉和保留下来的记录，核对后才删。',
     alternatives: related
-      .filter((r) => ['arrival', 'production', 'delivery', 'task'].includes(r.module))
+      .filter((r) => isFlowKind(r.module))
       .map(({ view: _view, ...r }) => ({ ...r, action: r.status === 'confirmed' ? 'reverse' : 'archive' })),
   };
 }

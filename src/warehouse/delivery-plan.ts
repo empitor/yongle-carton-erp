@@ -1,5 +1,5 @@
 import { deliveryBlockers, flowInput, planOrderDelivery, planStockDelivery, waitingCustomers } from '../../shared/business/index';
-import { safeUnits, today } from '../../shared/core/index';
+import { deliverableOrder, safeUnits, today } from '../../shared/core/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import type { GroupInput, PlanLine } from './DeliveryPlanGroup';
 
@@ -22,9 +22,9 @@ export type PlanPreset = { customerId: number; lines: Omit<PlanLine, 'notes'>[] 
 
 /** 订单还能送的：已确认、没发完、没归档 */
 export const openOrder = (o: Pick<OrderRow, 'archived' | 'status'>) =>
-  !o.archived && !['待确认', '已取消', '已发货'].includes(o.status);
+  !o.archived && deliverableOrder(o);
 /** 成品有可用量（扣掉待送货单占的） */
-const free = (s: Stock) => Number(s.availableUnits ?? s.balanceUnits ?? 0) > 0;
+const free = (s: Stock) => s.availableUnits > 0;
 const lineKey = (customerId: number, l: PlanLine) => customerId + '|' + l.orderLineId + '|' + l.stockId;
 
 /** 按怎么打开的排：可发货勾好的照搬；选了成品的按成品排（owners 指定了客户的只给他）；选了订单或客户的按订单排 */

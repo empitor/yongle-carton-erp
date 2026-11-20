@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DayNight：网页的深浅色（prefers-color-scheme）跟着手机系统走；不要标题栏，网页铺满 -->
+    <style name="ShellTheme" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/shell_dark</item>
+        <item name="android:navigationBarColor">@color/shell_dark</item>
+    </style>
+</resources>

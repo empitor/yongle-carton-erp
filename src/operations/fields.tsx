@@ -2,7 +2,7 @@ import DimensionUnitSelect from '../editors/DimensionUnitSelect';
 import { FormField } from '../ui/index';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys, type DimensionUnit } from '../../shared/core/index';
 import { lineMoney, sumMoney } from '../../shared/business/index';
-import { purchaseLineAmount } from '../../shared/business/index';
+import { UNPRICED_TEXT, purchaseLineAmount } from '../../shared/business/index';
 import { displayAmount } from '../../shared/core/index';
 
 /** 采购、库存编辑窗共用的小件：尺寸字段、金额计算。空白档案在 purchase-seed.ts。 */
@@ -32,7 +32,7 @@ export function lineAmountText(l: PricedLine) {
 export function purchaseTotalText(lines: readonly PricedLine[]) {
   try {
     const v = sumMoney(lines.map(purchaseLineMoney));
-    return v ? displayAmount(v) + ' 元' : '待定价';
+    return v ? displayAmount(v) + ' 元' : UNPRICED_TEXT;
   } catch {
     return '待完善明细';
   }

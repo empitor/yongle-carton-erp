@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 直接挂在窗口的内容层（android:id/content）下面：页面层 page（网页，连不上时盖一层“暂时无法连接 ERP”和“重试”）、
+     垫在状态栏和导航栏后面的上下两条色带（颜色跟着网页最上、最下一行走，SystemBars 取色）、启动画面。 -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <FrameLayout
+        android:id="@+id/page"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/web"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:id="@+id/offline"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/offline_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/offline_title"
+                android:textColor="@color/offline_text"
+                android:textSize="20sp" />
+
+            <Button
+                android:id="@+id/retry"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:minWidth="120dp"
+                android:text="@string/retry" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <View
+        android:id="@+id/status_shade"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="top" />
+
+    <View
+        android:id="@+id/nav_shade"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="bottom" />
+
+    <!-- 冷启动的启动画面：盖在最上面放商标动画，网页加载完才退场（LaunchScreen） -->
+    <FrameLayout
+        android:id="@+id/launch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/splash_background"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:id="@+id/launch_logo"
+            android:layout_width="288dp"
+            android:layout_height="288dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/splash_logo" />
+    </FrameLayout>
+</merge>

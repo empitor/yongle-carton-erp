@@ -155,7 +155,7 @@ export class DataManagementService {
    */
   private failed({ v, actor, origin }: Run, e: unknown) {
     const failure =
-      origin === 'management-ui' && e instanceof ZodError ? new AppError(readableIssues(e, v.module)) : e;
+      origin === 'management-ui' && e instanceof ZodError ? new AppError(readableIssues(e.issues, v.module)) : e;
     audit(this.store, actor, {
       action: 'failed-' + v.action,
       entity: auditEntity(v.module),
@@ -216,7 +216,7 @@ export class DataManagementService {
         ? { lines: orderLinesPriceEdit(patch.lines, before, input) }
         : {};
     return this.saves.save(
-      { module: v.module, actor, origin },
+      { module: v.module, actor, origin, current: { input, record: before } },
       item.id,
       { ...input, ...patch, ...price, ...lines, version: item.version },
       patch,

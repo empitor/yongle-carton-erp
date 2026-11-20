@@ -6,16 +6,22 @@ import { z } from 'zod';
  * 这样改名、改数据时类型检查能找到所有发的和收的地方，不会一处漏改就悄悄失效。
  * 浏览器自带的事件（hashchange、focus、keydown 等）照常用 window.addEventListener。
  */
-/** 底部提示的内容：只给文字是办成了；tone 为 error 是没办成（窗口已经关了，原因只能在这里说）。 */
-export type NoticeDetail = string | { message: string; tone?: 'done' | 'error' };
+/**
+ * 底部提示的口气：done 是办成了（带对勾）；error 是没办成（窗口已经关了，原因只能在这里说）；
+ * info 是提醒接下来会怎样、要人做什么（不是办成了，不带对勾）。
+ */
+export type NoticeTone = 'done' | 'error' | 'info';
+/** 底部提示的内容：只给文字是办成了 */
+export type NoticeDetail = string | { message: string; tone?: NoticeTone };
 
 /** 读底部提示带的内容；不认识的内容返回 null。 */
-export function readNotice(detail: unknown): { message: string; tone: 'done' | 'error' } | null {
+export function readNotice(detail: unknown): { message: string; tone: NoticeTone } | null {
   if (typeof detail === 'string') return detail ? { message: detail, tone: 'done' } : null;
   if (typeof detail !== 'object' || detail === null) return null;
-  const message: unknown = Reflect.get(detail, 'message');
+  const message: unknown = Reflect.get(detail, 'message'),
+    tone: unknown = Reflect.get(detail, 'tone');
   if (typeof message !== 'string' || !message) return null;
-  return { message, tone: Reflect.get(detail, 'tone') === 'error' ? 'error' : 'done' };
+  return { message, tone: tone === 'error' || tone === 'info' ? tone : 'done' };
 }
 
 export type AppEvents = {
@@ -76,8 +82,11 @@ export function emit<K extends keyof AppEvents>(name: K, ...args: Args<K>): void
   window.dispatchEvent(args.length ? new CustomEvent(name, { detail: args[0] }) : new Event(name));
 }
 
-/** 页面底部提示一句话：办完了只给文字；窗口已经关掉、事情没办成时 tone 给 'error'（红色，停留久一些）。 */
-export function notify(message: string, tone?: 'error'): void {
+/**
+ * 页面底部提示一句话：办完了只给文字；窗口已经关掉、事情没办成时 tone 给 'error'（红色，停留久一些）；
+ * 只是提醒接下来会怎样、要人做什么时给 'info'（不带对勾）。
+ */
+export function notify(message: string, tone?: NoticeTone): void {
   emit('erp-notice', tone ? { message, tone } : message);
 }
 

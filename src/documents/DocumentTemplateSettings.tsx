@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Eye, Save } from 'lucide-react';
-import { canEditBusiness, useAuthState, useAction } from '../ui/index';
+import { canEditBusiness, useAuthState, useAction, useSaveFile } from '../ui/index';
 import { documentTemplateSample, previewDocumentTemplate, readDocumentTemplates, saveDocumentTemplates } from './document-api';
 import {
   defaultTemplateColumns,
@@ -13,7 +13,7 @@ import {
 } from '../../shared/documents/index';
 import { errorMessage } from '../../shared/core/index';
 import BusinessFormPreview from './BusinessFormPreview';
-import { saveBytes, WordFilePreview, type WordFile } from './export-file';
+import { WordFilePreview, type WordFile } from './export-file';
 import { MoreMenu, Segmented } from '../ui/index';
 import { FormMessage } from '../ui/index';
 import TemplateForm from './TemplateForm';
@@ -48,7 +48,8 @@ function useTemplateSettings() {
     [dirty, setDirty] = useState(false),
     [preview, setPreview] = useState<BusinessForm | null>(null),
     [word, setWord] = useState<WordFile | null>(null);
-  const action = useAction();
+  const action = useAction(),
+    save = useSaveFile();
   const clearPreview = useCallback(() => {
     setPreview(null);
     setWord(null);
@@ -82,7 +83,7 @@ function useTemplateSettings() {
     const bytes = await response.arrayBuffer();
     if (display) setWord({ bytes, exportId: crypto.randomUUID() });
     else {
-      saveBytes(bytes, response.headers.get('Content-Type') || '', '测试样张-' + t.title + '.' + format);
+      await save(bytes, response.headers.get('Content-Type') || '', '测试样张-' + t.title + '.' + format);
       setMessage('虚构测试样张已导出，业务记录和状态未改变。');
     }
   };

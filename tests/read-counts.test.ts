@@ -262,7 +262,7 @@ function completionWorld() {
     return item;
   };
   const buy = (item: StockItemView, customerOrderId: number | null) =>
-    ops.savePurchase({ supplierId: supplier.id, customerOrderId, orderDate: '2026-10-01', status: '待订货', lines: [{ ...item, stockItemId: item.id, quantity: '10', unitPrice: '1.2345' }] }, actor);
+    ops.savePurchase({ supplierId: supplier.id, customerOrderId, orderDate: '2026-10-01', status: '待订货', lines: [{ ...item, stockItemId: item.id, quantity: '10', unitPrice: '1.2345', priceBasis: 'quantity' }] }, actor);
   const task = (p: { id: number }, o: { id: number }, quantity: string) =>
     saveDoc(flow, 'task', { productId: p.id, quantity, unit: '只', date: '2026-10-02', plannedDate: '2026-10-02', orderIds: [o.id] }, actor);
   const mine = order(product), shared = board('虚构关联纸板');

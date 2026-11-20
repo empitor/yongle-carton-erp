@@ -51,7 +51,7 @@ function fixture() {
       supplierId: supplier.id,
       orderDate: '2026-11-01',
       status: '待订货',
-      lines: [{ stockItemId: raw.id, name: raw.name, quantity: '100', unit: '张' }],
+      lines: [{ stockItemId: raw.id, name: raw.name, quantity: '100', unit: '张', priceBasis: 'quantity' }],
     },
     actor,
   );
@@ -323,7 +323,7 @@ test('HTTP：POST /orders/:id/cancel 要原因；PUT 改状态被拒；/purchase
           orderDate: '2026-11-01',
           status: '待订货',
           notes: '',
-          lines: [{ name: '虚构接口纸板', length: 1000, width: 800, dimensionUnit: 'mm', quantity: '10', unit: '张' }],
+          lines: [{ name: '虚构接口纸板', length: 1000, width: 800, dimensionUnit: 'mm', quantity: '10', unit: '张', priceBasis: 'quantity' }],
         }),
         record,
       )

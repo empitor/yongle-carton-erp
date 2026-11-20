@@ -1,8 +1,7 @@
 import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react';
-import { documentColumns, optionalDocumentFields, templateColumnsAreDefault, type DocumentColumn, type DocumentTemplate } from '../../shared/documents/index';
+import { documentColumns, optionalDocumentFields, requiredColumns, templateColumnsAreDefault, type DocumentColumn, type DocumentTemplate } from '../../shared/documents/index';
 import { FormGroup, FormSection } from '../ui/index';
 
-const fixed = ['name', 'unit', 'quantity'];
 /** 明细里能印的全部列（照 documentColumns 的先后） */
 const allColumns = Object.keys(documentColumns).filter((key): key is DocumentColumn => key in documentColumns);
 
@@ -57,11 +56,11 @@ export default function TemplateColumns({
                 <input
                   type="checkbox"
                   checked
-                  disabled={fixed.includes(key)}
+                  disabled={requiredColumns.includes(key)}
                   onChange={() => edit({ columns: columns.filter((c) => c !== key) })}
                 />
                 {documentColumns[key]}
-                {fixed.includes(key) && <small>必印</small>}
+                {requiredColumns.includes(key) && <small>必印</small>}
               </label>
               <button
                 type="button"

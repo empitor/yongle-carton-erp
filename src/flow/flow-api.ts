@@ -10,6 +10,9 @@ import { previewChangedMessage } from './flow-words';
  */
 const flow = call<FlowApi>();
 
+/** 到货单原件（送货单拍照、扫描件）的地址：详情里“查看原件”的链接都用它 */
+export const flowSourceFileUrl = (sourceId: string) => '/api/flow/sources/' + sourceId + '/file';
+
 /** 读一张单据（按钮按它现在的状态算） */
 export const readFlow = (id: number) => flow('GET /flow/:id', { params: { id } });
 

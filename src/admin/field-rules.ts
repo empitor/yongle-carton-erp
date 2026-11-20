@@ -1,6 +1,7 @@
 import { purchaseStatusLabel } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, statuses } from '../../shared/core/index';
-import { flowKinds, flowNames, flowStates, pendingLabels } from '../../shared/business/index';
+import { FINISHED_UNIT, RAW_UNIT, roundingPolicyLabels, statuses } from '../../shared/core/index';
+import { flowStates, isFlowKind, pendingLabels } from '../../shared/business/index';
+import { purchaseBusinessStatuses, stockKinds } from '../../shared/business/index';
 import type { RecordRefs, RefOption } from './record-refs';
 import type { JsonObject, ManagedRecord } from './record-types';
 // 数据管理编辑窗里每个字段怎么填：哪些不显示、下拉有哪些选项、关联字段列哪些候选、为什么锁住、用什么输入框。
@@ -64,17 +65,16 @@ function stockFilter(module: string, key: string): string | null {
 
 // 订单状态直接用共用的清单，免得两处再分叉
 const orderStatuses: string[] = [...statuses],
-  purchaseStatuses = ['待订货', '已订货', '已取消'],
-  flowStatuses = ['draft', 'confirmed', 'cancelled', 'reversed'];
-const isFlow = (module: string) => (flowKinds as readonly string[]).includes(module);
+  purchaseStatuses: string[] = [...purchaseBusinessStatuses],
+  flowStatuses = Object.keys(flowStates);
 /** 单据“待核对”的叫法按单据种类查（生产任务没有）；按模块名查，不是单据的查不到 */
 const pendingNames: Partial<Record<string, string>> = pendingLabels;
 /** 没有公共叫法函数的几个代码：存的还是代码，下拉里显示这些字 */
 const codeLabels: Record<string, Record<string, string>> = {
-  kind: { raw: '原材料', finished: '成品', ...flowNames },
+  kind: { raw: '原材料', finished: '成品' },
   dimensionUnit: { mm: '毫米（mm）', cm: '厘米（cm）' },
   priceBasis: { area: '按平方米', quantity: '按张' },
-  roundingPolicy: { 'exact-cents': '精确到分，不自动舍入', 'half-up-cent': '整单四舍五入到分' },
+  roundingPolicy: roundingPolicyLabels,
   // 正式订单只收人民币，存的是 CNY，界面上只写“人民币”
   currency: { CNY: '人民币' },
 };
@@ -82,25 +82,20 @@ const codeLabels: Record<string, Record<string, string>> = {
 /**
  * 数据管理下拉的选项：[存的值, 显示的字]。值保持原来的代码，显示一律中文，
  * 订单状态原样显示，采购单用 purchaseStatusLabel，单据按单据类型叫。
- * 当前值不在清单里也列出来，免得一打开就被悄悄改掉。nested 是明细、嵌套对象里的字段（库存品的 kind）。
+ * 当前值不在清单里也列出来，免得一打开就被悄悄改掉。种类只有库存品有（原材料、成品）。
  * 没有下拉的字段返回 null。
  */
-export function fieldChoices(
-  key: string,
-  current: unknown,
-  module = '',
-  nested = false,
-): [string, string][] | null {
+export function fieldChoices(key: string, current: unknown, module = ''): [string, string][] | null {
   let values: string[];
   let label: (v: string) => string;
   if (key === 'status') {
     if (module === 'orders') values = orderStatuses;
     else if (module === 'purchases') values = purchaseStatuses;
     // 生产任务没有待核对（安排即下达，建表也拦）
-    else if (isFlow(module)) values = flowStatuses.filter((s) => s !== 'draft' || pendingNames[module]);
+    else if (isFlowKind(module)) values = flowStatuses.filter((s) => s !== 'draft' || pendingNames[module]);
     else values = [...orderStatuses, ...purchaseStatuses.filter((s) => !orderStatuses.includes(s))];
     label = (v) =>
-      isFlow(module)
+      isFlowKind(module)
         ? v === 'draft'
           ? pendingNames[module] || flowStates.draft
           : v === 'reversed'
@@ -110,18 +105,20 @@ export function fieldChoices(
           ? purchaseStatusLabel(v)
           : v;
   } else if (codeLabels[key]) {
-    values =
-      key === 'kind'
-        ? isFlow(module) && !nested
-          ? [...flowKinds]
-          : ['raw', 'finished']
-        : Object.keys(codeLabels[key]);
+    values = key === 'kind' ? [...stockKinds] : Object.keys(codeLabels[key]);
     label = (v) => codeLabels[key][v] || v;
   } else return null;
   const now = current == null ? '' : String(current);
   const list = now && !values.includes(now) ? [...values, now] : values;
   return list.map((v) => [v, label(v)]);
 }
+
+/**
+ * 下拉里列不列“未填写”：金额结算一旦选过就不列——它是人明确确认的结算规则，清回“没选”没有业务含义，
+ * 订单的录入规则也不收空值（空着交就照原值存，等于悄悄丢掉这次改动）；库里本来就空的照实显示“未填写”。
+ */
+const keptOnceChosen = new Set(['roundingPolicy']);
+export const allowsBlank = (key: string, current: unknown) => current == null || !keptOnceChosen.has(key);
 
 /** 这个字段那一类的候选（读来的那份，不改它）：订单明细按同一行选的订单列，库存品按用途筛 */
 function candidates(key: string, ctx: FieldContext, line: JsonObject | null): readonly RefOption[] {

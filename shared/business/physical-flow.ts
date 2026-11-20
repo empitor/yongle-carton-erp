@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { FINISHED_UNIT, RAW_UNIT, finishedUnit, rawUnit } from '../core/index.js';
-import { chosenId, dateSchema, exactPriceSchema } from '../core/index.js';
+import { chosenId, dateSchema, exactPriceSchema, priceBases } from '../core/index.js';
 import { stockItemSchema } from './operations.js';
 import { positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
 import { inspectionFields, arrivalTimeSchema } from './arrival.js';
@@ -127,7 +127,7 @@ export const arrivalLineSchema = z.object({
   ...inspectionFields,
   statedQuantity: quantityText.nullable().default(null),
   unitPrice: exactPriceSchema.nullable().default(null),
-  priceBasis: z.enum(['area', 'quantity'], { error: '计价依据只能选按平方米或按张' }).nullable().default('area'),
+  priceBasis: z.enum(priceBases, { error: '计价方式只能选按平方米或按张' }).nullable().default('area'),
   statedArea: z
     .string()
     .trim()
@@ -289,7 +289,7 @@ export function sheetArea(item: SheetItem, quantity: string): string | null {
     return null;
   return multiplyDecimal([String(item.length), String(item.width), quantity], SQUARE_METRE_SHIFT[unit]);
 }
-/** 采购、到货一行的金额：数量、单价和计价依据（按面积时还要纸板资料） */
+/** 采购、到货一行的金额：数量、单价和计价方式（按面积时还要纸板资料） */
 type PricedLine = SheetItem & { quantity: string; unitPrice?: string | null; priceBasis?: string | null };
 export function purchaseLineAmount(line: PricedLine): string | null {
   if (line.unitPrice == null || line.priceBasis === null) return null;

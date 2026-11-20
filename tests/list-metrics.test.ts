@@ -208,6 +208,7 @@ function seedStock(service: OperationsService, d: { old: string; yesterday: stri
             quantity,
             unit: '张',
             unitPrice: '1.23',
+            priceBasis: 'quantity',
             length: 1000,
             width: 500,
             dimensionUnit: 'mm',

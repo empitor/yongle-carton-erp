@@ -1,17 +1,15 @@
-import type { ApiTable } from '../../shared/core/index';
+import type { ApiJson } from '../../shared/core/index';
 import type { DataManagementApi } from '../../shared/admin/index';
 import { dataManagementModules } from '../../shared/business/index';
 // 数据管理前端共用的类型：接口给的记录和编辑窗里的内容都是 JSON，按字段名一格一格地显示和改。
 
-/** 接口里能原样来回的 JSON 值（数据管理的记录、编辑窗里的内容都是它） */
-export type Json = ApiTable[`GET /${string}`]['response'];
 /** 一个 JSON 对象：一条记录、一项明细、一组预估成本 */
-export type JsonObject = { [key: string]: Json | undefined };
-export const isJsonObject = (v: Json | undefined): v is JsonObject =>
+export type JsonObject = { [key: string]: ApiJson | undefined };
+export const isJsonObject = (v: ApiJson | undefined): v is JsonObject =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
-export const isJsonList = (v: Json | undefined): v is readonly Json[] => Array.isArray(v);
+export const isJsonList = (v: ApiJson | undefined): v is readonly ApiJson[] => Array.isArray(v);
 /** 一个值给人看的文字：文字原样，数字转成文字；没填、对象、真假都是空的 */
-export const textOf = (v: Json | undefined): string =>
+export const textOf = (v: ApiJson | undefined): string =>
   typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
 
 /** 数据管理的十种业务记录（另有 workspaces：AI 识别工作区，走识别导入的地址） */
@@ -35,7 +33,7 @@ type WorkspaceShown = {
   readonly version: number;
   readonly archived: boolean;
   readonly name: string | null;
-  readonly [key: string]: Json | undefined;
+  readonly [key: string]: ApiJson | undefined;
 };
 /** 数据管理里一条记录在列表上的样子：业务记录带编辑窗用的 input；识别文件没有编辑窗，没有它 */
 export type ListedRecord = BusinessRecord | { record: WorkspaceShown; input?: undefined };

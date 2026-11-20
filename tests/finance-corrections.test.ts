@@ -217,9 +217,13 @@ for (const syncBeforeRevoke of [true, false])
         });
         assert.equal(reports.readiness(maker, { period }).ready, false);
         postDrafts(s);
-        assert.equal(reports.readiness(maker, { period }).ready, true);
+        assert.equal(reports.readiness(maker, { period }).ready, syncBeforeRevoke, '撤销还没补扫进财务时报表也拦着');
+        if (!syncBeforeRevoke) {
+          assert.equal(closing.check(maker, { period }).steps[0].ok, false, '撤销还没补扫进财务，结账检查拦着');
+          events.sync(maker, { requestId: 're-scan' });
+          assert.equal(reports.readiness(maker, { period }).ready, true);
+        }
         assert.equal(closing.check(maker, { period }).steps[0].ok, true);
-        if (!syncBeforeRevoke) events.sync(maker, { requestId: 're-scan' });
         assert.equal(
           new FinanceParties(s).obligations(maker, { kind: 'receivable' }).filteredRecords,
           0,

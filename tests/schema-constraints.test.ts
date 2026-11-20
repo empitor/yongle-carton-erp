@@ -40,8 +40,10 @@ import {
   accountCategories,
   accountSchema,
   auxiliaryKinds,
+  cashMethods,
   settingsPatchSchema,
   taxpayerSchema,
+  termTypes,
 } from '../shared/finance/finance.js';
 import { convertedKinds, inboxChannels, inboxKinds, inboxStatuses } from '../shared/import/inbox.js';
 import { actor as assistantActor, assistantFixture } from './assistant-fixture.js';
@@ -153,14 +155,14 @@ function enumOwners(): Record<string, readonly string[]> {
     'fin_source_observations.status': finance.observationStatuses,
     'fin_templates.name': finance.templateNames,
     'fin_party_terms.kind': finance.partyKinds,
-    'fin_party_terms.term_type': finance.termTypes,
+    'fin_party_terms.term_type': termTypes,
     'fin_party_terms.tax_mode': finance.taxModes,
     'fin_obligations.kind': finance.obligationKinds,
     'fin_obligations.tax_status': finance.obligationTaxStatuses,
     'fin_cash_accounts.kind': finance.cashAccountKinds,
     'fin_cash_documents.kind': finance.cashDocumentKinds,
     'fin_cash_documents.status': finance.cashDocumentStatuses,
-    'fin_cash_documents.method': finance.cashMethods,
+    'fin_cash_documents.method': cashMethods,
     'fin_allocations.status': finance.allocationStatuses,
     'fin_deposits.kind': finance.depositKinds,
     'fin_deposits.party_kind': finance.partyKinds,

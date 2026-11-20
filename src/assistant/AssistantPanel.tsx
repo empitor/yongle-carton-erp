@@ -1,5 +1,6 @@
 import { useState, type DragEvent } from 'react';
 import type { AssistantSpeaker } from '../../shared/assistant/index';
+import { useBackLayer } from '../ui/index';
 import { assistantDisplayName } from './assistant-launcher';
 import AssistantHeader from './AssistantHeader';
 import AssistantMemoryPanel from './AssistantMemoryPanel';
@@ -34,6 +35,8 @@ export default function AssistantPanel({
   const { docked, large, floating } = panel,
     { threads, chat, review, uploads } = parts;
   const [dragging, setDragging] = useState(false);
+  // 安卓 App 的返回键：开着记忆面板先关记忆面板，再按才关聊天窗口（和各自的关闭按钮一样）
+  useBackLayer(() => (panel.memoryOpen ? panel.setMemoryOpen(false) : panel.setOpen(false)));
   const drop = fileDropHandlers(
     setDragging,
     () => !(chat.busy || uploads.working || parts.speech.active),

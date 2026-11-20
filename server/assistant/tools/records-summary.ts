@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AppError } from '../../core/index.js';
 import { orderMetrics, purchaseMetrics, productMetrics, inventoryMetrics, summarizeMovements } from '../../../shared/business/index.js';
 import { sumMoney } from '../../../shared/business/index.js';
-import { FINISHED_UNIT, quantityString } from '../../../shared/core/index.js';
+import { FINISHED_UNIT, effectiveOrder, quantityString } from '../../../shared/core/index.js';
 import { positive, type ToolContext } from './context.js';
 import { moduleSchema, type Module, type ModuleRows } from './modules.js';
 import type { MatchedRows, RecordFilters } from './records-filter.js';
@@ -74,8 +74,6 @@ export function allocateSheets(ctx: ToolContext, raw: unknown) {
   };
 }
 
-/** 订单金额的口径：不含待确认、取消。 */
-const pricedOrder = (r: { status: string }) => !['待确认', '已取消'].includes(r.status);
 /** 订单的精确金额；没有的算没定价（合计就是 null） */
 const exactAmount = (r: OrderRow) => r.totalAmountExact ?? null;
 /** 订单明细只数合计：明细单位只有“只”（数据库约束），整数直接相加。 */
@@ -96,7 +94,7 @@ function orderTotals(rows: readonly OrderRow[]) {
       customerName: list[0].customerName,
       orders: list.length,
       quantity: orderQuantity(list),
-      amount: sumMoney(list.filter(pricedOrder).map(exactAmount)),
+      amount: sumMoney(list.filter(effectiveOrder).map(exactAmount)),
     })),
     quantityDefinition: '筛出来的订单里不含已取消的明细只数合计',
   };
@@ -105,7 +103,8 @@ function orderSummary(rows: readonly OrderRow[]) {
   return {
     ...orderMetrics([...rows]),
     byShippingProgress: countBy(rows, (r) => r.shippingProgress),
-    amount: sumMoney(rows.filter(pricedOrder).map(exactAmount)),
+    // 订单金额的口径：有效订单，不含待确认、取消
+    amount: sumMoney(rows.filter(effectiveOrder).map(exactAmount)),
     amountDefinition: '有效订单精确金额，不含待确认、取消',
     ...orderTotals(rows),
   };

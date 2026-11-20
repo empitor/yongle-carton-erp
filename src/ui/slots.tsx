@@ -7,7 +7,7 @@ import type { ArchiveResult } from '../../shared/core/index';
  * - 服务接口：要读写别的模块的数据（调它的后端接口）时，用这里定义好的函数，由那个模块实现。
  *   比如今日页列收件箱、本机管理员复制 AI 识别文件。页面不直接请求别的模块的后端地址。
  * 由最外层装配（src/slots.ts，在 main.tsx 里填进来）把各模块的实现放进去。
- * 没填时（单独测某个页面时就是这样）：组件插槽什么都不显示；收件箱、AI 识别文件、往来单位、到期应收应付当作没有数据；
+ * 没填时（单独测某个页面时就是这样）：组件插槽什么都不显示；收件箱、AI 识别文件、到期应收应付当作没有数据；
  * 本机管理员操作（useAdmin）会报错，不会悄悄跳过。
  */
 
@@ -49,6 +49,9 @@ export type DueSoonRow = {
   days_to_due: number;
 };
 
+/** 保存一份内存里的文件：type 是文件类型，filename 带扩展名；存好了才返回，没存成抛错（原因给人看） */
+export type FileSaver = (bytes: ArrayBuffer, type: string, filename: string) => Promise<void>;
+
 /** 本机管理员用的数据管理接口 */
 export type AdminService = {
   /** 复制一份 AI 识别文件（本机管理员用来改识别结果、重新识别） */
@@ -70,12 +73,12 @@ export type Slots = {
     /** 收件的原文件下载地址 */
     fileUrl(id: number): string;
   };
-  /** 往来单位（业务）：财务选客户、供应商 */
-  parties?: { list(kind: 'customer' | 'supplier'): Promise<{ id: number; name: string }[]> };
   /** 今日页右栏近期到期的应收应付（财务）；没有财务权限时是空的 */
   finance?: { dueSoon(days: number, limit: number): Promise<DueSoonRow[]> };
   /** 本机管理员用的数据管理接口（数据管理） */
   admin?: AdminService;
+  /** 保存内存里的文件（装配：安卓 App 里交给 App 存进手机“下载”）；没填就是交给浏览器下载（src/ui/save-file.ts） */
+  saveFile?: FileSaver;
   /** 识别文件的归档、恢复、永久删除（识别导入）：数据管理和 AI 导入页走同一个地址 */
   workspaceFiles?: {
     change(

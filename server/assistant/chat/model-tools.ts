@@ -4,8 +4,7 @@
 //   必填、枚举、类型都留着；数量、日期的正则在几十个工具里重复出现，数量换成一句短说明、日期换成 format: date；
 //   真正的校验照旧由注册表按 zod 结构做。
 import { z } from 'zod';
-import { dateSchema, quantityText } from '../../../shared/core/index.js';
-import { isRecord } from './result-fields.js';
+import { dateSchema, isRecord, quantityText } from '../../../shared/core/index.js';
 
 export type ModelTool = {
   type: 'function';

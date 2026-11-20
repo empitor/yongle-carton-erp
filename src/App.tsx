@@ -1,20 +1,24 @@
 import { Suspense, useState } from 'react';
-import { AlertCircle, Check } from 'lucide-react';
+import { AlertCircle, Check, Info } from 'lucide-react';
 import { APP_VERSION, financeOnlyAccount } from '../shared/core/index';
-import { BrandLogo, ErrorBoundary, PageHeading, useAuthState, type AuthState } from './ui/index';
+import { BrandLogo, canEditBusiness, ErrorBoundary, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
+import { useAppHome } from './app-bridge';
 import LoginScreen from './LoginScreen';
 import ForcedPasswordChange from './ForcedPasswordChange';
 import Navigation from './Navigation';
 import AppTopbar from './AppTopbar';
 import { MobileSubNav, MobileTabBar, useMobileTables } from './mobile/MobileNav';
+import { useAppContentStretch } from './mobile/content-stretch';
 import CommandPalette from './CommandPalette';
-import { InboxPage } from './import/index';
+import { InboxPage, useAppShareAccount } from './import/index';
 import { SuperModeBanner } from './admin/index';
 import { AccountManagement, AiSettingsHub, FinancePages, FlowPage, GlobalAssistant, OperationsPage, OrderImportPage } from './lazy-pages';
 import { RecordPages, recordPages } from './records/index';
 import GuidePage from './GuidePage';
 import {
+  homePage,
   ownHeading,
+  pageAllowed,
   pageNames,
   useHashPage,
   useNavCounts,
@@ -41,9 +45,10 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
     // 出纳这类纯财务账号只看财务页面，业务数据也不加载（后端同样会拒绝）。
     financeOnly = financeOnlyAccount(actor),
     finance = actor.permissions.includes('finance:view'),
-    canCreate = superMode || actor.permissions.includes('business:edit');
+    canCreate = canEditBusiness(auth);
   useReloadOnAccountSwitch(actor.id);
   useMobileTables();
+  useAppContentStretch();
   const { page, routeKey } = useHashPage(financeOnly);
   const counts = useNavCounts(actor.id, financeOnly);
   const { notice, notify } = useNotice();
@@ -54,6 +59,12 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
     location.hash = target;
     setMenu(false);
   };
+  // 安卓 App 的返回键：手机侧边菜单开着先关菜单；没有弹层时回首页
+  useBackLayer(() => setMenu(false), { active: menu });
+  const home = homePage(financeOnly);
+  useAppHome(page === home, () => navigate(home));
+  // 安卓 App 分享来的文件：这个账号进不了 AI 导入就回绝
+  useAppShareAccount(pageAllowed('ai-import', financeOnly));
   const recordPage = (recordPages as readonly string[]).includes(page);
   return (
     <div className="shell">
@@ -119,12 +130,15 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
   );
 }
 
-/** 底部提示：办完的绿色对勾，没办成的红色感叹号 */
+/** 底部提示的图标：办完的对勾，没办成的感叹号，提醒的 i（不是办成了） */
+const toastIcons = { done: Check, error: AlertCircle, info: Info };
+/** 底部提示：办完的绿色对勾，没办成的红色感叹号，提醒不带对勾 */
 function Toast({ notice }: { notice: Notice }) {
-  const failed = notice.tone === 'error';
+  const failed = notice.tone === 'error',
+    Icon = toastIcons[notice.tone];
   return (
     <div className={'toast' + (failed ? ' toast-error' : '')} role={failed ? 'alert' : 'status'}>
-      {failed ? <AlertCircle size={18} /> : <Check size={18} />}
+      <Icon size={18} />
       {notice.message}
     </div>
   );

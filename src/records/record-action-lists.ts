@@ -1,4 +1,5 @@
-import { productIncomplete, type NextStep, type NextSteps, type RecordStatusAction } from '../../shared/business/index';
+import { orderStatusRules, productIncomplete, purchaseStatusRules } from '../../shared/business/index';
+import type { NextStep, NextSteps, RecordStatusAction } from '../../shared/business/index';
 import type { Order, Product } from '../../shared/core/index';
 import type { RecordAction } from '../ui/index';
 import { newOrderFrom, newPurchaseFrom } from '../recordkit/launch';
@@ -36,7 +37,10 @@ const orderStepLabel = (s: NextStep, n: number) =>
   s.label ||
   s.title;
 
-export function orderActions(c: ActionContext<Order>): ActionLists {
+/** 订单的动作只看这几项 */
+type OrderRow = Pick<Order, 'id' | 'number' | 'status'>;
+
+export function orderActions(c: ActionContext<OrderRow>): ActionLists {
   const { row, working } = c;
   const run = (s: NextStep) => {
     if (s.kind === 'confirm') c.saveStatus('confirm', '订单 ' + row.number + ' 已确认。');
@@ -55,12 +59,13 @@ export function orderActions(c: ActionContext<Order>): ActionLists {
     steps.push({ label: orderStepLabel(s, n), disabled: working, onClick: () => run(s) });
   }
   const extra: RecordAction[] = [];
-  if (row.status === '已确认')
+  const allowed = (action: RecordStatusAction) => orderStatusRules[action].from.includes(row.status);
+  if (allowed('revert'))
     extra.push({ label: '退回待确认', disabled: working, onClick: () => c.saveStatus('revert', '订单 ' + row.number + ' 已退回待确认。') });
-  if (row.status === '已取消')
+  if (allowed('reinstate'))
     extra.push({ label: '恢复为待确认', disabled: working, onClick: () => c.saveStatus('reinstate', '订单 ' + row.number + ' 已恢复为待确认。') });
   const danger: RecordAction[] = [];
-  if (!['已取消', '已发货'].includes(row.status))
+  if (allowed('cancel'))
     danger.push({
       label: '取消订单',
       danger: true,
@@ -87,7 +92,9 @@ export function purchaseActions(c: ActionContext<PurchaseRow>): ActionLists {
     extra: RecordAction[] = [],
     danger: RecordAction[] = [];
   const orderSheet = () => c.setDialog({ type: 'order-sheet', purchaseIds: [row.id] });
-  if (status === '待订货') {
+  const allowed = (action: RecordStatusAction) => purchaseStatusRules[action].from.includes(status);
+  // 待订货：下一步导出订货单，也能不导出直接确认
+  if (allowed('confirm')) {
     steps.push({ label: '导出订货单', onClick: orderSheet });
     extra.push({
       label: '不导出，直接改成待到货',
@@ -100,16 +107,16 @@ export function purchaseActions(c: ActionContext<PurchaseRow>): ActionLists {
   if (status === '已订货') {
     extra.push({ label: '重新导出订货单', onClick: orderSheet });
     extra.push({ label: '到货记录', href: '#warehouse?arrivals=1&purchase=' + row.id });
-    if (!received)
-      extra.push({ label: '退回待订货', disabled: working, onClick: () => c.saveStatus('revert', '采购单 ' + row.number + ' 已退回待订货。') });
   }
-  if (status === '已取消')
+  if (allowed('revert') && !received)
+    extra.push({ label: '退回待订货', disabled: working, onClick: () => c.saveStatus('revert', '采购单 ' + row.number + ' 已退回待订货。') });
+  if (allowed('reinstate'))
     extra.push({
       label: '恢复为待订货',
       disabled: working || (received && !localAdmin),
       onClick: () => c.saveStatus('reinstate', '采购单 ' + row.number + ' 已恢复。'),
     });
-  if (status !== '已取消' && !(row.arrivalProgress === '全部到货' && !localAdmin))
+  if (allowed('cancel') && !(row.arrivalProgress === '全部到货' && !localAdmin))
     danger.push({
       label: '取消采购单',
       danger: true,

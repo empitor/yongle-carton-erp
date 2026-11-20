@@ -1,5 +1,6 @@
 import type { Actor } from '../core/index.js';
 import type { z } from 'zod';
+import type { Permission } from '../../shared/core/index.js';
 /**
  * 工具分组：命令目录按组分小节，管理员能在“插件与工具”里整组停用。只有编号、名字和一句说明；
  * 每个工具归哪一组由 builtinPluginFor 按名字定，新工具不在表里就报错，加工具时补一行。
@@ -16,7 +17,7 @@ export type PluginTool = {
   risk: string;
   kind: 'read' | 'business' | 'workflow';
   schema: z.ZodType;
-  permissions?: string[];
+  permissions?: Permission[];
   available?: (actor?: Actor | null) => boolean;
   execute?: (args: unknown, actor: Actor, context: unknown) => unknown;
 };

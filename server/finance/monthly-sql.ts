@@ -1,12 +1,14 @@
 /**
  * 月度台账的明细从哪来：送货、到货的财务事件（还没同步的按页面传进来的算），收付款核销、没核销的收付款、
- * 直接记在资金科目上的凭证分录，现结优惠、压款利息、保证金和退回，接单。每一路查成同样的 13 列，合在一起。
+ * 直接记在资金科目上的凭证分录，现结优惠、压款利息、保证金和退回，接单（不算待确认、已取消）。每一路查成同样的 13 列，合在一起。
+ * 参数用 monthlyAllParams、monthlyObservedParams 排。
  */
 import { z } from 'zod';
 import { isReversed } from './reversal-pairs.js';
 import { allocationSum, voucherReversed } from './obligation-sql.js';
 import { sourceConfirmed } from './business-source.js';
 import { snapshotNumber, snapshotPartyName } from './source-snapshot.js';
+import { uncountedOrderStatuses } from '../../shared/core/index.js';
 
 const cashSign =
   "CASE WHEN c.kind IN ('receipt','income') THEN 'actualIncome' ELSE 'actualExpense' END";
@@ -89,7 +91,7 @@ const supplementary = `
     JOIN fin_deposits d ON d.id=a.deposit_id JOIN fin_vouchers v ON v.id=a.voucher_id WHERE v.status='posted' AND NOT ${voucherReversed('v', true)} AND a.kind='refund'
   UNION ALL
   SELECT 'ordered',id,order_date,substr(order_date,1,7),cast(id AS TEXT),number,customer_name,total_cents,
-    json_object('orderId',id),status,NULL,0,0 FROM orders WHERE status<>'已取消'`;
+    json_object('orderId',id),status,NULL,0,0 FROM orders WHERE status NOT IN (${uncountedOrderStatuses.map(() => '?').join(',')})`;
 const unsyncedSql = `SELECT CASE WHEN json_extract(u.value,'$.source_kind')='delivery' THEN 'theoreticalIncome' ELSE 'theoreticalExpense' END,
   json_extract(u.value,'$.id'),json_extract(u.value,'$.date'),substr(json_extract(u.value,'$.date'),1,7),
   json_extract(u.value,'$.source_id'),${snapshotNumber('u.value', "json_extract(u.value,'$.source_id')", '$.snapshot')},
@@ -98,8 +100,14 @@ const unsyncedSql = `SELECT CASE WHEN json_extract(u.value,'$.source_kind')='del
   EXISTS(SELECT 1 FROM json_each(u.value,'$.missing') WHERE value='tax') FROM json_each(?) u`;
 export const monthlyAll = `${eventSql} UNION ALL ${unsyncedSql} UNION ALL ${allocationRows} UNION ALL ${cashSql} UNION ALL ${ledgerCash} UNION ALL ${supplementary}`;
 export const monthlyObserved = `${eventSql} UNION ALL ${allocationRows} UNION ALL ${cashSql} UNION ALL ${ledgerCash} UNION ALL ${supplementary}`;
-export const replacedEvents = (pending: { id: number | null }[]) =>
+const replacedEvents = (pending: { id: number | null }[]) =>
   JSON.stringify(pending.flatMap((row) => row.id === null ? [] : [row.id]));
+/**
+ * 两份查询的参数，按 SQL 里 ? 的先后：被还没同步的单据替掉的事件、（monthlyAll 才有）还没同步的单据，
+ * 最后是接单不算的订单状态（待确认、已取消，和今日页、经营概况同一份清单）。接在后面的条件参数由调用方再加。
+ */
+export const monthlyAllParams = (pending: { id: number | null }[]) => [replacedEvents(pending), JSON.stringify(pending), ...uncountedOrderStatuses];
+export const monthlyObservedParams = (pending: { id: number | null }[]) => [replacedEvents(pending), ...uncountedOrderStatuses];
 /** 月度台账明细一行（各来源合在一起）：哪项、编号、日期、来源月份、单号、往来单位、金额、明细 JSON、状态、到期日、已收付、是否缺税率 */
 export const detailRow = z.object({
   metric: z.string(),

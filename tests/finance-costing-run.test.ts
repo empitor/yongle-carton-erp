@@ -302,6 +302,7 @@ test('一个月的库存账直接算：领料按加权平均出库、记进完�
     consumed: new Set(),
     adjustedStocks: new Set(),
     arrivalEvent: () => undefined,
+    arrivals: new Map(),
   });
   const move = (id: string, delta: number, source_kind: string): Movement => ({
     id, item_id: 1, delta_units: delta, source_kind, source_id: 'P1', date: '2026-01-10',

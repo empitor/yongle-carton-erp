@@ -299,6 +299,6 @@ test('数据管理改价规则直接调用：整条带回只少一个键算点�
   assert.deepEqual(orderLinesPriceEdit([fresh], before, before), [fresh]);
   const issue = orderSchema.safeParse({ customerId: 1, orderDate: '2026-10-01', lines: [] });
   assert.ok(!issue.success);
-  assert.doesNotMatch(readableIssues(issue.error, 'orders'), /[A-Za-z]{4,}/, '说法里不露英文字段名');
+  assert.doesNotMatch(readableIssues(issue.error.issues, 'orders'), /[A-Za-z]{4,}/, '说法里不露英文字段名');
 });
 

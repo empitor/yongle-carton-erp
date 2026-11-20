@@ -6,10 +6,11 @@ import { proportion } from './amounts.js';
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { many, rows } from '../core/index.js';
+import { count, many, rows } from '../core/index.js';
 import { financeError } from './core.js';
 import { readSnapshot, type EventSnapshot, type FinanceSourceLine } from './source-snapshot.js';
 import { expectRow } from './finance-rows.js';
+import { periodOf } from './days.js';
 
 /** 按到货批次（财务事件）汇总的到票调差和红票冲减。 */
 export type InvoiceAdjustments = {
@@ -132,13 +133,14 @@ function redParts(db: DatabaseSync, end: string, events: number[]): AdjustmentPa
   return parts;
 }
 
-/** 这几笔里已被以前的成本计算用过的 */
-function appliedKeys(db: DatabaseSync, keys: string[]) {
+/** 这几笔里已被以前的成本计算用过的；before 给了只认那个月以前的成本计算 */
+function appliedKeys(db: DatabaseSync, keys: string[], before: string | null) {
   const found = many(
     db,
     z.object({ k: z.string() }),
     `SELECT a.value AS k FROM fin_period_jobs j,json_each(j.details,'$.applied') a
-          WHERE j.kind='costing' AND a.value IN (SELECT value FROM json_each(?))`,
+          WHERE j.kind='costing' AND (?1 IS NULL OR j.period<?1) AND a.value IN (SELECT value FROM json_each(?2))`,
+    before,
     JSON.stringify(keys),
   );
   return new Set(found.map((r) => r.k));
@@ -165,7 +167,7 @@ export function invoiceAdjustments(db: DatabaseSync, end: string, only?: Set<str
   for (const r of blueParts(db, end, list)) add(r.event, r.k, r.amount, !!r.applied);
   const parts = redParts(db, end, events);
   if (parts.length) {
-    const applied = appliedKeys(db, parts.map((p) => p.k));
+    const applied = appliedKeys(db, parts.map((p) => p.k), null);
     for (const p of parts) add(p.event, p.k, p.amount, applied.has(p.k));
   }
   const found = many(
@@ -176,6 +178,35 @@ export function invoiceAdjustments(db: DatabaseSync, end: string, only?: Set<str
   );
   for (const e of found) result.events.set(e.id, { date: e.date, snapshot: readSnapshot(e) });
   return result;
+}
+
+/**
+ * 这几批到货到 end 那个月为止进了库存的到票调差和红票冲减合计（分）：以前月份的成本计算用过的，加上这次用的
+ * （only 同 invoiceAdjustments：结账检查只认那次计算记下的）。以后月份才用掉的不算：回头查这个月时，它们当时还没进库存。
+ * 撤销到货以后数量为 0 时，按它算还在等红票的余额。
+ */
+export function adjustedTotals(db: DatabaseSync, end: string, events: number[], only?: Set<string>) {
+  const totals = new Map(events.map((e) => [e, 0]));
+  if (!events.length) return totals;
+  const parts = [...blueParts(db, end, JSON.stringify(events)), ...redParts(db, end, events)];
+  const earlier = appliedKeys(db, parts.map((p) => p.k), periodOf(end));
+  for (const p of parts)
+    if (earlier.has(p.k) || !only || only.has(p.k)) totals.set(p.event, (totals.get(p.event) ?? 0) + p.amount);
+  return totals;
+}
+
+/**
+ * 这条到货事件名下的暂估，到票时已经转走了多少（分）：已确认的采购蓝票关联上记的对应暂估合计。
+ * 撤销到货时只冲还挂着的那部分（原暂估减去它），转走的部分由红票冲。
+ */
+export function clearedEstimate(db: DatabaseSync, eventId: number) {
+  return count(
+    db,
+    `SELECT coalesce(sum(l.estimate_cents),0) FROM fin_invoice_links l JOIN fin_invoices i ON i.id=l.invoice_id
+      JOIN fin_obligations o ON o.id=l.obligation_id
+      WHERE o.event_id=? AND i.direction='purchase' AND i.gross>0 AND i.status NOT IN ('draft','void')`,
+    eventId,
+  );
 }
 
 // 按到货各行原暂估不含税额的占比分摊。按累计口径：先分摊以前月份已调的累计，再分摊加上这次后的累计，

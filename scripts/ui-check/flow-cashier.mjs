@@ -1,5 +1,7 @@
-// 出纳这类纯财务账号：导航只有财务和使用说明，打开业务页面的地址会回到财务概览，手机底部是财务入口。
-import { openChrome, BASE, SP, go } from './lib.mjs';
+// 出纳这类纯财务账号：导航只有财务和使用说明，打开业务页面的地址会回到财务概览，手机底部是财务入口；
+// 开收款单时客户下拉有选项（往来单位走财务自己的地址，不借业务的）。
+import { openChrome, BASE, SP, go, login } from './lib.mjs';
+import { financeKit } from './finance-kit.mjs';
 const fail = (message) => console.log('ERR: ' + message);
 const run = async (viewport, label) => {
   const { context, page, consoleErrors } = await openChrome(viewport);
@@ -41,5 +43,26 @@ const run = async (viewport, label) => {
   for (const text of ['概览', '应收应付', '资金', '凭证']) if (!tabs.includes(text)) fail('手机底部缺少' + text);
   for (const text of ['今日', '订单', '生产', '仓库']) if (tabs.includes(text)) fail('手机底部出现了' + text);
   console.log('出纳手机导航 ok');
+  await context.close();
+}
+{
+  // 前置（管理员走接口）：启用财务、建一个资金账户，出纳才有“新建收付款”
+  const admin = await openChrome();
+  await login(admin.page);
+  await financeKit(admin.page).openBooks();
+  await admin.context.close();
+  const { context, page, consoleErrors } = await openChrome();
+  await login(page, '虚构出纳');
+  await go(page, '#finance-cash?tab=documents');
+  await page.getByRole('button', { name: '新建收付款', exact: true }).click();
+  const { dlg, field } = financeKit(page);
+  await field('往来单位').locator('input').first().click();
+  await dlg().getByRole('option').first().waitFor({ timeout: 5000 }).catch(() => {});
+  const options = await dlg().getByRole('option').allInnerTexts();
+  if (!options.some((o) => o.includes('虚构'))) fail('出纳开收款单，客户下拉里没有选项：' + options.join('、'));
+  else console.log('出纳收款单客户下拉 ok：' + options.length + ' 项');
+  await page.screenshot({ path: `${SP}/c-收款单客户.png` });
+  const errors = [...new Set(consoleErrors)].filter((e) => !/status of (403|503)/.test(e));
+  if (errors.length) fail('出纳开收款单时控制台报错 ' + errors.join(' | ').slice(0, 300));
   await context.close();
 }

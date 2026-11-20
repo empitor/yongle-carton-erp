@@ -143,6 +143,8 @@
     bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom) + 8px);
     left: 8px;
     width: auto;
+    /* 去掉电脑上的宽度上限，左右边距才一样 */
+    max-width: none;
     max-height: 70dvh;
     overflow: auto;
   }

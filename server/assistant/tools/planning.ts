@@ -27,7 +27,7 @@ export const planningTools = [
   {
     name: 'delivery.plan',
     risk: 'read',
-    description: '算送货方案：安排送货前用（多选库存或订单时）。和“安排送货”窗口同一算法：传 stockIds 按交期把库存分给在等的订单，传 orderIds 把订单没发完的排满；按客户分组，一组一张送货单。contested 里几个客户等同一种货时先问用户，再用 owners 指定。只读；保存用 records.propose_save 的 items，每组一张送货单，一张卡片。',
+    description: '算送货方案：安排送货前用（多选库存或订单时）。和“安排送货”窗口同一算法：stockIds 按交期把库存分给在等的订单，orderIds 把订单没发完的排满；按客户分组。contested 里几个客户等同一种货时先问用户，再用 owners 指定。只读；保存用 records.propose_save 的 items，一组一张送货单，组里的 address、contact、phone 照带上。',
     arguments: { stockIds: [1, 2], orderIds: '或改传订单id', owners: [{ stockId: 1, customerId: 3 }] },
     schema: deliveryPlanSchema,
   },

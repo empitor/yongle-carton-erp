@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from 'react';
-import { emit, readAuthState, readEventStream } from '../ui/index';
+import { emit, readAuthState, readEventStream, type FileSaver } from '../ui/index';
 import { AI_HTTP_TIMEOUT_MS, type DeepSeekThinking } from '../../shared/ai/index';
 import { errorMessage } from '../../shared/core/index';
 import type { AssistantSpeaker, InterimSaid, ThreadView } from '../../shared/assistant/index';
@@ -33,6 +33,8 @@ type ChatOptions = {
   setError: (message: string) => void;
   /** 聊天记录是不是停在最底下；发送时拉回底部 */
   atBottom: RefObject<boolean>;
+  /** 回复里带下载文件时用它保存（useSaveFile） */
+  saveFile: FileSaver;
 };
 
 /**
@@ -196,7 +198,7 @@ async function sendChat(run: ChatRun, override?: string, card?: CardDecision) {
 async function readReply({ o, s, reasoning }: ChatRun, stream: Response, owner: string) {
   const { setWorking, setDraft, setSaid, setProgress, setStep, draftRef } = s;
   const on = replyHandlers(
-    { setWorking, setDraft, setSaid, setProgress, setStep, setThread: o.setThread, setError: o.setError, draftRef, reasoning, uploads: o.uploads },
+    { setWorking, setDraft, setSaid, setProgress, setStep, setThread: o.setThread, setError: o.setError, draftRef, reasoning, uploads: o.uploads, saveFile: o.saveFile },
     { clientId: s.pageClientId.current, owner, currentOwner: () => o.userRef.current },
   );
   const thread = await readEventStream<ThreadView>(

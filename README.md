@@ -40,6 +40,7 @@ npm.cmd run dev
 | `npm.cmd run test:ui` | 隔离实例加虚构数据，在无头 Chrome 里走主要界面流程；`-- 组名` 只跑几组，`-- --list` 列出组 |
 | `npm.cmd run test:release` | 发布前检查：发布扫描、补丁和整包、备份恢复演练 |
 | `npx vite build --outDir <临时目录> --emptyOutDir` | 构建检查（输出到临时目录，不覆盖正在用的 `dist`） |
+| `npm.cmd run check:apps` | 两个应用外壳（`apps/android`、`apps/desktop`）的检查，全部离线：安卓 Lint、Checkstyle、单元测试；Windows `cargo fmt`、`clippy`、`cargo test`、边界检查。只跑一个加 `-- android` 或 `-- desktop`；要先按两个外壳的“构建与测试”装好工具链，缺什么会列出来 |
 | `npm.cmd run package` | 生成安装包 |
 
 ## 文档

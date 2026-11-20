@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { MAX_PAGE_SIZE, dateSchema } from '../../shared/core/index.js';
-import { accountCodeSchema, versionSchema } from '../../shared/finance/index.js';
+import { accountCodeSchema, cashMethods, versionSchema } from '../../shared/finance/index.js';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, one, rows } from '../core/index.js';
@@ -22,7 +22,7 @@ import {
 import { FinanceLedger } from './ledger.js';
 import { activeCashAllocation, allocationSum } from './obligation-sql.js';
 import { edit, id, label, money, pageSql, request, row } from './query.js';
-import { cashDocumentKinds, cashMethods } from './stored-values.js';
+import { cashDocumentKinds } from './stored-values.js';
 
 const methods = z.enum(cashMethods);
 const cashKind = z.enum(cashDocumentKinds);

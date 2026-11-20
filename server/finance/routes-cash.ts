@@ -31,6 +31,7 @@ function partyRoutes(routes: FinanceRoutes) {
     due = new FinanceDue(store),
     statements = new FinanceStatements(store),
     allocations = new FinanceAllocations(store);
+  on('GET /finance/parties', ({ query, req }) => parties.options(actor(req), query));
   on('GET /finance/obligations', ({ query, req }) => parties.obligations(actor(req), query));
   on('POST /finance/obligations', ({ body, req }) => parties.create(actor(req), body));
   on('POST /finance/obligations/:id/bad-debt', ({ param, body, req }) => parties.badDebt(actor(req), param('id'), body));

@@ -1,0 +1,26 @@
+body {
+  margin: 0;
+  padding: 16px;
+  background: #f4f1ec;
+  color: #1f2a2e;
+  font-family: sans-serif;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+.block {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 12px 0;
+  padding: 20px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #1f3d44;
+  color: #fff;
+  font-size: 18px;
+  text-align: left;
+  text-decoration: none;
+}

@@ -4,7 +4,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { clampPage, count, many, parsePaging, rows } from '../core/index.js';
 import { financeActor } from './core.js';
-import { confirmedDocumentsCte, sourceConfirmed, sourceContent, sourceRow } from './business-source.js';
+import { confirmedDocumentsCte, sourceConfirmed, sourceContent, sourceRow, sourceUnseen } from './business-source.js';
 import { periodOf } from './days.js';
 import { eventChangesSince, PREVIOUS_CHAIN_MAX } from './event-changes.js';
 import { evaluateSource, partyTaxTerms, taxBasis } from './event-evaluate.js';
@@ -16,6 +16,7 @@ import { sourceBooked } from './event-source-obligations.js';
 import { withNumber } from './source-fingerprint.js';
 import { readSnapshot, snapshotNumber } from './source-snapshot.js';
 import { eventStatuses } from './stored-values.js';
+import { arrivalReversedOn } from './costing-source.js';
 
 // 事件列表能筛的状态：存进库的状态里，被新版本替代的、启用前的不在列表里出现
 const eventStatus = z.enum(eventStatuses).exclude(['superseded', 'before_opening']);
@@ -44,6 +45,7 @@ const listedEvent = rows.fin_events
     previous_event_id: z.number().nullable(),
     rebuild: z.number(),
     keepable: z.number(),
+    reversed_on: z.string().nullable(),
   });
 type ListedEvent = z.output<typeof listedEvent>;
 /** 沿着“上一条”找原来那张凭证时每一步读的：事件编号、凭证号、它的上一条 */
@@ -63,7 +65,7 @@ export class FinanceEventViews {
       `${confirmedDocumentsCte}
       SELECT s.*,o.event_id AS previous FROM sources s
       LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
-      WHERE o.source_id IS NULL OR o.source_version<>s.version OR o.status<>s.status`,
+      WHERE ${sourceUnseen('s', 'o')}`,
       period + '-01',
       endOfMonth(lastPeriod),
     );
@@ -148,7 +150,9 @@ export class FinanceEventViews {
       CASE WHEN e.source_kind IN ('delivery','arrival') AND ${sourceConfirmed('e', true)}
         THEN 1 ELSE 0 END AS rebuild,
       -- 单据已删的：名下有出过凭证的往来才能“核对无误，保留凭证”
-      CASE WHEN e.status='source_deleted' AND ${sourceBooked('e')} THEN 1 ELSE 0 END AS keepable
+      CASE WHEN e.status='source_deleted' AND ${sourceBooked('e')} THEN 1 ELSE 0 END AS keepable,
+      -- 已撤销、被更正替代的到货和更正出来的替代单：撤销（更正）那天，红字冲销默认记在这天（成本按它在那个月冲回库存）
+      CASE WHEN e.source_kind='arrival' AND e.status='difference' THEN ${arrivalReversedOn('e')} END AS reversed_on
       FROM fin_events e ${where}))
       ORDER BY group_date DESC,group_kind,cast(group_id AS INTEGER) DESC,group_id DESC,id LIMIT ? OFFSET ?`,
       ...args,
@@ -156,12 +160,15 @@ export class FinanceEventViews {
       (page - 1) * pageSize,
     );
     const voucherOf = this.previousVouchers(listed);
-    const bookingOf = this.bookingDates();
+    const movedTo = this.bookingDates();
     return {
-      rows: listed.map(({ previous_event_id: _previous, group_date: _date, group_kind: _kind, group_id: _group, ...r }) => ({
+      rows: listed.map(({ previous_event_id: _previous, group_date: _date, group_kind: _kind, group_id: _group, reversed_on, ...r }) => ({
         ...r,
         previous_voucher_id: voucherOf.get(r.id) ?? null,
-        booking_date: bookingOf(r),
+        // 可记账的单据所在月份已结账：生成凭证时记到哪天（和 generate 同一个 bookingDate），界面提示一句；没换日期的是 null
+        booking_date: r.status === 'ready' && r.voucher_id == null ? movedTo(r.date) : null,
+        // 撤销、更正过的到货红字冲销的默认日期：撤销（更正）那天，那个月已结账的记到最早没结账月份的 1 号；别的是 null
+        correction_date: reversed_on === null ? null : (movedTo(reversed_on) ?? reversed_on),
       })),
       page,
       pageSize,
@@ -194,15 +201,14 @@ export class FinanceEventViews {
     return voucherOf;
   }
 
-  /** 可记账的单据所在月份已结账：生成凭证时记到哪天（和 generate 同一个 bookingDate），界面提示一句；没换日期的是 null */
+  /** 这天所在月份已结账时记到哪天（bookingDate：最早没结账月份的 1 号），没结账的是 null；同一页里同一个月只查一次 */
   private bookingDates() {
     const moved = new Map<string, string | null>();
-    return (r: Pick<ListedEvent, 'status' | 'voucher_id' | 'date'>) => {
-      if (r.status !== 'ready' || r.voucher_id != null) return null;
-      const period = periodOf(r.date);
+    return (date: string) => {
+      const period = periodOf(date);
       if (!moved.has(period)) {
-        const booked = bookingDate(this.db, r.date);
-        moved.set(period, booked === r.date ? null : booked);
+        const booked = bookingDate(this.db, date);
+        moved.set(period, booked === date ? null : booked);
       }
       return moved.get(period) ?? null;
     };

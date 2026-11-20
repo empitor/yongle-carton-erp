@@ -12,7 +12,7 @@ import { FinanceAssets } from './assets.js';
 import { FinancePayroll } from './payroll.js';
 import { FinanceCosting } from './costing.js';
 import { activeCashAllocation } from './obligation-sql.js';
-import { deliveryReversed, sourceDocumentNumber } from './business-source.js';
+import { sourceDocumentNumber, sourceReversed } from './business-source.js';
 import { readFinanceSettings } from './settings.js';
 import { nextOpenPeriod } from './periods.js';
 import { taxPlan } from './closing-tax.js';
@@ -61,7 +61,7 @@ const outstandingEvents = (db: Store['db'], period: string) =>
       -- 下一次成本计算，那次会把它标成已处理，这里不拦结账
       AND NOT (status='cost_pending' AND EXISTS(SELECT 1 FROM fin_period_jobs j
         WHERE j.kind='costing' AND j.period=substr(e.date,1,7)))
-      AND NOT (status='info_pending' AND source_kind='delivery' AND ${deliveryReversed('e')}
+      AND NOT (status='info_pending' AND source_kind='delivery' AND ${sourceReversed('e', 'delivery')}
         AND NOT EXISTS(SELECT 1 FROM fin_obligations o JOIN fin_allocations a ON a.obligation_id=o.id
           JOIN fin_vouchers original ON original.id=a.voucher_id WHERE o.event_id=e.id AND ${activeCashAllocation}))`,
     period,
@@ -145,6 +145,7 @@ export function closingCheck(store: Store, reports: FinanceReports, user: Actor,
   const next = nextOpenPeriod(db) ?? start ?? null;
   const record = one(db, rows.fin_periods, 'SELECT * FROM fin_periods WHERE period=?', period);
   const readiness = reports.readiness(user, { period });
+  // 截至月底还没同步进财务的来源（readiness 里按 unseenSources 数过），加上已经是事件、还没处理完的
   const outstanding = readiness.unsynced + outstandingEvents(db, period);
   const unposted = count(db, "SELECT count(*) FROM fin_vouchers WHERE period<=? AND status NOT IN ('posted','void')", period);
   const runs = many(
@@ -156,7 +157,8 @@ export function closingCheck(store: Store, reports: FinanceReports, user: Actor,
   const has = (kind: string) => runs.some((r) => r.kind === kind && (r.voucher_id === null || r.status === 'posted'));
   const stale = record?.status === 'closed' || q.light ? [] : staleJobs(store, user, period, runs);
   const trial = start && period >= start ? reports.get(user, 'trial', { period }) : null;
-  const balance = trial && readiness.ready ? reports.get(user, 'balance', { period }, false) : null;
+  // 只是有单据没同步时照常算资产负债表：没同步由“业务单据”一步拦，这一步不跟着报没通过
+  const balance = trial && !readiness.count ? reports.currentBalance(user, period) : null;
   const bank = count(db, 'SELECT count(*) FROM fin_bank_rows WHERE substr(date,1,7)<=? AND voucher_id IS NULL', period);
   // 启用前的单据启用后被冲销或改价：不进账，只提醒核对期初往来，不卡结账（见 flagBeforeOpeningChange）
   const opening = many(

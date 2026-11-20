@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- 应用图标原图：白色圆角底加公司商标（浅色底用的那一版，图形照商标原图的路径）。
+       只给 npx tauri icon 生成 src-tauri/icons/ 用，构建和运行时不读这个文件。 -->
+  <rect width="1024" height="1024" rx="200" fill="#ffffff"/>
+  <g transform="translate(152 152) scale(7.2)">
+    <path fill="#27407a" d="M2 8H22L34 28 46 8H66L42 48V92H26V48Z"/>
+    <path fill="#b07d3c" d="M48 48 64 21.3V73.2L48 89.2Z"/>
+    <path fill="#8f6229" d="M66.8 76H98L88.4 92H50.8Z"/>
+  </g>
+</svg>

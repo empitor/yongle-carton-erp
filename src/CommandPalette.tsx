@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { purchaseState } from '../shared/business/index';
+import { operationalSearchText, purchaseState } from '../shared/business/index';
 import { readCatalog } from './recordkit/index';
 import { orderDisplayStatus } from '../shared/core/index';
+import { useBackLayer } from './ui/index';
 
 type Item = { group: string; label: string; hint?: string; target: string; keywords: string };
 /**
@@ -55,7 +56,8 @@ function catalogItems({ orders, customers, products, purchases, suppliers }: Sea
       label: c.name,
       hint: c.contact || c.phone,
       target: 'customers?q=' + encodeURIComponent(c.name),
-      keywords: [c.name, c.contact, c.phone, c.address].join(' '),
+      // 客户按什么搜和客户页同一份（名称、联系人、电话、地址、备注）
+      keywords: operationalSearchText(c),
     })),
     ...products.map((p) => ({
       group: '产品',
@@ -81,6 +83,8 @@ export default function CommandPalette({ close, canEdit }: { close: () => void; 
     [loading, setLoading] = useState(true),
     [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  // 安卓 App 的返回键：和 Esc 一样关
+  useBackLayer(close);
   // 操作在前、档案在后；操作跟着当前权限，档案只在打开时读一次
   const items = useMemo(() => [...paletteActions(canEdit), ...records], [canEdit, records]);
   useEffect(() => {

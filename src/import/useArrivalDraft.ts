@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { emit, listen, useAuthState } from '../ui/index';
+import { canEditBusiness, emit, listen, useAuthState } from '../ui/index';
 import { arrivalDraftIssues, arrivalTotals, type FlowDocView } from '../../shared/business/index';
 import { errorMessage } from '../../shared/core/index';
 import type { ArrivalSource, ImportWorkspaceView as Workspace } from '../../shared/import/index';
@@ -140,7 +140,7 @@ function recognizeBlocked(canEdit: boolean, editable: boolean, ai: Api['status']
  */
 export function useArrivalDraft(api: Api, workspace: Workspace | undefined) {
   const auth = useAuthState(),
-    canEdit = !!auth?.actor && (auth.actor.superAdminMode || auth.actor.permissions.includes('business:edit'));
+    canEdit = canEditBusiness(auth);
   const fileId = workspace?.id;
   const s = useArrivalState(workspace, auth?.actor?.id);
   const { busy, run, mounted, pending } = useRunner(s.setError);

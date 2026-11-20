@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { quantityString } from '../../shared/core/index.js';
 import { many, one, rows } from '../core/index.js';
 import { financeError } from './core.js';
+import { sourceDocumentNumber, sourceReversed } from './business-source.js';
 import { sumOf } from './finance-rows.js';
 import { row } from './query.js';
 import { reissueReleasedByObligation } from './red-invoices.js';
@@ -42,20 +43,25 @@ export function invoiceDetail(db: DatabaseSync, key: number): InvoiceDetail {
 }
 
 /**
- * 被替代（superseded）的往来、冲销行本身、已被更正冲销的旧往来、凭证已作废的往来都不能再挂发票，
+ * 被替代（superseded）的往来、冲销行本身、已被更正冲销的旧往来、凭证已作废的往来，已撤销或被更正替代的到货名下的往来都不能再挂发票，
  * 关联和确认时都要查。冲销按红字凭证没作废算（reversal-pairs.ts 的 isReversed），和来源更正认原往来的口径一致。
  */
-export function assertInvoiceableObligation(db: DatabaseSync, obligationId: number) {
+export function assertInvoiceableObligation(db: DatabaseSync, obligationId: number, voided: (arrival: string) => string) {
   // SQL 的真假是 1/0；凭证编号有值却联不到凭证时 v.status 是 NULL，整个条件可能是 NULL（按不算处理）
   const stale = one(
     db,
-    z.object({ n: z.number().nullable() }),
+    z.object({ n: z.number().nullable(), voided: z.string().nullable() }),
     `SELECT o.tax_status='superseded' OR (o.voucher_id IS NOT NULL AND v.status='void') OR o.reversal_of IS NOT NULL
-          OR ${isReversed('o')} AS n
-        FROM fin_obligations o LEFT JOIN fin_vouchers v ON v.id=o.voucher_id WHERE o.id=?`,
+          OR ${isReversed('o')} AS n,
+        CASE WHEN e.source_kind='arrival' AND ${sourceReversed('e', 'arrival')} THEN ${sourceDocumentNumber('e')} END AS voided
+        FROM fin_obligations o LEFT JOIN fin_vouchers v ON v.id=o.voucher_id LEFT JOIN fin_events e ON e.id=o.event_id
+        WHERE o.id=?`,
     obligationId,
   );
   if (!stale) financeError('往来单不存在。', 404);
+  // 撤销以后到票已转走的暂估就定了（撤销那个月的成本按它冲回库存），再关联发票那个月就对不上；
+  // 关联时和确认待确认发票时各自说怎么办（voided 收到货单号）
+  if (stale.voided !== null) financeError(voided(stale.voided));
   if (stale.n) financeError('该往来单已被更正或冲销，请关联更正后的往来单。');
 }
 

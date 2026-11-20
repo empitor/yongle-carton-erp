@@ -52,7 +52,7 @@ function purchaseSide(ops: OperationsService) {
       expectedDate: '2026-11-02',
       status: '待订货',
       notes: '按原单位与尺寸供货',
-      lines: [{ ...raw, stockItemId: raw.id, quantity: '10000', unitPrice: '1.2345' }],
+      lines: [{ ...raw, stockItemId: raw.id, quantity: '10000', unitPrice: '1.2345', priceBasis: 'quantity' }],
     },
     actor,
   );

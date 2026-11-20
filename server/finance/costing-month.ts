@@ -1,6 +1,6 @@
 /**
- * 一个月成本计算里的库存账：按流水记入库、出库（月末加权平均）、冲销按原成本冲回、成本为负或零数量有余额时结清，
- * 边记边累计凭证分录。只在内存里算，不读写库（到货入库要的到货事件由调用方查好传进来）。
+ * 一个月成本计算里的库存账：按流水记入库、出库（月末加权平均）、冲销按原成本冲回、撤销到货按原暂估红字入库、
+ * 成本为负或零数量有余额时结清，边记边累计凭证分录。只在内存里算，不读写库（到货事件、原成本由调用方查好传进来）。
  */
 import { z } from 'zod';
 import { quantityUnits } from '../../shared/core/index.js';
@@ -64,7 +64,8 @@ export class MonthCostBook {
   readonly valued = new Set<number>();
   /** 转入主营业务成本的库存余额 */
   readonly residuals: z.output<typeof costingResidual>[] = [];
-  private readonly sameOriginals: Set<string>;
+  /** 本月撤销或更正冲回过到货的库存品：成本冲成负数的先归零；数量为 0 的只留到过票、等红票冲的那部分，其余结清 */
+  readonly undone = new Set<number>();
 
   constructor(
     private readonly c: {
@@ -84,10 +85,10 @@ export class MonthCostBook {
       adjustedStocks: Set<number>;
       /** 到货流水对应的财务事件 */
       arrivalEvent: (m: Movement) => ArrivalEvent;
+      /** 撤销或更正冲回到货的流水（查到了记账的暂估）→ 要冲减的入库金额 */
+      arrivals: Map<string, number>;
     },
-  ) {
-    this.sameOriginals = new Set([...c.origins.values()].flatMap((o) => (o?.same ? o.originals : [])));
-  }
+  ) {}
 
   post(code: string, delta: number) {
     this.balances.set(code, (this.balances.get(code) ?? 0) + delta);
@@ -97,9 +98,21 @@ export class MonthCostBook {
     return m.delta_units > 0 && this.c.origins.get(m.id)?.same === true;
   }
 
-  /** 当月入库又在当月冲销的到货：原入库流水和冲销出库流水成对抵消 */
-  reversedArrival(m: Movement) {
-    return m.delta_units < 0 ? this.c.origins.get(m.id)?.same === true : this.sameOriginals.has(m.id);
+  /** 撤销或更正冲回到货、按原暂估冲减入库的流水 */
+  isArrivalUndo(m: Movement) {
+    return this.c.arrivals.has(m.id);
+  }
+
+  /**
+   * 撤销或更正冲回到货：像退货一样在出库计价前冲减入库（红字入库），按这批还挂着的暂估，不按月末均价。
+   * 总账那一边由到货的红字冲销凭证记，这里不另记分录。
+   */
+  undoArrival(m: Movement) {
+    const item = this.stock(m.item_id),
+      value = expectRow(this.c.arrivals.get(m.id), '撤销到货要冲减的原暂估（流水 ' + m.id + '）');
+    item.inQty += m.delta_units;
+    item.inCents -= value;
+    this.undone.add(item.stockId);
   }
 
   /** 库存品的数量金额：库存品按“这个月以前有流水的”全部取进来，流水的库存品一定在里面 */
@@ -282,16 +295,24 @@ export class MonthCostBook {
     }
   }
 
+  /** 出库计价之后数量为 0 的库存品（keys 里的） */
+  emptied(keys: Set<number>) {
+    return [...keys].filter((key) => {
+      const item = this.stock(key);
+      return item.openingQty + item.inQty - item.outQty === 0;
+    });
+  }
+
   /**
    * 出库计价之后：数量为 0 却还有金额（货已领用完或退回后调差、红票才到），余额转入主营业务成本，
-   * 库存不留“零数量有金额”。只处理本月有调差或按原成本冲回的库存品；单纯退货、红票还没到的余额不动，等红票到了一起结清。
+   * 库存不留“零数量有金额”。只处理本月有调差、按原成本冲回或撤销过到货的库存品；
+   * 撤销过的到货里到过票、还在等红票冲的那部分（awaiting，按库存品）留着，单纯退货、红票还没到的余额也不动，等红票到了一起结清。
    */
-  clearZero(keys: Set<number>) {
-    for (const key of keys) {
+  clearZero(keys: Set<number>, awaiting: Map<number, number>) {
+    for (const key of this.emptied(keys)) {
       const item = this.stock(key);
-      const qty = item.openingQty + item.inQty - item.outQty,
-        cents = item.openingCents + item.inCents - item.outCents;
-      if (qty || !cents) continue;
+      const cents = item.openingCents + item.inCents - item.outCents - (awaiting.get(key) ?? 0);
+      if (!cents) continue;
       item.outCents += cents;
       this.settle(item, cents, '数量为 0 仍有余额，转入主营业务成本');
     }

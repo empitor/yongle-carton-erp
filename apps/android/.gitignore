@@ -1,0 +1,19 @@
+# 构建产物、本机配置和签名密钥，不进仓库
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+.cxx/
+captures/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pk8
+*.pem
+keystore.properties
+signing.properties
+*.hprof

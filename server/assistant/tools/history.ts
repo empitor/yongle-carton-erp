@@ -5,7 +5,7 @@ import type { Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { auditTrail, recordContext } from '../../business/index.js';
 import { DAY_MS, dateSchema } from '../../../shared/core/index.js';
-import { dataManagementModules, flowStatusText, historyActionName, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
+import { dataManagementModules, flowStatusText, historyActionName, isFlowKind, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
 import { clip, paging, positive, requireSuperAdmin, SHORT_TEXT_CHARS, type ToolContext, type ToolReader } from './context.js';
 
 /** 两种查法：按记录，或按时间段（可加人） */
@@ -33,7 +33,6 @@ export const historyTools = [
   },
 ] as const;
 
-const flowModules = new Set(['arrival', 'task', 'production', 'delivery']);
 const moduleName = (module: string) => recordNames[module] ?? module;
 /** 单据的审计挂在 flow_<模块> 上 */
 const FLOW_ENTITY = 'flow_';
@@ -71,7 +70,7 @@ function readHistory(ctx: ToolContext, raw: unknown, who: Actor | null | undefin
         类别: moduleName(r.module),
         编号: r.id,
         名称或单号: r.name ?? '',
-        状态: flowModules.has(r.module) ? flowStatusText({ kind: r.module, status: r.status, ...r.view }) : (r.status ?? ''),
+        状态: isFlowKind(r.module) ? flowStatusText({ kind: r.module, status: r.status, ...r.view }) : (r.status ?? ''),
         ...(r.archived ? { 已归档: true } : {}),
       })),
       修改历史: {

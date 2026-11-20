@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="shell_dark">#FF1F3D44</color>
+    <color name="offline_background">#FFF4F1EC</color>
+    <color name="offline_text">#FF1F2A2E</color>
+    <!-- 启动动画：浅色模式白底、商标浅色底版的颜色（深色模式见 values-night） -->
+    <color name="splash_background">#FFFFFFFF</color>
+    <color name="splash_y">#FF27407A</color>
+    <color name="splash_l">#FFB07D3C</color>
+    <color name="splash_foot">#FF8F6229</color>
+    <!-- 应用图标：白底加公司商标（浅色底版的三种颜色） -->
+    <color name="icon_background">#FFFFFFFF</color>
+    <color name="logo_blue">#FF27407A</color>
+    <color name="logo_kraft">#FFB07D3C</color>
+    <color name="logo_kraft_dark">#FF8F6229</color>
+</resources>

@@ -9,7 +9,7 @@ import type { Actor } from '../server/core/auth.js';
 import { AppError, count, one, rows } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';
-import { completionOrigin, reversalOrigin } from '../server/finance/costing-origins.js';
+import { completionOrigin, originOf } from '../server/finance/costing-origins.js';
 import type { Store } from '../server/core/db.js';
 import { productSchema } from '../shared/core/domain.js';
 import { businessFixture, clerk, flowFixture } from './flow-fixture.js';
@@ -87,7 +87,8 @@ test('完工 1000 已发 800：撤销被拒，更正成 900（领料 100 → 90�
     rawBack = reversals.find((m) => m.item_id === f.raw.id);
   assert.ok(finishedBack && rawBack);
   assert.deepEqual(completionOrigin(f.store.db, finishedBack, '2026-10-01'), { same: true });
-  assert.equal(reversalOrigin(f.store.db, rawBack, '2026-10-01')?.same, true);
+  const found = originOf(f.store.db, { ...rawBack, kind: 'raw' }, '2026-10-01');
+  assert.equal(found.kind === 'reversal' && found.origin?.same, true);
 });
 
 test('权限和拦下：没进超级管理员模式 403；合格报废都 0 提示撤销；没变不用提交；非本机管理员改日期、产品、任务 403', (t) => {

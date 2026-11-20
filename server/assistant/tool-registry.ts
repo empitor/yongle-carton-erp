@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { defaultDbPath, one, openVersionedSqlite, registerVersionedSqlite, rows } from '../core/index.js';
 import { AppError, canEnterSuperMode, isLocalAdministrator, requirePermission, requireSuperModeFor, type Actor } from '../core/index.js';
-import { financeOnlyAccount, financeOnlyToolAllowed } from '../../shared/core/index.js';
+import { financeOnlyAccount, financeOnlyToolAllowed, type Permission } from '../../shared/core/index.js';
 import { toolDefinitions } from './tool-catalog.js';
 import { localOnlyMessage } from './plan-rules.js';
 import { AssistantAccountSettings } from './account-settings.js';
@@ -78,8 +78,9 @@ const kindOf = (risk: string): ToolKind => (risk === 'workflow' ? 'workflow' : r
  */
 function toolPermissions(t: PluginTool) {
   const local = isLocalTool(t.name);
-  const required = [...new Set([...(t.kind === 'business' || t.kind === 'workflow' ? ['business:edit'] : []), ...(t.permissions || [])])];
-  const permissions = [...required];
+  const edit: Permission[] = t.kind === 'business' || t.kind === 'workflow' ? ['business:edit'] : [];
+  const required = [...new Set([...edit, ...(t.permissions || [])])];
+  const permissions: string[] = [...required];
   if (t.name === IMPORT_TOOL) permissions.push('import:execute');
   // 本机专用里只读的那几个，从域名访问的超级管理员账号也能用（用户 2026-11-13 定）；写入的仍只限本机
   if (local) permissions.push(superAdminReads.has(t.name) ? '本机最高管理员或超级管理员' : '本机最高管理员');
@@ -87,7 +88,7 @@ function toolPermissions(t: PluginTool) {
 }
 
 /** 这个账号能不能用这个工具：不能就抛出说明原因的 AppError */
-function checkAccess(t: PluginTool, actor: Actor | null, required: string[]) {
+function checkAccess(t: PluginTool, actor: Actor | null, required: Permission[]) {
   const local = isLocalTool(t.name);
   const superAdminRead = local && superAdminReads.has(t.name);
   if (!actor) throw new AppError('尚未登录。', 401);

@@ -1,7 +1,7 @@
 import { FINISHED_UNIT, RAW_UNIT } from '../core/index.js';
 import { centsText, isRecord, orderDisplayStatus, plainPrice } from '../core/index.js';
 import { dataManagementFieldName } from './data-management-modules.js';
-import { priceText, sizeText } from './display-text.js';
+import { UNPRICED_TEXT, priceText, sizeText } from './display-text.js';
 import { purchaseState } from './labels.js';
 import { flowStatusText, isFlowKind } from './physical-flow.js';
 import {
@@ -173,7 +173,7 @@ function filledValueText(ctx: Ctx, key: string, value: unknown, row: Row | undef
 export function valueText(ctx: Ctx, key: string, value: unknown, row: Row | undefined, parent: string): string | null {
   if (refTables[key]) return refValueText(ctx, key, value, row);
   if (key === 'priceCents' || key === 'priceExact') {
-    if (key === 'priceCents' ? !value : blank(value)) return '未定价';
+    if (key === 'priceCents' ? !value : blank(value)) return UNPRICED_TEXT;
     return key === 'priceCents' ? money(value) : exactPrice(value);
   }
   if (blank(value)) return EMPTY;

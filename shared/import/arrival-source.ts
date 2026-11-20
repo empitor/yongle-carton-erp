@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { priceBases } from '../core/index.js';
 
 /*
  * 到货原件的识别记录（GET /api/flow/sources/:sourceId，和到货识别 POST /api/ai/imports/:id/arrival/recognize 的结果）。
@@ -27,7 +28,7 @@ export const receiptResultSchema = z.object({
       unit: cellText,
       area: cellText,
       unitPrice: cellText,
-      priceBasis: z.enum(['area', 'quantity']).nullable(),
+      priceBasis: z.enum(priceBases).nullable(),
       notes: cellText,
     }),
   ),

@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- 冷启动时的启动画面（约 1 秒）：Y 和 L 两个图形从两边靠拢，合成公司 YL 商标，再淡出。
+     图形和安卓启动动画同一份商标路径（viewBox 100×100）；外壳在后台加载 ERP，放完再关掉这个小窗。页面里不放脚本 -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>甬勒ERP</title>
+    <link rel="stylesheet" href="splash.css" />
+  </head>
+  <body>
+    <svg class="logo" viewBox="0 0 100 100" aria-label="甬勒ERP">
+      <g class="yong">
+        <path class="y" d="M2,8H22L34,28 46,8H66L42,48V92H26V48Z" />
+      </g>
+      <g class="le">
+        <path class="l" d="M48,48L64,21.3V73.2L48,89.2Z" />
+        <path class="foot" d="M66.8,76H98L88.4,92H50.8Z" />
+      </g>
+    </svg>
+  </body>
+</html>

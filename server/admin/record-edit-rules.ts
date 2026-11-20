@@ -9,19 +9,25 @@ import { AppError } from '../core/index.js';
  * 只是字段按数据管理编辑窗里的叫法（“加工成本（元）”，明细的“第N项”和编辑窗卡片一致）。
  * 有“上一层.字段”专门叫法的（预估成本里的几项）已经说清是哪一项，不再带上一层的名字；
  * 单价的“分”编辑窗里不显示（由“元”算出来），按“元”那一格说；同一句只说一次。
+ * 不收的栏目（field-rejection.ts）也按这一套说是哪一格，另传 nameOf 先查读出来才有的栏目的叫法。
  */
 const shownTwin: Record<string, string> = {
   unitPriceCents: 'unitPriceExact',
   priceCents: 'priceExact',
 };
-export function readableIssues(error: ZodError, module: string) {
+type Issue = Pick<ZodError['issues'][number], 'path' | 'message'>;
+export function readableIssues(
+  issues: readonly Issue[],
+  module: string,
+  nameOf: (key: string, parent: string) => string | undefined = () => undefined,
+) {
   const namer: Parameters<typeof userError>[1] = (key, parent) => {
     const shown = shownTwin[key] || key,
-      label = dataManagementFieldName(shown, parent, module);
+      label = nameOf(key, parent) ?? dataManagementFieldName(shown, parent, module);
     return { label, alone: !!parent && label !== dataManagementFieldName(shown) };
   };
   return [
-    ...new Set(error.issues.map((i) => userError(i.path.join('.') + ': ' + i.message, namer))),
+    ...new Set(issues.map((i) => userError(i.path.join('.') + ': ' + i.message, namer))),
   ].join('；');
 }
 /**

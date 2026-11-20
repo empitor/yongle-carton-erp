@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { WarehouseDaily } from '../server/flow/daily.js';
-import { orderSchema, today } from '../shared/core/domain.js';
+import { customerSchema, orderSchema, today } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { flowStatusLabel } from '../shared/business/physical-flow.js';
 import type { DeliveryDaily } from '../shared/business/index.js';
@@ -132,6 +132,24 @@ test('送货单上的金额按两位小数写', (t) => {
   const f = deliverySetup(t);
   const { form } = deliveryForm(f.store, f.ship(f.delivery.id).id);
   assert.equal(form.lineData?.[0].amount, '600.00');
+});
+
+test('送货单没填收货地址、联系人、电话：导出印“未记录”，不拿客户档案的顶上', (t) => {
+  const f = deliverySetup(t);
+  const { customerId } = f.flow.get(f.delivery.id, 'delivery');
+  const customer = f.store.customer(customerId) ?? assert.fail('有客户');
+  f.store.saveCustomer(
+    customerSchema.parse({ ...customer, address: '虚构客户档案地址', contact: '虚构档案联系人', phone: '000-档案' }),
+    customerId,
+    customer.version,
+  );
+  const printed = (id: number) => {
+    const fields = deliveryForm(f.store, id).form.fields;
+    return ['收货地址', '客户联系信息'].map((name) => fields.find(([label]) => label === name)?.[1]);
+  };
+  assert.deepEqual(printed(f.delivery.id), ['未记录', '未记录']);
+  const filled = f.arrange('2026-11-11', '10', { address: '虚构收货地址', contact: '虚构收货人', phone: '000-111' });
+  assert.deepEqual(printed(filled.id), ['虚构收货地址', '虚构收货人 · 000-111']);
 });
 
 test('仓库页“可发货”勾选的几行：和按订单安排送货同一个算法，按交期先后分同一份可用量，合计不超过可用；没勾的不占', () => {

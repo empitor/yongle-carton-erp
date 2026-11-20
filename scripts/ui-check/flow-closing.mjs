@@ -9,7 +9,8 @@ const require = createRequire(new URL('../../package.json', import.meta.url));
 const ExcelJS = require('exceljs');
 const { context, page, consoleErrors } = await openChrome({ width: 1440, height: 900 });
 await login(page);
-const { dlg, field, text, pick, combo, save, confirmDialog, fin, postAll, sync, prepareBooks, prepareReceipt } = financeKit(page);
+const { dlg, field, text, pick, combo, save, confirmDialog, fin, postAll, sync, prepareBooks, prepareReceipt, checkEventsLink } =
+  financeKit(page);
 await prepareBooks();
 await prepareReceipt('虚构北仑灯具');
 const log = (...a) => console.log(...a);
@@ -286,6 +287,7 @@ await page.locator('.fb-closing').first().waitFor();
 await shot('closing-start');
 const closing0 = await api('/closing?period=' + period);
 log('待结期间', closing0.next, 'steps', JSON.stringify(closing0.steps.map((s) => [s.key, s.ok])));
+await checkEventsLink(closing0);
 // 先填税率，这是真实用户结账前要做的
 await go(page, '#finance-settings');
 await page.getByRole('button', { name: '编辑设置', exact: true }).click();
@@ -307,7 +309,7 @@ const clickJobs = async () => {
     }
   }
 };
-// 当月确认一张无单价到货又在当月冲销：算成本时成对抵消，不拦算成本也不拦结账
+// 当月确认一张无单价到货又在当月冲销：没记过账的作废到货算成本时两条流水都不计，不拦算成本也不拦结账
 {
   const seed = ((await callOn(page, 'GET', '/flow?kind=arrival')) || [])[0];
   const saved = await callOn(page, 'POST', '/flow/arrival', {

@@ -1,7 +1,7 @@
 import type { Actor } from '../core/index.js';
 import { AppError, isLocalAdministrator } from '../core/index.js';
-import { FINISHED_UNIT, RAW_UNIT, UNITS_PER_QUANTITY, finishedUnitMessage, rawUnitMessage, today, quantityUnits, quantityString, MAX_STOCK_UNITS } from '../../shared/core/index.js';
-import { arrivalSchema, flowInput, pendingOrder, type FlowDocument, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
+import { FINISHED_UNIT, RAW_UNIT, UNITS_PER_QUANTITY, deliverableOrder, finishedUnitMessage, rawUnitMessage, today, quantityUnits, quantityString, MAX_STOCK_UNITS } from '../../shared/core/index.js';
+import { arrivalSchema, flowInput, type FlowDocument, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
 import { fail, taskOf } from './base.js';
 import type { ArrivalLine, Check, DeliveryLine, FlowCheck, FlowCommands, StockChange, StockItemRow } from './base.js';
 import { checkArrival } from './validate-arrival.js';
@@ -145,7 +145,7 @@ function checkTask(ctx: Check, v: FlowDocument<'task'>) {
     const order = flow.store.order(id, maintenance);
     if (
       !order ||
-      (!maintenance && !pendingOrder(order)) ||
+      (!maintenance && !deliverableOrder(order)) ||
       !order.lines.some((l) => l.productId === v.productId)
     )
       fail('生产任务只能关联包含当前产品的正常待完成客户订单。');

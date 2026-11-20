@@ -17,6 +17,7 @@ import { OperationsService } from '../server/operations/service.js';
 import { today, customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';
 import { initialMovementRange, movementFilterSchema } from '../shared/business/movement-filters.js';
+import { operationalSearchText } from '../shared/business/business-metrics.js';
 import { Pagination, TableRegion } from '../src/ui/ListLayout.js';
 import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
 import { pageRows } from '../server/core/paging.js';
@@ -172,7 +173,7 @@ function movementHistory() {
         orderDate: date,
         status: '已订货',
         lines: [
-          { name: raw.name, stockItemId: raw.id, quantity: '3', unit: '张', unitPrice: '1.2345' },
+          { name: raw.name, stockItemId: raw.id, quantity: '3', unit: '张', unitPrice: '1.2345', priceBasis: 'quantity' },
         ],
       },
       actor,
@@ -289,7 +290,7 @@ test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿
   );
   const purchases = [1, 2, 3].map(() =>
     ops.savePurchase(
-      { supplierId: supplier.id, orderDate: '2026-10-01', status: '已订货', notes: '', lines: [{ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '5' }] },
+      { supplierId: supplier.id, orderDate: '2026-10-01', status: '已订货', notes: '', lines: [{ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '5', priceBasis: 'quantity' }] },
       actor,
     ),
   );
@@ -401,6 +402,23 @@ test('客户、产品、订单列表和手工保存：直接调业务汇总的�
     assert.ok(f.store.db.prepare("SELECT 1 FROM business_audit WHERE entity='customers' AND record_id=?").get(f.customer.id));
     assert.throws(() => manualWrite(f.store, { entity: 'customers', action: 'update', id: f.customer.id, input: { ...f.customer, notes: '旧版本' } }, f.actor));
     assert.equal(f.store.customer(f.customer.id)?.notes, '直接调');
+  } finally {
+    f.store.close();
+  }
+});
+
+test('客户搜索：名称、联系人、电话、地址、备注都能搜到，“名称 联系人”跨栏整句也能搜到，客户页接口和命令面板用同一份文字', () => {
+  const f = businessFixture();
+  try {
+    const fields = { name: '虚构搜索客户', contact: '虚构联系人', phone: '0574-0000', address: '虚构路一号', notes: '虚构备注词' };
+    const saved = manualWrite(f.store, { entity: 'customers', action: 'update', id: f.customer.id, input: { ...f.customer, ...fields } }, f.actor);
+    // 客户没有的栏目（单号、规格等）不占位置，字段之间只隔一个空格
+    for (const word of [...Object.values(fields), fields.name + ' ' + fields.contact]) {
+      const found = customerList(f.store, { withMetrics: '1', q: word }, false);
+      assert.ok(!Array.isArray(found));
+      assert.deepEqual(found.rows.map((c) => c.id), [f.customer.id], word);
+      assert.ok(operationalSearchText(saved).includes(word.toLowerCase()), word);
+    }
   } finally {
     f.store.close();
   }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { RotateCcw, Trash2 } from 'lucide-react';
-import { dataManagementFieldName } from '../../shared/business/index';
-import { flowModules } from './record-refs';
+import { dataManagementFieldName, isFlowKind } from '../../shared/business/index';
 import type { DataAction, ListedRecord } from './record-types';
 
 /**
@@ -14,7 +13,7 @@ const batchFields = (module: string, chosen: ListedRecord[]) => [
     ? ['orderDate', 'deliveryDate', 'status']
     : module === 'purchases'
       ? ['orderDate', 'expectedDate', 'status']
-      : flowModules.includes(module) && chosen.every((r) => r.record.status === 'draft')
+      : isFlowKind(module) && chosen.every((r) => r.record.status === 'draft')
         ? ['date']
         : []),
 ];

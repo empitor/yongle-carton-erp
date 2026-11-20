@@ -3,6 +3,7 @@ import { planDate, type ArrivalDaily, type DeliveryDaily } from '../../shared/bu
 import { ArrivalLines, DeliveryLines } from '../flow/DocLines';
 import { Facts, Hint, Section } from '../ui/index';
 import { shipDate } from '../flow/flow-dates';
+import { flowSourceFileUrl } from '../flow/flow-api';
 
 /** 单据带着的一笔库存流水：库里 stock_movements 的一行（列名是库里的） */
 type MovementCells = { readonly [column: string]: string | number | null };
@@ -121,7 +122,7 @@ export function ArrivalSections({ record: r }: { record: ArrivalShown }) {
             {
               label: '送货单原件',
               value: sourceId ? (
-                <a target="_blank" rel="noreferrer" href={'/api/flow/sources/' + sourceId + '/file'}>
+                <a target="_blank" rel="noreferrer" href={flowSourceFileUrl(sourceId)}>
                   查看原件
                 </a>
               ) : (

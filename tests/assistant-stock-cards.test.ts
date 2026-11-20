@@ -112,7 +112,7 @@ test('出入库卡片要编辑权限、点了才入库、出库超过库存拒�
           supplierId: supplier.id,
           orderDate: '2026-10-25',
           status: '已订货',
-          lines: [{ name: '纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '20' }],
+          lines: [{ name: '纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '20', priceBasis: 'quantity' }],
         },
         actor,
       ),

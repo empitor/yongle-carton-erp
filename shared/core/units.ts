@@ -26,3 +26,10 @@ export function stockUnit(kind: 'raw' | 'finished' | string, unit: unknown): str
 
 export const finishedUnitMessage = '产品和成品的数量单位只有“只”（“个”也按“只”）；别的单位请先换算成只再填。';
 export const rawUnitMessage = '原材料的数量单位只有“张”；别的单位请先换算成张再填。';
+
+/**
+ * 纸板的计价方式：按平方米（area）、按张（quantity）。采购明细、到货明细、识别出来的到货单、财务快照都只收这两种；
+ * 放在这里是因为识别导入够不着共用-业务。
+ */
+export const priceBases = ['area', 'quantity'] as const;
+export type PriceBasis = (typeof priceBases)[number];

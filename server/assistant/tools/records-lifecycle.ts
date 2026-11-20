@@ -5,6 +5,7 @@ import {
   deletionModuleTable,
   deletionSelection,
   impactRowSchema,
+  inventoryPolicies,
   type DeletionImpactRow,
   type RecordEntity,
 } from '../../../shared/business/index.js';
@@ -31,7 +32,7 @@ const lifecycleArgs = z.object({ module: moduleSchema, id: positive, action: lif
 const deletionArgs = z.looseObject({
   module: z.string(),
   items: z.array(z.object({ id: positive, version: z.number().optional() })),
-  inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),
+  inventoryPolicy: z.enum(inventoryPolicies).optional(),
 });
 const isRecordEntity = (e: string): e is RecordEntity => (recordEntities as readonly string[]).includes(e);
 /**
@@ -43,7 +44,7 @@ const deleteInput = z
     module: moduleSchema,
     id: positive.optional(),
     ids: z.array(positive).min(1).max(DELETION_MAX_RECORDS).optional(),
-    inventoryPolicy: z.enum(['preserve', 'recalculate']).optional(),
+    inventoryPolicy: z.enum(inventoryPolicies).optional(),
   })
   .refine((v) => (v.id === undefined) !== (v.ids === undefined), {
     message: '删一条给 id，一次删几条给 ids，两样只给一样。',
@@ -223,7 +224,7 @@ function deletionStamp(ctx: ToolContext, plan: ToolPlan, actor: Actor) {
 export function withInventoryPolicy(
   ctx: ToolContext,
   plan: ToolPlan,
-  inventoryPolicy: 'preserve' | 'recalculate',
+  inventoryPolicy: (typeof inventoryPolicies)[number],
   who: Actor | null | undefined,
 ): ToolPlan {
   const actor = requirePermission(who, 'business:edit');

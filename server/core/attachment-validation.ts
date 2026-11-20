@@ -2,7 +2,7 @@ import { extname } from 'node:path';
 import { AppError, unsupportedFile } from './errors.js';
 import { imageSize, isImageExtension } from './image-size.js';
 import { validateOffice } from './office-validation.js';
-import { attachmentLimits, type AssistantAttachment } from '../../shared/core/index.js';
+import { attachmentLimits, attachmentSizeMessage, type AssistantAttachment } from '../../shared/core/index.js';
 
 /*
  * 助手附件上传、外发前的安全检查：名字、类型、大小，再按种类看内容（图片文件头和解码、文本编码、PDF 脚本、Office 宏）。
@@ -131,7 +131,7 @@ export async function validateAttachment(
   loadDecoder: DecoderLoader = canvasDecoder,
 ): Promise<AttachmentCheck> {
   if (!bytes.length || bytes.length > attachmentLimits.fileBytes)
-    throw new AppError('每份附件须大于0且不超过10MB。', 413);
+    throw new AppError(attachmentSizeMessage, 413);
   checkName(name);
   const ext = extname(name).slice(1).toLowerCase();
   const mime = mimeTypes.get(ext);

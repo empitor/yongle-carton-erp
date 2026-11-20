@@ -137,13 +137,13 @@ export class FinanceCosting {
   /**
    * 入库要填金额；非手工的出入库都要选对方科目，手工流水默认走待处理财产损溢。
    * 冲销送货、完工单退回的库存，查得到原出库成本的系统按原成本冲回；冲销完工单扣回的成品，
-   * 查得到原完工成本的按原成本冲回生产成本，都不用填。
+   * 查得到原完工成本的按原成本冲回生产成本；撤销或更正冲回记过账的到货，按原暂估冲减入库（金额可以是 0），都不用填。
    */
   private valuationsToFill(period: string, lateIds: string[]) {
     const start = period + '-01';
     return manualMovements(this.db, start, endOfMonth(period), lateIds).flatMap(({ item_id, source_id, ...m }) => {
       const movement = { item_id, delta_units: m.quantity, source_id, date: m.date, kind: m.kind };
-      if (m.source_kind === movementSource.reversal && originOf(this.db, movement, start).origin) return [];
+      if (m.source_kind === movementSource.reversal && originOf(this.db, movement, start).origin !== null) return [];
       const needs = { needsAmount: m.quantity > 0, needsCounter: m.source_kind !== movementSource.manual };
       return [{ ...m, late: m.date < start, ...needs }];
     });

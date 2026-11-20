@@ -5,7 +5,7 @@ import type { ChatTool } from '../../ai/index.js';
 import { commandDirectory, commandTools, commandUsage, commandUsages, commonCommands, findCommands, type DirectoryCommand } from '../command-directory.js';
 import { buildModelTools } from './model-tools.js';
 import type { ToolCall } from './run-state.js';
-import { isRecord } from './result-fields.js';
+import { isRecord } from '../../../shared/core/index.js';
 
 const [FIND, USAGE, RUN] = commandTools.map((t) => t.function.name);
 const common: ReadonlySet<string> = new Set(commonCommands);

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, X, Download, Plus, Minus } from 'lucide-react';
 import type { ChatAttachment } from './assistant-types';
+import { useBackLayer } from '../ui/index';
 import { attachmentUrl, fileSize, remoteCopyNote } from './attachment-slots';
 import { useAttachmentDocument } from './useAttachmentDocument';
 
@@ -24,6 +25,8 @@ export function AttachmentPreview({
   const doc = useAttachmentDocument(file);
   const { zoom, setZoom, page, setPage, pages } = doc;
   useDialogKeys(root, close);
+  // 安卓 App 的返回键：和关闭按钮一样关
+  useBackLayer(close);
   return createPortal(
     <div className="ga-preview-overlay" data-global-assistant="true">
       <section

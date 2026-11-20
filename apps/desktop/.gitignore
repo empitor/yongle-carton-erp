@@ -1,0 +1,8 @@
+# 依赖、构建产物、安装包、签名证书和签名私钥，不进仓库
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+*.msi
+*.pfx
+*.p12
+*.key

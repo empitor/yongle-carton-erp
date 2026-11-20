@@ -101,6 +101,10 @@ export const orderDraftSchema = z.object({
 export type OrderDraft = z.infer<typeof orderDraftSchema>;
 /** 识别任务的状态 */
 export const importTaskStates = ['uploaded', 'queued', 'backoff', 'running', 'ready', 'failed', 'cancelled'] as const;
+/** 识别任务还没结束：排队、限流后等着重试、识别中（程序关掉时这几种算中断） */
+export const runningTaskStates = ['queued', 'backoff', 'running'] as const;
+export const taskStillRunning = (state: string | undefined): state is (typeof runningTaskStates)[number] =>
+  runningTaskStates.some((s) => s === state);
 export const patchOperationSchema = z.discriminatedUnion('op', [
   z.strictObject({
     op: z.literal('set-header'),

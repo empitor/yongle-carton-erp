@@ -1,4 +1,4 @@
-// 按账号判断能不能做（server/core/permissions.ts、shared/core/account-scope.ts）：纯函数，虚构账号。
+// 按账号判断能不能做（server/core/permissions.ts、shared/core/account-scope.ts、权限名单 shared/core/accounts.ts）：纯函数，虚构账号。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -14,6 +14,10 @@ import {
   financeOnlyPageAllowed,
   financeOnlyToolAllowed,
 } from '../shared/core/account-scope.js';
+import { accountPermissions } from '../server/core/account-db.js';
+import { StoredDataError } from '../server/core/errors.js';
+import { financeActor } from '../server/finance/core.js';
+import { parseAuthState, type AuthState } from '../src/ui/auth-state.js';
 import { pageActor } from './actor-fixture.js';
 
 const HOUR = 3600000;
@@ -95,4 +99,23 @@ test('纯财务账号能用的助手工具和页面', () => {
   assert.equal(financeOnlyPageAllowed('guide'), true);
   assert.equal(financeOnlyPageAllowed('orders'), false);
   assert.equal(financeOnlyPageAllowed('guides'), false);
+});
+
+test('库里和登录状态里的权限名不在名单里：读出时报错，不悄悄当没有', () => {
+  assert.throws(() => accountPermissions('admin', '["business:eidt"]'), StoredDataError);
+  assert.deepEqual(accountPermissions('admin', '["business:edit"]'), ['business:edit']);
+  const state = { configured: true, csrf: 'fictional', actor: { id: 'u', name: '虚构', permissions: ['business:eidt'] } };
+  assert.equal(parseAuthState(state), null);
+});
+
+// 权限名写错必须编译不过：下面几行由 npm run typecheck 守，哪天能编译了 tsc 报“没用上的 @ts-expect-error”（同 api-table.test.ts）。
+const typeOnly = (_check: () => unknown) => undefined;
+typeOnly(() => {
+  // @ts-expect-error 名单里没有的权限名
+  requirePermission(sales, 'business:eidt');
+  // @ts-expect-error 财务的检查只收财务权限
+  financeActor(sales, 'business:edit');
+  const auth: AuthState = { configured: true, csrf: '', actor: null };
+  // @ts-expect-error 页面上判断权限也只认名单里的名字
+  return auth.actor?.permissions.includes('finance:veiw');
 });

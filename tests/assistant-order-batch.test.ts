@@ -34,7 +34,7 @@ function setup(store: Store) {
         expectedDate: null,
         status: '待订货',
         notes: '',
-        lines: [{ ...item, stockItemId: item.id, quantity, unitPrice: '1.2' }],
+        lines: [{ ...item, stockItemId: item.id, quantity, unitPrice: '1.2', priceBasis: 'quantity' }],
       },
       actor,
     );

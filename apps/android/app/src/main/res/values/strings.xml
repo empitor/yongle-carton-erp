@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="offline_title">暂时无法连接 ERP</string>
+    <string name="retry">重试</string>
+    <string name="no_browser">没有找到能打开这个网址的浏览器</string>
+    <string name="download_started">已开始下载：%1$s</string>
+    <string name="download_unsupported">这类下载暂时保存不了</string>
+    <string name="download_failed">这份文件没能交给系统下载，请稍后再试</string>
+    <string name="choose_file">选择文件</string>
+    <string name="no_file_app">没有找到能选文件的应用</string>
+    <string name="back_to_exit">再按一次返回退出</string>
+    <string name="share_failed">%1$d 份文件没传上：%2$s</string>
+    <string name="share_unsupported">这些文件格式不支持，没有收：%1$s</string>
+    <string name="share_too_large">这些文件超过 %1$d MB，没有收：%2$s</string>
+    <string name="share_unreadable">这些文件读不到，没有收：%1$s</string>
+    <string name="share_unreadable_file">%1$s 读不出来</string>
+    <string name="share_unnamed">分享的文件</string>
+    <string name="share_too_many">一次最多分享 %1$d 份文件，其余没有收</string>
+    <string name="share_busy">上一批分享的文件还在传，这批没有收，请稍后再分享</string>
+    <string name="share_refused">分享的文件没有交给 AI 导入</string>
+    <string name="save_done">已保存到“下载”：%1$s</string>
+    <string name="save_failed">没能保存到“下载”，请稍后再试</string>
+    <string name="save_bad_request">要保存的文件不对，没有保存</string>
+    <string name="save_bad_name">要保存的文件没有名字，没有保存</string>
+    <string name="save_too_large">要保存的文件超过 %1$d MB，没有保存</string>
+    <string name="update_found_title">发现新版本</string>
+    <string name="update_found_message">甬勒ERP %1$s 可以更新了。</string>
+    <string name="update_install">下载并安装</string>
+    <string name="update_later">以后再说</string>
+    <string name="update_downloading">正在下载新版本…</string>
+    <string name="update_cancel">取消</string>
+    <string name="update_download_failed">新版本没下载成，请检查网络后再试</string>
+    <string name="update_bad_package">下载的安装包不对，没有安装</string>
+    <string name="update_allow_install">请允许“甬勒ERP”安装应用，返回后会接着安装</string>
+    <string name="update_allow_install_manually">请到系统设置里允许“甬勒ERP”安装应用，返回后会接着安装</string>
+    <string name="update_not_installed">新版本没装上，可以稍后再试</string>
+</resources>

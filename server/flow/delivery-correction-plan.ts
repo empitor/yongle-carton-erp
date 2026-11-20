@@ -7,13 +7,12 @@ import {
   deliveryCorrectionPreviewSchema,
   type deliveryCorrectionViewSchema,
   flowDocNames,
-  pendingOrder,
   sumMoney,
   type CorrectionDetail,
   type FlowDocument,
   type FlowDocView,
 } from '../../shared/business/index.js';
-import { quantityString, quantityUnits, today } from '../../shared/core/index.js';
+import { deliverableOrder, quantityString, quantityUnits, today } from '../../shared/core/index.js';
 import { fail, type DeliveryLine, type FlowCommands } from './base.js';
 import { commitInput, type CorrectionContext, type CorrectionKind } from './correction-movements.js';
 import { shippedAtOf } from './confirm.js';
@@ -69,7 +68,7 @@ function checkLinkedOrders(flow: FlowCommands, stored: FlowDocument<'delivery'>,
   if (
     added.some((l) => {
       const order = orders.get(l.orderId);
-      return !order || !pendingOrder(order);
+      return !order || !deliverableOrder(order);
     })
   )
     fail('换挂、新加的行要选同一客户正常待完成订单的明细。');

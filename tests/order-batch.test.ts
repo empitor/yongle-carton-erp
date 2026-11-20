@@ -42,7 +42,7 @@ function setup() {
   );
   const purchase = (quantity: string, orderDate: string, supplierId = supplier.id) =>
     ops.savePurchase(
-      { supplierId, orderDate, expectedDate: null, status: '待订货', notes: '', lines: [{ ...item, stockItemId: item.id, quantity, unitPrice: '1.2' }] },
+      { supplierId, orderDate, expectedDate: null, status: '待订货', notes: '', lines: [{ ...item, stockItemId: item.id, quantity, unitPrice: '1.2', priceBasis: 'quantity' }] },
       actor,
     );
   /** 把采购单改成已订货；skipBatch 时不自动建订货单（测试自己合并建） */

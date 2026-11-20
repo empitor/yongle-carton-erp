@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- 外壳测试页（虚构内容）：测站内跳转、返回键、外部网页、blob 下载和普通下载。只给测试版用 -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>外壳测试首页</title>
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <h1>外壳测试首页</h1>
+    <a class="block" href="page2.html">进入第二页</a>
+    <a class="block" href="http://localhost:8787/external.html">打开外部网页</a>
+    <button class="block" id="blob" type="button">下载 blob 文件</button>
+    <a class="block" href="sample-download.bin" download="yongle-http-test.bin">下载服务器文件</a>
+    <p id="status">等待操作</p>
+    <script src="blob-download.js"></script>
+    <script src="bridge.js"></script>
+  </body>
+</html>

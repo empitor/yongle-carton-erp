@@ -4,6 +4,7 @@ import { productIdsOfCustomer } from '../operations/index.js';
 import { dateSchema, orderDisplayStatus, orderInView, type Order } from '../../shared/core/index.js';
 import {
   customerQuerySchema,
+  matchesOperationalRecord,
   matchesProduct,
   orderMetrics,
   orderQuerySchema,
@@ -63,7 +64,7 @@ export function customerList(store: Store, query: Record<string, unknown>, inclu
   const scoped = listed(store.customers(includeArchived), store.archivedIds('customers'), f.archived);
   if (query.withMetrics !== '1') return searchAll(scoped, q);
   return {
-    rows: scoped.filter((row) => [row.name, row.contact, row.phone, row.address, row.notes].join(' ').toLowerCase().includes(q)),
+    rows: scoped.filter((row) => matchesOperationalRecord(row, q)),
     totalRecords: scoped.length,
     metrics: null,
   };

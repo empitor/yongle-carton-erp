@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用图标前景：公司商标（浅色底用的那一版，图形照商标原图的路径）。
+     自适应图标画布 108dp，商标原图 100×100 缩到一半放在正中，落在 66dp 的安全区里，各种遮罩都裁不到。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.5"
+        android:scaleY="0.5"
+        android:translateX="29"
+        android:translateY="29">
+        <path
+            android:fillColor="@color/logo_blue"
+            android:pathData="M2,8H22L34,28 46,8H66L42,48V92H26V48Z" />
+        <path
+            android:fillColor="@color/logo_kraft"
+            android:pathData="M48,48 L64,21.3V73.2L48,89.2Z" />
+        <path
+            android:fillColor="@color/logo_kraft_dark"
+            android:pathData="M66.8,76H98L88.4,92H50.8Z" />
+    </group>
+</vector>

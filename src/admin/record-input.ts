@@ -1,6 +1,6 @@
 import { dataManagementFieldName } from '../../shared/business/index';
-import { costCents, costYuan, errorMessage, legacyCents, plainPrice, priceFromCents, samePrice } from '../../shared/core/index';
-import { isJsonList, isJsonObject, type Json, type JsonObject } from './record-types';
+import { costCents, costYuan, errorMessage, legacyCents, plainPrice, priceFromCents, samePrice, type ApiJson } from '../../shared/core/index';
+import { isJsonList, isJsonObject, type JsonObject } from './record-types';
 // 数据管理编辑窗里的金额换算：库里存分、编辑窗里按元填；采购、到货明细的单价没改就交回原文。
 /** 订单的预估成本：几项都没填就是没有预估成本（存 null） */
 const costKeys = ['material', 'processing', 'waste', 'other', 'basis'] as const;
@@ -13,14 +13,14 @@ const costsBlank = (costs: JsonObject) =>
   });
 
 /** 单价的分 → 给人看的元，整数乘 100 用 BigInt，不用浮点；按全站单价写法（100 → “1.00”，279 → “2.79”） */
-const yuanOfCents = (cents: Json | undefined) =>
+const yuanOfCents = (cents: ApiJson | undefined) =>
   cents == null || cents === ''
     ? ''
     : Number.isSafeInteger(Number(cents))
       ? plainPrice(priceFromCents(Number(cents)))
       : String(cents);
 /** 单价给人看的写法：有精确价按精确价（全站单价写法：至少两位、最多四位，尾零去掉），没有按分换成元，都没有是空 */
-const shownPrice = (exact: Json | undefined, cents: Json | undefined) =>
+const shownPrice = (exact: ApiJson | undefined, cents: ApiJson | undefined) =>
   typeof exact === 'string' && exact.trim() ? plainPrice(exact.trim()) : cents == null ? '' : yuanOfCents(cents);
 /** 填的单价（元，最多四位小数，已去掉首尾空白）对应的分：和保存时同一个换算（legacyCents，四舍五入到分）；空着或格式不对返回 null，留给校验去拦 */
 function centsOfPrice(exact: string) {
@@ -35,7 +35,7 @@ function centsOfPrice(exact: string) {
  * 填的预估成本（元）→ 分；空着是 null。格式不对、超上限由 costCents 说明真正的原因（小数位、上限分开提示），
  * 不交给服务端报“金额（分）必须是整数”。
  */
-function centsOfYuan(value: Json | undefined) {
+function centsOfYuan(value: ApiJson | undefined) {
   const text = value == null ? '' : String(value).trim();
   return text ? costCents(text) : null;
 }
@@ -57,10 +57,10 @@ export class RecordInputError extends Error {
   }
 }
 /** 按“上一层.字段”取编辑中内容里的值（编辑窗对比哪一格改过了，改过的那格不再标错） */
-export const valueAt = (input: Json | undefined, path: string) =>
+export const valueAt = (input: ApiJson | undefined, path: string) =>
   path
     .split('.')
-    .reduce<Json | undefined>(
+    .reduce<ApiJson | undefined>(
       (v, k) => (isJsonObject(v) ? v[k] : isJsonList(v) ? v[Number(k)] : undefined),
       input,
     );
@@ -68,10 +68,10 @@ export const valueAt = (input: Json | undefined, path: string) =>
 /** 采购单、到货单明细的单价是元的文字，库里原样存（2.7600 这种） */
 const textPriceModules = new Set(['purchases', 'arrival']);
 /** 明细逐项换一下（不是对象的项原样留着）；不是数组原样交回 */
-const mapLines = (lines: Json | undefined, change: (line: JsonObject) => JsonObject) =>
+const mapLines = (lines: ApiJson | undefined, change: (line: JsonObject) => JsonObject) =>
   isJsonList(lines) ? lines.map((l) => (isJsonObject(l) ? change(l) : l)) : lines;
 /** 预估成本放进编辑窗：没有成本摊开成空的几项；有成本的几项从分换成元，依据原样 */
-const editableCosts = (costs: Json | undefined): JsonObject =>
+const editableCosts = (costs: ApiJson | undefined): JsonObject =>
   isJsonObject(costs)
     ? Object.fromEntries(
         costKeys.map((k) => {
@@ -86,7 +86,7 @@ function editableProduct(value: JsonObject): JsonObject {
   if (!Object.hasOwn(value, 'priceCents')) return { ...value, priceExact: '' };
   // 排在“分”后面（“分”在编辑窗里不显示）；分是 0 就是没定价，留空
   return Object.fromEntries(
-    Object.entries(value).flatMap(([k, v]): [string, Json | undefined][] =>
+    Object.entries(value).flatMap(([k, v]): [string, ApiJson | undefined][] =>
       k === 'priceCents' ? [[k, v], ['priceExact', Number(v) > 0 ? yuanOfCents(v) : '']] : [[k, v]],
     ),
   );
@@ -104,6 +104,8 @@ export function editableInput(module: string, input: JsonObject): JsonObject {
   if (module === 'orders')
     return {
       ...value,
+      // 库里没存金额结算的旧订单照实显示“未填写”，人选了才写（submittedInput 不交空的这一格）
+      roundingPolicy: value.roundingPolicy ?? null,
       costs: editableCosts(value.costs),
       lines: mapLines(value.lines, (l) => ({ ...l, unitPriceExact: shownPrice(l.unitPriceExact, l.unitPriceCents) })),
     };
@@ -124,7 +126,7 @@ export function editableInput(module: string, input: JsonObject): JsonObject {
  * 免得只是显示写法不同就把单据内容改了（到货单的财务指纹按单据原文算，写法变了会被当成“单据改过了”）。
  * 按明细编号对行，没编号的按位置对；改了数值的照填的交。
  */
-function keptPriceText(lines: Json | undefined, before: Json | undefined) {
+function keptPriceText(lines: ApiJson | undefined, before: ApiJson | undefined) {
   if (!isJsonList(lines) || !isJsonList(before)) return lines;
   return lines.map((l, i) => {
     if (!isJsonObject(l) || typeof l.unitPrice !== 'string') return l;
@@ -147,7 +149,7 @@ function submittedLine(l: JsonObject): JsonObject {
   return cents == null ? l : { ...l, unitPriceExact: text, unitPriceCents: cents };
 }
 /** 预估成本的一项交回去：依据原样，金额按元换成分；格式不对的把原因记进 wrong（按字段路径） */
-function submittedCost(k: CostKey, costs: JsonObject, wrong: Record<string, string>): [CostKey, Json | undefined] {
+function submittedCost(k: CostKey, costs: JsonObject, wrong: Record<string, string>): [CostKey, ApiJson | undefined] {
   if (k === 'basis') return [k, costs[k]];
   try {
     return [k, centsOfYuan(costs[k])];
@@ -160,7 +162,8 @@ function submittedCost(k: CostKey, costs: JsonObject, wrong: Record<string, stri
  * 交给服务端的内容：
  * - 产品参考单价、订单明细单价按填的“元”算出“分”一起交（和保存时同一个换算，两头对得上）；
  *   产品的元空着按没定价存；订单明细的元空着就把分也清空，由校验提示“请填写单价”；格式不对的原样交，由校验提示；
- * - 订单的预估成本几项都空着就按没有预估成本（null）存；填了的按元换成分，填了一部分的照样提交，由校验提示缺哪项。
+ * - 订单的预估成本几项都空着就按没有预估成本（null）存；填了的按元换成分，填了一部分的照样提交，由校验提示缺哪项；
+ *   金额结算“未填写”的不交。
  * 金额格式不对（成本写了三位小数这类）抛出 RecordInputError（每一格的原因分开记），不提交。
  */
 export function submittedInput(module: string, input: JsonObject, original?: JsonObject): JsonObject {
@@ -181,5 +184,7 @@ export function submittedInput(module: string, input: JsonObject, original?: Jso
       ? Object.fromEntries(costKeys.map((k) => submittedCost(k, given, wrong)))
       : null;
   if (Object.keys(wrong).length) throw new RecordInputError(wrong);
-  return { ...input, lines, costs };
+  // 金额结算是“未填写”就不交这一格：没动它的保存不写它；单价有不足一分的尾数时由服务端报错让人选
+  const rest = Object.fromEntries(Object.entries(input).filter(([k, v]) => k !== 'roundingPolicy' || v != null));
+  return { ...rest, lines, costs };
 }

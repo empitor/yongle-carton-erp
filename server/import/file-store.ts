@@ -3,21 +3,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { AppError } from '../core/index.js';
 import { MIB } from '../../shared/core/index.js';
-import { ORIGINAL_MAX_MB, type ParsedFile } from '../../shared/import/index.js';
+import { ORIGINAL_MAX_MB, originalFormats, type ParsedFile } from '../../shared/import/index.js';
 
 type Format = ParsedFile['format'];
 /** 文件头看前几个字节 */
 const HEAD_BYTES = 8;
-const formatByExtension = new Map<string, Format>([
-  ['.xlsx', 'xlsx'],
-  ['.docx', 'docx'],
-  ['.xls', 'xls'],
-  ['.doc', 'doc'],
-  ['.pdf', 'pdf'],
-  ['.png', 'png'],
-  ['.jpg', 'jpg'],
-  ['.jpeg', 'jpg'],
-]);
+const formatByExtension = new Map<string, Format>(Object.entries(originalFormats));
 /** 各格式的文件头（十六进制）：新版 Office 是 zip，旧版是 OLE 复合文档 */
 const ZIP_HEAD = '504b0304';
 const OLE_HEAD = 'd0cf11e0a1b11ae1';
@@ -33,7 +24,7 @@ const headMatches: Record<Format, (head: string) => boolean> = {
 };
 export function detectFormat(bytes: Buffer, name: string): Format {
   if (!bytes.length || bytes.length > ORIGINAL_MAX_MB * MIB)
-    throw new AppError('文件必须大于0且不超过10MB。', 413, 'file-size');
+    throw new AppError('文件必须大于0且不超过' + ORIGINAL_MAX_MB + 'MB。', 413, 'file-size');
   const format = formatByExtension.get(extname(name).toLowerCase()),
     head = bytes.subarray(0, HEAD_BYTES).toString('hex');
   if (format && headMatches[format](head)) return format;

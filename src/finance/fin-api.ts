@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { call, useAuthState, listen, useLoad, useSlots } from '../ui/index';
-import { MAX_PAGE_SIZE } from '../../shared/core/index';
+import { useEffect, useState } from 'react';
+import { call, useAuthState, listen, notify, useLoad } from '../ui/index';
+import { errorMessage, MAX_PAGE_SIZE, type FinancePermission } from '../../shared/core/index';
 import type { FinanceApi } from '../../shared/finance/index';
 
 /*
@@ -95,7 +95,7 @@ export const uploadFailure = (file: File) => ({ failure: file.name + ' 上传失
 export const exportHref = (path: string, query?: Record<string, unknown>) =>
   '/api/finance' + path + qs(query);
 
-/** 补扫只在这里发（打开概览、月度台账、业务单据页和启用财务后） */
+/** 补扫只在这里发（打开概览、月度台账、业务单据页、结账页、报表页签和启用财务后） */
 const send = call<FinanceWrites>();
 /** 打开财务页面时补扫业务单据（一次一批，最多 20 批），让台账和待补清单都是最新的；补扫到东西时让财务页面重读。 */
 const SYNC_MAX_BATCHES = 20;
@@ -111,29 +111,53 @@ export async function syncEvents() {
     if (processed > 0) finChanged();
   }
 }
+/** 补扫没成功时页面上的说法（一整句，句号收尾） */
+export const syncFailure = (e: unknown) => '业务单据没同步进财务：' + errorMessage(e).replace(/。$/, '') + '。';
+/**
+ * 打开页面时先补扫一次，key 变了再补（比如月度台账换了月份）。补扫失败不影响看已经进财务的数，
+ * 原因交回页面用 ErrorLine 显示（结账检查照样由服务端拦），clear 关掉提示。
+ */
+export function useSyncOnOpen(key?: string) {
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    syncEvents().then(
+      () => {
+        if (active) setError('');
+      },
+      (e: unknown) => {
+        if (active) setError(syncFailure(e));
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [key]);
+  return { error, clear: () => setError('') };
+}
 
 /* ---------- 权限、几处共用的选项 ---------- */
 
 export function useFinPerms() {
   const auth = useAuthState();
-  const has = (p: string) => !!auth?.actor?.permissions.includes('finance:' + p);
+  const has = (p: FinancePermission) => !!auth?.actor?.permissions.includes(p);
   return {
-    view: has('view'),
-    edit: has('edit'),
-    approve: has('approve'),
-    cash: has('cash'),
-    close: has('close'),
+    view: has('finance:view'),
+    edit: has('finance:edit'),
+    approve: has('finance:approve'),
+    cash: has('finance:cash'),
+    close: has('finance:close'),
     isSuper: auth?.actor?.role === 'super_admin',
     actorId: auth?.actor?.id,
   };
 }
-/** 选客户、供应商的下拉选项。往来单位由业务模块提供（插槽里的服务接口），财务不直接请求业务的地址 */
+/** 选客户、供应商的下拉选项（财务自己的地址，出纳也能读）；读不出来时页面底部提示原因，不让下拉悄悄是空的 */
 export function useParties(kind: 'customer' | 'supplier' | null) {
-  const { parties } = useSlots();
-  // 读不出来时下拉是空的，不另外报错（选单位的输入框旁边没有放出错的地方）；useLoad 只在 key 不是 null（两样都有）时才读
-  const { data } = useLoad(kind && parties ? kind : null, () =>
-    kind && parties ? parties.list(kind) : Promise.reject(new Error('往来单位的接口没有装上。')),
-  );
+  const request: FinRequest<'GET /finance/parties'> | null = kind ? ['GET /finance/parties', { query: { kind } }] : null;
+  const { data, error } = useFinRead(request);
+  useEffect(() => {
+    if (error) notify((kind === 'supplier' ? '供应商' : '客户') + '名单没读出来：' + error, 'error');
+  }, [error, kind]);
   return (data ?? []).map((p) => ({ value: String(p.id), label: p.name }));
 }
 /** 资金账户一次全取（服务端一页最多 MAX_PAGE_SIZE 条，账户不会有这么多）：选账户的下拉、资金发票页都这样读 */

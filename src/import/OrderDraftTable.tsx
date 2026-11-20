@@ -10,6 +10,7 @@ import {
   type ImportWorkspaceView as Workspace,
   type OrderDraft,
 } from '../../shared/import/index';
+import { roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
 import { useImportMatching } from './useImportMatching';
 import { FormField, FormSection } from '../ui/index';
 import { CustomerMatch } from './CustomerMatch';
@@ -80,8 +81,11 @@ function OrderHeader({
             if (policy.success) match.select({ ...mapping, roundingPolicy: policy.data }, 'rounding');
           }}
         >
-          <option value="exact-cents">精确到分，不自动舍入</option>
-          <option value="half-up-cent">整单四舍五入到分（明确确认）</option>
+          {roundingPolicies.map((value) => (
+            <option key={value} value={value}>
+              {roundingPolicyLabels[value]}
+            </option>
+          ))}
         </select>
       </FormField>
       <details className="aii-more aii-span-full">

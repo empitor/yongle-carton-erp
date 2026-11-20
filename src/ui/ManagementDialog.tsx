@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useDialogFocus, useMissingGuide } from './dialog-hooks';
+import { useBackLayer } from './back-layers';
 export default function ManagementDialog({
   title,
   children,
@@ -28,6 +29,8 @@ export default function ManagementDialog({
   // 必填引导要先挂：和原来一样先盯报错、再把焦点移进窗口
   const missing = useMissingGuide(ref);
   useDialogFocus(ref, close, busy);
+  // 安卓 App 的返回键：和 × 一样关，提交中不关
+  useBackLayer(close, { busy });
   const dialog = (
     <div className="overlay management-overlay">
       <section

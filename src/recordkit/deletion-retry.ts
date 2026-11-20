@@ -3,11 +3,12 @@
  * （409，类别 preview-changed，server/core/preview-digest.ts），窗口不卡住——按最新的重新查一遍会一起处理的记录，
  * 告诉人清单换过了，核对后再点删除。别的拒绝（版本对不上、权限、密码不对……）照服务端的原话报。
  */
+import { PREVIEW_CHANGED_CODE } from '../../shared/core/index';
 
 /** 清单换成最新的以后给人看的那句 */
 export const deletionChangedMessage = '要删的记录或会一起处理的记录刚有变化，下面已经换成最新的清单，请核对后再删除。';
 
-const previewChanged = (error: unknown) => error instanceof Error && 'code' in error && error.code === 'preview-changed';
+const previewChanged = (error: unknown) => error instanceof Error && 'code' in error && error.code === PREVIEW_CHANGED_CODE;
 
 /**
  * 删除（execute）；被拒的原因是预览以后数据变了时，调 repreview 按最新的重新查清单，查成了交回提示，不当出错；

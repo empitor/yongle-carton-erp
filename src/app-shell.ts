@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { erpPageIds } from '../shared/assistant/index';
 import { financeOnlyPageAllowed } from '../shared/core/index';
 import { aiFilesService, inboxService } from './import/index';
-import { listen, readNotice, refreshOnReturn, type NoticeDetail } from './ui/index';
+import { listen, readNotice, refreshOnReturn, type NoticeDetail, type NoticeTone } from './ui/index';
 
 /* 外壳（App）的几件事：地址栏上的页面、导航角标、底部提示、快捷键、换账号后重新加载。 */
 
@@ -47,6 +47,11 @@ const validHashPage = (hash: string): Page | null => {
 
 const hashPage = (): Page => validHashPage(location.hash) ?? 'dashboard';
 
+/** 登录后的首页：纯财务账号是财务概览，其余是“今日” */
+export const homePage = (financeOnly: boolean): Page => (financeOnly ? 'finance' : 'dashboard');
+/** 这个账号能不能打开这一页：出纳这类纯财务账号只看财务页面 */
+export const pageAllowed = (page: Page, financeOnly: boolean) => !financeOnly || financeOnlyPageAllowed(page);
+
 /**
  * 地址栏 # 后面是哪一页（routeKey 是整个 #…，同一页换了参数也算变了）。切换页面时回到顶部。
  * 出纳这类纯财务账号只看财务页面，打开别的页面时换到财务概览。
@@ -62,19 +67,13 @@ export function useHashPage(financeOnly: boolean) {
     window.addEventListener('hashchange', f);
     return () => window.removeEventListener('hashchange', f);
   }, []);
+  // 地址里不是哪一页、或这个账号打不开这一页（纯财务账号只看财务页面）：换到这个账号的首页
   useEffect(() => {
-    if (routeKey && !validHashPage(routeKey)) {
-      const target: Page = financeOnly ? 'finance' : 'dashboard';
-      history.replaceState(null, '', '#' + target);
-      setPage(target);
-      setRouteKey('#' + target);
-      return;
-    }
-    if (financeOnly && !financeOnlyPageAllowed(page)) {
-      history.replaceState(null, '', '#finance');
-      setPage('finance');
-      setRouteKey('#finance');
-    }
+    if (!(routeKey && !validHashPage(routeKey)) && pageAllowed(page, financeOnly)) return;
+    const target = homePage(financeOnly);
+    history.replaceState(null, '', '#' + target);
+    setPage(target);
+    setRouteKey('#' + target);
   }, [financeOnly, page, routeKey]);
   // 切换页面时回到顶部（编辑窗由 RecordPages 自己关）
   useEffect(() => {
@@ -115,7 +114,7 @@ export function useNavCounts(actorId: string | undefined, financeOnly: boolean) 
   return { inbox, imports };
 }
 
-export type Notice = { message: string; tone: 'done' | 'error' };
+export type Notice = { message: string; tone: NoticeTone };
 /**
  * 底部提示：弹窗里办完事就关掉窗口，提示交给这里显示，例如从订单安排生产后“已安排生产”；
  * 窗口关了但没办成的（tone 为 error），原因也在这里用红色提示说出来，多停一会儿，来得及看清原因。

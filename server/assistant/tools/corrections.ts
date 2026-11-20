@@ -7,6 +7,7 @@ import type { Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { plainPrice } from '../../../shared/core/index.js';
 import {
+  UNPRICED_TEXT,
   arrivalCorrectionPreviewSchema,
   deliveryCorrectionPreviewSchema,
   deliveryCorrectionViewSchema,
@@ -106,7 +107,7 @@ export const correctionWriters: Record<string, ToolWriter> = Object.fromEntries(
 type DeliveryView = z.output<typeof deliveryCorrectionViewSchema>;
 type ProductionView = z.output<typeof productionCorrectionViewSchema>;
 
-const money = (v: string | null | undefined) => (v == null ? '单价未定' : plainPrice(v) + ' 元');
+const money = (v: string | null | undefined) => (v == null ? UNPRICED_TEXT : plainPrice(v) + ' 元');
 const qty = (v: string | null | undefined, unit: string | undefined) => (v ?? '0') + (unit ? ' ' + unit : '');
 const change = (before: string | null | undefined, after: string, unit: string | undefined) =>
   before === after ? qty(after, unit) + '（不变）' : qty(before, unit) + ' → ' + qty(after, unit);

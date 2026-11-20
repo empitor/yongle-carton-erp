@@ -4,7 +4,7 @@
 import type { RawToolCall } from '../../ai/index.js';
 import type { AssistantSpeaker } from '../../../shared/assistant/index.js';
 import type { ModelReply } from './run-state.js';
-import { isRecord } from './result-fields.js';
+import { isRecord } from '../../../shared/core/index.js';
 
 const MARK: Record<string, AssistantSpeaker> = { 小甬: 'yong', 小勒: 'le' };
 export const speakerMark = (speaker: AssistantSpeaker) => (speaker === 'le' ? '【小勒】' : '【小甬】');

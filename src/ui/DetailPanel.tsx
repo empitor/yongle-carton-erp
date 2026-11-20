@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { emit } from './events';
+import { useBackLayer } from './back-layers';
 
 /** 右侧详情面板：不加遮罩，列表保持可见可操作；Esc 关闭，↑↓ 切换相邻记录。 */
 export default function DetailPanel({
@@ -31,6 +32,8 @@ export default function DetailPanel({
 }) {
   const handlers = useRef({ close, previous, next });
   handlers.current = { close, previous, next };
+  // 安卓 App 的返回键：和 × 一样关
+  useBackLayer(close);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       const target = e.target instanceof Element ? e.target : null;

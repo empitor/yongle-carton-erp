@@ -3,7 +3,7 @@
  * 页面删除窗口、助手核对区的按钮（src/recordkit/deletion-impact.ts）和助手删除卡片的标题
  * （server/assistant/tools/records-lifecycle.ts）都用这里，数字都是同一份删除预览列出的条数。叫法在 deletion-words.ts。
  */
-import { flowNames } from './physical-flow.js';
+import { flowKinds, isFlowKind, type FlowKind } from './physical-flow.js';
 import { recordNames } from './labels.js';
 import { deletionMeasure as measure, deletionTableLabel, stockWord } from './deletion-words.js';
 
@@ -58,16 +58,18 @@ export function deletionTally(rows: DeletionImpactRow[]) {
 }
 
 /** 删除模块对应的表：单据类在单据表里 */
-export const deletionModuleTable = (module: string) => (module in flowNames ? 'flow_documents' : module);
+export const deletionModuleTable = (module: string) => (isFlowKind(module) ? 'flow_documents' : module);
 
 /** 标题只说连带的档案和单据：明细是主单据的一部分，库存流水在清单里逐笔列、并让按钮用警示样式 */
 const partTables = new Set(['order_lines', 'purchase_lines', 'stock_movements']);
 /** 标题里先说档案，再按业务先后说单据：订单、采购单、订货单，然后生产任务、完工、到货、送货 */
-const headlineOrder = ['products', 'stock_items', 'orders', 'purchases', 'order_batches', 'flow_documents'],
-  flowOrder = ['task', 'production', 'arrival', 'delivery'];
+const headlineOrder = ['products', 'stock_items', 'orders', 'purchases', 'order_batches', 'flow_documents'];
+/** 单据的先后：每种单据都要排上（少一种编译报错） */
+const flowRank: Record<FlowKind, number> = { task: 0, production: 1, arrival: 2, delivery: 3 };
 const headlineRank = (r: DeletionImpactRow) => {
   const t = headlineOrder.indexOf(r.table);
-  return (t < 0 ? headlineOrder.length : t) * flowOrder.length + Math.max(flowOrder.indexOf(String(r.kind ?? '')), 0);
+  const kind = String(r.kind ?? '');
+  return (t < 0 ? headlineOrder.length : t) * flowKinds.length + (isFlowKind(kind) ? flowRank[kind] : 0);
 };
 const documentTables = new Set(['orders', 'purchases', 'flow_documents']);
 

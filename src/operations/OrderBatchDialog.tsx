@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { OrderBatchDraft, OrderBatchView } from '../../shared/business/index';
 import { errorMessage } from '../../shared/core/index';
 import type { DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
-import { FormMessage, ManagementDialog, emit, useAction } from '../ui/index';
+import { FormMessage, ManagementDialog, emit, useAction, useSaveFile } from '../ui/index';
 import { deliverBusinessFile } from '../documents/export-file';
 import { exportDocument, previewDocumentBatch, previewWordFile, readDocumentTemplates } from '../documents/document-api';
 import { draftOrderBatch, scheduleOrderBatch } from '../warehouse/order-batch-api';
@@ -95,7 +95,7 @@ function useOrderDraft(purchaseIds: number[]) {
 /**
  * 订货单：全站唯一的导出窗口。一张或几张同一家供应商的采购单合成一份发给供应商。
  * 同一种纸板合成一行写总数，每行可以写到货安排（多少在哪天前到，可以不写）。
- * 主按钮“导出订货单”：文件完整下载后这些采购单变成待到货（已订货）；
+ * 主按钮“导出订货单”：文件存好后这些采购单变成待到货（已订货）；
  * 预览在本窗口里切换着看，“只导出文件，不改状态”收在“更多”里。
  */
 export default function OrderBatchDialog({
@@ -112,7 +112,8 @@ export default function OrderBatchDialog({
   const [templateId, setTemplateId] = useState(''),
     [format, setFormat] = useState<DocumentFormat>('docx'),
     [preview, setPreview] = useState<Preview | null>(null);
-  const action = useAction();
+  const action = useAction(),
+    save = useSaveFile();
   // 读的时候和办事的时候都算忙；读不出来时按钮都不能点，两处的错误不会同时有
   const busy = order.loading || action.busy,
     error = order.loadError || action.error;
@@ -146,7 +147,7 @@ export default function OrderBatchDialog({
         initial.current = JSON.stringify(body);
         order.setDraft((d) => (d?.batch ? { ...d, batch: batchAfterSave(d.batch, saved) } : d));
       }
-      await deliverBusinessFile(await exportDocument(exportBody(draft, schedule, { format, markOrdered, templateId })));
+      await deliverBusinessFile(await exportDocument(exportBody(draft, schedule, { format, markOrdered, templateId })), save);
       emit('erp-business-changed');
       done(exportedMessage(draft, markOrdered));
     });

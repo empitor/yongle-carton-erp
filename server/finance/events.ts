@@ -2,12 +2,13 @@
  * 业务单据进财务：扫描已确认、已撤销的送货、到货、完工单和盘点流水，
  * 按来源指纹判断新增、替换或标“有差异”，挂暂估往来，来源被删的标“来源已删除”。
  */
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
-import { exists, many, one, rows } from '../core/index.js';
+import { count, exists, many, one, rows } from '../core/index.js';
 import { financeActor, financeAudit, financeWrite } from './core.js';
-import { sourceContent, sourceMissing, sourceRow, sourcesCte, type SourceRow } from './business-source.js';
+import { sourceContent, sourceMissing, sourceRow, sourcesCte, sourceUnseen, type SourceRow } from './business-source.js';
 import { eventChangesSince } from './event-changes.js';
 import { differenceProblem, evaluateSource, taxBasis, type Evaluation } from './event-evaluate.js';
 import { provisionalObligation, readEvent, revenuePolicy, type FinanceEvent } from './event-shared.js';
@@ -65,6 +66,26 @@ const recordedAmount = (kind: string, result: Evaluation) =>
 const previousOf = (previous: FinanceEvent | undefined) =>
   previous ? { eventId: previous.id, hash: previous.source_hash, status: previous.status } : null;
 
+/** 被删的来源（FROM 和 WHERE，o 是观察记录、e 是它挂的事件）：财务看到过、还没记成已删除的；启用前的不管 */
+const missingSources = `FROM fin_source_observations o JOIN fin_events e ON e.id=o.event_id
+        WHERE o.status<>'deleted' AND e.status<>'before_opening' AND ${sourceMissing('o')}`;
+
+/**
+ * 截至 end（含）还没同步进财务的来源有几条，和补扫同一个条件：这一版财务还没扫到的（不分种类、状态：新确认的、
+ * 内容变了的、已撤销或被更正替代的、盘点流水改写的），加上单据、盘点流水已被删、还没记成已删除的。
+ * 补扫前它们还不是事件，结账检查的“业务单据”一步按它们拦；启用前的、只改了说明的也先算上，补扫一次就清掉。
+ */
+export function unseenSources(db: DatabaseSync, end: string) {
+  return count(
+    db,
+    `${sourcesCte}
+    SELECT (SELECT count(*) FROM sources s LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
+      WHERE s.date<=?1 AND ${sourceUnseen('s', 'o')})
+      + (SELECT count(*) ${missingSources} AND e.date<=?1)`,
+    end,
+  );
+}
+
 export class FinanceEvents {
   constructor(private readonly store: Store) {}
   private get db() {
@@ -79,7 +100,7 @@ export class FinanceEvents {
       `${sourcesCte}
     SELECT s.*,o.event_id AS previous,o.status AS observed FROM sources s
     LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
-    WHERE o.source_id IS NULL OR o.source_version<>s.version OR o.status<>s.status
+    WHERE ${sourceUnseen('s', 'o')}
     LIMIT ?`,
       BATCH_SIZE,
     );
@@ -94,14 +115,7 @@ export class FinanceEvents {
       const sources = this.sources();
       let processed = 0;
       for (const source of sources) processed += this.syncSource(user, source, start);
-      const missing = many(
-        this.db,
-        rows.fin_events,
-        `SELECT e.* FROM fin_source_observations o JOIN fin_events e ON e.id=o.event_id
-        WHERE o.status<>'deleted' AND e.status<>'before_opening' AND ${sourceMissing('o')}
-        LIMIT ?`,
-        BATCH_SIZE,
-      );
+      const missing = many(this.db, rows.fin_events, `SELECT e.* ${missingSources} LIMIT ?`, BATCH_SIZE);
       for (const before of missing) markSourceDeleted(this.store, user, before);
       refreshPendingDeliveryReversals(this.store, user);
       // 未到票的采购退货按暂估单价冲减暂估（退货撤销时加回来），见 return-estimates.ts

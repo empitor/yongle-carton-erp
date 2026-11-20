@@ -3,13 +3,11 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { AppError, changeArchive, exists, many, recordArchiveTarget } from '../core/index.js';
 import type { RecordEntity } from '../../shared/business/index.js';
-import type { ArchiveResult, Order } from '../../shared/core/index.js';
+import { deliverableOrder, type ArchiveResult } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import { businessRecord, type BusinessRecordOf } from './records.js';
 
 const documentId = z.object({ id: z.number().int() });
-/** 订单只有这几种状态能归档：还没确认的、发完货的、取消的 */
-const archivableOrderStatuses: readonly Order['status'][] = ['待确认', '已发货', '已取消'];
 /** 哪几类记录挂着单据：flow_refs 里记它的那一列（还有没核对的单据就不能归档） */
 const draftReference: Partial<Record<RecordEntity, string>> = {
   stock_items: 'stock_id',
@@ -54,7 +52,8 @@ const ownBlocks: { [E in RecordEntity]: (store: Store, id: number, row: Business
   customers: () => null,
   products: () => null,
   suppliers: () => null,
-  orders: (_store, _id, row) => (archivableOrderStatuses.includes(row.status) ? null : '订单还没发完货，不能归档'),
+  // 还能送的（已确认、生产中、待发货）不能归档；还没确认的、发完货的、取消的可以
+  orders: (_store, _id, row) => (deliverableOrder(row) ? '订单还没发完货，不能归档' : null),
   purchases: (_store, _id, row) =>
     row.baseStatus !== '已取消' && row.lines.some((l) => l.receivedUnits < l.quantityUnits) ? '这张采购单还没到齐，不能归档' : null,
   stock_items: stockItemBlocked,

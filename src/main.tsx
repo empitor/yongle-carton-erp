@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { SlotProvider } from './ui/index';
-import { slots } from './slots';
+import { assembleSlots } from './slots';
 // 样式都在这里引入，顺序就是优先级。页面里不要再 import 样式：懒加载的样式会排到这里列的之后，结果取决于先打开哪一页。
 // 每个模块的样式放在自己的目录，只管自己的类名（tests/css-modules.test.ts）；全站共用的在 ui/。
 // 先后是按冲突排出来的：两条规则特异性相同、可能落在同一个元素上、改同一个属性时，后写的说了算，这个先后和整理前一样。
@@ -139,6 +139,8 @@ import { followSystemTheme, loadTheme } from './ui/index';
 loadTheme();
 // 页面一直开着，不用停
 followSystemTheme();
+// 插槽和安卓 App 的接通通道一起装好（src/slots.ts）
+const slots = assembleSlots();
 const container = document.getElementById('root');
 if (!container) throw new Error('页面缺少放程序的 #root（index.html）');
 createRoot(container).render(

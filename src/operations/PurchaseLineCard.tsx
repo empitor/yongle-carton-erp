@@ -1,11 +1,8 @@
-import { RAW_UNIT } from '../../shared/core/index';
+import { RAW_UNIT, priceBases } from '../../shared/core/index';
 import { formatStockSize, requiredPurchaseSize, type StockItemView } from '../../shared/business/index';
 import { Combobox, FormField, RowDelete } from '../ui/index';
 import { DimensionFields, SizeInput, lineAmountText } from './fields';
-import type { PriceBasis, PurchaseLineForm } from './purchase-seed';
-
-/** 计价方式的选项（下拉只发这两个值） */
-const priceBases: readonly PriceBasis[] = ['area', 'quantity'];
+import type { PurchaseLineForm } from './purchase-seed';
 
 type Props = {
   line: PurchaseLineForm;

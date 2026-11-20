@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useConfirm, notify, stepper, useAction } from '../../ui/index';
-import { syncEvents, useFinPerms } from '../fin-api';
+import { useState } from 'react';
+import { useConfirm, hashParams, notify, stepper, useAction } from '../../ui/index';
+import { useFinPerms, useSyncOnOpen } from '../fin-api';
 import { ErrorLine, type HeadFn } from '../layout';
 import { FinList, col, mon, type Col } from '../table';
 import { Status } from '../status';
@@ -24,15 +24,13 @@ const eventColumns: Col<EventRow>[] = [
  */
 export default function EventsTab({ head }: { head: HeadFn }) {
   const perms = useFinPerms();
-  const [status, setStatus] = useState('ready');
+  // 结账页“去处理”带 status=all 过来看全部（要处理的有差异、待补税率、待算成本……都在里面），平常默认“可记账”
+  const [status, setStatus] = useState(() => (hashParams().get('status') === 'all' ? '' : 'ready'));
   const [confirmDialog, confirm] = useConfirm();
   const [row, setRow] = useState<EventRow | null>(null);
   const [rows, setRows] = useState<EventRow[]>([]);
   const action = useAction();
-  useEffect(() => {
-    // 补扫失败不影响看已经进财务的单据，下次打开再补，这里不打扰人
-    void syncEvents().catch(() => undefined);
-  }, []);
+  const sync = useSyncOnOpen();
   const ready = rows.filter(canGenerate);
   const generateAll = async () => {
     const moved = ready.filter((r) => r.booking_date).length;
@@ -72,6 +70,7 @@ export default function EventsTab({ head }: { head: HeadFn }) {
         </select>
         <span className="fin-note">送货、到货确认后自动进来，这里是记账前的处理。缺税率的到月度台账补。</span>
       </div>
+      <ErrorLine text={sync.error} close={sync.clear} />
       <ErrorLine text={action.error} close={action.clear} />
       <FinList
         list={listEvents}

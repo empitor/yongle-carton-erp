@@ -9,7 +9,7 @@ import AccountingSection from './AccountingSection';
 import { financePageTitles } from '../page-titles';
 import { ErrorLine, FinHead, FinSection, PeriodInput } from '../layout';
 import { FinTable, col, mon } from '../table';
-import { exportHref, syncEvents, useFinPerms, useFinRead, type FinData } from '../fin-api';
+import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { metricNames, sourceMonthName } from '../labels';
 import { usePeriod } from '../page-state';
 
@@ -192,15 +192,12 @@ function SourceTable({
 
 /** 这个月的经营数和概览要列的几样数；打开页面时先补扫一次业务单据 */
 function useOverviewData(period: string) {
-  useEffect(() => {
-    // 补扫失败不影响看已经进财务的数，页面上的数照常读；下次打开财务页面再补，这里不打扰人
-    void syncEvents().catch(() => undefined);
-  }, []);
+  const sync = useSyncOnOpen();
   const report = useFinRead(['GET /finance/monthly-report', { query: { period } }]);
   const summary = useFinRead(['GET /finance/summary']);
   const soon = useFinRead(['GET /finance/due-soon', { query: { days: 7, pageSize: 1 } }]);
   const discounts = useFinRead(['GET /finance/discount-opportunities', { query: { pageSize: 1 } }]);
-  return { report, summary, soon: soon.data, discounts: discounts.data };
+  return { sync, report, summary, soon: soon.data, discounts: discounts.data };
 }
 
 export default function OverviewPage() {
@@ -213,7 +210,7 @@ export default function OverviewPage() {
   useEffect(() => {
     if (drill) drillRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [drill]);
-  const { report, summary, soon, discounts } = useOverviewData(period);
+  const { sync, report, summary, soon, discounts } = useOverviewData(period);
   const m = report.data;
   const open = (metric: Metric, sourceMonth?: string) => {
     setDrill({ metric, sourceMonth });
@@ -242,6 +239,7 @@ export default function OverviewPage() {
       >
         <PeriodInput value={period} onChange={setPeriod} />
       </FinHead>
+      <ErrorLine text={sync.error} close={sync.clear} />
       <ErrorLine text={report.error} />
       {enable.known && !enable.enabled && (
         <Hint>

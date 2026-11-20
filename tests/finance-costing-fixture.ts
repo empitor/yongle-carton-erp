@@ -14,9 +14,10 @@ import { FinanceCosting } from '../server/finance/costing.js';
 import { shipOnDocDate } from './ship-date.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
-import { saveDoc } from './receive-fixture.js';
+import { FinanceEventHandling } from '../server/finance/event-handling.js';
+import { applyCorrection, previewCorrection, saveDoc } from './receive-fixture.js';
 import { bill, event, maker, newSettings, obligation, obligationRow, postDrafts as postAll, supervisor } from './finance-fixture.js';
-import { one, rows } from '../server/core/index.js';
+import { many, one, rows } from '../server/core/index.js';
 import { readCostingDetails } from '../server/finance/costing-details.js';
 import type { StockItemView } from '../shared/business/index.js';
 
@@ -32,6 +33,7 @@ export function fixture() {
     raw: rawMaker(base.ops),
     finished: sales.finished,
     receive: receiver(base),
+    ...arrivals(base),
     ...invoicing(base),
     produce: sales.produce,
     deliver: sales.deliver,
@@ -83,15 +85,18 @@ function rawMaker(ops: OperationsService) {
   };
 }
 
-/** receive(纸板, 日期)：到货 10 张、每张 10 元，生成并记账暂估，返回到货单和应付往来。 */
+/**
+ * receive(纸板, 日期, 单价)：到货 10 张、默认每张 10 元，生成并记账暂估，返回到货单和应付往来。
+ * 送货单号按纸板和日期起，同一种纸不同日期能收几批。
+ */
 function receiver({ s, ops, flow, events, confirm, postDrafts }: CostingBase) {
-  return (item: StockItemView, date = '2026-02-05') => {
+  return (item: StockItemView, date = '2026-02-05', unitPrice = '10.0000') => {
     const purchase = ops.savePurchase(
       {
         supplierId: 1,
         orderDate: date,
         status: '已订货',
-        lines: [{ ...item, stockItemId: item.id, quantity: '10', unitPrice: '10.0000', priceBasis: 'quantity' }],
+        lines: [{ ...item, stockItemId: item.id, quantity: '10', unitPrice, priceBasis: 'quantity' }],
       },
       maker,
     );
@@ -102,8 +107,8 @@ function receiver({ s, ops, flow, events, confirm, postDrafts }: CostingBase) {
         {
           supplierId: 1,
           date,
-          reference: '虚构到货-' + item.id,
-          lines: [{ stockId: item.id, purchaseLineId: purchase.lines[0].id, item, quantity: '10', unitPrice: '10.0000', priceBasis: 'quantity' }],
+          reference: '虚构到货-' + item.id + '-' + date,
+          lines: [{ stockId: item.id, purchaseLineId: purchase.lines[0].id, item, quantity: '10', unitPrice, priceBasis: 'quantity' }],
         },
         maker,
       ),
@@ -117,15 +122,18 @@ function receiver({ s, ops, flow, events, confirm, postDrafts }: CostingBase) {
   };
 }
 
-/** blue(号码, 日期, [往来, 金额][]) 开采购蓝票并确认；red(号码, 日期, 原蓝票, 金额, 对方科目) 开红票并确认（都不记账） */
+/**
+ * blue(号码, 日期, [往来, 金额, 部分到票时对应的原暂估][]) 开采购蓝票并确认；
+ * red(号码, 日期, 原蓝票, 金额, 对方科目) 开红票并确认（都不记账）
+ */
 function invoicing({ s, invoices }: CostingBase) {
-  const blue = (number: string, date: string, links: [number, number][]) => {
+  const blue = (number: string, date: string, links: [number, number, number?][]) => {
     const net = links.reduce((n, [, amount]) => n + amount, 0);
     const b = invoices.create(maker, bill('purchase', number, { date, gross: net }));
     invoices.link(maker, b.id, {
       version: 1,
       requestId: 'link-' + number,
-      links: links.map(([obligationId, amount]) => ({ obligationId, amount })),
+      links: links.map(([obligationId, amount, estimateAmount]) => ({ obligationId, amount, estimateAmount })),
     });
     new FinanceInvoiceConfirm(s).confirm(maker, b.id, { version: 2, requestId: 'confirm-' + number });
     return b;
@@ -178,7 +186,42 @@ function salesSide({ s, ops, flow, confirm }: CostingBase) {
   return { finished, produce, deliver };
 }
 
-/** 冲销、退货、算成本和读结果：reverse、reversal、cost、row、gl、details、returnGoods */
+/**
+ * 不经采购单登记的到货、撤销或更正后的财务处理：
+ * arrive(纸板, 日期, { unitPrice, quantities }) 核对一张到货单并同步财务（不生成凭证；不给单价就是无单价），各行数量默认一行 10 张；
+ * redReverse(日期) 同步财务，把到货“有差异”的事件按这天红字冲销（并重做）、记账；
+ * correctArrival(到货单, 数量, 日期) 更正第一行数量（冲回流水挪到这天），财务的处理由测试自己接着 redReverse。
+ */
+function arrivals({ s, flow, events, confirm, postDrafts }: CostingBase) {
+  const arrive = (item: StockItemView, date: string, { unitPrice, quantities = ['10'] }: { unitPrice?: string; quantities?: string[] } = {}) => {
+    const lines = quantities.map((quantity) => ({ stockId: item.id, item, quantity, ...(unitPrice ? { unitPrice, priceBasis: 'quantity' } : {}) }));
+    const confirmed = confirm(flow.save('arrival', { supplierId: 1, date, reference: '虚构登记到货-' + item.id + '-' + date, lines }, maker));
+    events.sync(maker, { requestId: randomUUID() });
+    return confirmed;
+  };
+  const redReverse = (date: string) => {
+    events.sync(maker, { requestId: randomUUID() });
+    const differing = many(
+      s.db,
+      rows.fin_events.pick({ id: true, version: true }),
+      "SELECT id,version FROM fin_events WHERE status='difference' AND source_kind='arrival' ORDER BY id",
+    );
+    for (const d of differing)
+      new FinanceEventHandling(s).correct(maker, d.id, { version: d.version, date, requestId: randomUUID(), reason: '虚构：撤销或更正后红冲' });
+    postDrafts();
+  };
+  const correctArrival = (arrivalId: number, quantity: string, date: string) => {
+    const record = flow.arrivalRecords({ includeInactive: true }).find((r) => r.flowId === arrivalId);
+    if (!record) throw new Error('测试数据：没有到货单 ' + arrivalId + ' 的到货记录');
+    const input = { expectedVersion: record.version, reason: '虚构：点错数量', items: [{ index: 0, quantity }] };
+    const preview = previewCorrection(s, 'flow-' + arrivalId, input, maker);
+    applyCorrection(s, 'flow-' + arrivalId, { ...input, requestId: randomUUID(), previewDigest: preview.previewDigest }, maker);
+    s.db.prepare("UPDATE stock_movements SET date=? WHERE source_kind='flow_reversal' AND source_id=?").run(date, String(arrivalId));
+  };
+  return { arrive, redReverse, correctArrival };
+}
+
+/** 冲销、退货、算成本和读结果：reverse、reversal、cost、row、costRow、gl、details、returnGoods */
 function afterwards({ s, flow, costing, reports, returns, postDrafts }: CostingBase) {
   /** 冲销单据。冲销流水默认记成今天，测试把它挪到指定日期，模拟那天冲销。 */
   const reverse = (doc: { id: number }, date: string) => {
@@ -208,6 +251,11 @@ function afterwards({ s, flow, costing, reports, returns, postDrafts }: CostingB
     if (!r) throw new Error('测试数据：' + period + ' 没有库存品 ' + stockId + ' 的成本行');
     return { inQty: r.in_qty, inCents: r.in_cents, outQty: r.out_qty, outCents: r.out_cents, endQty: r.end_qty, endCents: r.end_cents };
   };
+  /** 同一行排成数组整行比：入、出、期末的数量和金额 */
+  const costRow = (period: string, stockId: number) => {
+    const r = row(period, stockId);
+    return [r.inQty, r.inCents, r.outQty, r.outCents, r.endQty, r.endCents];
+  };
   const gl = (code: string, period: string) =>
     reports
       .balances(maker, period)
@@ -221,7 +269,7 @@ function afterwards({ s, flow, costing, reports, returns, postDrafts }: CostingB
   };
   const returnGoods = (arrivalId: number, date: string, quantity: string) =>
     returns.create(maker, { arrivalId, date, reason: '虚构质量问题', requestId: randomUUID(), lines: [{ lineIndex: 0, quantity }] });
-  return { reverse, reversal, cost, row, gl, details, returnGoods };
+  return { reverse, reversal, cost, row, costRow, gl, details, returnGoods };
 }
 
 /** 采购退货测试：财务从 2026-02 启用，经单据服务到货 10 张、每张 10 元、未税，暂估记账 */

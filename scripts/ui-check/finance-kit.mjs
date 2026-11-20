@@ -8,17 +8,23 @@ export const period = today.slice(0, 7);
 export const shotsDir = SP + '/finance-shots';
 mkdirSync(shotsDir, { recursive: true });
 
-/**
- * 财务各组的起点（和 basics + ledger 点出来的状态一样）：启用财务、关审核分离、建资金账户、
- * 本月待补税率的单据按 13% 未税补上、生成凭证并记账。
- */
-async function prepareBooksVia({ fin, must, sync, postAll }) {
+/** 本月启用财务、建一个资金账户（有了账户才能开收付款单） */
+async function openBooksVia({ fin, must }) {
   const settings = await must('读财务设置', fin('GET', '/settings'));
   await must('启用财务', fin('POST', '/opening/enable', { period, taxpayer: 'general', version: settings.version, rows: [] }));
+  await must('建资金账户', fin('PUT', '/cash/accounts', { name: '虚构基本户', kind: 'bank', accountCode: '1002' }));
+}
+
+/**
+ * 财务各组的起点（和 basics + ledger 点出来的状态一样）：启用财务、建资金账户、关审核分离、
+ * 本月待补税率的单据按 13% 未税补上、生成凭证并记账。
+ */
+async function prepareBooksVia(books) {
+  const { fin, must, sync, postAll } = books;
+  await openBooksVia(books);
   await sync();
   const enabled = await fin('GET', '/settings');
   await must('关审核分离', fin('PUT', '/settings', { version: enabled.version, requireSeparateApprover: false }));
-  await must('建资金账户', fin('PUT', '/cash/accounts', { name: '虚构基本户', kind: 'bank', accountCode: '1002' }));
   const missing = ((await fin('GET', `/monthly-ledger?period=${period}&missingTax=1&pageSize=200`)).rows || []).filter(
     (r) => Number(r.missing_tax) && r.id,
   );
@@ -125,7 +131,22 @@ export function financeKit(page) {
     for (let i = 0; i < 20; i++) if (!(await must('补扫业务单据', fin('POST', '/events/sync', {}))).remaining) return;
   };
   const books = { fin, must, sync, postAll };
+  const openBooks = () => openBooksVia(books);
   const prepareBooks = () => prepareBooksVia(books);
   const prepareReceipt = (partyName) => prepareReceiptVia(books, partyName);
-  return { dlg, modals, field, text, pick, combo, closed, save, confirmDialog, fin, must, postAll, refresh, sync, prepareBooks, prepareReceipt };
+  /** 结账页“业务单据”没处理完时点“去处理”：要落到业务单据页的“全部”，要处理的单据列得出来（closing 是结账检查） */
+  const checkEventsLink = async (closing) => {
+    if (!closing.steps.some((s) => s.key === 'events' && !s.ok))
+      return fail('结账检查的“业务单据”一步已经放行，没测到“去处理”的落点');
+    await page.locator('.fb-steps li', { hasText: '业务单据都已生成凭证或处理完' }).getByRole('link', { name: '去处理' }).click();
+    await page.locator('.fin-table tbody tr.record-row').first().waitFor({ timeout: 5000 }).catch(() => {});
+    const status = await page.getByLabel('单据状态').inputValue();
+    const listed = await page.locator('.fin-table tbody tr.record-row').count();
+    if (status !== '' || !listed) fail('结账页“去处理”落到业务单据页时筛选是“' + status + '”、列了 ' + listed + ' 条');
+    else console.log('结账页去处理落到全部 ok', listed);
+  };
+  return {
+    dlg, modals, field, text, pick, combo, closed, save, confirmDialog, fin, must, postAll, refresh, sync,
+    openBooks, prepareBooks, prepareReceipt, checkEventsLink,
+  };
 }

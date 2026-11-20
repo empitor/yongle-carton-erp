@@ -67,7 +67,7 @@ test('采购单合计：没单价的单独计数、不进金额（不猜）；�
           supplierId: supplier.id,
           orderDate: '2026-11-01',
           status,
-          lines: [{ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity, ...(unitPrice ? { unitPrice, priceBasis: 'quantity' } : {}) }],
+          lines: [{ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity, priceBasis: 'quantity', ...(unitPrice ? { unitPrice } : {}) }],
         },
         actor,
       );

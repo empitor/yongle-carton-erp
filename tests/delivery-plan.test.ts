@@ -16,8 +16,7 @@ const order = (id: number, customerId: number, deliveryDate: string | null, line
 test('按订单排送货：交期早的先分可用量，扣掉已在待送货单上的；没货的进缺口，不能送的订单说清原因；一个客户一张送货单', () => {
   const stocks = [
     { id: 7, productId: 1, availableUnits: 150_000 },
-    // 没给可用量时按结余算
-    { id: 8, productId: 2, balanceUnits: 20_000 },
+    { id: 8, productId: 2, availableUnits: 20_000 },
   ];
   const orders = [
     order(1, 1, '2026-11-05', [line(11, 1, 100)]),

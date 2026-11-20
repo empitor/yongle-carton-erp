@@ -12,7 +12,7 @@ export type LineValue = { exact: string } | { lacking: 'quantity' | 'price'; mes
 
 /** 送货单一行算金额要用的：数量、单位、单价 */
 type DeliveryValueLine = { unit?: unknown; quantity?: unknown; unitPriceExact?: unknown };
-/** 到货单一行算金额要用的：实际入库数量、纸板资料、单价和计价依据 */
+/** 到货单一行算金额要用的：实际入库数量、纸板资料、单价和计价方式 */
 type ArrivalValueLine = {
   stockedQuantity?: unknown;
   item?: SheetItem | null;

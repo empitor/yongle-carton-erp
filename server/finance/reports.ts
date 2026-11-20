@@ -11,9 +11,10 @@ import { FinanceOverview } from './overview.js';
 import { FinanceParties } from './parties.js';
 import { entry, pageSql, request } from './query.js';
 import { activeCashAllocation, allocationReversalMessage } from './obligation-sql.js';
-import { deliveryReversed } from './business-source.js';
+import { sourceReversed } from './business-source.js';
 import { documentNumber, readSnapshot, snapshotNumber } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
+import { unseenSources } from './events.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
 import {
   balanceSheet,
@@ -59,7 +60,9 @@ export class FinanceInfoPending extends AppError {
     super(
       details.reversalCount
         ? '本期有冲销送货单待处理，请先撤销核销并记账相关红冲。'
-        : '本期有待补财务资料，请补完后再输出正式报表。',
+        : details.count
+          ? '本期有待补财务资料，请补完后再输出正式报表。'
+          : '有业务单据还没同步进财务，请先打开财务的业务单据页同步，再输出正式报表。',
       409,
       'FINANCE_INFO_PENDING',
     );
@@ -70,13 +73,15 @@ export class FinanceReports {
   private get db() {
     return this.store.db;
   }
+  /** 正式报表前资料补没补完：本月卡着的事件、缺资料的单据，加上截至月底还没同步进财务的单据（和结账检查同一个 unseenSources） */
   readiness(actor: Actor | null, raw: unknown) {
     financeActor(actor);
     const { period } = filter.parse(raw);
+    const unseen = unseenSources(this.db, endOfMonth(period));
     const unsynced = new FinanceEventViews(this.store).unsynced(actor, period);
     const pending = unsynced.filter((r) => r.status === 'info_pending');
     const query = `FROM (
-      SELECT e.*, (e.source_kind='delivery' AND ${deliveryReversed('e')}) AS reversed,
+      SELECT e.*, (e.source_kind='delivery' AND ${sourceReversed('e', 'delivery')}) AS reversed,
         EXISTS(SELECT 1 FROM fin_obligations o JOIN fin_allocations a ON a.obligation_id=o.id
           JOIN fin_vouchers original ON original.id=a.voucher_id WHERE o.event_id=e.id AND ${activeCashAllocation}) AS allocated
       FROM fin_events e WHERE e.status IN ('info_pending','awaiting_allocation_reversal') AND e.date BETWEEN ? AND ?
@@ -108,7 +113,7 @@ export class FinanceReports {
     );
     return {
       period,
-      ready: !totals.count && pending.length === 0,
+      ready: !totals.count && pending.length === 0 && !unseen,
       count: totals.count + pending.length,
       reversalCount: totals.reversal_count,
       amount: totals.amount + pending.reduce((n, r) => n + Number(r.amount_cents), 0),
@@ -117,7 +122,7 @@ export class FinanceReports {
         pending
           .filter((r) => r.source_kind === 'delivery')
           .reduce((n, r) => n + Number(r.amount_cents), 0),
-      unsynced: unsynced.length,
+      unsynced: unseen,
       rows: [
         ...blocked.map(({ reverse_pending, snapshot, ...r }) => ({
           ...r,
@@ -140,6 +145,10 @@ export class FinanceReports {
   balances(actor: Actor | null, period: string) {
     return ledgerBalances(this.store, actor, period);
   }
+  /** 按现在的账算资产负债表，不查资料齐没齐（结账检查用，那边各步自己拦） */
+  currentBalance(actor: Actor | null, period: string) {
+    return balanceSheet(period, this.balances(actor, period), categoryByCode(this.db));
+  }
   /** 一张正式报表：试算平衡表随时算；别的要资料补齐，已结账的月份读结账时存的快照（snapshot 为 false 时按现在的账重算） */
   report(actor: Actor | null, rawType: unknown, raw: unknown, snapshot = true): Report {
     const user = financeActor(actor),
@@ -150,16 +159,15 @@ export class FinanceReports {
       const saved = snapshot ? this.closedSnapshot(period) : undefined;
       if (saved) return savedReport(saved, kind);
     }
-    const b = this.balances(user, period);
     switch (kind) {
       case 'trial':
-        return { kind, data: trialBalance(period, b) };
+        return { kind, data: trialBalance(period, this.balances(user, period)) };
       case 'balance':
-        return { kind, data: balanceSheet(period, b, categoryByCode(this.db)) };
+        return { kind, data: this.currentBalance(user, period) };
       case 'profit':
         return { kind, data: profitStatement(this.db, period, categoryByCode(this.db)) };
       case 'cashflow':
-        return { kind, data: cashflowStatement(this.db, period, b) };
+        return { kind, data: cashflowStatement(this.db, period, this.balances(user, period)) };
     }
   }
   get(actor: Actor | null, rawType: 'trial', raw: unknown, snapshot?: boolean): TrialReport;

@@ -1,6 +1,14 @@
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
-import { accountRequestKinds, financePermissions, userRoles, type AccountLevel, type UserRole } from '../../shared/core/index.js';
+import {
+  accountRequestKinds,
+  financePermissions,
+  permissionNames,
+  userRoles,
+  type AccountLevel,
+  type Permission,
+  type UserRole,
+} from '../../shared/core/index.js';
 import { defaultDbPath } from './db.js';
 import { rows } from './schema/rows.js';
 import { parseStoredJson } from './sql.js';
@@ -31,7 +39,7 @@ export const accountRows = {
     .extend({ kind: z.enum(accountRequestKinds), user_id: userRow.shape.id.nullable() }),
 };
 /** 账号级别映射到现有的角色和权限：只读账号没有写权限，各业务服务的校验自然拒绝。 */
-export const levelGrant: Record<AccountLevel, { role: UserRole; permissions: string[] }> = {
+export const levelGrant: Record<AccountLevel, { role: UserRole; permissions: Permission[] }> = {
   admin: { role: 'super_admin', permissions: ['business:edit', 'import:execute', 'import:restore'] },
   staff: { role: 'admin', permissions: ['business:edit', 'import:execute'] },
   viewer: { role: 'admin', permissions: [] },
@@ -44,8 +52,8 @@ export function accountLevel(role: string, permissions: string[]): AccountLevel 
   if (role !== 'super_admin' && permissions.includes('finance:cash')) return 'cashier';
   return role === 'super_admin' ? 'admin' : permissions.includes('business:edit') ? 'staff' : 'viewer';
 }
-const storedPermissions = z.array(z.string());
-/** 库里存的权限（JSON 文字的字符串数组） */
+const storedPermissions = z.array(z.enum(permissionNames));
+/** 库里存的权限（JSON 文字的字符串数组）：只认权限名单里的，名单外的按库里数据不对报出来 */
 export const permissionList = (encoded: string) => parseStoredJson(storedPermissions, encoded, 'users.permissions');
 /** 库里存的权限（JSON 文字）转成账号实际有的权限：超级管理员另外带上全部财务权限 */
 export function accountPermissions(role: string, encoded: string): string[] {

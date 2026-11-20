@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { orderMetrics, productIncomplete, productMetrics, type Listed, type RecordEntity } from '../../shared/business/index';
+import { matchesOperationalRecord, orderMetrics, productIncomplete, productMetrics, type Listed, type RecordEntity } from '../../shared/business/index';
 import { errorMessage, type Customer, type Order, type Product, type RecordSort } from '../../shared/core/index';
 import { useResettingPage, useBusinessRevision, LIST_PAGE_SIZE } from '../ui/index';
 import { isRecordPage, recordListQueries } from './record-filters';
@@ -127,7 +127,7 @@ export function useRecordLists(props: Props) {
     page === 'trash' ? r.archived : superMode && allRecordsView ? true : r.archived === archivedView;
   const words = search.toLowerCase();
   const customerRows = data.customers.filter(
-    (c) => visibleRecord(c) && [c.name, c.contact, c.phone, c.address, c.notes].join(' ').toLowerCase().includes(words),
+    (c) => visibleRecord(c) && matchesOperationalRecord(c, words),
   );
   const productRows = data.products.filter(
     (p) =>

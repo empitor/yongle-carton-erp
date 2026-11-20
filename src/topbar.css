@@ -204,3 +204,19 @@
 :root[data-ui='refined'] .top-search:hover {
   background: var(--fill-1);
 }
+
+/* 手机：顶栏跟着滚动收起（src/mobile/topbar-collapse.ts 写这两个变量），只动位移和内容透明度、不改排版；停下吸附时才有过渡 */
+@media (max-width: 700px) {
+  .topbar {
+    transform: translateY(calc(-1 * var(--topbar-hidden, 0px)));
+  }
+  .topbar > * {
+    opacity: var(--topbar-fade, 1);
+  }
+  .topbar.topbar-settling {
+    transition: transform 0.2s var(--ease);
+  }
+  .topbar.topbar-settling > * {
+    transition: opacity 0.2s var(--ease);
+  }
+}

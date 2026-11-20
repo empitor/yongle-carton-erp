@@ -1,12 +1,14 @@
 import { useRef } from 'react';
 import { LoaderCircle, Upload, X } from 'lucide-react';
 import type { AiStatus } from '../../shared/ai/index';
+import { ORIGINAL_MAX_MB, originalFormats } from '../../shared/import/index';
 import { Hint, MoreMenu } from '../ui/index';
 import { modeLabels, type FileMode } from './fileStatus';
+import { MAX_BATCH } from './useUploadQueue';
 import { SEND_NOTE } from './ImportDialog';
 import type { fileCounts } from './page-state';
 
-export const ACCEPT = '.xls,.xlsx,.doc,.docx,.pdf,.jpg,.jpeg,.png';
+export const ACCEPT = Object.keys(originalFormats).join(',');
 
 /** 选文件的按钮（带隐藏的文件框）。页头和空白页的拖入区共用。 */
 export function UploadButton({ upload }: { upload: (files: File[]) => void }) {
@@ -41,7 +43,9 @@ export function DropZone({ uploadMode, upload }: { uploadMode: FileMode; upload:
       <strong>
         {uploadMode === 'order' ? '把客户订单或到货单拖到这里' : '把' + modeLabels[uploadMode] + '拖到这里'}
       </strong>
-      <span>支持 Excel、Word、PDF 和图片，一次最多 20 份，每份 10MB 以内。{SEND_NOTE}</span>
+      <span>
+        支持 Excel、Word、PDF 和图片，一次最多 {MAX_BATCH} 份，每份 {ORIGINAL_MAX_MB}MB 以内。{SEND_NOTE}
+      </span>
       <UploadButton upload={upload} />
     </section>
   );

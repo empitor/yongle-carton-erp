@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ApiTable, customerSchema, orderSchema, productSchema } from '../core/index.js';
+import type { ApiJson, customerSchema, orderSchema, productSchema } from '../core/index.js';
 import type {
   dataManagementModules,
   dataManagementTemplate,
@@ -17,13 +17,11 @@ import type { WorkspaceResponse, pageWorkspaceActionSchema, workspaceCommandSche
  * 前端 src/admin/data-api.ts。表的写法见 shared/core/api-table.ts。查询参数和正文照服务端的 zod 规则的输入写，服务端照样先校验。
  */
 
-/** 接口里能原样来回的 JSON 值（接口表的回答只能是它） */
-type Json = ApiTable[`GET /${string}`]['response'];
 /**
  * 一条记录：各模块的读接口组装好的那一行原样交出去（客户、产品、订单、供应商、采购单、库存品、四种单据），
  * 这里只认一定有的编号和版本；列表显示另补的几项（库存品用没用过、到货单的订货单号和原件文件名、供应商和客户名）也在里面。
  */
-type ManagedRecord = { readonly id: number; readonly version: number } & { readonly [key: string]: Json | undefined };
+type ManagedRecord = { readonly id: number; readonly version: number } & { readonly [key: string]: ApiJson | undefined };
 /** 编辑窗用的内容：档案、订单、采购单、库存品按各自的保存规则整理，单据按单据的录入规则整理 */
 type ManagedInput =
   | z.output<typeof customerSchema>
@@ -48,7 +46,7 @@ type ManagementResult = {
   module: DataManagementModule;
   action: z.output<typeof managementCommandSchema>['action'];
   count: number;
-  results: readonly Json[];
+  results: readonly ApiJson[];
 };
 /** 列表上的一份识别文件：编号、版本号、文件名（归档的没记文件名时是空）。在用的另带任务、识别类型这些，数据管理不用，不列 */
 type WorkspaceRow = { id: string; revision: number; fileName: string | null };

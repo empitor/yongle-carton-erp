@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { errorMessage } from '../../shared/core/index';
-import { useAuthState, useConfirm } from '../ui/index';
+import { useAuthState, useConfirm, useSaveFile } from '../ui/index';
 import { AttachmentPreview } from './AttachmentPreview';
 import { useAssistantUploads } from './useAssistantUploads';
 import { useAssistantSpeech } from './useAssistantSpeech';
@@ -46,6 +46,8 @@ export default function GlobalAssistant() {
   // 收起方式：悬浮小人或顶栏入口，二选一（顶栏用 useAssistantTopbarEntry 读同一个设置）。
   const floatingLauncher = !useAssistantTopbarEntry();
   const [confirmDialog, confirm] = useConfirm();
+  // 导出类的卡片和回复里的下载：保存文件的做法（安卓 App 里交给 App）
+  const saveFile = useSaveFile();
   const history = useRef<HTMLDivElement>(null),
     atBottom = useRef(true);
   // 换会话、清空、删除时要动语音、附件、半截回复和核对区：这些 hook 在下面，回调到调用时才用它们。
@@ -84,6 +86,7 @@ export default function GlobalAssistant() {
     setError,
     onDecided: (card) => afterCard.current(card),
     history,
+    saveFile,
   });
   const uploads = useAssistantUploads(userId, threads.threadRef, threads.ensureThread, setError);
   const chat = useAssistantChat({
@@ -101,6 +104,7 @@ export default function GlobalAssistant() {
     includePrevious,
     setError,
     atBottom,
+    saveFile,
   });
   afterCard.current = (card) => void chat.continueAfterCard(card);
   const speech = useAssistantSpeech({

@@ -1,6 +1,8 @@
 // 测试检查的登记表：登记了原因的不报。一条一句为什么，改快了、补上测试了就删掉那条。
 //   slowTests：单独跑也超过 1 秒的测试（npm test 跑完查，并行时越线的会单独重跑再判，见 test-slow.mjs），{ 测试文件: { 测试名: 原因 } }
 //   lowCoverage：server/、shared/ 里行覆盖低于 80% 的文件（npm run test:coverage 查），{ 文件: 原因 }
+// 过期的登记：文件不在了（tests/test-exemptions-current.test.mjs 查）、文件跑了却没有这条测试（npm test 查）、
+// 覆盖已经达标（npm run test:coverage 查）都让检查失败；慢测试单独跑已经不慢了只提示，因为和机器快慢有关。
 
 export const slowTests = {
   'tests/feature-links-senders.test.ts': {

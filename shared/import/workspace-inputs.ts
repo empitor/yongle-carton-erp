@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { archiveInputSchema, previewDigestSchema } from '../core/index.js';
 import { mappingSchema } from './import-mapping.js';
-import { patchOperationSchema } from './order-draft.js';
+import { patchOperationSchema, type ParsedFile } from './order-draft.js';
 
 /*
  * 识别工作区接口收的正文和查询参数（服务端 server/import 按它们校验，接口表 imports-api.ts 照它们的输入写类型）。
@@ -16,6 +16,17 @@ export const workspaceId = z.uuid();
 export const WORKSPACE_FIRST_VERSION = 0;
 /** 识别原件最多多少兆：服务端收文件、页面上传前都按它 */
 export const ORIGINAL_MAX_MB = 10;
+/** 识别原件收哪些扩展名、各是什么格式：服务端认格式、页面选文件框只列这些都按它 */
+export const originalFormats = {
+  '.xlsx': 'xlsx',
+  '.docx': 'docx',
+  '.xls': 'xls',
+  '.doc': 'doc',
+  '.pdf': 'pdf',
+  '.png': 'png',
+  '.jpg': 'jpg',
+  '.jpeg': 'jpg',
+} as const satisfies Record<string, ParsedFile['format']>;
 /** 一次最多改几处识别结果（页面和助手同一个上限）、最多永久删除几份 */
 export const MAX_DRAFT_OPERATIONS = 100;
 const MAX_DELETE = 200;

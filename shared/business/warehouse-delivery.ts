@@ -1,4 +1,4 @@
-import { quantityString, quantityUnits, safeUnits } from '../core/index.js';
+import { closedOrder, deliverableOrder, effectiveOrder, quantityString, quantityUnits, safeUnits } from '../core/index.js';
 import { NO_DUE_DATE } from './schedule.js';
 import { lineSpecification, normalizeDimensionUnit, sameSpecification, specificationDifference, type Order } from '../core/index.js';
 
@@ -12,13 +12,10 @@ type SizedStock = {
 };
 /** 订单明细写的规格；只重复了产品名称的不算规格（lineSpecification） */
 type SpecLine = { specification?: string | null; productName?: string | null };
-/** 排送货用到的成品库存品：可用量（扣掉待送货单占的）没给时按结余算，单位是千分整数 */
-type DeliveryStock = SizedStock & {
-  id: number;
-  productId?: number | null;
-  availableUnits?: number | null;
-  balanceUnits?: number | null;
-};
+/** 比对送货用到的成品库存品 */
+type DeliveryStock = SizedStock & { id: number; productId?: number | null };
+/** 排送货用到的成品库存品：带可用量（扣掉待送货单占的，千分整数），库存品视图里一定有 */
+type PlannedStock = DeliveryStock & { availableUnits: number };
 /**
  * 排送货、排产、订单“下一步”要看的订单明细，字段取自订单视图（shared/core 的 Order）：编号、产品、数量（整数“只”）、
  * 还没发的、单位、规格。order-next-step.ts、production-plan.ts 也用它，订单视图改了字段这里一起报错。
@@ -68,8 +65,8 @@ export function specificationMismatchText(stock: { specification?: string | null
 }
 
 /** 订单能不能送货：没归档、不是待确认或已取消；超发时已发货的也能送 */
-const deliverableOrder = (o: OrderFacts, allowOverdelivery: boolean) =>
-  !o.archived && !['待确认', '已取消'].includes(o.status) && (allowOverdelivery || o.status !== '已发货');
+const canDeliverTo = (o: OrderFacts, allowOverdelivery: boolean) =>
+  !o.archived && (allowOverdelivery ? effectiveOrder(o) : deliverableOrder(o));
 
 export function deliveryCandidates<L extends OrderLineFacts>(
   stock: DeliveryStock,
@@ -78,7 +75,7 @@ export function deliveryCandidates<L extends OrderLineFacts>(
   allowOverdelivery = false,
 ) {
   return orders
-    .filter((o) => o.customerId === customerId && deliverableOrder(o, allowOverdelivery))
+    .filter((o) => o.customerId === customerId && canDeliverTo(o, allowOverdelivery))
     .flatMap((o) =>
       o.lines
         .filter(
@@ -122,7 +119,7 @@ export function pendingByOrderLine(deliveries: readonly (PendingDelivery | null 
 const openOf = (line: Pick<OrderLineFacts, 'id' | 'remainingQuantity' | 'quantity'>, pending: Map<number, number>) =>
   Math.max(0, remainingOf(line) - (pending.get(line.id) || 0));
 /** 成品库存品现在能拿来排送货的数量（千分整数） */
-const freeUnits = (stock: DeliveryStock) => Math.max(0, Number(stock.availableUnits ?? stock.balanceUnits ?? 0));
+const freeUnits = (stock: PlannedStock) => Math.max(0, stock.availableUnits);
 /** 把一行送货记到这个客户的送货单上 */
 function addPlanLine(groups: Map<number, PlanGroup>, customerId: number, line: PlanLine) {
   const group = groups.get(customerId) ?? { customerId, lines: [] };
@@ -135,7 +132,7 @@ function addPlanLine(groups: Map<number, PlanGroup>, customerId: number, line: P
  * owners 里指定了客户的成品只排给那个客户（几个客户在等同一种货时由人来选）。
  */
 export function planStockDelivery(
-  stocks: DeliveryStock[],
+  stocks: PlannedStock[],
   orders: OrderFacts[],
   customerId?: number | null,
   owners: Record<number, number> = {},
@@ -174,7 +171,7 @@ export function waitingCustomers(stock: DeliveryStock, orders: OrderFacts[]) {
 function skipReason(order: OrderFacts) {
   if (order.archived) return '已归档';
   if (order.status === '待确认') return DRAFT_ORDER_HINT;
-  return ['已取消', '已发货'].includes(order.status) ? order.status : null;
+  return closedOrder(order) ? order.status : null;
 }
 /** 按订单排送货时的进度：每个成品还剩多少、排好的送货单 */
 type OrderPlan = { left: Map<number, number>; groups: Map<number, PlanGroup> };
@@ -202,7 +199,7 @@ export function stockByProduct<T extends { productId?: number | null }>(stocks: 
  * 按客户分组，一个客户一张送货单。没有库存的明细放进 missing，不硬排。
  * 一个产品只有一个成品库存（数据库约束），每条明细按产品直接取它那个成品。
  */
-export function planOrderDelivery(orders: OrderFacts[], stocks: DeliveryStock[], pending: Map<number, number> = new Map()) {
+export function planOrderDelivery(orders: OrderFacts[], stocks: PlannedStock[], pending: Map<number, number> = new Map()) {
   const plan: OrderPlan = { left: new Map(stocks.map((s) => [s.id, freeUnits(s)])), groups: new Map() };
   const stockOf = stockByProduct(stocks);
   const missing: { orderId: number; orderNumber: string; productName: string; quantity: string; unit?: string | null }[] = [];
@@ -255,7 +252,7 @@ export function deliveryBlockers(stock: DeliveryStock, orders: OrderFacts[], cus
   const out: DeliveryBlocker[] = [];
   for (const o of orders) {
     if (customerId != null && o.customerId !== customerId) continue;
-    if (o.archived || ['已取消', '已发货'].includes(o.status)) continue;
+    if (o.archived || closedOrder(o)) continue;
     for (const l of o.lines) {
       if (l.productId !== stock.productId || remainingOf(l) <= 0) continue;
       const reason = blockReason(stock, o, l);

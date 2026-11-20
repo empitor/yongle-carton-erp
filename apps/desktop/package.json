@@ -1,0 +1,17 @@
+{
+  "name": "yongle-erp-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "甬勒ERP 的 Windows 外壳（Tauri）：独立窗口打开 ERP 网页，关窗收进托盘",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "check": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml && node --test tests/boundary.test.mjs",
+    "build": "tauri build --no-binary-patching -- --lib",
+    "build:test": "node scripts/build-test.mjs",
+    "test:e2e": "node --test tests/shell.e2e.test.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.5"
+  }
+}

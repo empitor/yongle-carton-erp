@@ -33,7 +33,8 @@ type FinanceEventDetail = Omit<FinanceEventRow, 'snapshot'> & {
 
 /**
  * 业务单据列表一行（照 server/finance/event-views.ts 的 list）：事件几列和单号；红冲状态（被冲的原单据 reversed、做红冲的那条 reversal）；
- * 红冲后会不会重做（rebuild）、单据已删时能不能保留凭证（keepable），都是 0 或 1；原来那张凭证；所在月份已结账时生成凭证记到哪天
+ * 红冲后会不会重做（rebuild）、单据已删时能不能保留凭证（keepable），都是 0 或 1；原来那张凭证；所在月份已结账时生成凭证记到哪天；
+ * 已撤销、被更正替代的到货和更正出来的替代单红字冲销默认记哪天（correction_date，别的是 null）
  */
 type EventListRow = {
   id: number;
@@ -52,6 +53,7 @@ type EventListRow = {
   keepable: number;
   previous_voucher_id: number | null;
   booking_date: string | null;
+  correction_date: string | null;
 };
 
 export type EventsApi = {

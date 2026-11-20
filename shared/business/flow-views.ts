@@ -14,7 +14,7 @@ type MovementJson = { readonly [column: string]: string | number | null };
 
 const arrivalContent = flowContentSchema('arrival');
 
-/** 到货单的一行按采购单读到的样子：lineId、purchaseId 是它现在挂的采购明细和采购单，验收数没写是 null，金额按单价和计价依据算 */
+/** 到货单的一行按采购单读到的样子：lineId、purchaseId 是它现在挂的采购明细和采购单，验收数没写是 null，金额按单价和计价方式算 */
 export const receiptLineSchema = z.strictObject({
   index: z.number(),
   lineId: z.number().nullable(),

@@ -54,7 +54,7 @@ export const documentColumns = {
   flute: '楞型',
 } as const satisfies Record<DocumentColumn, string>;
 /** 自定义明细列时必须保留的列。 */
-const requiredColumns: DocumentColumn[] = ['name', 'quantity', 'unit'];
+export const requiredColumns: readonly DocumentColumn[] = ['name', 'quantity', 'unit'];
 export const purchaseColumns: DocumentColumn[] = [
   'index',
   'name',

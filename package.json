@@ -28,6 +28,7 @@
     "dup": "jscpd",
     "mutation": "stryker run",
     "check": "node scripts/check.mjs",
+    "check:apps": "node scripts/check-apps.mjs",
     "test:ui": "node scripts/ui-check/run.mjs",
     "package": "node scripts/package-release.mjs",
     "patch-server": "node scripts/patch-server.mjs",

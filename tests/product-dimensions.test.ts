@@ -10,6 +10,7 @@ import { ImportExecutionService } from '../server/import/import-execution.js';
 // 订单保存要单据流转登记的改单核对、进度规则
 import '../server/flow/index.js';
 import { productSchema } from '../shared/core/domain.js';
+import { stockItemSchema } from '../shared/business/operations.js';
 import {
   convertDimension,
   normalizeDimensionUnit,
@@ -99,6 +100,15 @@ test('产品仅名称必填，真正NULL保存缺失尺寸；错误数值及错�
   } finally {
     store.close();
   }
+});
+
+test('厘米尺寸超上限：产品和库存品被拦，提示同一句、带毫米换算', () => {
+  const issueOf = (r: { success: boolean; error?: { issues: { message: string }[] } }) => r.error?.issues[0]?.message;
+  const product = productSchema.safeParse({ name: 'A', length: 1001, dimensionUnit: 'cm' });
+  const stock = stockItemSchema.safeParse({ name: '虚构纸板', kind: 'raw', length: 1001, dimensionUnit: 'cm' });
+  assert.equal(issueOf(product), '厘米尺寸不能超过1000cm（等于10000mm）');
+  assert.equal(issueOf(stock), issueOf(product));
+  assert.equal(stockItemSchema.safeParse({ name: '虚构纸板', kind: 'raw', length: 1000, dimensionUnit: 'cm' }).success, true);
 });
 
 test('缺长宽高、配纸、类型且单位未知的新产品能正式导入，字段和金额不丢', async () => {

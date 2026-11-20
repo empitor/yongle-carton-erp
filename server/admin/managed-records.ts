@@ -3,6 +3,7 @@ import { many, rows, type Store } from '../core/index.js';
 import { customerSchema, productSchema, orderSchema } from '../../shared/core/index.js';
 import { supplierSchema, purchaseSchema, stockItemSchema } from '../../shared/business/index.js';
 import { flowKinds, flowInput, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
+import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../../shared/business/index.js';
 import type { RecordEntity, dataManagementModules } from '../../shared/business/index.js';
 import { businessList, businessRecords } from '../business/index.js';
 import type { OperationsService } from '../operations/index.js';
@@ -21,6 +22,17 @@ export const recordSchemas = {
   suppliers: supplierSchema,
   purchases: purchaseSchema,
   stock_items: stockItemSchema,
+};
+/**
+ * 每个模块的录入结构（哪些栏目收）：档案、订单、采购单、库存品同上；单据用各自的录入规则
+ * （flowInput 整理到货单用的那一份只是明细数量可以是 0，栏目和 arrivalSchema 一样）
+ */
+export const inputSchemas: Record<ManagedModule, z.core.$ZodType> = {
+  ...recordSchemas,
+  arrival: arrivalSchema,
+  task: taskSchema,
+  production: productionSchema,
+  delivery: deliverySchema,
 };
 type RecordInput<E extends RecordEntity> = z.output<(typeof recordSchemas)[E]>;
 /** 每类记录整理成编辑窗的内容；采购单的状态取它自己定的那个（baseStatus），不是按到货派生的 */

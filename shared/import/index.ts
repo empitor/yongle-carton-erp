@@ -13,10 +13,10 @@ export type { ArchivedWorkspace, ImportList, UnreadableWorkspace, WorkspaceSumma
 export type { CustomerPlanRef, ImportPreview, ImportReceipt, Plan, ProductPlanRef, SameNameConfirmation } from './import-plan.js';
 export { receiptResultSchema } from './arrival-source.js';
 export type { ArrivalSource, ReceiptResult } from './arrival-source.js';
-export { FAILURE_PAGE, MAX_DRAFT_OPERATIONS, ORIGINAL_MAX_MB, arrivalLinkSchema, diagnosticsQuerySchema, importExecuteSchema, recognitionModes, workspaceDeleteSchema, workspaceEditSchema, workspaceEnqueueSchema, workspaceId, workspaceMappingSchema, workspaceModeSchema, workspaceRevisionSchema, WORKSPACE_FIRST_VERSION } from './workspace-inputs.js';
+export { FAILURE_PAGE, MAX_DRAFT_OPERATIONS, ORIGINAL_MAX_MB, arrivalLinkSchema, diagnosticsQuerySchema, importExecuteSchema, originalFormats, recognitionModes, workspaceDeleteSchema, workspaceEditSchema, workspaceEnqueueSchema, workspaceId, workspaceMappingSchema, workspaceModeSchema, workspaceRevisionSchema, WORKSPACE_FIRST_VERSION } from './workspace-inputs.js';
 export type { RecognitionMode } from './workspace-inputs.js';
 export type { BotChannel, BotState, BotStatus, BotView, ConvertedKind, InboxChannel, InboxIncoming, InboxItem, InboxKind, InboxStatus } from './inbox.js';
 export { evaluateDraft } from './draft-evaluation.js';
-export { DRAFT_NOTE_MAX, DRAFT_VALUE_MAX, fieldLabels, headerFields, importStillOpen, lineFields, orderDraftSchema, patchOperationSchema } from './order-draft.js';
+export { DRAFT_NOTE_MAX, DRAFT_VALUE_MAX, fieldLabels, headerFields, importStillOpen, lineFields, orderDraftSchema, patchOperationSchema, runningTaskStates, taskStillRunning } from './order-draft.js';
 export { doubtColumns, draftFromForm, formCell, orderFormSchema, orderFormTool, toolParameters } from './order-form.js';
 export type { DraftChange, DraftEvaluation, DraftField, DraftOperation, ImportWorkspaceView, LineField, OrderDraft, ParsedFile } from './order-draft.js';

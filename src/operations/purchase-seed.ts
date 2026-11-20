@@ -3,11 +3,8 @@
  * 只带系统里有依据的内容：产品的材质、楞型；同一产品上次订过的纸板规格标成“参考上次”。
  * 纸板尺寸和张数没有展开、拼版的计算依据，不推算；单价不猜。
  */
-import { FINISHED_UNIT, RAW_UNIT, normalizeDimensionUnit, type DimensionUnit } from '../../shared/core/index';
+import { FINISHED_UNIT, RAW_UNIT, effectiveOrder, normalizeDimensionUnit, type DimensionUnit, type PriceBasis } from '../../shared/core/index';
 import type { StockItemView } from '../../shared/business/index';
-
-/** 计价方式：按平方米、按张 */
-export type PriceBasis = 'area' | 'quantity';
 
 /** 库存品档案的内容：新建库存品、采购明细里的纸板都从同一份空白开始 */
 export type StockFields = Pick<
@@ -118,7 +115,7 @@ export function previousSingleProductOrder<O extends SeedOrder>(orders: readonly
       (o) =>
         o.id !== current.id &&
         !o.archived &&
-        !['待确认', '已取消'].includes(o.status || '') &&
+        effectiveOrder({ status: o.status ?? '' }) &&
         o.materialProgress &&
         o.materialProgress !== 'none' &&
         o.lines?.length &&

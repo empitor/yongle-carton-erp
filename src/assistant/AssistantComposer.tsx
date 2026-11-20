@@ -1,7 +1,7 @@
 import { remoteCopyNote } from './attachment-slots';
 import { useRef, type RefObject } from 'react';
 import { LoaderCircle, Mic, Plus, Send, Square, X } from 'lucide-react';
-import { attachmentAccept } from '../../shared/core/index';
+import { attachmentAccept, attachmentLimitMb, attachmentLimits } from '../../shared/core/index';
 import type { DeepSeekThinking } from '../../shared/ai/index';
 import { ComposerInput } from './ComposerInput';
 import { AttachmentCards } from './AttachmentCards';
@@ -181,7 +181,7 @@ function ComposerForm({ uploads, setError, speech, aiReady, message, setMessage,
         type="button"
         className="ga-attach-button"
         aria-label="添加聊天附件"
-        title="添加附件，也可拖拽文件或粘贴图片；最多6份，每份10MB"
+        title={'添加附件，也可拖拽文件或粘贴图片；最多' + attachmentLimits.messageCount + '份，每份' + attachmentLimitMb.file + 'MB'}
         disabled={busy || uploads.working || speech.active}
         onClick={() => fileInput.current?.click()}
       >

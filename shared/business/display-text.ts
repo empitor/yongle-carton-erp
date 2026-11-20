@@ -27,12 +27,15 @@ export function specLine(v: SpecFields) {
   return [spec, size, [clean(v.material), clean(v.flute)].filter(Boolean).join(' / ')].filter(Boolean).join(' · ');
 }
 
+/** 还没定价（单价、金额、产品价格空着）：界面、修改历史、助手都这么说（订货单打印另有说法） */
+export const UNPRICED_TEXT = '单价待定';
+
 /**
- * 单价和计价方式：“2.1234 元/m²”“0.73 元/张”；没定价写“单价待定”，计价方式不知道时不猜。
+ * 单价和计价方式：“2.1234 元/m²”“0.73 元/张”；没定价写 UNPRICED_TEXT，计价方式不知道时不猜。
  * 数字按全站单价写法（plainPrice：至少两位、最多四位，尾零去掉；2.7600 → 2.76），不是数字的原样写。
  */
 export function priceText(unitPrice: string | number | null | undefined, basis?: string | null, unit?: string | null) {
-  if (unitPrice == null || unitPrice === '') return '单价待定';
+  if (unitPrice == null || unitPrice === '') return UNPRICED_TEXT;
   const text = String(unitPrice).trim(),
     shown = /^-?\d+(\.\d+)?$/.test(text) ? plainPrice(text) : text;
   if (basis !== 'area' && basis !== 'quantity') return shown + ' 元（计价方式待确认）';

@@ -11,7 +11,7 @@ import { pageSql } from './query.js';
 import { reversedCents } from './reversal-pairs.js';
 import { allocationSum } from './obligation-sql.js';
 import { adjacentPeriod, endOfMonth } from './periods.js';
-import { detailRow, monthlyAll, monthlyObserved, replacedEvents } from './monthly-sql.js';
+import { detailRow, monthlyAll, monthlyAllParams, monthlyObserved, monthlyObservedParams } from './monthly-sql.js';
 
 const metrics = [
   'theoreticalIncome',
@@ -79,8 +79,7 @@ export class FinanceMonthly {
         schema: detailRow,
         sql,
         values: [
-        replacedEvents(pending),
-        JSON.stringify(pending),
+        ...monthlyAllParams(pending),
         q.period + '-01',
         endOfMonth(q.period),
         q.metric ?? null,
@@ -117,7 +116,7 @@ export class FinanceMonthly {
       `SELECT substr(date,1,7) AS period,metric,source_month,sum(amount) AS amount,
       sum(amount IS NULL) AS missing,count(*) AS count,sum(missing_tax) AS missing_tax
       FROM (${monthlyObserved}) WHERE date BETWEEN ? AND ? GROUP BY period,metric,source_month`,
-      replacedEvents(pending),
+      ...monthlyObservedParams(pending),
       from,
       to,
     );

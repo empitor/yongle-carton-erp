@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { test } from 'node:test';
-import { all, inModules, isCode, isEntry, moduleOf, modules, refsOf, tools, type Ref, type Rule } from './module-map.js';
+import { businessLayerBacklog, compareBacklog } from './layer-backlog.js';
+import { all, canUse, covers, exportSources, inModules, isCode, isEntry, layerOf, matchOf, moduleOf, modules, refsOf, tools, type Ref, type Rule } from './module-map.js';
 
 /** 登记过的例外：from 文件 → to 文件（或目录前缀），每条写明为什么不能按规则来。 */
 const exceptions: { from: string; to: string; why: string }[] = [];
@@ -53,12 +54,6 @@ const toolInternalRefs: { from: string; to: string; why: string }[] = [
  * 默认不允许：能写成字面量的写成字面量，确实要按变量加载的在这里登记文件和理由。现在没有。
  */
 const dynamicLoads: { file: string; why: string }[] = [];
-
-const canUse = (from: Rule, to: Rule) =>
-  from.allow.includes('*') ||
-  (from.allow.includes('前端-*') && to.name.startsWith('前端-')) ||
-  from.allow.includes(to.name) ||
-  (from.allow.includes('*共用') && to.name.startsWith('共用'));
 
 /** 模块代码一个文件的方向违规：只能用规则里允许的模块 */
 function directionViolations(f: string, refs: Ref[] = refsOf(f)) {
@@ -131,19 +126,74 @@ function loadViolations(f: string, refs: Ref[] = refsOf(f)) {
   return out;
 }
 
+const layerLabel = (rule: Rule, i: number) => rule.name + '·' + (rule.layers?.[i]?.name ?? '');
+/** 经入口引的名字落在哪些来源文件；没写名字（import * as、import(…)、只引副作用）或有名字在入口里查不到来源的，返回 null（看不出用了哪一层） */
+const sourcesVia = (r: Ref & { target: string }) => {
+  const sources = exportSources(r.target);
+  const found = (r.names ?? []).map((n) => sources.get(n));
+  if (!found.length || found.some((s) => s === undefined)) return null;
+  return [...new Set(found.flatMap((s) => s ?? []))];
+};
+
+/**
+ * 分层的越层引用（模块表的 layers）：
+ * - 同一模块里，被引的文件所在的层不能比引用方高（同层、下层可以）；
+ * - 模块名和别的模块的某一层同名的（服务端采购库存 → 共用-业务的采购库存层），只能用那一层和下面的。
+ * 引的是不在任何一层的入口（shared/business/index.ts），不管是别的模块还是模块自己的文件，都按引进来的名字的来源文件算；
+ * 看不出名字的（import * as、import(…)）按违规报。返回 from → to（to 是被引的来源文件）和给人看的说明。
+ */
+function layerBreaches(f: string, refs: Ref[] = refsOf(f)) {
+  const from = moduleOf(f);
+  const out: { from: string; to: string; text: string }[] = [];
+  for (const r of refs) {
+    const to = r.target ? moduleOf(r.target) : undefined;
+    if (!from || !r.target || !to?.layers) continue;
+    const limit = to === from ? layerOf(f, from) : to.layers.findIndex((l) => l.name === from.name);
+    if (limit === undefined || limit < 0) continue;
+    const viaEntry = isEntry(r.target) && layerOf(r.target, to) === undefined;
+    const sources = viaEntry ? sourcesVia({ ...r, target: r.target }) : [r.target];
+    if (!sources) {
+      out.push({
+        from: f,
+        to: r.target,
+        text: f + ':' + r.line + ' → ' + r.target + '：看不出用了' + to.name + '哪一层的东西，改成 import { 名字 } from 的写法（名字要是入口里 export { … } from 列出的）',
+      });
+      continue;
+    }
+    for (const s of sources) {
+      const l = layerOf(s, to);
+      if (l === undefined || l <= limit) continue;
+      const self = to === from ? layerLabel(from, limit) : from.name;
+      out.push({
+        from: f,
+        to: s,
+        text: f + ':' + r.line + '（' + self + '）→ ' + s + '（' + layerLabel(to, l) + '）：只能用同层或下层的，把被引的东西挪到下层，或把引用方挪到上层',
+      });
+    }
+  }
+  return out;
+}
+
+/** 分了层的模块里没登记进任何一层的文件（入口 index.ts、pages.ts 除外），层表里写了却不存在或不在模块路径里的路径 */
+function layerGaps(rule: Rule, files: string[], exists: (p: string) => boolean = existsSync) {
+  const paths = rule.layers?.flatMap((l) => l.paths) ?? [];
+  if (!paths.length) return [];
+  const inRule = (f: string) => rule.paths.some((p) => covers(p, f));
+  return [
+    ...files
+      .filter((f) => inRule(f) && !isEntry(f) && layerOf(f, rule) === undefined)
+      .map((f) => f + '：没登记进' + rule.name + '的任何一层，在 tests/module-map.ts 这个模块的 layers 里加上'),
+    ...paths.filter((p) => !exists(p)).map((p) => p + '：登记在' + rule.name + '的层里，但已经不存在，从 layers 里删掉'),
+    ...paths.filter((p) => !inRule(p)).map((p) => p + '：登记在' + rule.name + '的层里，但不在这个模块的路径里'),
+  ];
+}
+
 test('模块之间只按规定的方向引用', () => {
   assert.deepEqual(all.flatMap((f) => directionViolations(f)), []);
 });
 
 test('server、src 下的每个子目录都登记进了模块（装配只管根目录的文件，新目录不会悄悄变成能引用一切的装配）', () => {
-  const unregistered = all.filter((f) => {
-    if (f.split('/').length < 3) return false;
-    const matched = modules
-      .flatMap((m) => m.paths)
-      .filter((p) => (p.endsWith('/') ? f.startsWith(p) : f === p))
-      .sort((a, b) => b.length - a.length)[0];
-    return matched === 'server/' || matched === 'src/';
-  });
+  const unregistered = all.filter((f) => f.split('/').length >= 3 && ['server/', 'src/'].includes(matchOf(f)?.p ?? ''));
   assert.deepEqual(unregistered, []);
 });
 
@@ -283,6 +333,76 @@ test('前端模块之间的事件只用 src/ui/events.ts 的 emit、listen，不
         bad.push(f + ':' + (i + 1) + '  ' + line.trim());
   }
   assert.deepEqual(bad, []);
+});
+
+test('分了层的模块只往下用：前端业务四层、共用业务三层（含服务端三层经入口用它），现有越层的只许减少', () => {
+  const found = all.flatMap((f) => layerBreaches(f));
+  const { extra, stale } = compareBacklog(
+    found.map((b) => b.from + ' → ' + b.to),
+    businessLayerBacklog.map((e) => e.from + ' → ' + e.to),
+  );
+  assert.deepEqual(
+    found.filter((b) => extra.includes(b.from + ' → ' + b.to)).map((b) => b.text),
+    [],
+    '新的越层引用（不许往 tests/layer-backlog.ts 里加）',
+  );
+  assert.deepEqual(stale, [], '这几条已经整理掉了，从 tests/layer-backlog.ts 的 businessLayerBacklog 里删掉');
+});
+
+test('分了层的模块每个文件都登记进了某一层，层表里写的路径都还在', () => {
+  assert.deepEqual(modules.flatMap((m) => layerGaps(m, all)), []);
+});
+
+/** 层名里对不上任何模块名的（服务端三层用共用业务的限制靠模块名和层名相同对上，改了模块名限制会悄悄失效） */
+const unmatchedLayers = (rule: Rule | undefined, rules: Rule[]) =>
+  (rule?.layers ?? []).filter((l) => !rules.some((m) => m.name === l.name)).map((l) => l.name);
+
+test('共用业务的每个层名都对得上一个服务端模块（不然服务端用它的分层限制会悄悄失效）', () => {
+  const business = modules.find((m) => m.paths.includes('shared/business/'));
+  assert.ok(business?.layers?.length, 'tests/module-map.ts 里找不到共用业务的分层');
+  const serverModules = modules.filter((m) => m.paths.some((p) => p.startsWith('server/')));
+  assert.deepEqual(unmatchedLayers(business, serverModules), [], '这几个层名对不上服务端模块名，改成和 server/ 下对应模块同名');
+  assert.deepEqual(unmatchedLayers({ name: '样例', paths: [], allow: [], layers: [{ name: '没有这个模块', paths: [] }] }, serverModules), ['没有这个模块']);
+});
+
+test('回归：分层检查拦住往上引、没登记进层的文件和过期的清单，同层、下层、入口不误报', () => {
+  const blocked: [file: string, text: string, to: string][] = [
+    ['src/flow/Sample.tsx', "import { RecordPages } from '../records/RecordPages';", 'src/records/RecordPages.tsx'],
+    ['src/recordkit/Sample.tsx', "import type { FlowDeskDialogs } from '../flow/FlowDeskDialogs';", 'src/flow/FlowDeskDialogs.tsx'],
+    ['shared/business/operations.ts', "import { noteText } from './physical-flow.js';", 'shared/business/physical-flow.ts'],
+    ['server/operations/sample.ts', "import { sumMoney, purchaseLineAmount } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
+    // 模块自己的文件经自己的入口引，也按名字的来源文件算层
+    ['shared/business/operations.ts', "import type { FlowDocument } from './index.js';", 'shared/business/flow-document.ts'],
+    // 看不出用了哪一层的：不写名字、动态加载、名字在入口里查不到
+    ['server/operations/sample.ts', "import * as business from '../../shared/business/index.js';", 'shared/business/index.ts'],
+    ['server/operations/sample.ts', "export const load = () => import('../../shared/business/index.js');", 'shared/business/index.ts'],
+    ['server/operations/sample.ts', "import { sumMoney, noSuchName } from '../../shared/business/index.js';", 'shared/business/index.ts'],
+    ['server/operations/sample.ts', "export * from '../../shared/business/index.js';", 'shared/business/index.ts'],
+    // export { … } from 转出去的也按名字的来源文件算
+    ['server/operations/sample.ts', "export { purchaseLineAmount } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
+  ];
+  for (const [f, text, to] of blocked)
+    assert.deepEqual(layerBreaches(f, refsOf(f, text)).map((b) => b.to), [to], f + ' 应拦住：' + text);
+  const allowed: [file: string, text: string][] = [
+    ['src/records/Sample.tsx', "import { readFlow } from '../flow/flow-api';\nimport { ProductMarks } from '../marks/ProductMarks';"],
+    ['src/recordkit/Sample.tsx', "import { ProductMarks } from '../marks/ProductMarks';"],
+    ['shared/business/physical-flow.ts', "import { sumMoney } from './operations.js';"],
+    ['shared/business/physical-flow.ts', "import type { RecordEntity } from './index.js';"],
+    ['server/finance/sample.ts', "import * as business from '../../shared/business/index.js';"],
+    ['server/operations/sample.ts', "export { sumMoney, type RecordEntity } from '../../shared/business/index.js';"],
+    ['shared/business/index.ts', "export { overviewSchema } from './overview.js';"],
+    ['server/flow/sample.ts', "import { purchaseLineAmount, sumMoney } from '../../shared/business/index.js';"],
+    ['server/finance/sample.ts', "import { flowDocumentSchema } from '../../shared/business/index.js';"],
+  ];
+  for (const [f, text] of allowed) assert.deepEqual(layerBreaches(f, refsOf(f, text)), [], f + ' 不该拦：' + text);
+  const sample: Rule = { name: '样例', paths: ['src/flow/'], allow: [], layers: [{ name: '下', paths: ['src/flow/a/', 'src/no-such/'] }] };
+  assert.deepEqual(
+    layerGaps(sample, ['src/flow/a/x.ts', 'src/flow/b/y.ts', 'src/flow/index.ts', 'src/records/z.ts'], (p) => p !== 'src/no-such/').map(
+      (x) => x.split('：')[0],
+    ),
+    ['src/flow/b/y.ts', 'src/no-such/', 'src/no-such/'],
+  );
+  assert.deepEqual(compareBacklog(['a → b', 'c → d'], ['a → b', 'e → f']), { extra: ['c → d'], stale: ['e → f'] });
 });
 
 /*

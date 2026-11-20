@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { roundingPolicies } from '../core/index.js';
 export const choiceSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('pending') }),
   z.strictObject({ mode: z.literal('new') }),
@@ -11,7 +12,7 @@ export const choiceSchema = z.discriminatedUnion('mode', [
 export const mappingSchema = z.strictObject({
   customer: choiceSchema,
   products: z.record(z.uuid(), choiceSchema),
-  roundingPolicy: z.enum(['exact-cents', 'half-up-cent']),
+  roundingPolicy: z.enum(roundingPolicies),
 });
 export type ImportMapping = z.infer<typeof mappingSchema>;
 /** 识别结果改了以后，哪些已选的客户、产品对应失效了（原因写给人看） */

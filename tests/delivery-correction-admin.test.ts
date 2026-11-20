@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { Actor } from '../server/core/auth.js';
 import { AppError, one as oneRow, rows } from '../server/core/index.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';
-import { reversalOrigin } from '../server/finance/costing-origins.js';
+import { originOf } from '../server/finance/costing-origins.js';
 import { today } from '../shared/core/index.js';
 import { clerk, localAdmin } from './flow-fixture.js';
 import { deliveryCorrectionSetup } from './delivery-correction-fixture.js';
@@ -86,8 +86,8 @@ test('一张送货单两行出同一个成品：更正后成品批次没有多�
     reversal,
   );
   assert.ok(m, '有冲回的那笔流水');
-  const origin = reversalOrigin(f.store.db, m, '2026-11-01');
-  assert.equal(origin?.same, true);
+  const found = originOf(f.store.db, { ...m, kind: 'finished' }, '2026-11-01');
+  assert.equal(found.kind === 'reversal' && found.origin?.same, true);
 });
 
 test('保存单据不再收更正关系：带了 correctionOf 新建的送货单只是一张普通待送货单，原单也不会被标成已更正', (t) => {

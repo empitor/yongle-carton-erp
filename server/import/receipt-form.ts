@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { priceBases } from '../../shared/core/index.js';
 import { DRAFT_VALUE_MAX, doubtColumns, formCell as cell, toolParameters, type ReceiptResult } from '../../shared/import/index.js';
 
 /*
@@ -18,7 +19,7 @@ const lineColumns = {
   area: cell('面积（m²）：只写数字'),
   unitPrice: cell('单价：照原文保留小数位'),
   priceBasis: z
-    .enum(['area', 'quantity'])
+    .enum(priceBases)
     .nullable()
     .optional()
     .describe('计价方式：area 按面积，quantity 按张；原件看不出就留空'),

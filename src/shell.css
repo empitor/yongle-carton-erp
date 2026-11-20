@@ -37,8 +37,7 @@
   padding: var(--space-sm) 11px;
 }
 .sidebar .brand,
-.sidebar .brand span,
-.sidebar .phase strong {
+.sidebar .brand span {
   color: var(--sidebar-ink);
 }
 

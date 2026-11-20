@@ -4,7 +4,8 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import { AppError, one, rows } from '../core/index.js';
 import { flowKinds } from '../../shared/business/index.js';
-import { asList, field, isRecord } from './chat/result-fields.js';
+import { isRecord } from '../../shared/core/index.js';
+import { asList, field } from './chat/result-fields.js';
 
 export type ToolPlan = {
   tool: string;
@@ -37,7 +38,7 @@ const planShape = z.looseObject({
 });
 export const storedToolPlan = z.custom<ToolPlan>((value) => planShape.safeParse(value).success, '不是助手方案');
 
-/** 方案参数、方案里的记录：各命令不同，按列名取（chat/result-fields.ts 的 field、isRecord） */
+/** 方案参数、方案里的记录：各命令不同，按列名取（chat/result-fields.ts 的 field、shared/core 的 isRecord） */
 export type Obj = Record<string, unknown>;
 
 /** 助手的模块名 → 修改历史用的模块名（核对区按它用对字段的中文名和状态说法） */

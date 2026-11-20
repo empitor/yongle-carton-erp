@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { many, one, rows } from '../core/index.js';
-import { accountCodeSchema, centsSchema, requestIdSchema, versionSchema } from '../../shared/finance/index.js';
+import { accountCodeSchema, centsSchema, requestIdSchema, termTypes, versionSchema } from '../../shared/finance/index.js';
 import { dateSchema, today } from '../../shared/core/index.js';
 import { FinanceLedger } from './ledger.js';
 import {
@@ -19,9 +19,9 @@ import {
 import { edit, entry, id, label, money, pageSql, request, row } from './query.js';
 import { parsePaging } from '../core/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { partyName } from './business-source.js';
+import { partyName, partyOptions } from './business-source.js';
 import { financeTemplate } from './template.js';
-import { obligationKinds, partyKinds, taxModes, termTypes } from './stored-values.js';
+import { obligationKinds, partyKinds, taxModes } from './stored-values.js';
 import { isReversed } from './reversal-pairs.js';
 import { agingBucket, allocationSum, obligationBaseDate, openItems } from './obligation-sql.js';
 import { obligationList } from './obligation-list.js';
@@ -90,6 +90,11 @@ const agingTotal = z.object({ bucket: z.number(), balance: z.number(), count: z.
 
 export class FinanceParties {
   constructor(private readonly store: Store) {}
+  /** 选客户、供应商用的单位名单（没归档的）：要财务查看权限就能读，出纳这类纯财务账号不用借业务的地址 */
+  options(actor: Actor | null, raw: unknown) {
+    financeActor(actor);
+    return partyOptions(this.store.db, z.object({ kind: partyKind }).parse(raw).kind);
+  }
   badDebt(actor: Actor | null, rawId: unknown, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
       key = id.parse(rawId);

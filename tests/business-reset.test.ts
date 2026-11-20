@@ -17,7 +17,7 @@ import '../server/import/index.js';
 import '../server/business/index.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
-import { financePermissions } from '../shared/core/account-scope.js';
+import { financePermissions } from '../shared/core/accounts.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
@@ -293,7 +293,7 @@ test('初始化后编号接着往上走，不再逐行写墓碑；单号里的�
             supplierId: supplier.id,
             orderDate: '2026-10-01',
             status: '待订货',
-            lines: [{ stockItemId: item.id, name: item.name, quantity: '10', unit: '张' }],
+            lines: [{ stockItemId: item.id, name: item.name, quantity: '10', unit: '张', priceBasis: 'quantity' }],
           },
           actor,
         );

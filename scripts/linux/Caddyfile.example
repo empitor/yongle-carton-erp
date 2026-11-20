@@ -10,6 +10,16 @@
 }
 
 erp.example.invalid {
+	# 安卓 App、Windows 客户端的更新清单和安装包（见 docs/部署与运维.md“客户端更新包”）：Caddy 直接当静态文件发，不经 ERP、不用登录。
+	# 去掉 /app-update 前缀后到目录里找文件；file_server 找不到（目录还没建也一样）就回 404，不会再交给下面的 ERP。
+	handle_path /app-update/* {
+		root * /srv/yongle-erp-app-update
+		# 清单不让缓存，客户端每次都拿到最新的；安装包按版本号起名，不会被旧缓存顶替
+		@manifest path *.json
+		header @manifest Cache-Control "no-cache"
+		file_server
+	}
+
 	encode /assets/* gzip
 	# 比程序里最大的上传（唛头、收件箱、财务附件 20MB）略大，更大的请求在这里就拒掉
 	request_body {

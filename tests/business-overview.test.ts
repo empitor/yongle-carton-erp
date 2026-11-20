@@ -103,6 +103,7 @@ function seedPurchases(service: OperationsService, { date, old }: Dates) {
             quantity: '10.125',
             unit: '张',
             unitPrice,
+            priceBasis: 'quantity',
           },
         ],
       },

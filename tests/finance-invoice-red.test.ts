@@ -293,7 +293,7 @@ test('部分红票按累计分摊释放额度，合计正好等于红票额', ()
 test('发票关联的判定直接调：没有的往来报不存在，没有整张红冲就没有重开额度', () => {
   const s = new Store(':memory:');
   try {
-    assert.throws(() => assertInvoiceableObligation(s.db, 99), /往来单不存在/);
+    assert.throws(() => assertInvoiceableObligation(s.db, 99, (arrival) => arrival), /往来单不存在/);
     assert.equal(reissueCapacity(s.db, 99, 1), 0);
   } finally {
     s.close();

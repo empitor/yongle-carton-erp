@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, count, exists, inSavepoint, many, one, parseStoredJson, rows } from '../core/index.js';
-import { attachmentKinds, attachmentLimits, type AssistantAttachment } from '../../shared/core/index.js';
+import { attachmentKinds, attachmentLimitMb, attachmentLimits, type AssistantAttachment } from '../../shared/core/index.js';
 import { validateAttachment } from '../core/index.js';
 /**
  * 助手附件的存取：上传（只做安全检查，原件存库）、选中、关联消息、下载、删除、清空。
@@ -204,7 +204,7 @@ export class AssistantAttachments {
         ? this.previous(thread, actor)
         : [];
     if (selected.reduce((n, a) => n + a.size, 0) > attachmentLimits.messageBytes)
-      throw new AppError('本条消息附件合计不能超过30MB。', 413);
+      throw new AppError('本条消息附件合计不能超过' + attachmentLimitMb.message + 'MB。', 413);
     return selected;
   }
   /** 交给模型前读原件：已删的、内容被改过的不外发 */

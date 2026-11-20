@@ -6,7 +6,7 @@ import type { Store } from '../core/index.js';
 import { many, rows } from '../core/index.js';
 import { financeActor } from './core.js';
 import { theoreticalMoney } from './amounts.js';
-import { purchaseLineItem, purchaseLinesOf } from './business-source.js';
+import { purchaseLineItem, purchaseLinesOf, sourceReversed } from './business-source.js';
 import { allocationSum } from './obligation-sql.js';
 import { pageSql, type FinancePage } from './query.js';
 import { redReleasedByObligation } from './red-invoices.js';
@@ -45,7 +45,7 @@ const qtyDiff = (a: Map<string, number>, b: Map<string, number>) =>
     ? [...new Set([...a.keys(), ...b.keys()])].some((unit) => a.get(unit) !== b.get(unit))
     : null;
 
-/** 采购明细按单价算出的价税合计（没有计价依据的算不出，是空） */
+/** 采购明细按单价算出的价税合计（没有计价方式的算不出，是空） */
 function purchaseLineView(l: PurchaseLine) {
   const item = purchaseLineItem(l);
   const exact = item.priceBasis ? purchaseLineAmount({ ...item, quantity: quantityString(l.quantity_units) }) : null;
@@ -126,6 +126,8 @@ export class FinanceInvoiceMatching {
       FROM fin_obligations o LEFT JOIN fin_events e ON e.id=o.event_id LEFT JOIN fin_vouchers v ON v.id=o.voucher_id
       WHERE o.kind=? AND o.tax_status<>'superseded' AND (o.voucher_id IS NULL OR v.status<>'void')
       AND o.reversal_of IS NULL AND NOT ${isReversed('o')}
+      -- 已撤销、被更正替代的到货不能再关联发票（invoice-rules.ts），红冲以前也不列
+      AND NOT coalesce(e.source_kind='arrival' AND ${sourceReversed('e', 'arrival')},0)
       AND (o.amount_cents>0 OR EXISTS(SELECT 1 FROM fin_invoice_links rl JOIN fin_invoices b ON b.id=rl.invoice_id
         JOIN fin_invoices r ON r.original_id=b.id WHERE rl.obligation_id=o.id AND r.status='red'))`,
         values: [q.kind],

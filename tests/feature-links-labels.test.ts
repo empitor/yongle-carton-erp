@@ -1,5 +1,5 @@
 /**
- * 一件事一条链路（AGENTS.md）的自动检查之四（先只报告，不失败）：按钮文字。带动作词的按钮应当是某条业务动作
+ * 一件事一条链路（AGENTS.md）的自动检查之四：按钮文字。带动作词的按钮应当是某条业务动作
  * （shared/assistant/ui-actions.ts）登记的叫法，或在下面的通用白名单里；带数量的按开头比（“安排送货（3 张）”算“安排送货”）。
  * 对不上的列出来并失败（直接跑 node --import tsx tests/feature-links-labels.test.ts 看清单）。
  * 取字的范围见 tests/feature-links-scan.ts 的 buttonTexts。
@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import { uiActions } from '../shared/assistant/ui-actions.js';
 import { buttonTexts } from './feature-links-scan.js';
 
-const REPORT_ONLY = false;
 const actionWords = /登记|安排|撤销|取消|归档|恢复|删除|更正|核对|确认|导出|作废|冲销|停用|编辑/;
 /** 不对应某一条业务动作的通用按钮：关窗、保存、关闭这类，写明为什么 */
 const commonLabels: Record<string, string> = {
@@ -61,5 +60,5 @@ test('按钮文字：带动作词的按钮是登记的动作叫法或通用按�
   }
   const lines = [...loose].sort(([a], [b]) => a.localeCompare(b, 'zh')).map(([text, at]) => text + '：' + at.join('、'));
   if (lines.length) console.log('按钮文字对不上登记的动作叫法（' + lines.length + ' 种）：\n' + lines.join('\n'));
-  if (!REPORT_ONLY) assert.deepEqual(lines, []);
+  assert.deepEqual(lines, []);
 });

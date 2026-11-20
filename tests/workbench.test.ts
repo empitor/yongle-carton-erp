@@ -93,7 +93,7 @@ test('今日队列把真实记录分到逾期、未排产、待下单和到货�
           orderDate: '2026-10-01',
           expectedDate,
           status,
-          lines: [{ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '100', unitPrice: '1.5' }],
+          lines: [{ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm', unit: '张', quantity: '100', unitPrice: '1.5', priceBasis: 'quantity' }],
         },
         actor,
       );

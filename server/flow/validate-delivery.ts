@@ -1,6 +1,6 @@
 import type { Actor, Store } from '../core/index.js';
 import { canEnterSuperMode, requireSuperModeFor } from '../core/index.js';
-import { quantityUnits, quantityString } from '../../shared/core/index.js';
+import { effectiveOrder, quantityUnits, quantityString } from '../../shared/core/index.js';
 import { lineMoney, specificationMismatch, specificationMismatchText, type FlowDocument } from '../../shared/business/index.js';
 import { fail, type DeliveryLine, type LineCheck, type StockItemRow } from './base.js';
 import { shippedUnits } from './shipped.js';
@@ -17,7 +17,7 @@ function orderLineOf(ctx: LineCheck<DeliveryLine>, v: Delivery, l: DeliveryLine)
   const { flow, maintenance } = ctx;
   const order = flow.store.order(l.orderId, maintenance),
     line = order?.lines.find((x) => x.id === l.orderLineId);
-  if (!order || order.customerId !== v.customerId || !line || (!maintenance && (order.status === '待确认' || order.status === '已取消')))
+  if (!order || order.customerId !== v.customerId || !line || (!maintenance && !effectiveOrder(order)))
     return fail('请选择同一客户正常已确认订单的有效产品明细。');
   return { order, line };
 }

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "甬勒ERP测试",
+  "mainBinaryName": "甬勒ERP测试",
+  "identifier": "cn.nbyongle.erp.desktop.test",
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "requireSignedVersion": true,
+      "dangerousInsecureTransportProtocol": true,
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

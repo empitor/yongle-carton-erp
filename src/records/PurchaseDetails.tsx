@@ -1,5 +1,5 @@
 import BatchCard from '../operations/BatchCard';
-import { ARRIVAL_HISTORY_TITLE, formatStockSize, priceText, type PurchaseView } from '../../shared/business/index';
+import { ARRIVAL_HISTORY_TITLE, UNPRICED_TEXT, formatStockSize, priceText, type PurchaseView } from '../../shared/business/index';
 import { displayAmount, quantityString } from '../../shared/core/index';
 import { ReceiptHistory } from '../warehouse/FulfillmentDetails';
 import { Facts, Progress, Section } from '../ui/index';
@@ -9,7 +9,7 @@ type PurchaseLine = PurchaseView['lines'][number];
 /** 采购单的一条到货记录（一张到货单） */
 export type PurchaseReceipt = PurchaseView['receipts'][number];
 
-const money = (v: string | null | undefined) => (v == null ? '待定价' : displayAmount(v) + ' 元');
+const money = (v: string | null | undefined) => (v == null ? UNPRICED_TEXT : displayAmount(v) + ' 元');
 
 /** 所有明细同一数量单位时才显示总到货进度；张和公斤不相加。 */
 function arrivalTotals(lines: readonly PurchaseLine[]) {

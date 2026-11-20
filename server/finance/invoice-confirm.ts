@@ -33,7 +33,12 @@ export class FinanceInvoiceConfirm {
       checkVersion(i, v.version);
       if (i.status !== 'draft') financeError('只有待确认的发票可以确认。');
       // 待确认时关联之后来源单可能被更正：旧往来已被替代或冲销，确认时再查一遍，免得把旧往来救活、多出一笔应收应付。
-      for (const l of before.links) assertInvoiceableObligation(this.db, Number(l.obligation_id));
+      for (const l of before.links)
+        assertInvoiceableObligation(
+          this.db,
+          Number(l.obligation_id),
+          (arrival) => '到货 ' + arrival + ' 已撤销或被更正替代，请先在这张发票上去掉对它的关联。',
+        );
       const date = String(i.date),
         purchase = i.direction === 'purchase',
         description = '发票 ' + i.number;

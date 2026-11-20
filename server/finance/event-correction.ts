@@ -133,6 +133,12 @@ function reverseVoucher(undo: Undo, target: Header, amount: number, ref: { versi
   const { store, user, event, original, input, ledger } = undo;
   const summary = reversalSummary(store.db, original, input.reason);
   const red = ledger.reverse(user, target.id, { ...ref, date: input.date, description: summary }, { linked: true });
+  // 冲的是退货、部分到票后另出的余量暂估凭证时，红字凭证记在这条往来的事件名下，不挂到退货单、发票上：
+  // 退货冲了多少按挂在退货单上的凭证算（return-estimates.ts 的 returnBooked、returnCosts），挂上去就算错了
+  if (target.id !== original.voucher_id)
+    store.db
+      .prepare("UPDATE fin_vouchers SET module_source='event_reversal',module_id=? WHERE id=?")
+      .run(original.event_id, red.header.id);
   const reversal = Number(
     store.db
       .prepare(

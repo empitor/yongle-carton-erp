@@ -144,7 +144,7 @@ test('导出卡片：核对区按服务器写好的内容显示；确认后的�
     const effects: ExecutedEffects = {
       download: (file) => {
         assert.deepEqual(file, result.file);
-        // 浏览器里交给下载之前按导出文件的结构认（review-actions 的 browserEffects）：真实的文件信息要认得出
+        // 浏览器里交给下载之前按导出文件的结构认（review-actions 的 pageEffects）：真实的文件信息要认得出
         assert.doesNotThrow(() => readExportFile(file));
         seen.downloaded++;
         return Promise.resolve();

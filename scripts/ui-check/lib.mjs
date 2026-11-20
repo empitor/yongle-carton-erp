@@ -84,6 +84,10 @@ export async function step(page, name, fn) {
 /** 用 server.mts 里的虚构账号登录，默认虚构管理员。 */
 export async function login(page, name = '虚构管理员', base = BASE) {
   await page.goto(base);
+  await signIn(page, name);
+}
+/** 在已经打开的登录页上登录，不重新载入页面（页面上已经接好的东西不丢） */
+export async function signIn(page, name = '虚构管理员') {
   await page.locator('.login-screen input').nth(0).fill(name);
   await page.locator('.login-screen input').nth(1).fill(passwordOf(name));
   await page.locator('.login-screen input').nth(1).press('Enter');

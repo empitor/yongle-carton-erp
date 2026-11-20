@@ -52,8 +52,8 @@ function setup() {
       status: '待订货',
       notes: '',
       lines: [
-        { ...item, stockItemId: item.id, customerOrderId: a.id, quantity: '300', unitPrice: '1.2' },
-        { ...item, stockItemId: item.id, customerOrderId: b.id, quantity: '200', unitPrice: '1.2' },
+        { ...item, stockItemId: item.id, customerOrderId: a.id, quantity: '300', unitPrice: '1.2', priceBasis: 'quantity' },
+        { ...item, stockItemId: item.id, customerOrderId: b.id, quantity: '200', unitPrice: '1.2', priceBasis: 'quantity' },
       ],
     },
     actor,
@@ -157,7 +157,7 @@ test('本机管理员改采购单（明细编号保留）：换关联的订单�
       lines: [
         { ...current.lines[0], customerOrderId: f.b.id },
         { ...current.lines[1], customerOrderId: null },
-        { ...spec, stockItemId: f.item.id, customerOrderId: f.a.id, quantity: '50', unitPrice: '1.2' },
+        { ...spec, stockItemId: f.item.id, customerOrderId: f.a.id, quantity: '50', unitPrice: '1.2', priceBasis: 'quantity' },
       ],
     },
     admin,

@@ -6,14 +6,14 @@
 import type { Actor } from '../../core/index.js';
 import { historyRefs } from '../../business/index.js';
 import { arrivalSchema, cardChanges, cardContents, deliverySchema, productionSchema, purchaseSchema, stockItemSchema, supplierSchema, taskSchema } from '../../../shared/business/index.js';
-import { customerSchema, orderSchema, productSchema } from '../../../shared/core/index.js';
+import { customerSchema, isRecord, orderSchema, productSchema } from '../../../shared/core/index.js';
 import { planModule, type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
 import { refuseAsync, rehearseChanges, type Touched } from './card-rehearsal.js';
 import { correctionCardLines } from './corrections.js';
 import { asTarget, readTarget, targets, type Target } from './card-targets.js';
 import { batchLines, briefOf, documentLines, flowKindOf, newTitle, recordTitle, stockLines, type Line } from './card-lines.js';
-import { asList, field, isRecord } from '../chat/result-fields.js';
+import { asList, field } from '../chat/result-fields.js';
 
 /** 回滚点里试出来的：目标记录改后的样子、顺带动到的记录（改后）、库存净变化 */
 type Tried = { after: (Obj | undefined)[]; changes: (Touched & { after: Obj | undefined })[]; moves: { item: number; delta: number }[] };

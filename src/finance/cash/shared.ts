@@ -1,6 +1,6 @@
 import type { Tone } from '../../ui/index';
 import type { Field, FormValues } from '../form-values';
-import { cashKindNames } from '../../../shared/finance/index';
+import { cashKindNames, cashMethods } from '../../../shared/finance/index';
 
 /* 资金发票页各页签共用的名称和字段。 */
 
@@ -21,7 +21,7 @@ export const transferPartner = <A extends AllocationLink>(rows: readonly A[], a:
   a.reversal_of
     ? undefined
     : rows.find((b) => b.id !== a.id && !b.reversal_of && b.voucher_id === a.voucher_id);
-const methods = ['银行', '现金', '承兑汇票', '微信', '支付宝', '其他'].map((m) => [m, m] as const);
+const methods = cashMethods.map((m) => [m, m] as const);
 export const monthEnd = (y: string) => {
   const [a, b] = y.split('-').map(Number);
   return y + '-' + String(new Date(a, b, 0).getDate()).padStart(2, '0');

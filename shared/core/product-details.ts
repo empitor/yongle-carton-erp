@@ -63,6 +63,16 @@ export function convertDimension(
     throw new Error('尺寸换算超出可表示的精度，请核对数值');
   return converted;
 }
+/** 尺寸单位只收毫米、厘米：产品、库存品、采购明细同一份 */
+export const dimensionUnitSchema = z.enum(['mm', 'cm'], { error: '尺寸单位只能选毫米或厘米' });
+type CmSized = { dimensionUnit?: DimensionUnit | null; length: number | null; width: number | null; height: number | null };
+/** 按厘米填的尺寸不能超过 MAX_CM_DIMENSION：产品、库存品、采购明细同一条规则、同一句提示 */
+export const withinCmLimit = (v: CmSized) =>
+  v.dimensionUnit !== 'cm' || [v.length, v.width, v.height].every((n) => n === null || n <= MAX_CM_DIMENSION);
+export const cmLimitIssue = {
+  message: '厘米尺寸不能超过' + MAX_CM_DIMENSION + 'cm（等于' + String(convertDimension(MAX_CM_DIMENSION, 'cm', 'mm')) + 'mm）',
+  path: ['dimensionUnit'],
+};
 export function normalizedDimensions(p: {
   length?: number | null;
   width?: number | null;

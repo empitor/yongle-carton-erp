@@ -1,7 +1,7 @@
 import { ArrowUpRight, ClipboardList, Truck, Warehouse, Package, AlertTriangle, Layers } from 'lucide-react';
 import { movementTypeLabel } from '../../shared/business/index';
 import { businessStatusTone } from '../recordkit/record-meta';
-import { purchaseState } from '../../shared/business/index';
+import { UNPRICED_TEXT, purchaseState } from '../../shared/business/index';
 import { StatusChip } from '../ui/index';
 import type { ReactNode } from 'react';
 import type { Dashboard } from '../../shared/business/index';
@@ -175,7 +175,7 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
                 <td>
                   <StatusChip tone={businessStatusTone(purchaseState(p))}>{purchaseState(p)}</StatusChip>
                 </td>
-                <td>{p.totalAmount === null ? '待定价' : exactMoney(p.totalAmount)}</td>
+                <td>{p.totalAmount === null ? UNPRICED_TEXT : exactMoney(p.totalAmount)}</td>
               </tr>
             ))}
             {!v.purchases.recent.length && (

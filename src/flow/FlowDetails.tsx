@@ -10,6 +10,7 @@ import { MaterialsTable, TaskProduction } from './FlowTaskSections';
 import { flowOverdue, shipDate } from './flow-dates';
 import { waitingText } from './task-progress';
 import CorrectionNote from './CorrectionNote';
+import { flowSourceFileUrl } from './flow-api';
 
 /** 详情要对照的档案（显示名称、单号、单位用）：单据页读的全部清单，AI 导入的到货单只读了到货要的几份 */
 type DetailData = Partial<CatalogLists>;
@@ -218,7 +219,7 @@ function ArrivalDetails({ d, data, person }: { d: FlowDocView<'arrival'>; data: 
             {
               label: '送货单原件',
               value: d.sourceId ? (
-                <a target="_blank" rel="noreferrer" href={'/api/flow/sources/' + d.sourceId + '/file'}>
+                <a target="_blank" rel="noreferrer" href={flowSourceFileUrl(d.sourceId)}>
                   查看原件
                 </a>
               ) : (

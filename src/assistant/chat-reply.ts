@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { deliverBusinessFile } from '../documents/index';
-import { emit } from '../ui/index';
+import { emit, type FileSaver } from '../ui/index';
 import { errorMessage } from '../../shared/core/index';
 import { isErpNavigation, readSpeaker, type AssistantSpeaker, type InterimSaid } from '../../shared/assistant/index';
 import { executePageCommand, observeErpPage } from './assistant-page';
@@ -45,9 +45,9 @@ export function chatRequestBody(o: {
 }
 
 /** 服务器这一轮让页面跟着做的事：下载文件、通知各页面刷新、跳到某页 */
-function applyEffect(d: ChatEffect, setError: (message: string) => void) {
+function applyEffect(d: ChatEffect, v: Pick<ReplyView, 'setError' | 'saveFile'>) {
   if (d.type === 'download' && d.file)
-    void deliverBusinessFile(d.file).catch((e: unknown) => setError(errorMessage(e)));
+    void deliverBusinessFile(d.file, v.saveFile).catch((e: unknown) => v.setError(errorMessage(e)));
   if (d.workspaceId) emit('erp-ai-workspace-changed', { workspaceId: d.workspaceId });
   if (d.type === 'business') emit('erp-business-changed');
   if (d.module === 'workspaces') emit('erp-ai-workspace-list-changed');
@@ -67,6 +67,8 @@ export type ReplyView = {
   draftRef: RefObject<string>;
   reasoning: ReturnType<typeof useReasoning>;
   uploads: AssistantUploads;
+  /** 下载文件的效果用它保存（useSaveFile） */
+  saveFile: FileSaver;
 };
 
 /**
@@ -82,7 +84,7 @@ export function replyHandlers(
       void executePageCommand(d, page.clientId, page.owner, page.currentOwner).catch((e: unknown) =>
         v.setError(errorMessage(e)),
       ),
-    effect: (d) => applyEffect(d, v.setError),
+    effect: (d) => applyEffect(d, v),
     speaker: (who) => v.setWorking(who),
     draft: (text) => {
       v.setDraft(text);

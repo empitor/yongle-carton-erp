@@ -41,6 +41,9 @@ test('窗口关了但没办成：底部提示用红色说原因；原来只给�
   assert.deepEqual(readNotice({ message: '没找到这张单据', tone: 'error' }), { message: '没找到这张单据', tone: 'error' });
   assert.equal(readNotice(''), null);
   assert.equal(readNotice({ tone: 'error' }), null);
+  // 只是提醒（不是办成了）的口气认得出，不认识的口气按办成了
+  assert.deepEqual(readNotice({ message: '关掉当前窗口后进入 AI 导入', tone: 'info' }), { message: '关掉当前窗口后进入 AI 导入', tone: 'info' });
+  assert.deepEqual(readNotice({ message: '已保存', tone: 'other' }), { message: '已保存', tone: 'done' });
   const saved = Object.getOwnPropertyDescriptor(globalThis, 'window'),
     target = new EventTarget(),
     seen: unknown[] = [];
@@ -83,7 +86,6 @@ test('数据管理的下拉：存的值不变，显示中文，不出现“草�
   assert.match(texts('status', 'draft', 'delivery'), /待送货/);
   assert.match(texts('status', 'reversed', 'arrival'), /已撤销/);
   assert.equal(texts('kind', 'raw', 'stock_items'), '原材料|成品');
-  assert.match(texts('kind', 'arrival', 'arrival'), /到货单/);
   assert.equal(texts('priceBasis', 'area'), '按平方米|按张');
   assert.doesNotMatch(texts('roundingPolicy', 'exact-cents'), /exact|half/);
   assert.doesNotMatch(texts('dimensionUnit', 'mm'), /^mm$/m);

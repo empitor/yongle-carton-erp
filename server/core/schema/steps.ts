@@ -15,6 +15,9 @@ export type UpgradeStep = {
  * 0.9.0 发布之前改结构，直接改 tables/ 里的建表语句，不写步骤（库还没发布过）。
  * 发布以后每次改结构：在这里加一步，同时把 tables/ 改成改完以后的完整结构，再把 version.ts 的 SCHEMA_LATEST 加一。
  * tests/schema-evolution.test.ts 会核对“空库新建”和“从第 20 版一路升级上来”的结构完全一样。
+ * 每一步还要带一份升级前后的小数据样例：tests/fixtures/upgrade-samples/v<版本号>.json（目录在有第一步时再建），
+ * 写 before（升级前写进库的行）和 after（这一步跑完应有的行，只写要核对的列），写法见 tests/upgrade-step-samples.test.ts 开头；
+ * 那条测试会真跑这一步并比对，没有样例会失败。
  *
  * 写步骤的规矩：
  * - 一步只做一件事，只用 SQL，不引用业务模块；确实要用业务算法修数据的，由表的主人模块登记实现，步骤里只调登记的函数。

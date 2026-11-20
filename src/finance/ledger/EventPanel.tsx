@@ -138,7 +138,8 @@ function EventDialog({
           { name: 'date', label: '更正日期', type: 'date', required: true },
           { name: 'reason', label: '原因', type: 'textarea', required: true },
         ]}
-        initial={{ date: today() }}
+        // 撤销、更正过的到货默认记在撤销（更正）那天（服务端给，那个月已结账的给最早没结账月份的 1 号），别的默认今天
+        initial={{ date: row.correction_date ?? today() }}
         close={close}
         submit={async (v) => {
           const result = await correctEvent(row, v);

@@ -180,7 +180,7 @@ test('同一种纸板只差大小写、全半角、厘米毫米写法：到货�
         supplierId: f.supplier.id,
         orderDate: '2026-10-01',
         status: '已订货',
-        lines: [{ name: '虚构牛卡', unit: '张', material: 'k=k', flute: 'ｂｃ', length: 120, width: 80, dimensionUnit: 'cm', quantity: '100' }],
+        lines: [{ name: '虚构牛卡', unit: '张', material: 'k=k', flute: 'ｂｃ', length: 120, width: 80, dimensionUnit: 'cm', quantity: '100', priceBasis: 'quantity' }],
       },
       clerk,
     );
@@ -264,7 +264,7 @@ test('真的不同的规格仍然被拒：材质、尺寸、规格说明不同�
       assert.throws(
         () =>
           f.ops.savePurchase(
-            { supplierId: f.supplier.id, orderDate: '2026-10-01', status: '已订货', lines: [{ ...other, stockItemId: board.id, quantity: '10' }] },
+            { supplierId: f.supplier.id, orderDate: '2026-10-01', status: '已订货', lines: [{ ...other, stockItemId: board.id, quantity: '10', priceBasis: 'quantity' }] },
             clerk,
           ),
         /明细规格与所选库存品不一致/,
@@ -272,7 +272,7 @@ test('真的不同的规格仍然被拒：材质、尺寸、规格说明不同�
       );
       // 到货对采购明细
       const purchase = f.ops.savePurchase(
-        { supplierId: f.supplier.id, orderDate: '2026-10-01', status: '已订货', lines: [{ ...item, quantity: '10' }] },
+        { supplierId: f.supplier.id, orderDate: '2026-10-01', status: '已订货', lines: [{ ...item, quantity: '10', priceBasis: 'quantity' }] },
         clerk,
       );
       assert.throws(

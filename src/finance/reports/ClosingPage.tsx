@@ -4,7 +4,7 @@ import { Readiness, type TabProps } from './FormalReports';
 import { ErrorLine, FinSection, PeriodInput, ExportLink } from '../layout';
 import { FinTable, col, mon, type Col } from '../table';
 import { Status } from '../status';
-import { useFinRead, type FinData } from '../fin-api';
+import { useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { reportOf } from './reports-api';
 
 type Report = FinData<'GET /finance/reports/:kind'>;
@@ -75,10 +75,13 @@ function PeriodsSection() {
 }
 
 export default function ClosingPage({ head, period, setPeriod }: TabProps) {
+  // 结账前先把业务的变化补进来（撤销、更正、删掉的单据），检查看到的是最新的；没补进来的“业务单据”一步照样拦
+  const sync = useSyncOnOpen();
   return (
     <>
       {head({ children: <PeriodInput value={period} onChange={setPeriod} /> })}
-      <Readiness period={period} />
+      <ErrorLine text={sync.error} close={sync.clear} />
+      <Readiness period={period} syncError={sync.error} />
       <ClosingTab period={period} />
       <TrialBalance period={period} />
       <PeriodsSection />

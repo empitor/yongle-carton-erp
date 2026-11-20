@@ -2,7 +2,7 @@ import { ORDER_LINES_TITLE } from '../recordkit/OrderLinesView';
 import { useId } from 'react';
 import { Plus } from 'lucide-react';
 import { Combobox, ManagementDialog, EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
-import { centsText, displayAmount } from '../../shared/core/index';
+import { centsText, displayAmount, roundingPolicyLabels } from '../../shared/core/index';
 import CustomerEditor from './CustomerEditor';
 import ProductEditor from './ProductEditor';
 import OrderLines from './OrderLines';
@@ -151,7 +151,7 @@ function OrderLinesSection({ e }: { e: Editor }) {
       </div>
       {fractional && e.extras.roundingPolicy === 'exact-cents' && (
         <FormMessage tone="warning">
-          合计有不足一分的尾数，保存前在下面“更多信息”的“金额结算”里选“整单四舍五入到分”。
+          合计有不足一分的尾数，保存前在下面“更多信息”的“金额结算”里选“{roundingPolicyLabels['half-up-cent']}”。
         </FormMessage>
       )}
     </FormSection>

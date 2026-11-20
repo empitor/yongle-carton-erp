@@ -1,18 +1,32 @@
 import { z } from 'zod';
 import { MAX_PRICE_YUAN, precisionTotal } from './precision.js';
-import { MAX_CM_DIMENSION, dimensionValueSchema, normalizeDimensionUnit, type SpecFields } from './product-details.js';
+import { cmLimitIssue, dimensionUnitSchema, dimensionValueSchema, normalizeDimensionUnit, withinCmLimit, type SpecFields } from './product-details.js';
 import { canonicalCurrency } from './currency.js';
 
 /** 订单金额怎么到分：按精确金额（不能有不足一分的尾数）、整单四舍五入到分 */
 export const roundingPolicies = ['exact-cents', 'half-up-cent'] as const;
+/** “金额结算”两种选法的叫法（照订单页编辑窗）：下拉按 roundingPolicies 的顺序列，报错、修改历史都用这一份 */
+export const roundingPolicyLabels: Record<(typeof roundingPolicies)[number], string> = {
+  'exact-cents': '精确到分，不自动舍入',
+  'half-up-cent': '明确采用整单四舍五入到分',
+};
 export const statuses = ['待确认', '已确认', '生产中', '待发货', '已发货', '已取消'] as const;
 /** 由生产任务和送货单推进，普通录入只选择待确认、已确认或已取消。 */
 export const derivedOrderStatuses: readonly string[] = ['生产中', '待发货', '已发货'];
 /** 页面上看到和筛选用的状态。“部分发货”不存库，由发货进度派生。 */
 export const displayOrderStatuses = ['待确认', '已确认', '生产中', '待发货', '部分发货', '已发货', '已取消'] as const;
+type OrderStatus = (typeof statuses)[number];
+/** 不算有效订单的状态（接单、金额、送货都不算它们）；SQL 里用这份清单，代码里用 effectiveOrder */
+export const uncountedOrderStatuses: readonly OrderStatus[] = ['待确认', '已取消'];
+/** 订单算不算数：不是待确认、已取消 */
+export const effectiveOrder = (order: { status: string }) => !uncountedOrderStatuses.some((s) => s === order.status);
+/** 订单还能不能送（还在进行）：有效、还没发完 */
+export const deliverableOrder = (order: { status: string }) => effectiveOrder(order) && order.status !== '已发货';
+/** 订单是不是已结束：已发货或已取消 */
+export const closedOrder = (order: { status: string }) => order.status === '已发货' || order.status === '已取消';
 export function orderDisplayStatus(order: { status: string; shippingProgress?: string }) {
   // 一万个先发了五千，剩下的不管在做还是做好了，用户要先看到“发了一半”。
-  return order.shippingProgress === '部分发货' && !['待确认', '已取消', '已发货'].includes(order.status)
+  return order.shippingProgress === '部分发货' && deliverableOrder(order)
     ? '部分发货'
     : order.status;
 }
@@ -102,7 +116,7 @@ export const productSchema = z
     length: dimensionValueSchema,
     width: dimensionValueSchema,
     height: dimensionValueSchema,
-    dimensionUnit: z.enum(['mm', 'cm'], { error: '尺寸单位只能选毫米或厘米' }).nullable().optional(),
+    dimensionUnit: dimensionUnitSchema.nullable().optional(),
     dimensionUnitRaw: optionalText(100),
     material: blankText(100).default(''),
     flute: blankText(TEXT_MAX.flute).default(''),
@@ -113,12 +127,7 @@ export const productSchema = z
     /** 附属于哪个产品（比如小箱套在大箱里）。只是显示上归在一起，订单、价格、库存都各算各的；null 是取消附属 */
     parentProductId: chosenId('附属于哪个产品', true).nullable().optional(),
   })
-  .refine(
-    (p) =>
-      p.dimensionUnit !== 'cm' ||
-      [p.length, p.width, p.height].every((v) => v === null || v <= MAX_CM_DIMENSION),
-    { message: '厘米尺寸不能超过1000cm（等于10000mm）', path: ['dimensionUnit'] },
-  );
+  .refine(withinCmLimit, cmLimitIssue);
 export const costSchema = z.object({
   material: money,
   processing: money,
@@ -181,7 +190,7 @@ const orderFields = z.object({
     taxRate: optionalText(TEXT_MAX.taxRate),
     taxMode: optionalText(TEXT_MAX.taxMode),
     terms: optionalText(TEXT_MAX.terms),
-    roundingPolicy: z.enum(roundingPolicies, { error: '请选择金额规则' }).optional(),
+    roundingPolicy: z.enum(roundingPolicies, { error: '请选择金额结算' }).optional(),
   });
 export const orderSchema = orderFields
   .refine((v) => v.deliveryDate >= v.orderDate, {
@@ -207,7 +216,7 @@ export const orderSchema = orderFields
     (v) =>
       v.roundingPolicy === 'half-up-cent' || checkedTotal(v.lines)?.hasFractionalCent !== true,
     {
-      message: '精确金额包含不足一分的尾数，请明确确认整单四舍五入到分的结算规则',
+      message: '精确金额包含不足一分的尾数，请在金额结算里选“' + roundingPolicyLabels['half-up-cent'] + '”',
       path: ['roundingPolicy'],
     },
   );
@@ -228,35 +237,39 @@ export const today = (now = new Date()) =>
     month: '2-digit',
     day: '2-digit',
   }).format(now);
-/** 规格比较只看内容：空格、分隔符、大小写、× 和 x 的写法都不算差别。 */
+/** 规格比较只看内容：空格、斜杠、逗号、分号、顿号、大小写、× 和 x 的写法都不算差别。 */
 const specificationDimensions =
   /(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)(?:\s*[x×*]\s*(\d+(?:\.\d+)?))?\s*(mm|cm|m|毫米|厘米|米)?/i;
 const specificationScale: Record<string, number> = { mm: 1, 毫米: 1, cm: 10, 厘米: 10, m: 1000, 米: 1000 };
+/** × 和 * 都写成 x，转小写（去掉哪些分隔符由调用处定） */
+const sameNotation = (text: string) => text.replaceAll('×', 'x').replaceAll('*', 'x').toLowerCase();
+/**
+ * 比较两段规格时只去掉空格、斜杠、逗号、分号、顿号；横线、下划线、破折号要留着：它们可能是编号的一部分，
+ * 去掉会把不同规格算成同一个（“1-12”和“11-2”、“A-11”和“A1-1”）。
+ */
+const plainSpecification = (text: string) => sameNotation(text.replace(/[\s/／,，;；、]+/g, ''));
+/**
+ * 订单明细里真正要比对的规格：规格只是重复了产品名称（没写材质、楞型等）时不算规格，送货不拿它和库存比对。
+ * 写了别的内容的照常比对，不同规格的货不混着发。这里只认“是不是照抄了品名”，横线、下划线、破折号也不算差别。
+ */
+export function lineSpecification(line: { specification?: string | null; productName?: string | null }) {
+  const plain = (text: unknown) => sameNotation(String(text ?? '').replace(/[\s/／,，;；、\-_—]+/g, ''));
+  const spec = String(line.specification ?? '').trim();
+  return spec && plain(spec) !== plain(line.productName) ? spec : '';
+}
 /**
  * 订单上的规格是客户写的（71*41*44），成品库存品的规格是系统生成的（71×41×44 / 双瓦楞 / 加工要求）。
  * 尺寸相同就比附加内容，一边没写不算不同；一边没写单位时只比数字，不换算。
  */
-/**
- * 订单明细里真正要比对的规格：规格只是重复了产品名称（没写材质、楞型等）时不算规格，送货不拿它和库存比对。
- * 写了别的内容的照常比对，不同规格的货不混着发。
- */
-export function lineSpecification(line: { specification?: string | null; productName?: string | null }) {
-  const plain = (text: unknown) =>
-    String(text ?? '').replace(/[\s/／,，;；、\-_—]+/g, '').replaceAll('×', 'x').replaceAll('*', 'x').toLowerCase();
-  const spec = String(line.specification ?? '').trim();
-  return spec && plain(spec) !== plain(line.productName) ? spec : '';
-}
 export function sameSpecification(a: string, b: string) {
-  const plain = (text: string) =>
-    text.replace(/[\s/／,，;；、]+/g, '').replaceAll('×', 'x').replaceAll('*', 'x').toLowerCase();
   const da = specificationDimensions.exec(a),
     db = specificationDimensions.exec(b);
-  if (!da || !db) return plain(a) === plain(b);
+  if (!da || !db) return plainSpecification(a) === plainSpecification(b);
   const scale = (m: RegExpExecArray) => (m[4] && da[4] && db[4] ? specificationScale[m[4].toLowerCase()] : 1);
   const numbers = (m: RegExpExecArray) =>
     [m[1], m[2], m[3]].filter(Boolean).map((n) => Math.round(Number(n) * scale(m) * 1000));
   if (numbers(da).join() !== numbers(db).join()) return false;
-  const rest = (text: string, m: RegExpExecArray) => plain(text.replace(m[0], ''));
+  const rest = (text: string, m: RegExpExecArray) => plainSpecification(text.replace(m[0], ''));
   const ra = rest(a, da),
     rb = rest(b, db);
   return !ra || !rb || ra.includes(rb) || rb.includes(ra);

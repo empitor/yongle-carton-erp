@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PRICE_DECIMALS, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
 import { chosenId, dateSchema, exactPriceSchema, customerSchema } from '../core/index.js';
-import { MAX_CM_DIMENSION, dimensionValueSchema, specification } from '../core/index.js';
+import { cmLimitIssue, dimensionUnitSchema, priceBases, dimensionValueSchema, specification, withinCmLimit } from '../core/index.js';
 import { MONEY_DECIMALS, NOTE_MAX_LENGTH, UNIT_MAX_LENGTH } from './limits.js';
 /** 楞型最多多少字 */
 const FLUTE_MAX_LENGTH = 50;
@@ -57,10 +57,6 @@ const nullableDate = z
 export const supplierSchema = customerSchema.extend({
   name: z.string().trim().max(100).min(1, '请填写供应商名称'),
 });
-/** 库存品和采购明细的尺寸按厘米填时不能超过 MAX_CM_DIMENSION（1000cm） */
-const withinCmLimit = (v: { dimensionUnit: 'mm' | 'cm' | null; length: number | null; width: number | null; height: number | null }) =>
-  v.dimensionUnit !== 'cm' || [v.length, v.width, v.height].every((n) => n === null || n <= MAX_CM_DIMENSION);
-const cmLimitIssue = { message: '厘米尺寸不能超过' + MAX_CM_DIMENSION + 'cm', path: ['dimensionUnit'] };
 export const stockItemSchema = z
   .object({
     name: z.string().trim().min(1, '请填写库存品名称').max(100),
@@ -71,7 +67,7 @@ export const stockItemSchema = z
     length: optionalSize,
     width: optionalSize,
     height: optionalSize,
-    dimensionUnit: z.enum(['mm', 'cm'], { error: '尺寸单位只能选毫米或厘米' }).nullable().default(null),
+    dimensionUnit: dimensionUnitSchema.nullable().default(null),
     material: txt(100),
     flute: txt(FLUTE_MAX_LENGTH),
     notes: txt(1000),
@@ -95,7 +91,9 @@ export const purchaseLineSchema = z
     /** 这一行是给哪张客户订单订的料；不填就跟单头的关联订单走。一张采购单可以给几张订单订料。 */
     customerOrderId: optionalId('客户订单'),
     quantity: positiveQuantity,
-    priceBasis: z.enum(['area', 'quantity'], { error: '请选择计价依据（按平方米或按张）' }).default('quantity'),
+    // 计价方式不默认（用户定的）：没说就不让建，按张、按平方米算出来的钱差得多，留给人选
+    // 提示前面会带上栏目名（“明细第1项的计价方式：请选择按平方米还是按张”），这里不再写“计价方式”
+    priceBasis: z.enum(priceBases, { error: '请选择按平方米还是按张' }),
     unitPrice: z
       .preprocess(
         (v) =>
@@ -110,7 +108,7 @@ export const purchaseLineSchema = z
   })
   .refine(withinCmLimit, cmLimitIssue);
 /**
- * 采购明细存进 document 列的内容：名称、单位、规格说明、尺寸、材质、楞型、备注、计价依据、单价；
+ * 采购明细存进 document 列的内容：名称、单位、规格说明、尺寸、材质、楞型、备注、计价方式、单价；
  * 库存品、数量、关联订单存在列里。多出的键算对不上。采购库存写读、财务按表读都按这一份。
  */
 export const purchaseLineDocumentSchema = z

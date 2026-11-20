@@ -1,6 +1,6 @@
-import { flowStatusText, purchaseState, specLine } from '../../shared/business/index';
-import { orderDisplayStatus } from '../../shared/core/index';
-import { isJsonList, isJsonObject, textOf, type Json, type JsonObject, type ManagedModule } from './record-types';
+import { flowStatusText, isFlowKind, purchaseState, specLine } from '../../shared/business/index';
+import { orderDisplayStatus, type ApiJson } from '../../shared/core/index';
+import { isJsonList, isJsonObject, textOf, type JsonObject, type ManagedModule } from './record-types';
 // 数据管理列表和编辑窗里记录怎么叫：状态、单号或名称、关联字段的候选。
 /** 可搜索选择器的一项：label 是名称或单号，hint 是名称后面的小字（规格、客户、日期这类能认出来的信息） */
 export type RefOption = { value: string; label: string; hint?: string; keywords?: string };
@@ -18,13 +18,12 @@ export type RecordRefs = {
   purchaseLines?: RefOption[];
   orderLines?: Record<string, RefOption[]>;
 };
-export const flowModules = ['arrival', 'task', 'production', 'delivery'];
 /**
  * 列表“状态”列：和各页面同一套叫法。单据按类型叫（待送货、待入库、已入库、已撤销、已更正……，不说“草稿”），
  * 采购单是待订货、待到货、已到齐，订单发了一部分的是“部分发货”；档案没有状态，写“正常”。
  */
 export function recordStatus(module: string, record: JsonObject): string {
-  if (flowModules.includes(module)) return flowStatusText({ ...record, kind: textOf(record.kind) || module });
+  if (isFlowKind(module)) return flowStatusText({ ...record, kind: textOf(record.kind) || module });
   if (module === 'purchases') return purchaseState(record);
   if (module === 'orders')
     return orderDisplayStatus({ status: textOf(record.status), shippingProgress: textOf(record.shippingProgress) });
@@ -48,9 +47,9 @@ export const refModules: Record<string, readonly ManagedModule[]> = {
 const hintOf = (...parts: unknown[]) =>
   parts.filter((p) => p != null && p !== '' && p !== false).join(' · ') || undefined;
 /** 数量后面接上单位：“10 只” */
-const amount = (quantity: Json | undefined, unit: Json | undefined) => textOf(quantity) + ' ' + textOf(unit);
+const amount = (quantity: ApiJson | undefined, unit: ApiJson | undefined) => textOf(quantity) + ' ' + textOf(unit);
 /** 明细：一组对象（不是数组的当没有明细） */
-const linesOf = (v: Json | undefined) => (isJsonList(v) ? v.filter(isJsonObject) : []);
+const linesOf = (v: ApiJson | undefined) => (isJsonList(v) ? v.filter(isJsonObject) : []);
 const archived = (r: JsonObject) => (r.archived ? '已归档' : '');
 const option = (r: JsonObject, label: string, hint?: string): RefOption => ({ value: String(r.id), label, hint });
 const parties = (rows: readonly JsonObject[] = []) =>

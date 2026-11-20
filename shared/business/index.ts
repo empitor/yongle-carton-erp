@@ -1,7 +1,7 @@
 // 对外接口：别的模块只能从这里引用这个模块
 export { arrivalDraftIssues, arrivalTotals, batchKeysFor, blankArrivalLine, recognizedArrivalDraft } from './arrival-draft.js';
 export { arrivalQuantities, arrivalQuerySchema, arrivalTimeSchema } from './arrival.js';
-export { inventoryMetrics, matchesOperationalRecord, matchesProduct, orderMetrics, pendingOrder, pendingPurchase, productIncomplete, productMetrics, purchaseMetrics, summarizeMovements } from './business-metrics.js';
+export { inventoryMetrics, matchesOperationalRecord, matchesProduct, operationalSearchText, orderMetrics, pendingPurchase, productIncomplete, productMetrics, purchaseMetrics, summarizeMovements } from './business-metrics.js';
 export type { MovementSummary } from './business-metrics.js';
 export { deletesDocuments, deletionMeasure, deletionTableLabel, inventoryOptions, keepStockScope, movementWord, stockWord } from './deletion-words.js';
 export { deletionHeadline, deletionListedRow, deletionModuleTable, deletionSummaryLabel, deletionTally } from './deletion-headline.js';
@@ -9,7 +9,7 @@ export type { DeletionImpactRow } from './deletion-headline.js';
 export type { Directions } from './deletion-words.js';
 export { dataManagementCommandSchema, dataManagementFieldName, dataManagementModules, dataManagementNames, dataManagementNoCreate } from './data-management-modules.js';
 export { dataManagementTemplate } from './data-management-templates.js';
-export { amountText, priceText, sizeText, specLine, taxText } from './display-text.js';
+export { UNPRICED_TEXT, amountText, priceText, sizeText, specLine, taxText } from './display-text.js';
 export { ARRIVAL_HISTORY_TITLE, arrivalProgressText, fieldNames, purchaseState, purchaseStatusLabel, purchaseStatusOptions, recordNames } from './labels.js';
 export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementTypeLabel, movementTypeOf, movementTypes } from './movement-filters.js';
 export type { MovementFilters } from './movement-filters.js';
@@ -26,7 +26,7 @@ export { arrivalLineValue, deliveryLineValue, documentValueCents } from './docum
 export { arrivalCorrectionPreviewSchema, correctionCommit, deliveryCorrectionPreviewSchema, productionCorrectionPreviewSchema } from './flow-correction.js';
 export { flowDocumentContent, flowDocumentOfView, flowDocumentSchema, flowViewSchema } from './flow-document.js';
 export type { FlowDocument, FlowDocuments, FlowDocView, FlowRow } from './flow-document.js';
-export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusLabel, flowStatusText, pendingLabels, productionSchema, purchaseLineAmount, sheetArea, taskSchema } from './physical-flow.js';
+export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusLabel, flowStatusText, isFlowKind, pendingLabels, productionSchema, purchaseLineAmount, sheetArea, taskSchema } from './physical-flow.js';
 export type { FlowKind } from './physical-flow.js';
 export { activeDoc, flowStatusChoices, matchesFlowStatus } from './physical-flow.js';
 export { descendantIds, nestByFamily } from './product-family.js';
@@ -50,7 +50,7 @@ export type { StockBatchesResponse, StockBatchView } from './stock-batches.js';
 export { deliveryBlockers, deliveryCandidates, pendingByOrderLine, planOrderDelivery, planStockDelivery, selectedStockUnits, specificationMismatch, specificationMismatchText, stockByProduct, waitingCustomers } from './warehouse-delivery.js';
 export type { Listed, RecordsApi } from './records-api.js';
 export { customerQuerySchema, orderQuerySchema, productQuerySchema } from './record-queries.js';
-export { DELETION_MAX_RECORDS, deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema } from './deletion-request.js';
+export { DELETION_MAX_RECORDS, deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema, inventoryPolicies } from './deletion-request.js';
 export type { DeletionApi } from './deletion-api.js';
 export { markRemoveSchema, markSourceKinds, markUpdateSchema } from './mark-inputs.js';
 export type { MarksApi } from './mark-api.js';

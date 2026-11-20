@@ -8,7 +8,8 @@ import type { Touched } from './card-rehearsal.js';
 import { aiBatch } from './order-batch.js';
 import { assistantModules, recordRow, type Module } from './modules.js';
 import { flowKindOf, namedModule } from './card-lines.js';
-import { asList, field, isRecord } from '../chat/result-fields.js';
+import { isRecord } from '../../../shared/core/index.js';
+import { asList, field } from '../chat/result-fields.js';
 
 export type Target = { module: string; id: number; assistant?: Module };
 

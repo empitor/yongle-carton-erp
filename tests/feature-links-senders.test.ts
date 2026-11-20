@@ -1,7 +1,7 @@
 /**
  * 一件事一条链路（AGENTS.md）的自动检查之二：一个动作一个提交处。同一个写地址在 src/ 里只许一个文件发
  * （各模块的 *-api.ts 这类接口文件），两个窗口要办同一件事就共用那个函数。地址怎么取见 tests/module-boundaries-api.ts，
- * 怎么算“发”见 tests/feature-links-scan.ts 的 writeSenders。整块待登记的前缀（feature-links-pending.ts）不查。
+ * 怎么算“发”见 tests/feature-links-scan.ts 的 writeSenders。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,13 +10,12 @@ import { all } from './module-map.js';
 import { apiScanner } from './module-boundaries-api.js';
 import { serverRouteList } from './server-routes.js';
 import { writeSenders } from './feature-links-scan.js';
-import { pendingWritePrefixes } from './feature-links-pending.js';
 
 /** 确实要两个文件发同一个写地址的：地址、文件、为什么。用不上了测试会提醒删 */
 const sharedSenders: { route: string; files: string[]; why: string }[] = [];
 
-const routes = serverRouteList().filter((r) => !pendingWritePrefixes.some((p) => r.path.startsWith(p.prefix + '/')));
-const api = apiScanner([...new Set(serverRouteList().map((r) => '/' + r.path.split('/')[1]))]);
+const routes = serverRouteList();
+const api = apiScanner([...new Set(routes.map((r) => '/' + r.path.split('/')[1]))]);
 
 const group = (senders: { route: string; file: string; at: string }[]) => {
   const by = new Map<string, Map<string, string[]>>();

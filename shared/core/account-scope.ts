@@ -1,13 +1,3 @@
-/** 财务账号的几种权限。超级管理员默认全有。 */
-export const financePermissions = [
-  'finance:view',
-  'finance:edit',
-  'finance:approve',
-  'finance:cash',
-  'finance:close',
-] as const;
-export type FinancePermission = (typeof financePermissions)[number];
-
 /**
  * 纯财务账号（目前就是“出纳”级别）：有财务权限、没有业务编辑权限、不是超级管理员。
  * 按常见做法只看财务：收付款、银行、往来、凭证报表，看不到订单、客户文件和收件箱。

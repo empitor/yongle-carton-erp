@@ -1,6 +1,7 @@
 import { MoreMenu } from '../ui/index';
 import { StatusChip } from '../ui/index';
-import { flowModules, recordLabel, recordStatus } from './record-refs';
+import { isFlowKind } from '../../shared/business/index';
+import { recordLabel, recordStatus } from './record-refs';
 import { textOf, type DataAction, type ListedRecord } from './record-types';
 
 
@@ -126,7 +127,7 @@ export default function RecordTable({
                     </>
                   ) : (
                     <>
-                      {flowModules.includes(module) && r.record.status === 'draft' && (
+                      {isFlowKind(module) && r.record.status === 'draft' && (
                         <button
                           className="secondary"
                           disabled={busy}

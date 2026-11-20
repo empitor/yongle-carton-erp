@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import type { RecordEntity } from '../../shared/business/index';
+import { deliverableOrder } from '../../shared/core/index';
 import type { RecordAction } from '../ui/index';
 import { newOrderFrom, newPurchaseFrom } from '../recordkit/launch';
 import { notify } from '../ui/index';
@@ -21,7 +22,7 @@ const notArchived = (r: { archived?: boolean }) => !r.archived;
 const orderBulk: Planner<RecordRowOf['orders']> = (rows, open) => {
   const live = rows.filter(notArchived),
     ids = rows.map((r) => r.id);
-  const workable = live.filter((r) => !['待确认', '已取消', '已发货'].includes(r.status));
+  const workable = live.filter(deliverableOrder);
   return {
     primary: { label: '安排送货（' + rows.length + ' 张）', disabled: !workable.length, onClick: () => open('delivery') },
     secondary: { label: '安排生产', disabled: !workable.length, onClick: () => open('task') },

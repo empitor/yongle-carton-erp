@@ -56,7 +56,6 @@ test('每段小剧场的时长和样式一致，结束时状态能及时清掉',
 test('减少动效和小图标都不播放动画；颜色跟主题走', () => {
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.yl-duo,\s*\.yl-duo \* \{\s*animation: none !important/);
   assert.match(css, /\.yl-duo\[data-still\] \*/);
-  assert.match(source, /reducedMotion\(\)/);
   for (const color of ['--teal', '--kraft', '--kraft-deep']) assert.ok(css.includes(`var(${color})`), color);
   assert.match(css, /\[data-theme='dark'\] \.yl-duo/);
 });

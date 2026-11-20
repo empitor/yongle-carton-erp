@@ -1,6 +1,7 @@
 import { FormSection, FormField } from '../../ui/index';
 import { FinCheck, UnitInput, taxModes } from '../fields';
-import { num, optionOf, termTypes, type Interest, type TermsForm } from './terms-form';
+import { termTypes } from '../../../shared/finance/index';
+import { num, optionOf, type Interest, type TermsForm } from './terms-form';
 
 /* 账期窗口里的几节：账期方式、税率和授信、压款利息。现结优惠和分期在 TermsLines.tsx。 */
 

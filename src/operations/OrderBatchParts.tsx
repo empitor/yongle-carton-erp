@@ -3,7 +3,7 @@ import { priceText, type OrderBatchDraft } from '../../shared/business/index';
 import { documentFormats, type BusinessForm, type DocumentFormat, type DocumentTemplate } from '../../shared/documents/index';
 import { EditorFooter, Hint, MoreMenu, Section } from '../ui/index';
 import BusinessFormPreview from '../documents/BusinessFormPreview';
-import { WordFilePreview, type WordFile } from '../documents/export-file';
+import { WordFilePreview, afterSaved, type WordFile } from '../documents/export-file';
 import OrderSheetRow from './OrderSheetRow';
 import type { RowDrafts } from './BatchSchedule';
 
@@ -31,7 +31,7 @@ export function OrderFooter(o: FooterProps) {
   const blocked = o.busy || !o.hasDraft || !!o.problem;
   return (
     <EditorFooter
-      note={o.previewing ? '这是导出后的样子。' : o.ordered ? '改过的到货安排一起保存。' : '下载完成后变成待到货。'}
+      note={o.previewing ? '这是导出后的样子。' : o.ordered ? '改过的到货安排一起保存。' : afterSaved.ordered + '。'}
     >
       <button type="button" className="secondary" disabled={o.busy && !o.hasDraft} onClick={o.close}>
         取消

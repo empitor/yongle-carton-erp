@@ -1,6 +1,7 @@
 import type { PurchaseView } from '../../shared/business/index';
 import { businessStatusTone } from '../recordkit/record-meta';
 import { StatusChip } from '../ui/index';
+import { flowSourceFileUrl } from '../flow/flow-api';
 
 /** 采购单的一条到货记录（一张到货单）：挂在这张采购单上的行、更正关系、原件 */
 type Receipt = PurchaseView['receipts'][number];
@@ -60,7 +61,7 @@ function ReceiptState({ r, receipts }: { r: Receipt; receipts: readonly Receipt[
         </details>
       )}
       {r.sourceId && (
-        <a className="sub" href={'/api/flow/sources/' + r.sourceId + '/file'} target="_blank" rel="noreferrer">
+        <a className="sub" href={flowSourceFileUrl(r.sourceId)} target="_blank" rel="noreferrer">
           查看原始文件
         </a>
       )}

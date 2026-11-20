@@ -1,47 +1,28 @@
-// 样式的模块边界（AGENTS.md“模块”）：每个模块的样式放在自己的目录，只管自己的类名。
+// 样式的模块边界（AGENTS.md“模块”）：每个模块的样式放在自己的目录，只管自己的类名。模块、能用谁、分层都读 tests/module-map.ts。
 // 类名归哪个模块，看哪个模块的组件代码写出了它（className 里的字面量、classList），几个模块都写的归它们都能用的那个模块；
-// 全站公共的按钮变体、提示、表单小件（PUBLIC_CLASSES）归基础。模块的先后和 tests/module-boundaries.test.ts 的前端部分一致。
+// 全站公共的按钮变体、提示、表单小件（PUBLIC_CLASSES）归基础。
 // 一条选择器：
 // - 用到的类名只能是本模块的、或本模块能用的模块的（不往上、不往旁边改别人的类）；
 // - 除了基础，至少有一个本模块自己的类名（不在自己的文件里改别的模块的东西）；
-// - 类名在组件代码里都找得到（找不到的规则就是没人用的，删掉）。
+// - 分了层的模块（前端业务四层）里，只能写本层和下层的类名（类名的层按写它的最低一层目录算）；现有越层的在 tests/layer-backlog.ts，只许减少；
+// - 类名要“有人用”：组件代码的 className、classList 或字符串字面量里出现过（找不到的规则就是没人用的，删掉）。
 // 确实要跨模块的写进 exceptions，写明原因。
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, posix, relative, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import ts from 'typescript';
+import { compareBacklog, cssLayerBacklog } from './layer-backlog.js';
+import { all, canUse, files, layerOf, matchOf, ownerModule, scriptKind, type Rule } from './module-map.js';
 
-type Mod = '基础' | '业务' | '财务' | '识别' | '管理' | '助手' | '装配';
-const dirs: [prefix: string, mod: Mod][] = [
-  ['src/ui/', '基础'],
-  ...['records', 'recordkit', 'flow', 'warehouse', 'operations', 'editors', 'marks', 'documents'].map(
-    (d): [string, Mod] => ['src/' + d + '/', '业务'],
-  ),
-  ['src/finance/', '财务'],
-  ['src/import/', '识别'],
-  ['src/admin/', '管理'],
-  ['src/assistant/', '助手'],
-  ['src/mobile/', '装配'],
-  ['src/', '装配'],
-];
-const uses: Record<Mod, Mod[]> = {
-  基础: [],
-  业务: ['基础'],
-  财务: ['基础'],
-  识别: ['基础', '业务'],
-  管理: ['基础', '业务'],
-  助手: ['基础', '业务'],
-  装配: ['基础', '业务', '财务', '识别', '管理', '助手'],
-};
 /** 全站公共的类名：哪个模块写都归基础。动态拼出来的（tone-success、span-2 这种）按前缀算。 */
 const PUBLIC_CLASSES = ['danger', 'link', 'link-button', 'line-card', 'form-inline', 'form-error', 'form-alert', 'sr-only', 'button', 'empty'];
 const PUBLIC_PREFIXES = ['tone-', 'span-', 'cols-', 'editor-', 'col-'];
-/** 组件里拼出来的类名（'ga-' + 角色、'paper-' + 纸张这种）：后半截是代码里出现过的词就算找得到，归拼它的模块 */
-const DYNAMIC_PREFIXES: [prefix: string, mod: Mod][] = [
-  ['ga-yield-', '助手'],
-  ['ga-resize-', '助手'],
-  ['ga-', '助手'],
-  ['paper-', '业务'],
+/** 组件里拼出来的类名：后半截是代码字符串里出现过的词就算找得到，归拼它的那个目录 */
+const DYNAMIC_PREFIXES: [prefix: string, dir: string][] = [
+  ['ga-yield-', 'src/assistant/'], // 'ga-yield-' + 让位的方向（小人按钮）
+  ['ga-resize-', 'src/assistant/'], // 'ga-resize-' + 拖动的边（助手窗口）
+  ['ga-', 'src/assistant/'], // 'ga-' + 消息的角色（助手消息）
+  ['paper-', 'src/documents/'], // 'paper-' + 纸张、方向（单据纸样预览）
 ];
 
 /** 登记过的跨模块写法：样式文件 + 选择器 → 原因 */
@@ -60,25 +41,17 @@ export const exceptions: { file: string; selector: string; why: string }[] = [
   ),
 ];
 
-const modOf = (f: string) => {
-  const found = dirs.find(([p]) => f.startsWith(p));
-  if (!found) throw new Error(f + ' 不在登记的任何模块目录里');
-  return found[1];
-};
-const canUse = (a: Mod, b: Mod) => a === b || uses[a].includes(b);
-const walk = (dir: string): string[] =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? walk(join(dir, e.name)) : [relative('.', join(dir, e.name)).split(sep).join(posix.sep)],
-  );
-const files = walk('src');
-const code = files.filter((f) => /\.tsx?$/.test(f));
-const styles = files.filter((f) => f.endsWith('.css'));
-// shared/ 里的词表（单据状态、纸张规格）会拼进类名：只用来判断“找得到”，不决定归属
-const vocabWords = new Set(
-  walk('shared')
-    .filter((f) => f.endsWith('.ts'))
-    .flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/[A-Za-z_][\w-]*/g)].map((m) => m[0])),
-);
+/**
+ * 收紧“类名有人用”（只认 className、classList、字符串字面量）后新报出来、还没定怎么办的规则：只许减少。
+ * 删掉规则、或查明确实有人用并补上认法后，从这里删。
+ */
+export const pendingRules: { file: string; selector: string; why: string }[] = [
+  {
+    file: 'src/ui/elements.css',
+    selector: '.end',
+    why: '组件代码没有写出 end 这个类名，只在业务页面的日期地址参数（\'end\'）里出现过这个词，于是被算成业务的类名；样式比对里也从没命中，看起来没人用，待定要不要删',
+  },
+];
 
 /** 组件代码写出的类名：className="…"、className={…} 里的字面量、classList.xxx('…') */
 function writtenClasses(text: string) {
@@ -99,32 +72,54 @@ function writtenClasses(text: string) {
   for (const m of text.matchAll(/classList\.\w+\(\s*'([\w-]+)'/g)) out.add(m[1]);
   return out;
 }
-const written = new Map<string, Set<string>>();
-const words = new Map<string, Set<string>>();
-const add = (map: Map<string, Set<string>>, k: string, f: string) => {
-  const files = map.get(k) ?? new Set<string>();
-  files.add(f);
-  map.set(k, files);
-};
-for (const f of code) {
-  // main.tsx 引样式的那几行不算（文件名不是类名）
-  const text = readFileSync(f, 'utf8').replace(/^import '[^']+\.css';$/gm, '');
-  for (const c of writtenClasses(text)) add(written, c, f);
-  for (const m of text.matchAll(/[A-Za-z_][\w-]*/g)) add(words, m[0], f);
+/** 代码里字符串字面量（含模板字符串的固定部分、JSX 属性值）里的词；变量名、属性名这些标识符不算 */
+function literalWords(f: string, text: string) {
+  const out = new Set<string>();
+  const visit = (n: ts.Node) => {
+    if (ts.isStringLiteralLike(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n))
+      for (const m of n.text.matchAll(/[A-Za-z_][\w-]*/g)) out.add(m[0]);
+    ts.forEachChild(n, visit);
+  };
+  visit(ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true, scriptKind(f)));
+  return out;
 }
-const known = (w: string) => words.has(w) || vocabWords.has(w) || /^\d+$/.test(w);
-/** 类名归哪个模块；只在 shared 词表里出现的是“值”（状态名之类），不归模块；都找不到返回 null */
-function owner(c: string): Mod | '值' | null {
-  if (PUBLIC_CLASSES.includes(c) || PUBLIC_PREFIXES.some((p) => c.startsWith(p))) return '基础';
-  const users = written.get(c) || words.get(c);
-  if (!users) {
-    const p = DYNAMIC_PREFIXES.find(([x]) => c.startsWith(x) && known(c.slice(x.length)));
-    if (p) return p[1];
-    return vocabWords.has(c) ? '值' : null;
+
+/** 类名索引：written 是 className、classList 写出的类名 → 文件；words 是字符串字面量里的词 → 文件；vocab 是 shared/ 词表里的词 */
+type ClassIndex = { written: Map<string, Set<string>>; words: Map<string, Set<string>>; vocab: Set<string> };
+function classIndex(code: [file: string, text: string][], shared: [file: string, text: string][]): ClassIndex {
+  const written = new Map<string, Set<string>>();
+  const words = new Map<string, Set<string>>();
+  const add = (map: Map<string, Set<string>>, k: string, f: string) => map.set(k, (map.get(k) ?? new Set<string>()).add(f));
+  for (const [f, raw] of code) {
+    // main.tsx 引样式的那几行不算（文件名不是类名）
+    const text = raw.replace(/^import '[^']+\.css';$/gm, '');
+    for (const c of writtenClasses(text)) add(written, c, f);
+    for (const w of literalWords(f, text)) add(words, w, f);
   }
-  const mods = [...new Set([...users].map(modOf))];
-  return mods.find((x) => mods.every((y) => canUse(y, x))) ?? '基础';
+  // shared/ 里的词表（单据状态、纸张规格）会拼进类名：只用来判断“找得到”，不决定归属
+  return { written, words, vocab: new Set(shared.flatMap(([f, text]) => [...literalWords(f, text)])) };
 }
+
+const base = ownerModule('src/ui/');
+const known = (ix: ClassIndex, w: string) => ix.words.has(w) || ix.vocab.has(w) || /^\d+$/.test(w);
+/** 写出类名的文件（动态拼的算拼它的目录）；公共类名、只在词表里的、找不到的是空 */
+function writersOf(ix: ClassIndex, c: string): string[] {
+  const users = ix.written.get(c) ?? ix.words.get(c);
+  if (users) return [...users];
+  const p = DYNAMIC_PREFIXES.find(([x]) => c.startsWith(x) && known(ix, c.slice(x.length)));
+  return p ? [p[1]] : [];
+}
+/** 类名归哪个模块；只在 shared 词表里出现的是“值”（状态名之类），不归模块；都找不到返回 null */
+function owner(ix: ClassIndex, c: string): Rule | '值' | null {
+  if (PUBLIC_CLASSES.includes(c) || PUBLIC_PREFIXES.some((p) => c.startsWith(p))) return base;
+  const users = writersOf(ix, c);
+  if (!users.length) return ix.vocab.has(c) ? '值' : null;
+  const mods = [...new Set(users.map(ownerModule))];
+  return mods.find((x) => mods.every((y) => y === x || canUse(y, x))) ?? base;
+}
+/** 类名在所属模块的第几层：写它的、在这个模块里的文件所在的最低一层 */
+const classLayer = (ix: ClassIndex, c: string, mod: Rule) =>
+  Math.min(...writersOf(ix, c).flatMap((f) => layerOf(f, mod) ?? []));
 
 /** 样式文件里的选择器（去掉注释，@media 等里面的也算，@keyframes 里的不算） */
 function selectors(css: string) {
@@ -170,41 +165,110 @@ const classesIn = (sel: string) => [...sel.replace(/\[[^\]]*\]/g, '').matchAll(/
 /** :not() 里的类名不存在也照样匹配，不要求找得到 */
 const outsideNot = (sel: string) => classesIn(sel.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, ''));
 
-function violations() {
+/** 一条选择器在模块这一级的问题：类名找不到、用了不能用的模块的类名、没有本模块自己的类名 */
+function moduleProblems(ix: ClassIndex, f: string, sel: string) {
+  const mod = ownerModule(f);
   const out: string[] = [];
-  for (const f of styles) {
-    const mod = modOf(f);
-    for (const sel of selectors(readFileSync(f, 'utf8'))) {
-      if (exceptions.some((e) => e.file === f && e.selector === sel)) continue;
-      const cls = classesIn(sel);
-      const missing = outsideNot(sel).filter((c) => !owner(c));
-      if (missing.length) out.push(f + '：' + sel + '（组件代码里找不到 ' + missing.join('、') + '）');
-      const foreign = cls.filter((c) => {
-        const o = owner(c);
-        return o !== null && o !== '值' && !canUse(mod, o);
-      });
-      if (foreign.length)
-        out.push(f + '：' + sel + '（' + foreign.map((c) => c + ' 归' + owner(c)).join('、') + '，' + mod + '不能用）');
-      else if (mod !== '基础' && !missing.length && !cls.some((c) => owner(c) === mod))
-        out.push(f + '：' + sel + '（没有' + mod + '自己的类名，改的是别的模块的东西）');
-    }
-  }
+  const cls = classesIn(sel);
+  const missing = outsideNot(sel).filter((c) => !owner(ix, c));
+  if (missing.length) out.push(f + '：' + sel + '（组件代码里找不到 ' + missing.join('、') + '，没人用就删掉这条规则）');
+  const foreign = cls.flatMap((c) => {
+    const o = owner(ix, c);
+    return o !== null && o !== '值' && o !== mod && !canUse(mod, o) ? [c + ' 归' + o.name] : [];
+  });
+  if (foreign.length) out.push(f + '：' + sel + '（' + foreign.join('、') + '，' + mod.name + '不能用，规则搬到类名主人的样式里）');
+  else if (mod !== base && !missing.length && !cls.some((c) => owner(ix, c) === mod))
+    out.push(f + '：' + sel + '（没有' + mod.name + '自己的类名，改的是别的模块的东西）');
   return out;
 }
 
+/** 一条选择器在分层这一级的问题：分了层的模块里，写了比样式文件所在层更高的类名；没问题返回 null */
+function layerProblem(ix: ClassIndex, f: string, sel: string) {
+  const mod = ownerModule(f);
+  const at = layerOf(f, mod);
+  if (at === undefined || !mod.layers) return null;
+  const upper = classesIn(sel).flatMap((c) => {
+    const l = owner(ix, c) === mod ? classLayer(ix, c, mod) : -1;
+    return l > at ? [c + ' 归' + mod.layers?.[l]?.name] : [];
+  });
+  if (!upper.length) return null;
+  return f + '：' + sel + '（' + upper.join('、') + '，' + mod.layers[at]?.name + '的样式只能写本层和下层的类名，规则搬到类名主人所在目录的样式里）';
+}
+
+const read = (fs: string[]) => fs.map((f): [string, string] => [f, readFileSync(f, 'utf8')]);
+const index = classIndex(read(all.filter((f) => f.startsWith('src/'))), read(all.filter((f) => f.startsWith('shared/'))));
+const styles = files('src').filter((f) => f.endsWith('.css'));
+const rules = styles.flatMap((f) => [...new Set(selectors(readFileSync(f, 'utf8')))].map((sel) => ({ f, sel })));
+
 test('样式文件只管自己模块的类名', () => {
-  assert.deepEqual(violations(), []);
+  const found = rules.filter(({ f, sel }) => ![...exceptions, ...pendingRules].some((e) => e.file === f && e.selector === sel));
+  assert.deepEqual(found.flatMap(({ f, sel }) => moduleProblems(index, f, sel)), []);
 });
 
-test('登记的例外都还用得上', () => {
-  const all = new Set(styles.flatMap((f) => selectors(readFileSync(f, 'utf8')).map((s) => f + '\0' + s)));
+test('待定的规则都还在、也确实还报问题（定下来处理掉了就从 pendingRules 里删）', () => {
+  const have = new Set(rules.map(({ f, sel }) => f + '\0' + sel));
   assert.deepEqual(
-    exceptions.filter((e) => !all.has(e.file + '\0' + e.selector)).map((e) => e.file + '：' + e.selector),
+    pendingRules.filter((e) => !have.has(e.file + '\0' + e.selector) || !moduleProblems(index, e.file, e.selector).length),
     [],
   );
 });
 
-test('样式目录都登记了归哪个模块', () => {
-  const unknown = styles.filter((f) => !/^src\/([^/]+\.css|(ui|records|recordkit|flow|warehouse|operations|editors|marks|documents|finance|import|admin|assistant|mobile)\/)/.test(f));
+test('前端业务四层的样式只写本层和下层的类名，现有越层的只许减少', () => {
+  const found = rules.flatMap(({ f, sel }) => {
+    const text = layerProblem(index, f, sel);
+    return text ? [{ key: f + '：' + sel, text }] : [];
+  });
+  const { extra, stale } = compareBacklog(
+    found.map((x) => x.key),
+    cssLayerBacklog.flatMap((e) => e.selectors.map((s) => e.file + '：' + s)),
+  );
+  assert.deepEqual(found.filter((x) => extra.includes(x.key)).map((x) => x.text), [], '新的越层写法（不许往 tests/layer-backlog.ts 里加）');
+  assert.deepEqual(stale, [], '这几条已经搬走或改掉了，从 tests/layer-backlog.ts 的 cssLayerBacklog 里删掉');
+});
+
+test('登记的例外都还用得上', () => {
+  const have = new Set(rules.map(({ f, sel }) => f + '\0' + sel));
+  assert.deepEqual(
+    exceptions.filter((e) => !have.has(e.file + '\0' + e.selector)).map((e) => e.file + '：' + e.selector),
+    [],
+  );
+});
+
+test('样式目录都登记了归哪个模块，分了层的模块里也登记了层', () => {
+  const unknown = styles.flatMap((f) => {
+    const p = matchOf(f)?.p;
+    if (!p || (p === 'src/' && f.split('/').length > 2)) return [f + '：所在目录没登记进 tests/module-map.ts 的模块表'];
+    const mod = ownerModule(f);
+    return mod.layers && layerOf(f, mod) === undefined ? [f + '：没登记进' + mod.name + '的任何一层'] : [];
+  });
   assert.deepEqual(unknown, []);
+});
+
+test('回归：样式检查拦住往上层写、改别的模块、没人用的类名，合规写法不误报', () => {
+  const ix = classIndex(
+    [
+      ['src/flow/A.tsx', 'export const A = () => <div className="flow-x">{\'used-word\'}</div>;'],
+      ['src/recordkit/B.tsx', "export const B = () => <div className={'kit-x ' + tone} />;\nconst orphanName = 1;"],
+      ['src/finance/C.tsx', 'export const C = () => <div className="fin-x" />;'],
+      ['src/documents/D.tsx', "export const D = (p: string) => <div className={'paper-' + p} />;"],
+    ],
+    [['shared/business/E.ts', "export const papers = ['a4'];"]],
+  );
+  const problems = (f: string, sel: string) => [...moduleProblems(ix, f, sel), layerProblem(ix, f, sel) ?? ''].filter(Boolean);
+  const blocked: [file: string, sel: string, expect: string][] = [
+    ['src/recordkit/kit.css', '.kit-x .flow-x', 'flow-x 归单据'],
+    ['src/flow/flow.css', '.flow-x .fin-x', 'fin-x 归前端-财务'],
+    ['src/flow/flow.css', '.flow-x .orphanName', '找不到 orphanName'],
+    ['src/flow/flow.css', '.flow-x .no-such', '找不到 no-such'],
+  ];
+  for (const [f, sel, expect] of blocked)
+    assert.ok(problems(f, sel).some((x) => x.includes(expect)), f + ' 应拦住：' + sel + '\n实际：' + JSON.stringify(problems(f, sel)));
+  const allowed: [file: string, sel: string][] = [
+    ['src/flow/flow.css', '.flow-x .kit-x'],
+    ['src/flow/flow.css', '.flow-x .used-word'],
+    ['src/records/records.css', '.flow-x .paper-a4'],
+    ['src/documents/paper.css', '.paper-a4'],
+    ['src/recordkit/kit.css', '.kit-x .danger'],
+  ];
+  for (const [f, sel] of allowed) assert.deepEqual(problems(f, sel), [], f + ' 不该拦：' + sel);
 });

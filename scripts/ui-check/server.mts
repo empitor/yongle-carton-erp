@@ -87,15 +87,14 @@ const orders = Array.from({ length: 28 }, (_, i) => {
 });
 const confirmedOrders = orders.filter((o) => o.status === '已确认');
 // 财务补充场景用：上个月最后一天的一张已确认送货单（按本月启用财务时是启用前的单据），备注写明，场景脚本按它找。
-// 用没送过货、上个月就有的订单，先入同样数量的成品
+// 专门造一张上个月最后一天下单的已确认订单给它，不管今天是几号都有；先入同样数量的成品
 {
   const prevEnd = shift(-Number(today().slice(8, 10)));
-  const o = confirmedOrders.slice(5).find((x) => x.orderDate <= prevEnd);
-  if (o) {
-    const l = o.lines[0], fin = finishedOf(l.productId);
-    ops.move(fin.id, { action: 'in', quantity: String(l.quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
-    confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(l.quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
-  }
+  const p = products[0], quantity = 500;
+  const o = store.saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
+  const l = o.lines[0], fin = finishedOf(l.productId);
+  ops.move(fin.id, { action: 'in', quantity: String(quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
+  confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
 }
 for (let i = 0; i < 11; i++) {
   const o = confirmedOrders[i], s = suppliers[i % suppliers.length], r = raws[i % raws.length], item = rawItems[i % rawItems.length];

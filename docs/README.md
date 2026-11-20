@@ -13,3 +13,5 @@
 | [路线图](路线图.md) | 只写还没做的：待办、待验证、已知问题、暂不做；做完就删 |
 | [更新日志](CHANGELOG.md) | 只有一节：开发中叫“未发布”，做完还没发布的写在这里；发布时改成版本号和日期，内容就是发布说明；以前的版本看 Git 标签和 GitHub 发布 |
 | `brand/` | 商标图片 |
+
+两个应用外壳的文档放在各自目录里：安卓 [apps/android/docs](../apps/android/docs/README.md)（原生 WebView 外壳），Windows [apps/desktop/docs](../apps/desktop/docs/README.md)（Tauri 外壳）；都是架构说明加构建与测试，还没做的事记在[路线图](路线图.md)“应用外壳”。

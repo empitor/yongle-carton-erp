@@ -131,6 +131,36 @@ function useEscClose(open: boolean, previewOpen: boolean, setOpen: (open: boolea
   }, [open, previewOpen, setOpen]);
 }
 
+/** 助手里的站内链接（回复里的记录链接这类） */
+const ASSISTANT_PAGE_LINK = '[data-global-assistant] a[href^="#"]';
+/**
+ * 助手要不要收起：手机上助手是全屏的，开着时地址一变（hashchange：点了回复里的记录链接，或助手带去某页）就收起，
+ * 让人看到要去的页面；点了助手里的站内链接也收起（链接和现在的地址一样时不会触发 hashchange）。电脑上不收。
+ * target 是点到的元素，只看它在不在助手的站内链接里。
+ */
+export function collapsesOnNavigate(
+  panel: { open: boolean; phone: boolean },
+  event: { type: string; target: { closest(selector: string): unknown } | null },
+): boolean {
+  if (!panel.open || !panel.phone) return false;
+  return event.type === 'hashchange' || (event.type === 'click' && !!event.target?.closest(ASSISTANT_PAGE_LINK));
+}
+
+function useCloseOnNavigate(open: boolean, phone: boolean, setOpen: (open: boolean) => void) {
+  useEffect(() => {
+    const onEvent = (e: Event) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (collapsesOnNavigate({ open, phone }, { type: e.type, target })) setOpen(false);
+    };
+    window.addEventListener('hashchange', onEvent);
+    document.addEventListener('click', onEvent);
+    return () => {
+      window.removeEventListener('hashchange', onEvent);
+      document.removeEventListener('click', onEvent);
+    };
+  }, [open, phone, setOpen]);
+}
+
 // 打开后焦点进面板：电脑上直接能打字；手机上不弹键盘，只把焦点放到面板上（是不是手机按打开那一刻算）。
 function useFocusOnOpen(open: boolean) {
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -171,6 +201,7 @@ export function useAssistantPanel(
   openRef.current = openAssistant;
   useOpenTriggers(open, setOpen, openRef);
   useEscClose(open, previewOpen, setOpen);
+  useCloseOnNavigate(open, phone, setOpen);
   const composer = useFocusOnOpen(open);
   const floating = useFloatingAssistant(open && !docked, large, openAssistant);
   return {

@@ -1,73 +1,10 @@
-// 冲销送货、完工、到货单按原成本冲回或当月抵消（全部是虚构数据，只用内存库）
+// 冲销送货、完工单按原成本冲回；同月冲销、更正到货单也走“红字入库”：记过账的按原暂估冲回，
+// 没记过账的作废到货两条流水都不计（全部是虚构数据，只用内存库）。跨月的情形见 finance-costing-cross-month.test.ts
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import type { Store } from '../server/core/db.js';
-import { many, rows } from '../server/core/index.js';
-import { FlowService } from '../server/flow/service.js';
 import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import type { StockItemView } from '../shared/business/index.js';
-import { event } from './finance-fixture.js';
 import { maker, fixture } from './finance-costing-fixture.js';
-import { applyCorrection, previewCorrection } from './receive-fixture.js';
-
-/** 核对一张无单价（或给单价但不挂采购单）的到货单并同步财务事项；quantities 是各行数量，默认一行 10 张 */
-function receiveArrival(
-  s: Store,
-  item: StockItemView,
-  date = '2026-02-05',
-  { unitPrice, quantities = ['10'] }: { unitPrice?: string; quantities?: string[] } = {},
-) {
-  const flow = new FlowService(s);
-  const saved = flow.save(
-    'arrival',
-    {
-      supplierId: 1,
-      date,
-      reference: '虚构到货-' + item.id + '-' + date,
-      lines: quantities.map((quantity) => ({
-        stockId: item.id,
-        item,
-        quantity,
-        ...(unitPrice ? { unitPrice, priceBasis: 'quantity' } : {}),
-      })),
-    },
-    maker,
-  );
-  const confirmed = flow.confirm(
-    saved.id,
-    { previewDigest: flow.preview(saved.id, maker).previewDigest, requestId: randomUUID(), acknowledged: true },
-    maker,
-  );
-  new FinanceEvents(s).sync(maker, { requestId: randomUUID() });
-  return confirmed;
-}
-
-/** 当月“更正到货单”改第一行数量（更正冲回流水挪到 date），同步后把到货的“有差异”事件都红冲重做并记账 */
-function correctArrival(f: ReturnType<typeof fixture>, arrivalId: number, quantity: string, date: string) {
-  const record = new FlowService(f.s).arrivalRecords({ includeInactive: true }).find((r) => r.flowId === arrivalId);
-  if (!record) throw new Error('测试数据：没有到货单 ' + arrivalId + ' 的到货记录');
-  const input = { expectedVersion: record.version, reason: '虚构：点错数量', items: [{ index: 0, quantity }] };
-  const preview = previewCorrection(f.s, 'flow-' + arrivalId, input, maker);
-  applyCorrection(f.s, 'flow-' + arrivalId, { ...input, requestId: randomUUID(), previewDigest: preview.previewDigest }, maker);
-  f.s.db.prepare("UPDATE stock_movements SET date=? WHERE source_kind='flow_reversal' AND source_id=?").run(date, String(arrivalId));
-  new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
-  const differing = many(
-    f.s.db,
-    rows.fin_events.pick({ id: true, version: true }),
-    "SELECT id,version FROM fin_events WHERE status='difference' AND source_kind='arrival' ORDER BY id",
-  );
-  for (const d of differing)
-    new FinanceEventHandling(f.s).correct(maker, d.id, { version: d.version, date, requestId: randomUUID(), reason: '虚构：更正后红冲重做' });
-  f.postDrafts();
-}
-
-/** 某月某库存品成本行的 入、出、期末 数量和金额 */
-const costRow = (f: ReturnType<typeof fixture>, period: string, stockId: number) => {
-  const r = f.row(period, stockId);
-  return [r.inQty, r.inCents, r.outQty, r.outCents, r.endQty, r.endCents];
-};
 
 test('上月送货本月冲销：按原销售成本冲回，借库存商品贷主营业务成本', () => {
   const f = fixture();
@@ -214,11 +151,11 @@ test('查不到原领料成本的冲销入库：计算成本窗口要填金额�
   }
 });
 
-test('当月确认一张无单价到货又在当月冲销：原入库与冲销出库成对抵消，算成本通过且数量金额和总账都是零', () => {
+test('当月确认一张无单价到货又在当月冲销：没记过账，入库和冲回都不计，算成本通过且数量金额和总账都是零', () => {
   const f = fixture();
   try {
     const item = f.raw();
-    const doc = receiveArrival(f.s, item, '2026-02-05');
+    const doc = f.arrive(item, '2026-02-05');
     f.reverse(doc, '2026-02-12');
     new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
     f.cost('2026-02');
@@ -236,7 +173,7 @@ test('当月确认一张无单价到货不冲销：成本计算照旧拦下并�
   const f = fixture();
   try {
     const item = f.raw();
-    receiveArrival(f.s, item, '2026-02-05');
+    f.arrive(item, '2026-02-05');
     assert.throws(
       () => f.cost('2026-02'),
       new RegExp('原材料到货财务资料未完成，请核对入库记录：' + item.name + '，2026-02-05'),
@@ -250,8 +187,8 @@ test('同一种材料一张无单价到货已冲销、另一张未冲销：仍�
   const f = fixture();
   try {
     const item = f.raw();
-    const reversed = receiveArrival(f.s, item, '2026-02-05');
-    receiveArrival(f.s, item, '2026-02-09');
+    const reversed = f.arrive(item, '2026-02-05');
+    f.arrive(item, '2026-02-09');
     f.reverse(reversed, '2026-02-12');
     new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
     assert.throws(
@@ -265,31 +202,31 @@ test('同一种材料一张无单价到货已冲销、另一张未冲销：仍�
   }
 });
 
-test('一张无单价到货两行同一种材料当月冲销：两行入库和合计的一笔冲销抵消，数量金额和总账都是零', () => {
+test('一张无单价到货两行同一种材料当月冲销：两行入库和合计的一笔冲回都不计，数量金额和总账都是零', () => {
   const f = fixture();
   try {
     const item = f.raw();
-    const doc = receiveArrival(f.s, item, '2026-02-05', { quantities: ['4', '6'] });
+    const doc = f.arrive(item, '2026-02-05', { quantities: ['4', '6'] });
     f.reverse(doc, '2026-02-10');
     new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
     f.cost('2026-02');
-    assert.deepEqual(costRow(f, '2026-02', item.id), [0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(f.costRow('2026-02', item.id), [0, 0, 0, 0, 0, 0]);
     assert.equal(f.gl('1403', '2026-02'), 0);
   } finally {
     f.s.close();
   }
 });
 
-test('有单价但还没生成暂估凭证的到货当月冲销：成对抵消，库存和总账都是零', () => {
+test('有单价但还没生成暂估凭证的到货当月冲销：没记过账，两条流水都不计，库存和总账都是零', () => {
   const f = fixture();
   try {
     const item = f.raw();
-    const doc = receiveArrival(f.s, item, '2026-02-04', { unitPrice: '10.0000' });
+    const doc = f.arrive(item, '2026-02-04', { unitPrice: '10.0000' });
     f.reverse(doc, '2026-02-10');
     new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
     f.cost('2026-02');
     assert.deepEqual(f.costing.requirements(maker, { period: '2026-02' }).valuations, []);
-    assert.deepEqual(costRow(f, '2026-02', item.id), [0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(f.costRow('2026-02', item.id), [0, 0, 0, 0, 0, 0]);
     assert.equal(f.gl('1403', '2026-02'), 0);
     assert.equal(f.gl('2202', '2026-02'), 0);
   } finally {
@@ -297,24 +234,16 @@ test('有单价但还没生成暂估凭证的到货当月冲销：成对抵消�
   }
 });
 
-test('暂估已记账的到货当月冲销并红冲重做：成对抵消，库存和总账都是零', () => {
+test('暂估已记账的到货当月冲销并红冲：入库后按原暂估红字入库冲回，库存和总账都是零', () => {
   const f = fixture();
   try {
     const item = f.raw();
     const { received } = f.receive(item, '2026-02-05');
     f.reverse(received, '2026-02-12');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
-    const diff = event(f.s, received.id, 'arrival');
-    new FinanceEventHandling(f.s).correct(maker, diff.id, {
-      version: Number(diff.version),
-      date: '2026-02-12',
-      requestId: randomUUID(),
-      reason: '虚构当月冲销到货',
-    });
-    f.postDrafts();
+    f.redReverse('2026-02-12');
     f.cost('2026-02');
     assert.deepEqual(f.costing.requirements(maker, { period: '2026-02' }).valuations, []);
-    assert.deepEqual(costRow(f, '2026-02', item.id), [0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(f.costRow('2026-02', item.id), [0, 0, 0, 0, 0, 0]);
     assert.equal(f.gl('1403', '2026-02'), 0);
     assert.equal(f.gl('2202', '2026-02'), 0);
   } finally {
@@ -322,15 +251,16 @@ test('暂估已记账的到货当月冲销并红冲重做：成对抵消，库�
   }
 });
 
-test('有单价到货当月更正（10 张改 6 张）并红冲重做：原单那对抵消，替代单按 6 张入库，总账等于替代单金额', () => {
+test('有单价到货当月更正（10 张改 6 张）并红冲重做：原单入库又按原暂估冲回，替代单按 6 张入库，总账等于替代单金额', () => {
   const f = fixture();
   try {
     const item = f.raw();
     const { received } = f.receive(item, '2026-02-05');
-    correctArrival(f, received.id, '6', '2026-02-12');
+    f.correctArrival(received.id, '6', '2026-02-12');
+    f.redReverse('2026-02-12');
     f.cost('2026-02');
     assert.deepEqual(f.costing.requirements(maker, { period: '2026-02' }).valuations, []);
-    assert.deepEqual(costRow(f, '2026-02', item.id), [6000, 6000, 0, 0, 6000, 6000]);
+    assert.deepEqual(f.costRow('2026-02', item.id), [6000, 6000, 0, 0, 6000, 6000]);
     assert.equal(f.gl('1403', '2026-02'), 6000);
   } finally {
     f.s.close();
@@ -341,7 +271,7 @@ test('无单价到货当月冲销后同种材料又正常到货并领用：出�
   const f = fixture();
   try {
     const item = f.raw();
-    const bad = receiveArrival(f.s, item, '2026-02-03');
+    const bad = f.arrive(item, '2026-02-03');
     f.reverse(bad, '2026-02-04');
     new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
     f.receive(item, '2026-02-06');

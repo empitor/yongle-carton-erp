@@ -7,8 +7,7 @@
 import { flowNames, isFlowKind } from './physical-flow.js';
 
 /** 删的是单据（到货、生产任务、完工、送货）；别的是档案（客户、供应商、产品、订单、采购单、库存品） */
-const documentModules = ['arrival', 'task', 'production', 'delivery'];
-export const deletesDocuments = (module: string) => documentModules.includes(module);
+export const deletesDocuments = (module: string) => isFlowKind(module);
 
 /** 选“库存数量不动”时删的是什么：删单据说“只删单子”，删档案（连带删掉单据）说“只删记录” */
 export const keepStockScope = (module: string) =>

@@ -1,4 +1,4 @@
-import { plainPrice, precisionTotal, priceFromCents, type Order } from '../../shared/core/index';
+import { effectiveOrder, plainPrice, precisionTotal, priceFromCents, type Order } from '../../shared/core/index';
 import { taxText } from '../../shared/business/index';
 import { displayAmount } from '../../shared/core/index';
 import { finishedUnit } from '../../shared/core/index';
@@ -58,17 +58,18 @@ export default function OrderLinesView({
   /** 产品附属关系（useProductFamily）：订单里同时有大箱和小箱时，小箱那行挂在大箱下面 */
   family?: { parentOf: (id: number) => number | null; nameOf: (id: number) => string };
 }) {
-  const closed = ['待确认', '已取消'].includes(row.status);
+  // 待确认、已取消的订单不算数，进度灰掉
+  const inactive = !effectiveOrder(row);
   const lines = nestByFamily(row.lines, (l) => l.productId, (id) => family?.parentOf(id) ?? null);
   // 用列表不用表格：手机上表格会被拆成“表头：内容”的卡片，表头的小字说明会混进去
   return (
-    <div className={'sales-progress-list' + (closed ? ' is-closed' : '')} role="table" aria-label={ORDER_LINES_TITLE}>
+    <div className={'sales-progress-list' + (inactive ? ' is-closed' : '')} role="table" aria-label={ORDER_LINES_TITLE}>
       <div className="sales-progress-head" role="row">
         <span role="columnheader">产品</span>
         <span role="columnheader" className="num">
           数量
         </span>
-        {!closed && (
+        {!inactive && (
           <span role="columnheader" className="num">
             已发 / 待发
           </span>
@@ -108,7 +109,7 @@ export default function OrderLinesView({
                 {orderLineAmount(l)}
               </small>
             </div>
-            {!closed && (
+            {!inactive && (
               <div role="cell" className="num">
                 <span>
                   {(l.shippedQuantity ?? '—') + ' / ' + (l.remainingQuantity ?? '—')}

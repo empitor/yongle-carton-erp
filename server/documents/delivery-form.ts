@@ -28,11 +28,9 @@ function deliveryFields(record: Delivery, customer: Customer | undefined, orders
   return [
     ['送货单号', record.number],
     ['客户', customer?.name || '历史客户'],
-    ['收货地址', record.address || customer?.address || UNRECORDED],
-    [
-      '客户联系信息',
-      [record.contact || customer?.contact, record.phone || customer?.phone].filter(Boolean).join(' · ') || UNRECORDED,
-    ],
+    // 地址、联系人、电话单据上没记就印“未记录”，不拿客户档案的顶上（客户可能有好几个收货的地方，印错了会送错）
+    ['收货地址', record.address || UNRECORDED],
+    ['客户联系信息', [record.contact, record.phone].filter(Boolean).join(' · ') || UNRECORDED],
     ['关联销售订单', joinedUnique(record.lines.map((l) => l.orderNumber || orders.get(l.orderId)?.number))],
     [
       confirmed ? '实际送货日期' : '预计送货日期',

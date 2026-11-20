@@ -3,7 +3,8 @@ import { Bot, Menu, Plus, Search } from 'lucide-react';
 import AuthPanel from './AuthPanel';
 import { createActions } from './CommandPalette';
 import { assistantDisplayName, useAssistantTopbarEntry } from './assistant/index';
-import { emit } from './ui/index';
+import { emit, useBackLayer } from './ui/index';
+import { useTopbarCollapse } from './mobile/topbar-collapse';
 
 /**
  * 顶栏：手机上的导航按钮（带收件箱数字）、全局搜索、“新建”菜单、小甬小勒的顶栏入口、账号菜单。
@@ -25,7 +26,12 @@ export default function AppTopbar({
   // 小甬小勒的顶栏入口：收起方式选了“放到顶栏”才显示，否则用悬浮小人，两者不同时出现
   const topbarAssistant = useAssistantTopbarEntry();
   const [newMenu, setNewMenu] = useState(false),
-    newMenuRef = useRef<HTMLDivElement>(null);
+    newMenuRef = useRef<HTMLDivElement>(null),
+    bar = useRef<HTMLElement>(null);
+  // 手机上跟着滚动收起、露出
+  useTopbarCollapse(bar);
+  // 安卓 App 的返回键：“新建”菜单开着时先收起菜单
+  useBackLayer(() => setNewMenu(false), { active: newMenu });
   useEffect(() => {
     if (!newMenu) return;
     const outside = (e: PointerEvent) => {
@@ -42,7 +48,7 @@ export default function AppTopbar({
     };
   }, [newMenu]);
   return (
-    <header className="topbar">
+    <header ref={bar} className="topbar">
       <div>
         <button
           className="mobile-menu icon-button"

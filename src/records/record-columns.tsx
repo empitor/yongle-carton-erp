@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   centsText,
+  deliverableOrder,
   finishedUnit,
   displayAmount,
   orderDisplayStatus,
@@ -11,6 +12,7 @@ import {
   type Product,
 } from '../../shared/core/index';
 import {
+  UNPRICED_TEXT,
   productIncomplete,
   purchaseState,
   sizeText,
@@ -128,7 +130,7 @@ function PurchaseCells({ row, cell }: CellProps<PurchaseView>) {
             ? row.arrivalSummary.completedLines + ' / ' + row.arrivalSummary.totalLines + ' 种到齐'
             : '—'}
       </td>
-      <td className="num">{row.totalAmount === null ? '待定价' : displayAmount(row.totalAmount)}</td>
+      <td className="num">{row.totalAmount === null ? UNPRICED_TEXT : displayAmount(row.totalAmount)}</td>
       <td
         className={
           row.expectedDate && row.expectedDate < today() && !['全部到货', '已取消'].includes(row.status) ? 'overdue' : ''
@@ -197,7 +199,7 @@ function OrderCells({ row, cell }: CellProps<Order>) {
         ))}
       </td>
       <td className="num">{row.totalAmountExact ? displayAmount(row.totalAmountExact) : centsText(row.totalCents)}</td>
-      <td className={row.deliveryDate < today() && !['已发货', '已取消', '待确认'].includes(row.status) ? 'overdue' : ''}>
+      <td className={row.deliveryDate < today() && deliverableOrder(row) ? 'overdue' : ''}>
         {row.deliveryDate}
       </td>
       <td>

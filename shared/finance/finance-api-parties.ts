@@ -261,6 +261,8 @@ type InterestRow = Obligation & {
 };
 
 export type PartiesApi = {
+  /** 选客户、供应商用的单位名单（没归档的，编号和名称）：财务自己的地址，出纳这类纯财务账号也能读 */
+  'GET /finance/parties': { query: { kind: 'customer' | 'supplier' }; response: { id: number; name: string }[] };
   /** 一种往来（应收或应付）的逐笔列表，可只看一个单位；红字冲销的两笔排在一起 */
   'GET /finance/obligations': {
     query: { kind: ObligationKind; partyId?: string; page?: number; pageSize?: number };

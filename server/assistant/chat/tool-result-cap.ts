@@ -2,7 +2,8 @@
 // 先截最长的列表，截断处留一条说明：给了几条、共几条、怎么翻页再看；没有列表或截了还超，就截文字并说明。
 // 截过的样子既发给模型也存进会话历史，前后一致，前缀缓存不受影响。
 import { CJK_TOKENS_PER_CHAR, SESSION, estimateTokens } from './session-limits.js';
-import { field, isList, isRecord } from './result-fields.js';
+import { isRecord } from '../../../shared/core/index.js';
+import { field, isList } from './result-fields.js';
 
 /** 截文字时每次缩到上一次的几成，直到放得下 */
 const TEXT_SHRINK = 0.9;

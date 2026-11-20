@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- 外壳测试页（虚构内容）：测站内跳转、外部网页、新窗口（含 noreferrer 和变成下载的）、blob 下载、
+     照 ERP 写法导出的文件和普通下载、
+     页内拖动和从外面拖文件进来。只给测试版用 -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>外壳测试首页</title>
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <h1>外壳测试首页</h1>
+    <div class="block" id="card" draggable="true">拖这张卡片</div>
+    <div class="block" id="dropzone">拖到这里</div>
+    <a class="block" id="to-page2" href="page2.html">进入第二页</a>
+    <a class="block" id="external" href="http://localhost:8788/external.html">打开外部网页</a>
+    <a class="block" id="popup" href="page2.html" target="_blank">新窗口打开第二页</a>
+    <a class="block" id="popup-noreferrer" href="page2.html" target="_blank" rel="noreferrer">新窗口打开第二页（noreferrer）</a>
+    <a class="block" id="popup-download" href="/download" target="_blank" rel="noreferrer">新窗口打开一个下载</a>
+    <button class="block" id="blob" type="button">下载 blob 文件</button>
+    <button class="block" id="export" type="button">导出送货单（像 ERP 那样）</button>
+    <a class="block" id="http-download" href="/download">下载服务器文件</a>
+    <p id="status">等待操作</p>
+    <script src="downloads.js"></script>
+    <script src="drops.js"></script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
-import { useAuthState, notify, LIST_PAGE_SIZE, stepper, useAction, emit } from '../ui/index';
+import { canEditBusiness, useAuthState, notify, LIST_PAGE_SIZE, stepper, useAction, emit } from '../ui/index';
 import { DetailPanel } from '../ui/index';
 import { PageHeading, Pagination } from '../ui/index';
 import InboxDetail, { inboxKicker, inboxSubtitle, InboxStatus } from './InboxDetail';
@@ -15,7 +15,7 @@ import { useInboxList } from './useInboxList';
 /** 收件箱：发给机器人的、手动上传和粘贴的内容；点行看详情，在详情里转订单、转到货或标记处理。 */
 export default function InboxPage() {
   const auth = useAuthState(),
-    canEdit = !!auth?.actor?.permissions.includes('business:edit') || !!auth?.actor?.superAdminMode;
+    canEdit = canEditBusiness(auth);
   const list = useInboxList(),
     { data, rows, selected, setSelected } = list;
   const [pasting, setPasting] = useState(false);

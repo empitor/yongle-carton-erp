@@ -24,6 +24,7 @@ import { isReversed } from './reversal-pairs.js';
 import { entry, row } from './query.js';
 import { rescaleInstallments } from './terms.js';
 import { bookingDate } from './periods.js';
+import { bookedArrivalEvent } from './costing-source.js';
 import { readSnapshot, type EventSnapshot } from './source-snapshot.js';
 import type { VoucherRecord } from './voucher-read.js';
 
@@ -46,18 +47,9 @@ export function returnLineValues(snapshot: EventSnapshot, lines: ReturnLine[]) {
 export const returnValue = (snapshot: EventSnapshot, lines: ReturnLine[]) =>
   returnLineValues(snapshot, lines).reduce((n, l) => n + l.value, 0);
 
-/** 到货单最新那条已生成凭证的财务事件（快照里有暂估金额），没有是 undefined */
-function arrivalEvent(db: DatabaseSync, arrivalId: number) {
-  return one(
-    db,
-    rows.fin_events.pick({ id: true, snapshot: true }),
-    "SELECT id,snapshot FROM fin_events WHERE source_kind='arrival' AND source_id=? AND status='generated' ORDER BY id DESC LIMIT 1",
-    String(arrivalId),
-  );
-}
-
 /**
- * 成本计算给退货流水计价：只算冲过暂估的退货（挂着已记账的退货冲暂估凭证）。
+ * 成本计算给退货流水计价：只算冲过暂估的退货（挂着已记账的退货冲暂估凭证），按到货单记过账的那条事件
+ * （bookedArrivalEvent，和撤销到货冲回暂估同一个找法）的暂估单价算。
  * 返回 退货单编号 → 库存品 → { value 退掉的暂估金额, restored 退货撤销后暂估已经加回 }。
  * 没冲过暂估的（已到票后才退的）不在里面，照旧只扣数量，金额由红字发票体现。
  */
@@ -76,7 +68,7 @@ export function returnCosts(db: DatabaseSync, returnIds: string[]) {
   if (!booked.length) return result;
   const net = new Map(booked.map((b) => [b.id, b.net]));
   for (const r of purchaseReturnLines(db, [...net.keys()])) {
-    const event = arrivalEvent(db, r.arrival_id);
+    const event = bookedArrivalEvent(db, String(r.arrival_id));
     if (!event) continue;
     const perStock = new Map<number, { value: number; restored: boolean }>();
     for (const l of returnLineValues(readSnapshot(event), r.lines)) {

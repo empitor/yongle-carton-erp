@@ -13,7 +13,7 @@ import { sourceHash } from '../server/finance/source-fingerprint.js';
 import { flowDocumentContent, flowDocumentOfView } from '../shared/business/flow-document.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
-import { financePermissions } from '../shared/core/account-scope.js';
+import { financePermissions } from '../shared/core/accounts.js';
 import { startHttp } from './http-fixture.js';
 import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';

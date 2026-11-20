@@ -1,6 +1,7 @@
 // npm run test:coverage 跑完后的覆盖检查：各组 lcov 合并（一行在哪组跑到过都算），
 // 列出 server/、shared/ 里行覆盖低于 80%、没在 scripts/test-exemptions.mjs 登记原因的文件。
 // 没有一条测试加载过的文件不在 lcov 里，按 0% 算；只有类型、编译后没有代码的文件不算。
+// 登记了原因、但已经达标或文件没了的也让检查失败（登记表要跟着删）。
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
@@ -62,7 +63,7 @@ export function lowCoverage(root, rates, exempt) {
   };
 }
 
-/** 打印低覆盖文件；返回没登记的个数 */
+/** 打印低覆盖文件；返回要让检查失败的个数：没登记的，加上登记了但已达标或文件没了的 */
 export function reportCoverage(root, lcovTexts, exempt) {
   const merged = mergeLcov(lcovTexts, root);
   const { unregistered, registered, stale } = lowCoverage(root, lineRates(merged), exempt);
@@ -74,6 +75,6 @@ export function reportCoverage(root, lcovTexts, exempt) {
     }
   } else console.log(`${COVERED_DIRS.join('/、')}/ 里没有行覆盖低于 ${MIN_LINES}% 又没登记的文件。`);
   if (registered.length) console.log(`登记过原因的低覆盖文件 ${registered.length} 个，不报。`);
-  if (stale.length) console.log('登记了但已经达标或文件没了，从 scripts/test-exemptions.mjs 删掉：\n  ' + stale.join('\n  '));
-  return unregistered.length;
+  if (stale.length) console.log('登记了但已经达标或文件没了，这一轮算失败；从 scripts/test-exemptions.mjs 删掉：\n  ' + stale.join('\n  '));
+  return unregistered.length + stale.length;
 }

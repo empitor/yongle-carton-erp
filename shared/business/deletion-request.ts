@@ -10,6 +10,11 @@ import { dataManagementModules } from './data-management-modules.js';
 
 /** 一次最多删几条（页面批量删除、助手 records.delete 一次给几个编号，都是这个上限） */
 export const DELETION_MAX_RECORDS = 100;
+/**
+ * 删掉动过库存的单据时库存怎么处理：recalculate 库存一起改回（当这张单子没发生过，默认）；
+ * preserve 库存数量不动，它的流水留着、改成“系统维护”流水（来源 database-maintenance）
+ */
+export const inventoryPolicies = ['preserve', 'recalculate'] as const;
 /** 选了哪些记录删：同一模块最多 DELETION_MAX_RECORDS 条，每条带读到时的版本号 */
 export const deletionSelection = z.strictObject({
   module: z.enum(dataManagementModules),
@@ -17,8 +22,7 @@ export const deletionSelection = z.strictObject({
     .array(z.strictObject({ id: z.number().int().positive(), version: z.number().int().positive() }))
     .min(1)
     .max(DELETION_MAX_RECORDS),
-  // 删掉动过库存的单据：默认库存一起改回（recalculate，当这张单子没发生过）；preserve 是备选：库存数量不动，它的流水留着、改成“系统维护”流水（来源 database-maintenance）
-  inventoryPolicy: z.enum(['preserve', 'recalculate']).default('recalculate'),
+  inventoryPolicy: z.enum(inventoryPolicies).default('recalculate'),
 });
 
 /** 真删：在选了哪些之外带请求编号（防重复提交）和预览给的范围摘要（会连带别的记录时必须带，带了就要和现在的范围对上） */

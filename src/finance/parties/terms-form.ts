@@ -1,4 +1,5 @@
 import { centsInput, toCents } from '../../ui/index';
+import type { termTypes } from '../../../shared/finance/index';
 import type { FinData } from '../fin-api';
 
 /* 账期窗口的数据：服务端存的账期 ⇄ 窗口里填的内容。比例全部由人填。 */
@@ -11,8 +12,6 @@ export type Discount = TermOptions['discounts'][number];
 export type Installment = TermOptions['installments'][number];
 export type Interest = NonNullable<TermOptions['interest']>;
 
-/** 账期方式：没有账期、压几个月每月固定日付、压若干天 */
-export const termTypes = ['none', 'monthly', 'days'] as const;
 /** 下拉选中的值换回取值表里的那一项（下拉只列取值表里的，选不出别的） */
 export const optionOf = <T extends string>(options: readonly T[], value: string) =>
   options.find((o) => o === value);

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceEvents } from '../server/finance/events.js';
+import { FinanceEvents, unseenSources } from '../server/finance/events.js';
+import { FinanceReports } from '../server/finance/reports.js';
+import { FinanceClosing } from '../server/finance/closing.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
 import { FinanceEventViews } from '../server/finance/event-views.js';
@@ -87,6 +89,38 @@ test('同步幂等，缺价缺税待补，补齐后制单，来源删除保留�
     assert.equal(events.sync(maker, { requestId: 'delete' }).processed, 1);
     assert.equal(new FinanceEventViews(store).list(maker, { status: 'source_deleted' }).rows[0].source_id, '1');
     assert.deepEqual(ledger.get(maker, voucherId), original);
+  } finally {
+    store.close();
+  }
+});
+
+test('正式报表的资料检查和结账同一个口径：还没同步进财务的单据（新确认的、已撤销的）一样拦，同步后放行', () => {
+  const store = new Store(':memory:');
+  try {
+    newSettings(store);
+    const events = new FinanceEvents(store),
+      reports = new FinanceReports(store);
+    const readiness = () => reports.readiness(maker, { period: '2026-01' });
+    physical(store, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
+    assert.deepEqual([readiness().ready, readiness().unsynced], [false, 1], '资料齐全、还没同步的也拦');
+    events.sync(maker, { requestId: 'scan' });
+    assert.deepEqual([readiness().ready, readiness().unsynced], [true, 0]);
+    store.db.prepare("UPDATE flow_documents SET version=version+1,status='reversed' WHERE id=1").run();
+    assert.deepEqual([readiness().ready, readiness().unsynced], [false, unseenSources(store.db, '2026-01-31')], '撤销了还没同步');
+    assert.throws(() => reports.assertReady(maker, '2026-01'), /还没同步进财务/);
+  } finally {
+    store.close();
+  }
+});
+
+test('结账检查：只是有单据还没同步时，只有“业务单据”一步拦着，“资产负债表平衡”照常算', () => {
+  const store = new Store(':memory:');
+  try {
+    newSettings(store);
+    physical(store, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
+    const steps = new FinanceClosing(store).check(maker, { period: '2026-01' }).steps;
+    const step = (key: string) => steps.find((s) => s.key === key)?.ok;
+    assert.deepEqual([step('events'), step('balance')], [false, true]);
   } finally {
     store.close();
   }

@@ -99,7 +99,7 @@ test('已有出入库记录或被单据、采购明细引用的库存品不能�
         supplierId: f.supplier.id,
         orderDate: '2026-10-01',
         status: '已订货',
-        lines: [{ stockItemId: f.glue.id, name: f.glue.name, quantity: '100', unit: '张' }],
+        lines: [{ stockItemId: f.glue.id, name: f.glue.name, quantity: '100', unit: '张', priceBasis: 'quantity' }],
       },
       f.actor,
     );
@@ -411,7 +411,7 @@ test('库存可用量扣掉待送货占用的，送出后变成实际库存；�
     f.flow.confirm(draft.id, { previewDigest: f.flow.preview(draft.id, f.actor).previewDigest, requestId: randomUUID(), acknowledged: true }, f.actor);
     assert.deepEqual(units(), [20000, 0, 20000]);
     for (const status of ['待订货', '已订货'])
-      f.ops.savePurchase({ supplierId: f.supplier.id, orderDate: '2026-10-01', status, lines: [{ name: f.raw.name, stockItemId: f.raw.id, unit: '张', quantity: '50' }] }, f.actor);
+      f.ops.savePurchase({ supplierId: f.supplier.id, orderDate: '2026-10-01', status, lines: [{ name: f.raw.name, stockItemId: f.raw.id, unit: '张', quantity: '50', priceBasis: 'quantity' }] }, f.actor);
     assert.equal(f.item(f.raw.id).onOrderUnits, 50000);
   } finally {
     f.store.close();

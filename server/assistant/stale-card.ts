@@ -1,5 +1,5 @@
 // 卡片出了以后相关数据变了（previews.ts 确认时数据核对对不上）：说清是哪几条记录变了，告诉人和助手这张卡片已过期、要办就按最新数据重新出一张。
-import { isRecord } from './chat/result-fields.js';
+import { isRecord } from '../../shared/core/index.js';
 // 数据核对本身不放宽：真变了就拦。
 
 /** 卡片作废时写进卡片、交给助手的那句话的结尾 */

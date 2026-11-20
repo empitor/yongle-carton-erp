@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { recordEntities, type RecordEntity } from '../../shared/business/index';
+import { isFlowKind, recordEntities, type FlowKind, type RecordEntity } from '../../shared/business/index';
 import KindRecords from './KindRecords';
 import type { RecordEditor } from './RecordEditors';
 import type { RecordLists } from './useRecordLists';
@@ -7,9 +7,7 @@ import type { RecordLists } from './useRecordLists';
 const FlowPage = lazy(() => import('../flow/FlowPage'));
 const OperationsPage = lazy(() => import('./OperationsPage'));
 
-const flowTrashKinds = ['arrival', 'task', 'production', 'delivery'] as const;
-export type FlowTrash = null | (typeof flowTrashKinds)[number];
-const isFlowKind = (value: string): value is NonNullable<FlowTrash> => (flowTrashKinds as readonly string[]).includes(value);
+export type FlowTrash = null | FlowKind;
 const isRecordEntity = (value: string): value is RecordEntity => (recordEntities as readonly string[]).includes(value);
 
 /** 选的这一类交给谁列：采购库存的几类交给它们自己的页面，订单、客户、产品用这里的列表 */

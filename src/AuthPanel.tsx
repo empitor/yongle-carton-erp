@@ -6,7 +6,7 @@ import { DataManagementEditorSlot, ManagementDialog } from './ui/index';
 import { useAuthState, type AuthState } from './ui/index';
 import { signOut } from './auth-api';
 import ChangePasswordForm from './ChangePasswordForm';
-import { useIsPhone } from './ui/index';
+import { useBackLayer, useIsPhone } from './ui/index';
 import { EditorFooter, FormMessage } from './ui/index';
 import { MaintenancePanel } from './admin/index';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -32,6 +32,8 @@ export default function AuthPanel() {
   // 页面上“进入超级管理员模式”的入口（SuperModeNotice）打开的也是这里的系统维护窗口
   useEffect(() => listen('erp-open-maintenance', () => setDialog('maintenance')), []);
   useCloseOutside(open, () => setOpen(false), [root, menu]);
+  // 安卓 App 的返回键：账号菜单开着时先收起菜单（手机上和点底一样）
+  useBackLayer(() => setOpen(false), { active: open });
   if (!session?.actor) return null;
   const actor = session.actor,
     level = session.level ? accountLevelNames[session.level] : '';

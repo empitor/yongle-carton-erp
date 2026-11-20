@@ -1,7 +1,7 @@
 import { Download, Eye } from 'lucide-react';
 import { Hint, MoreMenu } from '../ui/index';
 import type { DocumentExportStatus, DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
-import { ExportFileCard } from './export-file';
+import { ExportFileCard, afterSaved } from './export-file';
 
 /*
  * 送货单导出窗里的几块（BusinessExport.tsx 用）：说明和模板设置入口、模板下拉、一排操作、“导出并出库”那一行、办完的结果。
@@ -12,7 +12,7 @@ import { ExportFileCard } from './export-file';
 const exportHint = (status?: string) =>
   status === 'confirmed'
     ? '按本批实际送货数量导出，重复下载不会再次出库。'
-    : '点“导出并出库”：文件完整下载后扣成品库存，送货单变“送货中”。只想看看用“预览送货单”。';
+    : '点“导出并出库”：' + afterSaved.shipped + '。只想看看用“预览送货单”。';
 
 /** 一句说明、模板设置入口 */
 export function ExportHeader({ status }: { status?: string }) {
@@ -95,7 +95,7 @@ export function FormalExportRow({
     <div className="adm-export-formal">
       <div className="adm-export-formal-text">
         <strong>导出并出库</strong>
-        <small>文件完整下载后扣成品库存，送货单变“送货中”；客户收到后再点“确认送达”。</small>
+        <small>{afterSaved.shipped}；客户收到后再点“确认送达”。</small>
       </div>
       <select aria-label="出库送货单文件格式" value={format} onChange={(e) => setFormat(e.target.value === 'xlsx' ? 'xlsx' : 'docx')}>
         <option value="docx">Word (.docx)</option>

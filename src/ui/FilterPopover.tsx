@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
+import { useBackLayer } from './back-layers';
 
 /**
  * 列表工具栏的“筛选”：不常用的筛选条件收进这个弹层，工具栏只留搜索、一个分段和最多一个关键下拉。
@@ -17,6 +18,8 @@ export default function FilterPopover({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  // 安卓 App 的返回键：开着时先关这一层（和“完成”一样）
+  useBackLayer(() => setOpen(false), { active: open });
   useEffect(() => {
     if (!open) return;
     const outside = (e: Event) => {

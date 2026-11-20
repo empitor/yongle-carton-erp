@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import { accountLevels, userRoles } from '../../shared/core/index';
+import { accountLevels, permissionNames, userRoles } from '../../shared/core/index';
 import { emit, listen } from './events';
 import { readJson } from './read-body';
 
@@ -15,7 +15,8 @@ const authStateSchema = z.object({
     .object({
       id: z.string(),
       name: z.string(),
-      permissions: z.array(z.string()),
+      /** 只认权限名单里的（shared/core/accounts.ts），页面上判断权限写错名字编译不过 */
+      permissions: z.array(z.enum(permissionNames)),
       role: z.enum(userRoles).optional(),
       superAdminMode: z.boolean().optional(),
       superAdminUntil: z.number().optional(),

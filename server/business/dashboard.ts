@@ -3,7 +3,7 @@ import { flowDocumentSchema, purchaseState } from '../../shared/business/index.j
 import { buildWorkbench } from './workbench.js';
 import { displayOrderStatuses, orderDisplayStatus, today, type Order } from '../../shared/core/index.js';
 import type { Dashboard } from '../../shared/business/index.js';
-import { monthsBefore, closedOrder } from '../../shared/core/index.js';
+import { closedOrder, deliverableOrder, effectiveOrder, monthsBefore } from '../../shared/core/index.js';
 import { documentValueCents, sumMoney } from '../../shared/business/index.js';
 import { quantityString } from '../../shared/core/index.js';
 import { OperationsRepository } from '../operations/index.js';
@@ -119,7 +119,7 @@ function orderOverview(inRange: Order[], all: Order[], date: string): Overview['
     pendingInRange: orderMetrics(inRange, date).pending,
     pendingAll: orderMetrics(all, date).pending,
     overdueAll: orderMetrics(all, date).overdue,
-    history: all.filter((o) => closedOrder(o.status) && o.orderDate < monthsBefore(date, HISTORY_MONTHS)).length,
+    history: all.filter((o) => closedOrder(o) && o.orderDate < monthsBefore(date, HISTORY_MONTHS)).length,
   };
 }
 
@@ -164,7 +164,7 @@ function inventoryOverview(items: StockItemView[]): Overview['inventory'] {
 
 /** 区间里有效的订单（不算待确认、已取消）的数量、金额、估算成本和利润、按状态的张数 */
 function orderFigures(rows: Order[], date: string) {
-  const valid = rows.filter((o) => o.status !== '待确认' && o.status !== '已取消'),
+  const valid = rows.filter(effectiveOrder),
     costed = valid.filter((o) => o.costCents !== null);
   const sum = (items: Order[], key: 'totalCents' | 'costCents') => items.reduce((n, o) => n + (o[key] || 0), 0);
   return {
@@ -174,7 +174,7 @@ function orderFigures(rows: Order[], date: string) {
     estimatedProfitCents: sum(costed, 'totalCents') - sum(costed, 'costCents'),
     costedCount: costed.length,
     uncostedCount: valid.length - costed.length,
-    overdueCount: valid.filter((o) => o.status !== '已发货' && o.deliveryDate < date).length,
+    overdueCount: valid.filter((o) => deliverableOrder(o) && o.deliveryDate < date).length,
     byStatus: displayOrderStatuses.map((status) => ({
       status,
       count: rows.filter((o) => orderDisplayStatus(o) === status).length,

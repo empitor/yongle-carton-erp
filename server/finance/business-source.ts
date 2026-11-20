@@ -35,6 +35,16 @@ export function partyName(db: DatabaseSync, kind: PartyKind, id: number | string
   return name;
 }
 
+const partyOption = z.object({ id: z.number(), name: z.string() });
+/** 没归档的（归档标记的种类就是表名，参数 ?） */
+const unarchived = 'NOT EXISTS(SELECT 1 FROM record_lifecycle a WHERE a.entity=? AND a.record_id=p.id)';
+/** 选单位用的名单：没归档的客户或供应商（编号、名称），和业务列表一样新建的在前 */
+export function partyOptions(db: DatabaseSync, kind: PartyKind) {
+  return kind === 'customer'
+    ? many(db, partyOption, `SELECT p.id,p.name FROM customers p WHERE ${unarchived} ORDER BY p.id DESC`, 'customers')
+    : many(db, partyOption, `SELECT p.id,p.name FROM suppliers p WHERE ${unarchived} ORDER BY p.id DESC`, 'suppliers');
+}
+
 /**
  * 财务扫描的来源（CTE，名字是 sources，列 kind,id,version,status,date,document,at,number）：
  * 已确认、已撤销的送货、到货、完工单，盘点流水。
@@ -53,6 +63,10 @@ export const sourcesCte = `WITH sources(kind,id,version,status,date,document,at,
           FROM stock_items i WHERE i.id=m.item_id)
       FROM stock_movements m WHERE m.action='adjust'
     )`;
+
+/** 来源 s 的这一版财务还没扫到：观察记录 o 没有，或版本、状态和上次看到的不一样。条件，补扫和“还没同步”的计数同一个口径。 */
+export const sourceUnseen = (s: string, o: string) =>
+  `(${o}.source_id IS NULL OR ${o}.source_version<>${s}.version OR ${o}.status<>${s}.status)`;
 
 /** sourcesCte 读出的一行：种类、编号（文字）、版本、状态、单据日期、内容、更新时间、单号（盘点流水是拼的说明） */
 export const sourceRow = z.object({
@@ -101,9 +115,12 @@ export const sourceMissing = (o: string) =>
 /** 事件 e 来源单据（送货、到货、完工单）的单号，作为列放进同一条查询，不逐条查；别的来源是 NULL。 */
 export const sourceDocumentNumber = (e: string) =>
   `(SELECT f.number FROM flow_documents f WHERE f.id=cast(${e}.source_id AS INTEGER) AND f.kind=${e}.source_kind)`;
-/** 财务事件 e 的来源是一张已撤销的送货单（只看单据，不看 e 是什么来源，调用方另加 e.source_kind='delivery'）。条件。 */
-export const deliveryReversed = (e: string) =>
-  `EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(${e}.source_id AS INTEGER) AND f.kind='delivery' AND f.status='reversed')`;
+/**
+ * e 的来源（e.source_id 是单据编号：财务事件、库存流水都行）是一张已撤销的 kind 单据，被更正替代的原单也是已撤销。
+ * 只看单据，不看 e 是什么来源，调用方另加来源种类。条件。
+ */
+export const sourceReversed = (e: string, kind: 'delivery' | 'arrival') =>
+  `EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(${e}.source_id AS INTEGER) AND f.kind='${kind}' AND f.status='reversed')`;
 
 /** 财务事件 e 的来源单据还是已确认的；notReplaced 时还要没被更正替代。条件。 */
 export const sourceConfirmed = (e: string, notReplaced = false) =>
@@ -112,17 +129,11 @@ export const sourceConfirmed = (e: string, notReplaced = false) =>
   })`;
 
 /**
- * 这张到货单有没有有效的采购退货：只认这批到货仍有效时的已确认退货（到货已冲销、已被更正替代的不算），
- * 和采购已到货扣退货的口径一致（operations/fulfillment.ts 的 subtractReturnedUnits）。
- * 到货有没有效只看状态（撤销、被更正替代的状态已经不是 confirmed）。
+ * 这张到货单有没有已确认的采购退货（到票时按退后数量开票不用填对应暂估，invoice-blue.ts）。
+ * 已撤销、被更正替代的到货在关联、确认发票时就被拦下（invoice-rules.ts），走到这里的到货都还有效，不另看到货状态。
  */
 export function hasConfirmedReturn(db: DatabaseSync, arrivalId: number) {
-  return exists(
-    db,
-    `SELECT 1 FROM purchase_returns r JOIN flow_documents f ON f.id=r.arrival_id
-              WHERE r.arrival_id=? AND r.status='confirmed' AND f.kind='arrival' AND f.status='confirmed' LIMIT 1`,
-    arrivalId,
-  );
+  return exists(db, "SELECT 1 FROM purchase_returns r WHERE r.arrival_id=? AND r.status='confirmed' LIMIT 1", arrivalId);
 }
 
 /**

@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { AppError, many, registerOrderRules, rows, type MaterialProgress } from '../core/index.js';
 import { orderScope, shippedByLine } from './shipped.js';
-import { quantityUnits } from '../../shared/core/index.js';
+import { effectiveOrder, quantityUnits } from '../../shared/core/index.js';
 import type { FlowDocView } from '../../shared/business/index.js';
 import { rebalanceMovements } from '../operations/index.js';
 import { syncReceivedUnits } from './receipt-events.js';
@@ -63,7 +63,7 @@ export function updateOrders(flow: FlowCommands, ids: number[], onlyChanged = fa
       any = order.lines.some((l) => sent(l.id) > 0);
     // 取消和待确认是人工决定，不被后续单据的重算覆盖；已经出过库的订单不会是这两种（送货只收待完成的订单，
     // 普通保存不让改已出库订单的状态），本机管理员改单时改成了也按送货重算回来
-    if (!any && (order.status === '已取消' || order.status === '待确认')) continue;
+    if (!any && !effectiveOrder(order)) continue;
     const tasks = confirmedTasksOf(flow, id);
     // 未发完的每个产品都要做够，才算生产完毕；只做完部分产品不能算待发货。
     const produced = open.every((l) => producedEnough(flow, order.id, l.productId, tasks));

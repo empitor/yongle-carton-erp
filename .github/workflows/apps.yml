@@ -1,0 +1,73 @@
+# 两个应用外壳（apps/）的检查，和本机 npm run check:apps 同一套：只在 apps/ 或这个文件改了时跑，也能在网页上手动点。
+# 安卓在 Linux 上跑 gradlew check（Lint、javac 告警、Checkstyle、运行时依赖为空、单元测试）；
+# Windows 外壳跑 cargo fmt --check → clippy -D warnings → cargo test → 边界检查（它要读 cargo metadata 和编译生成的权限清单，所以排在 cargo 之后）。
+# 端到端（会弹窗口、动鼠标）和真机测试不在这里跑。不需要任何密钥。
+name: 外壳检查
+
+on:
+  push:
+    paths:
+      - 'apps/**'
+      - '.github/workflows/apps.yml'
+  pull_request:
+    paths:
+      - 'apps/**'
+      - '.github/workflows/apps.yml'
+  workflow_dispatch:
+
+# 同一分支连着推几次，只跑最新那次
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: 安卓外壳
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v7
+      # JDK 21，顺带缓存 Gradle 的发行版和依赖；安卓 SDK 用机器上装好的，缺的平台和构建工具由 Gradle 插件自己补
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: sh ./gradlew --console=plain check
+
+  desktop:
+    name: Windows 外壳
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v7
+      # 边界检查用 node --test
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      # 机器上自带 rustup，装 stable 和两个组件
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - run: rustup default stable
+      # 缓存 cargo 的下载和编译产物，按 Cargo.lock 区分
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            apps/desktop/src-tauri/target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: node --test tests/boundary.test.mjs

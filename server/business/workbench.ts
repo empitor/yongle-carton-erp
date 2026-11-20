@@ -3,8 +3,8 @@ import { count, many, type Store } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { WarehouseDaily } from '../flow/index.js';
 import { OperationsRepository, OrderBatchService, purchaseOrderLinks } from '../operations/index.js';
-import { dueSegments, pendingOrder, sumMoney, type FlowDocView } from '../../shared/business/index.js';
-import { DAY_MS, UNITS_PER_QUANTITY, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
+import { dueSegments, sumMoney, type FlowDocView } from '../../shared/business/index.js';
+import { DAY_MS, UNITS_PER_QUANTITY, deliverableOrder, effectiveOrder, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
 import { orderNextSteps, type NextStep } from '../../shared/business/index.js';
 import { pendingByOrderLine, specificationMismatch } from '../../shared/business/index.js';
 
@@ -271,7 +271,7 @@ function monthSummary(orders: Order[], deliveryRecords: DeliveryRecord[], date: 
   const from = monthStart(date);
   return {
     monthOrderCents: orders
-      .filter((o) => o.orderDate >= from && !['待确认', '已取消'].includes(o.status))
+      .filter((o) => o.orderDate >= from && effectiveOrder(o))
       .reduce((n, o) => n + o.totalCents, 0),
     monthShippedAmount:
       sumMoney(
@@ -324,7 +324,7 @@ export function buildToday(store: Store, date: string) {
     deliveryRecords = daily.records('delivery', date),
     // 今天要到的按订货单的到货安排：截止日是今天、还没到齐的段，逾期没到齐的排在前面
     dueArrivals = dueSegments(new OrderBatchService(store).open(), date);
-  const active = orders.filter(pendingOrder),
+  const active = orders.filter(deliverableOrder),
     finished = items.filter((i) => i.kind === 'finished');
   const facts = orderFacts({ store, flow, active, tasks, purchases, finished });
   return {

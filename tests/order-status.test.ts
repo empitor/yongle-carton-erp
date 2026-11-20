@@ -9,7 +9,7 @@ import { DatabaseMaintenanceService } from '../server/business/database-maintena
 import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { count, type Actor } from '../server/core/index.js';
-import { orderDisplayStatus, productSchema } from '../shared/core/domain.js';
+import { closedOrder, deliverableOrder, effectiveOrder, orderDisplayStatus, productSchema, statuses, uncountedOrderStatuses } from '../shared/core/domain.js';
 import { buildToday } from '../server/business/workbench.js';
 import { orderNextSteps } from '../shared/business/order-next-step.js';
 import { shippedByLine, shippedUnits } from '../server/flow/shipped.js';
@@ -331,4 +331,13 @@ test('删掉订单唯一的送货单、或把它改挂到别的订单，原订�
   } finally {
     g.store.close();
   }
+});
+
+test('订单的三个共用判断：待确认、已取消不算数；还能送的只有已确认、生产中、待发货；已发货、已取消算结束', () => {
+  const pick = (judge: (o: { status: string }) => boolean) => statuses.filter((status) => judge({ status }));
+  assert.deepEqual(pick(effectiveOrder), ['已确认', '生产中', '待发货', '已发货']);
+  assert.deepEqual(pick(deliverableOrder), ['已确认', '生产中', '待发货']);
+  assert.deepEqual(pick(closedOrder), ['已发货', '已取消']);
+  // 财务的 SQL 用状态清单，和函数是同一个口径
+  assert.deepEqual(pick((o) => !effectiveOrder(o)), [...uncountedOrderStatuses]);
 });

@@ -9,7 +9,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { many, rows } from '../core/index.js';
 import { financeAudit, financeError } from './core.js';
-import { deliveryReversed } from './business-source.js';
+import { sourceReversed } from './business-source.js';
 import { FinanceLedger } from './ledger.js';
 import { entry, id, money, row } from './query.js';
 import { allocationSum, voucherReversed } from './obligation-sql.js';
@@ -115,7 +115,7 @@ function openItems(db: DatabaseSync, side: Side, partyId: string, date: string, 
     AND (o.voucher_id IS NULL OR v.status='posted')
     AND NOT ${isReversed('o')}
     AND NOT EXISTS(SELECT 1 FROM fin_events e
-      WHERE e.id=o.event_id AND e.source_kind='delivery' AND ${deliveryReversed('e')})
+      WHERE e.id=o.event_id AND e.source_kind='delivery' AND ${sourceReversed('e', 'delivery')})
     AND (? IS NULL OR o.id IN (SELECT value FROM json_each(?))))
     WHERE balance>0 ORDER BY coalesce(first_installment,due_date,date),date,id LIMIT 500`,
     side,

@@ -1,5 +1,5 @@
-import { FINISHED_UNIT } from '../../shared/core/index';
-import { pendingOrder, type FlowDocView } from '../../shared/business/index';
+import { FINISHED_UNIT, deliverableOrder } from '../../shared/core/index';
+import type { FlowDocView } from '../../shared/business/index';
 import { FormField, FormGroup, FormSection } from '../ui/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import Select from './Select';
@@ -20,7 +20,7 @@ export default function TaskForm({
   change: (patch: Partial<TaskEditing>) => void;
   data: TaskFormData;
 }) {
-  const taskOrders = data.orders.filter((o) => pendingOrder(o) && o.lines.some((l) => l.productId === v.productId));
+  const taskOrders = data.orders.filter((o) => deliverableOrder(o) && o.lines.some((l) => l.productId === v.productId));
   return (
     <>
       <FormSection title="生产什么">

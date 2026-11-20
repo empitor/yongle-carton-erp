@@ -183,7 +183,7 @@ export class FinanceInvoices {
         financeError('发票关联重复或超过票面金额。');
       for (const l of v.links) {
         const o = row(this.db, 'fin_obligations', l.obligationId);
-        assertInvoiceableObligation(this.db, l.obligationId);
+        assertInvoiceableObligation(this.db, l.obligationId, (arrival) => '到货 ' + arrival + ' 已撤销或被更正替代，不能再关联发票。');
         // 整张红冲后往来金额为 0，但还有整张红冲释放的额度时，可以关联重开的蓝票。
         const reopenable = reissueCapacity(this.db, l.obligationId, key) > 0;
         if (

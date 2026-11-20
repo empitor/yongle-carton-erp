@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react';
 import { CorrectionDialog, DocumentInfoDialog, correctLabel, infoSavedMessage, isCorrectable } from '../flow/index';
 import { MovementDialog } from '../operations/index';
 import { DatabaseDeleteDialog } from '../recordkit/index';
-import { flowModules } from './record-refs';
+import { isFlowKind } from '../../shared/business/index';
 import { businessRows, isManagedModule, textOf, type ListedRecord, type ManagedModule, type ManagedRecord } from './record-types';
 
 /** 已生效的到货、送货、完工单“编辑”窗口要的内容；更正哪种单据；出入库 / 盘点窗口要的库存品 */
@@ -24,7 +24,7 @@ const effective = (module: string, r: ListedRecord) =>
   isCorrectable(module) && r.record.status === 'confirmed' && !r.record.replacedBy && !r.record.archived;
 /** 已撤销、已取消、已被更正替代的单据不能再改，不出“编辑” */
 export const editable = (module: string, r: ListedRecord) =>
-  !flowModules.includes(module) ||
+  !isFlowKind(module) ||
   r.record.status === 'draft' ||
   (module === 'task' && r.record.status === 'confirmed') ||
   effective(module, r);

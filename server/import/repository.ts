@@ -15,7 +15,7 @@ import {
   registerVersionedSqlite,
   rows,
 } from '../core/index.js';
-import { FAILURE_PAGE, type ImportWorkspaceView, type UnreadableWorkspace, type WorkspaceSummary } from '../../shared/import/index.js';
+import { FAILURE_PAGE, runningTaskStates, type ImportWorkspaceView, type UnreadableWorkspace, type WorkspaceSummary } from '../../shared/import/index.js';
 import {
   checkedForWrite,
   restartSubject,
@@ -76,6 +76,8 @@ const pickedColumns = (names: readonly string[]) =>
   'json_object(' + names.map((n) => `'${n}',json(document->'$.${n}')`).join(',') + ')';
 const SUMMARY_FIELDS = ['fileName', 'fileHash', 'createdAt', 'task', 'mode', 'arrivalDocId', 'arrivalSourceId'] as const;
 const RESTART_FIELDS = ['id', 'revision', 'fileName', 'fileHash', 'size', 'parsed', 'task'] as const;
+/** 还没结束的识别任务状态，SQL 里一种一个占位符 */
+const RUNNING_SLOTS = runningTaskStates.map(() => '?').join(',');
 /** 按结构认一份工作区的几栏：对不上的抛 StoredDataError（已记日志、带工作区编号），由调用方决定这一份怎么办 */
 function readPicked<S extends z.ZodType>(schema: S, row: z.infer<typeof pickedRow>) {
   return parseStoredJson(schema, row.picked, `workspaces.document（工作区 ${row.id}）`);
@@ -93,9 +95,11 @@ export class ImportRepository {
     this.db = openVersionedSqlite(file, workspaceDatabase);
     this.recordInterrupted();
     // 重启恢复：程序关掉时还在跑、在排队的任务改成失败，让人重新识别。
-    this.db.exec(
-      `UPDATE workspaces SET document=json_set(document,'$.task',json_object('state','failed','error','上次处理被程序关闭中断，请重新识别。')) WHERE json_extract(document,'$.task.state') IN ('running','queued','backoff')`,
-    );
+    this.db
+      .prepare(
+        `UPDATE workspaces SET document=json_set(document,'$.task',json_object('state','failed','error','上次处理被程序关闭中断，请重新识别。')) WHERE json_extract(document,'$.task.state') IN (${RUNNING_SLOTS})`,
+      )
+      .run(...runningTaskStates);
   }
   /**
    * 失败、或者上次没跑完的任务如果没有错误档案（写档案时出错、程序被关掉），启动时补记一条，
@@ -106,7 +110,8 @@ export class ImportRepository {
       this.db,
       pickedRow,
       `SELECT id,revision,${pickedColumns(RESTART_FIELDS)} AS picked,0 AS hasDraft FROM workspaces
-        WHERE json_extract(document,'$.task.state') IN ('failed','running','queued','backoff')`,
+        WHERE json_extract(document,'$.task.state') IN ('failed',${RUNNING_SLOTS})`,
+      ...runningTaskStates,
     );
     for (const row of found) {
       let w: z.infer<typeof restartSubject>;

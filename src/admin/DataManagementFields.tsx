@@ -1,18 +1,18 @@
 import { createContext, useContext } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { dataManagementFieldName } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT } from '../../shared/core/index';
+import { FINISHED_UNIT, RAW_UNIT, type ApiJson } from '../../shared/core/index';
 import { FormField } from '../ui/index';
 import RefField from './RefField';
 import type { RecordRefs } from './record-refs';
 import {
   isJsonList,
   isJsonObject,
-  type Json,
   type JsonObject,
   type ManagedRecord,
 } from './record-types';
 import {
+  allowsBlank,
   centsTwins,
   fieldChoices,
   hiddenFields,
@@ -68,7 +68,7 @@ export default function DataManagementFields({
 }
 
 /** 一个值：明细数组每项一张卡片，对象按字段排开，别的是一个输入框 */
-function FieldValue({ value, change, path, module }: Where & { value: Json | undefined; change: (v: Json) => void }) {
+function FieldValue({ value, change, path, module }: Where & { value: ApiJson | undefined; change: (v: ApiJson) => void }) {
   if (isJsonList(value)) return <FieldList value={value} change={change} path={path} module={module} />;
   if (isJsonObject(value)) return <FieldGroup value={value} change={change} path={path} module={module} />;
   return (
@@ -82,10 +82,10 @@ function FieldValue({ value, change, path, module }: Where & { value: Json | und
 }
 
 /** 明细数组：每项一张卡片（可移除），最后一个“增加明细”；编号清单（生产任务的关联订单）每项一个选择器 */
-function FieldList({ value, change, path, module }: Where & { value: readonly Json[]; change: (v: Json) => void }) {
+function FieldList({ value, change, path, module }: Where & { value: readonly ApiJson[]; change: (v: ApiJson) => void }) {
   const outer = useContext(EditorContext);
   const primitive = !value.some((x) => x && typeof x === 'object');
-  const replace = (i: number, next: Json) => change(value.map((x, j) => (j === i ? next : x)));
+  const replace = (i: number, next: ApiJson) => change(value.map((x, j) => (j === i ? next : x)));
   // 明细照第一项的样子加一项（不带它的编号）；编号清单（生产任务的关联订单）加一项留空让人选，不拿 0 冒充编号
   const add = () => {
     const first = value[0];
@@ -144,7 +144,7 @@ function FieldGroup({ value, change, path, module }: Where & { value: JsonObject
 type CellProps = Where & {
   /** 这一格的字段名和值 */
   field: string;
-  v: Json | undefined;
+  v: ApiJson | undefined;
   /** 这一格所在的那层内容，和改这一层的函数 */
   value: JsonObject;
   change: (v: JsonObject) => void;
@@ -155,7 +155,7 @@ function FieldCell({ field: key, v, value, change, path, module }: CellProps) {
   const outer = useContext(EditorContext);
   const ctx = { ...outer, module: module || outer.module };
   const title = dataManagementFieldName(key, path, ctx.module),
-    update = (x: Json) => change({ ...value, [key]: x });
+    update = (x: ApiJson) => change({ ...value, [key]: x });
   if (isJsonObject(v) || isJsonList(v))
     return (
       <div className="form-field span-full adm-data-group" role="group" aria-label={title}>
@@ -193,10 +193,10 @@ function FieldCell({ field: key, v, value, change, path, module }: CellProps) {
 const inputType = (key: string, numeric: boolean) =>
   numeric ? 'number' : /Date$/.test(key) || key === 'date' ? 'date' : timeFields.has(key) ? 'time' : 'text';
 /** 输入框没填时的提示：金额写“元”（参考单价写“没定价就空着”），存的是空写“未填写” */
-const placeholderOf = (key: string, v: Json | undefined, money: boolean) =>
+const placeholderOf = (key: string, v: ApiJson | undefined, money: boolean) =>
   money ? (key === 'priceExact' ? '没定价就空着' : '元') : v === null ? '未填写' : '';
 /** 这一格怎么填：长文字占满一行，金额按元填，数字用数字框 */
-function inputKind(key: string, v: Json | undefined, path: string, editing: string) {
+function inputKind(key: string, v: ApiJson | undefined, path: string, editing: string) {
   const money = yuanFields.has(key) || (path === 'costs' && key !== 'basis');
   // 订单明细的数量是数字（单据的数量是文字）：新建模板里留空（null）时也按数字输入
   const numeric =
@@ -217,11 +217,11 @@ function PlainField({
 }: CellProps & { title: string; locked: string | null }) {
   const ctx = useContext(EditorContext),
     editing = module || ctx.module,
-    update = (x: Json) => change({ ...value, [key]: x });
+    update = (x: ApiJson) => change({ ...value, [key]: x });
   // 这一格没法提交的原因（嵌套对象按“上一层.字段”记，明细数组里的不分行，不在这里标）
   const invalid = ctx.errors?.[path ? path + '.' + key : key];
   const { long, money, numeric } = inputKind(key, v, path, editing),
-    choices = fieldChoices(key, v, module, !!path);
+    choices = fieldChoices(key, v, module);
   // 库存品改种类：数量单位跟着种类走，改成原材料时清掉关联的产品（原材料不关联产品）
   const choose = (x: string | null) =>
     editing === 'stock_items' && !path && key === 'kind'
@@ -242,7 +242,7 @@ function PlainField({
           value={String(v ?? '')}
           onChange={(e) => choose(e.currentTarget.value || null)}
         >
-          <option value="">未填写</option>
+          {allowsBlank(key, v) && <option value="">未填写</option>}
           {choices.map(([code, text]) => (
             <option key={code} value={code}>
               {text}

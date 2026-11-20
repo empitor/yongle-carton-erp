@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { canEditBusiness, useAuthState, useAction, EditorFooter, ManagementDialog } from '../ui/index';
+import { canEditBusiness, useAuthState, useAction, useSaveFile, EditorFooter, ManagementDialog } from '../ui/index';
 import type { BusinessForm, DocumentExportStatus, DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
 import { errorMessage } from '../../shared/core/index';
 import { deliverBusinessFile, WordFilePreview, type WordFile } from './export-file';
@@ -111,7 +111,8 @@ function DeliveryExport({
     [file, setFile] = useState<DocumentExportStatus | null>(null),
     [done, setDone] = useState('');
   const action = useAction(),
-    busy = action.busy;
+    busy = action.busy,
+    save = useSaveFile();
   const canEdit = canEditBusiness(auth);
   const draftDelivery = status === 'draft';
   const source = useExportSource({ id, version, templateId, draftDelivery }),
@@ -133,7 +134,7 @@ function DeliveryExport({
         requestId: crypto.randomUUID(),
       });
       setFile(generated);
-      await deliverBusinessFile(generated);
+      await deliverBusinessFile(generated, save);
       if (ship) onDone('送货单已导出，已出库，送货中。客户收到后点“确认送达”。');
       else setDone('文件已交付。');
     });

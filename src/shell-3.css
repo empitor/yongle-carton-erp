@@ -59,9 +59,10 @@ body:has(.selection-bar) .toast {
   body:has(.selection-bar) .toast {
     bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom) + 112px);
   }
-  /* 弹层从底部升起时，提示条挪到顶上，不盖住弹层底栏的按钮（写在勾选条那条后面：两个都在时以这条为准） */
+  /* 弹层开着时，提示条挪到顶上、再让出一个标题栏的高度：不盖住弹层底栏的按钮，也不盖住标题和 ×
+     （写在勾选条那条后面：两个都在时以这条为准） */
   body:has(.overlay) .toast {
-    top: calc(env(safe-area-inset-top) + 8px);
+    top: calc(env(safe-area-inset-top) + var(--topbar-h) + var(--space-sm));
     bottom: auto;
   }
 }

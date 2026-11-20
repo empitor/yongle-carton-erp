@@ -3,6 +3,7 @@ import type { AiProgress } from '../../shared/ai/index';
 import { errorMessage } from '../../shared/core/index';
 import {
   importStateLabels,
+  taskStillRunning,
   type DraftOperation,
   type ImportList,
   type ImportMapping,
@@ -159,7 +160,7 @@ export async function recognize(ctx: WorkspaceCtx, ids: string[]) {
   for (const id of ids) {
     if (ctx.cancelled.has(id)) continue;
     const w = await readWorkspace(id).catch(() => null);
-    if (!w || w.draft || ['queued', 'running', 'backoff'].includes(w.task?.state || '')) continue;
+    if (!w || w.draft || taskStillRunning(w.task?.state)) continue;
     ctx.accept(w);
     await act(
       ctx,

@@ -50,3 +50,19 @@ test('同一批单据（部分送货、上个月的送货、撤销的送货、�
     t.f.store.close();
   }
 });
+
+test('本月接单：财务月度台账和经营概况同一个口径，待确认、已取消的订单都不算', async () => {
+  const t = await flowFinance();
+  try {
+    const { f } = t;
+    f.order(30, { orderDate: '2026-10-05', status: '待确认' });
+    f.order(40, { orderDate: '2026-10-06', status: '已取消' });
+    const month = new FinanceMonthly(f.store).get(maker, { period: '2026-10' });
+    const october = f.store.orders().filter((o) => o.orderDate.startsWith('2026-10'));
+    const dashboard = buildDashboard(f.store, october, { start: '2026-10-01', end: '2026-10-31' }, '2026-10-31', { workbench: false });
+    assert.equal(month.ordered, dashboard.amountCents);
+    assert.equal(month.ordered, 10000, '只算已确认的那张：100 只 × 1 元');
+  } finally {
+    t.f.store.close();
+  }
+});

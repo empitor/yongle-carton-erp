@@ -1,8 +1,9 @@
 import type { Actor } from './actor.js';
 import { AppError } from './errors.js';
+import type { Permission } from '../../shared/core/index.js';
 
-// 权限检查：各模块的写操作都经这里，规则只有一份。
-export function requirePermission(actor: Actor | null | undefined, permission: string): Actor {
+// 权限检查：各模块的写操作都经这里，规则只有一份。权限名只收 shared/core/accounts.ts 列的那几个。
+export function requirePermission(actor: Actor | null | undefined, permission: Permission): Actor {
   if (!actor) throw new AppError('请先登录管理账号。', 401, 'authentication');
   if (isSuperMode(actor)) return actor;
   if (!actor.permissions.includes(permission))
