@@ -59,11 +59,27 @@ test('财务取一个单位的名字：有就给名字，没有报“往来单�
  * 窗口每个函数跑一遍用的调用。按 financeFacts 的结构定类型：以后加组、加函数，这里不写调用就编译不过，
  * 下面的测试也按 financeFacts 实际有的函数逐个核对，漏写的报出来。
  */
+/** 一张合结构的退货单内容原文（解析原文的纯函数用） */
+const sampleReturn = JSON.stringify({
+  requestId: 'fict-return',
+  reason: '虚构质量问题',
+  arrivalNumber: '虚构到货',
+  supplierId: 1,
+  supplierName: '虚构供应商',
+  lines: [{ lineIndex: 0, stockId: null, name: '虚构纸板', unit: '张', purchaseLineId: null, quantity: '1' }],
+});
 type Calls = { [G in keyof typeof financeFacts]: { [F in keyof (typeof financeFacts)[G]]: (w: World) => unknown } };
 const calls: Calls = {
   parties: {
     names: (w) => financeFacts.parties.names(w.db, 'customer', [w.kept, w.archived]),
     options: (w) => financeFacts.parties.options(w.db, 'supplier'),
+  },
+  purchases: {
+    lines: (w) => financeFacts.purchases.lines(w.db, [1, 2]),
+    returnHeads: (w) => financeFacts.purchases.returnHeads(w.db),
+    returnRows: (w) => financeFacts.purchases.returnRows(w.db, [1]),
+    returnLines: () => financeFacts.purchases.returnLines({ id: 1, number: '虚构退货', document: sampleReturn }),
+    hasConfirmedReturn: (w) => financeFacts.purchases.hasConfirmedReturn(w.db, 1),
   },
 };
 

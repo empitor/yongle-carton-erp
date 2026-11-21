@@ -6,9 +6,9 @@ import type { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { one, rows } from '../core/index.js';
+import { financeFacts } from '../flow/index.js';
 import { financeAudit, financeError } from './core.js';
 import { proportion } from './amounts.js';
-import { hasConfirmedReturn } from './business-source.js';
 import type { FinanceEvent } from './event-shared.js';
 import { sumOf } from './finance-rows.js';
 import { reissueCapacity, type InvoiceDetail } from './invoice-rules.js';
@@ -108,7 +108,7 @@ function purchaseAdjustment(
   const estimateVoucher = o.estimate_remaining == null ? o.voucher_id : o.estimate_voucher_id;
   if (!estimate || !estimateVoucher) return reissuedPurchase(store, c, link);
   // 到货退过货：供应商按退货后的数量开票，默认把这批到货的暂估全部转回，差额进到票调差。
-  const returned = hasConfirmedReturn(store.db, Number(event.source_id));
+  const returned = financeFacts.purchases.hasConfirmedReturn(store.db, Number(event.source_id));
   // 暂估是不含税金额，要拿这张发票分到这笔的不含税额来比，不能拿价税合计比，
   // 否则 13% 税率下开到九成左右就会被当成全部到票，把整批暂估都转回。
   if (l.estimate_cents == null && invoiceNet < estimate && !returned)
