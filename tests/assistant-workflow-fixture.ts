@@ -1,7 +1,6 @@
 // 聊天里识别导入订单的夹具：文件库（临时目录）、导入管理器、助手，模型替身按用户这句话调识别或正式导入。
 import { executeImports, importCard } from '../server/assistant/order-import-card.js';
 import type { OrderImportState, WorkflowContext } from '../server/assistant/order-import-state.js';
-import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,13 +8,10 @@ import { tmpdir } from 'node:os';
 import { Store } from '../server/core/db.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import type { AgentOptions } from '../server/assistant/chat/agent-config.js';
-import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
-import { ImportManager } from '../server/import/manager.js';
-import { ImportExecutionService } from '../server/import/import-execution.js';
-import { findImport } from '../server/import/import-records.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
-import { eventData } from './assistant-fixture.js';
+import type { ImportManager } from '../server/import/manager.js';
+import { ReceiptAi } from '../server/import/receipt-ai.js';
+import { assistantDeps, eventData, promptTable } from './assistant-fixture.js';
+import { testImports } from './order-import-fixture.js';
 import { fakeAiSettings, freshUserText, httpError, turnFailure } from './fake-deepseek.js';
 import type { ChatBody, ChatCall } from './fake-deepseek-wire.js';
 import { imageFixture } from './import-fixtures.js';
@@ -116,38 +112,43 @@ async function reviewWorkspace(store: Store, imports: ImportManager, o: Reviewed
   return imports.mapping(w.id, { expectedRevision: w.revision, mapping: { customer, products, roundingPolicy: 'exact-cents' } }, actor);
 }
 
-function importsFor(store: Store, dir: string, settings: AiSettingsManager, promptPresets: PromptPresetManager) {
-  return new ImportManager({
+/** 助手的全套依赖：识别导入（原件在临时目录）、到货识别、三个提示词模块，彼此用的是同一份 */
+function workflowDeps(store: Store, dir: string, settings: AiSettingsManager, receiptSettings: AiSettingsManager) {
+  const prompts = promptTable();
+  const receiptAi = new ReceiptAi(store, receiptSettings, prompts['supplier-delivery']);
+  const imports = testImports({
+    store,
     directory: join(dir, 'imports'),
+    archiveDirectory: join(dir, 'archive'),
     settings,
-    promptPresets,
-    findImport: (id, hash) => findImport(store, id, hash),
-    validateMapping: (m) => {
-      if (m.customer.mode === 'existing') assert.equal(store.customer(m.customer.id)?.version, m.customer.version);
-      for (const p of Object.values(m.products)) if (p.mode === 'existing') assert.equal(store.product(p.id)?.version, p.version);
-    },
+    promptPresets: prompts['sales-order'],
+    receiptAi,
   });
+  return { prompts, imports, built: assistantDeps(store, settings, { prompts, receiptAi, imports }) };
 }
 
 /**
  * options.settings：传进来就用它（预览实例的“真实模型”模式），不装模型替身，replies 不起作用。
  * options.agent：不给就和真实的一样（正式导入只出确认卡片）；只测识别导入流程本身的测试传 { autoConfirm: true }。
  * options.wrap：在假 DeepSeek 前面插一层（预览实例用它把识别的回复放慢，界面上看得到进度一步步出来）。
+ * options.receiptSettings：到货识别另用的设置（预览实例的送货单替身）；不给就和订单识别同一个。
  */
 export function createOrderWorkflowFixture(
   databasePath?: string,
-  options: { settings?: AiSettingsManager; agent?: AgentOptions; wrap?: (t: AiTransport) => AiTransport } = {},
+  options: {
+    settings?: AiSettingsManager;
+    agent?: AgentOptions;
+    wrap?: (t: AiTransport) => AiTransport;
+    receiptSettings?: AiSettingsManager;
+  } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'erp-assistant-orders-')),
     store = new Store(databasePath || join(dir, 'erp.sqlite'));
   const model: ModelStandIn = { requests: [], replies: [], recognitionCalls: 0, broken: false };
   const settings = options.settings || standInSettings(model, options.wrap);
-  const prompts = new PromptPresetManager(':memory:', assistantDefaultPreset),
-    orderPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
-    manager = new AssistantManager(store, settings, prompts, { agent: options.agent });
-  const imports = importsFor(store, dir, settings, orderPrompts);
-  const execution = new ImportExecutionService(store, imports, join(dir, 'archive'));
-  manager.connectImports(imports, execution);
+  const { prompts, imports, built } = workflowDeps(store, dir, settings, options.receiptSettings ?? settings),
+    { execution } = built.deps,
+    manager = new AssistantManager(built.deps, { agent: options.agent });
   store.saveCustomer(customerSchema.parse({ name: '聊天验收客户' }));
   const thread = manager.create(actor),
     events: { event: string; data: Record<string, unknown> }[] = [];
@@ -177,6 +178,8 @@ export function createOrderWorkflowFixture(
     store,
     settings,
     manager,
+    /** 建助手用的全套依赖（三个提示词模块的表、到货识别……） */
+    deps: built.deps,
     imports,
     execution,
     thread,
@@ -191,9 +194,9 @@ export function createOrderWorkflowFixture(
     broken: (v: boolean) => (model.broken = v),
     close() {
       manager.registry.close();
+      built.close();
       imports.close();
-      prompts.close();
-      orderPrompts.close();
+      for (const prompt of Object.values(prompts)) prompt.close();
       settings.close();
       store.close();
       // Windows 上杀毒扫描会短暂占住刚建的 SQLite 文件，删目录要重试几次

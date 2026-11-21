@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { z } from 'zod';
-import { assistantFixture } from './assistant-fixture.js';
+import { assistantDeps, assistantFixture } from './assistant-fixture.js';
 import { imageFixture, docxFixture, xlsxFixture } from './import-fixtures.js';
 import { Store } from '../server/core/db.js';
 import { count, one, rows } from '../server/core/index.js';
@@ -152,9 +152,12 @@ test('附件刷新及重开数据库后完整恢复，未发送附件也保留�
     f = assistantFixture(),
     prompts = new PromptPresetManager(':memory:', assistantDefaultPreset);
   let store = new Store(join(dir, 'erp.sqlite'));
-  const managers: AssistantManager[] = [];
+  const managers: AssistantManager[] = [],
+    deps: ReturnType<typeof assistantDeps>[] = [];
   const open = () => {
-    const manager = new AssistantManager(store, f.settings, prompts);
+    const built = assistantDeps(store, f.settings, { prompts: { ...f.deps.prompts, assistant: prompts } });
+    const manager = new AssistantManager(built.deps);
+    deps.push(built);
     managers.push(manager);
     return manager;
   };
@@ -190,6 +193,7 @@ test('附件刷新及重开数据库后完整恢复，未发送附件也保留�
     assert.equal(version?.v, SCHEMA_LATEST);
   } finally {
     for (const m of managers) m.registry.close();
+    for (const built of deps) built.close();
     store.close();
     prompts.close();
     f.close();

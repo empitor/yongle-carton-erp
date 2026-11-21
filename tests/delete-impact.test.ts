@@ -13,7 +13,7 @@ import { deletionDoneMessage, deletionImpactView } from '../src/recordkit/deleti
 import { deletionHeadline, deletionInternalTables as internalTables } from '../shared/business/deletion-headline.js';
 // 解除的字段的叫法表只给这里核对登记全不全，不在接口里列
 import { deletionTableLabel as tableLabel, deletionFieldLabels as fieldLabels } from '../shared/business/deletion-words.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { inventoryOptions } from '../shared/business/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
@@ -300,7 +300,7 @@ test('删除确认的标题和按钮：写明连带删掉几张什么单据，�
     assert.doesNotMatch(headline.title, /明细|到货记录|供应商、/);
     assert.equal(headline.alarming, true);
     // 助手删除卡片的标题用同一个函数、同一份删除预览，再带上名字
-    const card = new AssistantTools(f.store).prepare('records.delete', { module: 'suppliers', id: supplier.id }, owner(), 's');
+    const card = toolsOf(f.store).prepare('records.delete', { module: 'suppliers', id: supplier.id }, owner(), 's');
     assert.equal(card.label, deletionHeadline('suppliers', [supplier], z.object({ impact: z.array(impactRowSchema) }).parse(card.after).impact, supplier.name).title);
     assert.match(card.label, new RegExp('^删除供应商 ' + supplier.name + '和它的 ' + purchases + ' 张采购单、' + arrivals + ' 张到货单'));
     // 采购单：明细和到货记录跟着删、到货单保留，标题只说删什么；没删到单据和流水，不用警示样式

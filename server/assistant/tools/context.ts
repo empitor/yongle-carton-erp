@@ -1,10 +1,9 @@
-// 只管：各业务域工具函数共用的上下文类型（ToolContext、外壳接口 ToolShell、装配接上的服务 ToolServices、ToolReader、ToolWriter）
+// 只管：各业务域工具函数共用的上下文类型（ToolContext、外壳接口 ToolShell、建助手时给的服务 ToolServices、ToolReader、ToolWriter）
 // 和几个小件（要求登录、要求超级管理员、试算回滚、报错、截断、正整数和 UUID 参数、分页）。tools/ 下最底层的文件，只引用别的模块的入口和 plan-rules 的类型。
 import { z } from 'zod';
 import type { Store } from '../../core/index.js';
-import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, Deployment, ProblemLog } from '../../core/index.js';
-import type { RunLog, SourceScope } from '../../system/index.js';
+import type { RunLog, SourceScope, readLoginRecords } from '../../system/index.js';
 import { AppError, canEnterSuperMode, requireLocalAdministrator } from '../../core/index.js';
 import type { AiSettingsManager } from '../../ai/index.js';
 import type { OperationsService } from '../../operations/index.js';
@@ -73,27 +72,30 @@ export type ToolShell = {
   ): ToolPlan;
   commit(plan: ToolPlan, who: Actor | null | undefined, binding: string): unknown;
 };
+/** 读登录记录（账号库里的，只给超级管理员）：筛选条件和系统资料模块的 readLoginRecords 一样 */
+type LoginRecords = typeof readLoginRecords;
 /**
- * 装配时接上的只读服务（AssistantTools.connect）：AI 设置、账号、机器人设置和连接状态、部署方式、助手工具注册表，
- * 以及基础模块的出错记录、账号库（登录记录在里面），系统资料模块的运行日志、读代码的范围。
- * 都是别的模块现成的对象，这里只写用到的几个方法；没接上的，对应的工具说“还没接上”。
+ * 建助手时一次给全的只读服务（AssistantManager 的依赖对象，装配在 server/index.ts）：AI 设置、账号、登录记录、
+ * 机器人设置和连接状态、部署方式（null 是本机运行）、助手自己的工具注册表、识别导入，
+ * 以及基础模块的出错记录，系统资料模块的运行日志、读代码的范围。都是别的模块现成的对象，这里只写用到的几个方法。
  */
 export type ToolServices = {
-  ai?: AiSettingsManager;
-  accounts?: { listAccounts(): { id: string; name: string; level: string; disabled: boolean }[] };
-  bots?: { views(): { label: string; hasSecret: boolean; enabled: boolean; status: { state: BotState } }[] };
-  deployment?: Deployment | null;
-  registry?: {
+  ai: AiSettingsManager;
+  accounts: { listAccounts(): { id: string; name: string; level: string; disabled: boolean }[] };
+  loginRecords: (who: Actor | null | undefined, filter: NonNullable<Parameters<LoginRecords>[2]>) => ReturnType<LoginRecords>;
+  bots: { views(): { label: string; hasSecret: boolean; enabled: boolean; status: { state: BotState } }[] };
+  deployment: Deployment | null;
+  registry: {
     view(actor?: Actor | null): {
       tools: { name: string; module: string; enabled: boolean; pluginEnabled: boolean; toolEnabled: boolean; status: string }[];
     };
   };
-  problems?: ProblemLog;
-  runLog?: RunLog;
-  source?: SourceScope;
-  accountsDb?: DatabaseSync;
+  imports: ImportManager;
+  problems: ProblemLog;
+  runLog: RunLog;
+  source: SourceScope;
 };
-/** 装配还没把要用的服务接上：工具照实说，不假装查过 */
+/** 要用的服务没有：工具照实说，不假装查过（服务现在建助手时都给全了，tools/ 下还在用它的几处留给工具定义收口时删） */
 export function notConnected(what: string): never {
   throw new AppError(what + '还没接上，查不了。', 503);
 }
@@ -102,7 +104,7 @@ export type ToolContext = {
   store: Store;
   ops: OperationsService;
   flow: FlowService;
-  imports?: ImportManager;
+  imports: ImportManager;
   services: ToolServices;
   tools: ToolShell;
 };

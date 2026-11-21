@@ -9,7 +9,7 @@ import { count } from '../server/core/index.js';
 import { Store } from '../server/core/db.js';
 import { OperationsService } from '../server/operations/service.js';
 import { FlowService } from '../server/flow/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { productSchema } from '../shared/core/domain.js';
 import { localAdmin } from './flow-fixture.js';
 import { actor } from './actor-fixture.js';
@@ -147,7 +147,7 @@ test('已完工的任务改计划日仍回 409“已完工”：超产的也是�
 
 test('助手也能改已下达但还没开工的生产任务（和人工同一条规则）', (t) => {
   const f = setup(t);
-  const tools = new AssistantTools(f.store);
+  const tools = toolsOf(f.store);
   const plan = tools.prepare('records.propose_save', { module: 'production_tasks', id: f.task.id, patch: { quantity: '120', notes: '助手改的' } }, actor, 'task-edit');
   assert.ok(tools.commit(plan, actor, 'task-edit'));
   const after = f.flow.get(f.task.id, 'task');

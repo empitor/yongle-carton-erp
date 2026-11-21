@@ -12,7 +12,7 @@ import { sampleDocument } from '../server/documents/sample.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { today } from '../shared/core/domain.js';
 import { workbenchFixture } from './flow-fixture.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
@@ -79,7 +79,7 @@ test('模板维护：没权限不能改、版本冲突被拒；人工和助手�
       () => settings.save({ expectedRevision: 0, templates }, actor),
       /模板已在其他页面修改/,
     );
-    const tools = new AssistantTools(f.store),
+    const tools = toolsOf(f.store),
       fromAI = tools.read('documents.templates', {}, actor);
     assert.deepEqual(fromAI, settings.get());
     const docs = new BusinessDocuments(f.store),

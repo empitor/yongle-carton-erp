@@ -134,17 +134,15 @@ export function undoDraftEdit(w: EditableWorkspace) {
 }
 
 /**
- * 保存客户和产品的匹配。选“已有档案”的必须经档案校验器核对过（validate），没有校验器就不收。
+ * 保存客户和产品的匹配。选“已有档案”的先经档案核对（validate：在不在、版本对不对）。
  * 人重新选过的，从“匹配已失效”的提示里去掉。
  */
-export function applyMapping(w: EditableWorkspace, mapping: ImportMapping, validate?: (m: ImportMapping) => void) {
+export function applyMapping(w: EditableWorkspace, mapping: ImportMapping, validate: (m: ImportMapping) => void) {
   const draft = w.draft;
   if (!draft) throw new AppError('请先识别订单。');
   if (Object.keys(mapping.products).some((id) => !draft.lines.some((l) => l.id === id)))
     throw new AppError('匹配对象不属于当前订单。');
-  if (validate) validate(mapping);
-  else if (mapping.customer.mode === 'existing' || Object.values(mapping.products).some((p) => p.mode === 'existing'))
-    throw new AppError('当前服务未连接档案校验器，不能保存未经验证的关联。');
+  validate(mapping);
   w.mapping = mapping;
   if (w.mappingInvalidated) {
     if (mapping.customer.mode !== 'pending') delete w.mappingInvalidated.customer;

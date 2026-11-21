@@ -3,9 +3,8 @@ import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import { startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager } from '../server/assistant/manager.js';
-import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
+import { assistantDeps } from './assistant-fixture.js';
 import { fakeAiSettings } from './fake-deepseek.js';
 import type { AiTransport } from '../server/ai/transport.js';
 
@@ -26,7 +25,8 @@ export const halfSecond = () => Buffer.alloc(8000 * 2);
 export async function speechServer(options: { key?: boolean; wrap?: (t: AiTransport) => AiTransport; asrText?: string } = {}) {
   const { settings, fake } = fakeAiSettings({ asrText: options.asrText ?? '第一句话', wrap: options.wrap, saveKey: options.key !== false });
   const store = new Store(':memory:'),
-    manager = new AssistantManager(store, settings, new PromptPresetManager(':memory:', assistantDefaultPreset)),
+    built = assistantDeps(store, settings),
+    manager = new AssistantManager(built.deps),
     h = await startHttp(store, { aiSettings: settings, assistant: manager }),
     { auth, cookie } = h,
     base = h.origin;
@@ -48,6 +48,7 @@ export async function speechServer(options: { key?: boolean; wrap?: (t: AiTransp
     async close() {
       await h.close();
       manager.registry.close();
+      built.close();
       store.close();
     },
   };

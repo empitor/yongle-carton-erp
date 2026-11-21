@@ -1,12 +1,13 @@
-// 助手的总装配：建好各个部件（工具、注册表、附件、会话记录、确认卡片、看页面），
+// 助手的总装配：用建助手时一次给全的依赖（AssistantDeps）建好各个部件（工具、注册表、附件、会话记录、确认卡片、看页面），
 // 对外给出会话的增删查、一轮对话（chat，各阶段在 chat/ 下）、确认卡片的改选、确认和拒绝。
 import { randomUUID } from 'node:crypto';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, many, rows, viaEntry } from '../core/index.js';
 import { AUDIT_SOURCE } from '../../shared/core/index.js';
 import type { AiSettingsManager, PromptPresetManager } from '../ai/index.js';
-import type { ImportManager, ImportExecutionService, ReceiptAi } from '../import/index.js';
-import type { MarkService } from '../business/index.js';
+import type { ImportExecutionService, ReceiptAi } from '../import/index.js';
+import type { PromptModuleId } from '../../shared/ai/index.js';
+import type { ToolServices } from './tools/context.js';
 import { agentBudgetConfig, type AgentBudgetLimits } from './budget.js';
 import { AssistantPromptEdit } from './prompt-edit.js';
 import { AssistantConversations } from './conversation.js';
@@ -38,48 +39,60 @@ const recentThread = rows.assistant_threads.pick({ id: true, title: true }).exte
  */
 type ChatLive = [emit: (event: string, data: unknown) => void, liveActor: () => Actor | null, options?: { proxy?: boolean }];
 
+/**
+ * 助手要用的别的模块的东西，建助手时一次给全（装配在 server/index.ts），缺一样编译不过：
+ * 业务库、AI 设置、三个提示词模块的管理器（同一张表也用来挂提示词设置页的地址，助手自己的人设是 prompts.assistant）、
+ * 识别导入和它的正式导入、到货识别、备份目录、助手工具设置库的文件，以及只读工具要看的服务（tools/context.ts 的 ToolServices：
+ * 账号、登录记录、机器人、部署方式、出错记录、运行日志、读代码的范围；工具注册表是助手自己建的）。唛头服务助手自己建。
+ */
+export type AssistantDeps = Omit<ToolServices, 'registry'> & {
+  store: Store;
+  prompts: Record<PromptModuleId, PromptPresetManager>;
+  execution: ImportExecutionService;
+  receiptAi: ReceiptAi;
+  backup: BackupSettings;
+  toolSettingsFile: string;
+};
+
 export class AssistantManager {
   readonly pageBridge = new AssistantPageBridge();
+  readonly store: Store;
+  readonly settings: AiSettingsManager;
+  /** 助手自己的人设（提示词模块 assistant） */
+  readonly prompts: PromptPresetManager;
   readonly budgetLimits: AgentBudgetLimits;
   readonly agent: AgentConfig;
   readonly tools: AssistantTools;
   readonly attachments: AssistantAttachments;
   readonly registry: AssistantToolRegistry;
   readonly promptEdit: AssistantPromptEdit;
-  orderWorkflow?: AssistantOrderWorkflow;
+  readonly orderWorkflow: AssistantOrderWorkflow;
   readonly extras: AssistantExtraTools;
   readonly previews: AssistantPreviews;
-  connectExtras(options: { marks?: MarkService; receiptAi?: ReceiptAi; backup?: BackupSettings }) {
-    Object.assign(this.extras, options);
-  }
-  connectImports(imports: ImportManager, execution: ImportExecutionService) {
-    this.extras.imports = imports;
-    this.promptEdit.managers.set('sales-order', imports.promptPresets);
-    this.tools.attachImports(imports);
-    this.orderWorkflow = new AssistantOrderWorkflow(this.store, imports, execution, this.attachments);
-  }
   readonly conversations: AssistantConversations;
   isBusy(id: string) {
     return this.conversations.busy.has(id);
   }
   constructor(
-    readonly store: Store,
-    readonly settings: AiSettingsManager,
-    readonly prompts: PromptPresetManager,
+    deps: AssistantDeps,
     options: {
-      toolSettingsFile?: string;
       budget?: Partial<AgentBudgetLimits>;
       /** 测试用的自动确认、会话上下文的数（chat/agent-config.ts） */
       agent?: AgentOptions;
     } = {},
   ) {
+    const { store, prompts, execution, receiptAi, backup, toolSettingsFile, ...services } = deps;
+    this.store = store;
+    this.settings = services.ai;
+    this.prompts = prompts.assistant;
     this.agent = agentConfig(options.agent);
     this.budgetLimits = agentBudgetConfig(options.budget);
-    this.tools = new AssistantTools(store);
+    this.registry = new AssistantToolRegistry(toolSettingsFile);
+    this.tools = new AssistantTools(store, { ...services, registry: this.registry });
     this.promptEdit = new AssistantPromptEdit(store, prompts);
-    this.registry = new AssistantToolRegistry(options.toolSettingsFile, () => !!this.orderWorkflow);
     this.attachments = new AssistantAttachments(store);
-    this.extras = new AssistantExtraTools(store, this.attachments);
+    this.extras = new AssistantExtraTools({ store, attachments: this.attachments, receiptAi, imports: services.imports, backup });
+    this.orderWorkflow = new AssistantOrderWorkflow(store, services.imports, execution, this.attachments);
     this.conversations = new AssistantConversations(store, this.attachments);
     // 流程类卡片确认后的执行：这时没有正在进行的对话，现建一份流程上下文（不发页面事件、不能中途停）
     this.previews = new AssistantPreviews(store, this.tools, this.registry, this.conversations, (plan, actor, _binding, threadId, previewId) => {

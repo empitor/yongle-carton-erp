@@ -171,7 +171,6 @@ test('识别结果的修改：换尺寸单位时长宽高跟着换算，可撤�
   assert.equal(w.draft.lines[0].fields.length.value, '30');
   assert.throws(() => undoDraftEdit(w), /没有可撤回/);
   const mapping: ImportMapping = { customer: { mode: 'existing', id: 1, version: 1 }, products: {}, roundingPolicy: 'exact-cents' };
-  assert.throws(() => applyMapping(w, mapping), /档案校验器/);
   let checked = 0;
   applyMapping(w, mapping, () => void checked++);
   assert.equal(checked, 1);

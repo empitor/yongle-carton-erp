@@ -11,7 +11,7 @@ import { Store } from '../server/core/db.js';
 import { count, many, one } from '../server/core/sql.js';
 import { rows } from '../server/core/schema/rows.js';
 import type { Actor } from '../server/core/auth.js';
-import { ImportManager } from '../server/import/manager.js';
+import { testImports } from './order-import-fixture.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { clearArchiveNow, deferArchiveCleanup } from '../server/admin/reset-archive.js';
 // 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务汇总加载时登记（server/core/deletion-rules.ts）
@@ -51,7 +51,7 @@ const customerCount = (store: Store) => count(store.db, 'SELECT COUNT(*) FROM cu
 const auditCount = (store: Store, action: string) =>
   count(store.db, 'SELECT COUNT(*) FROM business_audit WHERE action=?', action);
 
-test('初始化清空导入台账时一并删除原件归档；只清工作区或未配置归档目录时不删', () => {
+test('初始化清空导入台账时一并删除原件归档；只清工作区时不删', () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-p0-archive-')),
     archive = join(dir, 'import-archive'),
     store = new Store(':memory:'),
@@ -66,14 +66,11 @@ test('初始化清空导入台账时一并删除原件归档；只清工作区�
       writeFileSync(join(archive, hash, 'original'), '虚构原件');
     }
   };
-  const withArchive = new ImportManager({ directory: join(dir, 'ai-imports'), archiveDirectory: archive, settings }),
-    withoutArchive = new ImportManager({ directory: join(dir, 'ai-imports-2'), settings });
+  const withArchive = testImports({ directory: join(dir, 'ai-imports'), archiveDirectory: archive, settings });
   try {
     seed();
     new BusinessReset(store, withArchive).execute({ scope: 'ai-imports' }, who);
     assert.equal(readdirSync(archive).length, 2, '只清工作区时导入台账还在，原件归档保留');
-    new BusinessReset(store, withoutArchive).execute({ scope: 'business' }, who);
-    assert.equal(readdirSync(archive).length, 2, '没配置归档目录就不删任何归档');
     const result = new BusinessReset(store, withArchive).execute({ scope: 'business' }, who);
     assert.equal(result.archives, 2);
     assert.deepEqual(readdirSync(archive), [], '归档目录清空，目录本身保留');
@@ -82,7 +79,6 @@ test('初始化清空导入台账时一并删除原件归档；只清工作区�
     assert.deepEqual(readdirSync(archive), []);
   } finally {
     withArchive.close?.();
-    withoutArchive.close?.();
     settings.close();
     store.close();
     rmSync(dir, { recursive: true, force: true });
@@ -159,7 +155,7 @@ test('在外层事务里初始化：外层回滚就保留原件归档，外层�
     archive = join(dir, 'import-archive'),
     store = new Store(':memory:'),
     settings = new AiSettingsManager({ protector }),
-    imports = new ImportManager({ directory: join(dir, 'ai-imports'), archiveDirectory: archive, settings });
+    imports = testImports({ directory: join(dir, 'ai-imports'), archiveDirectory: archive, settings });
   const seedArchive = () => {
     for (const hash of ['c'.repeat(64), 'd'.repeat(64)]) {
       mkdirSync(join(archive, hash), { recursive: true });

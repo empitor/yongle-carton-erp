@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import type { ImportManager } from '../import/index.js';
-import type { MarkService } from '../business/index.js';
+import { MarkService } from '../business/index.js';
 import type { ReceiptAi } from '../import/index.js';
 import type { AssistantAttachments } from './attachments.js';
 import type { WorkflowContext } from './order-import-state.js';
@@ -67,16 +67,29 @@ const names = new Set([...systemTools, ...extraToolDefinitions].map((t) => t.nam
 
 /** 系统维护、唛头、收件箱和到货识别的助手工具。都复用页面用的原服务，权限和审计不另开一套。 */
 export class AssistantExtraTools {
-  marks?: MarkService;
-  receiptAi?: ReceiptAi;
-  imports?: ImportManager;
-  backup?: BackupSettings;
+  readonly store: Store;
+  readonly attachments: AssistantAttachments;
+  readonly marks: MarkService;
+  readonly receiptAi: ReceiptAi;
+  readonly imports: ImportManager;
+  readonly backup: BackupSettings;
   /** 正在备份（tools/system.ts 的 systemBackup 改写），所以不是 private。 */
   backingUp = false;
-  constructor(
-    readonly store: Store,
-    readonly attachments: AssistantAttachments,
-  ) {}
+  /** 唛头服务自己建（只用业务库）；别的都是建助手时给的 */
+  constructor(deps: {
+    store: Store;
+    attachments: AssistantAttachments;
+    receiptAi: ReceiptAi;
+    imports: ImportManager;
+    backup: BackupSettings;
+  }) {
+    this.store = deps.store;
+    this.attachments = deps.attachments;
+    this.receiptAi = deps.receiptAi;
+    this.imports = deps.imports;
+    this.backup = deps.backup;
+    this.marks = new MarkService(deps.store);
+  }
   handles(name: string) {
     return names.has(name);
   }
@@ -89,10 +102,6 @@ export class AssistantExtraTools {
         : undefined;
     if (!file) throw new AppError('请说明是当前会话里的哪一份附件。');
     return this.attachments.file(file.id, ctx.check());
-  }
-  private importManager() {
-    if (!this.imports) throw new AppError('AI 导入服务未配置。', 503);
-    return this.imports;
   }
   /** 只读工具 */
   read(name: string, raw: unknown, actor: Actor) {
@@ -134,8 +143,7 @@ export class AssistantExtraTools {
     });
   }
   private async recognizeArrival(raw: unknown, ctx: WorkflowContext) {
-    const manager = this.importManager();
-    if (!this.receiptAi) throw new AppError('到货识别未配置。', 503);
+    const manager = this.imports;
     const receiptAi = this.receiptAi;
     const actor = ctx.check();
     const v = z
@@ -193,7 +201,6 @@ export class AssistantExtraTools {
   }
   private addMark(raw: unknown, ctx: WorkflowContext) {
     const actor = ctx.check();
-    if (!this.marks) throw new AppError('唛头服务未配置。', 503);
     const v = z
       .object({
         productId: z.number().int().positive(),
@@ -220,7 +227,6 @@ export class AssistantExtraTools {
   }
   private removeMark(raw: unknown, ctx: WorkflowContext) {
     const actor = ctx.check();
-    if (!this.marks) throw new AppError('唛头服务未配置。', 503);
     const v = z.object({ id: z.number().int().positive(), expectedVersion: z.number().int().positive() }).parse(raw);
     const before = this.marks.get(v.id);
     this.marks.remove(v.id, { expectedVersion: v.expectedVersion }, actor);

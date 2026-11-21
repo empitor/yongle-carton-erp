@@ -5,7 +5,6 @@ export { resolveImportCustomer } from './customer-resolution.js';
 export { defaultPromptPreset } from './default-prompts/sales-order.js';
 export { supplierDefaultPreset } from './default-prompts/supplier-delivery.js';
 export { ImportExecutionService } from './import-execution.js';
-export { workspaceHooks } from './business-links.js';
 export { ImportManager } from './manager.js';
 export { matchDraft } from './matching.js';
 export { productFieldsFromDraft } from './product-input.js';

@@ -4,10 +4,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { OperationsService } from '../server/operations/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
-import { assistantFixture } from './assistant-fixture.js';
+import { assistantFixture, ctxOf, toolsOf } from './assistant-fixture.js';
 import type { Store as StoreType } from '../server/core/db.js';
 import type { OperationsRepository } from '../server/operations/repository.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
@@ -53,7 +52,7 @@ test('按交期先后把成品排满：先给交期早的甲，剩下给乙；�
   const fx = assistantFixture();
   try {
     const f = setup(fx.store);
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     const plan = readAs(tools.read('delivery.plan', { stockIds: [f.stock.id] }, actor), { groups, contested: z.array(z.unknown()) });
     assert.deepEqual(
       plan.groups.map((g) => [g.customerName, g.lines.map((l) => l.quantity)]),
@@ -81,7 +80,7 @@ test('多选订单合并送货：没库存的说明原因；安排生产合成�
   const fx = assistantFixture();
   try {
     const f = setup(fx.store);
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     const delivery = readAs(tools.read('delivery.plan', { orderIds: [f.oa.id, f.ob.id, f.oc.id] }, actor), { missing: rows });
     // 按交期先后：内托那张 11-18，乙的外箱 11-20
     assert.deepEqual(delivery.missing.map((m) => [m.productName, m.quantity]), [
@@ -104,7 +103,7 @@ test('delivery.plan 按主键批量读：不全量加载订单和库存品再筛
   const fx = assistantFixture(),
     f = setup(fx.store);
   try {
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     // 另一个不相干的客户、产品和库存：不该被读进来，也不影响结果
     const other = fx.store.saveProduct(productSchema.parse({ name: '虚构无关纸箱' }));
     const otherStock = f.ops.saveItem({ name: '虚构无关纸箱', kind: 'finished', unit: '只', productId: other.id }, actor);
@@ -135,7 +134,7 @@ test('delivery.plan 扣掉已经排在待送货单上的数量，和人工“安
   const fx = assistantFixture(),
     f = setup(fx.store);
   try {
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     // 甲的 300 只已经排在一张待送货单上：可用库存剩 200，甲不用再排
     tools.flow.save(
       'delivery',
@@ -171,12 +170,10 @@ test('delivery.plan 扣掉已经排在待送货单上的数量，和人工“安
 test('安排送货、安排生产的试算（tools/planning.ts）：参数二选一；选的订单不存在时什么也不排', async () => {
   const { planningReaders } = await import('../server/assistant/tools/planning.js');
   const { Store } = await import('../server/core/db.js');
-  const { OperationsService } = await import('../server/operations/service.js');
-  const { FlowService } = await import('../server/flow/service.js');
   const store = new Store(':memory:'),
     who = pageActor({ id: 'tool-direct', name: '虚构直测', permissions: ['business:edit'] });
   try {
-    const ctx: ToolContext = { store, ops: new OperationsService(store), flow: new FlowService(store), services: {}, tools: new AssistantTools(store) };
+    const ctx: ToolContext = ctxOf(store);
     assert.throws(() => planningReaders['delivery.plan'](ctx, {}, who, 'delivery.plan'), /传stockIds（成品库存）或orderIds（订单）其中一种/);
     const planned = z.looseObject({ groups: z.array(z.unknown()) });
     const delivery = planned.parse(planningReaders['delivery.plan'](ctx, { orderIds: [999] }, who, 'delivery.plan'));

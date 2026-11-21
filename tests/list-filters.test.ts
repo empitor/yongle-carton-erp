@@ -21,7 +21,7 @@ import { operationalSearchText } from '../shared/business/business-metrics.js';
 import { Pagination, TableRegion } from '../src/ui/ListLayout.js';
 import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
 import { pageRows } from '../server/core/paging.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { productIdsOfCustomer, stockIdsOfParty } from '../server/operations/party-links.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { receiveLines } from './receive-fixture.js';
@@ -369,7 +369,7 @@ test('产品、库存列表接口按客户和供应商筛', async () => {
 
 test('助手按客户查产品、按供应商或客户查库存，和页面结果一样', (t) => {
   const f = fixture(),
-    tools = new AssistantTools(f.store);
+    tools = toolsOf(f.store);
   t.after(() => f.store.close());
   const ids = (module: string, filters: Record<string, number>) =>
     readAs(tools.read('records.search', { module, filters }, assistantActor), {

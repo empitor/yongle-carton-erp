@@ -124,7 +124,7 @@ const sources = assistantFiles('server/assistant').map((f) => [f, readFileSync(f
 const implementing = (tool: string) => sources.filter(([, text]) => text.includes("'" + tool + "'"));
 
 test('助手和界面同一个服务：会写库的助手命令都挂在动作上，命令的实现里调的是这条动作登记的服务', () => {
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   const kinds = new Map(registry.view().tools.map((t) => [t.name, t.kind]));
   registry.close();
   // 会写库的：业务类（都出卡片）、登记成写入的流程类、直接执行但会改东西的流程类（记忆、识别结果）

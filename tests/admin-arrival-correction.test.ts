@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { AuthManager } from '../server/core/auth.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { productSchema, today } from '../shared/core/domain.js';
@@ -31,7 +31,7 @@ test('助手的到货更正（arrival.correct，id 是到货单编号，加每�
     registry = new AssistantToolRegistry();
   try {
     f.receive();
-    const tools = new AssistantTools(f.store),
+    const tools = toolsOf(f.store),
       arrivalId = Number(String(f.current().receipts[0].id).replace('flow-', ''));
     const input = {
       id: arrivalId,

@@ -10,7 +10,7 @@ import { lineFields, type LineField, type OrderDraft } from '../shared/import/or
 import { draftFromForm, orderFormSchema } from '../shared/import/order-form.js';
 import { matchDraft } from '../server/import/matching.js';
 import { standardOrderDraft } from '../server/import/standard-order.js';
-import { ImportManager } from '../server/import/manager.js';
+import { testImports } from './order-import-fixture.js';
 import { createOrderWorkflowFixture, workflowAnalysis } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 import { actor as baseActor } from './actor-fixture.js';
@@ -91,7 +91,7 @@ test('人工与AI草稿编辑共用按项失效；刷新保留选择与失效原
     );
     assert.equal(w.mapping?.products[a].mode, 'pending');
     assert.equal(w.mapping?.products[b].mode, 'existing');
-    const reopened = new ImportManager({ directory: join(f.dir, 'imports'), settings: f.settings });
+    const reopened = testImports({ directory: join(f.dir, 'imports'), settings: f.settings });
     try {
       const restored = reopened.get(w.id);
       assert.equal(restored.id, w.id);

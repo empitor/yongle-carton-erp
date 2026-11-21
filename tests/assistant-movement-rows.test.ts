@@ -2,7 +2,7 @@
 // 来源单据只读流水用到的那几张。虚构数据、内存库。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { ctxOf } from './assistant-fixture.js';
 import { recordRows } from '../server/assistant/tools/modules.js';
 import { clerk, flowFixture } from './flow-fixture.js';
 
@@ -22,7 +22,7 @@ test('流水行的客户、供应商编号照旧取自来源；没被流水用�
     lines: [{ orderId: waiting.id, orderLineId: waiting.lines[0].id, stockId: f.finished.id, quantity: '5' }],
   });
   f.store.db.prepare("UPDATE flow_documents SET document=json_set(document,'$.虚构的坏内容',1) WHERE id=?").run(idle.id);
-  const ctx = { store: f.store, ops: f.ops, flow: f.flow, services: {}, tools: new AssistantTools(f.store) };
+  const ctx = { ...ctxOf(f.store), ops: f.ops, flow: f.flow };
   const rows = recordRows(ctx, 'movements', clerk);
   const parties = (id: number) => rows.filter((r) => Number(r.source_id) === id).map((r) => [r.customerId, r.supplierId]);
   assert.deepEqual(parties(arrival.id), [[undefined, f.supplier.id]], '到货：供应商取自到货单');

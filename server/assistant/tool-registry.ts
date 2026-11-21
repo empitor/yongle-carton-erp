@@ -128,10 +128,7 @@ export class AssistantToolRegistry {
       },
     ]),
   );
-  constructor(
-    file = ':memory:',
-    private workflowReady = () => false,
-  ) {
+  constructor(file = ':memory:') {
     this.db = openVersionedSqlite(file, toolSettingsDatabase);
     this.db.exec('INSERT OR IGNORE INTO tool_settings_revision(id,revision) VALUES(1,0)');
     this.accountSettings = new AssistantAccountSettings(this.db);
@@ -166,9 +163,7 @@ export class AssistantToolRegistry {
     return one(this.db, rows.tool_settings.pick({ enabled: true }), 'SELECT enabled FROM tool_settings WHERE name=?', name)?.enabled !== 0;
   }
   private serviceReady(t: RegisteredTool, actor?: Actor | null) {
-    return (
-      (t.pluginId !== 'order-import' || this.workflowReady()) && (t.available?.(actor) ?? true)
-    );
+    return t.available?.(actor) ?? true;
   }
   private access(t: PluginTool, actor?: Actor | null) {
     const { required, permissions } = toolPermissions(t);

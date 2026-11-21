@@ -14,15 +14,13 @@ import { listen } from './http-fixture.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
-import { ImportManager } from '../server/import/manager.js';
 import { ImportRepository } from '../server/import/repository.js';
 import { importRouter } from '../server/import/router.js';
-import { arrivalLinks } from '../server/import/business-links.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { workspaceRecord } from './import-fixtures.js';
 import type { Workspace } from '../server/import/workspace-document.js';
-import { importTaskStates, type ImportedOrderRef } from '../shared/import/order-draft.js';
-import { asDraft } from './order-import-fixture.js';
+import { importTaskStates } from '../shared/import/order-draft.js';
+import { asDraft, testImports } from './order-import-fixture.js';
 
 const aes = randomBytes(32);
 
@@ -50,10 +48,16 @@ const sourceIds = Array.from({ length: 6 }, () => randomUUID()),
 
 const workspaceIds = Array.from({ length: 18 }, () => randomUUID());
 
-const importedRefs: Record<string, ImportedOrderRef | undefined> = {
-  [workspaceIds[1]]: { orderId: 7, orderNumber: 'SO-虚构-007', executionId: '虚构导入-007', archived: false, historical: false },
-  [workspaceIds[2]]: { orderId: 8, orderNumber: 'SO-虚构-008', executionId: '虚构导入-008', archived: false, historical: true },
-};
+const hashOf = (i: number) => createHash('sha256').update(workspaceIds[i]).digest('hex');
+
+/** 导入台账：第 1 份工作区自己导入过（SO-虚构-007）；第 2 份的同一原件以前由别的任务导入过（SO-虚构-008，只算历史） */
+function seedImports(store: Store) {
+  const insert = store.db.prepare(
+    'INSERT INTO import_executions(id,source_id,file_hash,fingerprint,order_id,actor_id,created_at,document) VALUES(?,?,?,?,NULL,?,?,?)',
+  );
+  insert.run('虚构导入-007', workspaceIds[1], hashOf(1), '虚构指纹-007', auditor.id, now, JSON.stringify({ orderId: 7, orderNumber: 'SO-虚构-007' }));
+  insert.run('虚构导入-008', randomUUID(), hashOf(2), '虚构指纹-008', auditor.id, now, JSON.stringify({ orderId: 8, orderNumber: 'SO-虚构-008' }));
+}
 
 const draft = () => asDraft();
 
@@ -177,25 +181,19 @@ class TestReceiptAi extends ReceiptAi {
   }
 }
 
-function importsFixture(wiring: 'router' | 'per-id' | 'none') {
+function importsFixture() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-audit-import-misc-')),
     database = join(dir, 'imports', 'workspaces.sqlite'),
     store = new Store(':memory:');
   const docs = seedDocuments(store);
   seedSources(store);
+  seedImports(store);
   seedWorkspaces(database, docs);
   const settings = new AiSettingsManager({ protector }),
     receiptPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
-    manager = new ImportManager({
-      directory: join(dir, 'imports'),
-      database,
-      settings,
-      findImport: (id) => importedRefs[id],
-    }),
-    receiptAi = new TestReceiptAi(store, settings, receiptPrompts);
-  // 与装配接的判断一致：只认到货单（server/import/business-links.ts）
-  if (wiring !== 'none') manager.connectArrivals(arrivalLinks(store));
-  if (wiring === 'router') importRouter(manager, () => auditor, receiptAi);
+    receiptAi = new TestReceiptAi(store, settings, receiptPrompts),
+    // 到货单在不在、锁没锁用业务库自己的判断，只认到货单（server/import/business-links.ts）
+    manager = testImports({ directory: join(dir, 'imports'), database, settings, store, receiptAi });
   receiptAi.markBusy(sourceIds[3]);
   return {
     store,
@@ -300,7 +298,7 @@ function spotCheck(workspaces: z.output<typeof listedWorkspaces>, withArrival: b
 }
 
 test('识别列表批量认出到货单状态：只重新读取引用已失效的工作区并解除引用、记一笔；再读一次什么都不动', async () => {
-  const f = importsFixture('router');
+  const f = importsFixture();
   try {
     const before = f.saved();
     const loaded = countLoads(f),
@@ -327,17 +325,14 @@ test('识别列表批量认出到货单状态：只重新读取引用已失效�
   }
 });
 
-test('不经路由直接读列表：接了到货单就照样只解除失效的引用；没接到货单就不碰引用', () => {
-  for (const wiring of ['per-id', 'none'] as const) {
-    const f = importsFixture(wiring);
-    try {
-      const deleted = f.saved()[workspaceIds[10]].arrivalDocId;
-      const loaded = countLoads(f),
-        at = spotCheck(listedWorkspaces.parse(JSON.parse(JSON.stringify(f.manager.status().workspaces))), false);
-      assert.deepEqual(loaded.sort(), wiring === 'none' ? [] : [...f.stale].sort(), wiring);
-      assert.equal(at(10).arrivalDocId, wiring === 'none' ? deleted : null, wiring);
-    } finally {
-      f.close();
-    }
+test('不经路由直接读列表：照样只解除失效的引用', () => {
+  const f = importsFixture();
+  try {
+    const loaded = countLoads(f),
+      at = spotCheck(listedWorkspaces.parse(JSON.parse(JSON.stringify(f.manager.status().workspaces))), false);
+    assert.deepEqual(loaded.sort(), [...f.stale].sort());
+    assert.equal(at(10).arrivalDocId, null);
+  } finally {
+    f.close();
   }
 });

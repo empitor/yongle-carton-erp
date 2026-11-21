@@ -9,9 +9,8 @@ import { AuthManager } from '../server/core/auth.js';
 import { Store } from '../server/core/db.js';
 import { readDeployment } from '../server/core/deployment.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager } from '../server/assistant/manager.js';
-import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
+import { assistantDeps } from './assistant-fixture.js';
 import { fakeDeepSeek, testProtector } from './fake-deepseek.js';
 import { cookieOf, setCookieOf, startProxied, stateActor, userList, type AppOptions } from './http-fixture.js';
 
@@ -279,11 +278,11 @@ test('部署模式：改密后当前设备保持登录，同一账号的其他�
 
 test('从域名进来，助手的语音转写照常能用', async () => {
   const fake = fakeDeepSeek({ asrText: '虚构部署语音' });
-  const settings = new AiSettingsManager({ protector: testProtector, transport: fake.transport }),
-    prompts = new PromptPresetManager(':memory:', assistantDefaultPreset);
+  const settings = new AiSettingsManager({ protector: testProtector, transport: fake.transport });
   settings.saveKey({ apiKey: fake.key, expectedRevision: settings.view().revision });
   const store = new Store(':memory:'),
-    assistant = new AssistantManager(store, settings, prompts, {});
+    built = assistantDeps(store, settings),
+    assistant = new AssistantManager(built.deps);
   const p = await startProxied(store, { assistant });
   try {
     await p.call(p.localPort, '/auth/setup', { body: owner });
@@ -298,8 +297,8 @@ test('从域名进来，助手的语音转写照常能用', async () => {
   } finally {
     await p.close();
     assistant.registry.close();
+    built.close();
     settings.close();
-    prompts.close();
     store.close();
   }
 });

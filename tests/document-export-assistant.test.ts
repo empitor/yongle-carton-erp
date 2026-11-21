@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { assistantFixture, confirmCard, autoConfirmAssistant, lastCard } from './assistant-fixture.js';
+import { assistantFixture, confirmCard, autoConfirmAssistant, lastCard, toolsOf } from './assistant-fixture.js';
 import { setup } from './document-fixture.js';
 import { count } from '../server/core/sql.js';
 import { actor } from './actor-fixture.js';
@@ -49,7 +49,7 @@ test('助手导出订货单：只出确认卡片，模型说“已订货”也�
     f.docs.complete(done.file.exportId, done.file.sha256, actor);
     assert.equal(f.current().businessStatus, '已订货');
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM document_exports'), 1);
-    assert.equal(readAs(new AssistantTools(a.store).read('flow.daily', { kind: 'arrival', date: '2026-10-29' }, actor), { summary: z.looseObject({}) }).summary.completed, 0);
+    assert.equal(readAs(toolsOf(a.store).read('flow.daily', { kind: 'arrival', date: '2026-10-29' }, actor), { summary: z.looseObject({}) }).summary.completed, 0);
     const registry = new AssistantToolRegistry();
     try {
       await assert.rejects(
@@ -115,7 +115,7 @@ test('助手安排送货、改期、核对出库和导出本批 Excel 走同一�
   const a = autoConfirmAssistant(),
     f = setup(a.store);
   try {
-    const tools = new AssistantTools(f.store);
+    const tools = toolsOf(f.store);
     const draft = proposeDelivery(tools, f);
     assert.equal(f.ops.repo.balance(f.stock.id), 10000000);
     tools.commit(

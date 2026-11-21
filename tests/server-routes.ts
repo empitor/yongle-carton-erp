@@ -1,13 +1,9 @@
 // 服务端真正挂了哪些地址：按全部选项装一遍 createApp（内存库、临时目录、假模型），装的时候记下每个 express
 // 路由器挂了哪些子路由器和路由，拼成完整地址，连同请求方法和注册它的源文件（调用栈里第一个 server/ 下的文件）。
 // 给“登记的地址都还在”（功能清单的接口、地址前缀归属）和“写地址都登记在一条业务动作上”这类检查用。
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import express from 'express';
 import { createApp } from '../server/app.js';
 import { AuthManager, ProblemLog } from '../server/core/index.js';
-import { ImportManager, ReceiptAi } from '../server/import/index.js';
 import { assistantFixture } from './assistant-fixture.js';
 
 type Fn = (...args: unknown[]) => unknown;
@@ -52,19 +48,19 @@ function collect(): ServerRoute[] {
     for (const p of [path].flat()) if (typeof p === 'string') list(paths, this).push({ path: p, route: r, file: callerFile() });
     return r;
   };
-  const dir = mkdtempSync(join(tmpdir(), 'erp-routes-'));
   const f = assistantFixture();
   const auth = new AuthManager(':memory:');
   const problems = new ProblemLog();
-  const imports = new ImportManager({ directory: dir, archiveDirectory: join(dir, 'archive'), settings: f.settings });
   try {
+    // 和正式装配一样：助手、识别导入、正式导入、到货识别、提示词设置页用的是同一套
     const app = createApp(f.store, {
       auth,
       assistant: f.manager,
       aiSettings: f.settings,
-      imports,
-      enableReviewedImports: true,
-      receiptAi: new ReceiptAi(f.store, f.settings, f.prompts),
+      imports: f.deps.imports,
+      execution: f.deps.execution,
+      receiptAi: f.deps.receiptAi,
+      promptModules: f.deps.prompts,
       problems,
     });
     const out: ServerRoute[] = [];
@@ -78,11 +74,9 @@ function collect(): ServerRoute[] {
     return out;
   } finally {
     Object.assign(proto, { use, route });
-    imports.close();
     problems.close();
     auth.close();
     f.close();
-    rmSync(dir, { recursive: true, force: true });
   }
 }
 

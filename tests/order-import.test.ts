@@ -7,7 +7,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { detectFormat } from '../server/import/file-store.js';
-import { ImportManager } from '../server/import/manager.js';
 import { evaluateDraft } from '../shared/import/draft-evaluation.js';
 import { createApp } from '../server/app.js';
 import { listen } from './http-fixture.js';
@@ -22,7 +21,7 @@ import { errorMessage } from '../shared/core/index.js';
 import { orderDraftSchema, receiptResultSchema, type OrderDraft } from '../shared/import/index.js';
 import { xlsxFixture } from './import-fixtures.js';
 import { fakeKey, messageText } from './fake-deepseek.js';
-import { filledForm, asDraft, fixture, recognized } from './order-import-fixture.js';
+import { filledForm, asDraft, fixture, recognized, testImports } from './order-import-fixture.js';
 
 test('识别成功后默认阻止覆盖草稿，显式 force 可重新识别一次', async () => {
   const f = await fixture();
@@ -148,6 +147,11 @@ test('导入文件默认识别订单；可切换为到货单并保留两种草�
     w = f.manager.setMode(w.id, { expectedRevision: w.revision, mode: 'arrival' });
     assert.equal(w.mode, 'arrival');
     assert.ok(w.draft, '切换类型不得删除原订单草稿');
+    // 关联的到货单要真在业务库里（不在的会被当成已删除、解除关联）
+    const at = new Date().toISOString();
+    f.manager.options.store.db
+      .prepare("INSERT INTO flow_documents(id,kind,number,date,status,document,actor_id,actor_name,created_at,updated_at) VALUES(123,'arrival','DH-虚构-123','2026-11-01','draft','{\"lines\":[]}','虚构','虚构',?,?)")
+      .run(at, at);
     w = f.manager.linkArrival(w.id, { expectedRevision: w.revision, docId: 123, sourceId: null });
     assert.equal(w.arrivalDocId, 123);
     const reopened = f.manager.get(w.id);
@@ -359,7 +363,7 @@ test('删除密钥后不外发；原件篡改拦截；工作区独立持久恢�
       f.manager.analyze(w.id, { expectedRevision: w.revision, force: true }),
       (e: unknown) => e instanceof AppError && e.code === 'source',
     );
-    const reopened = new ImportManager({ directory: f.directory, settings: f.settings });
+    const reopened = testImports({ directory: f.directory, settings: f.settings });
     assert.equal(reopened.get(w.id).draft?.lines.length, 2);
     reopened.close();
     f.settings.removeKey({ confirmed: true, expectedRevision: f.settings.view().revision });

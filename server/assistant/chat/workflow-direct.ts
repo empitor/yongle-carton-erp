@@ -1,7 +1,6 @@
 // 流程类工具里不算写入、直接执行的：只读的、只动这次对话里交来的识别结果的、只花模型费用的（新识别一份文件）。
 // 每个都登记在这里并写明为什么不用确认；算写入的在 workflow-cards.ts。
 // does：这一轮“服务器实际做了什么”那一行里怎么写（可以按执行结果写）；不给就按查询算。
-import { AppError } from '../../core/index.js';
 import { BusinessDocuments } from '../../documents/index.js';
 import { importStateLabel } from '../../../shared/import/index.js';
 import { memoryExecutors } from '../tools/memory.js';
@@ -18,10 +17,7 @@ type Direct = { run: Run; does?: string | ((result: unknown) => string) };
 const DELIVERY_POLLS = 60;
 const DELIVERY_POLL_MS = 100;
 
-const orderImport: Run = (svc, ctx, args, name) => {
-  if (!svc.orderWorkflow) throw new AppError('AI 导入没有接上，这件事现在办不了。', 503);
-  return svc.orderWorkflow.call(name, args, ctx);
-};
+const orderImport: Run = (svc, ctx, args, name) => svc.orderWorkflow.call(name, args, ctx);
 const extra: Run = (svc, ctx, args, name) => svc.extras.call(name, args, ctx);
 /** 长期记忆的记、改、忘、开关：回复下面那一行照执行结果写（“已记住：……”“已改记忆：改之前 → 改之后”） */
 const memory: Direct = {
@@ -60,7 +56,6 @@ export const WORKFLOW_DIRECT: Record<string, Direct> = {
   // 不带“有没有识别结果”的英文字段，免得模型照字段说成别的词
   'management.workspaces': {
     run: (svc) => {
-      if (!svc.orderWorkflow) throw new AppError('AI 导入没有接上，这件事现在办不了。', 503);
       const lists = svc.orderWorkflow.imports.workspaceLists();
       const active = lists.active.map(({ hasDraft, ...w }) => ({ ...w, state: importStateLabel({ ...w, hasDraft }) }));
       return { ...lists, active, message: '已查询实际识别工作区' };

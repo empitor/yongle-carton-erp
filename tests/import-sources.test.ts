@@ -11,13 +11,11 @@ import type { Actor } from '../server/core/auth.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
-import { ImportManager } from '../server/import/manager.js';
-import { importRouter } from '../server/import/router.js';
 import { InboxService } from '../server/inbox/service.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { testProtector as protector } from './fake-deepseek.js';
-import { tempDir } from './order-import-fixture.js';
+import { tempDir, testImports } from './order-import-fixture.js';
 
 const actor: Actor = pageActor({ id: 'audit-fixture', name: '虚构验收员', permissions: ['business:edit'] });
 
@@ -39,8 +37,8 @@ function fixture() {
     store = new Store(':memory:'),
     settings = new AiSettingsManager({ protector }),
     receiptPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
-    manager = new ImportManager({ directory: join(dir, 'imports'), settings }),
-    receiptAi = new ReceiptAi(store, settings, receiptPrompts);
+    receiptAi = new ReceiptAi(store, settings, receiptPrompts),
+    manager = testImports({ directory: join(dir, 'imports'), settings, store, receiptAi });
   const arrivalDoc = (status: 'draft' | 'confirmed' | 'cancelled') =>
     Number(
       store.db
@@ -125,8 +123,6 @@ test('同一原件只复用同类型、没归档、没关联到货的任务', as
 test('到货单已确认或取消就锁定识别类型；锁在 setMode 里，路由接好后页面、收件箱、助手共用', async () => {
   const f = fixture();
   try {
-    // 挂载路由时注入锁定判断
-    importRouter(f.manager, () => actor, f.receiptAi);
     const confirmed = f.arrivalDoc('confirmed'),
       draft = f.arrivalDoc('draft');
     assert.equal(f.manager.arrivalLocked(confirmed), true);
@@ -155,7 +151,6 @@ test('到货单已确认或取消就锁定识别类型；锁在 setMode 里，�
 test('收件转订单拿到的任务类型和要求一致，到货任务原样保留；不能再转唛头', async () => {
   const f = fixture();
   try {
-    importRouter(f.manager, () => actor, f.receiptAi);
     const inbox = new InboxService(f.store);
     const bytes = png('收件');
     // 同一文件之前已在 AI 导入里作为到货单处理，并关联了已确认的到货单

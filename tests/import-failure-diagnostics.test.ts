@@ -6,13 +6,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import express from 'express';
 import { z } from 'zod';
-import { ImportManager } from '../server/import/manager.js';
 import { ImportRepository } from '../server/import/repository.js';
 import { importRouter } from '../server/import/router.js';
 import { docxFixture, workspaceRecord } from './import-fixtures.js';
 import { contentParts, fakeKey as key, httpError, replyFinish } from './fake-deepseek.js';
 import { listen } from './http-fixture.js';
-import { importWorkspace as fixture, tempDir } from './order-import-fixture.js';
+import { importWorkspace as fixture, tempDir, testImports } from './order-import-fixture.js';
 
 test('Word 老格式（.doc）整套识别：原样上传、按文件编号引用、用完删除，识别结果落地且原件不变', async () => {
   const f = fixture();
@@ -66,7 +65,7 @@ test('失败按次归档，保留截断原因/Token计数；密钥/原文不泄�
     assert.equal(f.manager.get(w.id).draft, null);
     assert(f.manager.get(w.id).task?.failureId);
     f.manager.close();
-    const reopened = (f.manager = new ImportManager({ directory: f.directory, settings: f.settings }));
+    const reopened = (f.manager = testImports({ directory: f.directory, settings: f.settings }));
     assert.equal(reopened.failures().total, 2);
     reopened.changeArchive({ action: 'archive', items: [{ id: w.id, version: w.revision }] }, pageActor({ id: 'e', name: '管理', permissions: ['business:edit'] }));
     assert.equal(reopened.failures(w.id).total, 2);
