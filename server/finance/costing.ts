@@ -8,19 +8,13 @@ import { financeActor, financeAudit, financeError, financeWrite } from './core.j
 import { FinanceLedger } from './ledger.js';
 import { entryNet, expectedVoucher, jobVoucherNet, periodJob, periodJobResult, sameNet, withdrawJob } from './jobs.js';
 import { id, pageSql, request } from './query.js';
-import {
-  adjustMovementIds,
-  manualMovements,
-  maxMovementRowid,
-  movementSource,
-  openingStocks,
-  type Mark,
-} from './costing-source.js';
+import { financeFacts } from '../flow/index.js';
+import { movementSource, openingStocks, unbookedVoidArrivals, type Mark } from './costing-source.js';
 import { invoiceAdjustments } from './costing-invoice-adjust.js';
 import { computeCosting } from './costing-compute.js';
 import { costingDetails, manual, markOf, opening, readCostingDetails } from './costing-details.js';
 import type { Item } from './costing-month.js';
-import { costingJob, lateMovements, originOf } from './costing-origins.js';
+import { costingJob, lateMovements, originsOf } from './costing-origins.js';
 import { adjacentPeriod, endOfMonth } from './periods.js';
 import { readFinanceSettings } from './settings.js';
 
@@ -139,13 +133,19 @@ export class FinanceCosting {
    * 冲销送货、完工单退回的库存，查得到原出库成本的系统按原成本冲回；冲销完工单扣回的成品，
    * 查得到原完工成本的按原成本冲回生产成本；撤销或更正冲回记过账的到货，按原暂估冲减入库（金额可以是 0），都不用填。
    */
-  private valuationsToFill(period: string, lateIds: string[]) {
+  private valuationsToFill(period: string, lateIds: string[], exclude: readonly string[]) {
     const start = period + '-01';
-    return manualMovements(this.db, start, endOfMonth(period), lateIds).flatMap(({ item_id, source_id, ...m }) => {
-      const movement = { item_id, delta_units: m.quantity, source_id, date: m.date, kind: m.kind };
-      if (m.source_kind === movementSource.reversal && originOf(this.db, movement, start).origin !== null) return [];
-      const needs = { needsAmount: m.quantity > 0, needsCounter: m.source_kind !== movementSource.manual };
-      return [{ ...m, late: m.date < start, ...needs }];
+    const manualRows = financeFacts.stock.manualMovements(this.db, { from: start, to: endOfMonth(period), ids: lateIds, exclude });
+    const reversals = manualRows
+      .filter((m) => m.source_kind === movementSource.reversal)
+      .map((m) => ({ id: m.id, item_id: m.item_id, delta_units: m.quantity, source_id: m.source_id, date: m.date, kind: m.kind }));
+    const origins = originsOf(this.db, reversals, start);
+    return manualRows.flatMap((row) => {
+      const found = origins.get(row.id);
+      if (found && found.origin !== null) return [];
+      const { id, date, quantity, source_kind, notes, name, unit, kind } = row;
+      const needs = { needsAmount: quantity > 0, needsCounter: source_kind !== movementSource.manual };
+      return [{ id, date, quantity, source_kind, notes, name, unit, kind, late: date < start, ...needs }];
     });
   }
 
@@ -157,12 +157,13 @@ export class FinanceCosting {
     const job = costingJob(this.db, period);
     const details = job ? readCostingDetails(job) : null;
     // 重做时用这些：算这个月时会一起算进来的跨期补登（已算过的话按重做时的口径），上次填过的金额
-    const late = lateMovements(this.db, period);
+    const exclude = unbookedVoidArrivals(this.db, financeFacts.stock.reversedArrivals(this.db));
+    const late = lateMovements(this.db, period, exclude);
     return {
       period,
       done: !!job,
       isStart,
-      opening: isStart ? openingStocks(this.db, period + '-01', adjacentPeriod(period, -1)) : [],
+      opening: isStart ? openingStocks(this.db, period + '-01', adjacentPeriod(period, -1), exclude) : [],
       /** 跨期补登：日期在已算成本的月份、算完以后才登记的流水，计入这个月 */
       late: late.map((m) => ({
         id: m.id,
@@ -176,7 +177,7 @@ export class FinanceCosting {
       previousValuations: details ? details.valuations : [],
       previousOpening: details ? openingOf(details.rows).map((r) => ({ stockId: r.stockId, amount: r.amount })) : [],
       voucherId: job ? job.voucher_id : null,
-      valuations: this.valuationsToFill(period, late.map((m) => m.id)),
+      valuations: this.valuationsToFill(period, late.map((m) => m.id), exclude),
     };
   }
 
@@ -236,10 +237,9 @@ export class FinanceCosting {
       this.db,
       tableRows.fin_events,
       `SELECT * FROM fin_events WHERE date<=? AND (status='cost_pending'
-          OR (source_kind='stock' AND status='difference' AND source_id IN (
-            ${adjustMovementIds})))`,
+          OR (source_kind='stock' AND status='difference' AND source_id IN (SELECT value FROM json_each(?))))`,
       date,
-      date,
+      JSON.stringify(financeFacts.stock.adjustIds(this.db, date)),
     );
     for (const e of pending) {
       this.db.prepare("UPDATE fin_events SET status='costed',version=version+1 WHERE id=?").run(e.id);
@@ -289,7 +289,7 @@ export class FinanceCosting {
       late,
       /** 这次计算的时间和当时流水的最大行号：以后才登记、日期在这个月及以前的流水算跨期补登 */
       ranAt: new Date().toISOString(),
-      maxRowid: maxMovementRowid(this.db),
+      maxRowid: financeFacts.stock.maxRowid(this.db),
     };
     return periodJob(this.store, user, { period: v.period, kind: 'costing', voucher, schema: costingDetails, details });
   }

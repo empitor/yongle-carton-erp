@@ -7,17 +7,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { quantityUnits } from '../../shared/core/index.js';
 import { one, rows } from '../core/index.js';
-import {
-  bookedArrivalEvent,
-  completionOriginals,
-  lateMovementsBefore,
-  movementSource,
-  reversalOriginals,
-  type Mark,
-  type Movement,
-  type ReversalOriginal,
-  undoneArrivals,
-} from './costing-source.js';
+import { financeFacts, type ReversalOriginal, type StockMovement as Movement } from '../flow/index.js';
+import { bookedArrivalEvent, movementSource, type Mark } from './costing-source.js';
 import { adjustedTotals, clearedEstimate, spreadAdjustment } from './costing-invoice-adjust.js';
 import { readSnapshot, type EventSnapshot } from './source-snapshot.js';
 import { markOf, readCostingDetails } from './costing-details.js';
@@ -32,12 +23,14 @@ export function costingJob(db: DatabaseSync, period: string) {
 
 /**
  * 跨期补登：日期在这个月以前、上个月成本算完以后才登记的流水（以前的月份都算过成本，它们没算进去）。
- * 按推荐口径计入第一个还没算成本的月份，也就是这个月。asOf 只取那个时间点以前登记的（结账检查用）。
+ * 按推荐口径计入第一个还没算成本的月份，也就是这个月。exclude 是不计成本的到货单（unbookedVoidArrivals），
+ * asOf 只取那个时间点以前登记的（结账检查用）。
  */
-export function lateMovements(db: DatabaseSync, period: string, asOf?: Mark) {
+export function lateMovements(db: DatabaseSync, period: string, exclude: readonly string[], asOf?: Mark) {
   const job = costingJob(db, adjacentPeriod(period, -1));
   if (!job) return [];
-  return lateMovementsBefore(db, period + '-01', markOf(readCostingDetails(job)), asOf);
+  const after = markOf(readCostingDetails(job));
+  return financeFacts.stock.movements(db, { dates: { before: period + '-01' }, after, asOf, exclude });
 }
 
 /** 那次成本计算记下的一笔成本：[流水, 分, 科目] 里的分和科目 */
@@ -91,12 +84,16 @@ function reversalOrigin(db: DatabaseSync, m: ReversalMovement, start: string, or
 }
 
 /**
- * 冲销完工单扣回的成品（flow_reversal 成品出库）找原完工入库：本月完工且不晚于冲销 → same，按本月算出的完工成本冲回；
+ * 冲销完工单扣回的成品（flow_reversal 成品出库）找原完工入库（originals 是窗口查到的原完工入库流水）：
+ * 本月完工且不晚于冲销 → same，按本月算出的完工成本冲回；
  * 以前月份记下了完工成本 → 按原成本冲回生产成本；查不到返回 null，按月末均价出库，要在“计算成本”窗口选对方科目。
  */
-export function completionOrigin(db: DatabaseSync, m: ReversalMovement, start: string): CompletionOrigin | null {
-  if (m.source_id == null) return null;
-  const originals = completionOriginals(db, m.source_id, m.item_id);
+function completionOrigin(
+  db: DatabaseSync,
+  m: ReversalMovement,
+  start: string,
+  originals: Pick<ReversalOriginal, 'id' | 'delta_units' | 'date'>[],
+): CompletionOrigin | null {
   if (originals.length !== 1 || originals[0].delta_units !== -m.delta_units) return null;
   const [original] = originals;
   if (original.date >= start) return original.date <= m.date ? { same: true } : null;
@@ -127,10 +124,15 @@ const sumAmounts = (lines: { amount: number }[]) => lines.reduce((n, l) => n + l
  * 留在库存里的是到过票的部分，即这批进了库存的金额（原暂估加上到票调差、红票冲减）减去冲回的。
  * 数量为 0 时只留这部分等红票，其余（均价差这类）结清。adjusted 和成本计算同一个口径（见 adjustedTotals）。
  */
-export function awaitingRed(db: DatabaseSync, stockIds: number[], month: { end: string; asOf?: { mark: Mark; applied: Set<string> } }) {
+export function awaitingRed(
+  db: DatabaseSync,
+  stockIds: number[],
+  month: { end: string; exclude: readonly string[]; asOf?: { mark: Mark; applied: Set<string> } },
+) {
   const held = new Map<number, number>();
+  const { end, exclude } = month;
   const batches = stockIds.length
-    ? undoneArrivals(db, stockIds, month.end, month.asOf?.mark).flatMap(({ source_id, item_id }) => {
+    ? financeFacts.stock.undoneArrivals(db, { stockIds, end, asOf: month.asOf?.mark, exclude }).flatMap(({ source_id, item_id }) => {
         const event = bookedArrivalEvent(db, source_id);
         return event ? [{ item_id, event }] : [];
       })
@@ -153,14 +155,41 @@ export type ReversalLookup =
   | { kind: 'completion'; origin: CompletionOrigin | null }
   | { kind: 'arrival'; origin: number | null }
   | { kind: 'reversal'; origin: ReversalOrigin | null };
+/** 找原单据的一条冲销流水：流水编号、库存品种类，加 ReversalMovement 那几项 */
+type OriginMovement = ReversalMovement & Pick<Movement, 'id' | 'kind'>;
+/** 成品出库的冲销流水是冲销完工单扣回的成品 */
+const isCompletionBack = (m: OriginMovement) => m.kind === 'finished' && m.delta_units < 0;
+
 /**
- * 冲销流水找原单据的唯一入口（计算成本和“计算成本”窗口要填什么都走这里）：成品出库（冲销完工单扣回）找原完工入库，
- * 冲回到货的按原暂估，其余找原单据流水。origin 为 null 的是系统查不到原成本、要人填金额或选对方科目的。
+ * 一批冲销流水各自的原流水，用窗口的 find 一次查完（来源编号空着的没有原流水）：按流水编号取。
  */
-export function originOf(db: DatabaseSync, m: ReversalMovement & Pick<Movement, 'kind'>, start: string): ReversalLookup {
-  if (m.kind === 'finished' && m.delta_units < 0) return { kind: 'completion', origin: completionOrigin(db, m, start) };
-  const originals = m.source_id == null ? [] : reversalOriginals(db, m.source_id, m.item_id);
-  return originals.some((o) => o.document_kind === 'arrival')
-    ? { kind: 'arrival', origin: arrivalOrigin(db, m, originals) }
-    : { kind: 'reversal', origin: reversalOrigin(db, m, start, originals) };
+function originalsOf<R>(
+  moves: readonly OriginMovement[],
+  find: (keys: { sourceId: string; itemId: number }[]) => R[][],
+): (m: OriginMovement) => R[] {
+  const keyed = moves.flatMap((m) => (m.source_id == null ? [] : [{ id: m.id, key: { sourceId: m.source_id, itemId: m.item_id } }]));
+  const found = find(keyed.map((k) => k.key));
+  const byId = new Map(keyed.map(({ id }, i) => [id, found[i] ?? []]));
+  return (m) => byId.get(m.id) ?? [];
+}
+
+/**
+ * 冲销流水找原单据的唯一入口（计算成本和“计算成本”窗口要填什么都走这里），一批一起找（流水编号 → 结果）：
+ * 成品出库（冲销完工单扣回）找原完工入库，冲回到货的按原暂估，其余找原单据流水。
+ * origin 为 null 的是系统查不到原成本、要人填金额或选对方科目的。
+ */
+export function originsOf(db: DatabaseSync, moves: readonly OriginMovement[], start: string): Map<string, ReversalLookup> {
+  const completed = originalsOf(moves.filter(isCompletionBack), (keys) => financeFacts.stock.completionOriginals(db, keys));
+  const reversed = originalsOf(
+    moves.filter((m) => !isCompletionBack(m)),
+    (keys) => financeFacts.stock.reversalOriginals(db, keys),
+  );
+  const lookup = (m: OriginMovement): ReversalLookup => {
+    if (isCompletionBack(m)) return { kind: 'completion', origin: completionOrigin(db, m, start, completed(m)) };
+    const originals = reversed(m);
+    return originals.some((o) => o.document_kind === 'arrival')
+      ? { kind: 'arrival', origin: arrivalOrigin(db, m, originals) }
+      : { kind: 'reversal', origin: reversalOrigin(db, m, start, originals) };
+  };
+  return new Map(moves.map((m) => [m.id, lookup(m)]));
 }

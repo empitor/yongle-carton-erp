@@ -68,6 +68,8 @@ const sampleReturn = JSON.stringify({
   supplierName: '虚构供应商',
   lines: [{ lineIndex: 0, stockId: null, name: '虚构纸板', unit: '张', purchaseLineId: null, quantity: '1' }],
 });
+/** 库存一组要的登记时间点（虚构） */
+const mark = { ranAt: '2026-03-01T00:00:00.000Z', maxRowid: 0 };
 type Calls = { [G in keyof typeof financeFacts]: { [F in keyof (typeof financeFacts)[G]]: (w: World) => unknown } };
 const calls: Calls = {
   parties: {
@@ -80,6 +82,20 @@ const calls: Calls = {
     returnRows: (w) => financeFacts.purchases.returnRows(w.db, [1]),
     returnLines: () => financeFacts.purchases.returnLines({ id: 1, number: '虚构退货', document: sampleReturn }),
     hasConfirmedReturn: (w) => financeFacts.purchases.hasConfirmedReturn(w.db, 1),
+  },
+  stock: {
+    movements: (w) =>
+      financeFacts.stock.movements(w.db, { dates: { before: '2026-02-01' }, after: mark, asOf: mark, exclude: ['1'] }),
+    balancesBefore: (w) => financeFacts.stock.balancesBefore(w.db, { start: '2026-02-01', end: '2026-02-28', asOf: mark, exclude: [] }),
+    openingBalances: (w) => financeFacts.stock.openingBalances(w.db, '2026-02-01', []),
+    manualMovements: (w) => financeFacts.stock.manualMovements(w.db, { from: '2026-02-01', to: '2026-02-28', ids: ['m'], exclude: [] }),
+    reversalOriginals: (w) => financeFacts.stock.reversalOriginals(w.db, [{ sourceId: '1', itemId: 1 }]),
+    completionOriginals: (w) => financeFacts.stock.completionOriginals(w.db, [{ sourceId: '1', itemId: 1 }]),
+    undoneArrivals: (w) => financeFacts.stock.undoneArrivals(w.db, { stockIds: [1], end: '2026-02-28', asOf: mark, exclude: [] }),
+    reversedArrivals: (w) => financeFacts.stock.reversedArrivals(w.db),
+    adjustIds: (w) => financeFacts.stock.adjustIds(w.db, '2026-02-28'),
+    maxRowid: (w) => financeFacts.stock.maxRowid(w.db),
+    deliveryOutflows: (w) => financeFacts.stock.deliveryOutflows(w.db, '2026-02'),
   },
 };
 

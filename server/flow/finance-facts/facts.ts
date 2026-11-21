@@ -8,5 +8,11 @@
  */
 import { parties } from './parties.js';
 import { purchases } from './purchases.js';
+import { stock } from './stock.js';
 
-export const financeFacts = { parties, purchases };
+export const financeFacts = { parties, purchases, stock };
+
+/** 一条库存流水，带库存品和订单资料（stock.movements 的一行） */
+export type StockMovement = ReturnType<typeof stock.movements>[number];
+/** 冲销对应的一笔原流水（stock.reversalOriginals 的一行） */
+export type ReversalOriginal = ReturnType<typeof stock.reversalOriginals>[number][number];
