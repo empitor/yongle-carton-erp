@@ -77,4 +77,3 @@ export default {
   timeoutMS: 20000,
   cleanTempDir: true,
 };
-
