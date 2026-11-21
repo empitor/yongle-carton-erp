@@ -105,7 +105,7 @@ function bookEvents(w: World, period: string, docs: { receipt: { id: number }; d
   assert.equal(w.monthly.get(maker, { period }).theoreticalProfit, expectedTheory);
   assert.equal(w.monthly.get(maker, { period }).actualProfit, 0);
   assert.deepEqual(w.monthly.trend(maker, { period, months: 3 }).at(-1), w.monthly.get(maker, { period }));
-  w.events.sync(maker, w.req());
+  w.events.sync(maker);
   const original = w.findEvent(docs.delivery.id);
   assert.equal(original.status, 'info_pending');
   const resolved = new FinanceEventHandling(w.store).resolve(maker, original.id, {

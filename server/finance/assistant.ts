@@ -2,6 +2,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { today } from '../../shared/core/index.js';
 import { financeReadQuery, financeReadTools } from '../../shared/finance/index.js';
+import { catchUp, type SkipLog } from './catch-up.js';
 import { financeActor, financeError } from './core.js';
 import { FinanceOverview } from './overview.js';
 import { FinanceMonthly } from './monthly.js';
@@ -97,19 +98,23 @@ function fieldsInYuan(value: object): Record<string, unknown> {
   );
 }
 
+/**
+ * 助手查财务：和财务页面的请求一样，读之前先把还没记进财务的业务单据补扫进来（catch-up.ts，系统按固定规则做，
+ * 写什么助手决定不了），读不出来的单据记进出错记录 problems。
+ */
 export function readFinanceTool(
   store: Store,
   actor: Actor | null | undefined,
   name: string,
   raw: unknown,
+  problems?: SkipLog,
 ) {
-  return { 金额单位: '元', ...fieldsInYuan(readFinanceRaw(store, actor, name, raw)) };
+  return { 金额单位: '元', ...fieldsInYuan(readFinanceRaw(store, actor, { name, raw, problems })) };
 }
 function readFinanceRaw(
   store: Store,
   actor: Actor | null | undefined,
-  name: string,
-  raw: unknown,
+  { name, raw, problems }: { name: string; raw: unknown; problems: SkipLog | undefined },
 ) {
   const user = financeActor(actor);
   const q = financeReadQuery.parse(raw),
@@ -118,6 +123,7 @@ function readFinanceRaw(
   const paging = { page: q.page ?? 1, pageSize };
   const tool = financeReadTools.find((known) => known === name);
   if (!tool) financeError('未知财务查询。', 404);
+  catchUp(store, user, problems);
   switch (tool) {
     case 'finance.summary': {
       const data = new FinanceOverview(store).summary(user, { date: q.date });

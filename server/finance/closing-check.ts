@@ -168,7 +168,8 @@ export function closingCheck(store: Store, reports: FinanceReports, user: Actor,
         WHERE status='before_opening' AND problem IS NOT NULL ORDER BY date,id`,
   );
   const steps: ClosingStep[] = [
-    { key: 'events', ok: !outstanding, count: outstanding, blocking: true },
+    // 读之前的补扫没成功时这一步也不过（readiness.syncFailed，catch-up.ts）
+    { key: 'events', ok: !outstanding && !readiness.syncFailed, count: outstanding, blocking: true },
     { key: 'vouchers', ok: !unposted, count: unposted, blocking: true },
     {
       key: 'jobs',

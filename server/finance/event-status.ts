@@ -78,8 +78,44 @@ export function markSourceDeleted(store: Store, actor: Actor, before: FinanceEve
   financeAudit(store, actor, { action: 'source_deleted', entity: 'fin_events', id, before, after: readEvent(db, id) });
 }
 
-/** 已撤销的送货单的冲销事件，带它接手的那条（还在资料待补、没出过凭证的）的编号 */
-const reversalCandidate = rows.fin_events.extend({ previous_id: z.number() });
+/** 已撤销的送货单的冲销事件，带它接手的那条（还在资料待补、没出过凭证的）的编号和这条该记成的状态 */
+const reversalCandidate = rows.fin_events.extend({
+  previous_id: z.number(),
+  target: z.enum(['awaiting_allocation_reversal', 'corrected']),
+});
+
+/**
+ * 要自动收尾的冲销事件（FROM 和 WHERE，e 是冲销事件、previous 是它接手的那条）：已撤销的送货单原来那条还在资料待补、
+ * 没出过凭证，名下往来没有凭证、发票关联、保证金动作、坏账。target 是这条该记成的状态：原来的暂估往来上还挂着收付款核销的
+ * 等撤销核销记账（“待撤销核销”），没有的（或撤销核销已记账）记成已更正。收尾（refreshPendingDeliveryReversals）和
+ * 补扫前判断有没有要收尾的（deliveryReversalsPending）都用它。
+ */
+const reversalCandidates = `FROM fin_source_observations x
+    JOIN fin_events e ON e.id=x.event_id
+    JOIN fin_events previous ON previous.id=e.previous_event_id
+    WHERE x.source_kind='delivery' AND x.status='reversed'
+    AND e.event_type='delivery.reversed' AND e.status IN ('difference','awaiting_allocation_reversal')
+    AND e.previous_status='info_pending' AND previous.voucher_id IS NULL
+    AND NOT EXISTS(SELECT 1 FROM fin_obligations o WHERE o.event_id=previous.id AND (
+      o.voucher_id IS NOT NULL OR EXISTS(SELECT 1 FROM fin_invoice_links l WHERE l.obligation_id=o.id)
+      OR EXISTS(SELECT 1 FROM fin_deposit_actions d WHERE d.obligation_id=o.id)
+      OR EXISTS(SELECT 1 FROM fin_bad_debts b WHERE b.obligation_id=o.id)))`;
+const reversalTarget = `CASE WHEN EXISTS(SELECT 1 FROM fin_obligations o JOIN fin_allocations a ON a.obligation_id=o.id
+      JOIN fin_vouchers original ON original.id=a.voucher_id WHERE o.event_id=previous.id AND ${activeCashAllocation})
+    THEN 'awaiting_allocation_reversal' ELSE 'corrected' END`;
+
+/**
+ * 有没有要自动收尾、收了会变的冲销事件（只读）：原来那条还没标成已替代、冲销事件不是该记成的状态，
+ * 或者该记成已更正而原来那条名下还有没标已替代的往来（refreshReversal 会做的三件事）。
+ */
+export function deliveryReversalsPending(db: Store['db']) {
+  return exists(
+    db,
+    `SELECT 1 ${reversalCandidates} AND (previous.status='info_pending' OR e.status<>${reversalTarget}
+      OR (${reversalTarget}='corrected' AND EXISTS(SELECT 1 FROM fin_obligations o
+        WHERE o.event_id=previous.id AND o.tax_status<>'superseded'))) LIMIT 1`,
+  );
+}
 
 /**
  * 已撤销的送货单原来那条还在资料待补、没出过凭证：原来的暂估往来上还挂着收付款核销的，等撤销核销记账（“待撤销核销”）；
@@ -90,16 +126,7 @@ export function refreshPendingDeliveryReversals(store: Store, actor: Actor, obli
   const candidates = many(
     db,
     reversalCandidate,
-    `SELECT e.*,previous.id AS previous_id FROM fin_source_observations x
-    JOIN fin_events e ON e.id=x.event_id
-    JOIN fin_events previous ON previous.id=e.previous_event_id
-    WHERE x.source_kind='delivery' AND x.status='reversed'
-    AND e.event_type='delivery.reversed' AND e.status IN ('difference','awaiting_allocation_reversal')
-    AND e.previous_status='info_pending' AND previous.voucher_id IS NULL
-    AND NOT EXISTS(SELECT 1 FROM fin_obligations o WHERE o.event_id=previous.id AND (
-      o.voucher_id IS NOT NULL OR EXISTS(SELECT 1 FROM fin_invoice_links l WHERE l.obligation_id=o.id)
-      OR EXISTS(SELECT 1 FROM fin_deposit_actions d WHERE d.obligation_id=o.id)
-      OR EXISTS(SELECT 1 FROM fin_bad_debts b WHERE b.obligation_id=o.id)))
+    `SELECT e.*,previous.id AS previous_id,${reversalTarget} AS target ${reversalCandidates}
     AND (? IS NULL OR previous.id=(SELECT event_id FROM fin_obligations WHERE id=?))`,
     obligationId ?? null,
     obligationId ?? null,
@@ -112,13 +139,8 @@ function refreshReversal(store: Store, actor: Actor, event: z.output<typeof reve
   const db = store.db;
   const previous = readEvent(db, event.previous_id);
   if (previous.status === 'info_pending') supersedeEvent(store, actor, previous);
-  const pending = exists(
-    db,
-    `SELECT 1 FROM fin_obligations o JOIN fin_allocations a ON a.obligation_id=o.id
-      JOIN fin_vouchers original ON original.id=a.voucher_id WHERE o.event_id=? AND ${activeCashAllocation}`,
-    previous.id,
-  );
-  const status = pending ? 'awaiting_allocation_reversal' : 'corrected';
+  const status = event.target;
+  const pending = status === 'awaiting_allocation_reversal';
   const problem = pending ? allocationReversalMessage : null;
   if (event.status !== status) {
     db.prepare('UPDATE fin_events SET status=?,problem=?,version=version+1 WHERE id=?').run(status, problem, event.id);

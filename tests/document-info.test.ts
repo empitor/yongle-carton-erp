@@ -3,7 +3,6 @@
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { correctionFixture, archiveDoc } from './receive-fixture.js';
 import { updateDocumentInfo } from '../server/flow/document-info.js';
@@ -99,7 +98,7 @@ test('完工单：改批次备注、操作人，批次里读到新备注；改�
   new FinanceSettings(f.store).enable(maker, { period: '2026-10', taxpayer: 'general', version: 1, requestId: 'enable', rows: [] });
   const events = new FinanceEvents(f.store);
   const sync = () => {
-    for (let i = 0; i < 10 && events.sync(maker, { requestId: randomUUID() }).remaining; i++);
+    for (let i = 0; i < 10 && events.sync(maker).remaining; i++);
   };
   const snapshot = () =>
     f.store.db.prepare("SELECT id,status,version,source_hash FROM fin_events WHERE source_kind='production' AND source_id=? ORDER BY id").all(String(f.production.id));

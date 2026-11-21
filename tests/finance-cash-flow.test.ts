@@ -136,7 +136,7 @@ test('资金账户当天按实际进出算：撤销核销的红字凭证冲减�
     const cash = newSettings(s),
       events = new FinanceEvents(s);
     physical(s, 1, 'delivery', '2026-01-05', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate-1' });
     postDrafts(s);
     const owed = obligation(s, 1);

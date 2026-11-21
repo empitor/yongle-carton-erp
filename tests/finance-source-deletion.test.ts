@@ -22,7 +22,7 @@ function books() {
   const s = new Store(':memory:');
   const cash = newSettings(s);
   const events = new FinanceEvents(s);
-  const sync = () => events.sync(maker, { requestId: randomUUID() });
+  const sync = () => events.sync(maker);
   const latest = (sourceId: unknown) => {
     const row = one(s.db, rows.fin_events, 'SELECT * FROM fin_events WHERE source_id=? ORDER BY id DESC LIMIT 1', String(sourceId));
     if (!row) throw new Error('测试数据：来源 ' + String(sourceId) + ' 没有财务事件');

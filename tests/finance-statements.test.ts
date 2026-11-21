@@ -53,7 +53,7 @@ function sixKindsOfRed(s: Store, cash: FinanceSettlements, events: FinanceEvents
     [4, '08'],
   ] as const)
     physical(s, id, 'delivery', '2026-01-' + day, deliveryDoc('1'));
-  events.sync(maker, { requestId: 'scan' });
+  events.sync(maker);
   for (const source of [1, 2, 3])
     new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
   postDrafts(s);
@@ -124,7 +124,7 @@ test('对账单的红字行：每一种都用对方看得懂的说法，不带�
       .prepare("UPDATE fin_events SET snapshot=json_remove(snapshot,'$.doc.number','$.doc.reference'),source_number=NULL WHERE id=?")
       .run(fourth.event_id);
     businessChanges(s).reverse(4);
-    events.sync(maker, { requestId: 'rescan-4' });
+    events.sync(maker);
     const diff = event(s, 4);
     new FinanceEventHandling(s).correct(maker, diff.id, { version: Number(diff.version), date: '2026-01-26', requestId: 'correct-4', reason });
     const unposted = reds().find((r) => r.date === '2026-01-26');
@@ -165,7 +165,7 @@ test('对账单：没核销直接记预收（预付）的收付款也列出来�
     const cash = newSettings(s),
       events = new FinanceEvents(s);
     physical(s, 1, 'delivery', '2026-01-05', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate-1' });
     postDrafts(s);
     const range = { kind: 'receivable' as const, partyId: '1', from: '2026-01-01', to: '2026-01-31' };

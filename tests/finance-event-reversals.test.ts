@@ -78,7 +78,7 @@ test('盘点调整的事件单号显示库存品名、规格和调整量，不�
       ).movementId;
     move('in', '10', '2026-01-05');
     const counted = move('adjust', '7', '2026-01-20');
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const e = one(
       s.db,
       rows.fin_events,
@@ -107,7 +107,7 @@ test('盘点调整的事件单号显示库存品名、规格和调整量，不�
         .digest('hex'),
       '来源指纹按流水内容算（键按名字排好，不含流水备注），不含显示用的单号',
     );
-    assert.equal(events.sync(maker, { requestId: 'scan-2' }).processed, 0, '再同步没有新动静');
+    assert.equal(events.sync(maker).processed, 0, '再同步没有新动静');
   } finally {
     s.close();
   }

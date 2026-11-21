@@ -52,7 +52,7 @@ export { nextAutoId } from './ids.js';
 // 运行日志、登录记录、读程序代码、使用手册在系统资料（server/system/），下面几样是给它用的：
 // 读取的权限和分页、遮密钥、程序目录
 export { ProblemLog, readRecentProblems } from './diagnostics/problem-log.js';
-export { problemCategories } from './diagnostics/problem-kinds.js';
+export { errorReason, problemCategories } from './diagnostics/problem-kinds.js';
 export { recordFailedRequests } from './diagnostics/request-recorder.js';
 export { pageProblemRouter } from './diagnostics/page-problems.js';
 export { defaultProblemLogPath, programRoot } from './diagnostics/paths.js';

@@ -40,7 +40,7 @@ export async function flowFinance() {
   const sync = () => {
     let processed = 0;
     for (let more = true; more; ) {
-      const r = events.sync(maker, { requestId: randomUUID() });
+      const r = events.sync(maker);
       processed += r.processed;
       more = r.remaining;
     }

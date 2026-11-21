@@ -161,7 +161,8 @@ type ClosingStep =
   | { key: string; ok: boolean; blocking: boolean };
 /**
  * 出正式报表、结账前资料补没补完（照 server/finance/reports.ts 的 readiness）：补完了没有、还卡着几张、
- * 其中几张是已冲销的送货单、涉及金额（分）、其中送货的金额、还没登记进财务的几张、列出来的前几张
+ * 其中几张是已冲销的送货单、涉及金额（分）、其中送货的金额、还没登记进财务的几张和其中前几张是哪几张
+ * （读之前已补扫到完，剩下的是内容读不出来、补扫跳过的）、列出来的前几张
  */
 type ReportReadiness = {
   period: string;
@@ -171,6 +172,9 @@ type ReportReadiness = {
   amount: number;
   deliveryAmount: number;
   unsynced: number;
+  /** 读之前的补扫没成功（原因在出错记录里）：正式报表、结账照拦 */
+  syncFailed: boolean;
+  unsyncedSources: { source_kind: 'delivery' | 'arrival' | 'production' | 'stock'; source_id: string; number: string | null }[];
   rows: ClosingReadinessRow[];
 };
 /** 结账检查：这个月和下一个能结的月、这个月的期间记录、待补单据、各步、能不能结账 */

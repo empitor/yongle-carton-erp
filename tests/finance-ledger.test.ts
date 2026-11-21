@@ -329,7 +329,7 @@ test('草稿凭证能改，跨期间改日期、改红字凭证或来源凭证�
     const red = Number(ledger.reverse(maker, id, { version: 4, requestId: 'red', date: '2026-01-25', description: '虚构' }).header.id);
     assert.throws(() => ledger.update(maker, red, { ...voucher, requestId: 'edit-red', version: 1 }), /红冲分录按原凭证固定/);
     physical(store, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
-    new FinanceEvents(store).sync(maker, { requestId: 'scan' });
+    new FinanceEvents(store).sync(maker);
     const e = one(store.db, rows.fin_events.pick({ id: true, version: true }), "SELECT id,version FROM fin_events WHERE source_id='1'");
     if (!e) throw new Error('测试数据：送货单 1 没有财务事件');
     const source = Number(new FinanceEventVouchers(store).generate(maker, e.id, { version: e.version, requestId: 'g' }).voucher_id);

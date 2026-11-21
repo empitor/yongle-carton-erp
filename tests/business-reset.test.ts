@@ -153,7 +153,7 @@ test('连财务一起初始化：财务设置和它的变更历史都保留，�
         at,
       );
     const events = new FinanceEvents(store);
-    assert.equal(events.sync(financeActor, { requestId: 'scan' }).processed, 1);
+    assert.equal(events.sync(financeActor).processed, 1);
     const [event] = many(store.db, rows.fin_events.pick({ status: true, revenue_recognition: true }), "SELECT status,revenue_recognition FROM fin_events WHERE source_kind='delivery'");
     assert.equal(event?.revenue_recognition, 'invoice');
     assert.equal(event?.status, 'waiting_invoice');

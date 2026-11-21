@@ -21,7 +21,7 @@ test('已开票送货被冲销，整张红票后可以更正，结账的事件�
     const events = new FinanceEvents(s),
       invoices = new FinanceInvoices(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     const o = obligation(s, 1);
@@ -34,7 +34,7 @@ test('已开票送货被冲销，整张红票后可以更正，结账的事件�
     new FinanceInvoiceConfirm(s).confirm(maker, blue.id, { version: 2, requestId: 'confirm-blue' });
     postDrafts(s);
     businessChanges(s).reverse(1);
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     assert.equal(diff.event_type, 'delivery.reversed');
     const correct = (requestId: string) =>
@@ -69,7 +69,7 @@ test('作废的发票草稿还挂着关联，不妨碍更正', () => {
     const events = new FinanceEvents(s),
       invoices = new FinanceInvoices(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     const o = obligation(s, 1);
@@ -88,7 +88,7 @@ test('作废的发票草稿还挂着关联，不妨碍更正', () => {
     });
     assert.ok(s.db.prepare('SELECT 1 FROM fin_invoice_links WHERE obligation_id=?').get(o.id));
     businessChanges(s).reverse(1);
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     const result = new FinanceEventHandling(s).correct(maker, diff.id, {
       version: Number(diff.version),
@@ -120,7 +120,7 @@ test('开票确认收入，开票后送货单原地修改走差异，不多出�
     // 口径改动的时间写定在单据确认之前（虚构），送货按开票确认收入
     s.db.prepare("UPDATE fin_settings_history SET changed_at='2026-01-01T00:00:00.000Z'").run();
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     assert.equal(event(s, 1).status, 'waiting_invoice');
     const o = obligation(s, 1);
     assert.equal(o.voucher_id, null);
@@ -137,7 +137,7 @@ test('开票确认收入，开票后送货单原地修改走差异，不多出�
     assert.equal(invoicedEvent.voucher_id, null, '凭证挂在往来上，事件本身没有凭证号');
     // 送货数量改成 2（版本 1 → 2）
     setDoc(s, 1, '$.lines[0].quantity', '2');
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const changed = event(s, 1);
     assert.notEqual(changed.id, invoicedEvent.id);
     assert.equal(changed.status, 'difference', '已开票的送货单改了要人工核对');
@@ -188,7 +188,7 @@ test('原应付已整张红冲且付过款，来源更正先拦下；处理后�
       events = new FinanceEvents(s),
       invoices = new FinanceInvoices(s);
     physical(s, 1, 'arrival', '2026-01-10', arrivalDoc('10'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     const payable = Number(obligation(s, 1).id);
@@ -213,7 +213,7 @@ test('原应付已整张红冲且付过款，来源更正先拦下；处理后�
     // 超级管理员冲销原到货，按 8 张更正
     businessChanges(s).reverse(1);
     physical(s, 2, 'arrival', '2026-01-18', arrivalDoc('8', { correctionOf: 1 }));
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const replacement = event(s, 2),
       reversed = event(s, 1);
     assert.equal(replacement.status, 'difference');
