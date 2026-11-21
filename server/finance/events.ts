@@ -18,10 +18,11 @@ import {
   refreshPendingDeliveryReversals,
   supersedeEvent,
 } from './event-status.js';
+import { eventColumns, insertEvent, updateEventSnapshot } from './event-columns.js';
 import { expectRow } from './finance-rows.js';
 import { request } from './query.js';
 import { syncReturnEstimates } from './return-estimates.js';
-import { readSnapshot, snapshotText, type FinanceSourceDocument } from './source-snapshot.js';
+import { readSnapshot, type EventSnapshot, type FinanceSourceDocument } from './source-snapshot.js';
 import {
   allocationsPending,
   hasPendingObligations,
@@ -61,9 +62,6 @@ function eventTypeOf(source: SourceRow, doc: FinanceSourceDocument) {
 /** 记进 amount_cents 的金额：送货含税、到货不含税（暂估），和更新、预览、红字冲销并重做同一个口径；没有金额是 null */
 const recordedAmount = (kind: string, result: Evaluation) =>
   (kind === 'delivery' ? result.money?.gross : result.money?.net) ?? null;
-/** 事件快照里记的上一条：编号、指纹、状态 */
-const previousOf = (previous: FinanceEvent | undefined) =>
-  previous ? { eventId: previous.id, hash: previous.source_hash, status: previous.status } : null;
 
 /** 被删的来源（FROM 和 WHERE，o 是观察记录、e 是它挂的事件）：财务看到过、还没记成已删除的；启用前的不管 */
 const missingSources = `FROM fin_source_observations o JOIN fin_events e ON e.id=o.event_id
@@ -220,7 +218,7 @@ export class FinanceEvents {
       doc,
       date: source.date,
       amount,
-      ...taxBasis({ missing: effective.missing, theoretical: effective.theoretical }),
+      ...taxBasis(eventColumns({ missing: effective.missing, theoretical: effective.theoretical })),
     });
     return changes.length > 0;
   }
@@ -243,30 +241,40 @@ export class FinanceEvents {
     // 名下什么都没挂（settled）的送货、到货不算：上一条“有差异”留着也只是没东西可冲。
     const changed = !settled && !!previous && this.bookedBefore(previous);
     // 单据按现在内容算出的金额：有效的更正单“有差异”时 amount_cents 还空着（红字冲销并重做时才算），
-    // 这里按替代单评估（effective）算出来，记进快照，“改了什么”拿它比金额；已撤销、被替代的单据没有金额，是 null
-    const documentAmount = recordedAmount(source.kind, effective);
-    const listed = changed && this.listedChanges(context, effective, documentAmount);
-    const snapshot = snapshotText({
+    // 这里按替代单评估（effective）算出来，记进 document_cents，“改了什么”拿它比金额；已撤销、被替代的单据没有金额，是 null
+    const documentCents = recordedAmount(source.kind, effective);
+    const listed = changed && this.listedChanges(context, effective, documentCents);
+    const snapshot: EventSnapshot = {
       doc,
       money: result.money,
-      documentAmount,
       taxSource: result.taxSource,
       theoretical: effective.theoretical,
       financialLines: result.financialLines,
       missing: result.missing,
       warnings: result.warnings,
-      previous: previousOf(previous),
-    });
+    };
     if (previous?.source_hash === context.hash) {
-      this.refreshEvaluated(context, previous, result, snapshot);
+      this.refreshEvaluated(context, previous, result, snapshot, documentCents);
       return;
     }
-    const id = this.insertEvaluated(context, {
-      amount: recordedAmount(source.kind, result),
+    const id = insertEvent(
+      this.db,
+      {
+        source_kind: source.kind,
+        source_id: source.id,
+        event_type: context.eventType,
+        source_version: source.version,
+        source_hash: context.hash,
+        date: source.date,
+        amount_cents: recordedAmount(source.kind, result),
+        status: changed ? 'difference' : result.status,
+        problem: changed ? differenceProblem(source.status, doc, true, listed) : result.problem,
+        revenue_recognition: context.policy,
+        previous,
+        document_cents: documentCents,
+      },
       snapshot,
-      status: changed ? 'difference' : result.status,
-      problem: changed ? differenceProblem(source.status, doc, true, listed) : result.problem,
-    });
+    );
     if (previous) this.handOver(context, previous, changed);
     const current = readEvent(this.db, id);
     if ((current.status === 'info_pending' || current.status === 'waiting_invoice') && current.amount_cents)
@@ -275,43 +283,24 @@ export class FinanceEvents {
     financeAudit(this.store, user, { action: 'sync', entity: 'fin_events', id, before: null, after: readEvent(this.db, id) });
   }
 
-  /** 指纹没变（资料待补、还没挂往来的重新评估）：在原来那条上按新的评估刷新 */
-  private refreshEvaluated({ user, source, doc }: SyncContext, previous: FinanceEvent, result: Evaluation, snapshot: string) {
-    this.db
-      .prepare('UPDATE fin_events SET status=?,problem=?,snapshot=?,amount_cents=?,version=version+1 WHERE id=?')
-      .run(result.status, result.problem, snapshot, recordedAmount(source.kind, result), previous.id);
+  /** 指纹没变（资料待补、还没挂往来的重新评估）：在原来那条上按新的评估刷新（它接手的上一条不变） */
+  private refreshEvaluated(
+    { user, source, doc }: SyncContext,
+    previous: FinanceEvent,
+    result: Evaluation,
+    snapshot: EventSnapshot,
+    documentCents: number | null,
+  ) {
+    updateEventSnapshot(this.db, previous.id, snapshot, {
+      status: result.status,
+      problem: result.problem,
+      amount_cents: recordedAmount(source.kind, result),
+      document_cents: documentCents,
+    });
     const after = readEvent(this.db, previous.id);
     if (after.amount_cents) provisionalObligation(this.store, user, after, doc);
     financeAudit(this.store, user, { action: 'refresh', entity: 'fin_events', id: previous.id, before: previous, after });
     this.observe(source, previous.id);
-  }
-
-  /** 新记一条事件，返回编号 */
-  private insertEvaluated(
-    { source, eventType, hash, policy }: SyncContext,
-    event: { amount: number | null; snapshot: string; status: string; problem: string | null },
-  ) {
-    return Number(
-      this.db
-        .prepare(
-          `INSERT INTO fin_events
-      (source_kind,source_id,event_type,source_version,source_hash,date,amount_cents,snapshot,status,problem,revenue_recognition)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .run(
-          source.kind,
-          source.id,
-          eventType,
-          source.version,
-          hash,
-          source.date,
-          event.amount,
-          event.snapshot,
-          event.status,
-          event.problem,
-          policy,
-        ).lastInsertRowid,
-    );
   }
 
   /**
@@ -333,15 +322,18 @@ export class FinanceEvents {
 
   /** 启用前的单据：保留忽略标记，避免启用前历史占满扫描批次。 */
   private ignoreBeforeOpening(user: Actor, source: ObservedSource, eventType: string, hash: string) {
-    const id = Number(
-      this.db
-        .prepare(
-          `INSERT INTO fin_events
-      (source_kind,source_id,event_type,source_version,source_hash,date,snapshot,status)
-      VALUES(?,?,?,?,?,?,?,'before_opening')`,
-        )
-        .run(source.kind, source.id, eventType, source.version, hash, source.date, snapshotText({}))
-        .lastInsertRowid,
+    const id = insertEvent(
+      this.db,
+      {
+        source_kind: source.kind,
+        source_id: source.id,
+        event_type: eventType,
+        source_version: source.version,
+        source_hash: hash,
+        date: source.date,
+        status: 'before_opening',
+      },
+      {},
     );
     this.observe(source, id);
     financeAudit(this.store, user, {
@@ -366,24 +358,21 @@ export class FinanceEvents {
       this.refreshInPlace(context, previous);
       return;
     }
-    const id = Number(
-      this.db
-        .prepare(
-          `INSERT INTO fin_events
-        (source_kind,source_id,event_type,source_version,source_hash,date,snapshot,status,problem,revenue_recognition)
-        VALUES(?,?,?,?,?,?,?,'corrected',?,?)`,
-        )
-        .run(
-          source.kind,
-          source.id,
-          eventType,
-          source.version,
-          hash,
-          source.date,
-          snapshotText({ doc, money: null, previous: previousOf(previous) }),
-          '单据已撤销或被更正替代，还没入过账，不用处理。',
-          policy,
-        ).lastInsertRowid,
+    const id = insertEvent(
+      this.db,
+      {
+        source_kind: source.kind,
+        source_id: source.id,
+        event_type: eventType,
+        source_version: source.version,
+        source_hash: hash,
+        date: source.date,
+        status: 'corrected',
+        problem: '单据已撤销或被更正替代，还没入过账，不用处理。',
+        revenue_recognition: policy,
+        previous,
+      },
+      { doc, money: null },
     );
     if (previous && ['ready', 'info_pending', 'waiting_invoice', 'no_amount', 'difference'].includes(previous.status))
       supersedeEvent(this.store, user, previous);
@@ -394,9 +383,11 @@ export class FinanceEvents {
   /** 失效单据又改了内容：在原事件上换成新内容（状态、上一条都不动），不多一条 */
   private refreshInPlace({ user, source, doc, hash }: SyncContext, previous: FinanceEvent) {
     const id = previous.id;
-    this.db
-      .prepare('UPDATE fin_events SET source_version=?,source_hash=?,date=?,snapshot=?,version=version+1 WHERE id=?')
-      .run(source.version, hash, source.date, snapshotText({ ...readSnapshot(previous), doc }), id);
+    updateEventSnapshot(this.db, id, { ...readSnapshot(previous), doc }, {
+      source_version: source.version,
+      source_hash: hash,
+      date: source.date,
+    });
     financeAudit(this.store, user, { action: 'refresh', entity: 'fin_events', id, before: previous, after: readEvent(this.db, id) });
     this.observe(source, id);
   }

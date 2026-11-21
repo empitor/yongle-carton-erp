@@ -206,7 +206,7 @@ function basisEvent(db: DatabaseSync, previousId: number | null | undefined) {
     if (!found) break;
     basis ??= found;
     if (found.voucher_id != null) return found;
-    cursor = readSnapshot(found).previous?.eventId;
+    cursor = found.previous_event_id;
   }
   return basis;
 }
@@ -216,7 +216,7 @@ const findEvent = (db: DatabaseSync, id: number) => one(db, rows.fin_events, 'SE
  * 某条事件之后单据改了什么：改之前按原来那张凭证依据的内容算，从 previousId 这条起沿着“上一条”往前找最近一条出过凭证的；
  * 都没有就比 previousId 这条。
  * 金额：事件类型是冲销那一种（delivery.reversed、arrival.corrected）时，单据已撤销、被替代的没有金额（after.amount 是 null），
- * 不比，免得显示成“金额 … → —”像是金额被清空了；有效的更正单有金额（同步时记在快照的 documentAmount），照样比。
+ * 不比，免得显示成“金额 … → —”像是金额被清空了；有效的更正单有金额（同步时记在事件的 document_cents），照样比。
  */
 export function eventChangesSince(
   db: DatabaseSync,
@@ -227,10 +227,9 @@ export function eventChangesSince(
 ) {
   const basis = basisEvent(db, previousId);
   if (!basis) return [];
-  const before = readSnapshot(basis);
   return eventChanges(
     kind,
-    { doc: before.doc ?? {}, date: basis.date, amount: basis.amount_cents, ...taxBasis(before) },
+    { doc: readSnapshot(basis).doc ?? {}, date: basis.date, amount: basis.amount_cents, ...taxBasis(basis) },
     after,
     { compareAmount: after.amount != null || !/\.(reversed|corrected)$/.test(eventType) },
   );

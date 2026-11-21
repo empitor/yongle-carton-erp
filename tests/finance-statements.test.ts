@@ -120,7 +120,7 @@ test('对账单的红字行：每一种都用对方看得懂的说法，不带�
     postDrafts(s);
     const fourth = obligation(s, 4);
     s.db
-      .prepare("UPDATE fin_events SET snapshot=json_remove(snapshot,'$.doc.number','$.doc.reference') WHERE id=?")
+      .prepare("UPDATE fin_events SET snapshot=json_remove(snapshot,'$.doc.number','$.doc.reference'),source_number=NULL WHERE id=?")
       .run(fourth.event_id);
     s.db.prepare("UPDATE flow_documents SET status='reversed',version=version+1 WHERE id=4").run();
     events.sync(maker, { requestId: 'rescan-4' });

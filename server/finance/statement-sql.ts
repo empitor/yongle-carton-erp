@@ -4,7 +4,6 @@
  */
 import { z } from 'zod';
 import { chainCtes, chainRoot, inChain, isRerecorded, isReversed, reversedDocument } from './reversal-pairs.js';
-import { snapshotNumber } from './source-snapshot.js';
 
 /** 对账单查询的一行：前面几列给对方看，后面几列拼摘要用，拼好就去掉 */
 export const statementRow = z.object({
@@ -77,14 +76,14 @@ export function statementSql(receivable: boolean) {
         WHERE o.voucher_id=v.id AND o.party_id=e.auxiliary_id AND ${isReversed('o', ' AND r.date<=?')}) AS reversed,
       EXISTS(SELECT 1 FROM fin_obligations o WHERE o.voucher_id=v.id AND ${isRerecorded('o')}) AS rerecorded,
       -- 送货、到货生成的凭证：对账单写“送货单 SH-…”，不写“送货确认”“到货暂估”这类记账说法
-      (SELECT ${snapshotNumber('ev.snapshot')}
+      (SELECT ev.source_number
         FROM fin_events ev WHERE ev.id=v.event_id AND ev.source_kind IN ('delivery','arrival')) AS document_number,
       (SELECT ${reversedDocument('ro')} FROM fin_obligations ro
         WHERE ro.voucher_id=v.id AND ro.reversal_of IS NOT NULL LIMIT 1) AS red_document,
       -- 红字凭证冲的原凭证（ov）：哪个功能生成的、日期、摘要、是不是送货到货生成的；撤销核销的红字凭证挂着反向核销
       ov.module_source AS red_module,ov.date AS red_original_date,
       v.reversal_of IS NOT NULL AND EXISTS(SELECT 1 FROM fin_allocations a WHERE a.voucher_id=v.id AND a.reversal_of IS NOT NULL) AS red_allocation,
-      (SELECT ${snapshotNumber('oe.snapshot')}
+      (SELECT oe.source_number
         FROM fin_events oe WHERE oe.id=ov.event_id AND oe.source_kind IN ('delivery','arrival')) AS red_original_document,
       ov.description AS red_original_description,
       (SELECT min(${chainRoot('o')}) FROM fin_obligations o WHERE o.voucher_id=v.id AND o.party_id=e.auxiliary_id AND ${inChain('o')}) AS grp,
@@ -104,7 +103,7 @@ export function statementSql(receivable: boolean) {
       AND v.date BETWEEN ? AND ?
       UNION ALL SELECT o.voucher_id,o.date,NULL,0,o.description,o.due_date,o.amount_cents,o.reversal_of IS NOT NULL,0,
         ${isRerecorded('o')},
-        CASE WHEN o.reversal_of IS NULL THEN (SELECT ${snapshotNumber('ev.snapshot')}
+        CASE WHEN o.reversal_of IS NULL THEN (SELECT ev.source_number
           FROM fin_events ev WHERE ev.id=o.event_id) END,
         CASE WHEN o.reversal_of IS NOT NULL THEN ${reversedDocument('o')} END,NULL,NULL,NULL,NULL,
         (SELECT x.description FROM fin_obligations x WHERE x.id=o.reversal_of),

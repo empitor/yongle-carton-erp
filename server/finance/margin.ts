@@ -5,7 +5,7 @@ import type { Store } from '../core/index.js';
 import { financeActor } from './core.js';
 import { marginFacts } from './costing-source.js';
 import { pageSql } from './query.js';
-import { snapshotLines, snapshotPartyIdPath } from './source-snapshot.js';
+import { snapshotLines } from './source-snapshot.js';
 import { proportion } from './amounts.js';
 import { sourceBooked } from './event-source-obligations.js';
 
@@ -50,7 +50,8 @@ export class FinanceMargin {
       {
         schema: marginRow,
         sql: `WITH revenue AS (
-      SELECT json_extract(line.value,'$.orderId') AS order_id,json_extract(e.snapshot,'${snapshotPartyIdPath('customer')}') AS customer_id,
+      SELECT json_extract(line.value,'$.orderId') AS order_id,
+        CASE WHEN e.party_kind='customer' THEN cast(e.party_id AS INTEGER) END AS customer_id,
         json_extract(line.value,'$.productId') AS product_id,${bookedMonth} AS period,
         coalesce(json_extract(e.snapshot,'$.money.lines['||line.key||'].net'),0) AS amount
       FROM fin_source_observations x JOIN fin_events e ON e.id=x.event_id,${snapshotLines('e.snapshot')} line

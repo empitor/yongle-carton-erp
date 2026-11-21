@@ -9,7 +9,6 @@ import { sumOf } from './finance-rows.js';
 import { row } from './query.js';
 import { reissueReleasedByObligation } from './red-invoices.js';
 import { isReversed } from './reversal-pairs.js';
-import { snapshotNumber } from './source-snapshot.js';
 
 const obligation = rows.fin_obligations.shape;
 /** 发票关联的一笔往来：关联一行，加上往来日期和金额、来源事件、来源单号和来源明细（JSON 文字） */
@@ -31,7 +30,7 @@ export function invoiceDetail(db: DatabaseSync, key: number): InvoiceDetail {
   const links = many(
     db,
     linkedObligation,
-    `SELECT l.*,o.date,o.amount_cents AS obligation_amount,o.event_id,${snapshotNumber('e.snapshot')} AS source_number,
+    `SELECT l.*,o.date,o.amount_cents AS obligation_amount,o.event_id,e.source_number,
       json_extract(e.snapshot,'$.doc.lines') AS source_lines
       FROM fin_invoice_links l JOIN fin_obligations o ON o.id=l.obligation_id LEFT JOIN fin_events e ON e.id=o.event_id
       WHERE invoice_id=? ORDER BY obligation_id`,
