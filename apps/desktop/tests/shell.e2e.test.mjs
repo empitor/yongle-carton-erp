@@ -120,6 +120,10 @@ test('Windows 外壳按顺序走一遍', async (t) => {
     await staysHome('拖文件进来之后');
   });
 
+  await t.test('打开的网页上有 Tauri 注入的 window.__TAURI_INTERNALS__（ERP 网页靠它认出 Windows 客户端，见 ERP 项目 docs/架构说明.md）', async () => {
+    assert.equal(await evaluate(await home(), 'typeof window.__TAURI_INTERNALS__'), 'object');
+  });
+
   await t.test('网页调不动外壳接口（几个插件和核心的命令都试一遍，都被拒）', async () => {
     // 只试读的命令：万一放开了也不改这台电脑（不试开机自启的 enable）
     const commands = ['plugin:opener|open_url', 'plugin:updater|check', 'plugin:autostart|is_enabled', 'plugin:app|version'];

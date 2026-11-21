@@ -32,7 +32,7 @@ export const groups = [
   { name: 'operations', flows: ['operations', 'remote', 'stock', 'corrections'], about: '新订单、完工入库、到货更正、退货撤销、助手删除卡片、网关出错、域名模式超级管理员；新建采购单到登记到货、安排送货到导出并出库、出入库和盘点；送货、完工更正和说明编辑（数据管理里也一样）' },
   { name: 'access', flows: ['permission', 'cashier', 'supermode'], about: '业务员看不到财务、出纳账号；从域名访问改账号和设置要先进超级管理员模式（电脑、手机宽度）' },
   { name: 'production', flows: ['production', 'batches'], about: '附属品、筛选、订单编辑窗明细、安排生产、登记完工窗；成品批次块和批次备注' },
-  { name: 'account', flows: ['account', 'busy'], about: '账号、改密、登录；服务器正忙时自动再试一次' },
+  { name: 'account', flows: ['account', 'busy', 'filing'], about: '账号、改密、登录；服务器正忙时自动再试一次；从域名访问时最底部的备案号（安卓 App、Windows 客户端里不显示）' },
   { name: 'records', flows: ['intake', 'records'], about: '收件箱标为已处理和恢复、文件转订单、AI 导入改一格后导入订单；新建客户和供应商、归档页恢复、初始化业务数据（最后一步，真清空）' },
   { name: 'a11y', flows: ['a11y'], about: '无障碍检查（axe）：今日、订单、仓库、采购、财务概览、数据管理、助手面板各扫一遍，只列违规不拦' },
 ];

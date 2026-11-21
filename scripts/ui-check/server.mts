@@ -166,7 +166,7 @@ if (!real) {
   await receiptAi.analyze(source.id, { force: false }, actor);
 }
 // 出错记录和运行日志放在这个实例的临时目录里；助手的只读工具接法和 server/index.ts 一样
-const { ProblemLog } = await import('../../server/core/index.ts');
+const { ProblemLog, hasProxyHeaders } = await import('../../server/core/index.ts');
 const { RunLog, captureProcessOutput, programSource } = await import('../../server/system/index.ts');
 const problems = new ProblemLog(join(f.dir, 'logs', 'problems.sqlite'));
 const runLog = new RunLog(join(f.dir, 'logs', 'run.log'));
@@ -201,6 +201,19 @@ const assistant = new AssistantManager({
 const app = createApp(f.store, { auth, assistant, imports: f.imports, execution: f.execution, aiSettings: f.settings, receiptAi, problems, promptModules, bots });
 // 只有这个隔离实例有：界面实测往模型替身里排好下一次的回复（比如让助手提出删除方案），再在页面上点确认卡片
 const { createServer } = await import('node:http');
+/**
+ * 模拟从域名访问（--remote，或请求带转发头）时给登录状态补一个虚构备案号，看页面底部的备案号（scripts/ui-check/flow-filing.mjs）。
+ * 真实服务只在部署模式的域名入口带出（server/core/auth-router.ts，tests/deployment.test.ts 守着）；这个实例没开部署模式，在这里补。
+ */
+const FAKE_FILING = { icp: '虚构ICP备00000000号' };
+function withFakeFiling(res: import('node:http').ServerResponse) {
+  const end = res.end.bind(res);
+  res.end = ((chunk: unknown) => {
+    const body = JSON.stringify({ ...z.record(z.string(), z.unknown()).parse(JSON.parse(String(chunk))), filing: FAKE_FILING });
+    res.setHeader('content-length', Buffer.byteLength(body));
+    return end(body);
+  }) as typeof res.end;
+}
 const smoke = real ? (await import('./real-model.mts')).realSmokeHandler(real, (req) => auth.actor(req), assistant.agent) : null;
 const server = createServer((req, res) => {
   if (smoke?.(req, res)) return;
@@ -218,6 +231,7 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  if ((remote || hasProxyHeaders(req)) && req.method === 'GET' && req.url === '/api/auth/state') withFakeFiling(res);
   app(req, res);
 }).listen(port, '127.0.0.1', () => {
   if (real) {

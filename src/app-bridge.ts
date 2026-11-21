@@ -16,6 +16,11 @@ const APP_MARK = / YongleErpAndroid\/[\w.-]+$/;
 
 /** 是不是在安卓 App 里打开的 */
 export const inAndroidApp = (userAgent: string) => APP_MARK.test(userAgent);
+/** Windows 客户端（apps/desktop，Tauri）往它打开的每个网页注入的对象；浏览器里没有 */
+const DESKTOP_MARK = '__TAURI_INTERNALS__';
+/** 是不是在两个应用程序（安卓 App、Windows 客户端）里打开的，约定见 docs/架构说明.md“网页怎么认出两个外壳” */
+export const inShellApp = (win: { navigator: { userAgent: string } }) =>
+  inAndroidApp(win.navigator.userAgent) || DESKTOP_MARK in win;
 /** 接通消息，必须一字不差 */
 const HELLO = '{"type":"erp-app-bridge","version":1}';
 

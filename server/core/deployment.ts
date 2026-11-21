@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { isAbsolute } from 'node:path';
 import type { IncomingMessage } from 'node:http';
+import type { FilingRecords } from '../../shared/core/index.js';
 
 export type Deployment = {
   proxyPort: number;
@@ -8,6 +9,8 @@ export type Deployment = {
   origins: ReadonlySet<string>;
   backupCopyDir?: string;
   backupCopyKeep?: number;
+  /** 备案号：只在从域名进来的页面底部显示；两项都没填就没有 */
+  filing?: FilingRecords;
 };
 
 /** 没设 ERP_PROXY_PORT 时给 Caddy 的代理入口端口；域名不带端口时按 HTTPS 的 443 算 */
@@ -37,7 +40,15 @@ export function readDeployment(env: NodeJS.ProcessEnv, localPort: number): Deplo
   if (![localPort, proxyPort].every(validPort) || proxyPort === localPort)
     throw new Error('ERP_PROXY_PORT 必须是与 PORT 不同的有效端口。');
   const hosts = allowedHosts(env);
-  return { proxyPort, hosts, origins: allowedOrigins(env, hosts), ...backupCopy(env) };
+  return { proxyPort, hosts, origins: allowedOrigins(env, hosts), ...backupCopy(env), ...filing(env) };
+}
+
+/** 备案号（ERP_ICP_RECORD、ERP_POLICE_RECORD）：原样的字，去掉首尾空白，空的当没填 */
+function filing(env: NodeJS.ProcessEnv): { filing?: FilingRecords } {
+  const icp = env.ERP_ICP_RECORD?.trim(),
+    police = env.ERP_POLICE_RECORD?.trim();
+  if (!icp && !police) return {};
+  return { filing: { ...(icp ? { icp } : {}), ...(police ? { police } : {}) } };
 }
 
 function allowedHosts(env: NodeJS.ProcessEnv) {
