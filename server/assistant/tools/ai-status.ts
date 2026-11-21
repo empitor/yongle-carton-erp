@@ -5,20 +5,11 @@ import type { Actor, Store } from '../../core/index.js';
 import { canEnterSuperMode, many, requirePermission, rows } from '../../core/index.js';
 import type { AiSettingsManager } from '../../ai/index.js';
 import { BUSINESS_TIME_ZONE, DAY_MS, errorMessage } from '../../../shared/core/index.js';
-import { REASON_CHARS, clip, notConnected, paging, uuid, type ToolContext, type ToolReader } from './context.js';
+import { REASON_CHARS, clip, paging, uuid, type ToolContext } from './context.js';
+import { readTool } from './define.js';
 
 const aiStatusSchema = z.strictObject({ workspaceId: uuid.optional(), ...paging });
 
-export const aiStatusTools = [
-  {
-    name: 'ai.status',
-    risk: 'read',
-    description:
-      '查 AI 接入状况：模型、密钥保存没有、上次检查结果、余额、最近的识别失败（可按 workspaceId）、最近七天助手调用量。识别一直失败、连不上模型时先查它。',
-    arguments: { workspaceId: '可省略，只看这份识别的失败', limit: 10, offset: 0 },
-    schema: aiStatusSchema,
-  },
-] as const;
 
 const checkNames: Record<string, string> = {
   missing: '还没填写密钥',
@@ -79,10 +70,9 @@ async function balanceText(ai: AiSettingsManager) {
   }
 }
 
-async function aiStatus(ctx: ToolContext, raw: unknown, who: Actor | null | undefined) {
+async function aiStatus(ctx: ToolContext, v: z.output<typeof aiStatusSchema>, who: Actor | null | undefined) {
   const actor = requirePermission(who, 'business:edit');
-  const v = aiStatusSchema.parse(raw ?? {});
-  const ai = ctx.services.ai ?? notConnected('AI 设置');
+  const ai = ctx.services.ai;
   // 余额和设置页“查余额”一样只给超级管理员：现查会对外发请求，还会改全员共用的“上次检查”。
   // 超级管理员先现查，查完“上次检查”就是这一次的结果；别的账号只看上次检查的结果
   const balance = !canEnterSuperMode(actor)
@@ -91,7 +81,7 @@ async function aiStatus(ctx: ToolContext, raw: unknown, who: Actor | null | unde
       ? await balanceText(ai)
       : '没有密钥，查不了余额';
   const s = ai.view();
-  const failures = ctx.imports?.failures(v.workspaceId, v.offset);
+  const failures = ctx.imports.failures(v.workspaceId, v.offset);
   return {
     模型: s.model,
     密钥: s.hasKey ? '已保存' + (s.keySavedAt ? '（' + s.keySavedAt + ' 保存）' : '') : '还没保存',
@@ -102,23 +92,31 @@ async function aiStatus(ctx: ToolContext, raw: unknown, who: Actor | null | unde
       时间: s.check.checkedAt ?? '还没检查过',
     },
     余额: balance,
-    最近识别失败: failures
-      ? {
-          共: failures.total,
-          列表: failures.items.slice(0, v.limit).map((f) => ({
-            时间: f.recordedAt,
-            文件: f.fileName,
-            操作: operationNames[f.operation] ?? f.operation,
-            哪一步: f.stage,
-            错误码: f.code,
-            原因: clip(f.message, REASON_CHARS),
-            操作人: f.operator?.name ?? '没有记录',
-          })),
-          还有更多: v.offset + Math.min(v.limit, failures.items.length) < failures.total,
-        }
-      : '识别导入没有接上',
+    最近识别失败: {
+      共: failures.total,
+      列表: failures.items.slice(0, v.limit).map((f) => ({
+        时间: f.recordedAt,
+        文件: f.fileName,
+        操作: operationNames[f.operation] ?? f.operation,
+        哪一步: f.stage,
+        错误码: f.code,
+        原因: clip(f.message, REASON_CHARS),
+        操作人: f.operator?.name ?? '没有记录',
+      })),
+      还有更多: v.offset + Math.min(v.limit, failures.items.length) < failures.total,
+    },
     最近七天助手用量: { 单位: '模型按 Token 计的用量', 按天: assistantUsage(ctx.store) },
   };
 }
 
-export const aiStatusReaders: Record<string, ToolReader> = { 'ai.status': aiStatus };
+export const aiStatusTools = [
+  readTool(
+    {
+      name: 'ai.status',
+      description:
+        '查 AI 接入状况：模型、密钥保存没有、上次检查结果、余额、最近的识别失败（可按 workspaceId）、最近七天助手调用量。识别一直失败、连不上模型时先查它。',
+      schema: aiStatusSchema,
+    },
+    aiStatus,
+  ),
+];

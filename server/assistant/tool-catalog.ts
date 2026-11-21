@@ -26,6 +26,7 @@ import { diagnosticsTools } from './tools/diagnostics.js';
 import { sourceTools } from './tools/source.js';
 import { webTools } from './tools/web.js';
 import { memoryTools } from './tools/memory.js';
+import type { ToolDefinition } from './tools/define.js';
 
 const order: string[] = [
   ...financeReadTools,
@@ -58,7 +59,7 @@ const order: string[] = [
   // 改已生效的单据：更正（撤销原单、出替代单）和改说明
   'arrival.correct', 'delivery.correct', 'production.correct', 'flow.edit_info',
 ];
-const all = [
+const all: ToolDefinition[] = [
   ...overviewTools,
   ...documentInboxTools,
   ...flowDocTools,
@@ -89,12 +90,11 @@ const all = [
 const byName = new Map(all.map((t) => [t.name, t]));
 if (byName.size !== all.length || order.length !== all.length || order.some((name) => !byName.has(name)))
   throw new Error('工具目录的顺序表和各处的定义对不上（重名、缺了或多了）。');
-for (const t of all) if (!t.schema) throw new Error('工具缺少参数结构：' + t.name);
-/** 带参数结构的完整定义，注册表用。 */
+/** 完整定义（说明、参数结构、校验和 tools/ 下的执行函数），注册表和外壳 tools.ts 用。 */
 export const toolDefinitions = order.map((name) => {
   const definition = byName.get(name);
   if (!definition) throw new Error('工具目录的顺序表里有没定义的工具：' + name);
   return definition;
 });
-/** 给模型、页面和元数据看的目录：不带参数结构。 */
-export const toolCatalog = toolDefinitions.map(({ schema: _schema, ...t }) => t);
+/** 只看名字、说明和风险的目录（不带参数结构和执行函数）。 */
+export const toolCatalog = toolDefinitions.map(({ name, description, risk }) => ({ name, description, risk }));

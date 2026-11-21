@@ -176,18 +176,17 @@ test('delivery.plan 选的成品送不了时和窗口说同样的原因：没可
 
 // 助手工具文件的直接测试
 test('安排送货、安排生产的试算（tools/planning.ts）：参数二选一；选的订单不存在时什么也不排', async () => {
-  const { planningReaders } = await import('../server/assistant/tools/planning.js');
   const { Store } = await import('../server/core/db.js');
   const store = new Store(':memory:'),
     who = pageActor({ id: 'tool-direct', name: '虚构直测', permissions: ['business:edit'] });
   try {
     const ctx: ToolContext = ctxOf(store);
-    assert.throws(() => planningReaders['delivery.plan'](ctx, {}, who, 'delivery.plan'), /传stockIds（成品库存）或orderIds（订单）其中一种/);
+    assert.throws(() => ctx.tools.read('delivery.plan', {}, who), /传stockIds（成品库存）或orderIds（订单）其中一种/);
     const planned = z.looseObject({ groups: z.array(z.unknown()) });
-    const delivery = planned.parse(planningReaders['delivery.plan'](ctx, { orderIds: [999] }, who, 'delivery.plan'));
+    const delivery = planned.parse(ctx.tools.read('delivery.plan', { orderIds: [999] }, who));
     assert.deepEqual(delivery.groups, []);
     assert.equal(delivery.url, '#orders');
-    const production = planned.parse(planningReaders['production.plan'](ctx, { orderIds: [999] }, who, 'production.plan'));
+    const production = planned.parse(ctx.tools.read('production.plan', { orderIds: [999] }, who));
     assert.deepEqual(production.groups, []);
     assert.equal(production.url, '#orders');
   } finally {

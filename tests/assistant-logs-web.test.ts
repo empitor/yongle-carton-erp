@@ -13,20 +13,11 @@ import { AuthManager } from '../server/core/auth.js';
 import { ProblemLog } from '../server/core/diagnostics/problem-log.js';
 import { RunLog } from '../server/system/run-log.js';
 import type { Actor } from '../server/core/index.js';
-import { ctxOf, toolsOf } from './assistant-fixture.js';
+import { ctxOf, systemDeps, toolsOf } from './assistant-fixture.js';
 import { readLoginRecords } from '../server/system/login-records.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { diagnosticsReaders } from '../server/assistant/tools/diagnostics.js';
-import { sourceReaders } from '../server/assistant/tools/source.js';
-import { adminViewReaders } from '../server/assistant/tools/admin-view.js';
-import { webReaders } from '../server/assistant/tools/web.js';
-import { historyReaders } from '../server/assistant/tools/history.js';
-import { aiStatusReaders } from '../server/assistant/tools/ai-status.js';
-import { jobsReaders } from '../server/assistant/tools/jobs.js';
-import { guideReaders } from '../server/assistant/tools/guide.js';
-import { documentInboxReaders } from '../server/assistant/tools/documents-inbox.js';
 import { systemStatus } from '../server/assistant/tools/system.js';
-import type { ToolContext, ToolReader, ToolServices } from '../server/assistant/tools/context.js';
+import type { ToolContext, ToolServices } from '../server/assistant/tools/context.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { manualWrite } from '../server/business/service.js';
 import { customerSchema } from '../shared/core/domain.js';
@@ -39,8 +30,7 @@ const hex64 = 'cd34'.repeat(16);
 function directReader(store: Store, services: Partial<ToolServices> = {}) {
   const ctx: ToolContext = ctxOf(store, services);
   // 网址来源（用户给的、搜索返回的）由聊天那一层判断；这里只测读取本身。
-  return (readers: Record<string, ToolReader>, name: string, raw: unknown, who: Actor | null) =>
-    readers[name](ctx, raw, who, name, { allowedUrl: (url) => url });
+  return (name: string, raw: unknown, who: Actor | null) => ctx.tools.read(name, raw, who, { allowedUrl: (url) => url });
 }
 const status = (code: number) => (e: unknown) => field(e, 'status') === code;
 const problemRows = { 列表: z.array(z.looseObject({})) };
@@ -70,19 +60,19 @@ test('diagnostics.errors（tools/diagnostics.ts）：普通账号只看自己的
   const store = new Store(':memory:');
   try {
     const call = directReader(store, { problems });
-    const own = readAs(call(diagnosticsReaders, 'diagnostics.errors', {}, staff), problemRows);
+    const own = readAs(call('diagnostics.errors', {}, staff), problemRows);
     assert.equal(own.共, 1);
     assert.deepEqual(
       { 账号: own.列表[0].账号, 操作: own.列表[0].操作, 类别: own.列表[0].类别, 请求: own.列表[0].请求 },
       { 账号: staff.name, 操作: '登记到货', 类别: '版本冲突', 请求: 'POST /api/flow/arrival-receive' },
     );
-    assert.equal(field(call(diagnosticsReaders, 'diagnostics.errors', {}, boss), '共'), 2);
-    assert.equal(field(call(diagnosticsReaders, 'diagnostics.errors', { category: '没权限' }, boss), '共'), 0);
-    assert.throws(() => call(diagnosticsReaders, 'diagnostics.errors', {}, null), status(401));
+    assert.equal(field(call('diagnostics.errors', {}, boss), '共'), 2);
+    assert.equal(field(call('diagnostics.errors', { category: '没权限' }, boss), '共'), 0);
+    assert.throws(() => call('diagnostics.errors', {}, null), status(401));
     // 页面上报的文字谁都能写：超级管理员不传 source 时只给服务端记的；要看页面的，原文放在单独的键里
     problems.record({ source: 'page', account: staff.name, operation: '页面', category: '页面报错', status: 0, message: '虚构：页面发来的话' });
-    assert.equal(field(call(diagnosticsReaders, 'diagnostics.errors', {}, boss), '共'), 2);
-    const page = readAs(call(diagnosticsReaders, 'diagnostics.errors', { source: 'page' }, boss), problemRows).列表[0];
+    assert.equal(field(call('diagnostics.errors', {}, boss), '共'), 2);
+    const page = readAs(call('diagnostics.errors', { source: 'page' }, boss), problemRows).列表[0];
     assert.equal(page['页面上报的原文（没核实）'], '虚构：页面发来的话');
     assert.equal(page.给用户的话, undefined);
     assert.equal(page.类别, '页面报错');
@@ -100,13 +90,13 @@ test('logs.read（tools/diagnostics.ts）：不传条件看最后几行，传 te
     runLog.append('虚构启动完成\n', 'out');
     runLog.append('虚构的出错：连不上\n', 'err');
     const call = directReader(store, { runLog });
-    const lines = readAs(call(diagnosticsReaders, 'logs.read', { lines: 10 }, boss), runLogRows).行;
+    const lines = readAs(call('logs.read', { lines: 10 }, boss), runLogRows).行;
     assert.deepEqual(lines.map((l) => l.内容), ['虚构启动完成', '虚构的出错：连不上']);
-    const found = readAs(call(diagnosticsReaders, 'logs.read', { text: '连不上' }, boss), runLogRows);
+    const found = readAs(call('logs.read', { text: '连不上' }, boss), runLogRows);
     assert.equal(found.共, 1);
     assert.equal(found.行[0].输出, '错误');
-    assert.throws(() => call(diagnosticsReaders, 'logs.read', {}, staff), status(403));
-    assert.throws(() => call(diagnosticsReaders, 'logs.read', { text: 'x' }, staff), status(403));
+    assert.throws(() => call('logs.read', {}, staff), status(403));
+    assert.throws(() => call('logs.read', { text: 'x' }, staff), status(403));
   } finally {
     store.close();
     rmSync(base, { recursive: true, force: true });
@@ -120,10 +110,10 @@ test('accounts.events（tools/admin-view.ts）：登录记录只给超级管理�
   try {
     auth.event(null, 'login-failed-unknown');
     const call = directReader(store, { loginRecords: (who, filter) => readLoginRecords(auth.db, who, filter) });
-    const r = readAs(call(adminViewReaders, 'accounts.events', {}, boss), { 列表: z.array(z.looseObject({ 事件: z.string() })) });
+    const r = readAs(call('accounts.events', {}, boss), { 列表: z.array(z.looseObject({ 事件: z.string() })) });
     assert.equal(r.共, 1);
     assert.match(r.列表[0].事件, /登录失败/);
-    assert.throws(() => call(adminViewReaders, 'accounts.events', {}, staff), status(403));
+    assert.throws(() => call('accounts.events', {}, staff), status(403));
   } finally {
     auth.close();
     store.close();
@@ -136,13 +126,13 @@ test('source.search、source.read（tools/source.ts）：只读、只给超级�
   const store = new Store(':memory:');
   try {
     const call = directReader(store, { source: scope });
-    const found = readAs(call(sourceReaders, 'source.search', { text: '虚构的出错原话' }, boss), { 找到: z.array(z.looseObject({})) });
+    const found = readAs(call('source.search', { text: '虚构的出错原话' }, boss), { 找到: z.array(z.looseObject({})) });
     assert.deepEqual(found.找到.map((m) => [m.文件, m.行号]), [['server/core/receive.ts', 3]]);
-    const file = readAs(call(sourceReaders, 'source.read', { file: 'server/core/receive.ts', from: 2, to: 2 }, boss), {});
+    const file = readAs(call('source.read', { file: 'server/core/receive.ts', from: 2, to: 2 }, boss), {});
     assert.deepEqual(file.内容, [{ 行号: 2, 内容: 'export const 到货 = 1;' }]);
     assert.equal(file.文件共有几行, 3);
-    assert.throws(() => call(sourceReaders, 'source.read', { file: '../outside.ts' }, boss), status(403));
-    assert.throws(() => call(sourceReaders, 'source.search', { text: '虚构' }, staff), status(403));
+    assert.throws(() => call('source.read', { file: '../outside.ts' }, boss), status(403));
+    assert.throws(() => call('source.search', { text: '虚构' }, staff), status(403));
   } finally {
     store.close();
     rmSync(base, { recursive: true, force: true });
@@ -192,25 +182,25 @@ test('机密一律不返回：每个排查工具（和系统状态、联网）�
     const chief = { ...boss, permissions: grant('business:edit') };
     const call = directReader(store, services);
     const results: Record<string, unknown> = {
-      'history.records 按记录': call(historyReaders, 'history.records', { module: 'customers', id: c.id }, chief),
-      'history.records 按时间': call(historyReaders, 'history.records', { from: today, to: today }, chief),
-      'ai.status': await call(aiStatusReaders, 'ai.status', {}, chief),
-      'jobs.status': call(jobsReaders, 'jobs.status', {}, chief),
-      'exports.list': call(documentInboxReaders, 'exports.list', {}, chief),
-      'settings.view': call(adminViewReaders, 'settings.view', {}, chief),
-      'accounts.list': call(adminViewReaders, 'accounts.list', {}, chief),
-      'guide.read': call(guideReaders, 'guide.read', { section: '账号' }, chief),
-      系统状态: systemStatus({ store, backingUp: false }),
-      'diagnostics.errors': call(diagnosticsReaders, 'diagnostics.errors', { source: 'page' }, chief),
-      'logs.read': call(diagnosticsReaders, 'logs.read', {}, chief),
-      'logs.read 按字找': call(diagnosticsReaders, 'logs.read', { text: 'session' }, chief),
-      'accounts.events': call(adminViewReaders, 'accounts.events', {}, chief),
-      'source.search': call(sourceReaders, 'source.search', { text: 'const' }, chief),
-      'source.read': call(sourceReaders, 'source.read', { file: 'server/core/keys.ts' }, chief),
+      'history.records 按记录': call('history.records', { module: 'customers', id: c.id }, chief),
+      'history.records 按时间': call('history.records', { from: today, to: today }, chief),
+      'ai.status': await call('ai.status', {}, chief),
+      'jobs.status': call('jobs.status', {}, chief),
+      'exports.list': call('exports.list', {}, chief),
+      'settings.view': call('settings.view', {}, chief),
+      'accounts.list': call('accounts.list', {}, chief),
+      'guide.read': call('guide.read', { section: '账号' }, chief),
+      系统状态: systemStatus(systemDeps(store)),
+      'diagnostics.errors': call('diagnostics.errors', { source: 'page' }, chief),
+      'logs.read': call('logs.read', {}, chief),
+      'logs.read 按字找': call('logs.read', { text: 'session' }, chief),
+      'accounts.events': call('accounts.events', {}, chief),
+      'source.search': call('source.search', { text: 'const' }, chief),
+      'source.read': call('source.read', { file: 'server/core/keys.ts' }, chief),
     };
     // 联网结果是外面网站的原文（不打码）；这里查的是我们自己不往结果里加机密：密钥、页面凭证、机密字段名
-    results['web.search'] = await call(webReaders, 'web.search', { queries: ['虚构'] }, chief);
-    results['web.read'] = await call(webReaders, 'web.read', { url: 'https://example.com/k' }, chief);
+    results['web.search'] = await call('web.search', { queries: ['虚构'] }, chief);
+    results['web.read'] = await call('web.read', { url: 'https://example.com/k' }, chief);
     for (const [name, result] of Object.entries(results)) {
       assert.ok(JSON.stringify(result).length > 20, name + '有内容');
       assert.deepEqual(leaks(result, name), [], name);

@@ -8,7 +8,6 @@ import { AppError } from '../server/core/errors.js';
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/index.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { arrivalReaders, arrivalWriters } from '../server/assistant/tools/arrivals.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { autoConfirmAssistant, ctxOf, toolsOf } from './assistant-fixture.js';
 import { orderedPurchase } from './receive-fixture.js';
@@ -74,7 +73,7 @@ test('助手按订货单登记到货：查采购、登记入库、核对到货�
 test('撤销退货卡片绑定的退货单不在了：数据版本是 null（卡片按数据变了作废），不报找不到', () => {
   const store = new Store(':memory:');
   try {
-    const ctx = ctxOf(store);
+    const tools = toolsOf(store);
     const plan = {
       tool: 'purchase_return.reverse',
       args: { id: 999, input: { version: 1, reason: '虚构退错了' } },
@@ -84,7 +83,7 @@ test('撤销退货卡片绑定的退货单不在了：数据版本是 null（卡
       after: null,
       warnings: [],
     };
-    assert.equal(arrivalWriters['purchase_return.reverse'].stamp?.(ctx, plan, actor), null);
+    assert.equal(tools.stamp(plan, actor), null);
   } finally {
     store.close();
   }
@@ -95,11 +94,11 @@ test('助手查到货：到货记录取单据流转服务的同一份数据，�
   try {
     const ctx = ctxOf(store),
       flow = ctx.flow;
-    assert.deepEqual(arrivalReaders['arrival.records'](ctx, {}, actor, 'arrival.records'), {
+    assert.deepEqual(ctx.tools.read('arrival.records', {}, actor), {
       records: flow.arrivalRecords({}),
       url: '#warehouse?arrivals=1',
     });
-    assert.throws(() => arrivalReaders['arrival.records'](ctx, {}, null, 'arrival.records'), (e: unknown) => e instanceof AppError && e.status === 401);
+    assert.throws(() => ctx.tools.read('arrival.records', {}, null), (e: unknown) => e instanceof AppError && e.status === 401);
   } finally {
     store.close();
   }

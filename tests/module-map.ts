@@ -85,7 +85,7 @@ export const modules: Rule[] = [
       {
         name: '业务汇总',
         paths: business([
-          'records-api', 'record-queries', 'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
+          'records-api', 'record-queries', 'order-filter', 'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
           'product-family', 'history-fields', 'history-text', 'record-history', 'record-changes', 'data-management-templates',
         ]),
       },

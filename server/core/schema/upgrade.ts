@@ -45,7 +45,7 @@ export const latestVersion = (steps: readonly UpgradeStep[] = upgradeSteps) => S
 
 const maxVersionRow = z.object({ version: z.number().nullable() });
 /** 版本记录里最大的版本号；一条记录都没有时是 0（调用前 inspectSchema 已经拒绝了这种库） */
-const currentVersion = (db: DatabaseSync) =>
+export const currentSchemaVersion = (db: DatabaseSync) =>
   one(db, maxVersionRow, 'SELECT MAX(version) AS version FROM schema_migrations')?.version ?? 0;
 const counterRow = z.object({ name: z.string(), seq: z.number() });
 const nameRow = z.object({ name: z.string() });
@@ -92,7 +92,7 @@ export function upgradeSchema(
   options: { appVersion: string; steps?: readonly UpgradeStep[]; check?: (db: DatabaseSync) => void },
 ): { from: number; to: number } {
   const steps = orderedSteps(options.steps);
-  const from = currentVersion(db),
+  const from = currentSchemaVersion(db),
     to = latestVersion(steps);
   const pending = steps.filter((step) => step.version > from);
   if (!pending.length) return { from, to: from };
@@ -101,7 +101,7 @@ export function upgradeSchema(
     try {
       db.exec('BEGIN IMMEDIATE');
       // 拿到写锁以后再看一眼：两次读之间被别的程序升级过，就不能再照原来的计划做
-      if (currentVersion(db) !== from || pending[0].version !== from + 1)
+      if (currentSchemaVersion(db) !== from || pending[0].version !== from + 1)
         throw new Error('开始升级时数据库的版本和刚才看到的不一样');
       const counters = autoIncrementCounters(db);
       const record = db.prepare('INSERT INTO schema_migrations(version,name,applied_at,app_version) VALUES(?,?,?,?)');
@@ -138,7 +138,7 @@ export function snapshotForUpgrade(path: string, from: number, to: number): stri
     consistentCopy(path, file, (staged) =>
       readOnlyDatabase(staged, (db) => {
         if (!integrityPassed(db, 'quick_check')) throw new Error('快照没有通过完整性检查');
-        if (currentVersion(db) !== from) throw new Error(`快照里的版本不是第 ${from} 版`);
+        if (currentSchemaVersion(db) !== from) throw new Error(`快照里的版本不是第 ${from} 版`);
       }),
     );
   } catch (error) {

@@ -274,7 +274,7 @@ test('数据管理读记录直接调用：列表每条给显示用的 record 和
   const { ManagedRecords } = await import('../server/admin/managed-records.js');
   const f = basics();
   try {
-    const reader = new ManagedRecords(f.store, new OperationsService(f.store), new FlowService(f.store));
+    const reader = new ManagedRecords(f.store, new FlowService(f.store));
     const listed = reader.list('customers');
     assert.equal(listed.length, 1);
     assert.equal(listed[0].record.name, '虚构开发客户');

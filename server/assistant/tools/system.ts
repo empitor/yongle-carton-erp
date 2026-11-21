@@ -4,46 +4,43 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import type { Actor } from '../../core/index.js';
-import { AppError, count as countRows, many, one, readBackupManifest, rows } from '../../core/index.js';
+import { AppError, count as countRows, currentSchemaVersion, many, readBackupManifest, resetCounts, resetParticipants } from '../../core/index.js';
+import { toolSpec } from './define.js';
 import { audit } from '../../core/index.js';
 import { BusinessReset } from '../../admin/index.js';
+import { negativeStock } from '../../operations/index.js';
 import { businessResetScope } from '../../../shared/admin/index.js';
 import { createFullBackup } from '../../core/index.js';
 import { APP_VERSION, MIB, UNITS_PER_QUANTITY } from '../../../shared/core/index.js';
 
+const resetPreviewSchema = z.strictObject({ scope: z.enum(businessResetScope) });
+// 执行在 extra-tools.ts（AssistantExtraTools 的 read、call）
 export const systemTools = [
-  {
+  toolSpec({
     name: 'system.status',
-    description:
-      '查系统状态：版本、运行时长、数据库大小、剩余磁盘、主要记录数、最近备份；备份失败看 jobs.status。',
-    arguments: {},
+    description: '查系统状态：版本、运行时长、数据库大小、剩余磁盘、主要记录数、最近备份；备份失败看 jobs.status。',
     risk: 'read',
     schema: z.strictObject({}),
-  },
-  {
+  }),
+  toolSpec({
     name: 'system.check',
-    description:
-      '数据库体检：完整性、断开的关联、负库存。只读。',
-    arguments: {},
+    description: '数据库体检：完整性、断开的关联、负库存。只读。',
     risk: 'read',
     schema: z.strictObject({}),
-  },
-  {
+  }),
+  toolSpec({
     name: 'system.backup',
     description:
       '马上做一次完整备份，和每日自动备份内容一样，用户要求才做。恢复备份助手做不了，告诉用户停机后运行 npm run restore。',
-    arguments: {},
     risk: 'workflow',
     schema: z.strictObject({}),
-  },
-  {
+  }),
+  toolSpec({
     name: 'management.reset_preview',
-    description:
-      '查一键清空会删多少条数据，不删东西；清空前先用它把数量告诉用户。',
-    arguments: { scope: ['business', 'ai-imports', 'all'] },
+    description: '查一键清空会删多少条数据，不删东西；清空前先用它把数量告诉用户。',
     risk: 'read',
-    schema: z.strictObject({ scope: z.enum(['business', 'ai-imports', 'all']) }),
-  },
+    schema: resetPreviewSchema,
+  }),
 ];
 
 const GIGABYTE = 1e9;
@@ -63,13 +60,13 @@ export type BackupSettings = {
 /** 这些工具要用的东西，AssistantExtraTools（extra-tools.ts）满足它；backingUp 是“正在备份”的标记，由 systemBackup 改写。 */
 export type SystemDeps = {
   store: Store;
-  backup?: BackupSettings;
-  imports?: { status(): { workspaces: unknown[] } };
+  backup: BackupSettings;
+  imports: { status(): { workspaces: unknown[] } };
   backingUp: boolean;
 };
-/** management.reset_preview */
-export function resetPreview(tools: SystemDeps, raw: unknown, actor: Actor) {
-  const v = z.strictObject({ scope: z.enum(businessResetScope) }).parse(raw);
+/** management.reset_preview：args 是注册表按定义校验过的，这里按同一份结构取类型 */
+export function resetPreview(tools: SystemDeps, args: unknown, actor: Actor) {
+  const v = resetPreviewSchema.parse(args);
   const reset = new BusinessReset(tools.store);
   const preview = reset.preview(v.scope, actor);
   const total = Object.values(preview.tables).reduce((a, b) => a + b, 0);
@@ -88,20 +85,31 @@ export function resetPreview(tools: SystemDeps, raw: unknown, actor: Actor) {
       Object.entries(preview.tables).filter(([, n]) => n > 0),
     ),
     closedFinancePeriods: preview.finance?.closed?.length || 0,
-    workspaces: v.scope === 'business' ? undefined : tools.imports?.status().workspaces.length,
+    workspaces: v.scope === 'business' ? undefined : tools.imports.status().workspaces.length,
     message: '这只是预览，什么都没删。',
   };
 }
-function count(tools: SystemDeps, table: string) {
-  try {
-    return countRows(tools.store.db, `SELECT COUNT(*) AS n FROM "${table}"`);
-  } catch {
-    return null;
-  }
+/** 系统状态列的主要记录（业务表），和这些表的主人模块 */
+const RECORD_TABLES = ['customers', 'products', 'orders', 'suppliers', 'purchases', 'stock_movements', 'inbox_items', 'product_marks'];
+const RECORD_MODULES = ['基础', '采购库存', '识别导入', '业务汇总'] as const;
+/**
+ * 主要记录数：业务表由各模块按自己登记的清空语句数（core 的 resetCounts，和一键清空预览同一个数法），
+ * 助手不直接数别的模块的表；会话数是助手自己的表。
+ */
+function recordCounts(store: Store): Record<string, number> {
+  const counted = new Map(resetParticipants(RECORD_MODULES, false).flatMap((r) => Object.entries(resetCounts(store, r))));
+  const unregistered = (table: string): never => {
+    throw new Error('没有模块登记清空规则的表：' + table);
+  };
+  const countOf = (table: string) => counted.get(table) ?? unregistered(table);
+  return {
+    ...Object.fromEntries(RECORD_TABLES.map((t) => [t, countOf(t)])),
+    assistant_threads: countRows(store.db, 'SELECT COUNT(*) AS n FROM assistant_threads'),
+  };
 }
 function backups(tools: SystemDeps) {
-  const root = tools.backup?.backupRoot;
-  if (!root || !existsSync(root)) return [];
+  const root = tools.backup.backupRoot;
+  if (!existsSync(root)) return [];
   return readdirSync(root, { withFileTypes: true })
     .filter((e) => e.isDirectory() && /^(?:auto|full)-/.test(e.name) && !e.name.endsWith('.partial'))
     .map((e) => {
@@ -121,8 +129,6 @@ function backups(tools: SystemDeps) {
     })
     .sort((a, b) => b.at.localeCompare(a.at));
 }
-const schemaVersionRow = z.object({ version: rows.schema_migrations.shape.version.nullable() });
-/** system.status */
 /** 业务库所在磁盘的剩余和总量（GB）；内存库或读不到时 null */
 function diskOf(path: string) {
   if (path === ':memory:') return null;
@@ -134,6 +140,7 @@ function diskOf(path: string) {
     return null;
   }
 }
+/** system.status */
 export function systemStatus(tools: SystemDeps) {
   const db = tools.store.db;
   const list = backups(tools);
@@ -145,27 +152,20 @@ export function systemStatus(tools: SystemDeps) {
       tools.store.path === ':memory:' || !existsSync(tools.store.path)
         ? null
         : megabytes(statSync(tools.store.path).size),
-    schemaVersion: one(db, schemaVersionRow, 'SELECT MAX(version) AS version FROM schema_migrations')?.version ?? 0,
-    records: Object.fromEntries(
-      ['customers', 'products', 'orders', 'suppliers', 'purchases', 'stock_movements', 'inbox_items', 'product_marks', 'assistant_threads'].map(
-        (t) => [t, count(tools, t)],
-      ),
-    ),
-    backups: { total: list.length, latest: list.slice(0, SHOW_MAX), configured: !!tools.backup },
+    schemaVersion: currentSchemaVersion(db),
+    records: recordCounts(tools.store),
+    backups: { total: list.length, latest: list.slice(0, SHOW_MAX) },
   };
 }
 const integrityRow = z.object({ integrity_check: z.string() });
-const negativeRow = rows.stock_items.pick({ name: true, unit: true }).extend({ units: z.number() });
+/** 负库存最多列几个库存品 */
+const NEGATIVE_SHOWN = 20;
 /** system.check */
 export function systemCheck(tools: SystemDeps) {
   const db = tools.store.db;
   const integrity = many(db, integrityRow, 'PRAGMA integrity_check').map((r) => r.integrity_check);
   const brokenLinks = countRows(db, 'SELECT COUNT(*) FROM pragma_foreign_key_check');
-  const negative = many(
-    db,
-    negativeRow,
-    'SELECT i.name,i.unit,SUM(m.delta_units) AS units FROM stock_movements m JOIN stock_items i ON i.id=m.item_id GROUP BY m.item_id HAVING SUM(m.delta_units)<0 LIMIT 20',
-  );
+  const negative = negativeStock(tools.store, NEGATIVE_SHOWN);
   const problems = [
     ...(integrity.length === 1 && integrity[0] === 'ok' ? [] : ['数据库完整性检查没通过']),
     ...(brokenLinks ? [brokenLinks + ' 处关联断开'] : []),
@@ -183,7 +183,6 @@ export function systemCheck(tools: SystemDeps) {
 /** system.backup */
 export async function systemBackup(tools: SystemDeps, ctx: { check: () => Actor }) {
   const actor = ctx.check();
-  if (!tools.backup) throw new AppError('这个实例没有配置备份目录。', 503);
   if (tools.backingUp) throw new AppError('已经有一个备份在进行中。', 409);
   tools.backingUp = true;
   try {

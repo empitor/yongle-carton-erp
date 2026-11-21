@@ -373,7 +373,7 @@ test('助手的工具被数据库约束拦下：交给模型和用户的是那�
       { message: '已经保存好了。', toolCalls: [] },
     );
     // 模拟程序写错：工具执行时往归档标记里写了一个空的记录种类（正常代码不会这样写）
-    f.manager.tools.read = () =>
+    f.manager.tools.readChecked = () =>
       f.store.db.prepare("INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES('',1,'t','x')").run();
     const events: { type: string; data: unknown }[] = [];
     const { result, logged } = await capturingErrors(() =>

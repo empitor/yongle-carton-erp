@@ -13,55 +13,55 @@ import { InboxService } from '../inbox/index.js';
 import { prepareArrivalRecognition } from '../import/index.js';
 import { resetPreview, systemBackup, systemCheck, systemStatus, systemTools, type BackupSettings } from './tools/system.js';
 import { positive, uuid } from './tools/context.js';
+import { toolSpec } from './tools/define.js';
 
 /** 唛头标题最多几个字 */
 const MARK_TITLE_MAX = 200;
 /** 放进收件箱的一段文字最多几个字 */
 const INBOX_TEXT_MAX = 20000;
 
+// 参数结构：定义里给模型、注册表先按它校验；执行时（下面的 call）拿到的是校验过的、或确认卡片存下来的参数，按同一份结构取类型
+export const markAddSchema = z.strictObject({
+  productId: positive,
+  attachmentId: uuid.optional(),
+  title: z.string().trim().max(MARK_TITLE_MAX).optional(),
+});
+export const markRemoveSchema = z.strictObject({ id: positive, expectedVersion: positive });
+export const inboxAddSchema = z.strictObject({
+  text: z.string().trim().min(1).max(INBOX_TEXT_MAX).optional(),
+  attachmentId: uuid.optional(),
+});
+export const recognizeSchema = z.strictObject({
+  attachmentId: uuid.optional(),
+  workspaceId: uuid.optional(),
+  force: z.boolean().default(false),
+});
 export const extraToolDefinitions = [
-  {
+  toolSpec({
     name: 'marks.add',
     description: '把会话附件里的唛头文件挂到指定产品下，不识别；用户没说清是哪个产品先问。',
-    arguments: { productId: 1, attachmentId: '附件ID，只有一份时可省略', title: '可选标题' },
     risk: 'workflow',
-    schema: z.strictObject({
-      productId: positive,
-      attachmentId: uuid.optional(),
-      title: z.string().trim().max(MARK_TITLE_MAX).optional(),
-    }),
-  },
-  {
+    schema: markAddSchema,
+  }),
+  toolSpec({
     name: 'marks.remove',
-    description:
-      '从产品上移除一份唛头，不影响产品和订单；先 marks.list 拿 id 和 version。',
-    arguments: { id: 1, expectedVersion: 1 },
+    description: '从产品上移除一份唛头，不影响产品和订单；先 marks.list 拿 id 和 version。',
     risk: 'workflow',
-    schema: z.strictObject({ id: positive, expectedVersion: positive }),
-  },
-  {
+    schema: markRemoveSchema,
+  }),
+  toolSpec({
     name: 'inbox.add',
-    description:
-      '把一段文字或会话附件放进收件箱，不建业务单据；text 和 attachmentId 给一个。',
-    arguments: { text: '要记下的文字', attachmentId: '附件ID' },
+    description: '把一段文字或会话附件放进收件箱，不建业务单据；text 和 attachmentId 给一个。',
     risk: 'workflow',
-    schema: z.strictObject({
-      text: z.string().trim().min(1).max(INBOX_TEXT_MAX).optional(),
-      attachmentId: uuid.optional(),
-    }),
-  },
-  {
+    schema: inboxAddSchema,
+  }),
+  toolSpec({
     name: 'arrival.recognize',
     description:
       '识别供应商送货单（附件或工作区），存为到货识别结果，不入库。登记到货要先找到订货单（order_batch.list）、用户说了验收结果再用 order_batch.receive；不挂采购单的货用 records.propose_save 存到货单。',
-    arguments: { attachmentId: '当前会话附件ID，只有一份时可省略', workspaceId: '已有工作区ID，可省略', force: false },
     risk: 'workflow',
-    schema: z.strictObject({
-      attachmentId: uuid.optional(),
-      workspaceId: uuid.optional(),
-      force: z.boolean().optional(),
-    }),
-  },
+    schema: recognizeSchema,
+  }),
 ];
 const names = new Set([...systemTools, ...extraToolDefinitions].map((t) => t.name));
 
@@ -121,9 +121,7 @@ export class AssistantExtraTools {
   }
   private addToInbox(raw: unknown, ctx: WorkflowContext) {
     const actor = ctx.check();
-    const v = z
-      .object({ text: z.string().trim().min(1).max(INBOX_TEXT_MAX).optional(), attachmentId: z.uuid().optional() })
-      .parse(raw);
+    const v = inboxAddSchema.parse(raw);
     if (!!v.text === !!v.attachmentId && !(ctx.files.length === 1 && !v.text))
       throw new AppError('text 和 attachmentId 给一个。');
     const inbox = new InboxService(this.store);
@@ -146,13 +144,7 @@ export class AssistantExtraTools {
     const manager = this.imports;
     const receiptAi = this.receiptAi;
     const actor = ctx.check();
-    const v = z
-      .object({
-        attachmentId: z.uuid().optional(),
-        workspaceId: z.uuid().optional(),
-        force: z.boolean().default(false),
-      })
-      .parse(raw);
+    const v = recognizeSchema.parse(raw);
     const workspaceId = v.workspaceId || (await this.uploadArrival(manager, ctx, v.attachmentId));
     const before = manager.get(workspaceId);
     // 已有工作区换类型走 setMode：到货单已确认或取消的会被拒绝。
@@ -201,13 +193,7 @@ export class AssistantExtraTools {
   }
   private addMark(raw: unknown, ctx: WorkflowContext) {
     const actor = ctx.check();
-    const v = z
-      .object({
-        productId: z.number().int().positive(),
-        attachmentId: z.uuid().optional(),
-        title: z.string().trim().max(MARK_TITLE_MAX).optional(),
-      })
-      .parse(raw);
+    const v = markAddSchema.parse(raw);
     const file = this.localFile(ctx, v.attachmentId);
     const mime = file.meta.mime || 'application/octet-stream';
     if (!/^(?:application\/pdf|image\/(?:png|jpeg|webp))$/.test(mime))
@@ -227,7 +213,7 @@ export class AssistantExtraTools {
   }
   private removeMark(raw: unknown, ctx: WorkflowContext) {
     const actor = ctx.check();
-    const v = z.object({ id: z.number().int().positive(), expectedVersion: z.number().int().positive() }).parse(raw);
+    const v = markRemoveSchema.parse(raw);
     const before = this.marks.get(v.id);
     this.marks.remove(v.id, { expectedVersion: v.expectedVersion }, actor);
     return {

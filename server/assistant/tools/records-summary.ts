@@ -6,7 +6,7 @@ import { orderMetrics, purchaseMetrics, productMetrics, inventoryMetrics, summar
 import { sumMoney } from '../../../shared/business/index.js';
 import { FINISHED_UNIT, effectiveOrder, quantityString } from '../../../shared/core/index.js';
 import { positive, type ToolContext } from './context.js';
-import { moduleSchema, type Module, type ModuleRows } from './modules.js';
+import type { Module, ModuleRows } from './modules.js';
 import type { MatchedRows, RecordFilters } from './records-filter.js';
 
 /** 向上取整：先加上“每张产出数 - 1” */
@@ -27,23 +27,18 @@ function outstandingQuantities(rows: readonly PurchaseRow[]) {
   return [...groups].map(([unit, value]) => ({ unit, quantity: quantityString(value) }));
 }
 
+/** records.summarize 的 allocation：哪张订单、每张产出几只、各型号分开取整还是共用 */
+export const allocationSchema = z.strictObject({
+  orderId: positive,
+  unitsPerSheet: positive,
+  mode: z.enum(['per-product', 'shared']),
+});
 /** records.summarize 带 allocation：按订单明细和每张产出几只，算各型号独立取整和共用时最少要几张。 */
-export function allocateSheets(ctx: ToolContext, raw: unknown) {
-  const v = z
-    .strictObject({
-      module: moduleSchema,
-      allocation: z.strictObject({
-        orderId: positive,
-        unitsPerSheet: positive,
-        mode: z.enum(['per-product', 'shared']),
-      }),
-      filters: z.record(z.string(), z.unknown()).optional(),
-    })
-    .parse(raw);
-  const order = ctx.store.order(v.allocation.orderId);
+export function allocateSheets(ctx: ToolContext, allocation: z.output<typeof allocationSchema>) {
+  const order = ctx.store.order(allocation.orderId);
   if (!order) throw new AppError('客户订单不存在。', 404);
   // 订单明细单位只有“只”（数据库约束），按每张产出几只换算张数
-  const rate = BigInt(v.allocation.unitsPerSheet),
+  const rate = BigInt(allocation.unitsPerSheet),
     ceil = (n: bigint) => (n + rate - ROUND_UP) / rate;
   const lines = order.lines.map((l) => ({
     orderLineId: l.id,
@@ -59,16 +54,16 @@ export function allocateSheets(ctx: ToolContext, raw: unknown) {
   return {
     orderId: order.id,
     orderVersion: order.version,
-    mode: v.allocation.mode,
-    unitsPerSheet: v.allocation.unitsPerSheet,
+    mode: allocation.mode,
+    unitsPerSheet: allocation.unitsPerSheet,
     totalPieces: Number(total),
     perProductSheets: independent,
     sharedMinimumSheets: Number(ceil(total)),
-    requiredSheets: v.allocation.mode === 'per-product' ? independent : Number(ceil(total)),
+    requiredSheets: allocation.mode === 'per-product' ? independent : Number(ceil(total)),
     lines,
-    requiresDistribution: v.allocation.mode === 'shared',
+    requiresDistribution: allocation.mode === 'shared',
     message:
-      v.allocation.mode === 'shared'
+      allocation.mode === 'shared'
         ? '共享是总需求下界；具体共用型号、领料归属与余料处理仍须有明确业务规则，不能随意把总张数摊给型号。'
         : '各型号独立向上取整，可按各行实际领料量执行。',
   };

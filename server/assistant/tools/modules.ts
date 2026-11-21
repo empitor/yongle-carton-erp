@@ -1,72 +1,44 @@
-// 只管：按业务模块读记录——助手能读写的模块名单、中文名、模块对应的单据种类，
-// 取列表 recordRows、按编号取一条 recordRow、记录在页面上的链接 recordLink。
+// 只管：按业务模块读记录——取列表 recordRows、按编号取一条 recordRow、记录在页面上的链接 recordLink、页面报的记录种类换成助手模块。
+// 模块名单、中文名和全站记录种类的对照在 shared/assistant/assistant-modules.ts；档案、库存品和单据按业务汇总的
+// module-records.ts 读（和数据管理同一份，单据补好关联的名称），这里只加助手筛选要用的几项（归档标记、关联的客户）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { flowKinds, type FlowDocView, type FlowKind, type StockItemView } from '../../../shared/business/index.js';
-import { businessList, businessRecords } from '../../lifecycle/index.js';
+import { AppError } from '../../core/index.js';
+import type { FlowDocView, FlowKind, StockItemView, dataManagementModules } from '../../../shared/business/index.js';
+import { assistantModules, flowKindOfModule, moduleOfRecord, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
+import { entityRecords, namedDocuments, type NamedDocument } from '../../business/index.js';
+import { movementScope, suppliersOfPurchaseLines } from '../../operations/index.js';
 import { requireActor, type ToolContext } from './context.js';
 
-export const assistantModules = [
-  'customers',
-  'products',
-  'orders',
-  'suppliers',
-  'purchases',
-  'raw_inventory',
-  'finished_inventory',
-  'arrivals',
-  'production_tasks',
-  'production_records',
-  'deliveries',
-  'movements',
-] as const;
-export type Module = (typeof assistantModules)[number];
-export const moduleNames: Record<Module, string> = {
-  customers: '客户',
-  products: '产品',
-  orders: '订单',
-  suppliers: '供应商',
-  purchases: '采购单',
-  raw_inventory: '原材料库存',
-  finished_inventory: '成品库存',
-  arrivals: '到货',
-  production_tasks: '生产任务',
-  production_records: '完工记录',
-  deliveries: '送货',
-  movements: '流水',
-};
-export const flowMap: Record<string, (typeof flowKinds)[number]> = {
-  arrivals: 'arrival',
-  production_tasks: 'task',
-  production_records: 'production',
-  deliveries: 'delivery',
-};
+export type Module = AssistantModule;
 export const moduleSchema = z.enum(assistantModules);
 
 /** 档案、订单、采购单这几个模块（直接是删除归档按类型读的记录） */
 type BusinessModule = 'customers' | 'products' | 'orders' | 'suppliers' | 'purchases';
 const businessModules: readonly Module[] = ['customers', 'products', 'orders', 'suppliers', 'purchases'];
 const isBusinessModule = (m: Module): m is BusinessModule => businessModules.includes(m);
+type InventoryModule = 'raw_inventory' | 'finished_inventory';
 /** 流水的单据来源记在 source_kind 上，单据的是 flow_<种类> */
 const FLOW_SOURCE = 'flow_';
+/** 去重的正整数编号 */
+const ids = (list: unknown[]) => [...new Set(list.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
 
-/** 档案、订单、采购单：删除归档按类型读的记录，补上归档标记 */
-function businessRows<E extends BusinessModule>(ctx: ToolContext, entity: E, archived: boolean, ids?: readonly number[]) {
-  const records = ids ? businessRecords(ctx.store, entity, ids, archived) : businessList(ctx.store, entity, archived);
-  return records.map((r) => ({ ...r, archived: ctx.store.archived(entity, r.id) }));
+/** 档案、订单、采购单：按模块读记录的那一份，补上归档标记（一次批量取） */
+function businessRows<E extends BusinessModule>(ctx: ToolContext, entity: E, archived: boolean, only?: readonly number[]) {
+  const archivedIds = ctx.store.archivedIds(entity);
+  return entityRecords(ctx.store, entity, archived, only).map((r) => ({ ...r, archived: archivedIds.has(r.id) }));
 }
-const inventoryKind = (module: 'raw_inventory' | 'finished_inventory') => (module === 'raw_inventory' ? 'raw' : 'finished');
-function inventoryRows(ctx: ToolContext, module: 'raw_inventory' | 'finished_inventory', archived: boolean, id?: number): StockItemView[] {
-  return ctx.flow.views.items(archived, id).filter((i) => i.kind === inventoryKind(module));
+/** 原材料、成品库存：库存品按种类分开 */
+function inventoryRows(ctx: ToolContext, module: InventoryModule, archived: boolean, only?: readonly number[]): StockItemView[] {
+  return entityRecords(ctx.store, 'stock_items', archived, only).filter((i) => i.kind === stockKindOf(module));
 }
-/** 流水：补上产品、客户、供应商编号（筛选用）；来源单据只读流水用到的那几张 */
-function movementRows(ctx: ToolContext) {
-  const movements = ctx.flow.views.movements();
-  const items = new Map(ctx.flow.views.items(true).map((i) => [i.id, i]));
-  const orders = new Map(ctx.store.orders(true).map((o) => [o.id, o]));
-  const purchases = new Map(ctx.flow.views.purchases(true).flatMap((p) => p.lines.map((l) => [l.id, p] as const)));
+/** 流水：补上产品、客户、供应商编号（筛选用）；库存品、订单、采购明细、来源单据只读流水用到的那几条 */
+function movementRows(ctx: ToolContext, movements = ctx.flow.views.movements()) {
+  const items = new Map(ctx.ops.items(true, ids(movements.map((r) => r.item_id))).map((i) => [i.id, i]));
+  const orders = new Map(ctx.store.ordersByIds(ids(movements.map((r) => r.customer_order_id)), true).map((o) => [o.id, o]));
+  const lineSuppliers = suppliersOfPurchaseLines(ctx.store, ids(movements.map((r) => r.purchase_line_id)));
   const fromFlowDocument = (r: (typeof movements)[number]) => String(r.source_kind).startsWith(FLOW_SOURCE);
-  const documentIds = [...new Set(movements.filter(fromFlowDocument).map((r) => Number(r.source_id)))];
+  const documentIds = ids(movements.filter(fromFlowDocument).map((r) => r.source_id));
   const documents = new Map(
     ctx.flow
       .list(undefined, true, undefined, documentIds)
@@ -78,9 +50,14 @@ function movementRows(ctx: ToolContext) {
       ...r,
       productId: items.get(Number(r.item_id))?.productId,
       customerId: orders.get(Number(r.customer_order_id))?.customerId || fromFlow?.customerId,
-      supplierId: purchases.get(Number(r.purchase_line_id))?.supplierId || fromFlow?.supplierId,
+      supplierId: lineSuppliers.get(Number(r.purchase_line_id)) || fromFlow?.supplierId,
     };
   });
+}
+/** 一笔流水：按它的库存品和日期圈出那几笔（采购库存的 movementScope），不读全部流水 */
+function movementRow(ctx: ToolContext, id: string) {
+  const scope = movementScope(ctx.store, id);
+  return scope ? movementRows(ctx, ctx.flow.views.movements(scope)).find((r) => r.id === id) : undefined;
 }
 /** 到货记录给助手看的样子（rows 和 row 共用）。 */
 function arrivalRows(records: ReturnType<ToolContext['flow']['arrivalRecords']>) {
@@ -94,40 +71,26 @@ function arrivalRows(records: ReturnType<ToolContext['flow']['arrivalRecords']>)
     lines: r.lines.map((l) => ({ ...l, purchaseLineId: l.lineId })),
   }));
 }
-/** 单据上和别的记录的关联（各种单据各有几项） */
-type FlowLinks = { orderIds?: readonly number[]; taskId?: number | null; productId?: number; customerId?: number; supplierId?: number };
-function flowLinks(d: FlowDocView): FlowLinks {
-  switch (d.kind) {
-    case 'task':
-      return { orderIds: d.orderIds, productId: d.productId };
-    case 'production':
-      return { taskId: d.taskId, productId: d.productId };
-    case 'delivery':
-      return { customerId: d.customerId };
-    case 'arrival':
-      return { supplierId: d.supplierId };
-  }
+/** 单据挂的订单（生产任务自己的；完工单看它的生产任务的） */
+function orderIdsOf(d: FlowDocView, tasks: Map<number, readonly number[]>): readonly number[] {
+  if (d.kind === 'task') return d.orderIds;
+  return d.kind === 'production' ? (tasks.get(Number(d.taskId)) ?? []) : [];
 }
-/** 生产任务、完工、送货单补上关联名称：按单据里出现的编号批量读，不全量加载后再找。 */
-function flowRows<K extends FlowKind>(ctx: ToolContext, docs: FlowDocView<K>[]) {
-  const ids = (list: unknown[]) => [...new Set(list.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
-  const linked = docs.map((d) => ({ d, links: flowLinks(d) }));
-  const taskIds = ids(linked.filter(({ links }) => !links.orderIds && links.taskId).map(({ links }) => links.taskId));
-  const tasks = new Map(ctx.flow.list('task', true, undefined, taskIds).map((t) => [t.id, t]));
-  const orderIdsOf = (links: FlowLinks): readonly number[] => links.orderIds || tasks.get(Number(links.taskId))?.orderIds || [];
-  const orders = new Map(
-    ctx.store.ordersByIds(ids(linked.flatMap(({ links }) => [...orderIdsOf(links)])), true).map((o) => [o.id, o.customerId]),
-  );
-  const names = (records: { id: number; name: string }[]) => new Map(records.map((x) => [x.id, x.name]));
-  const products = names(businessRecords(ctx.store, 'products', ids(linked.map(({ links }) => links.productId)), true)),
-    customers = names(businessRecords(ctx.store, 'customers', ids(linked.map(({ links }) => links.customerId)), true)),
-    suppliers = names(businessRecords(ctx.store, 'suppliers', ids(linked.map(({ links }) => links.supplierId)), true));
-  return linked.map(({ d, links }) => ({
+/** 完工单的生产任务、送货单的客户（别的单据没有） */
+const taskOf = (d: FlowDocView) => (d.kind === 'production' ? d.taskId : undefined);
+const customerOf = (d: FlowDocView) => (d.kind === 'delivery' ? d.customerId : undefined);
+/**
+ * 生产任务、完工、送货、到货单：按模块读记录的那一份（补好了产品、客户、供应商名），再补上关联的客户编号
+ * （送货单的客户、挂的订单的客户，按客户筛选用）。按单据里出现的编号批量读，不全量加载后再找。
+ */
+function flowRows<K extends FlowKind>(ctx: ToolContext, kind: K, archived: boolean, only?: readonly number[]) {
+  const docs: NamedDocument<K>[] = namedDocuments(ctx.flow, kind, archived, only);
+  const taskIds = ids(docs.map(taskOf));
+  const tasks = new Map(ctx.flow.list('task', true, undefined, taskIds).map((t) => [t.id, t.orderIds]));
+  const orders = new Map(ctx.store.ordersByIds(ids(docs.flatMap((d) => [...orderIdsOf(d, tasks)])), true).map((o) => [o.id, o.customerId]));
+  return docs.map((d) => ({
     ...d,
-    customerIds: [...new Set([links.customerId, ...orderIdsOf(links).map((id) => orders.get(id))].filter(Boolean))],
-    productName: products.get(Number(links.productId)),
-    customerName: customers.get(Number(links.customerId)),
-    supplierName: suppliers.get(Number(links.supplierId)),
+    customerIds: [...new Set([customerOf(d), ...orderIdsOf(d, tasks).map((id) => orders.get(id))].filter(Boolean))],
   }));
 }
 
@@ -162,28 +125,28 @@ export function recordRows(ctx: ToolContext, module: Module, actor: Actor, archi
     case 'arrivals':
       return arrivalRows(ctx.flow.arrivalRecords());
     case 'production_tasks':
-      return flowRows(ctx, ctx.flow.list('task', archived));
+      return flowRows(ctx, 'task', archived);
     case 'production_records':
-      return flowRows(ctx, ctx.flow.list('production', archived));
+      return flowRows(ctx, 'production', archived);
     case 'deliveries':
-      return flowRows(ctx, ctx.flow.list('delivery', archived));
+      return flowRows(ctx, 'delivery', archived);
     case 'movements':
       return movementRows(ctx);
   }
 }
 /** 档案、订单、采购单按模块分开取（每个模块各自的记录类型） */
-function businessRowsOf(ctx: ToolContext, module: BusinessModule, archived: boolean, ids?: readonly number[]): ModuleRows[BusinessModule] {
+function businessRowsOf(ctx: ToolContext, module: BusinessModule, archived: boolean, only?: readonly number[]): ModuleRows[BusinessModule] {
   switch (module) {
     case 'customers':
-      return businessRows(ctx, module, archived, ids);
+      return businessRows(ctx, module, archived, only);
     case 'products':
-      return businessRows(ctx, module, archived, ids);
+      return businessRows(ctx, module, archived, only);
     case 'orders':
-      return businessRows(ctx, module, archived, ids);
+      return businessRows(ctx, module, archived, only);
     case 'suppliers':
-      return businessRows(ctx, module, archived, ids);
+      return businessRows(ctx, module, archived, only);
     case 'purchases':
-      return businessRows(ctx, module, archived, ids);
+      return businessRows(ctx, module, archived, only);
   }
 }
 /** 单据的编号是正整数；流水是 UUID */
@@ -192,8 +155,8 @@ function numericId(id: number | string) {
   return Number.isSafeInteger(n) && n > 0 && String(n) === String(id) ? n : null;
 }
 /**
- * 按主键取一条，结构和 rows() 里那条完全一样。档案、库存品、单据都按编号直接查，
- * 不全量加载后再 find；只有流水（UUID）还走 rows()。
+ * 按主键取一条，结构和 rows() 里那条完全一样。档案、库存品、单据都按编号直接查，流水按它的库存品和日期圈出来，
+ * 都不全量加载后再 find。
  */
 export function recordRow<M extends Module>(ctx: ToolContext, module: M, actor: Actor, archived: boolean, id: number | string): ModuleRecords[M] | undefined;
 export function recordRow(ctx: ToolContext, module: Module, actor: Actor, archived: boolean, id: number | string): ModuleRecord | undefined {
@@ -202,22 +165,32 @@ export function recordRow(ctx: ToolContext, module: Module, actor: Actor, archiv
   // 到货：按到货单编号。到货记录里没有已归档的到货单，要读已归档的（比如恢复）按单据读
   if (module === 'arrivals') {
     const row = arrivalRows(ctx.flow.arrivalRecords({}, { flowIds: n ? [n] : [] })).find((r) => String(r.id) === String(id));
-    return row ?? (archived && n ? flowRows(ctx, ctx.flow.list('arrival', true, undefined, [n]))[0] : undefined);
+    return row ?? (archived && n ? flowRows(ctx, 'arrival', true, [n])[0] : undefined);
   }
-  if (module === 'movements') return movementRows(ctx).find((r) => String(r.id) === String(id));
+  if (module === 'movements') return movementRow(ctx, String(id));
   if (!n) return undefined;
   if (isBusinessModule(module)) return businessRowsOf(ctx, module, archived, [n])[0];
   switch (module) {
     case 'raw_inventory':
     case 'finished_inventory':
-      return inventoryRows(ctx, module, archived, n)[0];
+      return inventoryRows(ctx, module, archived, [n])[0];
     case 'production_tasks':
-      return flowRows(ctx, ctx.flow.list('task', archived, undefined, [n]))[0];
+      return flowRows(ctx, 'task', archived, [n])[0];
     case 'production_records':
-      return flowRows(ctx, ctx.flow.list('production', archived, undefined, [n]))[0];
+      return flowRows(ctx, 'production', archived, [n])[0];
     case 'deliveries':
-      return flowRows(ctx, ctx.flow.list('delivery', archived, undefined, [n]))[0];
+      return flowRows(ctx, 'delivery', archived, [n])[0];
   }
+}
+/**
+ * 页面报的记录种类（全站那一套：stock_items、arrival……）换成助手模块：库存品按这条记录是原材料还是成品分。
+ * 库存品不在了按“记录不存在”报（和 records.get 读不到同一句）。
+ */
+export function moduleOfPageRecord(ctx: ToolContext, record: (typeof dataManagementModules)[number], id: number): Module | undefined {
+  if (record !== 'stock_items') return moduleOfRecord(record);
+  const item = ctx.ops.items(true, id)[0];
+  if (!item) throw new AppError('记录不存在或已归档。', 404);
+  return moduleOfRecord(record, item.kind);
 }
 /** 记录在页面上的链接要用的几项 */
 type Linkable = { id: number | string; archived?: boolean; name?: string; number?: string; receiptRecordId?: string };
@@ -225,9 +198,9 @@ export function recordLink(module: Module, row: Linkable) {
   if (module === 'arrivals') return '#warehouse?arrivals=1&receipt=' + encodeURIComponent(row.receiptRecordId || 'flow-' + row.id);
   const archivedTail = row.archived ? '&archived=1' : '';
   if (module === 'deliveries') return '#warehouse?kind=finished&deliveries=1&doc=' + row.id + archivedTail;
-  if (flowMap[module]) return '#production?doc=' + row.id + archivedTail;
+  if (flowKindOfModule(module)) return '#production?doc=' + row.id + archivedTail;
   if (module === 'movements') return '#warehouse?flow=1';
-  if (module === 'raw_inventory' || module === 'finished_inventory')
-    return '#warehouse?kind=' + inventoryKind(module) + '&q=' + encodeURIComponent(String(row.name)) + archivedTail;
+  const stockKind = stockKindOf(module);
+  if (stockKind) return '#warehouse?kind=' + stockKind + '&q=' + encodeURIComponent(String(row.name)) + archivedTail;
   return '#' + module + '?q=' + encodeURIComponent(String(row.number || row.name)) + archivedTail;
 }

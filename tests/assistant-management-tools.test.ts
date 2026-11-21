@@ -194,16 +194,14 @@ test('助手归档、删除 AI 工作区总带版本：模型不填就按出卡�
 });
 
 test('助手读记录上下文（management.context）只给本机最高管理员', async () => {
-  const { managementReaders } = await import('../server/assistant/tools/management.js');
-  const context = managementReaders['management.context'],
-    who = pageActor({ id: 'tool-direct', name: '虚构直测', permissions: ['business:edit'], role: 'admin' });
+  const who = pageActor({ id: 'tool-direct', name: '虚构直测', permissions: ['business:edit'], role: 'admin' });
   assert.equal(isLocalAdministrator(who), false);
   const store = new Store(':memory:');
   try {
     const ctx: ToolContext = ctxOf(store);
     for (const someone of [who, null])
       assert.throws(
-        () => context(ctx, { module: 'customers', id: 1 }, someone, 'management.context'),
+        () => ctx.tools.read('management.context', { module: 'customers', id: 1 }, someone),
         (e: unknown) => e instanceof AppError && e.status === 403 && /本机最高管理员/.test(e.message),
       );
   } finally {
