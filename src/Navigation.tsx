@@ -139,6 +139,7 @@ export default function Navigation({
   finance = false,
   financeOnly = false,
   accounts = false,
+  settings = false,
   accountRequests = 0,
 }: {
   page: string;
@@ -150,6 +151,8 @@ export default function Navigation({
   /** 出纳这类纯财务账号：只显示财务和使用说明。 */
   financeOnly?: boolean;
   accounts?: boolean;
+  /** 设置里有这个账号看得到的页签（app-shell.ts 的 settingsTabsOf）：只读账号没有 */
+  settings?: boolean;
   accountRequests?: number;
 }) {
   const params = new URLSearchParams(route.split('?')[1] || '');
@@ -206,7 +209,7 @@ export default function Navigation({
       </nav>
       <div className="nav-footer">
         {accounts && item(accountsEntry)}
-        {footer.map(item)}
+        {footer.filter((e) => settings || e.target !== 'ai-settings').map(item)}
       </div>
     </>
   );

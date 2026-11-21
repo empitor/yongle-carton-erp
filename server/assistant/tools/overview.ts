@@ -1,11 +1,11 @@
 // 助手工具：工作台概览（overview.get）、打开页面（ui.open）。财务只读工具在 tools.ts 的 read() 里直接转给财务模块。
 import { z } from 'zod';
-import { requirePermission } from '../../core/index.js';
+import { requirePermission, requireSuperAdminAccount } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { dateSchema, today } from '../../../shared/core/index.js';
 import { monthsBefore } from '../../../shared/core/index.js';
 import { buildDashboard, periodOrders } from '../../business/index.js';
-import { navigationTargets, financePageTargets, pageLink } from '../../../shared/assistant/index.js';
+import { adminSettingsLink, navigationTargets, financePageTargets, pageLink } from '../../../shared/assistant/index.js';
 import { financeOnlyAccount, financeOnlyPageAllowed } from '../../../shared/core/index.js';
 import { MONTHS_MAX, positive, requireActor } from './context.js';
 import { readTool, toolSpec } from './define.js';
@@ -51,7 +51,10 @@ export const overviewTools = [
       if (financeOnlyAccount(actor) && (v.id || !financeOnlyPageAllowed(target)))
         throw new AppError('出纳账号只能查看财务数据。', 403);
       if (v.id) return ctx.tools.read('records.get', { module: moduleSchema.parse(target), id: v.id }, actor);
-      return { url: pageLink(target, v.q), page: target };
+      const url = pageLink(target, v.q);
+      // 设置里只给超级管理员账号的页签（提示词、插件与工具这些），别的账号界面上看不到，助手也不打开
+      if (adminSettingsLink(url)) requireSuperAdminAccount(actor, '打开设置里的这个页签');
+      return { url, page: target };
     },
   ),
   readTool(

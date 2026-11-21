@@ -58,7 +58,8 @@ const IMPORT_TOOL = 'order_import.execute';
 // 清空预览（management.reset_preview）不在里面：一键清空的服务自己要求本机最高管理员
 const superAdminReads = new Set(['system.status', 'system.check', 'management.context', 'management.delete_preview']);
 /**
- * 只给超级管理员账号的工具（不要求进超级管理员模式）：读账号、设置、运行日志、登录记录、程序代码，和改全员共用的提示词。
+ * 只给超级管理员账号的工具（不要求进超级管理员模式）：读账号、设置、运行日志、登录记录、程序代码，和看、改全员共用的提示词
+ * （和设置里只给超级管理员的提示词页签一致）。
  * 执行时各自也查一次（tools/admin-view.ts、系统资料 server/system/、prompt-edit.ts）；这里让清单显示和执行一致，
  * 别的账号的助手清单里也就没有它们。新加这类工具时补在这里。
  */
@@ -69,6 +70,7 @@ export const superAdminTools = new Set([
   'logs.read',
   'source.search',
   'source.read',
+  'prompts.get',
   'prompts.propose',
   // 更正完工单要超级管理员模式（和撤销这次完工同一级），别的账号看不到
   'production.correct',

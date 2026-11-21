@@ -23,7 +23,7 @@ const ENTRY_MAX_CHARS = 16000;
 
 /**
  * 一份提示词预设的编辑区：名称、条目（名称、启用、内容、顺序）、保存。
- * 只读时（不是超级管理员账号）编辑框只能看不能改，复制、恢复、删除、添加条目、保存这些按钮都不显示。
+ * 只读时（超级管理员账号还没进超级管理员模式）编辑框只能看不能改，复制、恢复、删除、添加条目、保存这些按钮都不显示。
  */
 export default function PromptEditor(props: Props) {
   const { current, setCurrent, saved, dirty, busy, editable, state } = props;

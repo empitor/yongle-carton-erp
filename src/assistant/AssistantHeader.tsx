@@ -8,7 +8,7 @@ import YlSpirits from './YlSpirits';
 
 /**
  * 聊天窗口头部（只显示）：小甬小勒、浮动时的拖动把手、新会话、“更多”菜单（停靠/浮动、放大、收起方式、
- * 插件与工具、管理提示词、清空会话、删除会话）、关闭。
+ * 插件与工具、管理提示词（只给超级管理员账号）、清空会话、删除会话）、关闭。
  */
 export default function AssistantHeader({
   docked,
@@ -16,6 +16,7 @@ export default function AssistantHeader({
   large,
   floatingLauncher,
   signedIn,
+  superAdmin,
   busy,
   newDisabled,
   sessionLocked,
@@ -35,6 +36,8 @@ export default function AssistantHeader({
   large: boolean;
   floatingLauncher: boolean;
   signedIn: boolean;
+  /** 超级管理员账号：菜单里才有“插件与工具”“管理提示词” */
+  superAdmin: boolean;
   busy: boolean;
   /** 正在发送、执行、上传时不能新建会话 */
   newDisabled: boolean;
@@ -101,20 +104,25 @@ export default function AssistantHeader({
               记忆
             </MenuItem>
           )}
-          <MenuItem
-            onClick={() => {
-              location.hash = assistantManagementHash;
-            }}
-          >
-            插件与工具
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              location.hash = 'ai-settings?tab=prompts&assistant=1';
-            }}
-          >
-            管理提示词
-          </MenuItem>
+          {/* 这两页在设置里只给超级管理员账号 */}
+          {superAdmin && (
+            <MenuItem
+              onClick={() => {
+                location.hash = assistantManagementHash;
+              }}
+            >
+              插件与工具
+            </MenuItem>
+          )}
+          {superAdmin && (
+            <MenuItem
+              onClick={() => {
+                location.hash = 'ai-settings?tab=prompts&assistant=1';
+              }}
+            >
+              管理提示词
+            </MenuItem>
+          )}
           {signedIn && <hr className="more-menu-sep" />}
           {signedIn && (
             <MenuItem

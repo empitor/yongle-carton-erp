@@ -47,6 +47,11 @@ export function superModeDenied(
       )
     : new AppError(what + '要用超级管理员账号，当前账号没有这个权限' + end(tails.permission), 403, 'permission');
 }
+/** 只给超级管理员账号的事（不要求进模式，比如看设置里的 AI 设置、提示词、工具）：别的账号按 superModeDenied 的说法拒绝。 */
+export function requireSuperAdminAccount(actor: Actor | null | undefined, what: string): Actor {
+  if (actor && canEnterSuperMode(actor)) return actor;
+  throw superModeDenied(actor, what);
+}
 /** 要超级管理员模式才能做的事：在模式里放行，不在就按 superModeDenied 的分法拒绝。 */
 export function requireSuperModeFor(
   actor: Actor | null | undefined,

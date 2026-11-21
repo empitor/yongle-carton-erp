@@ -138,7 +138,6 @@ test('只给超级管理员的工具：业务人员调每一个都 403，清单�
       assert.equal(named(registry.view(actor).tools, name).usable, false, name);
       assert.equal(named(registry.view(boss).tools, name).permitted, true, name);
     }
-    assert.equal(named(registry.view(actor).tools, 'prompts.get').permitted, true, '读提示词照旧');
   } finally {
     registry.close();
   }
@@ -155,6 +154,26 @@ test('ui.open 能开全部页面（财务页要财务权限）；不是本系统
     }
     for (const url of ['https://example.com', '#unknown', '#orders\n#products', '#orders#trash', 'javascript:alert(1)'])
       assert(!isErpNavigation(url), url);
+  } finally {
+    f.close();
+  }
+});
+
+test('设置里只给超级管理员的页签：业务人员让助手打开提示词、插件与工具或读提示词被拒，说明要超级管理员账号；超级管理员账号照常', () => {
+  const f = assistantFixture();
+  const boss = { ...actor, role: 'super_admin' as const };
+  const onlySuperAdmin = (e: unknown) =>
+    e instanceof Error && 'status' in e && e.status === 403 && 'code' in e && e.code === 'permission' && /超级管理员账号/.test(e.message);
+  try {
+    for (const module of ['ai-prompts', 'ai-plugins'] as const) {
+      assert.throws(() => f.manager.tools.read('ui.open', { module }, actor), onlySuperAdmin, module);
+      assert.equal(readAs(f.manager.tools.read('ui.open', { module }, boss), {}).url, pageLink(module));
+    }
+    // 设置页本身落到这个账号能看的页签，单据模板能改业务的账号都能看
+    for (const module of ['ai-settings', 'document-templates'] as const)
+      assert.equal(readAs(f.manager.tools.read('ui.open', { module }, actor), {}).url, pageLink(module));
+    assert.throws(() => f.manager.promptEdit.get({}, actor), onlySuperAdmin);
+    assert.equal(readAs(f.manager.promptEdit.get({}, boss), {}).module, 'assistant');
   } finally {
     f.close();
   }

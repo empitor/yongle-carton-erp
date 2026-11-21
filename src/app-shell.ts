@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { erpPageIds } from '../shared/assistant/index';
+import { erpPageIds, businessSettingsTab } from '../shared/assistant/index';
 import { financeOnlyPageAllowed } from '../shared/core/index';
 import { aiFilesService, inboxService } from './import/index';
-import { listen, readNotice, refreshOnReturn, type NoticeDetail, type NoticeTone } from './ui/index';
+import { canEditBusiness, listen, readNotice, refreshOnReturn, type AuthState, type NoticeDetail, type NoticeTone } from './ui/index';
 
 /* 外壳（App）的几件事：地址栏上的页面、导航角标、底部提示、快捷键、换账号后重新加载。 */
 
@@ -51,6 +51,22 @@ const hashPage = (): Page => validHashPage(location.hash) ?? 'dashboard';
 export const homePage = (financeOnly: boolean): Page => (financeOnly ? 'finance' : 'dashboard');
 /** 这个账号能不能打开这一页：出纳这类纯财务账号只看财务页面 */
 export const pageAllowed = (page: Page, financeOnly: boolean) => !financeOnly || financeOnlyPageAllowed(page);
+
+const settingsTabs: [string, string][] = [
+  ['api', 'API 配置'],
+  ['prompts', '提示词'],
+  ['templates', '单据模板'],
+  ['channels', '消息接入'],
+  ['tools', '高级'],
+];
+/**
+ * 设置里这个账号看得到的页签：超级管理员账号全部；能改业务的只有单据模板（businessSettingsTab，读模板也要业务编辑权限）；
+ * 别的账号（只读、纯财务）一个没有，侧栏也不显示“设置”。
+ */
+export function settingsTabsOf(actor: NonNullable<AuthState['actor']>) {
+  if (actor.role === 'super_admin') return settingsTabs;
+  return canEditBusiness({ actor }) ? settingsTabs.filter(([key]) => key === businessSettingsTab) : [];
+}
 
 /**
  * 地址栏 # 后面是哪一页（routeKey 是整个 #…，同一页换了参数也算变了）。切换页面时回到顶部。

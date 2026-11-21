@@ -149,6 +149,35 @@ test('业务员账号改这些设置回 403 permission，不叫人去进模式',
   }
 });
 
+test('设置页专用的读接口只给超级管理员账号：业务员、只读、财务账号读 AI 设置、提示词、插件与工具回 403 permission，助手的状态接口照常', async () => {
+  const s = await setup();
+  try {
+    const others = [staff];
+    for (const [name, level] of [['虚构只读', 'viewer'], ['虚构财务', 'finance']]) {
+      const account = { name, password: 'Fictional-' + level + '-123' };
+      assert.equal((await s.p.call(s.p.localPort, '/auth/users', { cookie: s.local, body: { ...account, level } })).code, 201);
+      others.push(account);
+    }
+    const reads = ['/ai/settings', '/ai/prompt-modules', assistantPrompts, '/assistant/plugins'];
+    for (const account of others) {
+      const cookie = await s.login(account);
+      for (const path of reads) {
+        const r = await s.remote(path, cookie);
+        assert.equal(r.code, 403, account.name + path);
+        assert.equal(r.value.code, 'permission', account.name + path);
+        assert.match(String(r.value.message), /要用超级管理员账号/, account.name + path);
+      }
+      // 助手、AI 导入、收件箱要知道的“AI 能不能用、用哪个模型”在这里，照常能读
+      const state = await s.remote('/assistant', cookie);
+      assert.equal(state.code, 200, account.name);
+      assert.ok(state.value.ai, account.name);
+    }
+    for (const path of reads) assert.equal((await s.remote(path, s.admin)).code, 200, '没进模式的超级管理员能读 ' + path);
+  } finally {
+    await s.close();
+  }
+});
+
 test('本机管理员不用进模式就能管理账号', async () => {
   const s = await setup();
   try {
