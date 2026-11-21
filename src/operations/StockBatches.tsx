@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Hint, Section, StatusChip } from '../ui/index';
+import { FormMessage, Hint, Loading, Section, StatusChip } from '../ui/index';
 import { canEditBusiness, emit, notify, useAuthState, useLoad } from '../ui/index';
 import type { StockBatchView, StockItemView } from '../../shared/business/index';
 import { readStockBatches } from '../flow/flow-api';
@@ -218,13 +218,9 @@ export default function StockBatches({ row }: { row: BatchesOf }) {
         每次完工入库算一批。剩余是推算的：先发给对应订单，其余先做先发。
       </p>
       {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <FormMessage>{error}</FormMessage>
       ) : !data ? (
-        <p className="pur-empty" role="status">
-          正在读取…
-        </p>
+        <Loading />
       ) : (
         <>
           {data.unmatchedUnits !== 0 && (

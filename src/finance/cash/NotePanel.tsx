@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Section, StatusChip, yuan, notify, useAction } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Section, StatusChip, yuan, notify, useAction } from '../../ui/index';
 import { today } from '../../../shared/core/index';
 import { useSourceVoucher } from '../source-voucher';
-import { ErrorLine } from '../layout';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms, type FinData } from '../fin-api';
 import { noteKind, noteStates, noteStatusName } from './shared';
@@ -121,7 +120,7 @@ export default function NotePanel({
           />
         }
       >
-        <ErrorLine text={allocate.error} close={allocate.clear} />
+        <FormMessage close={allocate.clear}>{allocate.error}</FormMessage>
         <Section title="基本信息">
           <Facts
             items={[

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ManagementDialog, EditorFooter, FormMessage, FormSection, centsInput, toCents, yuan, notify, FormField, useAction, useLoad } from '../../ui/index';
+import { ManagementDialog, EditorFooter, FormMessage, FormSection, centsInput, toCents, yuan, notify, FormField, useAction, useLoad, loadingText } from '../../ui/index';
 import { kindName } from './shared';
 import { today } from '../../../shared/core/index';
 import type { FinData } from '../fin-api';
@@ -223,7 +223,7 @@ export default function AllocateDialog({
         >
           {lines === null ? (
             <p className="choice-list-empty" role="status">
-              正在读取…
+              {loadingText()}
             </p>
           ) : lines.length === 0 ? (
             // 建议核销只取这笔钱日期及以前的单子（settlements.ts 的 suggest），提示照实说

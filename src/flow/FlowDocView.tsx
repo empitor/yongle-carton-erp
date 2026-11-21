@@ -1,5 +1,5 @@
 import { flowStatusText, type FlowDocView as DocView } from '../../shared/business/index';
-import { DetailPanel, FinanceRelatedSlot, FormMessage, Hint, ManagementDialog, useBusinessRevision, useLoad } from '../ui/index';
+import { DetailPanel, FinanceRelatedSlot, FormMessage, Hint, ManagementDialog, useBusinessRevision, useLoad, Loading } from '../ui/index';
 import FlowDetails, { FlowStatus, flowSubtitle } from './FlowDetails';
 import { FlowActionBar } from './FlowActions';
 import { ArrivalReturns } from './ArrivalReturns';
@@ -96,9 +96,7 @@ function FlowDocBody({ desk, view, dialog }: { desk: FlowDesk; view: DocView; di
       {desk.ready(detailLookups(view)) && ready ? (
         <FlowDetails doc={view} data={desk.data} record={record} />
       ) : (
-        <p className="help-text" role="status">
-          正在读取关联档案…
-        </p>
+        <Loading what="关联档案" />
       )}
       {view.kind === 'arrival' && (
         <ArrivalReturns

@@ -115,7 +115,7 @@ export async function syncEvents() {
 export const syncFailure = (e: unknown) => '业务单据没同步进财务：' + errorMessage(e).replace(/。$/, '') + '。';
 /**
  * 打开页面时先补扫一次，key 变了再补（比如月度台账换了月份）。补扫失败不影响看已经进财务的数，
- * 原因交回页面用 ErrorLine 显示（结账检查照样由服务端拦），clear 关掉提示。
+ * 原因交回页面用 FormMessage 显示（结账检查照样由服务端拦），clear 关掉提示。
  */
 export function useSyncOnOpen(key?: string) {
   const [error, setError] = useState('');

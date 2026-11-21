@@ -87,7 +87,7 @@ export function financeKit(page) {
     await closed(before);
     const open = await modals();
     if (open) {
-      console.log('  dialog error:', label, (await dlg().locator('.form-error,.error').allInnerTexts()).join('|').slice(0, 300));
+      console.log('  dialog error:', label, (await dlg().locator('.form-message.tone-danger').allInnerTexts()).join('|').slice(0, 300));
       await dlg().getByRole('button', { name: '取消', exact: true }).click();
     }
     return !open;

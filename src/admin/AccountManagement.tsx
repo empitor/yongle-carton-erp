@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { ConfirmDialog, ListSummary, PageHeading, SuperModeNotice, useAuthState } from '../ui/index';
+import { ConfirmDialog, FormMessage, ListSummary, PageHeading, SuperModeNotice, useAuthState } from '../ui/index';
 import { ApproveDialog, CreateDialog, TemporaryPassword } from './AccountDialogs';
 import type { AccountRequestView } from '../../shared/core/index';
 import AccountDetail from './AccountDetail';
@@ -23,12 +23,7 @@ export default function AccountManagement({
     [creating, setCreating] = useState(false);
   // 增改账号、处理申请要在超级管理员模式里（本机管理员一直算在模式里）；没进时只能看，顶上给入口
   const changing = !!useAuthState()?.actor?.superAdminMode;
-  if (!isAdmin)
-    return (
-      <div className="error" role="alert">
-        只有管理员能管理账号。
-      </div>
-    );
+  if (!isAdmin) return <FormMessage>只有管理员能管理账号。</FormMessage>;
   const { users, requests, loaded, busy, error, confirm, temporary } = accounts;
   const selected = users.find((u) => u.id === selectedId) || null;
   const count = (n: number) => (loaded ? n : '—');

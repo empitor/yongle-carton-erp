@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper, loadingText } from '../../ui/index';
 import BankSection, { type BankDialog } from './BankSection';
 import { MAX_PAGE_SIZE, today } from '../../../shared/core/index';
-import { ErrorLine, FinSection, type HeadAction, type HeadFn } from '../layout';
+import { FinSection, type HeadAction, type HeadFn } from '../layout';
 import { FinTable, col, mon, type Col } from '../table';
 import { FormDialog } from '../FormDialog';
 import { ALL_CASH_ACCOUNTS, useFinPerms, useFinRead, type FinData } from '../fin-api';
@@ -188,7 +188,7 @@ export default function AccountsTab({ head }: { head: HeadFn }) {
           </label>
         }
       >
-        <ErrorLine text={daily.error} />
+        <FormMessage>{daily.error}</FormMessage>
         {none && (
           <Hint>
             还没有资金账户。收付款、银行流水都要记在某个账户上，
@@ -198,7 +198,7 @@ export default function AccountsTab({ head }: { head: HeadFn }) {
         <FinTable
           label="资金日报"
           rows={rows}
-          empty={none ? '还没有资金账户' : '正在读取…'}
+          empty={none ? '还没有资金账户' : loadingText()}
           onRow={setRow}
           selected={row?.id}
           cols={dailyColumns}

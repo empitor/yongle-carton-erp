@@ -1,7 +1,7 @@
 import { aiSettingsTab } from '../shared/assistant/index';
 import { useEffect, useState } from 'react';
 import { AiSettingsPage, ChannelSettings, PromptSettingsPage } from './admin/index';
-import { canEditBusiness, useLoad, type AuthState } from './ui/index';
+import { canEditBusiness, useLoad, type AuthState, loadingText } from './ui/index';
 import { readAiStatus } from './shell-api';
 import { DEEPSEEK_NAME, promptModules } from '../shared/ai/index';
 import { AssistantPlugins } from './assistant/index';
@@ -21,7 +21,7 @@ function AiUserPreferences() {
         <p className="adm-ai-user-model">
           <span>正在使用</span>
           <strong>
-            {ai === null ? '正在读取…' : DEEPSEEK_NAME + '（' + ai.model + '）' + (ai.ready ? '' : '，管理员还没填密钥')}
+            {ai === null ? loadingText() : DEEPSEEK_NAME + '（' + ai.model + '）' + (ai.ready ? '' : '，管理员还没填密钥')}
           </strong>
         </p>
       )}

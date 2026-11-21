@@ -327,14 +327,14 @@ await step('只读账号', async () => {
     await viewer.page.getByRole('menuitem', { name: '关联记录与修改历史', exact: true }).click();
     const box = viewer.page.locator('[role="dialog"][aria-modal="true"]').last();
     await box.getByText(/^最近修改 \d+$/).waitFor({ timeout: 8000 });
-    if (await box.locator('.form-error').count()) fail('只读账号打开关联记录与修改历史报错：' + (await box.locator('.form-error').innerText()));
+    if (await box.locator('.form-message.tone-danger').count()) fail('只读账号打开关联记录与修改历史报错：' + (await box.locator('.form-message.tone-danger').innerText()));
     else ok('只读账号能看关联记录与修改历史：' + (await box.getByText(/^最近修改 \d+$/).innerText()));
     await viewer.page.screenshot({ path: `${SP}/o-只读修改历史.png` });
     await viewer.page.keyboard.press('Escape');
     // 新建订单、安排生产的链接：只读账号不打开编辑窗，只用一句话说明原因
     for (const hash of ['#orders?create=1', '#production?create=1']) {
       await viewer.page.goto(BASE + hash);
-      const why = viewer.page.locator('.toast-error, .form-error', { hasText: '只能查看' }).first();
+      const why = viewer.page.locator('.toast-error, .form-message.tone-danger', { hasText: '只能查看' }).first();
       await why.waitFor({ timeout: 8000 });
       if (await viewer.page.locator('[role="dialog"][aria-modal="true"]').count())
         fail('只读账号打开了新建窗口：' + hash);

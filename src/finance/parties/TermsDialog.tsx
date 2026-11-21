@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FormMessage, FormSection, FormField, useLoad } from '../../ui/index';
+import { FormMessage, FormSection, FormField, useLoad, Loading } from '../../ui/index';
 import { EditorShell } from '../editor';
 import { FinCheck, PartyField } from '../fields';
 import { emptyTerms, isBlankTerms, termsBody, termsFormOf, type TermsForm } from './terms-form';
@@ -80,9 +80,7 @@ export default function TermsDialog({
         </FormSection>
       )}
       {fixedParty && !ready && !terms.error && (
-        <p className="choice-list-empty" role="status">
-          正在读取现有设置…
-        </p>
+        <Loading what="现有设置" />
       )}
       {/* 读到这个单位的现有规则之前不让填，免得读回来盖掉刚填的内容 */}
       <fieldset className="fin-term-body" disabled={!ready}>

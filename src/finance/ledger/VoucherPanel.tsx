@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Hint, Section, yuan, useConfirm, notify, useAction } from '../../ui/index';
+import { DetailPanel, ActionBar, Facts, Hint, Section, yuan, useConfirm, notify, useAction, Loading, loadingText } from '../../ui/index';
 import { useAccountNames } from '../editor';
 import VoucherDialogs from './VoucherDialogs';
 import { voucherStatusName } from '../../../shared/finance/index';
@@ -147,8 +147,8 @@ export default function VoucherPanel({
   const [dialog, setDialog] = useState<'edit' | 'reverse' | 'void' | null>(null);
   if (!data)
     return (
-      <DetailPanel kicker="记账凭证" title={error ? '凭证读取失败' : '正在读取凭证…'} close={close}>
-        {error ? <Hint tone="danger">{error}</Hint> : <p className="fin-note">正在读取…</p>}
+      <DetailPanel kicker="记账凭证" title={error ? '凭证读取失败' : loadingText('凭证')} close={close}>
+        {error ? <Hint tone="danger">{error}</Hint> : <Loading />}
       </DetailPanel>
     );
   const h = data.header;

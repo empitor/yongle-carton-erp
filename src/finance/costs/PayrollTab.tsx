@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { ManagementDialog, FormMessage, FormSection, useConfirm, Hint, yuan, notify, useAction, FormField } from '../../ui/index';
+import { ManagementDialog, FormMessage, FormSection, useConfirm, Hint, yuan, notify, useAction, FormField, Loading } from '../../ui/index';
 import { EditorShell, Stats } from '../editor';
 import { today } from '../../../shared/core/index';
-import { ErrorLine, PeriodInput, FinSection, type HeadFn } from '../layout';
+import { PeriodInput, FinSection, type HeadFn } from '../layout';
 import { FinList, col, mon, type Col } from '../table';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import {
@@ -178,7 +178,7 @@ export default function PayrollTab({ head, enabled }: { head: HeadFn; enabled: b
   return (
     <>
       {head({ children: <PeriodInput value={period} onChange={setPeriod} />, primary, more })}
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       <PayrollHint
         stage={stage}
         period={period}
@@ -258,9 +258,7 @@ function PayrollPayDialog({ period, close }: { period: string; close: () => void
         {error ? (
           <FormMessage>{error}</FormMessage>
         ) : (
-          <p className="fin-note" role="status">
-            正在读取…
-          </p>
+          <Loading />
         )}
       </ManagementDialog>
     );

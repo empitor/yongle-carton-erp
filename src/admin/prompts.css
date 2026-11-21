@@ -95,15 +95,7 @@
 .adm-prompt > .form-message {
   margin: 0;
 }
-.adm-prompt-error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-.adm-prompt-error span {
-  flex: 1;
-}
-.adm-prompt-error button {
+.adm-prompt-refresh {
   min-height: 28px;
   padding: var(--space-3xs) 10px;
   font-size: var(--text-sm);

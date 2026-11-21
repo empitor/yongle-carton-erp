@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ListSummary, StatusChip, yuan } from '../../ui/index';
+import { FormMessage, ListSummary, StatusChip, yuan } from '../../ui/index';
 import { partyKindOf, type Kind } from './shared';
 import { today } from '../../../shared/core/index';
-import { ErrorLine, FinSection, type HeadFn } from '../layout';
+import { FinSection, type HeadFn } from '../layout';
 import { FinTable, col, type Col } from '../table';
 import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { statementRequest } from './statement-request';
@@ -68,7 +68,7 @@ export default function StatementTab({ kind, head }: { kind: Kind; head: HeadFn 
         至
         <input type="date" aria-label="结束日期" value={to} onChange={(e) => setTo(e.target.value)} />
       </div>
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       {!partyId && (
         <FinSection title="对账单">
           <p className="fin-note">

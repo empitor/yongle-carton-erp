@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { MoreMenu, PageHeading } from '../ui/index';
 import { exportHref } from './fin-api';
 
-/* 财务各页的骨架：月份框、页头、分节、出错提示、导出链接。月份和页签记在哪见 page-state.ts。 */
+/* 财务各页的骨架：月份框、页头、分节、导出链接（出错提示用 src/ui 的 FormMessage）。月份和页签记在哪见 page-state.ts。 */
 
 export function PeriodInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -172,19 +172,6 @@ export function FinSection({
   );
 }
 
-export function ErrorLine({ text, close }: { text: string; close?: () => void }) {
-  if (!text) return null;
-  return (
-    <div className="error" role="alert">
-      {text}
-      {close && (
-        <button aria-label="关闭提示" onClick={close}>
-          <X size={14} />
-        </button>
-      )}
-    </div>
-  );
-}
 export function ExportLink({
   path,
   query,

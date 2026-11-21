@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FormMessage, loadingText } from '../ui/index';
 
 /** 供应商、采购单、库存、流水页的列表区：读不出的原因、办完的提示、第一次读取中，然后是列表本身。 */
 export default function RecordPageBody({
@@ -15,17 +16,19 @@ export default function RecordPageBody({
 }) {
   return (
     <>
-      {error && (
-        <p role="alert" className="operation-error">
-          {error}
-        </p>
-      )}
+      <FormMessage>{error}</FormMessage>
       {notice && (
         <p className="business-result" role="status">
           {notice}
         </p>
       )}
-      {error ? null : loading ? <p className="empty">正在读取业务数据…</p> : children}
+      {error ? null : loading ? (
+        <p className="empty" role="status">
+          {loadingText('业务数据')}
+        </p>
+      ) : (
+        children
+      )}
     </>
   );
 }

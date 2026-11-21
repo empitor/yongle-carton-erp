@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useConfirm, notify, hashParams, stepper, useAction } from '../../ui/index';
+import { FormMessage, useConfirm, notify, hashParams, stepper, useAction } from '../../ui/index';
 import VoucherEditor from './VoucherEditor';
 import VoucherPanel, { VoucherStatus } from './VoucherPanel';
-import { ErrorLine, PeriodInput, type HeadFn } from '../layout';
+import { PeriodInput, type HeadFn } from '../layout';
 import { FinList, col, type Col } from '../table';
 import { useFinPerms, type FinData } from '../fin-api';
 import { listVouchers, voucherStep } from './ledger-api';
@@ -112,7 +112,7 @@ export default function VouchersTab({ head }: { head: HeadFn }) {
           ))}
         </select>
       </div>
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       <FinList
         list={listVouchers}
         label="凭证"

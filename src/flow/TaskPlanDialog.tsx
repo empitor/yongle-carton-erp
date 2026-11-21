@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ManagementDialog, RowDelete } from '../ui/index';
+import { ManagementDialog, RowDelete, Loading } from '../ui/index';
 import { EditorFooter, FormMessage, FormSection } from '../ui/index';
 import { finishedAvailable, type ProductionPlanGroup } from '../../shared/business/index';
 import { FINISHED_UNIT, quantityString, today } from '../../shared/core/index';
@@ -92,9 +92,7 @@ export default function TaskPlanDialog({
       <FormMessage>{error}</FormMessage>
       {!state ? (
         !error && (
-          <p className="help-text" role="status">
-            正在读取订单、生产任务和库存…
-          </p>
+          <Loading what="订单、生产任务和库存" />
         )
       ) : (
         <>

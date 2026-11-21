@@ -1,16 +1,27 @@
 import { Suspense, lazy, useState, type ComponentProps } from 'react';
-import { canEditBusiness, useAuthState, notify, LIST_PAGE_SIZE, Pagination, stepper } from '../ui/index';
+import {
+  canEditBusiness,
+  useAuthState,
+  notify,
+  DateFilter,
+  FormMessage,
+  LIST_PAGE_SIZE,
+  Pagination,
+  loadingText,
+  stepper,
+} from '../ui/index';
+import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import FlowDocView from '../flow/FlowDocView';
 import FlowDeskDialogs from '../flow/FlowDeskDialogs';
-import { ListEmpty } from '../flow/ListParts';
+import { ListEmpty, StatusFilter } from '../flow/ListParts';
 import { useFlowDesk, type FlowDesk } from '../flow/useFlowDesk';
 import ReadyToShip from './ReadyToShip';
 import WarehouseHeading from './WarehouseHeading';
 import WarehouseTable from './WarehouseTable';
-import WarehouseToolbar from './WarehouseToolbar';
 import {
   docIdOf,
   isFlowDoc,
+  partyChoices,
   partyOf,
   purchaseOfLine,
   type PurchaseLookup,
@@ -68,11 +79,7 @@ export default function WarehouseRecords({ kind }: { kind: WarehouseKind }) {
         plan={() => setPlanning({})}
         begin={() => void desk.begin()}
       />
-      {error && (
-        <p role="alert" className="form-error">
-          {error}
-        </p>
-      )}
+      <FormMessage>{error}</FormMessage>
       {kind === 'arrival' && scope !== 'archived' && <PendingBatches batches={list.batches} canEdit={!!canEdit} />}
       {kind === 'delivery' && canEdit && scope !== 'archived' && (
         <ReadyToShip
@@ -114,6 +121,64 @@ export default function WarehouseRecords({ kind }: { kind: WarehouseKind }) {
   );
 }
 
+/** 看哪些记录：待处理 / 全部 / 已归档 */
+const scopes = [
+  { value: 'open', label: '待处理' },
+  { value: 'all', label: '全部' },
+  { value: 'archived', label: '已归档' },
+] as const satisfies readonly { value: WarehouseScope; label: string }[];
+
+/** 列表上方：搜索、待处理 / 全部 / 已归档、“筛选”里的供应商或客户、状态、日期。换了看哪些记录就关掉打开着的详情。 */
+function WarehouseToolbar({ kind, list, closeView }: { kind: WarehouseKind; list: WarehouseList; closeView: () => void }) {
+  const name = kind === 'arrival' ? '到货' : '送货',
+    partyLabel = kind === 'arrival' ? '供应商' : '客户';
+  return (
+    <ListToolbar
+      search={list.q}
+      onSearch={list.setQ}
+      placeholder={'搜索单号、' + (kind === 'arrival' ? '供应商、采购单' : '客户、订单') + '或产品'}
+      searchLabel={'搜索' + name + '记录'}
+      scopes={scopes}
+      scope={list.scope}
+      onScope={(key) => {
+        const picked = scopes.find((s) => s.value === key);
+        if (!picked) return;
+        closeView();
+        list.setScope(picked.value);
+      }}
+      scopeLabel={'看哪些' + name + '记录'}
+      filters={
+        <>
+          <FilterRow label={partyLabel}>
+            <select aria-label={'筛选' + partyLabel} value={list.party} onChange={(e) => list.setParty(e.target.value)}>
+              <option value="">{'全部' + partyLabel}</option>
+              {partyChoices(list.records).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </FilterRow>
+          <StatusFilter kind={kind} label={name + '状态'} value={list.status} change={list.setStatus} />
+          <DateFilter
+            label={name + '日期'}
+            preset={list.datePreset}
+            start={list.from}
+            end={list.to}
+            change={(preset, start, end) => {
+              list.setDatePreset(preset);
+              list.setFrom(start);
+              list.setTo(end);
+            }}
+          />
+        </>
+      }
+      filterCount={list.filterCount}
+      onClearFilters={list.clearFilters}
+    />
+  );
+}
+
 /** 列表区：到货或送货记录表（空着时说为什么、给下一步）、翻页、只读了最近的记录时的提示 */
 function WarehouseListBody({
   kind,
@@ -149,7 +214,7 @@ function WarehouseListBody({
         />
         {!filtered.length && (
           <ListEmpty
-            text={reading ? '正在读取…' : emptyText(kind, searched, scope)}
+            text={reading ? loadingText() : emptyText(kind, searched, scope)}
             busy={list.busy}
             filtered={searched}
             clear={() => {

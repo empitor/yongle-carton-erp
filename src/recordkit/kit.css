@@ -18,7 +18,7 @@
   padding-left: 35px;
 }
 
-/* ---------- 列表工具栏：搜索 + 一个分段 + 关键下拉 + 筛选（A 区：订单、档案、采购、库存共用） ---------- */
+/* ---------- 列表工具栏：搜索 + 一个分段 + 关键下拉 + 筛选（业务列表、单据页、到货送货页共用，ListToolbar） ---------- */
 .list-toolbar .list-toolbar-row {
   display: flex;
   flex-wrap: wrap;

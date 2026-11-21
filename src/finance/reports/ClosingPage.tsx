@@ -1,7 +1,7 @@
-import { ListSummary, yuan } from '../../ui/index';
+import { FormMessage, ListSummary, yuan } from '../../ui/index';
 import ClosingTab from './ClosingTab';
 import { Readiness, type TabProps } from './FormalReports';
-import { ErrorLine, FinSection, PeriodInput, ExportLink } from '../layout';
+import { FinSection, PeriodInput, ExportLink } from '../layout';
 import { FinTable, col, mon, type Col } from '../table';
 import { Status } from '../status';
 import { useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
@@ -36,7 +36,7 @@ function TrialBalance({ period }: { period: string }) {
       collapsed
       extra={<ExportLink path="/reports/trial/export" query={{ period }} />}
     >
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       {data && (
         <ListSummary
           items={[
@@ -62,7 +62,7 @@ function PeriodsSection() {
   const { data, error } = useFinRead(['GET /finance/periods']);
   return (
     <FinSection id="periods" title="会计期间" note="每个月的结账状态" collapsed>
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <FinTable
         label="会计期间"
         rows={data ?? []}
@@ -80,7 +80,7 @@ export default function ClosingPage({ head, period, setPeriod }: TabProps) {
   return (
     <>
       {head({ children: <PeriodInput value={period} onChange={setPeriod} /> })}
-      <ErrorLine text={sync.error} close={sync.clear} />
+      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
       <Readiness period={period} syncError={sync.error} />
       <ClosingTab period={period} />
       <TrialBalance period={period} />

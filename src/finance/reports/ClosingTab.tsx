@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useConfirm, Hint, StatusChip, notify, useAction } from '../../ui/index';
+import { FormMessage, useConfirm, Hint, StatusChip, notify, useAction } from '../../ui/index';
 import OpeningChanges from './OpeningChanges';
-import { ErrorLine, ExportLink } from '../layout';
+import { ExportLink } from '../layout';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { closePeriod, reopenPeriod, runPeriodJob, type ClosingJob } from './reports-api';
 import { accrualNotice, type PeriodJobExtra } from '../costs/costs-api';
@@ -218,8 +218,8 @@ export default function ClosingTab({ period }: { period: string }) {
         </div>
         <FinStatusChip value={record?.status || 'open'} />
       </header>
-      <ErrorLine text={error} />
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage>{error}</FormMessage>
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       {data && !closed && data.next !== period && (
         <Hint tone="warning">要按顺序结账，下一个该结的是 {data.next || '启用期'}。</Hint>
       )}

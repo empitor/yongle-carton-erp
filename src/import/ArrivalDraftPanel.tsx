@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Save, ShieldCheck, Undo2 } from 'lucide-react';
 import type { ImportWorkspaceView as Workspace } from '../../shared/import/index';
-import { ConfirmDialog } from '../ui/index';
+import { ConfirmDialog, loadingText } from '../ui/index';
 import { CorrectionDialog, FlowEditor, FlowReviewDialog } from '../flow/index';
 import { DraftEmpty, DraftFooter, DraftNotice, Figure } from './DraftUI';
 import { SEND_NOTE } from './ImportDialog';
@@ -27,7 +27,7 @@ function ArrivalBody({ a, workspace }: { a: Arrival; workspace: Workspace | unde
           <FlowEditor kind="arrival" value={a.editor} data={a.data} change={a.change} />
         </fieldset>
       ) : (
-        <DraftEmpty title={a.loading ? '正在读取已保存的识别结果…' : workspace ? '还没有识别' : '先选一份文件'}>
+        <DraftEmpty title={a.loading ? loadingText('已保存的识别结果') : workspace ? '还没有识别' : '先选一份文件'}>
           {workspace && !a.loading
             ? '点右上角“开始识别”。资料齐的直接登记成待入库的到货单，核对入库时才加库存。' + SEND_NOTE
             : ''}

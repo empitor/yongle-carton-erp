@@ -247,7 +247,7 @@ await step('已归档的到货单、送货单详情和在用的一样', async ()
       links = 0;
     try {
       await page.goto(BASE + c.hash);
-      await page.getByRole('radio', { name: '已归档' }).or(page.getByRole('button', { name: '已归档', exact: true })).first().click();
+      await page.getByRole('tab', { name: '已归档', exact: true }).click();
       await page.locator('main tbody tr', { hasText: doc.number }).first().click();
       // 正文等台账记录读到才显示；等不到就是这一步出错（step 报出来）
       await panel().getByText(c.want[0], { exact: true }).waitFor({ timeout: 8000 });

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { Plus, Upload, X } from 'lucide-react';
-import { canEditBusiness, useAuthState, notify, LIST_PAGE_SIZE, stepper, useAction, emit } from '../ui/index';
+import { Plus, Upload } from 'lucide-react';
+import { canEditBusiness, useAuthState, notify, LIST_PAGE_SIZE, stepper, useAction, emit, FormMessage } from '../ui/index';
 import { DetailPanel } from '../ui/index';
 import { PageHeading, Pagination } from '../ui/index';
 import InboxDetail, { inboxKicker, inboxSubtitle, InboxStatus } from './InboxDetail';
@@ -84,20 +84,14 @@ export default function InboxPage() {
       />
       <InboxFilters list={list} />
       <ChannelNote channels={list.channels} isAdmin={auth?.actor?.role === 'super_admin'} />
-      {error && (
-        <div className="error" role="alert">
-          {error}
-          <button
-            aria-label="关闭提示"
-            onClick={() => {
-              list.clearError();
-              clear();
-            }}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
+      <FormMessage
+        close={() => {
+          list.clearError();
+          clear();
+        }}
+      >
+        {error}
+      </FormMessage>
       <section className="panel business-records">
         <InboxTable rows={rows} loaded={!!data} status={list.filter.status} selectedId={selected?.id} select={setSelected} />
         <Pagination

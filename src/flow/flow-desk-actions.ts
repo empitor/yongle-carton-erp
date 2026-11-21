@@ -141,7 +141,7 @@ export function deskActions(d: DeskState) {
       if (!preview) return;
       // 核对时单据、库存或关联档案被别人改了：窗口直接换成最新的核对内容，说清楚再看一遍，不留着旧的
       const result = await confirmPreview(preview, async (next) => {
-        // 档案读不到也照样换成最新的核对内容（窗口里提示正在读取，useFlowDesk 按要用的档案会再读）
+        // 档案读不到也照样换成最新的核对内容（窗口里提示在读，useFlowDesk 按要用的档案会再读）
         await d.ensureLookups([...detailLookups(preview.document), ['items', true]]).catch(() => null);
         d.setPreview(next);
       });

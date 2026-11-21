@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { SelectionBar, yuan, hashParams } from '../../ui/index';
+import { FormMessage, SelectionBar, yuan, hashParams } from '../../ui/index';
 import { missingAmountName } from '../../../shared/finance/index';
 import { useEnable } from '../enable';
 import TaxBatchDialog from './TaxBatchDialog';
 import { financePageTitles } from '../page-titles';
-import { ErrorLine, FinHead, PeriodInput } from '../layout';
+import { FinHead, PeriodInput } from '../layout';
 import { FinList, col, type Col } from '../table';
 import { FlowStatus } from '../status';
 import { documentName, metricNames, sourceMonthName } from '../labels';
@@ -110,7 +110,7 @@ export default function FlowLedgerPage() {
           }}
         />
       </FinHead>
-      <ErrorLine text={sync.error} close={sync.clear} />
+      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
       <LedgerSummary s={s} missingCount={missingCount} />
       <MissingTaxHint missingCount={missingCount} enable={enable} canEdit={perms.edit} />
       <LedgerFilters filter={filter} change={change} missingCount={missingCount} />

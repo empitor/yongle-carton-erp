@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import type { RecordEntity } from '../../shared/business/index';
-import { ErrorBoundary, ListSummary, PageHeading, type AuthState } from '../ui/index';
+import { ErrorBoundary, FormMessage, ListSummary, PageHeading, type AuthState } from '../ui/index';
 import KindRecords, { type ListKind } from './KindRecords';
 import DashboardPage from './DashboardPage';
 import RecordEditors, { useRecordEditor } from './RecordEditors';
@@ -76,13 +76,16 @@ function CreateButton({ kind, disabled, open }: { kind: ListKind; disabled: bool
 /** 列表读不出来：原因和“重新加载” */
 function ListError({ error, reload }: { error: string; reload: () => void }) {
   return (
-    <div className="error" role="alert">
+    <FormMessage
+      action={
+        <button onClick={reload}>
+          <RefreshCw size={14} />
+          重新加载
+        </button>
+      }
+    >
       {error}
-      <button onClick={reload}>
-        <RefreshCw size={14} />
-        重新加载
-      </button>
-    </div>
+    </FormMessage>
   );
 }
 

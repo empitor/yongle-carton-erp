@@ -5,6 +5,7 @@ import {
   FormGroup,
   FormMessage,
   FormSection,
+  Loading,
   centsInput,
   toCents,
   yuan,
@@ -119,9 +120,7 @@ export default function CreditTransferDialog({
       >
         <FormMessage>{loadError || action.error}</FormMessage>
         {!data ? (
-          <p className="choice-list-empty" role="status">
-            正在读取这个单位的往来…
-          </p>
+          <Loading what="这个单位的往来" />
         ) : empty ? (
           <FormMessage tone="info">
             这个单位没有还没结清的往来可以抵。可以等下次

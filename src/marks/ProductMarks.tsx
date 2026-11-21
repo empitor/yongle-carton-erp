@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
-import { canEditBusiness, useAuthState, useLoad } from '../ui/index';
+import { canEditBusiness, FormMessage, useAuthState, useLoad } from '../ui/index';
 import { listMarks, markFileUrl as fileUrl, removeMark, renameMark, uploadMarks, type ProductMark } from './mark-api';
 import { errorMessage } from '../../shared/core/index';
 import { ManagementDialog, EditorFooter, useConfirm } from '../ui/index';
@@ -199,11 +199,7 @@ export default function ProductMarks({ productId, readOnly = false }: { productI
           />
         )}
       </header>
-      {error && (
-        <p role="alert" className="form-error">
-          {error}
-        </p>
-      )}
+      <FormMessage>{error}</FormMessage>
       {marks && !marks.length && (
         <p className="sales-muted">
           还没有唛头。

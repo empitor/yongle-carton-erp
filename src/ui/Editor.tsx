@@ -108,15 +108,6 @@ export function EditorFooter({ note, children }: { note?: ReactNode; children: R
   );
 }
 
-/** 编辑窗顶部的错误或提醒，和字段错误分开，放在第一节上面。 */
-export function FormMessage({ tone = 'danger', children }: { tone?: 'danger' | 'warning' | 'info'; children: ReactNode }) {
-  if (!children) return null;
-  return (
-    <div className={'form-message tone-' + tone} role={tone === 'danger' ? 'alert' : 'status'}>
-      {children}
-    </div>
-  );
-}
 
 /** 明细行尾的删除图标。className 给页面自己的版式（例如财务明细表的 fb-row-delete）。 */
 export function RowDelete({

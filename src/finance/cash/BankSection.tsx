@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { ListSummary, yuan, notify, stepper, useAction } from '../../ui/index';
+import { FormMessage, ListSummary, yuan, notify, stepper, useAction } from '../../ui/index';
 import { today } from '../../../shared/core/index';
-import { ErrorLine, FinSection } from '../layout';
+import { FinSection } from '../layout';
 import { FinList, col, mon, type Col } from '../table';
 import { FormDialog } from '../FormDialog';
 import type { FinData } from '../fin-api';
@@ -246,7 +246,7 @@ export default function BankSection({
         </>
       }
     >
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       {recon && <ReconTable recon={recon} close={() => setRecon(null)} />}
       {account && (
         <FinList
