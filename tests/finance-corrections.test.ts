@@ -1,6 +1,4 @@
-// 删除业务记录时财务要登记配合规则（server/core/deletion-rules.ts），正式服务启动时一定会加载财务
 import { pageActor } from './actor-fixture.js';
-import '../server/finance/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
