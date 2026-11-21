@@ -14,7 +14,7 @@ import {
 import { errorMessage } from '../../shared/core/index';
 import BusinessFormPreview from './BusinessFormPreview';
 import { WordFilePreview, type WordFile } from './export-file';
-import { MoreMenu, Segmented } from '../ui/index';
+import { MenuItem, MoreMenu, Segmented } from '../ui/index';
 import { FormMessage } from '../ui/index';
 import TemplateForm from './TemplateForm';
 
@@ -156,18 +156,16 @@ function TemplateBar({ s, state, template }: { s: Settings; state: DocumentTempl
         设为本类默认
       </label>
       <MoreMenu label="模板更多操作" text="更多">
-        <button type="button" role="menuitem" disabled={s.busy || !s.canEdit || state.templates.length >= MAX_TEMPLATES} onClick={copy}>
+        <MenuItem disabled={s.busy || !s.canEdit || state.templates.length >= MAX_TEMPLATES} onClick={copy}>
           复制为新模板
-        </button>
-        <button
-          type="button"
-          role="menuitem"
+        </MenuItem>
+        <MenuItem
           title={s.dirty ? '先保存或放弃修改再刷新' : '重新读取已保存的模板'}
           disabled={s.busy || s.dirty}
           onClick={() => void s.work(s.load)}
         >
           刷新
-        </button>
+        </MenuItem>
       </MoreMenu>
     </div>
   );
@@ -200,12 +198,12 @@ function TemplatePreviewPane({ s, template }: { s: Settings; template: DocumentT
           预览Word排版
         </button>
         <MoreMenu label="导出测试文件">
-          <button type="button" role="menuitem" disabled={s.busy} onClick={() => void s.work(() => s.sample(template, 'docx'))}>
+          <MenuItem disabled={s.busy} onClick={() => void s.work(() => s.sample(template, 'docx'))}>
             下载测试Word
-          </button>
-          <button type="button" role="menuitem" disabled={s.busy} onClick={() => void s.work(() => s.sample(template, 'xlsx'))}>
+          </MenuItem>
+          <MenuItem disabled={s.busy} onClick={() => void s.work(() => s.sample(template, 'xlsx'))}>
             下载测试Excel
-          </button>
+          </MenuItem>
         </MoreMenu>
       </header>
       {s.word ? (

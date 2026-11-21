@@ -3,7 +3,7 @@ import { Bot, Menu, Plus, Search } from 'lucide-react';
 import AuthPanel from './AuthPanel';
 import { createActions } from './CommandPalette';
 import { assistantDisplayName, useAssistantTopbarEntry } from './assistant/index';
-import { emit, useBackLayer } from './ui/index';
+import { emit, MenuItem, useBackLayer } from './ui/index';
 import { useTopbarCollapse } from './mobile/topbar-collapse';
 
 /**
@@ -77,9 +77,9 @@ export default function AppTopbar({
               <div className="top-new-menu" role="menu" onClick={() => setNewMenu(false)}>
                 {/* 和 Ctrl+K 搜索面板的“操作”同一份清单、同一套叫法 */}
                 {createActions.map((a) => (
-                  <a key={a.target} role="menuitem" href={'#' + a.target}>
+                  <MenuItem key={a.target} href={'#' + a.target}>
                     {a.label}
-                  </a>
+                  </MenuItem>
                 ))}
               </div>
             )}

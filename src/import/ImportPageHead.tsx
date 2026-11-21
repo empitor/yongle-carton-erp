@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { LoaderCircle, Upload, X } from 'lucide-react';
 import type { AiStatus } from '../../shared/ai/index';
 import { ORIGINAL_MAX_MB, originalFormats } from '../../shared/import/index';
-import { Hint, MoreMenu } from '../ui/index';
+import { Hint, MenuItem, MoreMenu } from '../ui/index';
 import { modeLabels, type FileMode } from './fileStatus';
 import { MAX_BATCH } from './useUploadQueue';
 import { SEND_NOTE } from './ImportDialog';
@@ -102,9 +102,9 @@ export default function ImportPageHead({
       </div>
       <div className="page-actions">
         <MoreMenu text="更多" label="AI 导入更多操作">
-          <button type="button" role="menuitem" onClick={openHistory}>
+          <MenuItem onClick={openHistory}>
             历史与归档
-          </button>
+          </MenuItem>
         </MoreMenu>
         {!empty && <UploadButton upload={upload} />}
       </div>

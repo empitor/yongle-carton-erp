@@ -1,4 +1,4 @@
-import { beijingTime, DataTable, MoreMenu, type Col } from '../ui/index';
+import { beijingTime, DataTable, MenuItem, MoreMenu, type Col } from '../ui/index';
 import { levelName } from './account-confirms';
 import type { AccountRequestView, AccountView } from '../../shared/core/index';
 
@@ -34,9 +34,9 @@ export function RequestTable({
             {request.kind === 'register' ? '通过并选级别' : '重置密码'}
           </button>
           <MoreMenu label={'更多操作 ' + request.name}>
-            <button type="button" role="menuitem" className="danger-text" disabled={busy} onClick={() => reject(request)}>
+            <MenuItem danger disabled={busy} onClick={() => reject(request)}>
               拒绝申请
-            </button>
+            </MenuItem>
           </MoreMenu>
         </>
       ),

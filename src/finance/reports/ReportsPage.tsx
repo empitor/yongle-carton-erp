@@ -1,10 +1,10 @@
-import { Segmented } from '../../ui/index';
+import { PageHeading, Segmented } from '../../ui/index';
 import { NeedEnable, useEnable } from '../enable';
 import { ReportsTab } from './FormalReports';
 import ClosingPage from './ClosingPage';
 import BudgetTab from './BudgetTab';
 import { financePageTitles } from '../page-titles';
-import { FinHead, SubBar, type HeadProps } from '../layout';
+import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, usePeriod, useTab } from '../page-state';
 
 /**
@@ -34,7 +34,7 @@ export default function ReportsPage() {
   const options = tab === 'budget' ? [...tabs, ['budget', '预算'] as const] : tabs;
   const head = (props: HeadProps) => (
     <>
-      <FinHead
+      <PageHeading
         title={financePageTitles['finance-reports']}
         {...props}
         more={[
@@ -50,7 +50,7 @@ export default function ReportsPage() {
   if (enable.known && !enable.enabled)
     return (
       <div className="fin-page">
-        <FinHead title={financePageTitles['finance-reports']} primary={enable.action} />
+        <PageHeading title={financePageTitles['finance-reports']} primary={enable.action} />
         <NeedEnable what="出正式报表和结账" canEnable={enable.canEnable} />
         {enable.dialog}
       </div>

@@ -51,13 +51,13 @@ export default function SuppliersPage({ recycle = false }: { recycle?: boolean }
       {!recycle && (
         <PageHeading
           title="供应商"
-          actions={
-            p.canEdit && (
-              <button className="primary" disabled={busy} onClick={() => ops.setEditor({ type: 'supplier' })}>
-                <Plus size={17} />
-                新建供应商
-              </button>
-            )
+          primary={
+            p.canEdit && {
+              label: '新建供应商',
+              icon: <Plus size={17} />,
+              disabled: busy,
+              onClick: () => ops.setEditor({ type: 'supplier' }),
+            }
           }
           meta={
             <OperationsSummary

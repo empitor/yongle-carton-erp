@@ -1,4 +1,4 @@
-import { Segmented } from '../../ui/index';
+import { PageHeading, Segmented } from '../../ui/index';
 import { useState } from 'react';
 import { DueTab } from './DueTab';
 import ObligationsTab from './ObligationsTab';
@@ -6,7 +6,7 @@ import StatementTab from './StatementTab';
 import TermsTab from './TermsTab';
 import type { Kind } from './shared';
 import { financePageTitles } from '../page-titles';
-import { FinHead, SubBar, type HeadProps } from '../layout';
+import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, useTab } from '../page-state';
 
 /**
@@ -36,7 +36,7 @@ export default function PartiesPage() {
   useFocusSection(requested, Object.keys(sectionTabs));
   const head = (props: HeadProps) => (
     <>
-      <FinHead title={financePageTitles['finance-ar']} {...props} />
+      <PageHeading title={financePageTitles['finance-ar']} {...props} />
       <SubBar
         side={
           <Segmented className="fin-segmented"

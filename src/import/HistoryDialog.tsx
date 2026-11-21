@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ManagementDialog } from '../ui/index';
 import { EditorFooter } from '../ui/index';
-import { MoreMenu } from '../ui/index';
+import { MenuItem, MoreMenu } from '../ui/index';
 import type { ArchivedWorkspace, UnreadableWorkspace } from '../../shared/import/index';
 import { FailureList } from './ImportFailures';
 
@@ -29,9 +29,9 @@ function UnreadableList({
             <span title={f.problem}>{f.problem}</span>
             {localAdmin && (
               <MoreMenu text="更多" label="更多操作 读不出来的文件">
-                <button type="button" role="menuitem" className="danger-text" onClick={() => remove(f.id)}>
+                <MenuItem danger onClick={() => remove(f.id)}>
                   永久删除
-                </button>
+                </MenuItem>
               </MoreMenu>
             )}
           </li>
@@ -120,15 +120,15 @@ export default function HistoryDialog({
                   恢复
                 </button>
                 <MoreMenu text="更多" label={'更多操作 ' + f.fileName}>
-                  <button type="button" role="menuitem" onClick={() => open(f.id)}>
+                  <MenuItem onClick={() => open(f.id)}>
                     打开查看
-                  </button>
+                  </MenuItem>
                   {localAdmin && (
                     <>
                       <hr className="more-menu-sep" />
-                      <button type="button" role="menuitem" className="danger-text" onClick={() => remove(f.id)}>
+                      <MenuItem danger onClick={() => remove(f.id)}>
                         永久删除
-                      </button>
+                      </MenuItem>
                     </>
                   )}
                 </MoreMenu>

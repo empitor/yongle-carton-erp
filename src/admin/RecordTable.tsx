@@ -1,4 +1,4 @@
-import { MoreMenu, SelectAll, SelectRow, StatusChip } from '../ui/index';
+import { MenuItem, MoreMenu, SelectAll, SelectRow, StatusChip } from '../ui/index';
 import { isFlowKind } from '../../shared/business/index';
 import { recordLabel, recordStatus } from './record-refs';
 import { textOf, type DataAction, type ListedRecord } from './record-types';
@@ -50,18 +50,17 @@ export default function RecordTable({
       <span>{recordStatus(module, r.record)}</span>
     );
   const archiveItem = (r: ListedRecord) => (
-    <button
-      role="menuitem"
+    <MenuItem
       disabled={busy}
       onClick={() => act(r.record.archived ? 'restore' : 'archive', [r])}
     >
       {r.record.archived ? '恢复' : '归档'}
-    </button>
+    </MenuItem>
   );
   const removeItem = (r: ListedRecord) => (
-    <button role="menuitem" className="danger-text" disabled={busy} onClick={() => remove(r)}>
+    <MenuItem danger disabled={busy} onClick={() => remove(r)}>
       删除
-    </button>
+    </MenuItem>
   );
   return (
     <div className="adm-data-table">
@@ -109,13 +108,12 @@ export default function RecordTable({
                       </button>
                       <MoreMenu label={'更多操作 ' + recordLabel(r.record)}>
                         {archiveItem(r)}
-                        <button
-                          role="menuitem"
+                        <MenuItem
                           disabled={busy || !!r.record.archived}
                           onClick={() => act('fork', [r])}
                         >
                           复制为新识别任务
-                        </button>
+                        </MenuItem>
                         {removeItem(r)}
                       </MoreMenu>
                     </>
@@ -137,9 +135,9 @@ export default function RecordTable({
                       )}
                       <MoreMenu label={'更多操作 ' + recordLabel(r.record)}>
                         {extra(r).map((a) => (
-                          <button key={a.label} role="menuitem" disabled={busy} onClick={a.run}>
+                          <MenuItem key={a.label} disabled={busy} onClick={a.run}>
                             {a.label}
-                          </button>
+                          </MenuItem>
                         ))}
                         {archiveItem(r)}
                         {removeItem(r)}

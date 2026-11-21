@@ -10,7 +10,7 @@ import { useBackLayer, useIsPhone } from './ui/index';
 import { EditorFooter, FormMessage } from './ui/index';
 import { MaintenancePanel } from './admin/index';
 import ThemeSwitcher from './ThemeSwitcher';
-import { listen, notify } from './ui/index';
+import { listen, MenuItem, notify } from './ui/index';
 
 type Dialog = 'password' | 'maintenance' | null;
 type Actor = NonNullable<AuthState['actor']>;
@@ -164,32 +164,32 @@ function AccountMenu({ menu, actor, level, busy, password, dataManagement, maint
           </small>
         </span>
       </div>
-      <button type="button" role="menuitem" onClick={password}>
+      <MenuItem onClick={password}>
         <Lock size={16} aria-hidden="true" />
         修改密码
-      </button>
+      </MenuItem>
       {/* 在服务器本机：直接打开数据管理，不再先弹一个只有一个按钮的窗口 */}
       {admin && actor.localAdministrator && (
-        <button type="button" role="menuitem" onClick={dataManagement}>
+        <MenuItem onClick={dataManagement}>
           <Database size={16} aria-hidden="true" />
           数据管理
-        </button>
+        </MenuItem>
       )}
       {admin && !actor.localAdministrator && (
-        <button type="button" role="menuitem" onClick={maintenance}>
+        <MenuItem onClick={maintenance}>
           <Wrench size={16} aria-hidden="true" />
           系统维护
-        </button>
+        </MenuItem>
       )}
       <div className="account-menu-theme">
         <span>外观</span>
         <ThemeSwitcher />
       </div>
       <hr />
-      <button type="button" role="menuitem" disabled={busy} onClick={leave}>
+      <MenuItem disabled={busy} onClick={leave}>
         <LogOut size={16} aria-hidden="true" />
         退出登录
-      </button>
+      </MenuItem>
     </div>
   );
 }

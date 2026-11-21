@@ -164,13 +164,13 @@ export default function PurchasesPage({ recycle = false }: { recycle?: boolean }
       {!recycle && (
         <PageHeading
           title="采购单"
-          actions={
-            p.canEdit && (
-              <button className="primary" disabled={busy} onClick={() => ops.setEditor({ type: 'purchase' })}>
-                <Plus size={17} />
-                新建采购单
-              </button>
-            )
+          primary={
+            p.canEdit && {
+              label: '新建采购单',
+              icon: <Plus size={17} />,
+              disabled: busy,
+              onClick: () => ops.setEditor({ type: 'purchase' }),
+            }
           }
           meta={
             <OperationsSummary

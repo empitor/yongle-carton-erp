@@ -58,20 +58,11 @@ function emptyHint(listPage: ListKind, lists: RecordLists) {
 const listKinds: readonly ListKind[] = ['orders', 'customers', 'products'];
 const listKindOf = (page: string) => listKinds.find((kind) => kind === page) ?? null;
 
-const createLabels: Record<ListKind, string> = { customers: '新建客户', products: '新建产品', orders: '新建订单' };
-
 /**
  * 订单、客户、产品页头只放一个主按钮“新建××”；刷新去掉（数据会自动刷新），
  * 订单页的“AI 导入”去掉（侧栏和右上角“新建”里都有）
  */
-function CreateButton({ kind, disabled, open }: { kind: ListKind; disabled: boolean; open: () => void }) {
-  return (
-    <button className="primary" disabled={disabled} onClick={open}>
-      <Plus size={17} />
-      {createLabels[kind]}
-    </button>
-  );
-}
+const createLabels: Record<ListKind, string> = { customers: '新建客户', products: '新建产品', orders: '新建订单' };
 
 /** 列表读不出来：原因和“重新加载” */
 function ListError({ error, reload }: { error: string; reload: () => void }) {
@@ -154,10 +145,14 @@ export default function RecordPages({
           <PageHeading
             title={title}
             meta={!error && <ListMeta page={page} lists={lists} />}
-            actions={
-              listPage && canCreate ? (
-                <CreateButton kind={listPage} disabled={busy || !!error} open={() => setEditor({ kind: listPage })} />
-              ) : undefined
+            primary={
+              listPage &&
+              canCreate && {
+                label: createLabels[listPage],
+                icon: <Plus size={17} />,
+                disabled: busy || !!error,
+                onClick: () => setEditor({ kind: listPage }),
+              }
             }
           />
           {error && <ListError error={error} reload={lists.reload} />}

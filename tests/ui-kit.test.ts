@@ -1,4 +1,4 @@
-// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、pdf.js 只在 src/ui 引、切回页面重新取数。
+// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、菜单项只在 src/ui 写、pdf.js 只在 src/ui 引、切回页面重新取数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -237,6 +237,12 @@ test('列表行点开详情只在 src/ui 写一份', () => {
     assert.doesNotMatch(source, /<tr\s[^<]*?\bon(Click|KeyDown)=/, file + ' 在行上手写了点击或按键，改用 DataTable 或 DataRow');
     assert.doesNotMatch(source, /['"]record-row\b/, file + ' 手写了可点的行，改用 DataTable 或 DataRow');
   }
+});
+
+// “更多”菜单里的一项只用 src/ui 的 MenuItem（页头、详情、勾选条的动作交给 PageHeading、ActionBar、SelectionBar）
+test('菜单项只在 src/ui 写一份', () => {
+  for (const file of outsideUi())
+    assert.doesNotMatch(readFileSync(file, 'utf8'), /role=["'{]+menuitem/, file + ' 手写了菜单项，改用 MenuItem');
 });
 
 // 打开 PDF、画一页只用 src/ui/pdf.ts 的 openPdf、drawPdfPage：pdf.js 和它的后台线程只在那里引一次（静态、动态、只引类型都算）

@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { FormMessage, FormSection, Hint, notify, toCents, yuan, RowDelete, FormField } from '../ui/index';
+import { FormMessage, FormSection, Hint, notify, toCents, yuan, RowDelete, FormField, type RecordAction } from '../ui/index';
 import { today } from '../../shared/core/index';
 import { EditorShell } from './editor';
 import { PartyField } from './fields';
 import { syncEvents, syncFailure, useAccounts, useFinPerms, useFinRead, type FinData } from './fin-api';
 import { enableFinance } from './settings/settings-api';
-import type { HeadAction } from './layout';
 
 /*
  * 启用财务：设置页、概览、台账、凭证、报表都能直接打开同一个启用窗口。
@@ -285,7 +284,7 @@ export function useEnable() {
   // 还没读到设置时按已启用处理，避免一闪而过的“未启用”提示
   const enabled = settings.data ? !!settings.data.startPeriod : true;
   const canEnable = perms.close;
-  const action: HeadAction | null =
+  const action: RecordAction | null =
     known && !enabled && canEnable ? { label: '启用财务', onClick: () => setOpen(true) } : null;
   const dialog =
     open && settings.data ? <EnableDialog settings={settings.data} close={() => setOpen(false)} /> : null;

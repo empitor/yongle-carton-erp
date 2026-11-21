@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FormMessage, DetailPanel, Hint, yuan, loadingText, DataTable, col, mon } from '../../ui/index';
+import { FormMessage, DetailPanel, Hint, PageHeading, yuan, loadingText, DataTable, col, mon } from '../../ui/index';
 import { SourceDetail, SourceActions, sourceHeader } from '../SourceDetail';
 import { useEnable } from '../enable';
 import { overviewTodos } from './todos';
@@ -7,7 +7,7 @@ import DrillSection, { type Drill, type DrillRow } from './DrillSection';
 import TrendSection from './TrendSection';
 import AccountingSection from './AccountingSection';
 import { financePageTitles } from '../page-titles';
-import { FinHead, FinSection, PeriodInput } from '../layout';
+import { FinSection, PeriodInput } from '../layout';
 import { FIN_TABLE } from '../table';
 import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { metricNames, sourceMonthName } from '../labels';
@@ -222,7 +222,7 @@ export default function OverviewPage() {
   const todos = overviewTodos({ report: m, summary: summary.data, soon, discounts, perms, enabled: enable.enabled });
   return (
     <div className="fin-page">
-      <FinHead
+      <PageHeading
         title={financePageTitles['finance']}
         primary={
           enable.action ||
@@ -239,7 +239,7 @@ export default function OverviewPage() {
         ]}
       >
         <PeriodInput value={period} onChange={setPeriod} />
-      </FinHead>
+      </PageHeading>
       <FormMessage close={sync.clear}>{sync.error}</FormMessage>
       <FormMessage>{report.error}</FormMessage>
       {enable.known && !enable.enabled && (
