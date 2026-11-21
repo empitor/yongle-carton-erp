@@ -121,16 +121,15 @@ export function planCorrection(store: Store, id: number, raw: unknown, who: Acto
   }
 }
 
-/** 替代单内容：方案的单据加上沿用原单的系统字段和更正关系 */
+/** 替代单内容：方案的单据（快照已按原单留好）加上沿用原单的生命周期记录和更正关系 */
 function replacementOf<K extends CorrectableKind, I extends CorrectionHead, V extends object, D, R extends object>(
-  flow: FlowCommands,
   { kind, head, stored }: Bound<K, I, V, D, R>,
   plan: KindPlan<K, V, D>,
-  c: { actor: Actor; at: string; reason: string },
+  c: { at: string; reason: string },
 ): FlowDocument {
   return {
     ...plan.document,
-    ...kind.inherit(flow, stored, plan, c.actor, c.at),
+    ...kind.inherit(stored, plan),
     correctionOf: head.id,
     correctionReason: c.reason,
     correctedAt: c.at,
@@ -154,7 +153,7 @@ function commit<K extends CorrectableKind, I extends CorrectionHead, V extends o
   assertPreviewCurrent(c.previewDigest, view.previewDigest);
   const at = new Date().toISOString();
   kind.prepare?.(flow, plan, actor, head.number);
-  const next = replacementOf(flow, bound, plan, { actor, at, reason });
+  const next = replacementOf(bound, plan, { at, reason });
   // 替代单的单号按更正当天，单据日期按方案（一般沿用原单）；这时原单还在，correction_of 的外键成立
   const replacementId = insertFlowDocument(store, { date: plan.date, numberDate: today(), status: 'confirmed', document: next, actor, at });
   rewriteRefs(store, replacementId, next);

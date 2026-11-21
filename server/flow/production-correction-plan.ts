@@ -4,6 +4,7 @@ import { AppError, isLocalAdministrator, requireSuperModeFor } from '../core/ind
 import {
   correctionCommit,
   flowDocNames,
+  keepSnapshot,
   productionCorrectionExtraSchema,
   productionCorrectionPreviewSchema,
   type productionCorrectionViewSchema,
@@ -148,6 +149,8 @@ function plan(flow: FlowCommands, original: FlowDocView<'production'>, stored: S
   checkNewLinks(flow, stored, document, head.taskId);
   const taskImpact = taskImpactOf(flow, stored, head.taskId, good);
   const productName = (id: number) => flow.store.product(id, true)?.name ?? '';
+  // 产品名快照：产品没换的留着原单的，换了按新产品取
+  const replacement = keepSnapshot(stored, { ...document, productName: flow.store.product(document.productId, true)?.name });
   const view: View = {
     original,
     unit: FINISHED_UNIT,
@@ -159,7 +162,7 @@ function plan(flow: FlowCommands, original: FlowDocView<'production'>, stored: S
     taskImpact,
   };
   return {
-    document,
+    document: replacement,
     date: head.date,
     changes: checked.changes,
     warnings: checked.warnings,
@@ -214,9 +217,8 @@ export const productionCorrection: CorrectionKind<'production', Input, Productio
   allow: (actor) => void requireSuperModeFor(actor, '更正完工'),
   stocked,
   plan,
-  // 确认人、确认时间沿用原单；产品名跟着（换了的）产品走。操作人、批次备注已经在替代单内容里
-  inherit: (flow, stored, plan) => ({
-    productName: flow.store.product(plan.document.productId, true)?.name,
+  // 确认人、确认时间沿用原单。产品名在方案里按快照规则定好了，操作人、批次备注已经在替代单内容里
+  inherit: (stored) => ({
     confirmedBy: stored.confirmedBy,
     confirmedAt: stored.confirmedAt,
   }),

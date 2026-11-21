@@ -138,9 +138,8 @@ export const arrivalCorrection: CorrectionKind<'arrival', CorrectionInput, Arriv
       plan.document.lines[i].stockId = c.stockId;
     });
   },
-  // 确认人、确认时间沿用原单（和送货、完工同一个规矩）；谁、什么时候更正的看 correctedAt 和修改历史
-  inherit: (flow, stored, plan) => ({
-    supplierName: flow.ops.supplierName(plan.document.supplierId, true),
+  // 确认人、确认时间沿用原单（和送货、完工同一个规矩）；谁、什么时候更正的看 correctedAt 和修改历史。供应商名在方案里按快照规则定好了
+  inherit: (stored, plan) => ({
     correctionOfReceiptId: plan.data.receipt.id,
     confirmedBy: stored.confirmedBy,
     confirmedAt: stored.confirmedAt,
