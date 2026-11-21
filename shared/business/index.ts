@@ -11,7 +11,7 @@ export { dataManagementCommandSchema, dataManagementFieldName, dataManagementMod
 export { dataManagementTemplate } from './data-management-templates.js';
 export { UNPRICED_TEXT, amountText, priceText, sizeText, specLine, taxText } from './display-text.js';
 export { ARRIVAL_HISTORY_TITLE, arrivalProgressText, purchaseState, purchaseStatusLabel, purchaseStatusOptions, recordNames } from './labels.js';
-export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementSourceKinds, movementTypeLabel, movementTypeOf, movementTypes } from './movement-filters.js';
+export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementSource, movementSourceKinds, movementTypeLabel, movementTypeOf, movementTypes } from './movement-filters.js';
 export type { MovementFilters } from './movement-filters.js';
 export { arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineAmount, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, sheetArea, stockItemSchema, stockKindNames, stockKinds, sumMoney, supplierSchema } from './operations.js';
 export type { ArrivalItem } from './operations.js';

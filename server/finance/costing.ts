@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { periodSchema } from '../../shared/finance/index.js';
 import { errorMessage } from '../../shared/core/index.js';
@@ -9,11 +10,12 @@ import { FinanceLedger } from './ledger.js';
 import { entryNet, expectedVoucher, jobVoucherNet, periodJob, periodJobResult, sameNet, withdrawJob } from './jobs.js';
 import { id, pageSql, request } from './query.js';
 import { financeFacts } from '../flow/index.js';
-import { movementSource, openingStocks, unbookedVoidArrivals, type Mark } from './costing-source.js';
+import { unbookedVoidArrivals } from './costing-arrivals.js';
 import { invoiceAdjustments } from './costing-invoice-adjust.js';
 import { computeCosting } from './costing-compute.js';
-import { costingDetails, manual, markOf, opening, readCostingDetails } from './costing-details.js';
+import { costingDetails, manual, markOf, opening, readCostingDetails, type Mark } from './costing-details.js';
 import type { Item } from './costing-month.js';
+import { movementSource } from '../../shared/business/index.js';
 import { costingJob, lateMovements, originsOf } from './costing-origins.js';
 import { adjacentPeriod, endOfMonth } from './periods.js';
 import { readFinanceSettings } from './settings.js';
@@ -37,6 +39,22 @@ const openingOf = (items: Item[]): Opening[] =>
   items
     .filter((r) => r.openingQty || r.openingCents)
     .map((r) => ({ stockId: r.stockId, unit: r.unit, quantity: r.openingQty, amount: r.openingCents }));
+
+const costedStock = tableRows.fin_inventory_costs.pick({ stock_id: true });
+/** start 以前还有结存（不算 exclude 的到货）、previous 月份没有算过成本的库存品（启用月要填期初成本的），原材料在前、按名称排 */
+function openingStocks(db: DatabaseSync, start: string, previous: string, exclude: readonly string[]) {
+  const balances = financeFacts.stock.openingBalances(db, start, exclude);
+  const costed = new Set(
+    many(
+      db,
+      costedStock,
+      'SELECT stock_id FROM fin_inventory_costs WHERE period=? AND stock_id IN (SELECT value FROM json_each(?))',
+      previous,
+      JSON.stringify(balances.map((b) => b.stockId)),
+    ).map((r) => r.stock_id),
+  );
+  return balances.filter((b) => !costed.has(b.stockId));
+}
 
 export class FinanceCosting {
   private ledger: FinanceLedger;

@@ -5,7 +5,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { movementSourceKinds, stockKinds } from '../../../shared/business/index.js';
+import { movementSource, movementSourceKinds, stockKinds } from '../../../shared/business/index.js';
 import { count, many, rows } from '../../core/index.js';
 
 /** SQL 里写的流水来源（stock_movements.source_kind）：只收 movementSourceKinds 里有的 */
@@ -29,7 +29,7 @@ const existedBy = (asOf: Recorded | undefined, alias: string) => (asOf ? recorde
  * 不要的流水（SQL 条件，参数是 exclude 的 JSON）：到货单编号在 exclude 里的到货入库和冲回。
  * 写成不相关的 IN：列表只建一次，不随每条流水重扫；coalesce 让来源编号空着的流水（IN 得 NULL）留下。
  */
-const excluded = (m: string) => `(${m}.source_kind IN (${source('flow_arrival')},${source('flow_reversal')})
+const excluded = (m: string) => `(${m}.source_kind IN (${source(movementSource.arrival)},${source(movementSource.reversal)})
   AND coalesce(${m}.source_id IN (SELECT value FROM json_each(?)),0))`;
 
 const movement = rows.stock_movements.shape;
@@ -138,10 +138,10 @@ function manualMovements(db: DatabaseSync, q: { from: string; to: string; ids: r
         FROM stock_movements m JOIN stock_items s ON s.id=m.item_id
         WHERE (m.date BETWEEN ? AND ? OR m.id IN (SELECT value FROM json_each(?)))
         AND NOT ${excluded('m')}
-        AND NOT (m.source_kind=${source('flow_production')})
-        AND NOT (m.source_kind=${source('purchase_return')})
-        AND NOT (m.delta_units>0 AND m.source_kind=${source('flow_arrival')})
-        AND NOT (m.delta_units<0 AND s.kind='finished' AND m.source_kind=${source('flow_delivery')})
+        AND NOT (m.source_kind=${source(movementSource.production)})
+        AND NOT (m.source_kind=${source(movementSource.purchaseReturn)})
+        AND NOT (m.delta_units>0 AND m.source_kind=${source(movementSource.arrival)})
+        AND NOT (m.delta_units<0 AND s.kind='finished' AND m.source_kind=${source(movementSource.delivery)})
         ORDER BY m.date,m.rowid`,
     q.from,
     q.to,
@@ -201,7 +201,7 @@ function completionOriginals(db: DatabaseSync, keys: readonly ReversalKey[]) {
     completionOriginal,
     `SELECT j.key AS i,m.id,m.delta_units,m.date FROM json_each(?) j
         JOIN flow_documents f ON f.id=cast(${keyOn('sourceId')} AS INTEGER) AND f.kind='production'
-        JOIN stock_movements m ON m.source_kind=${source('flow_production')} AND m.source_id=${keyOn('sourceId')}
+        JOIN stock_movements m ON m.source_kind=${source(movementSource.production)} AND m.source_id=${keyOn('sourceId')}
           AND m.item_id=${keyOn('itemId')} AND m.delta_units>0
         ORDER BY j.key,m.rowid`,
     JSON.stringify(keys),
@@ -223,7 +223,7 @@ function undoneArrivals(
     db,
     undoneArrival,
     `SELECT DISTINCT m.source_id,m.item_id FROM stock_movements m
-      WHERE m.source_kind=${source('flow_reversal')} AND m.source_id IS NOT NULL AND m.date<=?
+      WHERE m.source_kind=${source(movementSource.reversal)} AND m.source_id IS NOT NULL AND m.date<=?
       AND m.item_id IN (SELECT value FROM json_each(?)) AND ${existed.sql}
       AND EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(m.source_id AS INTEGER) AND f.kind='arrival' AND f.status='reversed')
       AND NOT ${excluded('m')}`,
@@ -270,7 +270,7 @@ function deliveryOutflows(db: DatabaseSync, period: string) {
         sum(-m.delta_units) AS quantity
       FROM stock_movements m JOIN stock_items s ON s.id=m.item_id LEFT JOIN orders o ON o.id=m.customer_order_id
       JOIN flow_documents f ON f.id=cast(m.source_id AS INTEGER) AND f.kind='delivery' AND f.status='confirmed'
-      WHERE m.source_kind=${source('flow_delivery')} AND m.delta_units<0 AND substr(m.date,1,7)=?
+      WHERE m.source_kind=${source(movementSource.delivery)} AND m.delta_units<0 AND substr(m.date,1,7)=?
       GROUP BY m.customer_order_id,o.customer_id,s.product_id,m.item_id`,
     period,
   );

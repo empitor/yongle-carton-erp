@@ -1,23 +1,10 @@
 /**
- * 成本计算自己的判断：哪些到货不计成本（撤销了又没记过账的）、到货流水按哪条财务事件计价、启用月要填期初成本的库存品。
- * 库存流水、库存品、冲销对应的原流水这些业务数据从只读窗口 financeFacts.stock 拿（server/flow/finance-facts/stock.ts）。
- * 流水来源的叫法（stock_movements.source_kind）按共用业务的 movementSourceKinds 核对。
+ * 成本计算对到货的判断：哪些到货不计成本（撤销了又没记过账的）、到货流水按哪条财务事件计价。
+ * 只读财务自己的表；“到货单已撤销”由调用方从只读窗口 financeFacts.stock.reversedArrivals 取好传进来。
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import type { movementSourceKinds } from '../../shared/business/index.js';
 import { many, one, rows } from '../core/index.js';
-import { financeFacts } from '../flow/index.js';
-
-/** 库存流水的来源（stock_movements.source_kind），成本计算按它分入库、出库、冲销 */
-export const movementSource = {
-  arrival: 'flow_arrival',
-  delivery: 'flow_delivery',
-  production: 'flow_production',
-  reversal: 'flow_reversal',
-  purchaseReturn: 'purchase_return',
-  manual: 'manual',
-} as const satisfies Record<string, (typeof movementSourceKinds)[number]>;
 
 const arrivalId = z.object({ id: z.string() });
 /**
@@ -77,23 +64,4 @@ export function arrivalEvents(db: DatabaseSync, arrivalIds: readonly string[], r
   const events = new Map<string, ArrivalEvent | undefined>();
   for (const { arrival, ...event } of observed) events.set(arrival, undone.has(arrival) ? booked.get(arrival) : event);
   return events;
-}
-
-/** 某次成本计算的时间点：那次计算的时间，和当时库存流水的最大行号。 */
-export type Mark = { ranAt: string; maxRowid: number };
-
-const costedStock = rows.fin_inventory_costs.pick({ stock_id: true });
-/** start 以前还有结存（不算 exclude 的到货）、previous 月份没有算过成本的库存品（启用月要填期初成本的），原材料在前、按名称排 */
-export function openingStocks(db: DatabaseSync, start: string, previous: string, exclude: readonly string[]) {
-  const balances = financeFacts.stock.openingBalances(db, start, exclude);
-  const costed = new Set(
-    many(
-      db,
-      costedStock,
-      'SELECT stock_id FROM fin_inventory_costs WHERE period=? AND stock_id IN (SELECT value FROM json_each(?))',
-      previous,
-      JSON.stringify(balances.map((b) => b.stockId)),
-    ).map((r) => r.stock_id),
-  );
-  return balances.filter((b) => !costed.has(b.stockId));
 }

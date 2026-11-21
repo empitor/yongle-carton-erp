@@ -6,7 +6,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { financeSourceSchemas, financialContent, flowDocumentSchema, toFinanceSource } from '../../../shared/business/index.js';
+import { financeSourceSchemas, financialContent, flowDocumentSchema, movementSource, toFinanceSource } from '../../../shared/business/index.js';
 import type { FinanceSource } from '../../../shared/business/index.js';
 import { many, parseStoredJson } from '../../core/index.js';
 
@@ -113,11 +113,13 @@ function arrivalReversalDates(db: DatabaseSync, ids: readonly string[]) {
     db,
     reversalDates,
     `SELECT j.value AS id,
-      (SELECT max(r.date) FROM stock_movements r WHERE r.source_kind='flow_reversal' AND r.source_id=j.value
+      (SELECT max(r.date) FROM stock_movements r WHERE r.source_kind=? AND r.source_id=j.value
         AND EXISTS(SELECT 1 FROM flow_documents u WHERE u.id=cast(j.value AS INTEGER) AND u.kind='arrival' AND u.status='reversed')) AS own,
-      (SELECT max(r.date) FROM flow_documents u JOIN stock_movements r ON r.source_kind='flow_reversal' AND r.source_id=cast(u.id AS TEXT)
+      (SELECT max(r.date) FROM flow_documents u JOIN stock_movements r ON r.source_kind=? AND r.source_id=cast(u.id AS TEXT)
         WHERE u.replaced_by=cast(j.value AS INTEGER) AND u.kind='arrival' AND u.status='reversed') AS replaced
     FROM json_each(?) j`,
+    movementSource.reversal,
+    movementSource.reversal,
     JSON.stringify(ids),
   );
   return new Map(found.map(({ id, ...dates }) => [id, dates]));
