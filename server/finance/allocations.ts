@@ -23,7 +23,6 @@ import { FinanceLedger } from './ledger.js';
 import { allocationSum, obligationBaseDate } from './obligation-sql.js';
 import { edit, entry, id, label, row } from './query.js';
 import { isReversed } from './reversal-pairs.js';
-import { snapshotNumber } from './source-snapshot.js';
 import { discount, snapshotOptions } from './terms.js';
 
 /** 请求号最长 100 字；撤销用的子请求号超长时截前 60 字再接上编号和后缀 */
@@ -77,7 +76,7 @@ export class FinanceAllocations {
       `SELECT * FROM (SELECT o.*,${obligationBaseDate('o')} AS base_date,
       o.amount_cents-${allocationSum('a.obligation_id=o.id')} AS balance,
       (SELECT min(i.due_date) FROM fin_installments i WHERE i.obligation_id=o.id) AS first_installment,
-      (SELECT ${snapshotNumber('e.snapshot')} FROM fin_events e WHERE e.id=o.event_id) AS source_number
+      (SELECT e.source_number FROM fin_events e WHERE e.id=o.event_id) AS source_number
       FROM fin_obligations o LEFT JOIN fin_vouchers v ON v.id=o.voucher_id WHERE o.kind=? AND o.party_id=? AND o.date<=?
       AND o.tax_status<>'superseded' AND (o.voucher_id IS NULL OR v.status='posted') AND NOT ${isReversed('o')}
       ) WHERE balance>0 ORDER BY coalesce(first_installment,due_date,date),date,id LIMIT 100`,

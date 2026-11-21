@@ -5,7 +5,8 @@ import { taxModes } from '../../shared/finance/index.js';
 
 /*
  * 财务事件存的来源单据快照（fin_events.snapshot）：同步时（events.ts）写，补财务资料、红字冲销并重做时
- * （event-handling.ts）在上面改；生成凭证、“改了什么”、成本计算、发票匹配读。写、读都按这里的结构核对。
+ * （event-handling.ts）在上面改，都经 event-columns.ts 和从它取出来的几列一起写；生成凭证、“改了什么”、成本计算、
+ * 发票匹配读。写、读都按这里的结构核对。往来单位、单号、理论金额、缺税率按 SQL 查的时候读列，不按 JSON 路径读快照。
  */
 
 const { delivery, arrival, production, stock } = financeSourceSchemas;
@@ -42,18 +43,16 @@ const missingKinds = ['tax', 'quantity', 'price'] as const;
 
 /**
  * 一条财务事件的快照。启用前的单据只记一个空的 {}，所以每项都可能没有。
- * previous 是被它接手的上一条事件（编号、指纹、状态），“改了什么”沿着它往前找。
+ * 被它接手的上一条（fin_events.previous_event_id、previous_status）和同步时按单据内容算出的金额（document_cents）只存在列里。
  */
 const eventSnapshot = z.strictObject({
   doc: financeSourceDocument.optional(),
   money: documentMoney.nullable().optional(),
-  documentAmount: z.number().nullable().optional(),
   taxSource: z.array(taxSourceItem).optional(),
   theoretical: documentMoney.nullable().optional(),
   financialLines: z.array(financialLine).optional(),
   missing: z.array(z.enum(missingKinds)).optional(),
   warnings: z.array(z.string()).optional(),
-  previous: z.strictObject({ eventId: z.number(), hash: z.string(), status: z.string() }).nullable().optional(),
   evidence: z.string().optional(),
 });
 export type EventSnapshot = z.output<typeof eventSnapshot>;
@@ -81,29 +80,14 @@ export function snapshotText(snapshot: EventSnapshot): string {
 }
 
 /*
- * 事件快照里单据字段的取法。快照的 doc 是来源的财务口径（加上单号），
- * 财务别处取单号、往来单位、明细都走这几个，不各写一遍 JSON 路径。
- * column 是快照所在的列或表达式（默认 snapshot）；root 是快照在那段 JSON 里的位置（默认整段就是快照）。
+ * 事件快照里单据明细和单号的取法（单号、往来单位在 SQL 里读 fin_events 的列，见 event-columns.ts）。
+ * column 是快照所在的列或表达式（默认 snapshot）。
  */
-
-/** 单据的单号：单据号，没有时退用对方单号；再没有时用 fallback（SQL 表达式）。 */
-export const snapshotNumber = (column = 'snapshot', fallback?: string, root = '$') =>
-  `coalesce(json_extract(${column},'${root}.doc.number'),json_extract(${column},'${root}.doc.reference')${
-    fallback ? ',' + fallback : ''
-  })`;
-
-/** 单据上的往来单位名称：客户名，没有时取供应商名。 */
-export const snapshotPartyName = (column = 'snapshot', root = '$') =>
-  `coalesce(json_extract(${column},'${root}.doc.customerName'),json_extract(${column},'${root}.doc.supplierName'))`;
-
-/** 单据上往来单位编号的 JSON 路径 */
-export const snapshotPartyIdPath = (kind: 'customer' | 'supplier') =>
-  kind === 'customer' ? '$.doc.customerId' : '$.doc.supplierId';
 
 /** 逐行展开单据明细（json_each，行在 value 里，行号在 key 里） */
 export const snapshotLines = (column = 'snapshot') => `json_each(${column},'$.doc.lines')`;
 
-/** JS 里取单号：单据号，没有时退用对方单号，再没有用 fallback。 */
+/** 取单号：单据号，没有时退用对方单号，再没有用 fallback（fin_events.source_number 按它算，fallback 不进列）。 */
 export function documentNumber(
   doc: { number?: string; reference?: string } | null | undefined,
   fallback: string | null = null,

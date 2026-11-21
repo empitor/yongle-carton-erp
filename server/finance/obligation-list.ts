@@ -16,11 +16,9 @@ import {
   reversedCents,
 } from './reversal-pairs.js';
 import { allocationSum, latestSourceVoucher, voucherColumns } from './obligation-sql.js';
-import { snapshotNumber } from './source-snapshot.js';
 
 /** 往来来源单据的号：送货单号、到货单号（没有单号的取对方单号）；手工记的往来没有。 */
-const sourceNumber = (o: string) =>
-  `(SELECT ${snapshotNumber('e.snapshot')} FROM fin_events e WHERE e.id=${o}.event_id)`;
+const sourceNumber = (o: string) => `(SELECT e.source_number FROM fin_events e WHERE e.id=${o}.event_id)`;
 
 /**
  * 没有来源单据的往来是哪一种：期初往来（opening）、压款利息（interest，凭证由利息功能生成）；

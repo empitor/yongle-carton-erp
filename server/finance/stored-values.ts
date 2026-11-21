@@ -54,7 +54,7 @@ export const eventTypes = [
   'arrival.corrected',
 ] as const;
 
-/** fin_events.status；最后两个（被新版本替代、启用前的单据）不在事件列表里出现 */
+/** fin_events.status、fin_events.previous_status（上一条被接手时的状态）；最后两个（被新版本替代、启用前的单据）不在事件列表里出现 */
 export const eventStatuses = [
   'ready',
   'info_pending',
@@ -89,7 +89,7 @@ export const templateNames = [
   'inventory',
 ] as const;
 
-/** fin_party_terms.kind、fin_deposits.party_kind：往来单位是客户还是供应商 */
+/** fin_party_terms.kind、fin_deposits.party_kind、fin_events.party_kind：往来单位是客户还是供应商 */
 export const partyKinds = ['customer', 'supplier'] as const;
 
 /** fin_obligations.kind、fin_statements.kind、fin_notes.kind：应收还是应付 */

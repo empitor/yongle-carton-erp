@@ -12,7 +12,7 @@ import { FinanceParties } from './parties.js';
 import { entry, pageSql, request } from './query.js';
 import { activeCashAllocation, allocationReversalMessage } from './obligation-sql.js';
 import { sourceReversed } from './business-source.js';
-import { documentNumber, readSnapshot, snapshotNumber } from './source-snapshot.js';
+import { documentNumber, readSnapshot } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
 import { unseenSources } from './events.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
@@ -106,7 +106,7 @@ export class FinanceReports {
     const blocked = many(
       this.db,
       readinessRow,
-      `SELECT id,source_kind,source_id,${snapshotNumber()} AS number,date,amount_cents,problem,
+      `SELECT id,source_kind,source_id,source_number AS number,date,amount_cents,problem,
       reversed OR status='awaiting_allocation_reversal' AS reverse_pending,snapshot
       ${query} ORDER BY date,id LIMIT ${READINESS_ROWS}`,
       ...bounds,
