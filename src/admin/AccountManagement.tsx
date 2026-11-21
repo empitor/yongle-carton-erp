@@ -45,11 +45,7 @@ export default function AccountManagement({
         }
       />
       <SuperModeNotice what="新建和修改账号、处理申请" />
-      {!selected && !confirm && error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      {!selected && !confirm && <FormMessage>{error}</FormMessage>}
       {requests.length > 0 && (
         <RequestTable
           requests={requests}

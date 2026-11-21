@@ -34,10 +34,11 @@ export default {
       },
     ],
     'media-feature-name-value-allowed-list': [
+      // 特性名不分大小写、device-width 一系也算（MAX-WIDTH、max-device-width 不能绕过）
       {
-        'max-width': [/^([1-6]\d\d|700)px$/, desktopWidth],
-        'min-width': ['701px', desktopWidth],
-        width: [],
+        '/^max-(device-)?width$/i': [/^([1-6]\d\d|700)px$/, desktopWidth],
+        '/^min-(device-)?width$/i': ['701px', desktopWidth],
+        '/^(device-)?width$/i': [],
       },
       { message: breakpointMessage },
     ],
