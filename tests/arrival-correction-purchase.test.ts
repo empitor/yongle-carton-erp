@@ -7,8 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import { AssistantTools } from '../server/assistant/tools.js';
@@ -30,15 +29,11 @@ type Receipt = PurchaseView['receipts'][number];
 
 /** 一张已订货的采购单：count 种纸板各 10000 张、单价 2.1234；arrival(各行数量, 送货单号) 存一张挂采购明细的到货单 */
 function fixture(count = 1) {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const supplier = ops.saveSupplier({ name: '虚构履约供应商' }, actor);
+  const base = businessBase(actor),
+    { store, ops, flow } = base;
+  const supplier = base.supplier({ name: '虚构履约供应商' });
   const items = Array.from({ length: count }, (_, i) =>
-    ops.saveItem(
-      { name: '虚构纸板' + (i + 1), kind: 'raw', unit: '张', specification: '规格' + (i + 1), length: 100, width: 80, dimensionUnit: 'cm', material: 'K=A', flute: 'BC' },
-      actor,
-    ),
+    base.raw({ name: '虚构纸板' + (i + 1), specification: '规格' + (i + 1), length: 100, width: 80, dimensionUnit: 'cm', material: 'K=A', flute: 'BC' }),
   );
   const purchase = ops.savePurchase(
     {
@@ -51,8 +46,7 @@ function fixture(count = 1) {
   );
   const current = () =>
     new OperationsRepository(store).purchases(true).find((p) => p.id === purchase.id) ?? assert.fail('采购单 ' + purchase.id + ' 读不到');
-  const confirm = (d: { id: number }) =>
-    flow.confirm(d.id, { previewDigest: flow.preview(d.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+  const confirm = (d: { id: number }) => base.check(d);
   const arrival = (quantities = ['10000'], reference: string = randomUUID()) =>
     saveDoc(
       flow,

@@ -1,5 +1,5 @@
 // 识别工作区的维护：归档保留、永久删除真删；删掉到货后解除引用；归档的可以直接改、直接删；已正式导入的可以改、撤销、归档，不重复导入。
-import { pageActor, actor as fixtureActor } from './actor-fixture.js';
+import { pageActor, actor as fixtureActor, grant } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -127,7 +127,7 @@ test('归档的工作区可以直接编辑并保留归档状态，也可以不�
 test('已正式导入的工作区可由本机管理员编辑、撤销和归档，正式订单及来源回执不被重复执行', async () => {
   const f = createOrderWorkflowFixture(undefined, { agent: { autoConfirm: true } });
   try {
-    const user = { ...fixtureActor, permissions: ['business:edit', 'import:execute'] };
+    const user = { ...fixtureActor, permissions: grant('business:edit', 'import:execute') };
     const attachment = await f.manager.attachments.upload(
       f.thread.id,
       imageFixture(),

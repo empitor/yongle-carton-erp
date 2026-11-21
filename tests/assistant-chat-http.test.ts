@@ -8,8 +8,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { z } from 'zod';
 import { assistantFixture, autoConfirmAssistant, lastCard, secret } from './assistant-fixture.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { OperationsService } from '../server/operations/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { createBusinessService } from '../server/business/service.js';
 import { startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
@@ -32,7 +31,7 @@ test('重开业务库和提示词库：会话、改过的提示词都在，档�
   let files = open();
   let f = assistantFixture([call('records.search', { module: 'customers' }), { message: '已查到。' }], { store: files.store });
   try {
-    const customer = files.store.saveCustomer(customerSchema.parse({ name: '虚构持久客户' }));
+    const customer = businessBase(actor, files.store).customer({ name: '虚构持久客户' });
     const v = files.prompts.view(),
       preset = { ...structuredClone(v.presets[0]), name: '独立全局持久预设' };
     files.prompts.change('save', { expectedRevision: v.revision, preset, activate: true });
@@ -56,7 +55,7 @@ test('重开业务库和提示词库：会话、改过的提示词都在，档�
 test('当前记录从服务器读给模型（不信页面带来的内容）：查询给出结果链接、流式发草稿，不写库，回复里没有密钥', async () => {
   const f = assistantFixture([call('records.search', { module: 'products', filters: { q: '虚构' } }), { message: '找到了虚构纸箱。' }]);
   try {
-    const p = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱', requirements: '原始后端备注' }));
+    const p = businessBase(actor, f.store).product({ name: '虚构纸箱', requirements: '原始后端备注' });
     const result = await f.say(f.manager.create(actor).id, '查询当前产品', { context: { page: '#products', module: 'products', id: p.id } });
     assert.equal(result.messages.at(-1)?.links?.[0].url, '#products?q=' + encodeURIComponent(p.name));
     assert.match(JSON.stringify(f.requests[0].body), /原始后端备注/);
@@ -71,11 +70,10 @@ test('当前记录从服务器读给模型（不信页面带来的内容）：�
 test('改当前记录：确认写入后给页面发业务刷新事件', async () => {
   const f = autoConfirmAssistant();
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-      product = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
-    const order = f.store.saveOrder(
-      orderSchema.parse({ customerId: customer.id, orderDate: '2026-10-25', deliveryDate: '2026-10-30', status: '已确认', lines: [{ productId: product.id, productName: product.name, quantity: 100, unit: '只', unitPriceCents: 100 }] }),
-    );
+    const base = businessBase(actor, f.store),
+      customer = base.customer({ name: '虚构客户' }),
+      product = base.product({ name: '虚构纸箱' });
+    const order = base.order(customer, [base.line(product, 100, { productName: product.name })], { orderDate: '2026-10-25', deliveryDate: '2026-10-30' });
     f.replies.push(call('records.propose_save', { module: 'orders', id: order.id, patch: { deliveryDate: '2027-01-02' } }));
     await f.say(f.manager.create(actor).id, '把当前订单交期改为2027-01-02', { context: { page: '#orders', module: 'orders', id: order.id } });
     assert.equal(f.store.order(order.id)?.deliveryDate, '2027-01-02');
@@ -88,7 +86,7 @@ test('改当前记录：确认写入后给页面发业务刷新事件', async ()
 test('写入只出卡片：没点不写；别的登录会话点不了；点了走业务校验，再点拿回原结果不重复写；不能冒充人工或助手来源', async () => {
   const f = assistantFixture();
   try {
-    const p = f.store.saveProduct(productSchema.parse({ name: '纸箱', requirements: '旧备注' }));
+    const p = businessBase(actor, f.store).product({ name: '纸箱', requirements: '旧备注' });
     f.replies.push(call('records.propose_save', { module: 'products', id: p.id, patch: { requirements: '人工确认后更新' } }));
     const plan = lastCard(await f.say(f.manager.create(actor).id, '修改这个产品的加工要求'));
     assert.equal(plan.state, 'waiting');
@@ -112,7 +110,7 @@ test('写入只出卡片：没点不写；别的登录会话点不了；点了�
 test('清空会话：没点的卡片作废，再点不执行', async () => {
   const f = assistantFixture();
   try {
-    const p = f.store.saveProduct(productSchema.parse({ name: '测试产品' })),
+    const p = businessBase(actor, f.store).product({ name: '测试产品' }),
       t = f.manager.create(actor);
     f.replies.push(call('records.propose_save', { module: 'products', id: p.id, patch: { requirements: '新' } }));
     const plan = lastCard(await f.say(t.id, '改备注'));
@@ -162,8 +160,9 @@ test('经接口聊天和点卡片：未登录 401、没页面凭证 403；高风
     assert.equal((await req('/assistant/previews/' + plan.id + '/execute', { acknowledged: true })).status, 200);
     assert.equal(f.store.customers().at(0)?.name, '待审核客户');
     await req('/auth/super-admin/enter', { password });
-    const ops = new OperationsService(f.store),
-      item = ops.saveItem({ name: '高风险HTTP验收纸板', kind: 'raw', unit: '张' }, actor);
+    const base = businessBase(actor, f.store),
+      { ops } = base,
+      item = base.raw({ name: '高风险HTTP验收纸板' });
     f.replies.push(call('inventory.propose_movement', { id: item.id, action: 'in', quantity: '5', date: '2026-10-25', notes: '人工核对测试' }));
     await (await req('/assistant/threads/' + t.id + '/chat', f.input('增加5张库存', randomUUID()))).text();
     const high = await lastPlan();

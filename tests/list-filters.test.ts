@@ -13,8 +13,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { listen } from './http-fixture.js';
-import { OperationsService } from '../server/operations/service.js';
-import { today, customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { today, orderSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';
 import { initialMovementRange, movementFilterSchema } from '../shared/business/movement-filters.js';
 import { operationalSearchText } from '../shared/business/business-metrics.js';
@@ -36,13 +36,13 @@ const actor = pageActor({ id: 'ui', name: '虚构操作员', permissions: ['busi
  * 靠订单明细、采购单关联出来；页面接口和助手查询是同一套。全部虚构数据。
  */
 function fixture() {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store);
-  const a = store.saveCustomer(customerSchema.parse({ name: '虚构甲客户' })),
-    b = store.saveCustomer(customerSchema.parse({ name: '虚构乙客户' }));
-  const boxA = store.saveProduct(productSchema.parse({ name: '虚构甲箱' })),
-    boxB = store.saveProduct(productSchema.parse({ name: '虚构乙箱' })),
-    idle = store.saveProduct(productSchema.parse({ name: '虚构没人订的箱' }));
+  const base = businessBase(assistantActor),
+    { store, ops } = base;
+  const a = base.customer({ name: '虚构甲客户' }),
+    b = base.customer({ name: '虚构乙客户' });
+  const boxA = base.product({ name: '虚构甲箱' }),
+    boxB = base.product({ name: '虚构乙箱' }),
+    idle = base.product({ name: '虚构没人订的箱' });
   const order = (customerId: number, product: { id: number; name: string }) =>
     store.saveOrder(
       orderSchema.parse({
@@ -57,12 +57,12 @@ function fixture() {
     );
   order(a.id, boxA);
   order(b.id, boxB);
-  const finishedA = ops.saveItem({ name: boxA.name, kind: 'finished', unit: '只', productId: boxA.id }, assistantActor),
-    finishedB = ops.saveItem({ name: boxB.name, kind: 'finished', unit: '只', productId: boxB.id }, assistantActor);
-  const s1 = ops.saveSupplier({ name: '虚构一号纸板厂' }, assistantActor),
-    s2 = ops.saveSupplier({ name: '虚构二号纸板厂' }, assistantActor);
-  const board1 = ops.saveItem({ name: '虚构纸板一', kind: 'raw', unit: '张' }, assistantActor),
-    board2 = ops.saveItem({ name: '虚构纸板二', kind: 'raw', unit: '张' }, assistantActor);
+  const finishedA = base.finished(boxA, { name: boxA.name }),
+    finishedB = base.finished(boxB, { name: boxB.name });
+  const s1 = base.supplier({ name: '虚构一号纸板厂' }),
+    s2 = base.supplier({ name: '虚构二号纸板厂' });
+  const board1 = base.raw({ name: '虚构纸板一' }),
+    board2 = base.raw({ name: '虚构纸板二' });
   const purchase = (supplierId: number, item: StockItemView) =>
     ops.savePurchase(
       {
@@ -135,16 +135,16 @@ test('仓库每次只选中一个视图，分页边界正确', () => {
  * 今天还有一笔按采购单到货 3 张和 26 笔原材料入库（一共 32 笔流水）。
  */
 function movementHistory() {
-  const store = new Store(':memory:'),
-    service = new OperationsService(store),
-    actor = pageActor({ id: 'flow-test', name: '虚构仓库验收', permissions: ['business:edit'] });
+  const actor = pageActor({ id: 'flow-test', name: '虚构仓库验收', permissions: ['business:edit'] }),
+    base = businessBase(actor),
+    { store, ops: service } = base;
   const date = today(),
     start = monthsBefore(date, 2),
     old = monthsBefore(date, 3);
-  const raw = service.saveItem({ name: '测试原材料纸板', kind: 'raw', unit: '张' }, actor),
+  const raw = base.raw({ name: '测试原材料纸板' }),
     // 成品一定关联产品
-    boxed = store.saveProduct(productSchema.parse({ name: '测试成品纸箱' })),
-    finished = service.saveItem({ name: '测试成品纸箱', kind: 'finished', unit: '只', productId: boxed.id }, actor);
+    boxed = base.product({ name: '测试成品纸箱' }),
+    finished = base.finished(boxed, { name: '测试成品纸箱' });
   const move = (id: number, action: string, quantity: string, date: string, notes: string) => {
     const item = new OperationsRepository(store).items().find((r) => r.id === id);
     assert.ok(item);
@@ -167,7 +167,7 @@ function movementHistory() {
   move(raw.id, 'adjust', '40', date, '人工盘点');
   move(finished.id, 'in', '100', old, '历史成品入库');
   move(finished.id, 'out', '10', date, '成品出库');
-  const supplier = service.saveSupplier({ name: '流水测试供应商' }, actor),
+  const supplier = base.supplier({ name: '流水测试供应商' }),
     p = service.savePurchase(
       {
         supplierId: supplier.id,
@@ -266,14 +266,14 @@ test('列表分页：不带页码保持全量，页码超出落到最后一页�
 });
 
 test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿到全量，采购可按主键读取', async () => {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构箱' })),
-    supplier = ops.saveSupplier({ name: '虚构供应商' }, actor),
+  const base = businessBase(actor),
+    { store, ops } = base,
+    customer = base.customer({ name: '虚构客户' }),
+    product = base.product({ name: '虚构箱' }),
+    supplier = base.supplier({ name: '虚构供应商' }),
     // 成品一定关联产品：另建一个，不碰订单上的产品
-    stocked = store.saveProduct(productSchema.parse({ name: '虚构成品' })),
-    stock = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: stocked.id }, actor);
+    stocked = base.product({ name: '虚构成品' }),
+    stock = base.finished(stocked, { name: '虚构成品' });
   const orders = [1, 2, 3].map((n) =>
     store.saveOrder(
       orderSchema.parse({
@@ -369,10 +369,11 @@ test('产品、库存列表接口按客户和供应商筛', async () => {
 });
 
 test('顶栏搜索的供应商和供应商页同一份文字：地址、备注也能搜到', (t) => {
-  const store = new Store(':memory:');
+  const base = businessBase(actor),
+    { store } = base;
   t.after(() => store.close());
   const fields = { name: '虚构搜索供应商', contact: '虚构联系人', phone: '0574-0001', address: '虚构路二号', notes: '虚构备注词' };
-  new OperationsService(store).saveSupplier(fields, actor);
+  base.supplier(fields);
   const suppliers = new OperationsRepository(store).suppliers();
   const item = catalogItems({ orders: [], customers: [], products: [], purchases: [], suppliers }).find((i) => i.group === '供应商');
   assert.ok(item);

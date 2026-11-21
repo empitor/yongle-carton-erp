@@ -64,8 +64,7 @@ test('生产任务视图带上待入库的完工数（pendingCompleted），和�
     // 核对入库以后：算进已完工，不再算待入库
     const doc = f.flow.list('production').find((p) => p.taskId === id);
     assert.ok(doc);
-    const check = f.flow.preview(doc.id, actor);
-    f.flow.confirm(doc.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    f.base.check(doc, {}, actor);
     assert.deepEqual([f.flow.get(id, 'task').completed, f.flow.get(id, 'task').pendingCompleted], ['1', '0']);
     // 再登记 2 只待入库，然后取消这张完工单：取消的不算在等核对入库
     new ProductionCompletion(f.store).execute(one('2'), actor);

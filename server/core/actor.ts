@@ -1,4 +1,4 @@
-import type { AuditSource, UserRole } from '../../shared/core/index.js';
+import type { AuditSource, Permission, UserRole } from '../../shared/core/index.js';
 
 /**
  * 登录后的账号（谁在操作）。基础里各文件共用的类型，放在最底下，只被引用、不引用别的文件。
@@ -12,7 +12,8 @@ export type Actor = {
   source: AuditSource;
   id: string;
   name: string;
-  permissions: string[];
+  /** 只收权限名单里的名字（shared/core/accounts.ts），写错编译不过 */
+  permissions: Permission[];
   role?: UserRole;
   superAdminUntil?: number;
   superAdminMode?: boolean;

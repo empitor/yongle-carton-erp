@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { customerSchema, orderSchema, productSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { editableFields } from '../server/assistant/tools/card-summary.js';
 import { InboxService } from '../server/inbox/service.js';
 import { OrderBatchService } from '../server/operations/batches.js';
@@ -24,18 +25,16 @@ function setup() {
     who = localAdministratorActor(superActor()),
     tools = f.manager.tools;
   const prepare = (tool: string, args: unknown) => tools.prepare(tool, args, who, 'card');
-  const customer = (name: string) => f.store.saveCustomer(customerSchema.parse({ name, phone: '222' }));
-  const product = (name: string) => f.store.saveProduct(productSchema.parse({ name }));
+  const base = businessBase(who, f.store);
+  const customer = (name: string) => base.customer({ name, phone: '222' });
+  const product = (name: string) => base.product({ name });
   const order = (customerId: number, productId: number) =>
-    f.store.saveOrder(
-      orderSchema.parse({ customerId, orderDate: '2026-10-01', deliveryDate: '2026-11-30', status: '已确认', lines: [{ productId, quantity: 100, unit: '只', unitPriceCents: 100 }] }),
-    );
+    base.order({ id: customerId }, [base.line({ id: productId }, 100)], { orderDate: '2026-10-01', deliveryDate: '2026-11-30' });
   // 采购库存的保存函数没有写返回类型，按用到的几列读出来
-  const supplier = (name: string) => saved.parse(tools.ops.saveSupplier({ name }, who));
-  const item = (fields: Record<string, unknown>) => saved.parse(tools.ops.saveItem(fields, who));
-  const rawItem = (name: string) => item({ name, kind: 'raw', unit: '张' });
+  const supplier = (name: string) => saved.parse(base.supplier({ name }));
+  const rawItem = (name: string) => saved.parse(base.raw({ name }));
   const purchase = (fields: Record<string, unknown>) => numbered.parse(tools.ops.savePurchase(fields, who));
-  return { f, who, tools, prepare, customer, product, order, supplier, item, rawItem, purchase };
+  return { f, who, tools, prepare, base, customer, product, order, supplier, rawItem, purchase };
 }
 
 test('每种记录人能改的字段（卡片上一个都不能漏）按参数结构读出来，字段和先后不变', () => {
@@ -243,13 +242,12 @@ test('到货、库存、生产任务、收件的卡片：单据每行、库存�
 });
 
 test('送货出库、更正送货单、换订单、订单换客户：连带改到的记录和库存前后逐字不变', () => {
-  const { f, who, tools, prepare, customer, product, order, item } = setup();
+  const { f, who, tools, prepare, base, customer, product, order } = setup();
   try {
     const p = product('虚构纸箱甲'),
       ca = customer('虚构客户甲'),
       oa = order(ca.id, p.id);
-    const stock = item({ name: '虚构纸箱甲成品', kind: 'finished', unit: '只', productId: p.id });
-    tools.ops.move(stock.id, { expectedVersion: stock.version, requestId: randomUUID(), action: 'in', quantity: '500', date: '2026-10-20', notes: '虚构入库', acknowledged: true }, who);
+    const stock = base.finished(p, { name: '虚构纸箱甲成品' }, { quantity: '500', date: '2026-10-20', notes: '虚构入库' });
     const draft = tools.flow.save('delivery', { date: today(), customerId: ca.id, lines: [{ orderId: oa.id, orderLineId: oa.lines[0].id, stockId: stock.id, quantity: '10' }] }, who);
     const title = '送货单 ' + draft.number + '（虚构客户甲）',
       orderTitle = '订单 ' + oa.number + '（虚构客户甲）';

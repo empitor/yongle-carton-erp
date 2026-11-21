@@ -67,5 +67,5 @@ export function fixture(store = new Store(':memory:')) {
     return { key, request, result: applyCorrection(ops.store, key, request, who) };
   };
   const moves = () => store.db.prepare('SELECT * FROM stock_movements ORDER BY rowid').all();
-  return { store, ops, flow, supplier, raw, purchase, current, confirm, receive, input, edit, moves };
+  return { store, ops, flow, base, supplier, raw, purchase, current, confirm, receive, input, edit, moves };
 }

@@ -18,7 +18,7 @@ import { accountPermissions } from '../server/core/account-db.js';
 import { StoredDataError } from '../server/core/errors.js';
 import { financeActor } from '../server/finance/core.js';
 import { parseAuthState, type AuthState } from '../src/ui/auth-state.js';
-import { pageActor } from './actor-fixture.js';
+import { grant, pageActor } from './actor-fixture.js';
 
 const HOUR = 3600000;
 const sales = pageActor({ id: 'fictional-sales', name: '虚构业务员', role: 'admin' as const, permissions: ['business:edit'] });
@@ -76,11 +76,11 @@ test('列表带已归档的：all 要超级管理员模式，1 谁都能看，�
 });
 
 test('纯财务账号：有财务权限、没有业务编辑、不是超级管理员', () => {
-  const cashier = { role: 'admin', permissions: ['finance:view', 'finance:cash'] };
+  const cashier = { role: 'admin', permissions: grant('finance:view', 'finance:cash') };
   assert.equal(financeOnlyAccount(cashier), true);
-  assert.equal(financeOnlyAccount({ ...cashier, permissions: [...cashier.permissions, 'business:edit'] }), false);
+  assert.equal(financeOnlyAccount({ ...cashier, permissions: grant(...cashier.permissions, 'business:edit') }), false);
   assert.equal(financeOnlyAccount({ ...cashier, role: 'super_admin' }), false);
-  assert.equal(financeOnlyAccount({ role: 'admin', permissions: ['business:view'] }), false);
+  assert.equal(financeOnlyAccount({ role: 'admin', permissions: ['import:execute'] }), false);
   assert.equal(financeOnlyAccount({ role: 'admin' }), false);
   assert.equal(financeOnlyAccount(null), false);
 });

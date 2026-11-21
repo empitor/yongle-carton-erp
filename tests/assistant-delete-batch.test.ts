@@ -1,7 +1,6 @@
 // 助手一次删几条（records.delete 给 ids）：和页面批量删除同一个删除引擎、同一个上限；一张卡片列出每一条和合起来的影响清单，
 // 人点了才删；出卡片后有一条变了整张作废；密码、快照、审计、防重复和页面批量删除一样。一次一条的用法见 assistant-delete-cards。虚构数据。
 import { test } from 'node:test';
-import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,20 +10,19 @@ import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
 import { count, many } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { DELETION_MAX_RECORDS, deletionSelection, impactRowSchema } from '../shared/business/index.js';
 import { customerSchema, today } from '../shared/core/domain.js';
 import { deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { assistantFixture, cardDigest, lastCard } from './assistant-fixture.js';
-import { actor, superActor } from './actor-fixture.js';
+import { actor, grant, superActor } from './actor-fixture.js';
 
 const local = () => localAdministratorActor(superActor());
 const noEffects = { read: () => {}, business: () => {}, workflow: () => {} };
 /** 删除卡片的 after 就是删除预览：选了哪些、影响清单 */
 const previewOf = z.object({ selection: deletionSelection, impact: z.array(impactRowSchema) });
 /** 几个虚构客户（没有订单，删了不连带别的） */
-const customers = (f: { store: Store }, names: string[]) => names.map((name) => f.store.saveCustomer(customerSchema.parse({ name })));
+const customers = (f: { store: Store }, names: string[]) => names.map((name) => businessBase(actor, f.store).customer({ name }));
 const deletedCustomerAudits = (store: Store) =>
   many(store.db, z.object({ id: z.number() }), "SELECT record_id AS id FROM business_audit WHERE action='delete' AND entity='customers' ORDER BY record_id").map((r) => r.id);
 
@@ -91,7 +89,7 @@ test('一次最多删的条数和页面批量删除同一个上限：多一条�
 test('只读账号用不了删除命令，一次一条、一次几条都一样', async () => {
   const f = assistantFixture();
   try {
-    const viewer = { ...actor, id: 'fictional-batch-viewer', permissions: [] as string[] },
+    const viewer = { ...actor, id: 'fictional-batch-viewer', permissions: grant() },
       list = customers(f, ['虚构只读甲', '虚构只读乙']);
     for (const args of [{ module: 'customers', id: list[0].id }, { module: 'customers', ids: list.map((c) => c.id) }])
       await assert.rejects(() => f.manager.registry.dispatch('records.delete', args, viewer, noEffects), /权限/);
@@ -104,13 +102,14 @@ test('只读账号用不了删除命令，一次一条、一次几条都一样',
 test('密码和页面批量删除一样：几张都是待核对的不用密码；混着已核对的，不在本机要本人密码，核验了才一起删', async () => {
   const f = assistantFixture();
   try {
-    const flow = new FlowService(f.store),
-      supplier = new OperationsService(f.store).saveSupplier({ name: '虚构批删供应商' }, actor);
+    const base = businessBase(actor, f.store),
+      { flow } = base,
+      supplier = base.supplier({ name: '虚构批删供应商' });
     const arrival = (reference: string) =>
       flow.save('arrival', { date: today(), supplierId: supplier.id, reference, lines: [{ item: { name: '虚构纸板', unit: '张' }, quantity: '10' }] }, actor);
     const drafts = [arrival('虚构待核对-1'), arrival('虚构待核对-2')],
       stocked = arrival('虚构已入库');
-    flow.confirm(stocked.id, { previewDigest: flow.preview(stocked.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    base.check(stocked);
     const who = superActor();
     const exists = (id: number) => count(f.store.db, 'SELECT COUNT(*) FROM flow_documents WHERE id=?', id) === 1;
     const thread = f.manager.create(who);

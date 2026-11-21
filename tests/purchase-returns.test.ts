@@ -8,8 +8,7 @@ import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { listen } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
 import { flowRouter } from '../server/flow/router.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
@@ -47,15 +46,11 @@ const reversalMove = (s: Store, returnId: number) =>
   ) ?? assert.fail('没有撤销退货补回库存的流水');
 
 function fixture(quantities = ['10'], store = new Store(':memory:')) {
-  const s = store,
-    ops = new OperationsService(s),
-    flow = new FlowService(s),
+  const base = businessBase(maker, store),
+    { store: s, ops, flow } = base,
     returns = new PurchaseReturns(s);
-  const supplier = ops.saveSupplier({ name: '虚构供应商' }, maker);
-  const raw = ops.saveItem(
-    { name: '虚构纸板', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' },
-    maker,
-  );
+  const supplier = base.supplier({ name: '虚构供应商' });
+  const raw = base.raw({ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm' });
   const purchase = ops.savePurchase(
     {
       supplierId: supplier.id,
@@ -71,12 +66,7 @@ function fixture(quantities = ['10'], store = new Store(':memory:')) {
     },
     maker,
   );
-  const confirm = (draft: { id: number }) =>
-    flow.confirm(
-      draft.id,
-      { previewDigest: flow.preview(draft.id, maker).previewDigest, requestId: randomUUID(), acknowledged: true },
-      maker,
-    );
+  const confirm = (draft: { id: number }) => base.check(draft);
   const arrive = (items: { line?: number; quantity: string }[], date = '2026-02-05') =>
     confirm(
       saveDoc(flow, 

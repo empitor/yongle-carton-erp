@@ -10,19 +10,19 @@ import { count } from '../server/core/index.js';
 import type { Actor } from '../server/core/index.js';
 import type { PlanCard, ThreadView } from '../shared/assistant/index.js';
 import { InboxService } from '../server/inbox/service.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { receiveLines } from './receive-fixture.js';
-import { customerSchema, orderSchema, productSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { actor, superActor } from './actor-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 /** 一张还没核对的到货单（不挂采购单）：生产任务安排即下达，删“还没核对的单据”拿它做例子 */
 function looseArrival(store: Store, who: Actor, reference: string) {
-  const supplier = new OperationsService(store).saveSupplier({ name: '虚构供应商-' + reference }, actor);
-  return new FlowService(store).save(
+  const base = businessBase(actor, store);
+  const supplier = base.supplier({ name: '虚构供应商-' + reference });
+  return base.flow.save(
     'arrival',
     { date: today(), supplierId: supplier.id, reference, lines: [{ item: { name: '虚构纸板', unit: '张' }, quantity: '10' }] },
     who,
@@ -39,7 +39,7 @@ test('收件箱里的注入文字诱导删除：只生成待确认方案，不�
   const f = autoConfirmAssistant();
   try {
     const who = superActor();
-    const victim = f.store.saveCustomer(customerSchema.parse({ name: '虚构被诱导删除客户' }));
+    const victim = businessBase(who, f.store).customer({ name: '虚构被诱导删除客户' });
     const item = new InboxService(f.store).ingest({
       channel: 'wecom_bot',
       externalId: 'fictional-injection-1',
@@ -90,8 +90,9 @@ test('本机最高管理员：删除和一键清空也只生成方案，确认�
   const f = autoConfirmAssistant();
   try {
     const local = localAdministratorActor(superActor());
-    const a = f.store.saveCustomer(customerSchema.parse({ name: '虚构本机删除客户甲' })),
-      b = f.store.saveCustomer(customerSchema.parse({ name: '虚构本机删除客户乙' }));
+    const base = businessBase(local, f.store);
+    const a = base.customer({ name: '虚构本机删除客户甲' }),
+      b = base.customer({ name: '虚构本机删除客户乙' });
     const t = f.manager.create(local);
     const send = async (text: string, name: string, args: Record<string, unknown>) => {
       // 生成待确认方案后这一轮就结束，不再调模型。
@@ -129,10 +130,9 @@ test('本机最高管理员：删除和一键清空也只生成方案，确认�
     assert.equal(f.store.customer(a.id, true), undefined, '人工确认后删除');
     assert.ok(f.store.customer(b.id, true));
     // 删库存品的卡片标题按仓库叫，和删除清单同一个词（以前一律叫“删除库存品”）
-    const ops = new OperationsService(f.store);
-    const raw = ops.saveItem({ name: '虚构标题纸板', kind: 'raw', unit: '张', notes: '' }, local);
-    const product = f.store.saveProduct(productSchema.parse({ name: '虚构标题纸箱' }));
-    const finished = ops.saveItem({ name: '虚构标题纸箱', kind: 'finished', unit: '只', productId: product.id, notes: '' }, local);
+    const raw = base.raw({ name: '虚构标题纸板', notes: '' });
+    const product = base.product({ name: '虚构标题纸箱' });
+    const finished = base.finished(product, { name: '虚构标题纸箱', notes: '' });
     const title = (module: string, id: number) => f.manager.tools.prepare('records.delete', { module, id }, local, 'session').label;
     assert.equal(title('raw_inventory', raw.id), '删除原材料库存 虚构标题纸板');
     assert.equal(title('finished_inventory', finished.id), '删除成品库存 虚构标题纸箱');
@@ -144,8 +144,9 @@ test('本机最高管理员：删除和一键清空也只生成方案，确认�
 test('从域名访问：助手删还没核对的单据和人一样，确认卡片上点确认就删、不用密码；普通账号删不了已核对的', async () => {
   const f = autoConfirmAssistant();
   try {
-    const flow = new FlowService(f.store);
-    const product = f.store.saveProduct(productSchema.parse({ name: '虚构待删纸箱' }));
+    const base = businessBase(actor, f.store),
+      { flow } = base;
+    const product = base.product({ name: '虚构待删纸箱' });
     const task = (quantity: string) =>
       flow.save('task', { date: today(), plannedDate: today(), productId: product.id, quantity, unit: '只', orderIds: [], notes: '' }, actor);
     const draft = looseArrival(f.store, actor, '虚构待删到货'),
@@ -168,7 +169,7 @@ test('从域名访问：助手删还没核对的单据和人一样，确认卡�
     const later = looseArrival(f.store, actor, '虚构待删到货-2');
     const laterPlan = await propose(later.id, 'arrivals');
     assert.ok(laterPlan);
-    flow.confirm(later.id, { previewDigest: flow.preview(later.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    base.check(later);
     assert.throws(() => f.manager.execute(laterPlan.id, { acknowledged: true, deletionDigest: field(laterPlan.args, 'deletionDigest') }, who, 'session', { proxy: true }), /密码/);
     assert.throws(
       () => f.manager.execute(laterPlan.id, { acknowledged: true, deletionDigest: field(laterPlan.args, 'deletionDigest') }, who, 'session', { proxy: true, passwordVerified: true }),
@@ -187,9 +188,10 @@ test('从域名访问：助手删还没核对的单据和人一样，确认卡�
 
 /** 从域名访问删除的准备：一张还没核对的到货单、一张已核对的生产任务、一个客户；propose 让助手在新会话里提一次删除 */
 function domainDeletion(f: ReturnType<typeof autoConfirmAssistant>) {
-  const flow = new FlowService(f.store);
-  const product = f.store.saveProduct(productSchema.parse({ name: '虚构域名删除纸箱' }));
-  const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构域名删除客户' }));
+  const base = businessBase(actor, f.store),
+    { flow } = base;
+  const product = base.product({ name: '虚构域名删除纸箱' });
+  const customer = base.customer({ name: '虚构域名删除客户' });
   const draft = looseArrival(f.store, actor, '虚构待删到货-模式'),
     // 安排即下达，是已核对的单据
     live = flow.save('task', { date: today(), plannedDate: today(), productId: product.id, quantity: '200', unit: '只', orderIds: [], notes: '' }, actor);
@@ -296,10 +298,10 @@ test('助手用 records.delete 删已全部到货的采购单：不在本机的�
   const f = autoConfirmAssistant();
   try {
     const who = superActor();
-    const ops = new OperationsService(f.store),
-      flow = new FlowService(f.store);
-    const supplier = ops.saveSupplier({ name: '虚构全部到货供应商' }, who);
-    const item = ops.saveItem({ name: '虚构全部到货纸板', kind: 'raw', unit: '张' }, who);
+    const base = businessBase(who, f.store),
+      { ops, flow } = base;
+    const supplier = base.supplier({ name: '虚构全部到货供应商' });
+    const item = base.raw({ name: '虚构全部到货纸板' });
     let purchase = ops.savePurchase(
       {
         supplierId: supplier.id,
@@ -374,14 +376,12 @@ test('助手删除方案带只读的说明标记：待送货不用密码不用�
   const f = autoConfirmAssistant();
   try {
     const who = superActor();
-    const flow = new FlowService(f.store),
-      ops = new OperationsService(f.store);
-    const product = f.store.saveProduct(productSchema.parse({ name: '虚构标记纸箱' }));
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构标记客户' }));
-    const order = f.store.saveOrder(
-      orderSchema.parse({ customerId: customer.id, orderDate: '2026-11-01', deliveryDate: '2026-11-30', status: '已确认', lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 100 }] }),
-    );
-    const item = ops.saveItem({ name: '虚构标记纸箱', kind: 'finished', unit: '只', productId: product.id }, who);
+    const base = businessBase(who, f.store),
+      { flow } = base;
+    const product = base.product({ name: '虚构标记纸箱' });
+    const customer = base.customer({ name: '虚构标记客户' });
+    const order = base.order(customer, [base.line(product, 100)], { orderDate: '2026-11-01', deliveryDate: '2026-11-30' });
+    const item = base.finished(product, { name: '虚构标记纸箱' });
     const draft = flow.save(
       'delivery',
       { date: '2026-11-08', plannedDate: '2026-11-08', customerId: customer.id, address: '', contact: '', phone: '', lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: item.id, quantity: '10', notes: '' }], notes: '' },

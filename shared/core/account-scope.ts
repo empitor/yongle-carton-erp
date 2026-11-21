@@ -1,10 +1,12 @@
+import type { Permission } from './accounts.js';
+
 /**
  * 纯财务账号（目前就是“出纳”级别）：有财务权限、没有业务编辑权限、不是超级管理员。
  * 按常见做法只看财务：收付款、银行、往来、凭证报表，看不到订单、客户文件和收件箱。
  * “只读”级别的账号是专门看业务的，不受影响；“财务”级别带业务编辑权限，也不受影响。
  */
 export function financeOnlyAccount(
-  actor: { role?: string; permissions?: readonly string[] } | null | undefined,
+  actor: { role?: string; permissions?: readonly Permission[] } | null | undefined,
 ) {
   if (!actor || actor.role === 'super_admin') return false;
   const permissions = actor.permissions || [];

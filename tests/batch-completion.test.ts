@@ -195,8 +195,7 @@ test('只登记、稍后核对入库：同一组输入和直接入库拆得一�
     assert.equal(auditCount(a.store, 'create-draft'), 2);
     // 之后逐张核对入库：库存、流水和直接入库的一样
     for (const d of pending) {
-      const check = a.flow.preview(d.id, actor);
-      a.flow.confirm(d.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+      a.base.check(d, {}, actor);
     }
     assert.equal(a.ops.repo.balance(a.raw.id), 95000);
     assert.equal(b.ops.repo.balance(b.raw.id), 95000);
@@ -229,8 +228,7 @@ test('只登记：库存够不够照单张待入库的规则（登记不拦、�
     assert.equal(f.ops.repo.balance(f.raw.id), 100000);
     const first = f.flow.list('production')[0];
     assert.throws(() => {
-      const check = f.flow.preview(first.id, actor);
-      f.flow.confirm(first.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+      f.base.check(first, {}, actor);
     }, /库存不足/);
     assert.equal(f.ops.repo.balance(f.raw.id), 100000);
     assert.throws(() => new ProductionCompletion(f.store).execute({ ...f.input(), pending: true }, { ...actor, permissions: [] }), /权限/);

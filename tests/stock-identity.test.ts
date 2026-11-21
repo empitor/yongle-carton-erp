@@ -162,9 +162,8 @@ test('到货没选库存品：已经有一样的原材料（归档的也算）�
 
 /** 用普通业务账号登记并核对入库一张到货单（不走本机管理员那条路） */
 const arriveAs = (f: ReturnType<typeof businessFixture>, who: Actor, lines: unknown[], patch: Record<string, unknown> = {}) => {
-  const d = saveDoc(f.flow, 'arrival', { date: '2026-10-27', supplierId: f.supplier.id, reference: randomUUID(), lines, ...patch }, who),
-    p = f.flow.preview(d.id, who);
-  return viewOfKind(f.flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, who), 'arrival');
+  const d = saveDoc(f.flow, 'arrival', { date: '2026-10-27', supplierId: f.supplier.id, reference: randomUUID(), lines, ...patch }, who);
+  return viewOfKind(f.base.check(d, {}, who), 'arrival');
 };
 
 test('同一种纸板只差大小写、全半角、厘米毫米写法：到货自动并进已有的以后，分批到货（选不选都一样）、改采购单都照常', () => {

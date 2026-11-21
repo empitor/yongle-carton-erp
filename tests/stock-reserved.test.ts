@@ -2,19 +2,13 @@
 // 只算没归档的待送货送货单、待入库完工单的领料净数；已出库、已入库、已取消、已撤销、已归档的不算。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { businessFixture } from './flow-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 
 function reservedFixture() {
   const f = businessFixture();
-  const { flow, ops, actor } = f;
-  const stockIn = (stockId: number, quantity: string) =>
-    ops.move(
-      stockId,
-      { action: 'in', quantity, date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: ops.repo.items(true, stockId)[0].version },
-      actor,
-    );
+  const { flow, base, actor } = f;
+  const stockIn = (stockId: number, quantity: string) => base.stockIn({ id: stockId }, { quantity, date: '2026-10-01' });
   stockIn(f.finished.id, '1000');
   stockIn(f.raw.id, '500');
   stockIn(f.glue.id, '100');
@@ -23,8 +17,7 @@ function reservedFixture() {
     saveDoc(flow, 'delivery', { date: '2026-10-27', customerId: f.customer.id, lines: [{ orderId: f.order.id, orderLineId: f.order.lines[0].id, stockId: f.finished.id, quantity }] }, actor);
   const production = (materials: { stockId: number; issued: string; returned: string }[]) =>
     saveDoc(flow, 'production', { date: '2026-10-27', taskId: task.id, productId: f.product.id, finishedStockId: f.finished.id, goodQuantity: '10', operator: '虚构员工', materials }, actor);
-  const confirm = (id: number) =>
-    flow.confirm(id, { previewDigest: flow.preview(id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+  const confirm = (id: number) => base.check({ id }, {}, actor);
   const cancel = (id: number) => flow.cancel(id, { version: flow.get(id).version, reason: '虚构取消', acknowledged: true }, actor);
   const reverse = (id: number) => flow.reverse(id, { version: flow.get(id).version, reason: '虚构撤销', acknowledged: true }, actor);
   /** 待核对的单据不能从页面归档，这里直接记一条归档，守“归档的不算”这一条 */

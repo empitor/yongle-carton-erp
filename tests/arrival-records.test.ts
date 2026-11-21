@@ -14,7 +14,7 @@ function fixture() {
   const draft = (lines: unknown[], reference = randomUUID()) =>
     saveDoc(f.flow, 'arrival', { date: '2026-10-29', supplierId: f.supplier.id, reference, lines }, clerk);
   const confirm = (d: { id: number }) =>
-    f.flow.confirm(d.id, { previewDigest: f.flow.preview(d.id, clerk).previewDigest, requestId: randomUUID(), acknowledged: true }, clerk);
+    f.base.check(d, {}, clerk);
   const record = (id: number) => {
     const found = f.flow.arrivalRecords({ includeInactive: true }).find((r) => r.flowId === id);
     assert.ok(found);

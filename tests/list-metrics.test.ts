@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { listen } from './http-fixture.js';
-import { OperationsService } from '../server/operations/service.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import {
   orderMetrics,
@@ -16,7 +15,8 @@ import {
   productIncomplete,
   summarizeMovements,
 } from '../shared/business/business-metrics.js';
-import { customerSchema, productSchema, orderSchema, today } from '../shared/core/domain.js';
+import { productSchema, today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';
 import { receiveLines } from './receive-fixture.js';
 import { z } from 'zod';
@@ -151,39 +151,33 @@ const actor = pageActor({ id: 'metric-test', name: '虚构统计验收', permiss
  * 完整纸箱、待完善纸箱两个产品；采购和库存见 seedStock。
  */
 function metricsWorld() {
-  const store = new Store(':memory:'),
-    service = new OperationsService(store);
+  const records = businessBase(actor),
+    { store } = records;
   const date = today(),
     old = monthsBefore(date, 3),
     boundary = monthsBefore(date, 2),
     yesterday = new Date(new Date(date + 'T00:00:00Z').getTime() - 86400000)
       .toISOString()
       .slice(0, 10);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '统计客户' }));
-  store.saveCustomer(customerSchema.parse({ name: '其他客户' }));
-  const product = store.saveProduct(
-    productSchema.parse({
-      name: '完整纸箱',
-      length: 30,
-      width: 20,
-      height: 10,
-      dimensionUnit: 'cm',
-      material: '配纸',
-      flute: 'B',
-    }),
-  );
-  const pending = store.saveProduct(productSchema.parse({ name: '待完善纸箱' }));
+  const customer = records.customer({ name: '统计客户' });
+  records.customer({ name: '其他客户' });
+  const product = records.product({
+    name: '完整纸箱',
+    length: 30,
+    width: 20,
+    height: 10,
+    dimensionUnit: 'cm',
+    material: '配纸',
+    flute: 'B',
+  });
+  const pending = records.product({ name: '待完善纸箱' });
   for (const status of ['已确认', '待发货', '已发货', '已取消', '待确认'])
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate: status === '待发货' ? date : old,
-        deliveryDate: status === '待发货' ? date : yesterday,
-        status,
-        lines: [{ productId: product.id, quantity: 1, unitPriceCents: 100 }],
-      }),
-    );
-  seedStock(service, { old, yesterday, date, pending });
+    records.order(customer, [{ productId: product.id, quantity: 1, unitPriceCents: 100 }], {
+      orderDate: status === '待发货' ? date : old,
+      deliveryDate: status === '待发货' ? date : yesterday,
+      status,
+    });
+  seedStock(records, { old, yesterday, date, pending });
   return { store, date, boundary, product };
 }
 
@@ -191,10 +185,11 @@ function metricsWorld() {
  * 统计供应商的四张采购单（10 张到 4、5 张到齐、6 张没写到货日期、3 张已取消，纸板 1000×500mm），另一家供应商没有采购；
  * 挂在待完善纸箱上的历史成品三个月前入库 30 只。
  */
-function seedStock(service: OperationsService, d: { old: string; yesterday: string; date: string; pending: { id: number } }) {
+function seedStock(records: ReturnType<typeof businessBase>, d: { old: string; yesterday: string; date: string; pending: { id: number } }) {
   const { old, yesterday, date, pending } = d;
-  const supplier = service.saveSupplier({ name: '统计供应商' }, actor);
-  service.saveSupplier({ name: '其他供应商' }, actor);
+  const service = records.ops;
+  const supplier = records.supplier({ name: '统计供应商' });
+  records.supplier({ name: '其他供应商' });
   const createPurchase = (quantity: string, expectedDate: string | null, status = '已订货') =>
     service.savePurchase(
       {
@@ -238,20 +233,7 @@ function seedStock(service: OperationsService, d: { old: string; yesterday: stri
       actor,
     );
   // 成品一定关联产品：挂在没有订单的“待完善纸箱”上，产品统计不变
-  const finished = service.saveItem({ name: '历史成品', kind: 'finished', unit: '只', productId: pending.id }, actor);
-  service.move(
-    finished.id,
-    {
-      expectedVersion: finished.version,
-      requestId: randomUUID(),
-      action: 'in',
-      quantity: '30',
-      date: old,
-      notes: '历史入库',
-      acknowledged: true,
-    },
-    actor,
-  );
+  records.finished(pending, { name: '历史成品' }, { quantity: '30', date: old, notes: '历史入库' });
 }
 
 /** 全部表的全部行，看读接口有没有写库 */

@@ -7,27 +7,19 @@ import '../server/import/index.js';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { many, rows } from '../server/core/index.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { orderSchema } from '../shared/core/domain.js';
 import { splitDeliveryFixture } from './maintenance-fixture.js';
 import { orderOf } from './flow-fixture.js';
 
 test('管理员改订单去掉一行：只挂这一行的送货单删掉、几行合送的去掉这一行、这种产品的生产任务不再关联它；别的订单的单据不动', () => {
   const f = splitDeliveryFixture();
   try {
-    const second = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱二' })),
-      finished2 = f.ops.saveItem({ name: '虚构成品二', kind: 'finished', unit: '只', productId: second.id }, f.who);
-    const order = f.store.saveOrder(
-      orderSchema.parse({
-        customerId: f.customer.id,
-        orderDate: '2026-10-01',
-        deliveryDate: '2026-10-30',
-        status: '已确认',
-        lines: [
-          { productId: f.product.id, quantity: 100, unitPriceCents: 100 },
-          { productId: second.id, quantity: 200, unitPriceCents: 100 },
-        ],
-      }),
-    );
+    const second = f.base.product({ name: '虚构纸箱二' }),
+      finished2 = f.base.finished(second, { name: '虚构成品二' });
+    const order = f.base.order(f.customer, [
+      { productId: f.product.id, quantity: 100, unitPriceCents: 100 },
+      { productId: second.id, quantity: 200, unitPriceCents: 100 },
+    ], { deliveryDate: '2026-10-30' });
     const [keep, drop] = order.lines;
     const line = (o: { id: number }, l: { id: number }, stockId: number) => ({ orderId: o.id, orderLineId: l.id, stockId, quantity: '10' });
     const deliver = (lines: ReturnType<typeof line>[]) => f.flow.save('delivery', { date: '2026-10-27', customerId: f.customer.id, lines }, f.who);
@@ -236,7 +228,7 @@ test('拆、减送货单行之前先核对流水和明细：流水被合并过�
       });
       const before = snapshot();
       assert.throws(() => f.editOrder(a.id, { lines: [orderOf(f.store, a.id).lines[0]] }), mismatch(d.number));
-      const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构对不上客户' }));
+      const other = f.base.customer({ name: '虚构对不上客户' });
       assert.throws(() => f.editOrder(a.id, { customerId: other.id }), mismatch(d.number));
       assert.deepEqual(snapshot(), before, '被拦下后什么都没变');
     } finally {

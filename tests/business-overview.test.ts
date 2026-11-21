@@ -5,11 +5,10 @@ import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { listen } from './http-fixture.js';
-import { OperationsService } from '../server/operations/service.js';
-import { customerSchema, productSchema, orderSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { monthsBefore, presetRange, orderInView } from '../shared/core/date-ranges.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import { displayAmount } from '../shared/core/display-amount.js';
@@ -44,29 +43,14 @@ const dashboardAnswer = z.looseObject({
 });
 /** 今天、两个月前（视图边界）、三个月前 */
 type Dates = { date: string; boundary: string; old: string };
+type Records = ReturnType<typeof businessBase>;
 
 /** 四张订单（各 10 只 × 1.39 元）：两个月前已发货、三个月前已发货、三个月前生产中、三个月前已取消 */
-function seedOrders(store: Store, { date, boundary, old }: Dates) {
-  const customer = store.saveCustomer(customerSchema.parse({ name: '统计测试客户（虚构）' }));
-  const product = store.saveProduct(productSchema.parse({ name: '统计测试纸箱（虚构）' }));
+function seedOrders(records: Records, { date, boundary, old }: Dates) {
+  const customer = records.customer({ name: '统计测试客户（虚构）' });
+  const product = records.product({ name: '统计测试纸箱（虚构）' });
   const order = (orderDate: string, status: string) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate,
-        deliveryDate: date,
-        status,
-        lines: [
-          {
-            productId: product.id,
-            quantity: 10,
-            unitPriceExact: '1.3900',
-            unitPriceCents: 139,
-            unit: '只',
-          },
-        ],
-      }),
-    );
+    records.order(customer, [records.line(product, 10, { unitPriceExact: '1.3900', unitPriceCents: 139 })], { orderDate, deliveryDate: date, status });
   return {
     recent: order(boundary, '已发货'),
     historical: order(old, '已发货'),
@@ -79,9 +63,10 @@ function seedOrders(store: Store, { date, boundary, old }: Dates) {
  * 两家供应商的四张采购单（各 10.125 张，单价 1.2345）：甲今天一张（到货 4 张）、乙今天一张、甲三个月前一张、甲今天一张待订货没写单价；
  * 成品三个月前入库 30 只；另有一个零库存的原材料。
  */
-function seedPurchases(service: OperationsService, { date, old }: Dates) {
-  const supplier = service.saveSupplier({ name: '甲纸板供应商（虚构）' }, actor);
-  const second = service.saveSupplier({ name: '乙纸板供应商（虚构）' }, actor);
+function seedPurchases(records: Records, { date, old }: Dates) {
+  const service = records.ops;
+  const supplier = records.supplier({ name: '甲纸板供应商（虚构）' });
+  const second = records.supplier({ name: '乙纸板供应商（虚构）' });
   const purchase = (
     supplierId: number,
     orderDate: string,
@@ -124,33 +109,20 @@ function seedPurchases(service: OperationsService, { date, old }: Dates) {
     actor,
   );
   // 成品一定关联产品：另建一个只用来入库存的产品，不碰订单上的产品
-  const stocked = service.store.saveProduct(productSchema.parse({ name: '成品（虚构）' }));
-  const finished = service.saveItem({ name: '成品（虚构）', kind: 'finished', unit: '只', productId: stocked.id }, actor);
-  service.move(
-    finished.id,
-    {
-      expectedVersion: finished.version,
-      requestId: randomUUID(),
-      action: 'in',
-      quantity: '30',
-      date: old,
-      notes: '测试历史入库',
-      acknowledged: true,
-    },
-    actor,
-  );
+  const stocked = records.product({ name: '成品（虚构）' });
+  records.finished(stocked, { name: '成品（虚构）' }, { quantity: '30', date: old, notes: '测试历史入库' });
   // 一个没有库存的原材料档案（原材料只有“张”，数据库也只收“张”）：汇总里数量不变，零库存多一个
-  service.saveItem({ name: '零库存（虚构）', kind: 'raw', unit: '张' }, actor);
+  records.raw({ name: '零库存（虚构）' });
   return { supplier, second, a };
 }
 
 async function fixture() {
-  const store = new Store(':memory:');
-  const service = new OperationsService(store);
+  const records = businessBase(actor),
+    { store } = records;
   const date = today(),
     dates = { date, boundary: monthsBefore(date, 2), old: monthsBefore(date, 3) };
-  const orders = seedOrders(store, dates),
-    purchases = seedPurchases(service, dates);
+  const orders = seedOrders(records, dates),
+    purchases = seedPurchases(records, dates);
   const server = await listen(createApp(store));
   const base = server.origin + '/api';
   return {

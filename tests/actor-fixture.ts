@@ -3,6 +3,10 @@
 // 只造身份，不引任何业务模块和助手：借一个账号的测试不用为此加载别的东西。
 import type { Actor } from '../server/core/actor.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
+import type { Permission } from '../shared/core/accounts.js';
+
+/** 一套权限：只收权限名单里的名字（shared/core/accounts.ts），写错编译不过；放进 { ...actor, permissions: grant(...) } */
+export const grant = (...names: Permission[]) => names;
 
 export const pageActor = <T extends Omit<Actor, 'source'>>(fields: T): T & Pick<Actor, 'source'> => ({
   source: AUDIT_SOURCE.page,

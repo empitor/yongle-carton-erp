@@ -5,8 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { assistantFixture, cardDigest, lastCard } from './assistant-fixture.js';
-import { customerSchema, productSchema, orderSchema, today } from '../shared/core/domain.js';
-import { OperationsService } from '../server/operations/service.js';
+import { today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { count } from '../server/core/index.js';
@@ -27,13 +27,14 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
   const f = assistantFixture(),
     owner = superActor();
   try {
-    const ops = new OperationsService(f.store),
+    const base = businessBase(actor, f.store),
+      { ops } = base,
       flow = f.manager.tools.flow,
-      supplier = ops.saveSupplier({ name: '虚构供应商' }, actor),
-      product = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱' })),
-      customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-      raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor),
-      finished = ops.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '只', productId: product.id, specification: '型号A' }, actor),
+      supplier = base.supplier({ name: '虚构供应商' }),
+      product = base.product({ name: '虚构纸箱' }),
+      customer = base.customer({ name: '虚构客户' }),
+      raw = base.raw({ name: '虚构纸板' }),
+      finished = base.finished(product, { name: '虚构纸箱', specification: '型号A' }),
       thread = f.manager.create(owner).id;
     const confirm = async (name: string, args: Record<string, unknown>) => f.manager.execute((await propose(f, thread, owner, name, args)).id, { acknowledged: true }, owner, 's');
     const arrival = saveDoc(flow, 'arrival', {
@@ -58,15 +59,10 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
     await confirm('flow.propose_confirmation', { id: production.id });
     assert.equal(ops.repo.balance(raw.id), 50000);
     assert.equal(ops.repo.balance(finished.id), 50000);
-    const order = f.store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate: '2026-10-25',
-        deliveryDate: '2026-10-25',
-        status: '已确认',
-        lines: [{ productId: product.id, productName: product.name, specification: '型号A', quantity: 100, unit: '只', unitPriceCents: 100 }],
-      }),
-    );
+    const order = base.order(customer, [base.line(product, 100, { productName: product.name, specification: '型号A' })], {
+      orderDate: '2026-10-25',
+      deliveryDate: '2026-10-25',
+    });
     const delivery = saveDoc(flow, 'delivery', {
       date: '2026-10-25',
       customerId: customer.id,
@@ -83,7 +79,7 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
     const reversed = f.store.order(order.id);
     assert.ok(reversed, '订单还在');
     assert.equal(reversed.lines[0].shippedQuantity, 0);
-    const unused = f.store.saveProduct(productSchema.parse({ name: '可永久删除的虚构空档案' }));
+    const unused = base.product({ name: '可永久删除的虚构空档案' });
     const deletion = await propose(f, thread, owner, 'records.delete', { module: 'products', id: unused.id });
     // 密码由聊天接口在确认卡片提交时核验
     f.manager.execute(deletion.id, { acknowledged: true, deletionDigest: cardDigest(deletion) }, owner, 's', { passwordVerified: true });
@@ -98,8 +94,9 @@ test('出入库卡片要编辑权限、点了才入库、出库超过库存拒�
   const f = assistantFixture(),
     owner = superActor();
   try {
-    const ops = new OperationsService(f.store),
-      item = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor);
+    const base = businessBase(actor, f.store),
+      { ops } = base,
+      item = base.raw({ name: '虚构纸板' });
     const move = (quantity: string, action = 'in') => ({ id: item.id, action, quantity, date: '2026-10-25', notes: '虚构' });
     assert(f.manager.tools.prepare('inventory.propose_movement', move('10'), actor, 's'));
     assert.throws(() => f.manager.tools.prepare('inventory.propose_movement', move('1'), { ...actor, permissions: [] }, 's'), /权限/);
@@ -108,7 +105,7 @@ test('出入库卡片要编辑权限、点了才入库、出库超过库存拒�
     f.manager.execute(plan.id, { acknowledged: true }, owner, 's');
     assert.equal(ops.repo.balance(item.id), 10000);
     assert.throws(() => f.manager.tools.prepare('inventory.propose_movement', move('11', 'out'), owner, 's'), /库存不足/);
-    const supplier = ops.saveSupplier({ name: '虚构供应商' }, actor),
+    const supplier = base.supplier({ name: '虚构供应商' }),
       purchase = ops.savePurchase(
         {
           supplierId: supplier.id,
@@ -136,10 +133,11 @@ test('出入库卡片要编辑权限、点了才入库、出库超过库存拒�
 test('采购退货：查可退数量；退货和撤销退货只出卡片，和页面同一服务；等确认时别的库存品出入库不让卡片失效；再点不重复退', async () => {
   const f = assistantFixture();
   try {
-    const ops = new OperationsService(f.store),
+    const base = businessBase(actor, f.store),
+      { ops } = base,
       flow = f.manager.tools.flow,
-      supplier = ops.saveSupplier({ name: '虚构退货纸板厂' }, actor),
-      raw = ops.saveItem({ name: '虚构退货纸板', kind: 'raw', unit: '张' }, actor);
+      supplier = base.supplier({ name: '虚构退货纸板厂' }),
+      raw = base.raw({ name: '虚构退货纸板' });
     const purchase = ops.savePurchase(
       { supplierId: supplier.id, orderDate: '2026-11-01', status: '已订货', lines: [{ ...raw, stockItemId: raw.id, quantity: '100', unitPrice: '1.0000', priceBasis: 'quantity' }] },
       actor,
@@ -150,7 +148,7 @@ test('采购退货：查可退数量；退货和撤销退货只出卡片，和�
       reference: '虚构退货到货单',
       lines: [{ stockId: raw.id, purchaseLineId: purchase.lines[0].id, item: raw, quantity: '100', unitPrice: '1.0000', priceBasis: 'quantity' }],
     }, actor);
-    const arrival = flow.confirm(draft.id, { previewDigest: flow.preview(draft.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    const arrival = base.check(draft);
     const returnable = () => readAs(f.manager.tools.read('purchase_return.returnable', { arrivalId: arrival.id }, actor), { lines: z.array(z.looseObject({})) });
     assert.equal(returnable().canReturn, true);
     assert.equal(returnable().lines[0].returnable, '100');
@@ -161,8 +159,7 @@ test('采购退货：查可退数量；退货和撤销退货只出卡片，和�
       lines: [{ lineIndex: 0, quantity: '30' }],
       requestId: randomUUID(),
     });
-    const other = ops.saveItem({ name: '虚构无关纸板', kind: 'raw', unit: '张' }, actor);
-    ops.move(other.id, { expectedVersion: other.version, requestId: randomUUID(), action: 'in', quantity: '5', date: today(), notes: '虚构无关入库', acknowledged: true }, actor);
+    base.raw({ name: '虚构无关纸板' }, { quantity: '5', date: today(), notes: '虚构无关入库' });
     assert.equal(ops.repo.balance(raw.id), 100000, '没人确认前不扣库存');
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM purchase_returns'), 0);
     const created = f.manager.execute(plan.id, { acknowledged: true }, actor, 's');

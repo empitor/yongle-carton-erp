@@ -9,7 +9,8 @@ const completed = z.looseObject({ results: z.array(z.looseObject({})) });
 import { randomUUID } from 'node:crypto';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { productSchema, customerSchema, orderSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import type { AssistantManager } from '../server/assistant/manager.js';
 import { count as countOf } from '../server/core/index.js';
@@ -28,30 +29,25 @@ function setup() {
   const f = autoConfirmAssistant(),
     who = localAdministratorActor(superActor()),
     { ops, flow } = f.manager.tools,
-    t = f.manager.create(who);
-  const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构全链客户' }));
+    t = f.manager.create(who),
+    base = businessBase(who, f.store);
+  const customer = base.customer({ name: '虚构全链客户' });
   const quantities = [181, 181, 181, 182, 184, 184];
   const products = quantities.map((_, i) =>
-    f.store.saveProduct(
-      productSchema.parse({ name: '虚构六型号' + i, length: 30, width: 20, height: 10, dimensionUnit: 'cm', material: '虚构BC纸板', flute: 'BC', customerProductCode: 'FICTION-' + i }),
-    ),
+    base.product({ name: '虚构六型号' + i, length: 30, width: 20, height: 10, dimensionUnit: 'cm', material: '虚构BC纸板', flute: 'BC', customerProductCode: 'FICTION-' + i }),
   );
-  const order = f.store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: today(),
-      deliveryDate: today(),
-      status: '已确认',
-      lines: products.map((p, i) => ({ productId: p.id, quantity: quantities[i], unit: '只', unitPriceExact: '2.00', unitPriceCents: 200 })),
-    }),
+  const order = base.order(
+    customer,
+    products.map((p, i) => base.line(p, quantities[i], { unitPriceExact: '2.00', unitPriceCents: 200 })),
+    { orderDate: today(), deliveryDate: today() },
   );
   const raw = { name: '虚构共用BC原料', kind: 'raw', unit: '张', length: 100, width: 80, height: null, dimensionUnit: 'cm', material: '虚构BC纸板', flute: 'BC', specification: '虚构100x80', notes: '', productId: null };
-  const supplier = ops.saveSupplier({ name: '虚构全链供应商' }, who),
-    item = ops.saveItem(raw, who);
+  const supplier = base.supplier({ name: '虚构全链供应商' }),
+    item = base.raw(raw);
   const priced = { quantity: '548', unitPrice: '1.00', priceBasis: 'quantity' };
   const purchase = ops.savePurchase({ supplierId: supplier.id, customerOrderId: order.id, orderDate: today(), status: '已订货', lines: [{ ...raw, stockItemId: item.id, ...priced }] }, who);
   const arrival = flow.save('arrival', { date: today(), supplierId: supplier.id, reference: 'FICTION-ARRIVAL', lines: [{ stockId: item.id, purchaseLineId: purchase.lines[0].id, item: raw, ...priced }] }, who);
-  flow.confirm(arrival.id, { previewDigest: flow.preview(arrival.id, who).previewDigest, requestId: randomUUID(), acknowledged: true }, who);
+  base.check(arrival);
   products.forEach((p, i) => flow.save('task', { date: today(), productId: p.id, quantity: String(quantities[i]), unit: '只', orderIds: [order.id] }, who));
   return { ...f, manager: f.manager, who, send: (text: string) => f.manager.chat(t.id, f.input(text, randomUUID()), who, 'real-session', () => {}, () => who) };
 }

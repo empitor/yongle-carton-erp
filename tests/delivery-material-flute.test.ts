@@ -54,7 +54,7 @@ function setup(t: TestContext) {
       actor,
     );
   const ship = (id: number) =>
-    f.flow.confirm(id, { previewDigest: f.flow.preview(id, actor).previewDigest, requestId: randomUUID(), acknowledged: true, ...shipOnDocDate(f.flow, id) }, actor);
+    f.base.check({ id }, shipOnDocDate(f.flow, id), actor);
   return { ...f, plain, second, draft, ship };
 }
 

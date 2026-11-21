@@ -19,7 +19,7 @@ import { PluginManagementView } from '../src/assistant/AssistantPlugins.js';
 import { startHttp } from './http-fixture.js';
 import { AuthManager } from '../server/core/auth.js';
 import { toolCatalog } from '../server/assistant/tool-catalog.js';
-import { actor, superActor } from './actor-fixture.js';
+import { actor, grant, superActor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 
 function toolNamed<T extends { name: string }>(tools: readonly T[], name: string) {
@@ -93,7 +93,7 @@ test('真实权限和服务状态分别参与当前可用状态，分组里的�
     assert.equal(getImport.permitted, true);
     assert.equal(getImport.available, false);
     connected = true;
-    const importActor = { ...actor, permissions: ['business:edit', 'import:execute'] };
+    const importActor = { ...actor, permissions: grant('business:edit', 'import:execute') };
     assert.equal(
       toolNamed(registry.view(importActor).tools, 'order_import.execute').usable,
       true,

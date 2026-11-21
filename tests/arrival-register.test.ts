@@ -150,8 +150,7 @@ test('存成待入库（AI 识别的送货单）：不动库存、已到货和�
     assert.equal(resaved.arrival.id, waiting.arrival.id);
     assert.equal(resaved.arrival.lines[0].quantity, '250');
     assert.equal(f.arrivals().length, 1);
-    const check = f.flow.preview(resaved.arrival.id, clerk);
-    const done = viewOfKind(f.flow.confirm(resaved.arrival.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
+    const done = viewOfKind(f.base.check(resaved.arrival, {}, clerk), 'arrival');
     assert.equal(done.actualTime, '15:45');
     assert.equal(f.balance(), 250000);
     assert.equal(f.current().lines[0].receivedQuantity, '250');
@@ -254,7 +253,7 @@ test('到货明细的单位：空、没写按“张”，单据和新建的库�
     assert.equal(draft(noUnit).lines[0].item.unit, '张');
     assert.throws(() => draft({ ...noUnit, unit: '公斤' }), /原材料的数量单位只有“张”；别的单位请先换算成张再填。/);
     const d = draft({ ...noUnit, name: '虚构新纸板', length: 90, unit: '' }, null);
-    const done = viewOfKind(f.flow.confirm(d.id, { previewDigest: f.flow.preview(d.id, clerk).previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
+    const done = viewOfKind(f.base.check(d, {}, clerk), 'arrival');
     assert.equal(f.ops.repo.items(true, Number(done.lines[0].stockId))[0].unit, '张');
     const stored = one(f.store.db, tableRows.flow_documents.pick({ document: true }), 'SELECT document FROM flow_documents WHERE id=?', done.id);
     assert.ok(stored);

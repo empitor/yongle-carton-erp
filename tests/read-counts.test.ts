@@ -10,11 +10,10 @@ import { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
 import type { RecordIds } from '../server/operations/record-scope.js';
 import type { StockItemView } from '../shared/business/index.js';
-import { OperationsService } from '../server/operations/service.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { FlowService } from '../server/flow/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import type { Actor } from '../server/core/auth.js';
 import { saveDoc } from './receive-fixture.js';
@@ -105,13 +104,9 @@ test('单据按镜像列查都走索引：今日页送货分三段各用各的�
 test('库存余额、期初只读覆盖索引，不回表读流水', () => {
   const store = new Store(':memory:');
   try {
-    const ops = new OperationsService(store),
-      item = ops.saveItem({ name: '虚构覆盖索引纸板', kind: 'raw', unit: '张' }, actor);
-    ops.move(
-      item.id,
-      { action: 'in', quantity: '10', date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: item.version },
-      actor,
-    );
+    const base = businessBase(actor, store),
+      { ops } = base,
+      item = base.raw({ name: '虚构覆盖索引纸板' }, { quantity: '10', date: '2026-10-01' });
     // 记下库存列表和单个余额实际发出的流水汇总语句，再看它们的查询计划
     const { seen } = sqlOf(store, () => {
       assert.equal(ops.repo.items(true)[0].id, item.id);
@@ -248,29 +243,24 @@ function watchReads(from: RegExp) {
 
 /** 完工用的虚构数据：一张订单的产品、关联采购单上的纸板，另有无关的订单、纸板、采购单。 */
 function completionWorld() {
-  const store = new Store(':memory:'), ops = new OperationsService(store), flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构完工客户' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构完工纸箱' })),
-    other = store.saveProduct(productSchema.parse({ name: '虚构无关纸箱' }));
-  const order = (p: { id: number }) =>
-    store.saveOrder(orderSchema.parse({ customerId: customer.id, orderDate: '2026-10-01', deliveryDate: '2026-10-30', status: '已确认', lines: [{ productId: p.id, quantity: 100, unitPriceCents: 100 }] }));
-  const supplier = ops.saveSupplier({ name: '虚构完工供应商' }, actor);
-  const board = (name: string) => {
-    const item = ops.saveItem({ name, kind: 'raw', unit: '张' }, actor);
-    ops.move(item.id, { expectedVersion: item.version, requestId: randomUUID(), action: 'in', quantity: '100', date: '2026-10-01', notes: '虚构期初', acknowledged: true }, actor);
-    return item;
-  };
+  const base = businessBase(actor), { store, ops, flow } = base;
+  const customer = base.customer({ name: '虚构完工客户' });
+  const product = base.product({ name: '虚构完工纸箱' }),
+    other = base.product({ name: '虚构无关纸箱' });
+  const order = (p: { id: number }) => base.order(customer, [{ productId: p.id, quantity: 100, unitPriceCents: 100 }], { deliveryDate: '2026-10-30' });
+  const supplier = base.supplier({ name: '虚构完工供应商' });
+  const board = (name: string) => base.raw({ name }, { quantity: '100', date: '2026-10-01' });
   const buy = (item: StockItemView, customerOrderId: number | null) =>
     ops.savePurchase({ supplierId: supplier.id, customerOrderId, orderDate: '2026-10-01', status: '待订货', lines: [{ ...item, stockItemId: item.id, quantity: '10', unitPrice: '1.2345', priceBasis: 'quantity' }] }, actor);
   const task = (p: { id: number }, o: { id: number }, quantity: string) =>
     saveDoc(flow, 'task', { productId: p.id, quantity, unit: '只', date: '2026-10-02', plannedDate: '2026-10-02', orderIds: [o.id] }, actor);
   const mine = order(product), shared = board('虚构关联纸板');
   buy(shared, mine.id);
-  return { store, ops, flow, product, other, order, board, buy, task, mine, shared };
+  return { store, ops, flow, base, product, other, order, board, buy, task, mine, shared };
 }
 
 test('批量完工只按编号读用到的生产任务、采购单和库存品，循环里不再重读；同产品前面新建的成品档案后面的任务照样用上', () => {
-  const w = completionWorld(), { store, ops, flow } = w;
+  const w = completionWorld(), { store, flow } = w;
   // 读在完工方案里（completion-plan.ts，batch-completion.ts 调它）
   const watch = watchReads(/batch-completion\.ts|completion-plan\.ts/);
   try {
@@ -279,7 +269,7 @@ test('批量完工只按编号读用到的生产任务、采购单和库存品�
     // 和这批任务都无关的纸板、采购单（挂在没有生产任务的订单上）
     const noise = Array.from({ length: 12 }, (_, i) => w.board('虚构无关纸板' + i)),
       noisePurchases = noise.map((item) => w.buy(item, idle.id));
-    const otherFinished = ops.saveItem({ name: '虚构无关成品', kind: 'finished', unit: '只', productId: w.other.id }, actor);
+    const otherFinished = w.base.finished(w.other, { name: '虚构无关成品' });
     const first = w.task(w.product, w.mine, '3'), second = w.task(w.product, w.mine, '2');
     const unrelated = [w.task(w.other, others, '2'), w.task(w.other, others, '2')];
     const run = (input: Record<string, unknown>) =>
@@ -326,7 +316,7 @@ test('批量完工只按编号读用到的生产任务、采购单和库存品�
 });
 
 test('完工预览摘要只看这次完工会读到的记录：无关的单据、库存品、产品、订单变了不用重新预览，相关的变了照样要重新预览', () => {
-  const w = completionWorld(), { store, ops, flow } = w,
+  const w = completionWorld(), { store, flow } = w,
     completion = new ManualProductionCompletion(store);
   try {
     const first = w.task(w.product, w.mine, '3');
@@ -339,7 +329,7 @@ test('完工预览摘要只看这次完工会读到的记录：无关的单据�
     let p = previewed.result;
     assert.deepEqual(previewed.seen.filter((sql) => /FROM (flow_documents|stock_items|products|orders) ORDER BY id/.test(sql)), []);
     // 相关：这个产品新建了成品档案（预览时要新建，执行时会用它，结果不同）
-    ops.saveItem({ name: '虚构后建成品', kind: 'finished', unit: '只', productId: w.product.id }, actor);
+    w.base.finished(w.product, { name: '虚构后建成品' });
     assert.throws(() => execute(v, p.previewDigest), /已变化/);
     // 相关：关联这张订单的采购单多了一张（原料不再唯一匹配；旧摘要不看采购单，这里也拦下）
     v = input();
@@ -356,9 +346,9 @@ test('完工预览摘要只看这次完工会读到的记录：无关的单据�
     v = input([{ stockId: w.shared.id, unit: '张', issued: '3', returned: '0' }]);
     p = completion.preview(v, actor);
     const others = w.order(w.other);
-    store.saveProduct(productSchema.parse({ name: '虚构又一个纸箱' }));
+    w.base.product({ name: '虚构又一个纸箱' });
     const loose = w.board('虚构无关纸板');
-    ops.saveItem({ name: '虚构无关成品', kind: 'finished', unit: '只', productId: w.other.id }, actor);
+    w.base.finished(w.other, { name: '虚构无关成品' });
     w.task(w.other, others, '5');
     w.buy(loose, others.id);
     const done = execute(v, p.previewDigest);
@@ -372,17 +362,17 @@ test('完工预览摘要只看这次完工会读到的记录：无关的单据�
 
 // —— 今日页、经营概况算上已归档的：已归档的只按日期圈出这段时间的再按编号读 ——
 test('今日页、经营概况的月度统计只读这段时间里已归档的订单和采购单，不把全部历史（连已归档的）组装一遍', () => {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构归档客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构归档纸箱' })),
-    supplier = ops.saveSupplier({ name: '虚构归档供应商' }, actor);
+  const base = businessBase(actor),
+    { store, ops } = base;
+  const customer = base.customer({ name: '虚构归档客户' }),
+    product = base.product({ name: '虚构归档纸箱' }),
+    supplier = base.supplier({ name: '虚构归档供应商' });
   const archived = (entity: 'orders' | 'purchases', record: { id: number; version: number }) => {
     assert.ok(changeLifecycle(store, entity, { action: 'archive', items: [{ id: record.id, version: record.version }] }, actor).results[0].success);
     return record.id;
   };
   const order = (orderDate: string) =>
-    store.saveOrder(orderSchema.parse({ customerId: customer.id, orderDate, deliveryDate: '2026-12-30', status: '待确认', lines: [{ productId: product.id, quantity: 10, unitPriceCents: 100 }] }));
+    base.order(customer, [{ productId: product.id, quantity: 10, unitPriceCents: 100 }], { orderDate, deliveryDate: '2026-12-30', status: '待确认' });
   const purchase = (orderDate: string) =>
     ops.savePurchase({ supplierId: supplier.id, orderDate, status: '已取消', lines: [{ name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm', quantity: '5', priceBasis: 'quantity' }] }, actor);
   archived('orders', order('2026-01-05'));

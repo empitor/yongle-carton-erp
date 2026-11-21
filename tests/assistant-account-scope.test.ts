@@ -6,11 +6,10 @@ import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
-import { customerSchema, productSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { AppError } from '../server/core/errors.js';
 import type { Actor } from '../server/core/index.js';
@@ -23,7 +22,7 @@ test('出纳账号：ui.open 带编号、records.get 和聊天上下文预读都
   const f = autoConfirmAssistant();
   try {
     const secretName = '虚构出纳不可见客户甲';
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: secretName }));
+    const customer = businessBase(actor, f.store).customer({ name: secretName });
     assert.throws(
       () => f.manager.tools.read('ui.open', { module: 'customers', id: customer.id }, cashier),
       /出纳账号只能查看财务数据/,
@@ -73,7 +72,7 @@ test('出纳账号：ui.open 带编号、records.get 和聊天上下文预读都
 test('已归档的记录：普通账号读不到，进了超级管理员模式的照常读', () => {
   const f = autoConfirmAssistant();
   try {
-    const p = f.store.saveProduct(productSchema.parse({ name: '虚构归档产品' })),
+    const p = businessBase(actor, f.store).product({ name: '虚构归档产品' }),
       owner = superActor();
     f.manager.tools.commit(f.manager.tools.prepare('records.propose_lifecycle', { module: 'products', id: p.id, action: 'archive' }, owner, 's'), owner, 's');
     assert.throws(() => f.manager.tools.read('records.get', { module: 'products', id: p.id }, actor));
@@ -86,7 +85,7 @@ test('已归档的记录：普通账号读不到，进了超级管理员模式�
 test('助手读全部记录（含已归档）：业务员直接说没有权限（permission），没进模式的超级管理员提示去系统维护进入（super-mode），进了模式照常读', () => {
   const f = autoConfirmAssistant();
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构读全部客户' }));
+    const customer = businessBase(actor, f.store).customer({ name: '虚构读全部客户' });
     const calls = [
       ['records.get', { module: 'customers', id: customer.id, lifecycle: 'all' }],
       ['records.search', { module: 'customers', filters: { lifecycle: 'all' } }],
@@ -122,13 +121,11 @@ test('助手读全部记录（含已归档）：业务员直接说没有权限�
 test('要超级管理员模式的事统一分两类：业务员让助手撤销生产任务、完工、采购退货，原因直接说没有权限，不叫他进模式；没进模式的超级管理员才提示去系统维护', async () => {
   const f = autoConfirmAssistant();
   try {
-    const flow = new FlowService(f.store),
-      ops = new OperationsService(f.store);
-    const product = f.store.saveProduct(productSchema.parse({ name: '虚构撤销权限纸箱' }));
-    const raw = ops.saveItem({ name: '虚构撤销权限纸板', kind: 'raw', unit: '张' }, actor);
-    ops.move(raw.id, { action: 'in', quantity: '50', date: today(), notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: raw.version }, actor);
-    const confirm = (doc: { id: number }) =>
-      flow.confirm(doc.id, { previewDigest: flow.preview(doc.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    const base = businessBase(actor, f.store),
+      { flow, ops } = base;
+    const product = base.product({ name: '虚构撤销权限纸箱' });
+    const raw = base.raw({ name: '虚构撤销权限纸板' }, { quantity: '50', date: today() });
+    const confirm = (doc: { id: number }) => base.check(doc);
     const task = flow.save('task', { date: today(), plannedDate: today(), productId: product.id, quantity: '30', unit: '只', orderIds: [], notes: '' }, actor);
     const done = confirm(
       flow.save('production', { date: today(), productId: product.id, taskId: task.id, goodQuantity: '10', scrapQuantity: '0', operator: '虚构机长', materials: [{ stockId: raw.id, issued: '5', returned: '0' }] }, actor),

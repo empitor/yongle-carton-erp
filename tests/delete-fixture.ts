@@ -32,7 +32,7 @@ export function setup() {
   const stocked = base.check(pending);
   const selection = (doc: { kind: string; id: number; version: number }) => ({ module: doc.kind, items: [{ id: doc.id, version: doc.version }], inventoryPolicy: 'preserve' });
   const exists = (id: number) => !!store.db.prepare('SELECT 1 FROM flow_documents WHERE id=?').get(id);
-  return { store, flow, service, draft, live, stocked, selection, exists, task, arrival };
+  return { store, flow, base, service, draft, live, stocked, selection, exists, task, arrival };
 }
 
 /*

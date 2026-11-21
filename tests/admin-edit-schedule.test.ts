@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { productSchema, orderSchema, customerSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
 import { planDate, shiftDate } from '../shared/business/schedule.js';
 import { flowInput } from '../shared/business/physical-flow.js';
 import { saveDoc } from './receive-fixture.js';
@@ -14,21 +14,10 @@ type ScheduleFixture = ReturnType<typeof fixture>;
 
 function scheduleOrder(f: ScheduleFixture) {
   f.receive();
-  const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构排程客户' }));
-  const product = f.store.saveProduct(productSchema.parse({ name: '虚构排程纸箱' }));
-  const finished = f.ops.saveItem(
-    { name: '虚构排程成品', kind: 'finished', unit: '只', productId: product.id },
-    actor,
-  );
-  const order = f.store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-10-29',
-      deliveryDate: '2026-11-04',
-      status: '已确认',
-      lines: [{ productId: product.id, quantity: 100, unitPriceCents: 200, unit: '只' }],
-    }),
-  );
+  const customer = f.base.customer({ name: '虚构排程客户' });
+  const product = f.base.product({ name: '虚构排程纸箱' });
+  const finished = f.base.finished(product, { name: '虚构排程成品' });
+  const order = f.base.order(customer, [f.base.line(product, 100, { unitPriceCents: 200 })], { orderDate: '2026-10-29', deliveryDate: '2026-11-04' });
   const task = saveDoc(f.flow,
     'task',
     {

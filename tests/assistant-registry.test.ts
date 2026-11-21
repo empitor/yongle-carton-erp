@@ -16,7 +16,7 @@ import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { pragmaInteger } from '../server/core/sql.js';
 import { erpPageIds, isErpNavigation, pageLink } from '../shared/assistant/assistant-navigation.js';
 import { assistantFixture } from './assistant-fixture.js';
-import { actor, superActor } from './actor-fixture.js';
+import { actor, grant, superActor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 
 const tempDir = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
@@ -147,7 +147,7 @@ test('只给超级管理员的工具：业务人员调每一个都 403，清单�
 test('ui.open 能开全部页面（财务页要财务权限）；不是本系统页面的链接不认', () => {
   const f = assistantFixture();
   try {
-    const finance = { ...actor, permissions: [...actor.permissions, 'finance:view'] };
+    const finance = { ...actor, permissions: grant(...actor.permissions, 'finance:view') };
     for (const page of erpPageIds) {
       assert.equal(readAs(f.manager.tools.read('ui.open', { module: page }, finance), {}).url, pageLink(page));
       if (page.startsWith('finance')) assert.throws(() => f.manager.tools.read('ui.open', { module: page }, actor), /权限/);

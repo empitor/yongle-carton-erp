@@ -16,7 +16,7 @@ import type { Actor } from '../server/core/index.js';
 import type { PlanCard } from '../shared/assistant/index.js';
 
 const call = (name: string, args: Record<string, unknown>) => ({ message: '', toolCalls: [{ name, args }] });
-const viewer = pageActor({ id: 'fictional-viewer', name: '虚构只读', permissions: [] as string[] });
+const viewer = pageActor({ id: 'fictional-viewer', name: '虚构只读', permissions: [] });
 /** 卡片标题加逐行内容；卡片没有逐行内容就让测试失败 */
 const text = (plan: PlanCard) => {
   assert.ok(plan.summary, plan.tool + ' 的卡片没有逐行内容');

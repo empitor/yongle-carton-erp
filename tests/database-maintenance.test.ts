@@ -367,8 +367,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
       },
       f.who,
     );
-    const check = f.flow.preview(arrival.id, f.who);
-    const done = f.flow.confirm(arrival.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, f.who);
+    const done = f.base.check(arrival, {}, f.who);
     assert.equal(done.status, 'confirmed');
     assert.equal(f.ops.repo.purchases(true, purchase.id)[0].lines[0].receivedUnits, 300_000);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
