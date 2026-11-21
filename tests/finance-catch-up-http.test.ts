@@ -65,6 +65,26 @@ test('有一张单据内容读不出来：财务读取照常回 200，出错记�
   }
 });
 
+test('补扫没成功（财务自己的数据坏了）：财务的读请求照常回 200，写请求拦下', async () => {
+  const s = new Store(':memory:');
+  newSettings(s);
+  physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
+  const h = await startHttp(s);
+  try {
+    assert.equal((await h.get('/finance/summary?date=2026-01-31')).status, 200);
+    s.db.prepare(`UPDATE fin_events SET snapshot='{"doc":5}'`).run();
+    s.db.prepare("UPDATE flow_documents SET status='reversed',version=version+1 WHERE id=1").run();
+    assert.equal((await h.get('/finance/summary?date=2026-01-31')).status, 200, '读照常');
+    const ready = z.object({ syncFailed: z.boolean() }).parse(await (await h.get('/finance/reports/readiness?period=2026-01')).json());
+    assert.equal(ready.syncFailed, true, '正式报表、结账照拦');
+    const budget = { requestId: 'budget', period: '2026-01', accountCode: '5603', amount: 100 };
+    assert.equal((await h.send('/finance/budgets', budget, h.cookie, { method: 'PUT' })).status, 503, '写请求先拦下');
+  } finally {
+    await h.close();
+    s.close();
+  }
+});
+
 test('出纳账号（只有财务查看和收付款）发起读取：补扫照做、审计记出纳；记凭证照样被拒', async () => {
   const s = new Store(':memory:');
   newSettings(s);

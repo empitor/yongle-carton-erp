@@ -18,7 +18,7 @@ import { quantityUnits, today } from '../../shared/core/index.js';
 import { isSuperMode, many, one, rows, type Actor, type Store } from '../core/index.js';
 import { financeAudit } from './core.js';
 import { proportion } from './amounts.js';
-import { purchaseReturnLines, purchaseReturnsToBook } from './business-source.js';
+import { purchaseReturnLines, purchaseReturnsToBook, readReturnOrSkip } from './business-source.js';
 import { FinanceLedger } from './ledger.js';
 import { isReversed } from './reversal-pairs.js';
 import { entry, row } from './query.js';
@@ -102,8 +102,8 @@ function arrivalPayable(db: DatabaseSync, arrivalId: number) {
   );
 }
 
-type ReturnToBook = ReturnType<typeof purchaseReturnsToBook>[number];
-/** 一张退货这次怎么记：凭证日期、摘要、子请求号的前缀，冲减前后的暂估和现在那张暂估凭证 */
+type ReturnToBook = NonNullable<ReturnType<typeof readReturnOrSkip>>;
+/** 一张退货这次怎么记：凭证日期、摘要、子请求号的前缀，冲减前后的暂估和现在那张暂估凭证，退掉多少、是不是撤销后加回 */
 type Rebooking = {
   r: ReturnToBook;
   o: z.output<typeof payableRow>;
@@ -113,6 +113,8 @@ type Rebooking = {
   date: string;
   description: string;
   step: string;
+  value: number;
+  restore: boolean;
 };
 
 /**
@@ -146,20 +148,21 @@ function rebookEstimate(store: Store, ledger: FinanceLedger, user: Actor, b: Reb
   }).header.id;
 }
 
-/** 记一张退货（冲减暂估，撤销的加回）；这次不做的（找不到挂着暂估的应付、金额为 0、暂估凭证还没记账）返回 false */
-function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, r: ReturnToBook): boolean {
-  const db = store.db;
+/**
+ * 一张退货这次能不能记、怎么记（只读）：找不到挂着暂估的应付（已到票、启用前的到货）、金额为 0 或冲成负数、
+ * 暂估凭证还没记账的，这次不做，返回 null。补扫前判断有没有要补的（returnEstimatesPending）和真去记（syncReturnEstimates）都按它。
+ */
+function planReturn(db: DatabaseSync, ledger: FinanceLedger, user: Actor, r: ReturnToBook): Rebooking | null {
   const o = arrivalPayable(db, r.arrival_id);
-  if (!o) return false;
-  const before = row(db, 'fin_obligations', o.id);
+  if (!o) return null;
   const value = returnValue(readSnapshot({ id: o.event_id, snapshot: o.snapshot }), r.lines);
   const restore = r.status === 'reversed';
   const current = o.estimate_remaining ?? o.amount_cents;
   const currentVoucher = o.estimate_remaining == null ? o.voucher_id : o.estimate_voucher_id;
   const target = restore ? current + value : current - value;
-  if (!value || target < 0) return false;
+  if (!value || target < 0) return null;
   const voucher = currentVoucher ? ledger.get(user, currentVoucher) : null;
-  if (voucher && voucher.header.status !== 'posted') return false;
+  if (voucher && voucher.header.status !== 'posted') return null;
   // 冲减记在退货那天；恢复记在撤销退货那天（北京时间），不早于退货日
   // 也不早于现在那张暂估凭证（红冲日期不能早于原凭证），所以同步不会因为日期出错；
   // 那天所在月份已结账的，记到最早没结账月份的 1 号（bookingDate）
@@ -167,8 +170,15 @@ function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, r: ReturnT
   const wanted = [restore ? reversedOn : '', r.date, voucher?.header.date ?? ''].reduce((a, b) => (b > a ? b : a));
   const step = 'return-estimate:' + r.id + ':' + (restore ? 'restore' : 'reduce');
   const description = (restore ? '退货撤销恢复暂估 ' : '退货冲暂估 ') + r.number;
-  const date = bookingDate(db, wanted);
-  const replacement = rebookEstimate(store, ledger, user, { r, o, voucher, current, target, date, description, step });
+  return { r, o, voucher, current, target, date: bookingDate(db, wanted), description, step, value, restore };
+}
+
+/** 按 planReturn 记一张退货（冲减暂估，撤销的加回） */
+function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, plan: Rebooking) {
+  const db = store.db;
+  const { r, o, value, restore, target } = plan;
+  const before = row(db, 'fin_obligations', o.id);
+  const replacement = rebookEstimate(store, ledger, user, plan);
   const amount = o.amount_cents + (restore ? value : -value);
   db.prepare(
     'UPDATE fin_obligations SET amount_cents=?,estimate_remaining=?,estimate_voucher_id=?,version=version+1 WHERE id=?',
@@ -182,22 +192,32 @@ function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, r: ReturnT
     before,
     after,
   });
-  return true;
 }
 
 /** 采购退货暂估只由有财务编辑权限的人（或超级管理员模式）在补扫时记；只能看财务的人补扫时不记 */
 const booksReturns = (user: Actor) => isSuperMode(user) || user.permissions.includes('finance:edit');
 
-/** 有没有这个人补扫时要看的采购退货（补扫前判断要不要开写事务，events.ts 的 pending） */
-export function returnEstimatesPending(store: Store, user: Actor) {
-  return booksReturns(user) && purchaseReturnsToBook(store.db, returnBooked('r')).length > 0;
+/** 这个人补扫时要看的采购退货：没有财务编辑权限的一张都不看，明细读不出来的跳过（unreadable.ts） */
+function returnsToBook(store: Store, user: Actor) {
+  if (!booksReturns(user)) return [];
+  return purchaseReturnsToBook(store.db, returnBooked('r')).flatMap((raw) => readReturnOrSkip(store.db, raw) ?? []);
 }
 
-/** 同步时把采购退货记进暂估：返回这次处理了几张 */
+/** 有没有这个人这次真能记的采购退货（只读，补扫前判断要不要开写事务，events.ts 的 pending；和记的时候同一个 planReturn） */
+export function returnEstimatesPending(store: Store, user: Actor) {
+  const ledger = new FinanceLedger(store);
+  return returnsToBook(store, user).some((r) => planReturn(store.db, ledger, user, r) !== null);
+}
+
+/** 同步时把采购退货记进暂估：一张一张算了就记（同一张到货的几张退货，后一张按前一张记完的暂估算），返回记了几张 */
 export function syncReturnEstimates(store: Store, user: Actor) {
-  if (!booksReturns(user)) return 0;
   const ledger = new FinanceLedger(store);
   let done = 0;
-  for (const r of purchaseReturnsToBook(store.db, returnBooked('r'))) if (bookReturn(store, ledger, user, r)) done++;
+  for (const r of returnsToBook(store, user)) {
+    const plan = planReturn(store.db, ledger, user, r);
+    if (!plan) continue;
+    bookReturn(store, ledger, user, plan);
+    done++;
+  }
   return done;
 }

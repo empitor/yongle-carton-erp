@@ -7,13 +7,22 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
-import { StoredDataError, count, exists, inSavepoint, many, one, rows } from '../core/index.js';
+import { count, exists, many, one, rows } from '../core/index.js';
 import { financeActor, financeAudit, financeTransaction } from './core.js';
-import { readSource, sourceMissing, sourceRow, sourcesCte, sourceUnseen, type SourceRow } from './business-source.js';
+import {
+  readSource,
+  readSourceOrSkip,
+  sourceMissing,
+  sourceRow,
+  sourcesCte,
+  sourceUnseen,
+  type SourceRow,
+} from './business-source.js';
 import { eventChangesSince } from './event-changes.js';
 import { differenceProblem, evaluateSource, taxBasis, type Evaluation } from './event-evaluate.js';
 import { provisionalObligation, readEvent, revenuePolicy, type FinanceEvent } from './event-shared.js';
 import {
+  deliveryReversalsPending,
   flagBeforeOpeningChange,
   markSourceDeleted,
   refreshPendingDeliveryReversals,
@@ -22,6 +31,8 @@ import {
 import { eventColumns, insertEvent, updateEventSnapshot } from './event-columns.js';
 import { expectRow } from './finance-rows.js';
 import { returnEstimatesPending, syncReturnEstimates } from './return-estimates.js';
+import { eventSourceKinds } from './stored-values.js';
+import { skippedKeys } from './unreadable.js';
 import { readSnapshot, type EventSnapshot, type FinanceSourceDocument } from './source-snapshot.js';
 import {
   allocationsPending,
@@ -37,28 +48,10 @@ const BATCH_SIZE = 100;
 const observedSource = sourceRow.extend({ previous: z.number().nullable(), observed: z.string().nullable() });
 type ObservedSource = z.output<typeof observedSource>;
 const startPeriod = rows.fin_settings.pick({ start_period: true });
-
-/** 补扫跳过的一条来源：哪张（种类、编号、单号）、为什么读不出来；reported 是记没记进出错记录 */
-type SkippedSource = { kind: SourceRow['kind']; id: string; number: string | null; error: StoredDataError; reported: boolean };
-/**
- * 读不出来、补扫跳过的来源，每个库一份，只记在这个进程里（不改表结构）。键是“种类:编号:版本:状态”（sourceKey）：
- * 同一版不再重读、不重复记出错记录；单据改了（版本、状态变了）键就变了，下次补扫再试。重启后头一次补扫再试一次、再记一条。
- * 跳过的来源没有观察记录，一直算“还没同步”（unseenSources），结账和正式报表照样拦。
- */
-const skippedSources = new WeakMap<DatabaseSync, Map<string, SkippedSource>>();
-function skippedOf(db: DatabaseSync) {
-  const known = skippedSources.get(db) ?? new Map<string, SkippedSource>();
-  skippedSources.set(db, known);
-  return known;
-}
-/** 来源 s 的键（SQL），和 skippedSources 的键同一个写法 */
-const sourceKey = (s: string) => `${s}.kind||':'||${s}.id||':'||${s}.version||':'||${s}.status`;
-/** 跳过以后还没记进出错记录的，交出去就算记过了（catch-up.ts 记） */
-export function unreportedSkips(db: DatabaseSync) {
-  const fresh = [...skippedOf(db).values()].filter((s) => !s.reported);
-  for (const s of fresh) s.reported = true;
-  return fresh;
-}
+/** 跳过的来源现在的内容（核对改好了没有，unreadable.ts 的 skippedKeys） */
+const sourceContent = sourceRow.pick({ kind: true, id: true, number: true }).extend({ content: z.string() });
+/** 来源 s 的“种类:编号”（SQL），和 unreadable.ts 跳过的键同一个写法 */
+const sourceKey = (s: string) => `${s}.kind||':'||${s}.id`;
 
 /** 同步一条来源时要的：账号、来源、单据内容（带单号）、上一条事件、来源指纹、事件类型、收入确认口径 */
 type SyncContext = {
@@ -110,8 +103,16 @@ export class FinanceEvents {
     return this.store.db;
   }
 
-  /** 只返回尚未扫描的版本（读不出来、已经跳过的这一版不算），采购投影的来源是同一张到货单。 */
+  /** 只返回尚未扫描的版本（内容读不出来、已经跳过又没改过的不算），采购投影的来源是同一张到货单。 */
   private sources(limit = BATCH_SIZE) {
+    const skipped = skippedKeys(this.db, eventSourceKinds, (keys) =>
+      many(
+        this.db,
+        sourceContent,
+        `${sourcesCte} SELECT kind,id,number,document AS content FROM sources s WHERE ${sourceKey('s')} IN (SELECT value FROM json_each(?))`,
+        JSON.stringify(keys),
+      ),
+    );
     return many(
       this.db,
       observedSource,
@@ -120,7 +121,7 @@ export class FinanceEvents {
     LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
     WHERE ${sourceUnseen('s', 'o')} AND ${sourceKey('s')} NOT IN (SELECT value FROM json_each(?))
     LIMIT ?`,
-      JSON.stringify([...skippedOf(this.db).keys()]),
+      JSON.stringify(skipped),
       limit,
     );
   }
@@ -131,21 +132,22 @@ export class FinanceEvents {
   }
 
   /**
-   * 有没有要补扫的（只读）：财务启用了，而且有还没扫到的来源（跳过的不算）、被删还没记的来源，
-   * 或者这个人能记的采购退货暂估。没有的话补扫不开写事务（catch-up.ts）。
+   * 有没有要补扫的（只读）：财务启用了，而且有还没扫到的来源（跳过的不算）、被删还没记的来源、
+   * 要自动收尾的已撤销送货（deliveryReversalsPending），或者这个人这次真能记的采购退货暂估。没有的话补扫不开写事务（catch-up.ts）。
    */
   pending(user: Actor) {
     if (!this.start()) return false;
     return (
       this.sources(1).length > 0 ||
       exists(this.db, `SELECT 1 ${missingSources} LIMIT 1`) ||
+      deliveryReversalsPending(this.db) ||
       returnEstimatesPending(this.store, user)
     );
   }
 
   /**
    * 补扫一批（一个写事务）：最多 BATCH_SIZE 条来源、BATCH_SIZE 条被删的来源；扫满了 remaining 是 true，再调一次接着扫。
-   * 每条来源各用一个保存点：读不出来（StoredDataError）的退回这一条、记进 skippedSources，其余照常；别的错照常抛，整批回滚。
+   * 内容读不出来的来源跳过（unreadable.ts），读出来以后的步骤出错照常抛、整批回滚。
    * 审计记的是 actor（发起这次读取或补扫的人）；财务未启用时什么都不做。
    */
   sync(actor: Actor | null) {
@@ -155,7 +157,10 @@ export class FinanceEvents {
       if (!start) return { processed: 0, remaining: false };
       const sources = this.sources();
       let processed = 0;
-      for (const source of sources) processed += this.syncOrSkip(user, source, start);
+      for (const source of sources) {
+        const read = readSourceOrSkip(this.db, source);
+        if (read) processed += this.syncSource(user, source, start, read);
+      }
       const missing = many(this.db, rows.fin_events, `SELECT e.* ${missingSources} LIMIT ?`, BATCH_SIZE);
       for (const before of missing) markSourceDeleted(this.store, user, before);
       refreshPendingDeliveryReversals(this.store, user);
@@ -168,21 +173,8 @@ export class FinanceEvents {
     });
   }
 
-  /** 在保存点里同步一条来源；读不出来的退回这一条、记下跳过，返回 0 */
-  private syncOrSkip(user: Actor, source: ObservedSource, start: string) {
-    try {
-      return inSavepoint(this.db, () => this.syncSource(user, source, start));
-    } catch (error) {
-      if (!(error instanceof StoredDataError)) throw error;
-      const key = [source.kind, source.id, source.version, source.status].join(':');
-      skippedOf(this.db).set(key, { kind: source.kind, id: source.id, number: source.number, error, reported: false });
-      return 0;
-    }
-  }
-
-  /** 同步一条来源：返回 1 是新增或改动了事件，0 是只记下看到了（没变、启用前的）。 */
-  private syncSource(user: Actor, source: ObservedSource, start: string) {
-    const { doc, hash } = readSource(source);
+  /** 同步一条来源（read 是读出来的内容和指纹）：返回 1 是新增或改动了事件，0 是只记下看到了（没变、启用前的）。 */
+  private syncSource(user: Actor, source: ObservedSource, start: string, { doc, hash }: ReturnType<typeof readSource>) {
     const previous =
       source.previous === null ? undefined : one(this.db, rows.fin_events, 'SELECT * FROM fin_events WHERE id=?', source.previous);
     const policy = previous?.revenue_recognition ?? revenuePolicy(this.db, doc.confirmedAt ?? source.at);

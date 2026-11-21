@@ -15,7 +15,7 @@ import { sourceReversed } from './business-source.js';
 import { readSnapshot } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
 import { unseenSources } from './events.js';
-import { unseenSourceList } from './catch-up.js';
+import { catchUpFailed, unseenSourceList } from './catch-up.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
 import {
   balanceSheet,
@@ -62,13 +62,17 @@ const closedPeriod = (db: Store['db'], period: string) =>
  */
 const unsyncedMessage = (numbers: string[]) =>
   numbers.length
-    ? '有业务单据还没同步进财务：' + numbers.join('、') + '。单据内容读不出来，请联系维护人员查看出错记录，修好后再输出正式报表。'
+    ? '有业务单据还没同步进财务：' + numbers.join('、') + '。多半是单据内容读不出来，请联系维护人员查看出错记录，在库里改好后会自动补上，再输出正式报表。'
     : '有业务单据还没同步进财务，请稍后重试，再输出正式报表。';
+/** 补扫没成功（catch-up.ts 的 catchUpFailed）时的说法 */
+const SYNC_FAILED = '业务单据没能同步进财务（原因已记进出错记录），请联系维护人员，修好后再输出正式报表。';
 
 export class FinanceInfoPending extends AppError {
   constructor(readonly details: ReturnType<FinanceReports['readiness']>) {
     super(
-      details.reversalCount
+      details.syncFailed
+        ? SYNC_FAILED
+        : details.reversalCount
         ? '本期有冲销送货单待处理，请先撤销核销并记账相关红冲。'
         : details.count
           ? '本期有待补财务资料，请补完后再输出正式报表。'
@@ -88,6 +92,8 @@ export class FinanceReports {
     financeActor(actor);
     const { period } = filter.parse(raw);
     const unseen = unseenSources(this.db, endOfMonth(period));
+    // 读之前的补扫没成功（catch-up.ts）：财务的数可能不是最新的，照样拦
+    const syncFailed = catchUpFailed(this.db);
     const unsynced = new FinanceEventViews(this.store).unsynced(actor, period);
     const pending = unsynced.filter((r) => r.status === 'info_pending');
     const query = `FROM (
@@ -123,7 +129,7 @@ export class FinanceReports {
     );
     return {
       period,
-      ready: !totals.count && pending.length === 0 && !unseen,
+      ready: !totals.count && pending.length === 0 && !unseen && !syncFailed,
       count: totals.count + pending.length,
       reversalCount: totals.reversal_count,
       amount: totals.amount + pending.reduce((n, r) => n + Number(r.amount_cents), 0),
@@ -133,6 +139,7 @@ export class FinanceReports {
           .filter((r) => r.source_kind === 'delivery')
           .reduce((n, r) => n + Number(r.amount_cents), 0),
       unsynced: unseen,
+      syncFailed,
       // 还没同步的是哪几张（结账、正式报表拦下时的说法写明单号）
       unsyncedSources: unseen
         ? unseenSourceList(this.db, endOfMonth(period), READINESS_ROWS).map((s) => ({

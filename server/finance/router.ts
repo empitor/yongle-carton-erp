@@ -12,6 +12,8 @@ import { costPeriodPages } from './routes-period.js';
 
 /** 财务挂在 /api 下的位置（装配 server/app.ts 挂在 /api/finance） */
 const FINANCE_MOUNT = '/finance';
+/** 补扫没成功时拦下财务写请求的说法 */
+const SYNC_FAILED = '业务单据没能同步进财务（原因已记进出错记录），先不能改财务的数据，请联系维护人员。';
 
 const inputLabels: Record<string, string> = {
   period: '会计期间', date: '日期', from: '起始日期', to: '截止日期', dueDate: '到期日',
@@ -41,11 +43,12 @@ export function financeRouter(store: Store, auth?: AuthManager, problems?: Probl
   // 中间件已核过财务查看权限，各地址按同一个判断取出操作人（要更高权限的由服务再查）
   const actor = (req: Request) => financeActor(auth?.actor(req));
   router.use((req, res, next) => {
-    const user = actor(req);
+    const user = actor(req),
+      write = !['GET', 'HEAD'].includes(req.method);
     res.set('Cache-Control', 'no-store');
-    if (!['GET', 'HEAD'].includes(req.method) && req.headers['x-erp-auth-token'] !== auth?.csrf)
-      financeError('页面凭证已过期，请刷新。', 403);
-    catchUp(store, user, problems);
+    if (write && req.headers['x-erp-auth-token'] !== auth?.csrf) financeError('页面凭证已过期，请刷新。', 403);
+    // 补扫没成功时读照常回答已经进财务的数；写入要按最新的单据状态核对，先拦下（catch-up.ts“出错怎么办”）
+    if (catchUp(store, user, problems).failed && write) financeError(SYNC_FAILED, 503);
     next();
   });
   const routes: FinanceRoutes = { router, on: route<FinanceApi>(router, FINANCE_MOUNT), store, actor };

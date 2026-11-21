@@ -172,6 +172,8 @@ type ReportReadiness = {
   amount: number;
   deliveryAmount: number;
   unsynced: number;
+  /** 读之前的补扫没成功（原因在出错记录里）：正式报表、结账照拦 */
+  syncFailed: boolean;
   unsyncedSources: { source_kind: 'delivery' | 'arrival' | 'production' | 'stock'; source_id: string; number: string | null }[];
   rows: ClosingReadinessRow[];
 };

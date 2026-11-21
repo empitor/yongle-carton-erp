@@ -4,7 +4,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { clampPage, count, many, parsePaging, rows } from '../core/index.js';
 import { financeActor } from './core.js';
-import { confirmedDocumentsCte, readableSource, sourceConfirmed, sourceRow, sourceUnseen } from './business-source.js';
+import { confirmedDocumentsCte, readSourceOrSkip, sourceConfirmed, sourceRow, sourceUnseen } from './business-source.js';
 import { periodOf } from './days.js';
 import { eventChangesSince, PREVIOUS_CHAIN_MAX } from './event-changes.js';
 import { evaluateSource, partyTaxTerms, taxBasis } from './event-evaluate.js';
@@ -73,7 +73,7 @@ export class FinanceEventViews {
     const taxTerms = partyTaxTerms(this.db);
     // 内容读不出来的跳过（一张坏单据不让台账、报表检查整页出错），它照样算在 unseenSources 里拦结账
     return sourceRows.flatMap((source) => {
-      const read = readableSource(source);
+      const read = readSourceOrSkip(this.db, source);
       if (!read) return [];
       const { doc } = read;
       const at = doc.confirmedAt ?? source.at;
