@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { matchesOperationalRecord, type SupplierView } from '../../shared/business/index';
-import { PageHeading } from '../ui/index';
+import { FilterRow, ListToolbar, PageHeading } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import OperationsSummary from './OperationsSummary';
 import { loadSuppliers } from './list-api';
 import { AllRecordsCheck, type Scope } from './page-state';

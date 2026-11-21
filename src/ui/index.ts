@@ -14,7 +14,7 @@ export { EditorFooter, FormField, FormGroup, FormSection, RowDelete } from './Ed
 export { FormMessage, Loading, loadingText } from './Message';
 export { SuperModeNotice } from './SuperModeNotice';
 export { default as ErrorBoundary } from './ErrorBoundary';
-export { default as FilterPopover } from './FilterPopover';
+export { default as ListToolbar, FilterRow, ListSearch, ListToolbarFrame, ListToolbarKey } from './ListToolbar';
 export { EmptyState, LIST_PAGE_SIZE, ListSummary, PageHeading, Pagination, TableRegion, useResettingPage } from './ListLayout';
 export { Markdown } from './Markdown';
 export { default as ManagementDialog } from './ManagementDialog';

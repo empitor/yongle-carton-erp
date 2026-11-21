@@ -31,13 +31,6 @@ export const exceptions: { file: string; selector: string; why: string }[] = [
     selector,
     why: '右下角有小甬小勒时，识别导入的底栏和整页要让开：助手和识别导入互相不能引用，只能由装配层写',
   })),
-  ...['.list-toolbar .filter-popover-fields .list-filter-field', '.list-toolbar .filter-popover-fields .list-filter-field > span'].map(
-    (selector) => ({
-      file: 'src/cross-module.css',
-      selector,
-      why: '业务的列表工具栏（list-toolbar）里，基础的筛选弹层放着财务页写的筛选字段（list-filter-field），三个模块的类名凑在一起，只能由装配层写',
-    }),
-  ),
 ];
 
 /**

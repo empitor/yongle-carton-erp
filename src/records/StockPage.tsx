@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { inventoryMetrics, matchesOperationalRecord, type StockItemView } from '../../shared/business/index';
-import { PageHeading, useLoad, type RecordAction } from '../ui/index';
+import { FilterRow, ListToolbar, PageHeading, useLoad, type RecordAction } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import { readCatalog } from '../recordkit/catalog-api';
 import WarehouseNavigation from '../warehouse/WarehouseNavigation';
 import OperationsSummary from './OperationsSummary';

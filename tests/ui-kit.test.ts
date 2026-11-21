@@ -1,4 +1,4 @@
-// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、菜单项只在 src/ui 写、pdf.js 只在 src/ui 引、切回页面重新取数。
+// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、列表工具栏、菜单项只在 src/ui 写、pdf.js 只在 src/ui 引、切回页面重新取数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -243,6 +243,16 @@ test('列表行点开详情只在 src/ui 写一份', () => {
 test('菜单项只在 src/ui 写一份', () => {
   for (const file of outsideUi())
     assert.doesNotMatch(readFileSync(file, 'utf8'), /role=["'{]+menuitem/, file + ' 手写了菜单项，改用 MenuItem');
+});
+
+// 列表工具栏只用 src/ui/ListToolbar.tsx（ListToolbar，或数据管理那样用它的外框、搜索框）：别处不再手写工具栏的外框和搜索框
+test('列表工具栏只在 src/ui 写一份', () => {
+  for (const file of outsideUi())
+    assert.doesNotMatch(
+      readFileSync(file, 'utf8'),
+      /['"\s]list-(filters|toolbar|toolbar-row|search)(?![\w-])/,
+      file + ' 手写了列表工具栏，改用 ListToolbar（或它的 ListToolbarFrame、ListSearch）',
+    );
 });
 
 // 打开 PDF、画一页只用 src/ui/pdf.ts 的 openPdf、drawPdfPage：pdf.js 和它的后台线程只在那里引一次（静态、动态、只引类型都算）

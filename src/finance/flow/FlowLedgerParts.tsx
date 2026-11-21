@@ -1,4 +1,4 @@
-import { DetailPanel, FilterPopover, ListSummary, Hint, yuan, Segmented, stepper, col, type Col } from '../../ui/index';
+import { DetailPanel, FilterRow, ListSummary, ListToolbar, Hint, yuan, stepper, col, type Col } from '../../ui/index';
 import type { financeMetricNames } from '../../../shared/finance/index';
 import { NeedEnable, useEnable } from '../enable';
 import { SourceActions, SourceDetail, sourceHeader } from '../SourceDetail';
@@ -86,37 +86,40 @@ export function LedgerFilters({
 }) {
   const { missing, metric, sourceMonth } = filter;
   return (
-    <section className="list-filters fin-filters" aria-label="台账筛选">
-      <Segmented
-        className="fin-segmented"
-        label="看哪些"
-        value={missing ? 'missing' : ''}
-        onChange={(v) => change({ missing: v === 'missing' })}
-        options={[
-          ['', '全部'],
-          ['missing', '待补税率' + (missingCount ? ' ' + missingCount : '')],
-        ]}
-      />
-      <select aria-label="单据类型" value={metric} onChange={(e) => change({ metric: metricOf(e.target.value) })}>
-        {types.map(([key, label]) => (
-          <option key={key} value={key}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <FilterPopover active={sourceMonth ? 1 : 0} onClear={() => change({ sourceMonth: '' })}>
-        <label className="list-filter-field">
-          <span>单据月份</span>
-          <input
-            type="month"
-            aria-label="按单据月份筛选"
-            value={/^\d{4}-\d{2}$/.test(sourceMonth) ? sourceMonth : ''}
-            onChange={(e) => change({ sourceMonth: e.target.value })}
-          />
-        </label>
-        <small className="fin-note">收付款按当初那张单子的月份算，例如这个月收的是上个月的货款。</small>
-      </FilterPopover>
-    </section>
+    <ListToolbar
+      label="台账筛选"
+      scopeLabel="看哪些"
+      scopes={[
+        { value: '', label: '全部' },
+        { value: 'missing', label: '待补税率' + (missingCount ? ' ' + missingCount : '') },
+      ]}
+      scope={missing ? 'missing' : ''}
+      onScope={(v) => change({ missing: v === 'missing' })}
+      keyFilter={
+        <select aria-label="单据类型" value={metric} onChange={(e) => change({ metric: metricOf(e.target.value) })}>
+          {types.map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+      }
+      filterCount={sourceMonth ? 1 : 0}
+      onClearFilters={() => change({ sourceMonth: '' })}
+      filters={
+        <>
+          <FilterRow label="单据月份">
+            <input
+              type="month"
+              aria-label="按单据月份筛选"
+              value={/^\d{4}-\d{2}$/.test(sourceMonth) ? sourceMonth : ''}
+              onChange={(e) => change({ sourceMonth: e.target.value })}
+            />
+          </FilterRow>
+          <small className="fin-note">收付款按当初那张单子的月份算，例如这个月收的是上个月的货款。</small>
+        </>
+      }
+    />
   );
 }
 

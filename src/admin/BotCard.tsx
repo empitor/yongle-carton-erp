@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { beijingTime, useAction } from '../ui/index';
+import { FormMessage, beijingTime, useAction } from '../ui/index';
 import { saveBot } from './settings-api';
 import {
   INBOX_MAX_FILE_TEXT,
@@ -73,12 +73,8 @@ export default function BotCard({
         </span>
       </header>
       {/* 没启用时状态标签已经写了“未启用”，不再用红字重复一遍 */}
-      {status.lastError && status.state !== 'off' && <p className="channel-error">{status.lastError}</p>}
-      {error && (
-        <p className="channel-error" role="alert">
-          {error}
-        </p>
-      )}
+      {status.state !== 'off' && <FormMessage>{status.lastError}</FormMessage>}
+      <FormMessage>{error}</FormMessage>
       {changing && (
         <form
           className="channel-form"

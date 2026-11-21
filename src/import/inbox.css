@@ -45,11 +45,6 @@
 }
 
 /* 收件箱 */
-.inbox-search {
-  flex: 1 1 220px;
-  max-width: 320px;
-  height: 32px;
-}
 .inbox-channel-note {
   margin: 0 0 var(--space-sm);
   color: var(--muted);

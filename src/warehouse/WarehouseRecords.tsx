@@ -9,8 +9,9 @@ import {
   Pagination,
   loadingText,
   stepper,
+  ListToolbar,
+  FilterRow,
 } from '../ui/index';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import FlowDocView from '../flow/FlowDocView';
 import FlowDeskDialogs from '../flow/FlowDeskDialogs';
 import { ListEmpty, StatusFilter } from '../flow/ListParts';

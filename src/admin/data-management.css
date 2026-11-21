@@ -8,25 +8,18 @@
 .adm-data > .form-message {
   margin: 0;
 }
-.adm-data-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
+/* 工具栏和下面的间距由 .adm-data 的 gap 给，不再加工具栏自己的下边距 */
+:root[data-ui='refined'] .adm-data > .list-toolbar {
+  margin-bottom: 0;
 }
-.adm-data-toolbar select {
-  width: 180px;
-}
-.adm-data-toolbar input[type='search'] {
-  flex: 1 1 200px;
-  min-width: 0;
-}
-.adm-data-toolbar button {
+.adm-data-tool {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
 }
+/* 条数、刷新、新建靠右，和原来一样 */
 .adm-data-count {
+  margin-left: auto;
   color: var(--text-secondary);
   font-size: var(--text-xs);
   white-space: nowrap;
