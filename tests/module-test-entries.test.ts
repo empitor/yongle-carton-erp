@@ -55,8 +55,14 @@ function violations(f: string, text: string = readFileSync(f, 'utf8')) {
   });
 }
 
-/** 文字里压根没出现模块目录名（如 operations）的文件引不到它，不用解析（全量解析 tests/ 太慢） */
-const mayRefer = (text: string) => moduleTests.some(({ dir }) => text.includes(dirName(dir)));
+/** import(…)、require(…) 里不是一个写死的字符串（拼接、模板、变量）：目标可能看不出来 */
+const dynamicLoad = /\b(?:import|require)\s*\(\s*(?!(['"])[^'"`]*\1\s*\))/;
+/**
+ * 要解析的文件（全量解析 tests/ 太慢）：文字里出现模块目录名，并且写了“目录名/某个不是 index 的文件”（如 operations/ledger），
+ * 或者有看不出目标的加载。只引 index.js 的文件很多，跳过它们。
+ */
+const mayRefer = (text: string) =>
+  moduleTests.some(({ dir }) => text.includes(dirName(dir)) && (new RegExp(dirName(dir) + '/(?!index\\.)').test(text) || dynamicLoad.test(text)));
 
 test('测试引登记了的模块只走 index.ts，本模块测试登记过才能引内部', () => {
   const found = files('tests')
