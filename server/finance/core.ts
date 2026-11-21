@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import type { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
@@ -5,6 +6,7 @@ import { audit, onceByRequest, operationRequest, requirePermission } from '../co
 import { AppError } from '../core/index.js';
 import type { FinancePermission } from '../../shared/core/index.js';
 import type { financeAuditActions, financeAuditEntities } from '../../shared/finance/index.js';
+import { financeFacts } from '../flow/index.js';
 
 /** 审计的动作、对象只能是中文名表里有的（修改记录页按表显示中文，类型检查保证每个取值都有名字） */
 type FinanceAuditAction = keyof typeof financeAuditActions;
@@ -20,6 +22,13 @@ export function financeActor(
 ) {
   const viewer = requirePermission(actor, 'finance:view');
   return requirePermission(viewer, permission);
+}
+
+/** 写往来、发票、票据、保证金、收付款时取一个往来单位的名称（业务的只读窗口），找不到报错 */
+export function requirePartyName(db: DatabaseSync, kind: 'customer' | 'supplier', id: number | string): string {
+  const name = financeFacts.parties.names(db, kind, [id]).get(id);
+  if (name === undefined) financeError('往来单位不存在。', 404);
+  return name;
 }
 
 export function checkVersion(record: { version?: unknown }, version: number) {

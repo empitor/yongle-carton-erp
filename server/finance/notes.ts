@@ -5,8 +5,7 @@ import type { FinanceEntry } from '../../shared/finance/index.js';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, rows } from '../core/index.js';
-import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { partyName } from './business-source.js';
+import { checkVersion, financeActor, financeAudit, financeError, financeWrite, requirePartyName } from './core.js';
 import { financeTemplate } from './template.js';
 import { FinanceLedger } from './ledger.js';
 import { edit, entry, id, label, money, pageSql, partyKind, request, row } from './query.js';
@@ -113,7 +112,7 @@ export class FinanceNotes {
     return financeWrite(this.store, user, { action: 'notes.create', input: v, result: rows.fin_notes }, () => {
       const side: Side = v.kind;
       const rule = sides[side],
-        name = partyName(this.db, rule.auxiliary, v.partyId);
+        name = requirePartyName(this.db, rule.auxiliary, v.partyId);
       if (exists(this.db, 'SELECT 1 FROM fin_notes WHERE kind=? AND number=?', v.kind, v.number))
         financeError('票号重复。', 409);
       const key = Number(
@@ -222,7 +221,7 @@ export class FinanceNotes {
   private endorsed(before: NoteRow, note: string, v: ChangeInput): ChangePlan {
     if (before.kind !== 'receivable' || !v.counterPartyId) financeError('应收票据背书须指定供应商。');
     const amount = before.amount_cents;
-    const aux: Party = { kind: 'supplier', id: String(v.counterPartyId), name: partyName(this.db, 'supplier', v.counterPartyId) };
+    const aux: Party = { kind: 'supplier', id: String(v.counterPartyId), name: requirePartyName(this.db, 'supplier', v.counterPartyId) };
     const plan = planSettlement(this.db, { side: 'payable', partyId: aux.id, date: v.date, amount, explicit: v.allocations });
     return {
       entries: [...sideEntries('payable', aux, plan.total, amount - plan.total), entry(note, 0, amount)],

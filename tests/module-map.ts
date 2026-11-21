@@ -1,6 +1,6 @@
 // 模块表和取引用的解析器：每个文件属于哪个模块、能用哪些模块，一个文件引用了哪些项目文件。
 // 模块表和理由见 docs/架构说明.md“模块”一节；改这里的规则要同时改那一节。
-// 规则的检查在 module-boundaries.test.ts（引用、模块内分层）、module-api-owners.test.ts（前端请求的地址）、
+// 规则的检查在 module-boundaries.test.ts（引用、模块内分层）、module-narrow-refs.test.ts（只许用对方几个名字的窄引用）、module-api-owners.test.ts（前端请求的地址）、
 // module-table-owners.test.ts（表）、css-modules.test.ts（样式的类名，前端模块和层都读这张表）。
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { posix } from 'node:path';
@@ -26,7 +26,8 @@ export const modules: Rule[] = [
   { name: '采购库存', paths: ['server/operations/'], allow: ['基础', '共用-基础', '共用-业务'] },
   { name: '单据流转', paths: ['server/flow/'], allow: ['基础', '采购库存', '共用-基础', '共用-业务'] },
   { name: '业务汇总', paths: ['server/business/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
-  { name: '财务', paths: ['server/finance/'], allow: ['基础', '共用-基础', '共用-业务', '共用-财务'] },
+  // 财务用单据流转只许经只读窗口 financeFacts（module-narrow-refs.test.ts）
+  { name: '财务', paths: ['server/finance/'], allow: ['基础', '单据流转', '共用-基础', '共用-业务', '共用-财务'] },
   {
     name: '单据导出',
     paths: ['server/documents/'],

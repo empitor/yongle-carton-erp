@@ -6,8 +6,7 @@ import { accountCodeSchema, periodSchema } from '../../shared/finance/index.js';
 import type { Actor } from '../core/index.js';
 import { exists, rows } from '../core/index.js';
 import type { Store } from '../core/index.js';
-import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { partyName } from './business-source.js';
+import { checkVersion, financeActor, financeAudit, financeError, financeWrite, requirePartyName } from './core.js';
 import { sumOf } from './finance-rows.js';
 import { assertInvoiceableObligation, invoiceDetail, invoiceDetailSchema, reissueCapacity } from './invoice-rules.js';
 import { FinanceLedger } from './ledger.js';
@@ -98,7 +97,7 @@ export class FinanceInvoices {
     if (exists(this.db, 'SELECT 1 FROM fin_invoices WHERE type=? AND number=?', v.type, v.number))
       financeError('此类型的发票号码已存在。', 409);
     if (v.attachmentId) row(this.db, 'fin_attachments', v.attachmentId);
-    const party = { name: partyName(this.db, v.direction === 'sale' ? 'customer' : 'supplier', v.partyId) };
+    const party = { name: requirePartyName(this.db, v.direction === 'sale' ? 'customer' : 'supplier', v.partyId) };
     const key = Number(
       this.db
         .prepare(
