@@ -6,4 +6,3 @@ tests/fixtures/import/word-extractor-test01.doc binary
 tests/fixtures/schema-v20.sql text eol=lf
 
 *.service text eol=lf
-
