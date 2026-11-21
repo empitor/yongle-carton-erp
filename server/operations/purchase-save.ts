@@ -122,7 +122,7 @@ export class PurchaseWriter {
         isSuperMode(actor) || before?.customerOrderId === v.customerOrderId,
       )
     )
-      throw new AppError('关联客户订单不存在或已归档。');
+      throw new AppError('关联订单不存在或已归档。');
     // 明细各自关联的订单（一张采购单给几张订单订料）：每张都要存在
     for (const orderId of new Set(v.lines.flatMap((l) => (l.customerOrderId ? [l.customerOrderId] : []))))
       if (

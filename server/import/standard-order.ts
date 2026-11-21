@@ -5,19 +5,14 @@ import { customerSchema, productSchema, orderSchema } from '../../shared/core/in
 import { legacyCents, MAX_PRICE_YUAN, PRICE_DECIMALS } from '../../shared/core/index.js';
 import { evaluateDraft, fieldLabels, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
 import { inspectCurrency } from '../../shared/core/index.js';
-import { productNotices, uniqueMessages, userError } from '../../shared/core/index.js';
+import { fieldName, productNotices, uniqueMessages, userError } from '../../shared/core/index.js';
 import { productFieldsFromDraft } from './product-input.js';
 
 type DraftLine = OrderDraft['lines'][number];
 type Mapping = ImportMapping | undefined;
-/** 订单校验出错时栏目的中文名：订单自己的几栏，其余用识别表的叫法 */
-const labelByField = new Map<string, string>([
-  ['unitPriceExact', '单价'],
-  ['externalPurchaseOrder', '客户采购订单号'],
-  ['roundingPolicy', '结算规则'],
-  ['status', '订单状态'],
-  ...Object.entries(fieldLabels),
-]);
+/** 订单校验出错时栏目的中文名：订单的栏目按栏目登记表，识别表才有的栏按识别表的叫法 */
+const importLabels = new Map<string, string>(Object.entries(fieldLabels));
+const labelOf = (field: string) => fieldName(field) ?? importLabels.get(field) ?? field;
 const value = (v: string | null) => v?.trim() || '';
 
 /** 投影过程中攒的：问题、要新建的产品、这单涉及的产品（提示用） */
@@ -113,7 +108,7 @@ function orderProblems(
   for (const i of orderIssues) {
     const path = i.path.join('.');
     const field = String(i.path.at(-1) || 'order');
-    const label = labelByField.get(field) || field;
+    const label = labelOf(field);
     const prefix = i.path[0] === 'lines' ? '第' + (Number(i.path[1]) + 1) + '项' : '';
     if (!problems.has(path))
       problems.set(path, prefix + label + '：' + (field === 'currency' ? currencyMessage : i.message));

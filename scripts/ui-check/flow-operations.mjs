@@ -76,7 +76,7 @@ const fillCompletion = async (task) => {
   await open('#production?doc=' + task.id, '.detail-panel');
   await panel().getByRole('button', { name: '登记完工', exact: true }).first().click();
   await dialog().waitFor();
-  await dialog().getByLabel('实际操作人员').fill('虚构机长');
+  await dialog().getByLabel('机台操作').fill('虚构机长');
   await pick('第 1 种纸板', 'BC五层纸板');
   await dialog().getByLabel('第 1 种纸板领用（张）', { exact: true }).fill('120');
 };
@@ -204,7 +204,7 @@ await step('采购退货再撤销', async () => {
   else ok('采购退货后撤销：' + (await toast(/撤销/)));
 });
 
-// 导出窗里预览待送货的送货单：印的是“导出并出库”后的样子，实际送货日期是今天，不是当初安排的日子
+// 导出窗里预览待送货的送货单：印的是“导出并出库”后的样子，送货日期是今天，不是当初安排的日子
 await step('送货单预览出库日期', async () => {
   const pending = (await api('/api/flow?kind=delivery')).find((d) => d.status === 'draft');
   const today = await page.evaluate(() => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10));
@@ -219,9 +219,9 @@ await step('送货单预览出库日期', async () => {
   if ((await page.locator('[role="dialog"][aria-modal="true"]').count()) !== 1) fail('送货单预览又叠了一个窗口');
   else if (!(await dialog().getByRole('button', { name: '返回导出' }).isVisible())) fail('送货单预览里没有“返回导出”');
   else ok('送货单预览在导出窗里原地显示');
-  if (!text.includes('实际送货日期') || !text.includes(today) || text.includes('预计送货日期'))
-    fail('送货单预览没印今天的实际送货日期：' + (text.match(/(实际|预计)送货日期.{0,20}/) || [''])[0]);
-  else ok('送货单预览印的是今天 ' + today + ' 的实际送货日期（安排的是 ' + pending.plannedDate + '）');
+  if (!text.includes('送货日期') || !text.includes(today) || text.includes('计划送货日期'))
+    fail('送货单预览没印今天的送货日期：' + (text.match(/(计划)?送货日期.{0,20}/) || [''])[0]);
+  else ok('送货单预览印的是今天 ' + today + ' 的送货日期（安排的是 ' + pending.plannedDate + '）');
   await page.keyboard.press('Escape');
   await dialog().waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
 });

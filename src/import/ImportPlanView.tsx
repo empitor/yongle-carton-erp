@@ -1,5 +1,5 @@
 import { orderLineAmount, orderLineExtra, ORDER_LINES_TITLE } from '../recordkit/index';
-import { finishedUnit, linePrice } from '../../shared/core/index';
+import { finishedUnit, linePrice, fieldLabel, fieldTitle, currencyName } from '../../shared/core/index';
 import { amountText, specLine, taxText } from '../../shared/business/index';
 import { Facts, Section, StatusChip } from '../ui/index';
 import type { Plan } from '../../shared/import/index';
@@ -64,10 +64,10 @@ export default function ImportPlanView({
               ),
             },
             { label: '客户采购单号', value: order.externalPurchaseOrder },
-            { label: '订单日期', value: order.orderDate },
+            { label: fieldLabel('orderDate'), value: order.orderDate },
             { label: '交货日期', value: order.deliveryDate },
             { label: '状态', value: order.status },
-            { label: '币种', value: order.currency === 'CNY' ? '人民币' : order.currency },
+            { label: fieldLabel('currency'), value: currencyName(order.currency) },
             { label: '税费', value: taxText(order.taxRate, order.taxMode) },
             { label: '合同条件', value: order.terms, wide: !!order.terms },
             { label: '整单备注', value: order.notes, wide: !!order.notes },
@@ -81,8 +81,8 @@ export default function ImportPlanView({
               <tr>
                 <th>产品</th>
                 <th className="num">数量</th>
-                <th className="num">单价 / 元</th>
-                <th className="num">金额 / 元</th>
+                <th className="num">{fieldTitle('unitPrice')}</th>
+                <th className="num">{fieldTitle('amount')}</th>
                 <th>产品档案</th>
               </tr>
             </thead>

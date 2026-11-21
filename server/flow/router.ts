@@ -161,6 +161,22 @@ function documentRoutes({ on, store, service, who }: FlowRoutes) {
     on(`POST /flow/:id/${action}`, ({ param, body, req }) => service[action](recordId(param('id')), body, who.editor(req)));
 }
 
+/**
+ * 办一张单据（/flow/:id、/flow/:id/动作）时记下它是哪种单据：地址里只有编号，校验没过时报错按这种单据的栏目叫法说
+ * （送货单的地址叫“收货地址”，server/http-errors.ts 读 res.locals.fieldRecord）。编号不是数字的（returns、daily 这类）不管。
+ */
+function documentKindForErrors(router: Router, store: Store) {
+  // 挂在 /api/flow 下，这里的地址不带 /flow
+  router.all(['/:id', '/:id/:action'], (req, res, next) => {
+    const id = Number(req.params.id);
+    const row = Number.isSafeInteger(id) && id > 0
+      ? one(store.db, rows.flow_documents.pick({ kind: true }), 'SELECT kind FROM flow_documents WHERE id=?', id)
+      : undefined;
+    if (row) res.locals.fieldRecord = row.kind;
+    next();
+  });
+}
+
 export function flowRouter(store: Store, auth?: AuthManager) {
   const router = Router(),
     who = requester(auth);
@@ -169,6 +185,7 @@ export function flowRouter(store: Store, auth?: AuthManager) {
     res.set('Cache-Control', 'no-store');
     next();
   });
+  documentKindForErrors(router, store);
   // 注册顺序要紧：固定地址（原件、退货、列表、台账、登记完工、批量）排在带 :id、:kind 的前面
   sourceFileRoute(router, store, who);
   returnRoutes(routes);

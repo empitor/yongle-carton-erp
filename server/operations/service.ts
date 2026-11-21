@@ -167,7 +167,7 @@ export class OperationsService {
     if (item.version !== v.expectedVersion)
       throw new AppError('库存已变化，请刷新数量后重新确认。', 409);
     if (v.customerOrderId && !this.store.order(v.customerOrderId, isSuperMode(actor)))
-      throw new AppError('关联客户订单不存在或已归档。');
+      throw new AppError('关联订单不存在或已归档。');
     const qty = quantityUnits(v.quantity);
     if (v.action !== 'adjust' && qty <= 0) throw new AppError('出入库数量必须大于零。');
     if (v.date > today()) throw new AppError('业务日期不能晚于今天。');

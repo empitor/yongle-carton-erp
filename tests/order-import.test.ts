@@ -40,7 +40,7 @@ test('识别成功后默认阻止覆盖草稿，显式 force 可重新识别一�
   }
 });
 
-test('原件没写订单日期：照样出识别结果，停在“订单日期缺失”等人补；拿不准的那栏标待核对、写明原因', async () => {
+test('原件没写下单日期：照样出识别结果，停在“下单日期缺失”等人补；拿不准的那栏标待核对、写明原因', async () => {
   const f = await fixture();
   try {
     const raw = filledForm({ orderDate: null, deliveryDate: null });
@@ -55,15 +55,15 @@ test('原件没写订单日期：照样出识别结果，停在“订单日期�
     const quantity = w.draft.lines[0].fields.quantity;
     assert.equal(quantity.certainty, 'needs-review');
     assert.match(quantity.note, /盖章挡住/);
-    assert.ok(w.evaluation?.issues.some((i) => i.path === 'header.orderDate' && /订单日期缺失/.test(i.message)));
-    // 填的是交订单的表，表上写明订单日期这一栏；提示词里没有业务目录和 JSON 结构（请求格式由 deepseek-client 守着）
+    assert.ok(w.evaluation?.issues.some((i) => i.path === 'header.orderDate' && /下单日期缺失/.test(i.message)));
+    // 填的是交订单的表，表上写明下单日期这一栏；提示词里没有业务目录和 JSON 结构（请求格式由 deepseek-client 守着）
     const call = f.calls().at(-1);
     assert.ok(call, '发了识别请求');
     const body = call.body;
     assert.equal(body.tools?.[0].function?.name, 'submit_order');
     const fields = <T extends z.ZodRawShape>(shape: T) => z.object({ properties: z.object(shape) });
     const form = fields({ header: fields({ orderDate: z.object({ description: z.string() }) }) }).parse(body.tools?.[0].function?.parameters);
-    assert.ok(form.properties.header.properties.orderDate.description.includes('订单日期'));
+    assert.ok(form.properties.header.properties.orderDate.description.includes('下单日期'));
     const system = messageText(body.messages[0]);
     assert.doesNotMatch(system, /JSON Schema|业务目录|unitPriceExact/);
   } finally {

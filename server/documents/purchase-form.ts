@@ -15,7 +15,8 @@ import {
   type ScheduleEntry,
   UNPRICED_TEXT,
 } from '../../shared/business/index.js';
-import { displayAmount, quantityString, today } from '../../shared/core/index.js';
+import { displayAmount, fieldLabel, quantityString, today } from '../../shared/core/index.js';
+import { documentColumns } from '../../shared/documents/index.js';
 import { joinSpecification, type RawForm } from './forms.js';
 // 采购订货单要印的内容（只读，不写库）：一张或几张同一家供应商的采购单合成一份。
 
@@ -80,7 +81,7 @@ function purchaseFields({ number, record, purchases, batch, supplier, rows }: Fi
 }
 
 const first = (r: Row) => r.lines[0];
-/** 明细：序号、品名、规格及尺寸、单位、订购数量、单价及计价单位、金额 */
+/** 明细：序号、品名、规格及尺寸、单位、订货数量、单价（带计价单位）、金额 */
 function purchaseRow(r: Row, i: number) {
   const l = first(r);
   return [
@@ -148,7 +149,15 @@ export function purchaseForm(store: Store, ids: number[], schedule?: ScheduleEnt
       number,
       draft: false,
       fields: purchaseFields({ number, record, purchases, batch, supplier, rows }),
-      headers: ['序号', '产品名称', '规格及尺寸', '单位', '订购数量', '单价及计价单位', '金额（元）'],
+      headers: [
+        documentColumns.index,
+        documentColumns.name,
+        documentColumns.specification,
+        '单位',
+        fieldLabel('quantity', { record: 'purchases', parent: 'lines' }),
+        documentColumns.unitPrice,
+        documentColumns.amount,
+      ],
       rows: rows.map(purchaseRow),
       lineData: rows.map(purchaseLineData),
       total: totalText(rows),

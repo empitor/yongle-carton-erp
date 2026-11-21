@@ -1,7 +1,7 @@
-import { purchaseStatusLabel } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, roundingPolicyLabels, statuses } from '../../shared/core/index';
-import { flowStates, isFlowKind, pendingLabels } from '../../shared/business/index';
-import { purchaseBusinessStatuses, stockKinds } from '../../shared/business/index';
+import { codeNames, purchaseStatusLabel } from '../../shared/business/index';
+import { FINISHED_UNIT, RAW_UNIT, fieldTable, orderTaxModes, statuses, type FieldTable } from '../../shared/core/index';
+import { flowStates, isFlowKind, pendingLabels, storedFlowStatusName } from '../../shared/business/index';
+import { purchaseBusinessStatuses } from '../../shared/business/index';
 import type { RecordRefs, RefOption } from './record-refs';
 import type { JsonObject, ManagedRecord } from './record-types';
 // 数据管理编辑窗里每个字段怎么填：哪些不显示、下拉有哪些选项、关联字段列哪些候选、为什么锁住、用什么输入框。
@@ -25,24 +25,27 @@ export const hiddenFields = new Set(['id', 'version', 'requestId']);
 export const centsTwins = new Set(['priceCents', 'unitPriceCents']);
 export const yuanFields = new Set(['priceExact', 'unitPriceExact']);
 export const timeFields = new Set(['plannedTime', 'actualTime']);
-/** 关联字段：显示名称或单号的可搜索选择器，不让人填编号 */
-export const refKinds: Record<string, keyof RecordRefs | 'source' | 'batch'> = {
-  customerId: 'customers',
-  supplierId: 'suppliers',
-  productId: 'products',
-  parentProductId: 'products',
-  stockId: 'stock_items',
-  stockItemId: 'stock_items',
-  finishedStockId: 'stock_items',
-  taskId: 'task',
-  orderId: 'orders',
-  customerOrderId: 'orders',
-  orderIds: 'orders',
-  orderLineId: 'orderLines',
-  purchaseLineId: 'purchaseLines',
-  sourceId: 'source',
-  orderBatchId: 'batch',
+type RefKind = keyof RecordRefs | 'source' | 'batch';
+/** 指向的表 → 编辑窗用哪一类候选（哪个栏目指向哪张表只在栏目登记表 shared/core/field-names.ts 登记） */
+const refKindOfTable: Record<FieldTable, RefKind> = {
+  customers: 'customers',
+  suppliers: 'suppliers',
+  products: 'products',
+  stock_items: 'stock_items',
+  orders: 'orders',
+  order_lines: 'orderLines',
+  purchase_lines: 'purchaseLines',
+  flow_documents: 'task',
+  flow_sources: 'source',
+  order_batches: 'batch',
 };
+/** 更正的原单只由更正写，编辑窗不出选择器 */
+const notPicked = new Set(['correctionOf']);
+/** 关联字段：显示名称或单号的可搜索选择器，不让人填编号；不是关联字段的是 undefined */
+export function refKind(key: string): RefKind | undefined {
+  const table = notPicked.has(key) ? undefined : fieldTable(key);
+  return table && refKindOfTable[table];
+}
 /** 可以不关联的（选项里有“不关联”）；其余的必须选一个 */
 function optionalRef(module: string, key: string) {
   if (key === 'stockId') return module === 'arrival';
@@ -69,45 +72,40 @@ const orderStatuses: string[] = [...statuses],
   flowStatuses = Object.keys(flowStates);
 /** 单据“待核对”的叫法按单据种类查（生产任务没有）；按模块名查，不是单据的查不到 */
 const pendingNames: Partial<Record<string, string>> = pendingLabels;
-/** 没有公共叫法函数的几个代码：存的还是代码，下拉里显示这些字 */
-const codeLabels: Record<string, Record<string, string>> = {
-  kind: { raw: '原材料', finished: '成品' },
-  dimensionUnit: { mm: '毫米（mm）', cm: '厘米（cm）' },
-  priceBasis: { area: '按平方米', quantity: '按张' },
-  roundingPolicy: roundingPolicyLabels,
-  // 正式订单只收人民币，存的是 CNY，界面上只写“人民币”
-  currency: { CNY: '人民币' },
-};
+/** 含税口径：值就是叫法 */
+const taxModeNames: Record<string, string> = Object.fromEntries(orderTaxModes.map((m) => [m, m]));
+/** 存代码的字段下拉里显示的字：和修改历史同一张（shared/business/history-fields.ts 的 codeNames），另加含税口径 */
+const choiceNames = (key: string): Readonly<Record<string, string>> | undefined =>
+  key === 'taxMode' ? taxModeNames : Object.hasOwn(codeNames, key) ? codeNames[key] : undefined;
+
+/** 状态下拉：订单原样，采购单用 purchaseStatusLabel，单据按单据种类叫（和页面上同一套词） */
+function statusChoices(module: string): { values: string[]; label: (v: string) => string } {
+  if (isFlowKind(module))
+    return {
+      // 生产任务没有待核对（安排即下达，建表也拦）
+      values: flowStatuses.filter((s) => s !== 'draft' || pendingNames[module]),
+      label: (v) => storedFlowStatusName(module, v),
+    };
+  if (module === 'orders') return { values: orderStatuses, label: (v) => v };
+  const values =
+    module === 'purchases' ? purchaseStatuses : [...orderStatuses, ...purchaseStatuses.filter((s) => !orderStatuses.includes(s))];
+  return { values, label: (v) => (purchaseStatuses.includes(v) ? purchaseStatusLabel(v) : v) };
+}
 
 /**
- * 数据管理下拉的选项：[存的值, 显示的字]。值保持原来的代码，显示一律中文，
- * 订单状态原样显示，采购单用 purchaseStatusLabel，单据按单据类型叫。
- * 当前值不在清单里也列出来，免得一打开就被悄悄改掉。种类只有库存品有（原材料、成品）。
- * 没有下拉的字段返回 null。
+ * 数据管理下拉的选项：[存的值, 显示的字]。值保持原来的代码，显示一律中文。
+ * 当前值不在清单里也列出来（含税口径这类库里已有的别的写法也照原样列出），免得一打开就被悄悄改掉；
+ * 保存时由录入校验拦下、要人改选。没有下拉的字段返回 null。
  */
 export function fieldChoices(key: string, current: unknown, module = ''): [string, string][] | null {
-  let values: string[];
-  let label: (v: string) => string;
-  if (key === 'status') {
-    if (module === 'orders') values = orderStatuses;
-    else if (module === 'purchases') values = purchaseStatuses;
-    // 生产任务没有待核对（安排即下达，建表也拦）
-    else if (isFlowKind(module)) values = flowStatuses.filter((s) => s !== 'draft' || pendingNames[module]);
-    else values = [...orderStatuses, ...purchaseStatuses.filter((s) => !orderStatuses.includes(s))];
-    label = (v) =>
-      isFlowKind(module)
-        ? v === 'draft'
-          ? pendingNames[module] || flowStates.draft
-          : v === 'reversed'
-            ? '已撤销'
-            : flowStates[v] || v
-        : purchaseStatuses.includes(v) && module !== 'orders'
-          ? purchaseStatusLabel(v)
-          : v;
-  } else if (codeLabels[key]) {
-    values = key === 'kind' ? [...stockKinds] : Object.keys(codeLabels[key]);
-    label = (v) => codeLabels[key][v] || v;
-  } else return null;
+  const names = choiceNames(key);
+  const { values, label } =
+    key === 'status'
+      ? statusChoices(module)
+      : names
+        ? { values: Object.keys(names), label: (v: string) => names[v] || '原来写的“' + v + '”（请改选）' }
+        : { values: null, label: null };
+  if (!values || !label) return null;
   const now = current == null ? '' : String(current);
   const list = now && !values.includes(now) ? [...values, now] : values;
   return list.map((v) => [v, label(v)]);
@@ -122,7 +120,7 @@ export const allowsBlank = (key: string, current: unknown) => current == null ||
 
 /** 这个字段那一类的候选（读来的那份，不改它）：订单明细按同一行选的订单列，库存品按用途筛 */
 function candidates(key: string, ctx: FieldContext, line: JsonObject | null): readonly RefOption[] {
-  const kind = refKinds[key],
+  const kind = refKind(key),
     refs: RecordRefs = ctx.refs ?? {};
   if (kind === 'orderLines') return refs.orderLines?.[String(line?.orderId ?? '')] || [];
   if (kind === 'stock_items') {
@@ -153,7 +151,7 @@ export function refOptions(key: string, current: unknown, ctx: FieldContext, lin
 }
 
 /** 用可搜索选择器的关联字段（订货单只读、送货单原件是下拉，不算） */
-export const wideRef = (key: string) => refKinds[key] !== 'batch' && refKinds[key] !== 'source';
+export const wideRef = (key: string) => refKind(key) !== 'batch' && refKind(key) !== 'source';
 
 /** 为什么这一项改不了：返回原因（显示在输入框下面），能改返回 null。value 是这一格所在的那层内容 */
 export function lockedReason(key: string, value: JsonObject, path: string, ctx: FieldContext): string | null {

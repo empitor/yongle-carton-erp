@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react';
-import { documentColumns, optionalDocumentFields, requiredColumns, templateColumnsAreDefault, type DocumentColumn, type DocumentTemplate } from '../../shared/documents/index';
+import { documentColumns, optionalDocumentFields, printedInfoName, requiredColumns, templateColumnsAreDefault, type DocumentColumn, type DocumentTemplate } from '../../shared/documents/index';
 import { FormGroup, FormSection } from '../ui/index';
 
 /** 明细里能印的全部列（照 documentColumns 的先后） */
@@ -125,7 +125,7 @@ export default function TemplateColumns({
                   })
                 }
               />
-              {k}
+              {printedInfoName(k)}
             </label>
           ))}
         </div>

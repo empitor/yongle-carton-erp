@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { FINISHED_UNIT, finishedUnit, rawUnit } from '../core/index.js';
-import { chosenId, dateSchema, exactPriceSchema } from '../core/index.js';
+import { chosenId, dateSchema, exactPriceSchema, fieldLabel } from '../core/index.js';
 import { arrivalItemSchema, arrivalPriceBasisSchema, noteText } from './operations.js';
 import { positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
 import { inspectionFields } from './arrival.js';
@@ -27,11 +27,20 @@ export const flowDocNames: Record<FlowKind, string> = {
   production: '完工单',
   delivery: '送货单',
 };
+/** 单据存的状态（建表的枚举，tests/schema-constraints.test.ts 比对）；给人看的叫法按单据种类，见 storedFlowStatusName */
 export const flowStates: Record<string, string> = {
   draft: '待核对',
   confirmed: '已确认',
   cancelled: '已取消',
-  reversed: '已冲销',
+  // 业务单据不说“冲销”（那是财务凭证的词），撤回统一叫“已撤销”
+  reversed: '已撤销',
+};
+/** 已确认的单据按种类叫：到货、完工“已入库”，送货“已出库”，生产任务“已下达”（页面和使用手册上的说法） */
+const confirmedNames: Record<FlowKind, string> = {
+  arrival: '已入库',
+  production: '已入库',
+  delivery: '已出库',
+  task: '已下达',
 };
 /** 单据有效：没归档、没取消、没撤销。订单“下一步”、排产计划、订单还差什么都只数有效的单据。 */
 export const activeDoc = (d: { archived?: unknown; status?: unknown }) =>
@@ -65,7 +74,30 @@ export function flowStatusLabel(doc: {
       planned = quantityUnits(doc.quantity || '0');
     return planned > 0 && done >= planned ? '已完工' : done > 0 || waiting > 0 ? '生产中' : '待生产';
   }
-  return doc.kind === 'arrival' ? '已确认收货' : '已确认完工';
+  return confirmedNames.arrival;
+}
+/**
+ * 数据管理改单据状态的下拉、存的状态一个词说清（不看进度）：待核对按单据说（待入库、待送货），
+ * 已确认按种类（已入库、已出库、已下达），已取消，已撤销。用的都是页面上已有的词。
+ */
+export function storedFlowStatusName(kind: FlowKind, status: string) {
+  if (status === 'draft') return pendingLabels[kind] || flowStates.draft;
+  if (status === 'confirmed') return confirmedNames[kind];
+  return flowStates[status] || status;
+}
+/**
+ * 人说的旧叫法（以前界面上出现过、助手查记录时还会有人这么说）：只用来认，不再显示。按存的状态比，和以前一样：
+ * “已冲销”是撤回的（撤销的、被更正替代的原单都算），“已确认收货”“已确认完工”只是确认了的到货单、完工单。
+ */
+const flowStatusSayings: Record<string, { status: string; kind?: FlowKind }> = {
+  已冲销: { status: 'reversed' },
+  已确认收货: { status: 'confirmed', kind: 'arrival' },
+  已确认完工: { status: 'confirmed', kind: 'production' },
+};
+/** 按旧叫法认一张单据；说的不是旧叫法返回 undefined（交给界面叫法 matchesFlowStatus 去比） */
+export function matchesFlowSaying(row: { status?: string; replacedBy?: unknown }, kind: FlowKind, word: string) {
+  const saying = Object.hasOwn(flowStatusSayings, word) ? flowStatusSayings[word] : undefined;
+  return saying && row.status === saying.status && (!saying.kind || saying.kind === kind);
 }
 /**
  * 界面上的状态叫法（列表、详情、关联单据、排产板、导出、“关联与历史”都用这一个）：
@@ -109,8 +141,8 @@ export const matchesFlowStatus = (row: Omit<Parameters<typeof flowStatusText>[0]
 // 要选的编号：没选、填了 0 或负数报“请选择××”（见 shared/core/domain.ts 的 chosenId），可以不关联的留空是 null
 const id = (what: string) => chosenId(what);
 const optionalId = (what: string) => chosenId(what, true).nullable().default(null);
-/** 完工单的实际操作人员（说明编辑也用它） */
-export const operatorText = z.string().trim().min(1, '请填写实际操作人员').max(100);
+/** 完工单的机台操作（说明编辑也用它） */
+export const operatorText = z.string().trim().min(1, '请填写机台操作').max(100);
 const text = noteText.default('');
 // 更正关系（correctionOf、replacedBy）只由更正（server/flow/correction.ts）写，单据输入里不收
 const base = { date: dateSchema, notes: text };
@@ -175,7 +207,7 @@ export const productionSchema = z
     productId: id('产品'),
     // 入哪个成品库存由产品决定（一个产品只有一个成品库存），不用传；服务端保存时按产品对应上、存进单据。
     // 传了的必须就是这个产品的那一个
-    finishedStockId: optionalId('入库的成品'),
+    finishedStockId: optionalId(fieldLabel('finishedStockId')),
     goodQuantity: quantityText,
     scrapQuantity: quantityText.default('0'),
     operator: operatorText,

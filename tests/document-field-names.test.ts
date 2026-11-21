@@ -97,7 +97,7 @@ const writtenNames = (kind: DocumentKind, hidden: readonly string[] = []) => [
 
 test('单据导出写出的信息格名字，预览和导出的排版都认得；排版排的格子拼单据都会写', () => {
   // 样例走到了各个分支：送货单的两种日期，订货单分批时的交货安排和合并时的对应采购单
-  assert.ok(['实际送货日期', '预计送货日期'].every((k) => writtenNames('delivery').includes(k)), '送货单两种日期都拼到了');
+  assert.ok(['送货日期', '计划送货日期'].every((k) => writtenNames('delivery').includes(k)), '送货单两种日期都拼到了');
   assert.ok(['交货安排', '对应采购单'].every((k) => writtenNames('purchase').includes(k)), '订货单分批、合并都拼到了');
   const problems = kinds.flatMap((kind) =>
     layoutMismatches(kind, writtenNames(kind), templateInfoFields(kind, [], fullTemplate(kind).companyAddress)),

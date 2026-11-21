@@ -169,7 +169,7 @@ const bankColumns: Col<BankRow>[] = [
   // 右侧详情打开时：1440 宽收流水号，1280 宽再收摘要；对方、金额、匹配一直显示
   col('description', '摘要', { wrap: true, priority: 'mid' }),
   col('reference', '流水号', { priority: 'low' }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
   col('voucher_id', '匹配', { render: (r) => (r.voucher_id ? '已匹配' : '未匹配') }),
 ];
 

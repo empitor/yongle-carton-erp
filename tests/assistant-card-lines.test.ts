@@ -72,7 +72,7 @@ test('订单明细夹带的改动（换产品、产品名称、行备注、客�
       notes: '虚构行备注',
       customerProductCode: 'FICT-9',
       taxRate: '13',
-      taxMode: 'exclusive',
+      taxMode: '未税',
       deliveryDate: '2026-12-01',
     };
     for (const [key, value] of Object.entries(changes)) {
@@ -81,7 +81,8 @@ test('订单明细夹带的改动（换产品、产品名称、行备注、客�
         id: o.id,
         patch: { lines: o.lines.map((l) => ({ ...l, [key]: value })) },
       });
-      const label = dataManagementFieldName(key, 'lines');
+      // 订单明细一层的叫法：本单名称、本项税率、分项交期……
+      const label = dataManagementFieldName(key, 'lines', 'orders');
       assert.ok(summaryOf(plan).some((l) => l.value.includes(label)), key + ' 没有列出：\n' + text(plan));
     }
     // 换产品写的是新产品的名称
@@ -294,7 +295,7 @@ test('连带改到的别的记录也列：订单换客户带着已出库的送�
   }
 });
 
-test('订货单的到货安排、登记到货：标题带供应商，列出新安排的数量日期、实到、不合格、到货日期、送货单号和已到前后', async () => {
+test('订货单的到货安排、登记到货：标题带供应商，列出新安排的数量日期、实到、拒收、到货日期、供应商送货单号和已到前后', async () => {
   const s = setup();
   try {
     const supplier = s.base.supplier({ name: '虚构纸板厂乙' }),
@@ -309,15 +310,15 @@ test('订货单的到货安排、登记到货：标题带供应商，列出新�
     assert.match(text(schedule), /到货安排：.* → 600 在 2026-12-01 前；400 在 2026-12-20 前/);
     const receive = s.prepare('order_batch.receive', { id: batchId, expectedVersion: version, requestId: randomUUID(), date: '2026-11-14', reference: 'RCV-1', rows: [{ row: 1, quantity: '400', rejectedQuantity: '10' }] });
     assert.match(receive.label, /虚构纸板厂乙/);
-    assert.match(text(receive), /本次到货（虚构纸板乙）：实到 400 张，不合格 10 张/);
+    assert.match(text(receive), /本次到货（虚构纸板乙）：实到 400 张，拒收 10 张/);
     assert.match(text(receive), /到货日期：2026-11-14/);
-    assert.match(text(receive), /送货单号：RCV-1/);
+    assert.match(text(receive), /供应商送货单号：RCV-1/);
     assert.match(text(receive), /已到：0 → 400 张/);
     assert.match(text(receive), /虚构纸板乙：0 张 → 390 张（加 390 张）/);
-    // 连带新建的到货单一行摘要（品名、实到、不合格），不逐个字段罗列
+    // 连带新建的到货单一行摘要（品名、实到、拒收），不逐个字段罗列
     const created = summaryOf(receive).filter((l) => l.label === '连带：新建');
     assert.equal(created.length, 1, text(receive));
-    assert.match(created[0].value, /^到货单（虚构纸板厂乙）：虚构纸板乙 400 张（不合格 10 张/);
+    assert.match(created[0].value, /^到货单（虚构纸板厂乙）：虚构纸板乙 400 张（拒收 10 张/);
     assert.ok(!summaryOf(receive).some((l) => l.label.startsWith('连带：到货单')), text(receive));
   } finally {
     s.f.close();

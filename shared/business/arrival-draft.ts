@@ -1,4 +1,4 @@
-import { RAW_UNIT } from '../core/index.js';
+import { RAW_UNIT, fieldName } from '../core/index.js';
 import { dateSchema } from '../core/index.js';
 import { arrivalSchema } from './physical-flow.js';
 import { normalizeDimensionUnit, parseDimension } from '../core/index.js';
@@ -182,30 +182,12 @@ export function arrivalDraftIssues(draft: ArrivalDraft, batch?: Pick<OpenBatch, 
   }
   return [...linked, ...schemaIssues({ ...draft, orderBatchId: draft.orderBatchId ?? undefined })];
 }
-/** 校验提示里字段的叫法 */
-const issueLabels: Record<string, string> = {
-  supplierId: '供应商',
-  date: '到货日期',
-  reference: '送货单号',
-  quantity: '实收数量',
-  statedQuantity: '原文数量',
-  unitPrice: '单价',
-  priceBasis: '计价方式',
-  statedArea: '原文面积',
-  name: '纸板名称',
-  material: '材质',
-  flute: '楞型',
-  specification: '规格',
-  length: '长',
-  width: '宽',
-  height: '高',
-  dimensionUnit: '尺寸单位',
-  notes: '备注',
-  differenceReason: '差异说明',
-  stockId: '库存品',
-  purchaseLineId: '采购明细',
-  sourceId: '来源原件',
-};
+/** 校验提示里字段的叫法：到货单上的栏目叫法（栏目登记表），按所在的那一层（单头、明细、纸板）查 */
+function issueLabel(path: readonly PropertyKey[], i: number) {
+  const key = String(path[i]),
+    parent = i > 0 && typeof path[i - 1] === 'number' ? String(path[i - 2] ?? '') : String(path[i - 1] ?? '');
+  return fieldName(key, { record: 'arrival', parent }) || key;
+}
 function schemaIssues(draft: unknown): string[] {
   let parsed;
   try {
@@ -220,8 +202,8 @@ function schemaIssues(draft: unknown): string[] {
     ...new Set(
       parsed.error.issues.map((i) => {
         const field = i.path
-          .map((key) =>
-            typeof key === 'number' ? `第${key + 1}行` : key === 'lines' || key === 'item' ? '' : issueLabels[String(key)] || String(key),
+          .map((key, n, path) =>
+            typeof key === 'number' ? `第${key + 1}行` : key === 'lines' || key === 'item' ? '' : issueLabel(path, n),
           )
           .filter(Boolean)
           .join(' · ');

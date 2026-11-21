@@ -10,7 +10,7 @@ import {
   type ImportWorkspaceView as Workspace,
   type OrderDraft,
 } from '../../shared/import/index';
-import { roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
+import { roundingPolicies, roundingPolicyLabels, fieldLabel, fieldTitle } from '../../shared/core/index';
 import { useImportMatching } from './useImportMatching';
 import { FormField, FormSection } from '../ui/index';
 import { CustomerMatch } from './CustomerMatch';
@@ -73,7 +73,7 @@ function OrderHeader({
       {!imported && <CustomerMatch match={match} buyerName={draft.header.buyerName.value} locked={locked} />}
       <FormField label="金额结算" span={imported ? 'full' : 2}>
         <select
-          aria-label="金额结算规则"
+          aria-label={fieldLabel('roundingPolicy')}
           disabled={locked}
           value={mapping.roundingPolicy}
           onChange={(e) => {
@@ -128,7 +128,7 @@ function OrderLines({
               <th>产品名称</th>
               <th>规格</th>
               <th>数量 / 单位</th>
-              <th className="num">单价 / 元</th>
+              <th className="num">{fieldTitle('unitPrice')}</th>
               <th className="num">计算金额</th>
             </tr>
           </thead>
@@ -151,7 +151,7 @@ function OrderLines({
                         {input('unit', l.fields.unit, at)}
                       </div>
                     </td>
-                    <td className="num" data-label="单价 / 元">
+                    <td className="num" data-label={fieldTitle('unitPrice')}>
                       {input('unitPrice', l.fields.unitPrice, at)}
                     </td>
                     <td className="num aii-amount" data-label="计算金额">

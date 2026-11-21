@@ -81,7 +81,7 @@ test('数据管理新建：编号不预填 0；什么都不填直接保存，提
       shownError(() =>
         f.service.execute(command('orders', 'create', [], { ...template('orders'), customerId: f.customer.id, deliveryDate: '2026-12-31', lines: [{ ...template('orders').lines[0], productId: f.product.id, productName: '', quantity: 1, unitPriceCents: 100 }] }), f.who, 's'),
       ),
-      '明细第1项的产品名称：请填写产品名称',
+      '明细第1项的本单名称：请填写本单名称',
     );
     // 只选了客户、产品，填了数量和单价：按产品档案的名称存
     const created = f.service.execute(
@@ -139,7 +139,8 @@ test('数据管理每个模块的每个可编辑字段都有中文名（编辑�
     for (const [k, parent] of keys(schema)) {
       const name = dataManagementFieldName(k, parent);
       assert.notEqual(name, k, m + ' 的字段 ' + (parent ? parent + '.' : '') + k + ' 没有中文名');
-      assert.doesNotMatch(name, /[A-Za-z]/, m + ' 的字段 ' + k + ' 的中文名里有英文：' + name);
+      // 面积单位按词表写“m²”，不算英文
+      assert.doesNotMatch(name.replaceAll('m²', ''), /[A-Za-z]/, m + ' 的字段 ' + k + ' 的中文名里有英文：' + name);
       // 出错时提示里的字段名（userError）也不能是字段代码
       assert.doesNotMatch(userError(k + ': 请填写'), /[A-Za-z]/, m + ' 的字段 ' + k + ' 出错时显示成字段代码');
     }
@@ -147,7 +148,7 @@ test('数据管理每个模块的每个可编辑字段都有中文名（编辑�
   assert.equal(dataManagementFieldName('material', 'costs'), '材料成本（元）');
   assert.equal(dataManagementFieldName('material', 'lines'), '材质 / 配纸');
   // 和各编辑窗同一个叫法（界面规范的词表）
-  assert.equal(dataManagementFieldName('specification'), '规格说明');
+  assert.equal(dataManagementFieldName('specification'), '规格');
   // 给人看的名字里没有“编号”“（分）”：关联字段是选择器（显示名称），金额按元填。
   // 只有产品参考单价、订单明细单价的“分”例外：编辑窗里不显示，由“元”算出来
   for (const [m, schema] of Object.entries(schemas))
@@ -258,7 +259,7 @@ test('数据管理编辑窗：单价按全站写法显示、没改的交回原�
   assert.equal(valueAt(editableInput('orders', { lines: [], costs: { material: 10000, processing: 250, waste: null, other: 0, basis: '' } }), 'costs.material'), '100');
   // 叫法以详情为准：采购单的日期叫“采购日期”，完工单的备注叫“批次备注”；明细里的、别的模块的照旧
   assert.equal(dataManagementFieldName('orderDate', '', 'purchases'), '采购日期');
-  assert.equal(dataManagementFieldName('orderDate', '', 'orders'), '订单日期');
+  assert.equal(dataManagementFieldName('orderDate', '', 'orders'), '下单日期');
   assert.equal(dataManagementFieldName('notes', '', 'production'), '批次备注');
   assert.equal(dataManagementFieldName('notes', 'materials', 'production'), '备注');
   assert.equal(dataManagementFieldName('notes', '', 'task'), '备注');

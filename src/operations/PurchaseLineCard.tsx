@@ -1,8 +1,11 @@
-import { RAW_UNIT, priceBases } from '../../shared/core/index';
+import { RAW_UNIT, fieldLabel, priceBases, priceBasisNames } from '../../shared/core/index';
 import { formatStockSize, requiredPurchaseSize, type StockItemView } from '../../shared/business/index';
 import { Combobox, FormField, RowDelete } from '../ui/index';
 import { DimensionFields, SizeInput, lineAmountText } from './fields';
 import type { PurchaseLineForm } from './purchase-seed';
+
+/** 采购明细的数量叫“订货数量”（栏目登记表） */
+const purchaseQuantity = fieldLabel('quantity', { record: 'purchases', parent: 'lines' });
 
 type Props = {
   line: PurchaseLineForm;
@@ -27,7 +30,7 @@ function pickStock(l: PurchaseLineForm, items: Props['items'], v: string): Parti
 
 /**
  * 采购单编辑窗里的一种纸板：库存里已有的纸板、名称、材质楞型、尺寸、数量、计价和单价；
- * 高、规格说明和备注收进“更多”。frozen 时（已有到货、不是本机管理员）只能看。
+ * 高、规格和备注收进“更多”。frozen 时（已有到货、不是本机管理员）只能看。
  */
 export default function PurchaseLineCard({ line: l, index: i, count, frozen, orders, items, saved, change, remove }: Props) {
   const n = '纸板' + (i + 1) + ' ';
@@ -79,9 +82,9 @@ export default function PurchaseLineCard({ line: l, index: i, count, frozen, ord
             <input aria-label={n + '楞型'} maxLength={50} value={l.flute} onChange={(e) => change({ flute: e.target.value })} />
           </FormField>
           <DimensionFields value={l} change={change} disabled={frozen} height={false} prefix={n} saved={saved} required={requiredPurchaseSize(l)} />
-          <FormField label="订货数量" required>
+          <FormField label={purchaseQuantity} required>
             <div className="form-inline">
-              <input aria-label={n + '订货数量'} required inputMode="decimal" value={l.quantity} onChange={(e) => change({ quantity: e.target.value })} />
+              <input aria-label={n + purchaseQuantity} required inputMode="decimal" value={l.quantity} onChange={(e) => change({ quantity: e.target.value })} />
               <span className="unit-fixed" aria-label={n + '数量单位'}>
                 {RAW_UNIT}
               </span>
@@ -96,8 +99,11 @@ export default function PurchaseLineCard({ line: l, index: i, count, frozen, ord
                 if (basis) change({ priceBasis: basis });
               }}
             >
-              <option value="area">按平方米</option>
-              <option value="quantity">按{RAW_UNIT}</option>
+              {priceBases.map((b) => (
+                <option key={b} value={b}>
+                  {priceBasisNames[b]}
+                </option>
+              ))}
             </select>
           </FormField>
           <FormField
@@ -108,13 +114,13 @@ export default function PurchaseLineCard({ line: l, index: i, count, frozen, ord
           </FormField>
         </div>
         <details className="line-card-more" open={!!(l.height != null || l.specification || l.notes) || undefined}>
-          <summary>高、规格说明和备注</summary>
+          <summary>高、规格和备注</summary>
           <div className="ed-grid cols-4">
             <FormField label={'高' + (l.dimensionUnit ? '（' + l.dimensionUnit + '）' : '')}>
               <SizeInput value={l} k="height" change={change} disabled={frozen} label={n + '高'} />
             </FormField>
-            <FormField label="规格说明">
-              <input aria-label={n + '规格说明'} maxLength={2000} value={l.specification} onChange={(e) => change({ specification: e.target.value })} />
+            <FormField label={fieldLabel('specification')}>
+              <input aria-label={n + fieldLabel('specification')} maxLength={2000} value={l.specification} onChange={(e) => change({ specification: e.target.value })} />
             </FormField>
             <FormField label="明细备注" span={2}>
               <input aria-label={n + '明细备注'} maxLength={1000} value={l.notes} onChange={(e) => change({ notes: e.target.value })} />

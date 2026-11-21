@@ -336,7 +336,7 @@ export class OrderBatchService {
       for (const row of before.rows) {
         const sum = entries.filter((e) => e.rowKey === row.key).reduce((n, e) => n + e.quantityUnits, 0);
         if (sum > row.orderedUnits)
-          fail(row.name + ' 安排的数量合计 ' + quantityString(sum) + ' ' + row.unit + '，比订购的 ' + quantityString(row.orderedUnits) + ' ' + row.unit + ' 多。');
+          fail(row.name + ' 安排的数量合计 ' + quantityString(sum) + ' ' + row.unit + '，比订货的 ' + quantityString(row.orderedUnits) + ' ' + row.unit + ' 多。');
       }
       this.store.db
         .prepare('UPDATE order_batches SET schedule=?,version=version+1,updated_at=? WHERE id=?')

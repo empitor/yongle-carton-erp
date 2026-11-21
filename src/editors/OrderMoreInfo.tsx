@@ -1,6 +1,7 @@
-import { roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
+import { fieldLabel, roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
 import { FormField, FormSection } from '../ui/index';
 import OrderCosts from './OrderCosts';
+import TaxModeSelect from './TaxModeSelect';
 import type { CostDraft, OrderExtras } from './order-draft';
 
 /** 金额结算的两种选法：下拉框按共用的叫法列，选中的按这里取值 */
@@ -47,15 +48,15 @@ export default function OrderMoreInfo({
         <small>供应方、税费、合同条件、金额结算、预估成本</small>
       </summary>
       <FormSection title="供应方、税费和结算" columns={4}>
-        <FormField label="供应方" span={2} hint="客户采购单上写的供货单位，可不填">
+        <FormField label={fieldLabel('supplierName')} span={2} hint="客户采购单上写的供货单位，可不填">
           <input
             maxLength={100}
-            data-field="供应方"
+            data-field={fieldLabel('supplierName')}
             value={extras.supplierName}
             onChange={(e) => setExtras((v) => ({ ...v, supplierName: e.target.value }))}
           />
         </FormField>
-        <FormField label="税率">
+        <FormField label={fieldLabel('taxRate')}>
           <input
             maxLength={30}
             placeholder="例如 13%"
@@ -63,15 +64,14 @@ export default function OrderMoreInfo({
             onChange={(e) => setExtras((v) => ({ ...v, taxRate: e.target.value }))}
           />
         </FormField>
-        <FormField label="含税口径">
-          <input
-            maxLength={60}
-            placeholder="含税 / 未税"
+        <FormField label={fieldLabel('taxMode')}>
+          <TaxModeSelect
+            label={fieldLabel('taxMode')}
             value={extras.taxMode}
-            onChange={(e) => setExtras((v) => ({ ...v, taxMode: e.target.value }))}
+            onChange={(taxMode) => setExtras((v) => ({ ...v, taxMode }))}
           />
         </FormField>
-        <FormField label="金额结算" span={2} hint="不会自动加减税">
+        <FormField label={fieldLabel('roundingPolicy')} span={2} hint="不会自动加减税">
           <select
             value={extras.roundingPolicy}
             onChange={(e) => {
@@ -86,7 +86,7 @@ export default function OrderMoreInfo({
             ))}
           </select>
         </FormField>
-        <FormField label="合同条件" span="full">
+        <FormField label={fieldLabel('terms')} span="full">
           <input
             maxLength={4000}
             value={extras.terms}

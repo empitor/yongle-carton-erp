@@ -3,7 +3,7 @@ import { ManagementDialog } from '../ui/index';
 import { Combobox } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { useAction, useAuthState, useLoad } from '../ui/index';
-import { today } from '../../shared/core/index';
+import { today, fieldLabel } from '../../shared/core/index';
 import { movementSchema, type StockItemView } from '../../shared/business/index';
 import { readCatalog } from '../recordkit/catalog-api';
 import { moveStock } from '../warehouse/stock-api';
@@ -129,9 +129,9 @@ export function MovementDialog({
               onChange={(e) => setNotes(e.target.value)}
             />
           </FormField>
-          <FormField label="关联客户订单">
+          <FormField label={fieldLabel('customerOrderId')}>
             <Combobox
-              ariaLabel="关联客户订单"
+              ariaLabel={fieldLabel('customerOrderId')}
               placeholder="不关联"
               value={String(orderId)}
               onChange={setOrderId}

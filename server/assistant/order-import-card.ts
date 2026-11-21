@@ -6,7 +6,7 @@
 // 对不上（识别结果、档案之后被改了）就拒绝，要重新出卡片。
 import { createHash } from 'node:crypto';
 import { AppError, failureMessage, requirePermission } from '../core/index.js';
-import { FINISHED_UNIT, linePriceExact, plainPrice } from '../../shared/core/index.js';
+import { FINISHED_UNIT, fieldLabel, linePriceExact, plainPrice } from '../../shared/core/index.js';
 import { prepare } from './order-import-prepare.js';
 import { attach } from './order-import-intake.js';
 import type { ImportPreview, OrderImportState, Task, WorkflowContext } from './order-import-state.js';
@@ -71,11 +71,11 @@ function summary({ task, preview }: Ready, many: boolean): Line[] {
     ...(many ? [] : line('文件', task.fileName)),
     ...line('客户', plan.customer.name + '（' + archive(plan.customer) + '）'),
     ...similar(head + '相近的已有客户', plan.customer),
-    ...line('客户订单号', order.externalPurchaseOrder),
-    ...line('订单日期', order.orderDate),
-    ...line('交货日期', order.deliveryDate),
-    ...line('税率', order.taxRate),
-    ...line('含税情况', order.taxMode),
+    ...line(fieldLabel('externalPurchaseOrder'), order.externalPurchaseOrder),
+    ...line(fieldLabel('orderDate'), order.orderDate),
+    ...line(fieldLabel('deliveryDate'), order.deliveryDate),
+    ...line(fieldLabel('taxRate'), order.taxRate),
+    ...line(fieldLabel('taxMode'), order.taxMode),
     ...order.lines.flatMap((_l, i) => {
       const confirmations = plan.confirmations.filter((c) => c.line === i + 1);
       return [

@@ -142,7 +142,7 @@ export default function InterestSection({ kind }: { kind: Kind }) {
             },
             {
               name: 'amount',
-              label: '金额 / 元',
+              label: '金额（元）',
               type: 'money',
               hint: '不填按算到的那天自动算；改了金额或填 0 要写原因',
             },

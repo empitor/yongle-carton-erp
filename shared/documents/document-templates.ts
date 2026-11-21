@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { fieldLabel, fieldTitle } from '../core/index.js';
 /** 单据抬头里的我方公司名（模板没填公司名时也印它）。 */
 export const factoryName = '宁波甬勒包装制品有限公司';
 /** 模板的单据种类：采购订货单、送货单。 */
@@ -37,21 +38,26 @@ const documentColumnKeys = [
   'flute',
 ] as const;
 export type DocumentColumn = (typeof documentColumnKeys)[number];
+/**
+ * 明细列的列名：和业务同一栏目的用栏目登记表的叫法（shared/core/field-names.ts），只有导出单据才有的列写在这里。
+ * “规格及尺寸”印的是规格和尺寸拼在一起（server/documents/forms.ts 的 joinSpecification），保留这个名字。
+ */
 export const documentColumns = {
   index: '序号',
-  name: '产品名称',
+  name: fieldLabel('productName'),
   specification: '规格及尺寸',
-  unit: '数量单位',
-  quantity: '数量',
-  unitPrice: '单价及计价单位',
-  amount: '金额（元）',
+  unit: fieldLabel('unit'),
+  quantity: fieldLabel('quantity'),
+  // 单价后面已经带着“元/m²”“元/张”，列名只写“单价”
+  unitPrice: fieldLabel('unitPrice'),
+  amount: fieldTitle('amount') ?? fieldLabel('amount'),
   notes: '明细备注',
-  productCode: '产品编码 / 客户料号',
+  productCode: fieldLabel('customerProductCode'),
   orderNumber: '我方销售订单号',
-  customerOrderNumber: '客户采购订单号',
+  customerOrderNumber: fieldLabel('externalPurchaseOrder'),
   dimensions: '尺寸及单位',
-  material: '材质 / 配纸',
-  flute: '楞型',
+  material: fieldLabel('material'),
+  flute: fieldLabel('flute'),
 } as const satisfies Record<DocumentColumn, string>;
 /** 自定义明细列时必须保留的列。 */
 export const requiredColumns: readonly DocumentColumn[] = ['name', 'quantity', 'unit'];

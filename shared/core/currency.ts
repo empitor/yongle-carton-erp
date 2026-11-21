@@ -1,3 +1,8 @@
+/** 币种的叫法：正式订单只收人民币，存的是 CNY，界面上只写“人民币”（不露英文值） */
+export const currencyNames: Readonly<Record<string, string>> = { CNY: '人民币' };
+/** 存的币种代码换成叫法；没登记的原样返回 */
+export const currencyName = (code: string | null | undefined) =>
+  code && Object.hasOwn(currencyNames, code) ? currencyNames[code] : code || '';
 // 仅规范人民币的明确等价表示，不换汇、不把未知的非空货币当成人民币。
 export function inspectCurrency(value: unknown) {
   const raw = typeof value === 'string' ? value.trim() : '';

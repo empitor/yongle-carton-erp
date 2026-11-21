@@ -39,7 +39,7 @@ export function NewObligationDialog({
         },
         {
           name: 'amount',
-          label: '金额 / 元',
+          label: '金额（元）',
           type: 'money',
           required: true,
           section: '哪一笔',
@@ -116,7 +116,7 @@ export function BadDebtDialog(props: RowDialogProps) {
           ],
         },
         { name: 'date', label: '日期', type: 'date', required: true },
-        { name: 'amount', label: '金额 / 元', type: 'money', required: true },
+        { name: 'amount', label: '金额（元）', type: 'money', required: true },
         {
           name: 'counterAccount',
           label: '备抵科目',

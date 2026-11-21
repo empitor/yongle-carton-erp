@@ -4,6 +4,7 @@ import type { Order } from '../../shared/core/index';
 import { Combobox, FormField, FormSection } from '../ui/index';
 import PurchaseLineCard from './PurchaseLineCard';
 import { blankPurchaseLine, type PurchaseLineForm } from './purchase-seed';
+import { fieldLabel } from '../../shared/core/index';
 
 /** 采购单编辑窗（PurchaseEditor.tsx）的几块：向谁订货、订哪些纸板。表单的样子也在这里。 */
 
@@ -79,14 +80,14 @@ export function SupplierAndOrder({
           ]}
         />
       </FormField>
-      <FormField label="关联客户订单" hint={lineOrders ? '各行已分别关联订单（见每种纸板右上角），这里不用再选' : '不选就是独立采购'}>
+      <FormField label={fieldLabel('customerOrderId')} hint={lineOrders ? '各行已分别关联订单（见每种纸板右上角），这里不用再选' : '不选就是独立采购'}>
         <Combobox
-          ariaLabel="关联客户订单"
-          placeholder={lineOrders ? '按每行关联的订单' : '独立采购，不关联客户订单'}
+          ariaLabel={fieldLabel('customerOrderId')}
+          placeholder={lineOrders ? '按每行关联的订单' : '独立采购，不关联订单'}
           value={form.customerOrderId ? String(form.customerOrderId) : ''}
           onChange={(v) => patch({ customerOrderId: v ? Number(v) : null })}
           options={[
-            { value: '', label: lineOrders ? '按每行关联的订单' : '独立采购，不关联客户订单' },
+            { value: '', label: lineOrders ? '按每行关联的订单' : '独立采购，不关联订单' },
             ...(value?.customerOrderId && !orders.some((o) => o.id === value.customerOrderId)
               ? [{ value: String(value.customerOrderId), label: value.customerOrderNumber + '（历史订单）' }]
               : []),

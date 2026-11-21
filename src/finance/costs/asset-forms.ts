@@ -19,7 +19,7 @@ export const assetFields: Field[] = [
   { name: 'months', label: '使用月数', type: 'int', required: true, section: '值多少、用多久' },
   {
     name: 'residual',
-    label: '残值率 %',
+    label: '残值率（%）',
     required: true,
     section: '值多少、用多久',
     hint: '例如 5，没有残值填 0',

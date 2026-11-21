@@ -20,6 +20,9 @@ const productTemplate = () => ({
   // 分是 0 就是没定价（不是 0 元）；精确价格留空让人填，填了就按它定价
   priceCents: 0,
   priceExact: '',
+  customerProductCode: '',
+  // 附属于哪个产品：默认不关联
+  parentProductId: null,
 });
 // 采购明细、到货明细的纸板资料：库存品那几格去掉“种类”“产品”（纸板就是原材料，录入结构不收这两格，放进来会被悄悄丢掉）
 const sheetTemplate = () => ({
@@ -40,8 +43,7 @@ const stockTemplate = () => {
 };
 const orderLineTemplate = () => ({
   productId: null,
-  // 产品名称不放进模板：不填就按产品档案的名称存（server/core/db.ts 保存订单），要另起名字的保存后再编辑。
-  // 放一个空串进来，保存时会被“产品名称至少一个字”拦下
+  // 本单名称不放进模板（原因写在 tests/data-management-template-fields.test.ts 的 notInTemplate）
   specification: '',
   notes: '',
   // 数量、单价留空让人填（漏填时校验报“请填写有效数量”“请填写单价”），不拿 1 和 0 冒充真值，和订单编辑窗一致
@@ -50,6 +52,11 @@ const orderLineTemplate = () => ({
   unitPriceCents: null,
   // 精确单价留空：只填“单价（分）”时按分存。预填成 0 的话精确价优先，填的分会被 0 盖掉
   unitPriceExact: '',
+  customerProductCode: '',
+  // 本项税率、含税口径空着就跟整单走；分项交期空着就是整单的交货日期
+  taxRate: '',
+  taxMode: '',
+  deliveryDate: null,
 });
 // 采购、到货、生产、送货的数量同样留空（null）让人填，不预填 1；报废、退料没有就是 0，照旧预填 0
 const quantity = null;
@@ -67,6 +74,11 @@ const orderTemplate = (today: string) => ({
   externalPurchaseOrder: '',
   // 金额结算和订单页编辑窗一样先是“精确到分，不自动舍入”；单价有不足一分的尾数时人在这一格改选
   roundingPolicy: 'exact-cents',
+  supplierName: '',
+  taxRate: '',
+  // 含税口径和订单页编辑窗新单一样先是“未明确”（不默认含税）
+  taxMode: '未明确',
+  terms: '',
 });
 const purchaseTemplate = (today: string) => ({
   supplierId: null,
@@ -75,10 +87,12 @@ const purchaseTemplate = (today: string) => ({
   expectedDate: null,
   status: '待订货',
   notes: '',
-  lines: [{ ...sheetTemplate(), stockItemId: null, quantity, unitPrice: null, priceBasis: 'area' }],
+  // 这一行给哪张订单订的料：默认不关联（跟采购单的关联订单走）
+  lines: [{ ...sheetTemplate(), stockItemId: null, quantity, unitPrice: null, priceBasis: 'area', customerOrderId: null }],
 });
 const arrivalTemplate = (today: string) => ({
   date: today,
+  actualTime: null,
   notes: '',
   supplierId: null,
   reference: '',
@@ -89,6 +103,10 @@ const arrivalTemplate = (today: string) => ({
       purchaseLineId: null,
       item: sheetTemplate(),
       quantity,
+      // 验收合格、拒收、入库空着照旧：合格等于实到、拒收 0、入库等于合格（shared/business/arrival.ts 的 arrivalQuantities）
+      acceptedQuantity: null,
+      rejectedQuantity: null,
+      stockedQuantity: null,
       statedQuantity: null,
       unitPrice: null,
       priceBasis: 'area',
@@ -110,6 +128,9 @@ const productionTemplate = (today: string) => ({
 });
 const deliveryTemplate = (today: string) => ({
   date: today,
+  // 计划送货日期空着按单据日期算
+  plannedDate: null,
+  plannedTime: null,
   notes: '',
   customerId: null,
   address: '',
@@ -129,7 +150,8 @@ const templates = (today: string) =>
     orders: orderTemplate(today),
     purchases: purchaseTemplate(today),
     arrival: arrivalTemplate(today),
-    task: { date: today, notes: '', productId: null, quantity, unit: FINISHED_UNIT, orderIds: [] },
+    // 计划生产日期空着按单据日期补（server/flow/validate.ts 的 inputDocument）
+    task: { date: today, plannedDate: null, plannedTime: null, notes: '', productId: null, quantity, unit: FINISHED_UNIT, orderIds: [] },
     production: productionTemplate(today),
     delivery: deliveryTemplate(today),
   }) satisfies Record<DataManagementModule, object>;

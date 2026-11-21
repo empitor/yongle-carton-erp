@@ -29,7 +29,7 @@ function DepositActions({ actions, done }: { actions: DepositAction[]; done: () 
             <tr>
               <th>日期</th>
               <th>是什么</th>
-              <th className="num">金额 / 元</th>
+              <th className="num">金额（元）</th>
               <th aria-label="操作" />
             </tr>
           </thead>
@@ -88,7 +88,7 @@ function DepositDialog({
               },
             ]
           : []),
-        { name: 'amount', label: '金额 / 元', type: 'money', required: true },
+        { name: 'amount', label: '金额（元）', type: 'money', required: true },
         { name: 'date', label: '日期', type: 'date', required: true },
         ...(dialog === 'refund'
           ? [{ name: 'accountId', label: '资金账户', type: 'cash-account' as const, required: true }]

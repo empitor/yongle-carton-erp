@@ -24,7 +24,7 @@ function scheduleError(name: string, orderedUnits: number, list: ScheduleDraft[]
     if (!e.dueDate) return name + '：到货安排每一段都要写日期，不写日期的部分不用加。';
   }
   const sum = list.reduce((n, e) => n + units(e.quantity), 0);
-  if (sum > orderedUnits) return name + '：到货安排合计比订购数多。';
+  if (sum > orderedUnits) return name + '：到货安排合计比订货数量多。';
   return '';
 }
 
@@ -110,7 +110,7 @@ export default function BatchSchedule({
           {rest > 0
             ? (value.length ? '其余 ' : '') + quantityString(rest) + ' ' + unit + ' 日期待定'
             : rest < 0
-              ? '合计比订购数多 ' + quantityString(-rest) + ' ' + unit
+              ? '合计比订货数量多 ' + quantityString(-rest) + ' ' + unit
               : '全部定了日期'}
         </small>
         {rest > 0 && (

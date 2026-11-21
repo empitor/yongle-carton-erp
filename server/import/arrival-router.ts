@@ -28,7 +28,7 @@ export function arrivalRouter(manager: ImportManager, operator: Operator, receip
     const document = input.docId ? new FlowService(receiptAi.store).get(input.docId) : null;
     if (document && document.kind !== 'arrival') throw new AppError('只能关联待入库的采购到货单。', 422);
     const sourceId = input.sourceId || document?.sourceId;
-    if (document && (!sourceId || document.sourceId !== sourceId)) throw new AppError('到货单与来源原件不一致。', 409);
+    if (document && (!sourceId || document.sourceId !== sourceId)) throw new AppError('到货单与送货单原件不一致。', 409);
     if (sourceId && receiptAi.source(sourceId).hash !== workspace.fileHash)
       throw new AppError('不能关联其他文件的到货记录。', 409);
     return manager.linkArrival(workspace.id, { ...input, ...(sourceId ? { sourceId } : {}) });

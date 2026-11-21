@@ -7,7 +7,7 @@ import {
   SEARCH_MAX_LENGTH,
   arrivalProgresses,
   arrivalProgressText,
-  flowStatusLabel,
+  matchesFlowSaying,
   matchesFlowStatus,
   pendingPurchase,
   purchaseBusinessStatuses,
@@ -165,13 +165,14 @@ function purchaseSpecific(r: ModuleRows['purchases'][number], f: RecordFilters):
     inView: null,
   };
 }
-/** 单据：界面叫法（和列表的状态筛选同一个比法），也认 flowStatusLabel 的叫法（已确认收货、已冲销这类） */
-function flowSpecific(
-  r: Parameters<typeof flowStatusLabel>[0] & Parameters<typeof matchesFlowStatus>[0],
-  kind: FlowKind,
-  f: RecordFilters,
-): Specific {
-  return { ...generic, status: !!f.status && (flowStatusLabel(r) === f.status || matchesFlowStatus(r, kind, f.status)) };
+/**
+ * 单据：界面叫法（和列表的状态筛选同一个比法）；人说的旧叫法（已确认收货、已冲销这类）按存的状态认
+ * （shared/business/physical-flow.ts 的 matchesFlowSaying），界面上不再显示这些词
+ */
+function flowSpecific(r: Parameters<typeof matchesFlowStatus>[0], kind: FlowKind, f: RecordFilters): Specific {
+  const wanted = f.status;
+  if (!wanted) return { ...generic, status: false };
+  return { ...generic, status: matchesFlowSaying(r, kind, wanted) ?? matchesFlowStatus(r, kind, wanted) };
 }
 
 /** 筛出来的记录，带着模块（汇总按模块用各自的类型） */

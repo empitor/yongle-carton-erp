@@ -121,7 +121,7 @@ export default function TaxBatchDialog({
         </FormGroup>
         {how === 'rate' && (
           <>
-            <FormField label="税率 %" required>
+            <FormField label="税率（%）" required>
               <input
                 inputMode="decimal"
                 required

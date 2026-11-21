@@ -172,7 +172,7 @@ test('从提示词里删掉的用法句，在命令说明或查字段写法里�
   assert.match(describe('flow.propose_confirmation'), /不能确认订单，订单用 records\.propose_save 改 status/);
   assert.match(describe('finance.receivables'), /应收为空不等于不欠.*finance\.monthly/);
   assert.match(describe('finance.monthly'), /理论和实际分开说/);
-  assert.match(describe('order_batch.receive'), /不合格 rejectedQuantity（没有写 0.*reference 是送货单号，没给就不填/);
+  assert.match(describe('order_batch.receive'), /拒收 rejectedQuantity（没有写 0.*reference 是供应商送货单号，没给就不填/);
   // 采购单的字段写法（按面积还是按张计价、库存品留空、纸板没有高度、不关联订单当备货）在查字段写法的结果里
   const store = new Store(':memory:');
   try {

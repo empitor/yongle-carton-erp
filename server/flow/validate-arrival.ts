@@ -165,7 +165,7 @@ function checkLine(ctx: ArrivalCheck, v: Arrival, l: ArrivalLine, purchases: Pur
     amount = purchaseLineAmount({ ...l.item, quantity: l.quantity, unitPrice: l.unitPrice, priceBasis: l.priceBasis });
   if (area === null) warnings.push(l.item.name + '缺少可换算面积的尺寸/单位，面积和面积计价金额待补充。');
   if (l.statedArea !== null && area !== null && Number(l.statedArea) !== Number(area))
-    warnings.push(l.item.name + '单据面积与计算面积不同，请核对。');
+    warnings.push(l.item.name + '标注面积与计算面积不同，请核对。');
   const purchase = found?.purchase ?? null;
   changes.push({
     stockId: it?.id || null,

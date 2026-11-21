@@ -1,6 +1,6 @@
 import BatchCard from '../operations/BatchCard';
 import { ARRIVAL_HISTORY_TITLE, UNPRICED_TEXT, formatStockSize, priceText, type PurchaseView } from '../../shared/business/index';
-import { displayAmount, quantityString } from '../../shared/core/index';
+import { displayAmount, quantityString, fieldShort } from '../../shared/core/index';
 import { ReceiptHistory } from '../flow/FulfillmentDetails';
 import { Facts, Progress, Section } from '../ui/index';
 import { useAgentRecord } from '../recordkit/record-meta';
@@ -30,7 +30,7 @@ function PurchaseLines({ lines, ordered }: { lines: readonly PurchaseLine[]; ord
         <thead>
           <tr>
             <th>纸板</th>
-            <th className="num">订购</th>
+            <th className="num">{fieldShort('quantity', { record: 'purchases', parent: 'lines' })}</th>
             {ordered && <th className="num">已到 / 待到</th>}
             <th className="num">金额</th>
           </tr>
@@ -115,7 +115,7 @@ export function PurchaseDetails({
             { label: '关联订单', value: linkedOrders(row) },
             { label: '采购日期', value: row.orderDate },
             { label: '预计到货', value: row.expectedDate },
-            { label: '订购金额', value: money(row.totalAmount) },
+            { label: '订货金额', value: money(row.totalAmount) },
             { label: '有效到货金额', value: money(row.receivedAmount), hidden: !ordered },
             { label: '备注', value: row.notes, wide: true },
           ]}

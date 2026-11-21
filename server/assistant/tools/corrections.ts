@@ -53,7 +53,7 @@ export const correctionTools = [
     name: 'arrival.correct',
     risk: 'review',
     description:
-      '更正到货单：到货数量或验收数登记错了时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get（arrivals）读到货单的行和 version；lines 列出原单每一行（index 是原单行号，从 0 起）和更正后的 quantity，可另写合格、不合格、实际入库数；reason 写用户说的原因。撤销原单、另出一张替代单，原记录和更正链保留。',
+      '更正到货单：到货数量或验收数登记错了时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get（arrivals）读到货单的行和 version；lines 列出原单每一行（index 是原单行号，从 0 起）和更正后的 quantity，可另写验收合格数量、拒收数量、入库数量；reason 写用户说的原因。撤销原单、另出一张替代单，原记录和更正链保留。',
     arguments: { id: 1, expectedVersion: 1, reason: '用户说的原因', lines: [{ index: 0, quantity: '5000' }] },
     schema: arrivalCorrectionPreviewSchema.extend({ id: positive }),
   },
@@ -127,7 +127,7 @@ function deliveryLines(view: DeliveryView): Line[] {
   }));
   const orders = view.orderImpact.map((o) => ({
     label: '订单 ' + o.orderNumber + ' 已发',
-    value: o.productName + ' ' + change(o.before, o.after, o.unit) + '（订购 ' + qty(o.ordered, o.unit) + '）',
+    value: o.productName + ' ' + change(o.before, o.after, o.unit) + '（订货 ' + qty(o.ordered, o.unit) + '）',
   }));
   const amount = view.beforeAmount !== view.afterAmount && view.afterAmount != null
     ? [{ label: '送货金额', value: money(view.beforeAmount) + ' → ' + money(view.afterAmount) }]

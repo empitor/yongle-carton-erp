@@ -1,4 +1,4 @@
-import { errorMessage, legacyCents, plainPrice, priceFromCents } from '../../shared/core/index';
+import { errorMessage, legacyCents, plainPrice, priceFromCents, fieldLabel, fieldTitle } from '../../shared/core/index';
 import { useId, useState, type SubmitEvent } from 'react';
 import DimensionUnitSelect from './DimensionUnitSelect';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../../shared/core/index';
@@ -50,7 +50,7 @@ function ParentField({ value, form, change }: SectionProps) {
     .map((p) => ({ value: String(p.id), label: p.name }));
   return (
     <FormField
-      label="附属于"
+      label={fieldLabel('parentProductId')}
       span={3}
       hint="比如小箱套在大箱里，就选大箱。只是列表里挂在它下面看着清楚，订单、价格、库存还是各算各的。"
     >
@@ -96,7 +96,7 @@ function DimensionSection({
             />
           </FormField>
         ))}
-        <FormField label="尺寸单位">
+        <FormField label={fieldLabel('dimensionUnit')}>
           <DimensionUnitSelect
             unit={form.dimensionUnit ?? form.dimensionUnitRaw}
             // 只有已保存的旧尺寸才需要确认单位；刚填的数字本来就按所选单位理解。
@@ -123,10 +123,10 @@ function DimensionSection({
 function MaterialSection({ form, change, price, setPrice }: SectionProps & { price: string; setPrice: (v: string) => void }) {
   return (
     <FormSection title="材料、加工和价格" columns={3}>
-      <FormField label="材质 / 配纸">
+      <FormField label={fieldLabel('material')}>
         <input maxLength={100} value={form.material} onChange={(e) => change('material', e.target.value)} />
       </FormField>
-      <FormField label="楞型">
+      <FormField label={fieldLabel('flute')}>
         <input maxLength={50} value={form.flute} onChange={(e) => change('flute', e.target.value)} list="flutes" />
         <datalist id="flutes">
           {['B 楞', 'C 楞', 'E 楞', 'BC 楞', 'BE 楞'].map((s) => (
@@ -134,7 +134,7 @@ function MaterialSection({ form, change, price, setPrice }: SectionProps & { pri
           ))}
         </datalist>
       </FormField>
-      <FormField label="参考单价（元）" hint="不知道可以先空着">
+      <FormField label={fieldTitle('priceExact')} hint="不知道可以先空着">
         <input
           inputMode="decimal"
           type="number"
@@ -145,7 +145,7 @@ function MaterialSection({ form, change, price, setPrice }: SectionProps & { pri
           onChange={(e) => setPrice(e.target.value)}
         />
       </FormField>
-      <FormField label="加工要求" span="full">
+      <FormField label={fieldLabel('requirements')} span="full">
         <textarea
           rows={2}
           maxLength={500}
@@ -154,7 +154,7 @@ function MaterialSection({ form, change, price, setPrice }: SectionProps & { pri
           placeholder="印刷、开槽、模切、钉箱或粘箱等"
         />
       </FormField>
-      <FormField label="规格" span="full" hint="订单里选这个产品时，规格按这一行自动带出">
+      <FormField label={fieldLabel('specification')} span="full" hint="订单里选这个产品时，规格按这一行自动带出">
         <output className="sales-output">{specification(form) || '—'}</output>
       </FormField>
     </FormSection>
@@ -222,10 +222,10 @@ export default function ProductEditor({
         <FormMessage>{error}</FormMessage>
         {sameName && <FormMessage tone="warning">{sameName}</FormMessage>}
         <FormSection columns={3}>
-          <FormField label="产品名称" required span={2}>
+          <FormField label={fieldLabel('productName')} required span={2}>
             <input required maxLength={100} value={form.name} onChange={(e) => change('name', e.target.value)} />
           </FormField>
-          <FormField label="客户料号">
+          <FormField label={fieldLabel('customerProductCode')}>
             <input
               maxLength={100}
               value={form.customerProductCode || ''}

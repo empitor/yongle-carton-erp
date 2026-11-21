@@ -140,7 +140,7 @@ function checkBalances(changes: StockChange[], stockOf: (id: number) => StockIte
 function checkTask(ctx: Check, v: FlowDocument<'task'>) {
   const { flow, maintenance } = ctx;
   if (!flow.store.product(v.productId, maintenance)) fail('产品不存在或已归档。');
-  if (new Set(v.orderIds).size !== v.orderIds.length) fail('关联客户订单重复。');
+  if (new Set(v.orderIds).size !== v.orderIds.length) fail('关联订单重复。');
   for (const id of v.orderIds) {
     const order = flow.store.order(id, maintenance);
     if (

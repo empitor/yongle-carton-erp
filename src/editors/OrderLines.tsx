@@ -1,12 +1,18 @@
 import { ChevronDown, Plus } from 'lucide-react';
 import { orderLineAmount } from '../recordkit/OrderLinesView';
-import { finishedUnit, type Product } from '../../shared/core/index';
+import { fieldLabel, fieldTitle, finishedUnit, type FieldKey, type Product } from '../../shared/core/index';
 import { Combobox, RowDelete } from '../ui/index';
 import { FormField } from '../ui/index';
 
 import type { OrderLineDraft } from './order-draft';
+import TaxModeSelect from './TaxModeSelect';
 
 const extraKeys = ['customerProductCode', 'taxRate', 'taxMode', 'deliveryDate', 'notes'] as const;
+/** 订单明细一层的栏目叫法（本单名称、分项交期、本项税率……，栏目登记表） */
+const lineName = (key: FieldKey) => fieldLabel(key, { record: 'orders', parent: 'lines' });
+/** 单价、金额列名带单位：“单价（元）” */
+const priceTitle = fieldTitle('unitPrice'),
+  amountTitle = fieldTitle('amount');
 
 const amount = (l: OrderLineDraft) => orderLineAmount({ quantity: l.quantity, unitPriceExact: l.price });
 
@@ -84,7 +90,7 @@ function OrderLineMain({ l, i, options, products, expanded, single, toggle, chan
           </span>
         </div>
       </td>
-      <td className="num sales-col-price" data-label="单价 / 元">
+      <td className="num sales-col-price" data-label={priceTitle}>
         <input
           aria-label={'第 ' + n + ' 行单价'}
           required
@@ -97,7 +103,7 @@ function OrderLineMain({ l, i, options, products, expanded, single, toggle, chan
           onChange={(e) => change(i, 'price', e.target.value)}
         />
       </td>
-      <td className="num sales-col-amount" data-label="金额 / 元">
+      <td className="num sales-col-amount" data-label={amountTitle}>
         <output>{amount(l)}</output>
       </td>
       <td className="sales-col-actions">
@@ -126,50 +132,49 @@ function OrderLineExtras({ l, i, orderDate, expanded, change }: LineProps) {
     <tr className="sales-line-extra" hidden={!expanded} data-line-key={l.key}>
       <td colSpan={6}>
         <div className="ed-grid cols-4">
-          <FormField label="本单名称" required span={2} hint="选产品时自动带出，可改成客户单据上的叫法">
+          <FormField label={lineName('productName')} required span={2} hint="选产品时自动带出，可改成客户单据上的叫法">
             <input
               aria-label={'第 ' + n + ' 行本单产品名称'}
-              data-field="本单名称"
+              data-field={lineName('productName')}
               required
               maxLength={2000}
               value={l.productName}
               onChange={(e) => change(i, 'productName', e.target.value)}
             />
           </FormField>
-          <FormField label="客户料号">
+          <FormField label={lineName('customerProductCode')}>
             <input
-              aria-label={'第 ' + n + ' 行客户料号'}
+              aria-label={'第 ' + n + ' 行' + lineName('customerProductCode')}
               maxLength={100}
               value={l.customerProductCode}
               onChange={(e) => change(i, 'customerProductCode', e.target.value)}
             />
           </FormField>
-          <FormField label="分项交期">
+          <FormField label={lineName('deliveryDate')}>
             <input
               aria-label={'第 ' + n + ' 行本项交货日期'}
-              data-field="分项交期"
+              data-field={lineName('deliveryDate')}
               type="date"
               min={orderDate}
               value={l.deliveryDate}
               onChange={(e) => change(i, 'deliveryDate', e.target.value)}
             />
           </FormField>
-          <FormField label="本项税率">
+          <FormField label={lineName('taxRate')}>
             <input
-              aria-label={'第 ' + n + ' 行本项税率'}
+              aria-label={'第 ' + n + ' 行' + lineName('taxRate')}
               maxLength={30}
               placeholder="不填按整单"
               value={l.taxRate}
               onChange={(e) => change(i, 'taxRate', e.target.value)}
             />
           </FormField>
-          <FormField label="本项含税口径">
-            <input
-              aria-label={'第 ' + n + ' 行本项含税口径'}
-              maxLength={60}
-              placeholder="不填按整单"
+          <FormField label={lineName('taxMode')}>
+            <TaxModeSelect
+              label={'第 ' + n + ' 行' + lineName('taxMode')}
+              blank="同整单"
               value={l.taxMode}
-              onChange={(e) => change(i, 'taxMode', e.target.value)}
+              onChange={(v) => change(i, 'taxMode', v)}
             />
           </FormField>
           <FormField label="明细备注" span={2}>
@@ -227,8 +232,8 @@ export default function OrderLines({
             <th className="sales-col-product">产品</th>
             <th className="sales-col-spec">规格</th>
             <th className="sales-col-qty">数量</th>
-            <th className="num sales-col-price">单价 / 元</th>
-            <th className="num sales-col-amount">金额 / 元</th>
+            <th className="num sales-col-price">{priceTitle}</th>
+            <th className="num sales-col-amount">{amountTitle}</th>
             <th aria-label="操作" />
           </tr>
         </thead>

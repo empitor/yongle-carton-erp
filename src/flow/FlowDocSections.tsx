@@ -1,4 +1,4 @@
-import { quantityString } from '../../shared/core/index';
+import { quantityString, fieldLabel } from '../../shared/core/index';
 import { planDate, type ArrivalDaily, type DeliveryDaily, type FlowDocView } from '../../shared/business/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { Facts, Section } from '../ui/index';
@@ -168,9 +168,9 @@ export function DeliverySections({ d, record, data }: { d: FlowDocView<'delivery
         <Facts
           items={[
             { label: '计划送货', value: when(planDate(d), d.plannedTime) },
-            { label: '实际发货', value: shipped ? shipped + undoneMark(d) : '还没出库' },
+            { label: fieldLabel('date', { record: 'delivery' }), value: shipped ? shipped + undoneMark(d) : '还没出库' },
             { label: '送达', value: d.deliveredAt, hidden: !d.deliveredAt },
-            { label: '联系人', value: [d.contact, d.phone].filter(Boolean).join(' ') },
+            { label: fieldLabel('contact', { record: 'delivery' }), value: [d.contact, d.phone].filter(Boolean).join(' ') },
             { label: '经办人', value: handler(d) },
             { label: '收货地址', value: d.address, wide: true },
             { label: '备注', value: d.notes, wide: true, hidden: !d.notes },

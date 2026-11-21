@@ -67,7 +67,7 @@ function replacementLines(stored: Arrival, input: CorrectionInput) {
         (units(base.rejectedQuantity) || 0) > 0 ||
         (base.stockedQuantity != null && units(base.stockedQuantity) !== units(base.quantity));
     if (quantityChanged && !explicit && mixed)
-      fail('原批次含不合格或未入库数量，请同时明确正确的验收合格、不合格和实际入库数量。');
+      fail('原批次含拒收或未入库数量，请同时写清正确的验收合格数量、拒收数量和入库数量。');
     const line = {
       ...base,
       ...given,
@@ -155,7 +155,7 @@ function receivedByLine(lines: readonly { lineId: number | null | undefined; qua
 /** 采购单的一条明细更正后：已到货按“更正后 − 原来”的净变化算；允许减少历史超收量，但不借更正新增超收 */
 function purchaseLineImpact(pl: PurchaseLine, delta: number): PurchaseImpact['lines'][number] {
   const after = pl.receivedUnits + delta;
-  if (delta > 0 && after > pl.quantityUnits) fail('更正后累计到货超过采购订购数量。', 409);
+  if (delta > 0 && after > pl.quantityUnits) fail('更正后累计到货超过采购的订货数量。', 409);
   return {
     lineId: pl.id,
     name: pl.name,

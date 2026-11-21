@@ -57,7 +57,7 @@ await shot('flow-missing');
 await page.getByLabel('全选本页待补税率的单据').check();
 await page.locator('.selection-bar').getByRole('button', { name: '补税率', exact: true }).click();
 await page.waitForTimeout(300);
-await field('税率 %').locator('input').fill('13');
+await field('税率（%）').locator('input').fill('13');
 await field('口径').locator('select').selectOption('未税');
 await shot('batch-dialog');
 await dlg().getByRole('button', { name: '保存税率', exact: true }).click();

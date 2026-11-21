@@ -89,7 +89,8 @@ test('局部修改：改说明（批次备注）、调整计划日期', () => {
     refs,
   );
   assertClean(schedule, '调整计划日期', ids);
-  assert.deepEqual(schedule.items, [{ label: L('plannedDate'), value: '2026-11-10 → 2026-11-12' }]);
+  // 生产任务的计划日期按单据叫“计划生产日期”，和安排生产窗一样
+  assert.deepEqual(schedule.items, [{ label: '计划生产日期', value: '2026-11-10 → 2026-11-12' }]);
 });
 
 test('更正：完工单列合格、报废和领料的前后，送货单列送货明细的前后，带原因', () => {

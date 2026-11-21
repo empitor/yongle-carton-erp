@@ -171,7 +171,7 @@ test('手工改成已订货也自动进待到货；不同供应商、已在别�
   assert.throws(() => f.batches.draft([b.id, c.id], actor), /同一家供应商/);
 });
 
-test('改到货安排：数量合计不能超过订购数；同样的请求再交一次原样返回，内容不同的旧版本拒绝', () => {
+test('改到货安排：数量合计不能超过订货数量；同样的请求再交一次原样返回，内容不同的旧版本拒绝', () => {
   const f = setup();
   const a = f.purchase('100', '2026-11-01');
   f.ordered([a.id]);
@@ -181,7 +181,7 @@ test('改到货安排：数量合计不能超过订购数；同样的请求再�
   const key = batch.rows[0].key;
   assert.throws(
     () => f.batches.saveSchedule(batch.id, { expectedVersion: batch.version, schedule: [{ rowKey: key, quantity: '101', dueDate: null }] }, actor),
-    /比订购的/,
+    /比订货的/,
   );
   const body = {
     expectedVersion: batch.version,

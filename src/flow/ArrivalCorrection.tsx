@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RAW_UNIT } from '../../shared/core/index';
+import { RAW_UNIT, fieldShort } from '../../shared/core/index';
 import { FormSection, useAuthState, useLoad } from '../ui/index';
 import { readCatalog } from '../recordkit/catalog-api';
 import ArrivalCorrectionAdmin, { type AdminCatalog } from './ArrivalCorrectionAdmin';
@@ -8,11 +8,8 @@ import CorrectionShell from './CorrectionShell';
 import { correctionHead, correctionInput, correctionRows, type CorrectionRow } from './arrival-correction';
 import { useCorrection, useCorrectionRows, type CorrectionPartProps } from './useCorrection';
 
-const inspection = [
-  ['acceptedQuantity', '合格'],
-  ['rejectedQuantity', '不合格'],
-  ['stockedQuantity', '入库'],
-] as const;
+/** 验收三个数：叫法用窄处的简写（合格、拒收、入库） */
+const inspection = (['acceptedQuantity', 'rejectedQuantity', 'stockedQuantity'] as const).map((k) => [k, fieldShort(k)] as const);
 const noCatalog: AdminCatalog = { suppliers: [], items: [], purchases: [] };
 
 /**
@@ -40,7 +37,7 @@ export default function ArrivalCorrection(part: CorrectionPartProps<'arrival'>) 
       loadError={catalog.error}
       close={part.close}
     >
-      <FormSection title="改成多少" hint="合格、不合格、入库不动时按原批次跟着算；原单和更正记录都会保存" columns={1}>
+      <FormSection title="改成多少" hint="合格、拒收、入库不动时按原批次跟着算；原单和更正记录都会保存" columns={1}>
         <CorrectionTable
           first="纸板"
           extra={inspection.map(([, t]) => (

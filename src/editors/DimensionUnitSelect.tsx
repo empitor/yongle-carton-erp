@@ -1,5 +1,7 @@
-import { normalizeDimensionUnit, type DimensionUnit } from '../../shared/core/index';
+import { dimensionUnitNames, normalizeDimensionUnit, type DimensionUnit } from '../../shared/core/index';
 import { useConfirm } from '../ui/index';
+
+const dimensionUnits: readonly DimensionUnit[] = ['mm', 'cm'];
 
 /**
  * 尺寸单位下拉。原来的单位没确认（例如导入时原文写得不清）而又已经有数字时，
@@ -34,12 +36,12 @@ export default function DimensionUnitSelect({
             next &&
             hasValues &&
             !(await confirm({
-              title: '把尺寸认作' + (next === 'mm' ? '毫米' : '厘米'),
+              title: '把尺寸认作' + dimensionUnitNames[next],
               message:
                 '原来的尺寸单位没有确认，系统没法换算。继续会把现在填的长宽高当成' +
-                (next === 'mm' ? '毫米' : '厘米') +
+                dimensionUnitNames[next] +
                 '，请先对照原文件看一眼。',
-              confirmLabel: '认作' + (next === 'mm' ? '毫米' : '厘米'),
+              confirmLabel: '认作' + dimensionUnitNames[next],
             }))
           )
             return;
@@ -47,8 +49,11 @@ export default function DimensionUnitSelect({
         }}
       >
         <option value="">单位待确认{raw && !known ? '（原文：' + raw + '）' : ''}</option>
-        <option value="mm">毫米（mm）</option>
-        <option value="cm">厘米（cm）</option>
+        {dimensionUnits.map((u) => (
+          <option key={u} value={u}>
+            {dimensionUnitNames[u]}
+          </option>
+        ))}
       </select>
       {confirmDialog}
     </span>

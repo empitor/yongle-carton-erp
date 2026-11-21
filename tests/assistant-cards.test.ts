@@ -301,7 +301,7 @@ test('改已入库到货单的备注和到货时间（flow.edit_info）：卡片
     assert.match(card.label, new RegExp('^编辑到货单的说明（不动库存和金额）：到货单 ' + number));
     assert.deepEqual(card.summary?.slice(1, 3), [
       { label: '备注', value: '未填写 → 虚构：司机说下次走后门' },
-      { label: '实际时间', value: '未填写 → 14:30' },
+      { label: '到货时间', value: '未填写 → 14:30' },
     ]);
     assert.equal(flow.flow.get(arrivalId).notes ?? '', '', '没点不改');
     await confirmCard(f, v, 0, actor, 's');

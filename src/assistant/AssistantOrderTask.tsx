@@ -1,4 +1,4 @@
-import { finishedUnit, linePrice } from '../../shared/core/index';
+import { finishedUnit, linePrice, currencyName } from '../../shared/core/index';
 import { amountText, specLine } from '../../shared/business/index';
 import type { ThreadView } from '../../shared/assistant/index';
 import { importedOrderOf, previewPlanOf, type PreviewPlan } from './order-task-view';
@@ -64,12 +64,12 @@ function ImportPreview({ plan }: { plan: PreviewPlan }) {
         客户：{plan.customer.name}（{plan.customer.mode === 'new' ? '新建' : '已有'}）
       </p>
       <p>
-        订单日期：{order.orderDate}；交货：{order.deliveryDate}；客户采购号：
+        下单日期：{order.orderDate}；交货：{order.deliveryDate}；客户采购单号：
         {order.externalPurchaseOrder || '未提供'}
       </p>
       <PreviewLines plan={plan} />
       <p>
-        币种 {order.currency}；税率 {order.taxRate || '未注明'}；{order.taxMode}
+        币种 {currencyName(order.currency)}；税率 {order.taxRate || '未注明'}；{order.taxMode}
         ；合同条件 {order.terms || '无'}；备注 {order.notes || '无'}
       </p>
       <NewRecords plan={plan} />

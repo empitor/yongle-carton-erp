@@ -15,7 +15,7 @@ const eventColumns: Col<EventRow>[] = [
   col('status', '状态', { render: (r) => <Status value={statusOf(r)} /> }),
   // 说明是长句，详情里有全文；1280 宽打开详情时收起，日期、单号、状态、金额一直显示
   col('problem', '说明', { wrap: true, render: (r) => problemOf(r) || '—', priority: 'mid' }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
 ];
 
 /**

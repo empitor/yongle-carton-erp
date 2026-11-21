@@ -97,7 +97,7 @@ test('本机管理员更正时给已出库送货单加行：替代单的出库�
   assert.throws(() => correct(f, added.id, keep, admin, { date: '2099-03-01' }), /出库日期不能晚于今天/);
 });
 
-test('导出送货单出库：纸上印的是今天出库（实际送货日期），不是当初安排的日子；以后补打也一样', async (t) => {
+test('导出送货单出库：纸上印的是今天出库（送货日期），不是当初安排的日子；以后补打也一样', async (t) => {
   const f = deliverySetup(t);
   let printed: BusinessForm | null = null;
   const docs = new BusinessDocuments(f.store, async (form) => {
@@ -110,15 +110,15 @@ test('导出送货单出库：纸上印的是今天出库（实际送货日期�
     return Object.fromEntries(printed.fields.filter(([k]) => /送货日期/.test(k)));
   };
   const file = await docs.generate({ kind: 'delivery', id: arranged.id, format: 'xlsx', markShipped: true, expectedVersion: arranged.version, requestId: randomUUID() }, actor);
-  assert.deepEqual(dateOf(), { 实际送货日期: today() });
+  assert.deepEqual(dateOf(), { 送货日期: today() });
   docs.delivered(file.exportId, actor);
   docs.complete(file.exportId, file.sha256, actor);
   assert.equal(f.flow.get(arranged.id).date, today(), '系统里记的出库日和纸上一致');
   await docs.generate({ kind: 'delivery', id: arranged.id, format: 'xlsx', expectedVersion: f.flow.get(arranged.id).version, requestId: randomUUID() }, actor);
-  assert.deepEqual(dateOf(), { 实际送货日期: today() }, '补打也是出库那天');
+  assert.deepEqual(dateOf(), { 送货日期: today() }, '补打也是出库那天');
 });
 
-test('导出并出库跨了北京时间零点：出库日按纸上印的实际送货日期，不挪到第二天', async (t) => {
+test('导出并出库跨了北京时间零点：出库日按纸上印的送货日期，不挪到第二天', async (t) => {
   // 北京时间 2026-11-10 23:59:50 生成文件，过了零点才下载交付完成
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-10T15:59:50Z') });
   const f = deliverySetup(t);
@@ -131,7 +131,7 @@ test('导出并出库跨了北京时间零点：出库日按纸上印的实际�
     { kind: 'delivery', id: f.delivery.id, format: 'xlsx', markShipped: true, expectedVersion: f.delivery.version, requestId: randomUUID() },
     actor,
   );
-  assert.deepEqual(printed[0].fields.find(([label]) => label === '实际送货日期'), ['实际送货日期', '2026-11-10'], '纸上印的是生成文件那天');
+  assert.deepEqual(printed[0].fields.find(([label]) => label === '送货日期'), ['送货日期', '2026-11-10'], '纸上印的是生成文件那天');
   assert.equal(file.shipDate, '2026-11-10', '印上去的日期记进导出记录');
   t.mock.timers.tick(20_000);
   assert.equal(today(), '2026-11-11');

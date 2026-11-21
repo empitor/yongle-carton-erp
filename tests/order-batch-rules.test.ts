@@ -133,7 +133,7 @@ test('登记到货按采购单先后分到各条明细，不合格也按顺序�
   ]);
   assert.throws(
     () => allocateReceipt(rows, [{ key: rows[0].key, quantityUnits: 800_000, rejectedUnits: 100_000, stockedUnits: 800_000 }]),
-    /实际入库数量不能超过合格数量/,
+    /入库数量不能超过验收合格数量/,
   );
 });
 

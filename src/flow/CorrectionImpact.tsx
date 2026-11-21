@@ -123,7 +123,7 @@ function DeliveryImpact({ plan }: { plan: Preview<'delivery'> }) {
         <Row
           key={'o' + o.orderLineId}
           label={o.productName + ' · 订单已发'}
-          sub={o.orderNumber + ' · 订购 ' + o.ordered + ' ' + o.unit}
+          sub={o.orderNumber + ' · 订货 ' + o.ordered + ' ' + o.unit}
           before={qty(o.before, o.unit)}
           after={qty(o.after, o.unit)}
         />

@@ -1,4 +1,4 @@
-import { flowStatusText, isFlowKind, purchaseState, specLine } from '../../shared/business/index';
+import { flowStatusText, isFlowKind, purchaseState, specLine, stockKindNames } from '../../shared/business/index';
 import { orderDisplayStatus, type ApiJson } from '../../shared/core/index';
 import { isJsonList, isJsonObject, textOf, type JsonObject, type ManagedModule } from './record-types';
 // 数据管理列表和编辑窗里记录怎么叫：状态、单号或名称、关联字段的候选。
@@ -63,7 +63,7 @@ const productOptions = (products: readonly JsonObject[]) =>
 /** 库存品的候选：名称，小字是原材料还是成品和规格；带上种类，到货、送货按用途筛 */
 const stockOptions = (items: readonly JsonObject[]) =>
   items.map((s) => ({
-    ...option(s, textOf(s.name), hintOf(s.kind === 'finished' ? '成品' : '原材料', specLine(s), archived(s))),
+    ...option(s, textOf(s.name), hintOf(stockKindNames[s.kind === 'finished' ? 'finished' : 'raw'], specLine(s), archived(s))),
     kind: textOf(s.kind),
   }));
 /** 生产任务的候选：单号，小字是产品、数量和状态（产品名没记的按产品编号找） */

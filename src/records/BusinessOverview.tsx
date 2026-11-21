@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import type { Dashboard } from '../../shared/business/index';
 import type { UnitBalance } from '../../shared/business/index';
 import { yuan } from '../ui/index';
-import { displayAmount as exactMoney, monthsBefore, today } from '../../shared/core/index';
+import { displayAmount as exactMoney, monthsBefore, today, fieldTitle } from '../../shared/core/index';
 
 type OverviewData = Dashboard['overview'];
 
@@ -148,7 +148,7 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
           purchases,
           '到货金额',
           '¥' + yuan(v.purchases.arrivedCents),
-          '所选日期内的到货单，按实际入库数量和单据上的单价算，不另加税' +
+          '所选日期内的到货单，按入库数量和单据上的单价算，不另加税' +
             (v.purchases.arrivalUncomputed ? `；${v.purchases.arrivalUncomputed} 张算不出金额（缺单价、数量或尺寸），未计入` : ''),
         )}
         {metric('#purchases?pending=1', '待到货采购单 · 实时', v.purchases.pendingAll, '包含待订货、待到货和部分到货')}
@@ -158,7 +158,7 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
             <ArrowUpRight size={15} />
           </span>
           {units(v.purchases.outstanding, '没有待到货的数量')}
-          <small>订购数量减去已到货，按单位分别统计</small>
+          <small>订货数量减去已到货，按单位分别统计</small>
         </a>
       </div>
       <div className="bo-table table-wrap">
@@ -168,7 +168,7 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
               <th>近期采购 / 供应商</th>
               <th>采购日期</th>
               <th>状态 / 到货进度</th>
-              <th>金额 / 元</th>
+              <th>{fieldTitle('amount')}</th>
             </tr>
           </thead>
           <tbody>

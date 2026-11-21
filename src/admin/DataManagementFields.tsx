@@ -19,7 +19,7 @@ import {
   lockedReason,
   longText,
   numberFields,
-  refKinds,
+  refKind,
   timeFields,
   unitNote,
   wideRef,
@@ -102,7 +102,7 @@ function FieldList({ value, change, path, module }: Where & { value: readonly Ap
               移除本项
             </button>
           </header>
-          {primitive && refKinds[path] ? (
+          {primitive && refKind(path) ? (
             <RefField
               ctx={outer}
               field={path}
@@ -171,7 +171,7 @@ function FieldCell({ field: key, v, value, change, path, module }: CellProps) {
       </label>
     );
   const locked = lockedReason(key, value, path, ctx);
-  if (refKinds[key])
+  if (refKind(key))
     return (
       // 可搜索选择器占两格：下拉跟着框一样宽，名称和后面的小字放得下，不从名称中间折行
       <FormField label={title} hint={locked || undefined} span={wideRef(key) ? 2 : 1}>

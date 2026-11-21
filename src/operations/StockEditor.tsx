@@ -130,7 +130,7 @@ function StockFooter({ finished, busy, blocked, close }: { finished: boolean; bu
     <EditorFooter
       note={
         finished
-          ? '名称、尺寸、材质、楞型、规格说明跟着产品，改产品资料时一起改；这里不改库存数量。'
+          ? '名称、尺寸、材质、楞型、规格跟着产品，改产品资料时一起改；这里不改库存数量。'
           : '这里不改库存数量；有流水后不能再改实际规格。'
       }
     >

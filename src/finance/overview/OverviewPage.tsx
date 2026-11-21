@@ -184,7 +184,7 @@ function SourceTable({
         cols={[
           col('source_month', '单据月份', { render: (r: Source) => sourceMonthName(r.source_month) }),
           col('count', '笔数', { num: true }),
-          mon('amount', '金额 / 元'),
+          mon('amount', '金额（元）'),
         ]}
       />
     </FinSection>

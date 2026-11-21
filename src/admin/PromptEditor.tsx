@@ -195,7 +195,7 @@ function EntryCard({
         value={e.content}
         disabled={busy}
         readOnly={!editable}
-        placeholder={editable ? '例如：客户表格中的“品名”实际填写尺寸时，应结合上下文分别填写产品名称和规格型号。' : ''}
+        placeholder={editable ? '例如：客户表格中的“品名”实际填写尺寸时，应结合上下文分别填写产品名称和规格。' : ''}
         onChange={(v) => entry(i, { content: v.currentTarget.value })}
       />
       <footer>

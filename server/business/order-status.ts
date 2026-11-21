@@ -1,4 +1,4 @@
-import { orderSchema, orderViewSchema } from '../../shared/core/index.js';
+import { orderViewSchema, storedOrderInput } from '../../shared/core/index.js';
 import { orderStatusRules, recordStatusActionNames, recordStatusInputSchema, type RecordStatusAction } from '../../shared/business/index.js';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, onceByRequest, operationRequest, requirePermission } from '../core/index.js';
@@ -25,7 +25,8 @@ export function changeOrderStatus(store: Store, id: number, action: RecordStatus
     if (before.version !== v.expectedVersion) throw new AppError('订单已被修改，请刷新后再操作。', 409);
     if (!rule.from.includes(before.status))
       throw new AppError('订单现在是“' + before.status + '”，不能' + recordStatusActionNames[action] + '。', 409);
-    const after = saveOrderWithProgress(store, orderSchema.parse({ ...before, status: rule.to }), id, before.version);
+    // 改状态不是编辑：库里的旧含税口径照原样存回去，不要人先改选（storedOrderInput）
+    const after = saveOrderWithProgress(store, storedOrderInput({ ...before, status: rule.to }), id, before.version);
     audit(store, actor, {
       action,
       entity: 'orders',

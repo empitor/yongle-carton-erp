@@ -28,7 +28,7 @@ export const orderBatchTools = [
   {
     name: 'order_batch.get',
     risk: 'read',
-    description: '查一份订货单的到货进度（传 id 或 purchaseId）：版本、每行订购/已到/还差、到货安排和已登记的到货单；没有返回 null。看订货单文件上写的内容用 documents.preview。',
+    description: '查一份订货单的到货进度（传 id 或 purchaseId）：版本、每行订货/已到/还差、到货安排和已登记的到货单；没有返回 null。看订货单文件上写的内容用 documents.preview。',
     arguments: { id: '批次ID，或改传purchaseId' },
     schema: z.strictObject({ id: positive.optional(), purchaseId: positive.optional() }),
   },
@@ -46,7 +46,7 @@ export const orderBatchTools = [
   {
     name: 'order_batch.receive',
     risk: 'review',
-    description: '登记到货：按一张供应商送货单登记到货并入库。先 order_batch.get 拿 version 和 row；rows 写实到 quantity 和不合格 rejectedQuantity（没有写 0，用户没说验收结果先问），部分入库另写 stockedQuantity。没有订货单的老采购单不传 id、改传 purchaseId。reference 是送货单号，没给就不填。',
+    description: '登记到货：按一张供应商送货单登记到货并入库。先 order_batch.get 拿 version 和 row；rows 写实到 quantity 和拒收 rejectedQuantity（没有写 0，用户没说验收结果先问），部分入库另写入库数量 stockedQuantity。没有订货单的老采购单不传 id、改传 purchaseId。reference 是供应商送货单号，没给就不填。',
     arguments: { id: 1, expectedVersion: 1, date: '2026-11-10', reference: '送货单号可省略', rows: [{ row: 1, quantity: '1200', rejectedQuantity: '0' }], requestId: '唯一UUID' },
     schema: z.strictObject({
       id: positive.optional(),
@@ -57,7 +57,7 @@ export const orderBatchTools = [
       actualTime: arrivalTimeSchema,
       reference: z.string().trim().max(100).optional(),
       notes: z.string().trim().max(NOTE_MAX_LENGTH).optional(),
-      // 不合格数量必须明确写（没有就是 0），不替用户猜全部合格；实际入库不写就等于合格数
+      // 拒收数量必须明确写（没有就是 0），不替用户猜全部合格；入库数量不写就等于合格数
       rows: z.array(z.strictObject({ row: positive, quantity: quantityText, rejectedQuantity: quantityText, stockedQuantity: quantityText.optional() })).min(1).max(MAX_RECEIVE_ROWS),
     }),
   },

@@ -54,7 +54,7 @@ export function deliveryLineValue(line: DeliveryValueLine): LineValue {
 /** 到货单一行的金额：按实际入库数量和计价单位（按张或按面积）；入库 0 张的是 0 */
 export function arrivalLineValue(line: ArrivalValueLine): LineValue {
   const stocked = line.stockedQuantity;
-  if (stocked == null) return lack('quantity', '缺少实际入库数量。');
+  if (stocked == null) return lack('quantity', '缺少入库数量。');
   let units: number;
   try {
     units = quantityUnits(String(stocked));

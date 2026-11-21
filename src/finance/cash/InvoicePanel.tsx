@@ -83,7 +83,7 @@ function LinkDialog({ inv, links, close }: { inv: Invoice; links: readonly LinkR
             partyId: inv.party_id,
           },
         },
-        { name: 'amount', label: '本票金额 / 元', type: 'money', required: true, section: '金额' },
+        { name: 'amount', label: '本票金额（元）', type: 'money', required: true, section: '金额' },
         { name: 'estimateAmount', label: '对应暂估 / 元', type: 'money', section: '金额' },
         { name: 'quantity', label: '数量', section: '数量' },
         { name: 'unit', label: '单位', section: '数量' },

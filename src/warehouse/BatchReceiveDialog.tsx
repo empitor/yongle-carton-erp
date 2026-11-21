@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { UNITS_PER_QUANTITY, errorMessage, safeUnits } from '../../shared/core/index';
+import { UNITS_PER_QUANTITY, errorMessage, safeUnits, fieldShort } from '../../shared/core/index';
 import { ManagementDialog, loadingText } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { Hint, Section, StatusChip } from '../ui/index';
@@ -11,7 +11,7 @@ import { batchForPurchase, readOrderBatch, receiveOrderBatch, type OrderBatch } 
 
 /** 订货单上合成的一行 */
 type BatchRow = OrderBatch['rows'][number];
-/** 一行填的数：实到、其中不合格；实际入库平时收起（null，等于合格数），合格了没全部入库时才展开填 */
+/** 一行填的数：实到、其中拒收；入库数量平时收起（null，等于合格数），合格了没全部入库时才展开填 */
 type RowInput = { quantity: string; rejected: string; stocked: string | null };
 type Inputs = Record<string, RowInput>;
 
@@ -55,18 +55,18 @@ function receiveProblem(pending: readonly BatchRow[], rows: Inputs) {
       bad = units(v.rejected),
       stocked = v.stocked === null ? 0 : units(v.stocked);
     if (!Number.isFinite(q)) return r.name + '：本次实到数量格式不对。';
-    if (!Number.isFinite(bad)) return r.name + '：不合格数量格式不对。';
-    if (!Number.isFinite(stocked)) return r.name + '：实际入库数量格式不对。';
+    if (!Number.isFinite(bad)) return r.name + '：拒收数量格式不对。';
+    if (!Number.isFinite(stocked)) return r.name + '：入库数量格式不对。';
     if (q > r.remainingUnits) return r.name + '：比还没到的多，多送的部分请在“更多”里登记没有采购单的到货。';
-    if (bad > q) return r.name + '：不合格不能比实到多。';
-    if (stocked > q - bad) return r.name + '：实际入库不能比合格的多。';
+    if (bad > q) return r.name + '：拒收不能比实到多。';
+    if (stocked > q - bad) return r.name + '：入库不能比合格的多。';
     if (q % UNITS_PER_QUANTITY) return r.name + '：纸板按整张登记。';
     if (q > 0) filled = true;
   }
   return filled ? '' : NOTHING_FILLED;
 }
 
-/** 交给服务端的行：只交这次到了的（实到大于 0），实际入库展开填了才带 */
+/** 交给服务端的行：只交这次到了的（实到大于 0），入库数量展开填了才带 */
 const receiveRows = (pending: readonly BatchRow[], rows: Inputs) =>
   pending
     .filter((r) => units(rows[r.key]?.quantity || '0') > 0)
@@ -88,7 +88,7 @@ type Props = {
 };
 
 /**
- * 按一张供应商送货单登记到货：每行填本次实到和不合格，确认后直接入库。
+ * 按一张供应商送货单登记到货：每行填本次实到和拒收，确认后直接入库。
  * 一份订货单可以分几次送货，没到齐的继续留在待到货里。
  */
 export default function BatchReceiveDialog({ batchId, purchaseId, close, done }: Props) {
@@ -214,7 +214,7 @@ export default function BatchReceiveDialog({ batchId, purchaseId, close, done }:
   );
 }
 
-/** 一行纸板：还差多少、到货安排里还没到的几段、本次实到 / 不合格 / 实际入库，会分到哪几张采购单 */
+/** 一行纸板：还差多少、到货安排里还没到的几段、本次实到 / 拒收 / 入库，会分到哪几张采购单 */
 function ReceiveRow({ r, v, set }: { r: BatchRow; v: RowInput; set: (v: RowInput) => void }) {
   const q = units(v.quantity),
     accepted = q - units(v.rejected || '0');
@@ -253,8 +253,8 @@ function ReceiveRow({ r, v, set }: { r: BatchRow; v: RowInput; set: (v: RowInput
           <span>{r.unit}</span>
         </label>
         <label>
-          <span>其中不合格</span>
-          <input aria-label={r.name + ' 不合格'} inputMode="decimal" value={v.rejected} onChange={(e) => patch({ rejected: e.target.value })} />
+          <span>其中拒收</span>
+          <input aria-label={r.name + ' ' + fieldShort('rejectedQuantity')} inputMode="decimal" value={v.rejected} onChange={(e) => patch({ rejected: e.target.value })} />
           <span>{r.unit}</span>
         </label>
         {v.stocked === null ? (
@@ -268,8 +268,8 @@ function ReceiveRow({ r, v, set }: { r: BatchRow; v: RowInput; set: (v: RowInput
           </button>
         ) : (
           <label>
-            <span>实际入库</span>
-            <input aria-label={r.name + ' 实际入库'} inputMode="decimal" value={v.stocked} onChange={(e) => patch({ stocked: e.target.value })} />
+            <span>{fieldShort('stockedQuantity')}</span>
+            <input aria-label={r.name + ' ' + fieldShort('stockedQuantity')} inputMode="decimal" value={v.stocked} onChange={(e) => patch({ stocked: e.target.value })} />
             <span>{r.unit}</span>
             <button type="button" className="text-button" onClick={() => patch({ stocked: null })}>
               全部入库

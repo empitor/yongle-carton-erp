@@ -1,7 +1,7 @@
 import { flowNames } from './physical-flow.js';
 
 /**
- * 界面上的名字全站一个说法：档案和单据叫什么、几个常用字段叫什么、几个区块叫什么。
+ * 界面上的名字全站一个说法：档案和单据叫什么、几个区块叫什么（栏目叫法在 shared/core/field-names.ts）。
  * 改叫法只改这里。
  */
 export const recordNames: Record<string, string> = {
@@ -14,17 +14,6 @@ export const recordNames: Record<string, string> = {
   movements: '流水',
   ...flowNames,
 };
-
-export const fieldNames = {
-  material: '材质 / 配纸',
-  flute: '楞型',
-  /** 材质和楞型合在一列时，材质在前 */
-  materialFlute: '材质 / 楞型',
-  specification: '规格',
-  contact: '联系人',
-  phone: '联系方式',
-  address: '地址',
-} as const;
 
 /** 采购单、到货单下面列出每次到货（含更正）的区块 */
 export const ARRIVAL_HISTORY_TITLE = '到货记录';

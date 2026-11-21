@@ -65,7 +65,7 @@ function snapshot(flow: FlowCommands, doc: FlowDocView) {
       .update(source.bytes)
       .digest('hex') !== source.hash
   )
-    fail('来源原件校验失败。');
+    fail('送货单原件校验失败。');
   return {
     id: doc.id,
     version: doc.version,

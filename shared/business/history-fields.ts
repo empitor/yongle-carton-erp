@@ -1,6 +1,7 @@
-import { isRecord, roundingPolicyLabels } from '../core/index.js';
-import { dataManagementFieldName } from './data-management-modules.js';
+import { currencyNames, dimensionUnitNames, fieldName, fieldTables, isRecord, priceBasisNames, roundingPolicyLabels } from '../core/index.js';
+import type { FieldTable } from '../core/index.js';
 import { movementLabels } from './movement-filters.js';
+import { stockKindNames } from './operations.js';
 import { recordStatusActionNames } from './record-status.js';
 
 /*
@@ -12,20 +13,22 @@ import { recordStatusActionNames } from './record-status.js';
 type HistoryRefTable = 'customers' | 'suppliers' | 'products' | 'stock_items' | 'orders' | 'flow';
 export type HistoryRefs = Partial<Record<HistoryRefTable, Record<string, { name: string; unit?: string }>>>;
 
-export const refTables: Record<string, HistoryRefTable> = {
-  customerId: 'customers',
-  supplierId: 'suppliers',
-  productId: 'products',
-  parentProductId: 'products',
-  stockId: 'stock_items',
-  stockItemId: 'stock_items',
-  finishedStockId: 'stock_items',
-  orderId: 'orders',
-  customerOrderId: 'orders',
-  orderIds: 'orders',
-  taskId: 'flow',
-  correctionOf: 'flow',
+/** 修改历史能查名称的几张表（单据记作 flow）；指向别的表的（订单明细、原件、订货单）是内部字段，不显示 */
+const historyTables: Partial<Record<FieldTable, HistoryRefTable>> = {
+  customers: 'customers',
+  suppliers: 'suppliers',
+  products: 'products',
+  stock_items: 'stock_items',
+  orders: 'orders',
+  flow_documents: 'flow',
 };
+/** 栏目 → 修改历史按哪张表查名称：从栏目登记表的“指向哪张表”取（shared/core/field-names.ts 的 fieldTables） */
+export const refTables: Record<string, HistoryRefTable> = Object.fromEntries(
+  Object.entries(fieldTables).flatMap(([key, table]) => {
+    const ref = historyTables[table];
+    return ref ? [[key, ref]] : [];
+  }),
+);
 /** 引用编号旁边单据里自己存的名称快照：编号查不到（删了）时先用它，再不行写“已删除的记录” */
 export const snapshotNames: Record<string, string> = {
   customerId: 'customerName',
@@ -59,13 +62,16 @@ export const quantityFields = new Set([
 ]);
 export const sizeFields = new Set(['length', 'width', 'height', 'dimensionUnit']);
 export const lineFields = new Set(['lines', 'materials']);
-/** 存的是代码的几个字段：显示的字 */
-export const historyCodeLabels: Record<string, Record<string, string>> = {
-  kind: { raw: '原材料', finished: '成品' },
-  dimensionUnit: { mm: '毫米', cm: '厘米' },
-  priceBasis: { area: '按平方米', quantity: '按张' },
+/**
+ * 存的是代码的几个字段：显示的字。修改历史、助手卡片、数据管理的下拉都用这一张；每种叫法写在选项的值旁边
+ * （种类 operations.ts、尺寸单位 product-details.ts、计价方式 units.ts、金额结算 domain.ts、币种 currency.ts）
+ */
+export const codeNames: Record<string, Readonly<Record<string, string>>> = {
+  kind: stockKindNames,
+  dimensionUnit: dimensionUnitNames,
+  priceBasis: priceBasisNames,
   roundingPolicy: roundingPolicyLabels,
-  currency: { CNY: '人民币' },
+  currency: currencyNames,
 };
 
 /**
@@ -153,12 +159,10 @@ export function historyRefIds(details: unknown[]): Record<HistoryRefTable, numbe
 }
 
 /**
- * 字段中文名：数据管理那一套；按显示的样子去掉“编号”“（分）”“（元）”“精确”（这里显示的是名称、按元写好的金额）。
- * 没有中文名的返回 null（不显示）。
+ * 字段中文名：栏目登记表的叫法，不带单位（这里显示的是名称、按元写好的金额）。
+ * 内部字段、没有中文名的返回 null（不显示）。
  */
 export function historyFieldLabel(key: string, parent = '', module = '') {
-  const name = dataManagementFieldName(key, parent, module);
-  if (name === key || internalFields.has(key)) return null;
-  if (refTables[key]) return name.replace(/编号$/, '');
-  return name.replace(/（[分元]）$/, '').replace(/^精确/, '');
+  if (internalFields.has(key)) return null;
+  return fieldName(key, { record: module, parent }) ?? null;
 }

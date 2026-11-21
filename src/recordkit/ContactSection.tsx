@@ -1,5 +1,5 @@
 import { Facts, Section } from '../ui/index';
-import { fieldNames } from '../../shared/business/index';
+import { fieldLabel } from '../../shared/core/index';
 
 /** 客户、供应商档案里的联系方式几项 */
 type Contact = { contact: string; phone: string; address: string; notes: string };
@@ -10,10 +10,10 @@ export default function ContactSection({ row }: { row: Contact }) {
     <Section title="联系方式">
       <Facts
         items={[
-          { label: fieldNames.contact, value: row.contact },
-          { label: fieldNames.phone, value: row.phone },
-          { label: fieldNames.address, value: row.address, wide: true },
-          { label: '备注', value: row.notes, wide: true },
+          { label: fieldLabel('contact'), value: row.contact },
+          { label: fieldLabel('phone'), value: row.phone },
+          { label: fieldLabel('address'), value: row.address, wide: true },
+          { label: fieldLabel('notes'), value: row.notes, wide: true },
         ]}
       />
     </Section>
