@@ -170,9 +170,9 @@ test('从第 20 版快照升级到当前版本：不报错、外键校验为空�
       assert.deepEqual(before.versions, [SCHEMA_BASELINE]);
       assert.deepEqual(
         inspectSchema(db),
-        SCHEMA_LATEST === SCHEMA_BASELINE
-          ? { kind: 'current', version: SCHEMA_BASELINE }
-          : { kind: 'upgrade', from: SCHEMA_BASELINE, to: SCHEMA_LATEST },
+        upgradeSteps.length
+          ? { kind: 'upgrade', from: SCHEMA_BASELINE, to: SCHEMA_LATEST }
+          : { kind: 'current', version: SCHEMA_BASELINE },
       );
       // 每张自增表都当作已经用过一批编号（各不相同），升级以后计数不能回头
       const autoTables = autoIncrementTables(db);

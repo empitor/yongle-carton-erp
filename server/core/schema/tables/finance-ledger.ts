@@ -132,7 +132,10 @@ CREATE TABLE fin_entries(
 CREATE INDEX fin_entries_account ON fin_entries(account_code,voucher_id);
 
 -- 业务事件（由业务单据生成，待生成凭证）。编号用 AUTOINCREMENT，初始化后不从头来。
--- snapshot 是整份来源单据的 JSON 快照，放最后一列；problem 是给人看的文字，不是 JSON
+-- snapshot 是来源单据财务口径的 JSON 快照；problem 是给人看的文字，不是 JSON。
+-- snapshot 后面几列（第 21 步加的）：上一条（被它接手的事件和它当时的状态）、单据金额只存在列里；
+-- 往来单位、单号、理论金额、缺不缺税率是从快照里取出来的查询列，只由 server/finance/event-columns.ts 和快照在同一句里一起写。
+-- 往来单位的种类和编号要么都有要么都没有
 CREATE TABLE fin_events(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_kind TEXT NOT NULL CHECK(source_kind IN ('delivery','arrival','production','stock')),
@@ -148,10 +151,21 @@ CREATE TABLE fin_events(
   version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
   revenue_recognition TEXT CHECK(revenue_recognition IS NULL OR revenue_recognition IN ('delivery','invoice')),
   snapshot TEXT NOT NULL CHECK(json_valid(snapshot)),
+  previous_event_id INTEGER REFERENCES fin_events(id),
+  previous_status TEXT CHECK(previous_status IS NULL OR previous_status IN ('ready','info_pending','waiting_invoice','generated','difference','source_deleted','awaiting_allocation_reversal','cost_pending','costed','no_amount','corrected','superseded','before_opening')),
+  party_kind TEXT CHECK(party_kind IS NULL OR party_kind IN ('customer','supplier')),
+  party_id TEXT CHECK((party_kind IS NULL)=(party_id IS NULL)),
+  party_name TEXT,
+  source_number TEXT,
+  document_cents INTEGER,
+  theoretical_cents INTEGER,
+  missing_tax INTEGER NOT NULL DEFAULT 0 CHECK(missing_tax IN (0,1)),
   UNIQUE(source_kind,source_id,event_type,source_version)
 ) STRICT;
 CREATE INDEX fin_events_status ON fin_events(status,date,id);
 CREATE INDEX fin_events_voucher ON fin_events(voucher_id);
+CREATE INDEX fin_events_previous ON fin_events(previous_event_id);
+CREATE INDEX fin_events_party ON fin_events(party_kind,party_id);
 
 -- 业务单据最近一次被财务看到的版本；deleted 是财务已经处理过它被删除
 CREATE TABLE fin_source_observations(

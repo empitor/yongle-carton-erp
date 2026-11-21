@@ -152,7 +152,20 @@ test('存文件的大字段放在表的最后：BLOB 是最后一列，单据 JS
   // snapshot 是财务事件里整份来源单据的快照
   const bigText = new Set(['document', 'metadata', 'result', 'snapshot']);
   // '表.大字段 后面的列' → 理由
-  const allowed: Record<string, string> = {};
+  const appended = '0.9.0 发布后的升级步骤加的列：ADD COLUMN 只能接在最后（第 21 步），挪到前面要重建整张表';
+  const allowed: Record<string, string> = Object.fromEntries(
+    [
+      'previous_event_id',
+      'previous_status',
+      'party_kind',
+      'party_id',
+      'party_name',
+      'source_number',
+      'document_cents',
+      'theoretical_cents',
+      'missing_tax',
+    ].map((column) => ['fin_events.snapshot ' + column, appended]),
+  );
   const offenders: string[] = [];
   for (const table of businessTables()) {
     const last = table.columns.length - 1;

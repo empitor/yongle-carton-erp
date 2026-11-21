@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { auxiliaryKinds, periodSchema, type FinanceEntry } from '../../shared/finance/index.js';
 import { clampPage, count, many, one, parsePaging, rows } from '../core/index.js';
 import { financeError } from './core.js';
-import { snapshotNumber } from './source-snapshot.js';
 import { voucherStatuses } from './stored-values.js';
 
 const statusSchema = z.enum(voucherStatuses);
@@ -75,7 +74,7 @@ export function voucherDetail(db: DatabaseSync, id: number) {
       : (one(
           db,
           sourceEvent,
-          `SELECT id,source_kind,source_id,event_type,status,${snapshotNumber()} AS number FROM fin_events WHERE id=?`,
+          'SELECT id,source_kind,source_id,event_type,status,source_number AS number FROM fin_events WHERE id=?',
           eventId,
         ) ?? null);
   const event = eventOf(header.event_id);

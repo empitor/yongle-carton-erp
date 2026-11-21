@@ -1,4 +1,4 @@
-// 业务库新建：空库建成第 20 版、建了一半退回、空间回收、建表语句规范化。
+// 业务库新建：空库直接建成当前版本、建了一半退回、空间回收、建表语句规范化。
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,13 +17,17 @@ import {
   normalizeSql,
   openBusinessDatabase,
   schemaFingerprint,
+  upgradeSteps,
   type UpgradeStep,
 } from '../server/core/schema/index.js';
 import { APP_VERSION } from '../shared/core/version.js';
 import { count } from '../server/core/sql.js';
 import { one, quiet, rowsOf, versions, workspace } from './schema-fixture.js';
 
-test('空库新建：第 20 版一行版本记录，文件设置、连接设置、预置数据齐全；内存库和文件库结构一样，重新打开不变', () => {
+/** 程序新建的库的版本记录：第 20 版到当前版本各一行（建表已经是当前结构，新库不跑升级步骤） */
+const createdVersions = [SCHEMA_BASELINE, ...upgradeSteps.map((step) => step.version)];
+
+test('空库新建：版本记录从第 20 版到当前版本各一行，文件设置、连接设置、预置数据齐全；内存库和文件库结构一样，重新打开不变', () => {
   const w = workspace('erp-schema-new-');
   try {
     const store = new Store(w.path);
@@ -32,7 +36,10 @@ test('空库新建：第 20 版一行版本记录，文件设置、连接设置�
       assert.equal(SCHEMA_BASELINE, 20);
       assert.deepEqual(
         rowsOf(db, 'schema_migrations').map((row) => ({ ...row, applied_at: typeof row.applied_at })),
-        [{ version: 20, name: '0.9.0 基线', applied_at: 'string', app_version: APP_VERSION }],
+        [
+          { version: 20, name: '0.9.0 基线', applied_at: 'string', app_version: APP_VERSION },
+          ...upgradeSteps.map((step) => ({ version: step.version, name: step.name, applied_at: 'string', app_version: APP_VERSION })),
+        ],
       );
       assert.equal(one(db, 'application_id'), SCHEMA_APPLICATION_ID);
       assert.equal(SCHEMA_APPLICATION_ID, 0x5a584552);
@@ -49,7 +56,7 @@ test('空库新建：第 20 版一行版本记录，文件设置、连接设置�
       assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
       assert.deepEqual(inspectSchema(db), { kind: 'current', version: SCHEMA_LATEST });
       const description = describeSchema(db);
-      assert.deepEqual(description.versions, [20]);
+      assert.deepEqual(description.versions, createdVersions);
       assert.equal(description.applicationId, SCHEMA_APPLICATION_ID);
       assert.equal(description.autoVacuum, 2);
       assert.deepEqual(Object.keys(description.seed).sort(), ['fin_accounts', 'fin_settings', 'fin_templates']);
@@ -59,7 +66,7 @@ test('空库新建：第 20 版一行版本记录，文件设置、连接设置�
         assert.equal(schemaFingerprint(describeSchema(memory.db)), expectedSchemaFingerprint());
         assert.deepEqual(describeSchema(memory.db).seed, description.seed);
         assert.equal(one(memory.db, 'foreign_keys'), 1);
-        assert.deepEqual(versions(memory.db), [20]);
+        assert.deepEqual(versions(memory.db), createdVersions);
       } finally {
         memory.close();
       }
@@ -100,7 +107,7 @@ test('只写过文件头的空文件、0 字节的文件都当空库建，auto_v
     try {
       assert.equal(one(store.db, 'auto_vacuum'), 2);
       assert.equal(one(store.db, 'application_id'), SCHEMA_APPLICATION_ID);
-      assert.deepEqual(versions(store.db), [20]);
+      assert.deepEqual(versions(store.db), createdVersions);
     } finally {
       store.close();
     }
@@ -110,7 +117,7 @@ test('只写过文件头的空文件、0 字节的文件都当空库建，auto_v
     const fresh = new Store(zero);
     try {
       assert.equal(one(fresh.db, 'auto_vacuum'), 2);
-      assert.deepEqual(versions(fresh.db), [20]);
+      assert.deepEqual(versions(fresh.db), createdVersions);
     } finally {
       fresh.close();
     }
@@ -177,7 +184,7 @@ test('建新库失败：建了一半的表全部退回，抛中文的 SchemaErro
     // 原因排除以后照常建库
     const store = new Store(w.path);
     try {
-      assert.deepEqual(versions(store.db), [20]);
+      assert.deepEqual(versions(store.db), createdVersions);
       assert.equal(one(store.db, 'application_id'), SCHEMA_APPLICATION_ID);
     } finally {
       store.close();

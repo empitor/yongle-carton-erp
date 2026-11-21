@@ -92,10 +92,10 @@ export function refreshPendingDeliveryReversals(store: Store, actor: Actor, obli
     reversalCandidate,
     `SELECT e.*,previous.id AS previous_id FROM fin_source_observations x
     JOIN fin_events e ON e.id=x.event_id
-    JOIN fin_events previous ON previous.id=json_extract(e.snapshot,'$.previous.eventId')
+    JOIN fin_events previous ON previous.id=e.previous_event_id
     WHERE x.source_kind='delivery' AND x.status='reversed'
     AND e.event_type='delivery.reversed' AND e.status IN ('difference','awaiting_allocation_reversal')
-    AND json_extract(e.snapshot,'$.previous.status')='info_pending' AND previous.voucher_id IS NULL
+    AND e.previous_status='info_pending' AND previous.voucher_id IS NULL
     AND NOT EXISTS(SELECT 1 FROM fin_obligations o WHERE o.event_id=previous.id AND (
       o.voucher_id IS NOT NULL OR EXISTS(SELECT 1 FROM fin_invoice_links l WHERE l.obligation_id=o.id)
       OR EXISTS(SELECT 1 FROM fin_deposit_actions d WHERE d.obligation_id=o.id)

@@ -8,7 +8,7 @@ import { FinanceEventViews } from '../server/finance/event-views.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, setDoc } from './finance-fixture.js';
-import { readSnapshot, type FinanceSourceLine } from '../server/finance/source-snapshot.js';
+import type { FinanceSourceLine } from '../server/finance/source-snapshot.js';
 
 test('改了什么：到货两行同一种纸板、没关联采购明细时改了库存品名称，两行都列出来；新增的行写数量（带单位）和单价（“元/m²”）；不比金额时不出“金额 … → —”', () => {
   const board: NonNullable<FinanceSourceLine['item']> = { name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' };
@@ -102,7 +102,7 @@ test('改了什么：有效的更正单被改了数量，金额照样比（更�
     const edited = event(s, 2);
     assert.equal(edited.status, 'difference');
     assert.equal(edited.amount_cents, null, '红字冲销并重做以前金额列还空着');
-    assert.equal(readSnapshot(edited).documentAmount, 90000, '按单据现在的内容算出的金额记在快照里');
+    assert.equal(edited.document_cents, 90000, '按单据现在的内容算出的金额记在 document_cents');
     const changes = new FinanceEventViews(s).get(maker, edited.id).changes;
     assert.deepEqual(
       changes.find((c) => c.label === '金额'),

@@ -10,15 +10,16 @@ import { dateSchema } from '../../shared/core/index.js';
 import { periodSchema, versionSchema } from '../../shared/finance/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
-import { readSource } from './business-source.js';
+import { readSource, type SourceRow } from './business-source.js';
 import { reverseOriginalObligation } from './event-correction.js';
 import { hasBookedObligations } from './event-source-obligations.js';
 import { evaluateSource } from './event-evaluate.js';
-import { assertSourceCurrent, currentSource, partyOf, provisionalObligation, readEvent } from './event-shared.js';
+import { updateEventSnapshot } from './event-columns.js';
+import { assertSourceCurrent, currentSource, partyOf, provisionalObligation, readEvent, type FinanceEvent } from './event-shared.js';
 import { FinanceEventVouchers } from './event-voucher.js';
 import { expectRow } from './finance-rows.js';
 import { edit, id as recordId, label, request } from './query.js';
-import { evidenceLine, readSnapshot, snapshotPartyIdPath, snapshotText } from './source-snapshot.js';
+import { evidenceLine, readSnapshot, type EventSnapshot } from './source-snapshot.js';
 import { partyKinds } from './stored-values.js';
 
 /** 批量补税率一次最多几张 */
@@ -95,7 +96,7 @@ export class FinanceEventHandling {
         )
       )
         financeError('已有核销，请先撤销再将货款改为零。');
-      const resolved = snapshotText({
+      const resolved = {
         ...snapshot,
         money,
         theoretical: snapshot.theoretical ?? theoreticalMoney(input.lines),
@@ -103,10 +104,8 @@ export class FinanceEventHandling {
         financialLines: input.lines,
         missing: [],
         taxSource: taxSource ?? input.lines.map(() => ({ rate: 'manual', mode: 'manual' })),
-      });
-      this.db
-        .prepare('UPDATE fin_events SET status=?,amount_cents=?,snapshot=?,problem=NULL,version=version+1 WHERE id=?')
-        .run(amount ? status : 'no_amount', amount, resolved, id);
+      };
+      updateEventSnapshot(this.db, id, resolved, { status: amount ? status : 'no_amount', amount_cents: amount, problem: null });
       const after = readEvent(this.db, id);
       if (this.hasProvisional(id) || status === 'waiting_invoice') provisionalObligation(this.store, user, after, doc);
       financeAudit(this.store, user, { action: 'resolve', entity: 'fin_events', id, before, after });
@@ -133,12 +132,10 @@ export class FinanceEventHandling {
       this.db,
       batchItem,
       `SELECT id,version FROM fin_events
-        WHERE status='info_pending' AND substr(date,1,7)=? AND
-        json_extract(snapshot,?)=? AND (source_kind='delivery')=? ORDER BY id LIMIT ?`,
+        WHERE status='info_pending' AND substr(date,1,7)=? AND party_kind=? AND party_id=? ORDER BY id LIMIT ?`,
       period,
-      snapshotPartyIdPath(kind),
-      partyId,
-      Number(kind === 'customer'),
+      kind,
+      String(partyId),
       BATCH_MAX + 1,
     );
   }
@@ -190,34 +187,7 @@ export class FinanceEventHandling {
       if (source) assertSourceCurrent(this.db, event);
       // 处理完写进说明：记成“已更正”时不能还挂着“有差异”的那句，让人以为还要处理
       const handled = reverseOriginalObligation(this.store, user, event, doc, input);
-      let status = 'corrected';
-      if (source?.status === 'confirmed' && doc && !doc.replacedBy) {
-        const result = evaluateSource(this.db, source, doc, { policy: String(event.revenue_recognition), replacement: true });
-        status = result.status;
-        this.db.prepare('UPDATE fin_events SET snapshot=?,amount_cents=?,problem=? WHERE id=?').run(
-          snapshotText({
-            ...snapshot,
-            money: result.money,
-            theoretical: result.theoretical,
-            financialLines: result.financialLines,
-            missing: result.missing,
-            taxSource: result.taxSource,
-            warnings: result.warnings,
-          }),
-          (source.kind === 'delivery' ? result.money?.gross : result.money?.net) ?? null,
-          result.problem,
-          id,
-        );
-      }
-      if (status === 'corrected') {
-        const ending = !source
-          ? '，单据已删除，不再重做。'
-          : readSource(source).doc.replacedBy
-            ? '，单据已被更正替代，由替代单入账。'
-            : '，单据已撤销，不再重做。';
-        this.db.prepare('UPDATE fin_events SET problem=? WHERE id=?').run(handled + ending, id);
-      }
-      this.db.prepare('UPDATE fin_events SET status=?,voucher_id=NULL,version=version+1 WHERE id=?').run(status, id);
+      const status = this.redoOrClose(event, snapshot, source, handled);
       const after = readEvent(this.db, id);
       if ((status === 'info_pending' || status === 'waiting_invoice') && after.amount_cents && doc)
         provisionalObligation(this.store, user, after, doc);
@@ -233,6 +203,39 @@ export class FinanceEventHandling {
           : after;
       return { ...result, handled };
     });
+  }
+
+  /**
+   * 红字冲销以后这条事件怎么记，返回新状态：单据还有效、没被替代的，按现在的内容重做，快照和状态、金额、说明一起换；
+   * 别的记成已更正，说明写处理了什么和为什么不再重做。凭证号都清掉。
+   */
+  private redoOrClose(event: FinanceEvent, snapshot: EventSnapshot, source: SourceRow | undefined, handled: string) {
+    const doc = snapshot.doc;
+    if (source?.status === 'confirmed' && doc && !doc.replacedBy) {
+      const redo = evaluateSource(this.db, source, doc, { policy: String(event.revenue_recognition), replacement: true });
+      const { money, theoretical, financialLines, missing, taxSource, warnings } = redo;
+      updateEventSnapshot(
+        this.db,
+        event.id,
+        { ...snapshot, money, theoretical, financialLines, missing, taxSource, warnings },
+        {
+          status: redo.status,
+          voucher_id: null,
+          amount_cents: (source.kind === 'delivery' ? money?.gross : money?.net) ?? null,
+          problem: redo.problem,
+        },
+      );
+      return redo.status;
+    }
+    const ending = !source
+      ? '，单据已删除，不再重做。'
+      : readSource(source).doc.replacedBy
+        ? '，单据已被更正替代，由替代单入账。'
+        : '，单据已撤销，不再重做。';
+    this.db
+      .prepare("UPDATE fin_events SET status='corrected',problem=?,voucher_id=NULL,version=version+1 WHERE id=?")
+      .run(handled + ending, event.id);
+    return 'corrected';
   }
 
   acknowledgeStatisticalCorrection(actor: Actor | null, rawId: unknown, raw: unknown) {
