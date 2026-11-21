@@ -1,11 +1,10 @@
 // 根目录每个文件、文件夹是干什么的。GitHub 的文件列表右边显示的是“最后改动这一项的那次提交的说明”，
 // 所以每次发布给根目录每一项各补一次提交，说明写它的作用，列表上看到的就是这份清单。
 //   node scripts/root-notes.mjs                 只核对：根目录每一项都有说明、没有多余的
-//   node scripts/root-notes.mjs --commit 0.9.5  真做（工作区要干净）：先一次提交把每一项都动一下，
-//                                               再一项一次提交恢复原样；做完内容和做之前一字不差
+//   node scripts/root-notes.mjs --commit 0.9.5  真做（工作区要干净）：先一次提交把每一项都动一下（文件末尾加一个换行，
+//                                               文件夹动里面的一个文件），再一项一次提交恢复原样；做完内容和做之前一字不差
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 /** 根目录的每一项和它的作用（一句话，GitHub 列表里放得下） */
@@ -42,9 +41,20 @@ export const rootNotes = {
   '启动系统.cmd': 'Windows 上双击：启动本机的 ERP 并打开浏览器',
 };
 
-/** 文件夹里临时放的那个文件；名字不能被 .gitignore 挡掉 */
-const MARK = '.root-note';
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+/** 能在末尾加一个换行又不坏的文本文件 */
+const TEXT_FILE = /\.(md|ts|tsx|mjs|js|json|css|html|svg|txt|cmd|sh|yml|toml|kts|java|rs)$|(^|\/)(LICENSE|\.gitignore|\.gitattributes|\.env\.example)$/;
+
+/**
+ * 这一项里拿哪个文件来动一下：文件就是它自己；文件夹取里面第一个进了仓库的文本文件
+ * （不往文件夹里放新文件，新文件可能被 .gitignore 挡掉）
+ */
+function touchTarget(entry) {
+  if (!statSync(entry).isDirectory()) return entry;
+  const file = git('ls-files', '-z', '--', entry).split('\0').find((f) => TEXT_FILE.test(f));
+  if (!file) throw new Error(entry + ' 里没找到能动的文本文件');
+  return file;
+}
 
 /** 进了仓库的根目录各项（按暂存区算，刚加进来还没提交的也算） */
 export const rootEntries = () => [
@@ -72,16 +82,12 @@ function commitNotes(version) {
   if (problems.length) throw new Error(problems.join('\n'));
   if (git('status', '--porcelain')) throw new Error('工作区有没提交的改动，先提交或收好再标。');
   const base = git('rev-parse', 'HEAD');
-  const isDir = Object.fromEntries(entries.map((e) => [e, statSync(e).isDirectory()]));
-  for (const e of entries) {
-    if (isDir[e]) writeFileSync(join(e, MARK), '');
-    else appendFileSync(e, '\n');
-  }
-  git('add', '-A');
+  const targets = entries.map((e) => [e, touchTarget(e)]);
+  for (const [, file] of targets) appendFileSync(file, '\n');
+  git('add', '--', ...targets.map(([, file]) => file));
   git('commit', '-q', '-m', `发布 ${version}：给根目录每一项重新标注作用（准备，下面逐项恢复原样）`);
-  for (const e of entries) {
-    if (isDir[e]) git('rm', '-q', '-f', '--', join(e, MARK));
-    else git('checkout', base, '--', e);
+  for (const [e, file] of targets) {
+    git('checkout', base, '--', file);
     git('commit', '-q', '-m', `${rootNotes[e]}（${version}）`);
   }
   if (git('diff', '--stat', base, 'HEAD')) throw new Error('标完以后内容和原来不一样，检查哪里出了岔子：git diff ' + base + ' HEAD');
