@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import { clampPage, count, many, parseStoredJson, rows } from '../../core/index.js';
-import { formatStockSize, matchesMovement, movementColumnsSchema, stockKinds, type MovementFilters } from '../../../shared/business/index.js';
+import { formatStockSize, matchesMovement, movementColumnsSchema, movementSource, stockKinds, type MovementFilters } from '../../../shared/business/index.js';
 import type { MovementBaseView, MovementRevision } from '../../../shared/business/index.js';
 import { quantityString } from '../../../shared/core/index.js';
 import { readStockDocument } from './stock-document.js';
@@ -48,12 +48,12 @@ const movementOrder = ' ORDER BY m.date DESC,m.created_at DESC,m.rowid DESC';
  * 有来源单据的按来源分，生产单再按库存品和方向分；没有来源单据的才按动作分。
  */
 const movementTypeSql = `CASE
-  WHEN m.source_kind='flow_arrival' THEN 'purchase'
-  WHEN m.source_kind='flow_production' THEN CASE WHEN s.kind='finished' THEN 'production_output' WHEN m.delta_units<0 THEN 'production_issue' ELSE 'production_return' END
-  WHEN m.source_kind='flow_delivery' THEN 'delivery'
-  WHEN m.source_kind='purchase_return' THEN CASE WHEN m.delta_units<0 THEN 'purchase_return' ELSE 'reversal' END
-  WHEN m.source_kind='flow_reversal' THEN 'reversal'
-  WHEN m.source_kind='database-maintenance' THEN 'maintenance'
+  WHEN m.source_kind='${movementSource.arrival}' THEN 'purchase'
+  WHEN m.source_kind='${movementSource.production}' THEN CASE WHEN s.kind='finished' THEN 'production_output' WHEN m.delta_units<0 THEN 'production_issue' ELSE 'production_return' END
+  WHEN m.source_kind='${movementSource.delivery}' THEN 'delivery'
+  WHEN m.source_kind='${movementSource.purchaseReturn}' THEN CASE WHEN m.delta_units<0 THEN 'purchase_return' ELSE 'reversal' END
+  WHEN m.source_kind='${movementSource.reversal}' THEN 'reversal'
+  WHEN m.source_kind='${movementSource.maintenance}' THEN 'maintenance'
   WHEN m.action IN ('in','out','adjust','purchase') THEN m.action
   WHEN m.delta_units<0 THEN 'out'
   ELSE 'in'

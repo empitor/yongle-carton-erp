@@ -1,5 +1,4 @@
 import type { Store } from './db.js';
-import { z } from 'zod';
 import { AppError } from './errors.js';
 import { rows } from './schema/rows.js';
 import { many } from './sql.js';
@@ -24,28 +23,30 @@ function withKey(store: Store) {
 }
 
 export type DuplicateRecord = { id: number; name: string; archived: boolean };
-/** EXISTS(…) 读出来是 0 或 1 */
-const archivedFlag = z.union([z.literal(0), z.literal(1)]).transform((flag) => flag === 1);
-const customerMatch = rows.customers.pick({ id: true, name: true }).extend({ archived: archivedFlag });
+const customerMatch = rows.customers.pick({ id: true, name: true });
+/** 查到的记录补上归档标记（Store 的归档读法，只读查到的这几条） */
+function withArchived<R extends { id: number }>(store: Store, entity: 'customers' | 'products', found: R[]) {
+  const archived = store.archivedAmong(entity, found.map((r) => r.id));
+  return found.map((r) => ({ ...r, archived: archived.has(r.id) }));
+}
 const productMatch = rows.products
   .pick({ id: true, name: true, length: true, width: true, height: true, material: true, flute: true })
   .extend({
     customerProductCode: rows.products.shape.customer_product_code,
     dimensionUnit: rows.products.shape.dimension_unit,
-    archived: archivedFlag,
   });
 
 /** 名字查重键相同的已有客户（含归档） */
 export function duplicateCustomers(store: Store, name: string): DuplicateRecord[] {
   const key = duplicateKey(name);
   if (!key) return [];
-  return many(
+  const found = many(
     withKey(store),
     customerMatch,
-    `SELECT c.id,c.name,EXISTS(SELECT 1 FROM record_lifecycle r WHERE r.entity='customers' AND r.record_id=c.id) AS archived
-    FROM customers c WHERE record_duplicate_key(c.name)=? ORDER BY c.id LIMIT 50`,
+    'SELECT c.id,c.name FROM customers c WHERE record_duplicate_key(c.name)=? ORDER BY c.id LIMIT 50',
     key,
   );
+  return withArchived(store, 'customers', found);
 }
 
 /** 产品查重要用的资料：名称、料号，以及判断“是不是同一个”的尺寸和材质 */
@@ -76,12 +77,11 @@ export function productDuplicates(store: Store, input: ProductLike, exceptId?: n
     code = duplicateKey(input.customerProductCode);
   const empty: ProductDuplicates = { sameCode: [], sameProduct: [], sameName: [] };
   if (!name && !code) return empty;
-  const found: ProductRecord[] = many(
+  const matched = many(
     withKey(store),
     productMatch,
     `SELECT p.id,p.name,p.customer_product_code AS customerProductCode,p.length,p.width,p.height,
-      p.dimension_unit AS dimensionUnit,p.material,p.flute,
-      EXISTS(SELECT 1 FROM record_lifecycle r WHERE r.entity='products' AND r.record_id=p.id) AS archived
+      p.dimension_unit AS dimensionUnit,p.material,p.flute
     FROM products p
     WHERE (?<>'' AND record_duplicate_key(p.name)=?) OR (?<>'' AND record_duplicate_key(p.customer_product_code)=?)
     ORDER BY p.id LIMIT 50`,
@@ -90,6 +90,7 @@ export function productDuplicates(store: Store, input: ProductLike, exceptId?: n
     code,
     code,
   ).filter((r) => r.id !== exceptId);
+  const found: ProductRecord[] = withArchived(store, 'products', matched);
   const same = sizeMaterialKey(input);
   for (const r of found)
     if (code && duplicateKey(r.customerProductCode) === code) empty.sameCode.push(r);

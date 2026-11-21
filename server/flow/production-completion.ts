@@ -1,8 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
-import { assertPreviewCurrent, many, previewDigest, rehearse, requestDone, requirePermission, rows } from '../core/index.js';
-import { completionExecuteSchema, productionCompletionSchema, type CompletionPreview } from '../../shared/business/index.js';
+import { archivedAmongIn, assertPreviewCurrent, many, previewDigest, rehearse, requestDone, requirePermission, rows } from '../core/index.js';
+import { completionExecuteSchema, flowEntity, productionCompletionSchema, type CompletionPreview } from '../../shared/business/index.js';
 import { COMPLETION_REQUEST, ProductionCompletion } from './batch-completion.js';
 import type { CompletionInput } from './completion-plan.js';
 import { storedContent } from './read.js';
@@ -71,23 +71,18 @@ function stockScope(db: DatabaseSync, stockIds: string, productIds: string) {
   );
 }
 
-/** 读到的生产任务、产品、订单、采购单、库存品里归档了的 */
+/** 读到的生产任务、产品、订单、采购单、库存品里归档了的（按记录种类、编号排） */
 function archivedScope(db: DatabaseSync, ids: { taskIds: string; productIds: string; orderIds: string; purchaseIds: string; stockIds: string }) {
-  return many(
-    db,
-    rows.record_lifecycle.pick({ entity: true, record_id: true }),
-    "SELECT entity,record_id FROM record_lifecycle WHERE (entity='flow_task' AND record_id" + inList + ')' +
-      " OR (entity='products' AND record_id" + inList + ')' +
-      " OR (entity='orders' AND record_id" + inList + ')' +
-      " OR (entity='purchases' AND record_id" + inList + ')' +
-      " OR (entity='stock_items' AND record_id" + inList + ')' +
-      ' ORDER BY entity,record_id',
-    ids.taskIds,
-    ids.productIds,
-    ids.orderIds,
-    ids.purchaseIds,
-    ids.stockIds,
-  );
+  const scopes: [string, string][] = [
+    [flowEntity('task'), ids.taskIds],
+    ['orders', ids.orderIds],
+    ['products', ids.productIds],
+    ['purchases', ids.purchaseIds],
+    ['stock_items', ids.stockIds],
+  ];
+  return scopes
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([entity, list]) => [...archivedAmongIn(db, entity, list)].map((record_id) => ({ entity, record_id })));
 }
 
 export class ManualProductionCompletion {

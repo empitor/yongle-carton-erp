@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import { exists, many, one, parseStoredJson, rows } from '../core/index.js';
 import { quantityText, quantityUnits } from '../../shared/core/index.js';
-import { flowDocNames, flowDocumentSchema, flowKinds, taskProgress, type FlowDocument, type FlowDocView, type FlowKind, type FlowRow } from '../../shared/business/index.js';
+import { flowDocNames, flowDocumentSchema, flowEntity, flowEntityPrefix, flowKinds, taskProgress, type FlowDocument, type FlowDocView, type FlowKind, type FlowRow } from '../../shared/business/index.js';
 import { fail } from './base.js';
 
 /*
@@ -139,9 +139,10 @@ export function waitingGood(store: Store, taskIds?: readonly number[], excludeId
     'SELECT ' + goodColumns + " FROM flow_documents WHERE kind='production' AND status='draft'" +
       (taskIds ? onTasks : '') +
       (excludeId === undefined ? '' : ' AND id<>?') +
-      " AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='flow_production')",
+      ' AND id NOT IN (SELECT value FROM json_each(?))',
     ...(taskIds ? [JSON.stringify(taskIds)] : []),
     ...(excludeId === undefined ? [] : [excludeId]),
+    JSON.stringify([...store.archivedIds(flowEntity('production'))]),
   )) {
     if (row.taskId == null) continue;
     sums.set(row.taskId, (sums.get(row.taskId) || 0) + quantityUnits(row.goodQuantity));
@@ -203,16 +204,15 @@ export function list<K extends FlowKind = FlowKind>(
     'SELECT * FROM flow_documents' + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY date DESC,id DESC',
     ...params,
   );
-  const archived = new Set(
-    many(store.db, rows.record_lifecycle.pick({ entity: true, record_id: true }), "SELECT entity,record_id FROM record_lifecycle WHERE entity LIKE 'flow\\_%' ESCAPE '\\'").map(
-      (r) => r.entity + ':' + r.record_id,
-    ),
+  // 归档标记按种类、只读读到的这些单据的
+  const archived = new Map<string, Set<number>>(
+    flowKinds.map((k) => [k, store.archivedAmong(flowEntity(k), found.filter((r) => r.kind === k).map((r) => r.id))]),
   );
   const tasks = !kind || kind === 'task'
     ? taskFacts(store, ids && found.filter((r) => r.kind === 'task').map((r) => r.id))
     : { production: new Map<number, Production[]>(), waiting: new Map<number, number>(), started: new Set<number>() };
   return found
-    .map((r) => ({ r, isArchived: archived.has('flow_' + r.kind + ':' + r.id) }))
+    .map((r) => ({ r, isArchived: !!archived.get(r.kind)?.has(r.id) }))
     .filter(({ isArchived }) => includeArchived || !isArchived)
     .map(({ r, isArchived }) =>
       view(r, tasks.production.get(r.id) || [], isArchived, tasks.started.has(r.id), tasks.waiting.get(r.id) || 0),
@@ -238,7 +238,7 @@ export function get<K extends FlowKind = FlowKind>(store: Store, id: number, kin
   return viewOfKind(view(
     row,
     task ? confirmedProduction(store, [id]).get(id) || [] : [],
-    store.archived('flow_' + row.kind, id),
+    store.archived(flowEntityPrefix + row.kind, id),
     task && !taskUntouched(store, id),
     task ? waitingGood(store, [id]).get(id) || 0 : 0,
   ), kind);

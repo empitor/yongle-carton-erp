@@ -3,13 +3,15 @@ import { z } from 'zod';
 import { AppError, many, registerOrderRules, rows, type MaterialProgress } from '../core/index.js';
 import { orderScope, shippedByLine } from './shipped.js';
 import { effectiveOrder, quantityUnits } from '../../shared/core/index.js';
-import type { FlowDocView } from '../../shared/business/index.js';
+import type { FlowDocView, purchaseBusinessStatuses } from '../../shared/business/index.js';
 import { stockLedger } from '../operations/index.js';
 import { syncReceivedUnits } from './receipt-events.js';
 import type { FlowCommands } from './base.js';
 import { orderEditGuard } from './order-edit-guard.js';
 
 const { rebalanceMovements } = stockLedger;
+/** 采购单的“已取消”（SQL 里由它拼，不写字面值） */
+const CANCELLED: (typeof purchaseBusinessStatuses)[number] = '已取消';
 
 /*
  * 订单的生产中、待发货、已发货由有效单据派生（AGENTS.md“订单状态”）：按生产任务、完工、送货重算订单状态，
@@ -33,7 +35,7 @@ export function materialByOrder(db: DatabaseSync, orderIds: readonly number[] | 
     // 张、公斤不能相加，一行超收也不能盖住另一行没到，所以按明细行数。
     // 每行算在它自己关联的订单上，没有就跟采购单头走（一张采购单可以给几张订单订料）。
     // 只看一部分订单时，先按两个外键列（都有索引）圈出相关的采购单，不扫全部明细；范围条件因此出现三次
-    "SELECT * FROM (SELECT COALESCE(l.customer_order_id,p.customer_order_id) AS id,SUM(l.received_units<l.quantity_units) AS open,SUM(l.received_units>0) AS touched FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.status!='已取消'" +
+    "SELECT * FROM (SELECT COALESCE(l.customer_order_id,p.customer_order_id) AS id,SUM(l.received_units<l.quantity_units) AS open,SUM(l.received_units>0) AS touched FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.status!='" + CANCELLED + "'" +
       (predicate
         ? ' AND p.id IN (SELECT id FROM purchases WHERE customer_order_id ' +
           predicate +

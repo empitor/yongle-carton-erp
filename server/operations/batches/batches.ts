@@ -6,7 +6,7 @@ import { peekSequence, takeSequence } from '../../core/index.js';
 import { quantityString } from '../../../shared/core/index.js';
 import { today } from '../../../shared/core/index.js';
 import { batchProgress, batchRowKey, batchRows, batchScheduleSchema, defaultSchedule, purchaseLinesOf, toScheduleEntries, type BatchSourceLine, type ScheduleEntry } from '../../../shared/business/index.js';
-import type { OrderBatchBaseView, OrderBatchDraft, PurchaseRowView } from '../../../shared/business/index.js';
+import type { OrderBatchBaseView, OrderBatchDraft, PurchaseRowView, purchaseBusinessStatuses } from '../../../shared/business/index.js';
 import { OperationsRepository } from '../ledger/repository.js';
 import { batchScheduleText, readBatchSchedule } from './batch-schedule.js';
 import { readPurchaseLineDocument } from '../ledger/ledger.js';
@@ -20,6 +20,8 @@ type SourcePurchase = Parameters<typeof purchaseLinesOf>[0][number] & { baseStat
 
 const memberRow = rows.order_batch_purchases.pick({ batch_id: true, purchase_id: true });
 const batchIdRow = rows.order_batches.pick({ id: true });
+/** 采购单的“已订货”（SQL 里由它拼，不写字面值） */
+const ORDERED: (typeof purchaseBusinessStatuses)[number] = '已订货';
 
 /** 订货单详情里的一行：合成的行加上这一行是哪种纸板、来自哪几张采购单、每张还差多少 */
 function batchRowView({ lines, ...r }: ReturnType<typeof batchRows>[number]) {
@@ -211,7 +213,7 @@ export class OrderBatchService {
       this.store.db,
       batchIdRow,
       'SELECT id FROM order_batches WHERE id IN (SELECT b.batch_id FROM order_batch_purchases b JOIN purchases p ON p.id=b.purchase_id' +
-        " JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.status='已订货' AND l.received_units<l.quantity_units)" +
+        ` JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.status='${ORDERED}' AND l.received_units<l.quantity_units)` +
         (filter.supplierId ? ' AND supplier_id=?' : '') +
         (filter.purchaseId ? ' AND id IN (SELECT batch_id FROM order_batch_purchases WHERE purchase_id=?)' : '') +
         ' ORDER BY order_date DESC,id DESC',

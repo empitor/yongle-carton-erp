@@ -5,7 +5,7 @@ import type { Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { auditTrail, recordContext } from '../../business/index.js';
 import { DAY_MS, dateSchema } from '../../../shared/core/index.js';
-import { dataManagementModules, flowStatusText, historyActionName, isFlowKind, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
+import { dataManagementModules, flowEntityPrefix, flowStatusText, historyActionName, isFlowKind, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
 import { clip, paging, positive, requireSuperAdmin, SHORT_TEXT_CHARS, type ToolContext } from './context.js';
 import { readTool } from './define.js';
 
@@ -36,9 +36,9 @@ export const historyTools = [
 ];
 
 const moduleName = (module: string) => recordNames[module] ?? module;
-/** 单据的审计挂在 flow_<模块> 上 */
-const FLOW_ENTITY = 'flow_';
-const moduleOfEntity = (entity: string) => (entity.startsWith(FLOW_ENTITY) ? entity.slice(FLOW_ENTITY.length) : entity);
+/** 单据的审计挂在 flowEntity(种类) 上（flow_<模块>） */
+const moduleOfEntity = (entity: string) =>
+  entity.startsWith(flowEntityPrefix) ? entity.slice(flowEntityPrefix.length) : entity;
 /** 每条修改最多给几个字；关联记录最多列几条 */
 const CHANGE_CHARS = 200;
 const RELATED_MAX = 50;

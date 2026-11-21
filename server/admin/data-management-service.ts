@@ -7,6 +7,7 @@ import {
   dataManagementCommandSchema,
   dataManagementModules,
   dataManagementTemplate,
+  flowEntity,
 } from '../../shared/business/index.js';
 import { isRecord, productPricePatch, today } from '../../shared/core/index.js';
 import { managementCommandSchema } from '../../shared/admin/index.js';
@@ -45,7 +46,7 @@ const priorResult = z.object({
 /** 数据管理命令收到删除时的说法：删除只有删除功能一条路（页面的删除窗、助手的删除命令，都先看会一起处理的记录） */
 const DELETE_ELSEWHERE = '数据管理命令不办删除，删除请用删除功能（先看会一起处理的记录，再确认删除）。';
 /** 审计挂在哪张表上：单据记 flow_<模块>（和单据流转、删除记的一样，单据的修改历史按它查），别的模块就是表名 */
-const auditEntity = (module: ManagedModule) => (isFlowModule(module) ? 'flow_' + module : module);
+const auditEntity = (module: ManagedModule) => (isFlowModule(module) ? flowEntity(module) : module);
 
 export class DataManagementService {
   readonly ops: OperationsService;

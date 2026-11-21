@@ -153,6 +153,14 @@ export default [
     },
   },
   {
+    // SQL 里不写死单据状态、种类和 flow_ 记录种类（scripts/eslint-local-rules.mjs）：单据流转自己、建表不查，
+    // 财务不查（财务表的状态和单据状态同名）；单据流转里给财务的只读窗口要查，见下一块
+    files: ['server/**/*.{ts,mts}'],
+    ignores: ['server/flow/**', 'server/core/schema/**', 'server/finance/**'],
+    rules: { 'local/no-flow-literals': 'error' },
+  },
+  { files: ['server/flow/finance-facts/**/*.ts'], rules: { 'local/no-flow-literals': 'error' } },
+  {
     // 财务从业务拿数据的只读窗口：只用 server/core 的 one、many、exists、count 读，能写库的入口一个都不碰（SQL 里的写由 tests/module-table-owners.test.ts 查）
     files: ['server/flow/finance-facts/**/*.ts'],
     rules: {

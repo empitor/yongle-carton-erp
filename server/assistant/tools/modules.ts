@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import type { FlowDocView, FlowKind, StockItemView, dataManagementModules } from '../../../shared/business/index.js';
+import { flowEntityPrefix } from '../../../shared/business/index.js';
 import { assistantModules, flowKindOfModule, moduleOfRecord, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
 import { entityRecords, namedDocuments, type NamedDocument } from '../../business/index.js';
 import { movementScope, suppliersOfPurchaseLines } from '../../operations/index.js';
@@ -18,8 +19,6 @@ type BusinessModule = 'customers' | 'products' | 'orders' | 'suppliers' | 'purch
 const businessModules: readonly Module[] = ['customers', 'products', 'orders', 'suppliers', 'purchases'];
 const isBusinessModule = (m: Module): m is BusinessModule => businessModules.includes(m);
 type InventoryModule = 'raw_inventory' | 'finished_inventory';
-/** 流水的单据来源记在 source_kind 上，单据的是 flow_<种类> */
-const FLOW_SOURCE = 'flow_';
 /** 去重的正整数编号 */
 const ids = (list: unknown[]) => [...new Set(list.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
 
@@ -37,7 +36,7 @@ function movementRows(ctx: ToolContext, movements = ctx.flow.views.movements()) 
   const items = new Map(ctx.ops.items(true, ids(movements.map((r) => r.item_id))).map((i) => [i.id, i]));
   const orders = new Map(ctx.store.ordersByIds(ids(movements.map((r) => r.customer_order_id)), true).map((o) => [o.id, o]));
   const lineSuppliers = suppliersOfPurchaseLines(ctx.store, ids(movements.map((r) => r.purchase_line_id)));
-  const fromFlowDocument = (r: (typeof movements)[number]) => String(r.source_kind).startsWith(FLOW_SOURCE);
+  const fromFlowDocument = (r: (typeof movements)[number]) => String(r.source_kind).startsWith(flowEntityPrefix); // 流水的单据来源是 flow_<种类>
   const documentIds = ids(movements.filter(fromFlowDocument).map((r) => r.source_id));
   const documents = new Map(
     ctx.flow

@@ -4,7 +4,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { many } from '../../core/index.js';
+import { archivedIdsIn, many } from '../../core/index.js';
 
 /** 往来单位的种类：客户、供应商 */
 type PartyKind = 'customer' | 'supplier';
@@ -28,13 +28,15 @@ function names<K extends number | string>(db: DatabaseSync, kind: PartyKind, ids
 }
 
 const option = z.object({ id: z.number(), name: z.string() });
-/** 没归档的（归档标记的种类就是表名，参数 ?） */
-const unarchived = 'NOT EXISTS(SELECT 1 FROM record_lifecycle a WHERE a.entity=? AND a.record_id=p.id)';
+/** 没归档的（参数是归档编号的 JSON 数组） */
+const unarchived = 'p.id NOT IN (SELECT value FROM json_each(?))';
+/** 归档编号（归档标记的种类就是表名），给 unarchived 用 */
+const archivedJson = (db: DatabaseSync, entity: 'customers' | 'suppliers') => JSON.stringify([...archivedIdsIn(db, entity)]);
 /** 选单位用的名单：没归档的客户或供应商（编号、名称），和业务列表一样新建的在前 */
 function options(db: DatabaseSync, kind: PartyKind) {
   return kind === 'customer'
-    ? many(db, option, `SELECT p.id,p.name FROM customers p WHERE ${unarchived} ORDER BY p.id DESC`, 'customers')
-    : many(db, option, `SELECT p.id,p.name FROM suppliers p WHERE ${unarchived} ORDER BY p.id DESC`, 'suppliers');
+    ? many(db, option, `SELECT p.id,p.name FROM customers p WHERE ${unarchived} ORDER BY p.id DESC`, archivedJson(db, 'customers'))
+    : many(db, option, `SELECT p.id,p.name FROM suppliers p WHERE ${unarchived} ORDER BY p.id DESC`, archivedJson(db, 'suppliers'));
 }
 
 export const parties = { names, options };

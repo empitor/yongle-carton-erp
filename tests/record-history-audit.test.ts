@@ -93,8 +93,8 @@ const literals = (expr: string) => [...expr.matchAll(/'([^']*)'/g)].map((m) => m
 /** 修改历史只查这几类记录（server/business/record-context.ts：六类业务档案和 flow_ 开头的四类单据） */
 const historyEntities = new Set(['customers', 'products', 'orders', 'suppliers', 'purchases', 'stock_items']);
 const shownEntity = (expr: string) =>
-  !/^'[^']*'$/.test(expr) && !literals(expr).length
-    ? true // 变量：由调用方决定，按会显示算
+  /\bflowEntity\(/.test(expr) || (!/^'[^']*'$/.test(expr) && !literals(expr).length)
+    ? true // 单据的记录种类（flowEntity(…)），或变量（由调用方决定）：按会显示算
     : literals(expr).some((e) => historyEntities.has(e) || e.startsWith('flow_'));
 /** 动作是变量的几处，可能的值 */
 const dynamicActions: Record<string, string[]> = {
