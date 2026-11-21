@@ -1,8 +1,8 @@
 // 只管：读程序代码（source.search、source.read），只读、只给超级管理员（用户原话：“后台代码只读，只给超级管理员的ai助手看”）。
-// 范围、禁区、打码和权限都在基础模块的 searchProgramSource、readProgramSource 里，这里只接参数、换中文键。
+// 范围、禁区、打码和权限都在系统资料模块的 searchProgramSource、readProgramSource 里，这里只接参数、换中文键。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { readProgramSource, searchProgramSource } from '../../core/index.js';
+import { readProgramSource, searchProgramSource } from '../../system/index.js';
 import { notConnected, positive, type ToolContext, type ToolReader } from './context.js';
 
 /** 要找的字、限定的目录最多几个字；文件路径最多几个字 */

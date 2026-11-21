@@ -1,7 +1,14 @@
 import { z } from 'zod';
 import type { arrivalLineStatus } from '../core/index.js';
-import { receiptEventSchema, receiptLineSchema } from './flow-views.js';
-import { arrivalProgresses, purchaseBusinessStatuses, purchaseLineDocumentSchema, purchaseStatuses, stockKinds } from './operations.js';
+import {
+  arrivalItemSchema,
+  arrivalPriceBasisSchema,
+  arrivalProgresses,
+  purchaseBusinessStatuses,
+  purchaseLineDocumentSchema,
+  purchaseStatuses,
+  stockKinds,
+} from './operations.js';
 import { movementColumnsSchema, stockDocumentSchema, storedScheduleEntrySchema } from './operations-stored.js';
 import type { batchProgress, batchRows } from './order-batch.js';
 
@@ -87,11 +94,57 @@ const purchaseHead = {
 const purchaseRowViewSchema = z.strictObject({ ...purchaseHead, lines: z.array(purchaseLineViewSchema) });
 export type PurchaseRowView = z.output<typeof purchaseRowViewSchema>;
 
+/** 单据被撤销的记录（原因、谁、什么时候、冲掉的流水）：单据内容（flow-document.ts 的 lifecycle）和下面的到货事件都按它 */
+export const reversalRecordSchema = z.strictObject({
+  reason: z.string(),
+  by: z.string(),
+  at: z.string(),
+  requestId: z.string().optional(),
+  movements: z.array(z.string()),
+});
+
+/** 到货单的一行按采购单读到的样子：lineId、purchaseId 是它现在挂的采购明细和采购单，验收数没写是 null，金额按单价和计价方式算 */
+export const receiptLineSchema = z.strictObject({
+  index: z.number(),
+  lineId: z.number().nullable(),
+  purchaseId: z.number().nullable(),
+  stockId: z.number().nullable(),
+  quantity: z.string(),
+  acceptedQuantity: z.string().nullable(),
+  rejectedQuantity: z.string().nullable(),
+  stockedQuantity: z.string().nullable(),
+  item: z.strictObject(arrivalItemSchema.shape),
+  unitPrice: z.string().nullable(),
+  priceBasis: arrivalPriceBasisSchema,
+  amount: z.string().nullable(),
+});
+
 /**
- * 采购单的一条到货记录（一张到货单）：到货事件（flow-views.ts）加上原件、原因、撤销没有，
+ * 到货事件的单头（不含明细和原单内容）：一张到货单读成采购单、到货记录、到货更正能用的样子，
+ * 整个到货事件（加上明细和原单）见 flow-views.ts 的 receiptEventSchema。
+ * id 是“flow-编号”，correctionOf、replacedBy 也按这个写。
+ */
+export const receiptHeadSchema = z.strictObject({
+  id: z.string(),
+  flowId: z.number(),
+  version: z.number(),
+  reference: z.string(),
+  date: z.string(),
+  status: z.string(),
+  effective: z.boolean(),
+  supplierId: z.number(),
+  actorName: z.string(),
+  createdAt: z.string(),
+  correctionOf: z.string().nullable(),
+  replacedBy: z.string().nullable(),
+  reversal: reversalRecordSchema.nullable(),
+});
+
+/**
+ * 采购单的一条到货记录（一张到货单）：到货事件的单头加上原件、原因、撤销没有，
  * items 是挂在这张采购单上的行，correctionLines 是整张到货单的行（更正要用），amount 是整张的金额
  */
-const purchaseReceiptSchema = receiptEventSchema.omit({ lines: true, document: true }).extend({
+const purchaseReceiptSchema = receiptHeadSchema.extend({
   sourceId: z.string().nullable(),
   reason: z.string(),
   reversed: z.boolean(),

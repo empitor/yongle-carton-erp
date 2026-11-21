@@ -5,7 +5,7 @@ import { startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager } from '../server/assistant/manager.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { fakeAiSettings } from './fake-deepseek.js';
 import type { AiTransport } from '../server/ai/transport.js';
 

@@ -1,11 +1,9 @@
 import { z } from 'zod';
 import { MONTH_DAY_START, dateSchema, type SpecFields } from '../core/index.js';
-import { sumMoney } from './operations.js';
+import { noteText, sumMoney } from './operations.js';
 import { priceFromE4, priceToE4, quantityString, quantityUnits, quantityText } from '../core/index.js';
-import { arrivalTimeSchema } from './arrival.js';
 import { specLine } from './display-text.js';
-import { noteText } from './physical-flow.js';
-import { NO_DUE_DATE } from './schedule.js';
+import { NO_DUE_DATE, arrivalTimeSchema } from './schedule.js';
 import { MAX_RECEIVE_ROWS, MAX_SCHEDULE_ENTRIES } from './limits.js';
 
 /** 订货单行的合并依据（JSON 文字）最多多长 */

@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { test } from 'node:test';
-import { businessLayerBacklog, compareBacklog } from './layer-backlog.js';
 import { all, canUse, covers, exportSources, inModules, isCode, isEntry, isLazyEntry, layerOf, lazyEntries, matchOf, moduleOf, modules, refsOf, tools, type Ref, type Rule } from './module-map.js';
 
 /** 登记过的例外：from 文件 → to 文件（或目录前缀），每条写明为什么不能按规则来。 */
@@ -58,7 +57,7 @@ const dynamicLoads: { file: string; why: string }[] = [];
 /** 模块代码一个文件的方向违规：只能用规则里允许的模块 */
 function directionViolations(f: string, refs: Ref[] = refsOf(f)) {
   const from = moduleOf(f);
-  if (!from) return [f + '：不属于任何模块'];
+  if (!from) return [f + '：不属于任何模块，在 tests/module-map.ts 的模块表里登记它所在的目录'];
   const out: string[] = [];
   for (const r of refs) {
     const target = r.target;
@@ -66,7 +65,11 @@ function directionViolations(f: string, refs: Ref[] = refsOf(f)) {
     const to = moduleOf(target);
     if (!to || to === from || canUse(from, to)) continue;
     if (exceptions.some((e) => e.from === f && (e.to.endsWith('/') ? target.startsWith(e.to) : target === e.to))) continue;
-    out.push(f + ':' + r.line + '（' + from.name + '）→ ' + target + '（' + to.name + '）');
+    out.push(
+      f + ':' + r.line + '（' + from.name + '）→ ' + target + '（' + to.name + '）：' + from.name + '不能用' + to.name +
+        '。把要用的东西挪到能用的更基础的模块，或照 AGENTS.md“模块”末尾的办法（调用方传进来、低层定义接口高层登记）；' +
+        '方向本来就该允许的，在 tests/module-map.ts 这个模块的 allow 里加上，并改 docs/架构说明.md 的模块图',
+    );
   }
   return out;
 }
@@ -83,12 +86,16 @@ function interfaceViolations(f: string, refs: Ref[] = refsOf(f)) {
     const to = moduleOf(r.target);
     if (!to || to === from || to.name === '装配' || to.name === '前端-装配') continue;
     if (!isCode(r.target)) {
-      if (from?.name !== '前端-装配') out.push(f + ':' + r.line + ' → ' + r.target + '（别的模块的样式、资源）');
+      if (from?.name !== '前端-装配')
+        out.push(f + ':' + r.line + ' → ' + r.target + '（别的模块的样式、资源）：样式只在 src/main.tsx 引入，资源放进本模块或经对方的 index.ts 拿');
       continue;
     }
     if (/^(server|shared|src)\/[a-z]+\/index\.ts$/.test(r.target) && (r.how === 'import' || r.how === 'import()')) continue;
     if (r.how === 'import()' && isLazyEntry(r.target)) continue;
-    out.push(f + ':' + r.line + ' → ' + r.target + (r.how === 'import' ? '' : '（' + r.how + '）'));
+    out.push(
+      f + ':' + r.line + ' → ' + r.target + (r.how === 'import' ? '' : '（' + r.how + '）') +
+        '：别的模块只能从它的 index.ts 引（按需加载的页面 import() 它的 pages.ts），把要用的名字加进那个入口，改成从入口引',
+    );
   }
   return out;
 }
@@ -106,21 +113,23 @@ function loadViolations(f: string, refs: Ref[] = refsOf(f)) {
   for (const r of refs) {
     const at = f + ':' + r.line;
     if (r.unresolved !== undefined) {
-      if (!dynamicLoads.some((e) => e.file === f)) out.push(at + '：' + r.how + ' 的目标看不出来（' + r.unresolved + '）');
+      if (!dynamicLoads.some((e) => e.file === f)) out.push(at + '：' + r.how + ' 的目标看不出来（' + r.unresolved + '），改成写明路径的字面量；确实要按变量加载的登记进本文件的 dynamicLoads 并写明原因');
       continue;
     }
     if (!r.target) {
-      out.push(at + '：找不到 ' + r.spec);
+      out.push(at + '：找不到 ' + r.spec + '，改成文件现在的路径');
       continue;
     }
     if (!isTool && !inModules(r.target)) {
-      if (!outsideRefs.some((e) => e.from === f && e.to === r.target)) out.push(at + ' → ' + r.target + '（模块外的文件）');
+      if (!outsideRefs.some((e) => e.from === f && e.to === r.target))
+        out.push(at + ' → ' + r.target + '（模块外的文件）：模块代码不引 scripts/、tests/，把要用的东西挪进模块；确实要引的登记进 outsideRefs 并写明原因');
       continue;
     }
     if (isTool && inModules(r.target)) {
       const to = moduleOf(r.target);
       if (isEntry(r.target) || to?.name === '装配' || to?.name === '前端-装配') continue;
-      if (!toolInternalRefs.some((e) => e.from === f && e.to === r.target)) out.push(at + ' → ' + r.target + '（' + to?.name + ' 的内部文件）');
+      if (!toolInternalRefs.some((e) => e.from === f && e.to === r.target))
+        out.push(at + ' → ' + r.target + '（' + to?.name + ' 的内部文件）：脚本和配置只走模块的 index.ts、pages.ts 或装配入口，把要用的名字加进入口；确实要验证内部实现的登记进 toolInternalRefs 并写明原因');
     }
   }
   return out;
@@ -184,7 +193,7 @@ function layerGaps(rule: Rule, files: string[], exists: (p: string) => boolean =
       .filter((f) => inRule(f) && !isEntry(f) && layerOf(f, rule) === undefined)
       .map((f) => f + '：没登记进' + rule.name + '的任何一层，在 tests/module-map.ts 这个模块的 layers 里加上'),
     ...paths.filter((p) => !exists(p)).map((p) => p + '：登记在' + rule.name + '的层里，但已经不存在，从 layers 里删掉'),
-    ...paths.filter((p) => !inRule(p)).map((p) => p + '：登记在' + rule.name + '的层里，但不在这个模块的路径里'),
+    ...paths.filter((p) => !inRule(p)).map((p) => p + '：登记在' + rule.name + '的层里，但不在这个模块的路径里，从 layers 里删掉或改成这个模块里的路径'),
   ];
 }
 
@@ -194,7 +203,7 @@ test('模块之间只按规定的方向引用', () => {
 
 test('server、src 下的每个子目录都登记进了模块（装配只管根目录的文件，新目录不会悄悄变成能引用一切的装配）', () => {
   const unregistered = all.filter((f) => f.split('/').length >= 3 && ['server/', 'src/'].includes(matchOf(f)?.p ?? ''));
-  assert.deepEqual(unregistered, []);
+  assert.deepEqual(unregistered.map((f) => f + '：所在目录没登记进模块，在 tests/module-map.ts 它所属模块的 paths 里加上这个目录'), []);
 });
 
 test('规则里允许的每个依赖都确实用到了（规则和代码一致，架构图不会画出不存在的箭头）', () => {
@@ -208,7 +217,7 @@ test('规则里允许的每个依赖都确实用到了（规则和代码一致�
     }
   }
   const unused = modules.flatMap((m) =>
-    m.allow.filter((a) => !a.includes('*') && !used.has(m.name + ' → ' + a)).map((a) => m.name + ' → ' + a),
+    m.allow.filter((a) => !a.includes('*') && !used.has(m.name + ' → ' + a)).map((a) => m.name + ' → ' + a + '：已经没有代码这样用，从 tests/module-map.ts 这个模块的 allow 里删掉，并改 docs/架构说明.md 的模块图'),
   );
   assert.deepEqual(unused, []);
 });
@@ -222,7 +231,10 @@ test('每条例外都还用得上，不留过期的登记', () => {
   const staleLazy = lazyEntries.filter(
     (e) => !existsSync(e.file) || !all.some((f) => refsOf(f).some((r) => r.how === 'import()' && r.target === e.file)),
   );
-  assert.deepEqual([...stale, ...staleDynamic.map((e) => e.file), ...staleLazy.map((e) => e.file)], []);
+  assert.deepEqual(
+    [...stale, ...staleDynamic.map((e) => e.file), ...staleLazy.map((e) => e.file)].map((x) => x + '：已经用不上了，从本文件或 tests/module-map.ts 的登记里删掉'),
+    [],
+  );
 });
 
 /** Tarjan 强连通分量：图里大于一个文件的分量就是循环（每个分量里的文件排好序） */
@@ -265,7 +277,10 @@ test('整个项目没有循环引用（server、shared、src；只看运行时�
   const graph = new Map(
     all.map((f) => [f, refsOf(f).flatMap((x) => (!x.typeOnly && x.target && isCode(x.target) ? [x.target] : []))]),
   );
-  assert.deepEqual(cyclesIn(graph), []);
+  assert.deepEqual(
+    cyclesIn(graph).map((group) => group.join(' ↔ ') + '：运行时循环引用，把两边共用的东西挪到被依赖的一方或单独的文件；只为类型的改成 import type'),
+    [],
+  );
 });
 
 /**
@@ -288,7 +303,11 @@ test('脚本和配置文件引用模块也只走公开入口（index.ts、pages.
 test('接口文件只列自己模块的东西，不转手别的模块的', () => {
   const bad = all
     .filter(isEntry)
-    .flatMap((f) => refsOf(f).filter((x) => !x.spec.startsWith('./')).map((x) => f + ' → ' + (x.spec || x.unresolved)));
+    .flatMap((f) =>
+      refsOf(f)
+        .filter((x) => !x.spec.startsWith('./'))
+        .map((x) => f + ' → ' + (x.spec || x.unresolved) + '：入口只转出本模块自己的文件，删掉这一行，用的人直接从那个模块的入口引'),
+    );
   assert.deepEqual(bad, []);
 });
 
@@ -323,7 +342,7 @@ test('入口文件里列的名字都有别的模块在用（接口清单和实�
           return parts[parts.length - 1].trim();
         }),
     );
-    for (const n of names) if (!used.get(f)?.has(n)) unused.push(f + '：' + n);
+    for (const n of names) if (!used.get(f)?.has(n)) unused.push(f + '：' + n + '，没有别的模块在用，从入口里删掉（模块自己的文件直接引来源文件）');
   }
   assert.deepEqual(unused, []);
 });
@@ -334,23 +353,13 @@ test('前端模块之间的事件只用 src/ui/events.ts 的 emit、listen，不
     const text = readFileSync(f, 'utf8');
     for (const [i, line] of text.split(/\r?\n/).entries())
       if (/window\.dispatchEvent\(|new CustomEvent\(|(?:add|remove)EventListener\(\s*['"`](?:erp-|finance-)/.test(line))
-        bad.push(f + ':' + (i + 1) + '  ' + line.trim());
+        bad.push(f + ':' + (i + 1) + '  ' + line.trim() + '：改用 src/ui/events.ts 的 emit、listen（事件名登记在那里）');
   }
   assert.deepEqual(bad, []);
 });
 
-test('分了层的模块只往下用：前端业务四层、共用业务三层（含服务端三层经入口用它），现有越层的只许减少', () => {
-  const found = all.flatMap((f) => layerBreaches(f));
-  const { extra, stale } = compareBacklog(
-    found.map((b) => b.from + ' → ' + b.to),
-    businessLayerBacklog.map((e) => e.from + ' → ' + e.to),
-  );
-  assert.deepEqual(
-    found.filter((b) => extra.includes(b.from + ' → ' + b.to)).map((b) => b.text),
-    [],
-    '新的越层引用（不许往 tests/layer-backlog.ts 里加）',
-  );
-  assert.deepEqual(stale, [], '这几条已经整理掉了，从 tests/layer-backlog.ts 的 businessLayerBacklog 里删掉');
+test('分了层的模块只往下用：前端业务四层、共用业务三层（含服务端三层经入口用它），一处越层都不许有', () => {
+  assert.deepEqual(all.flatMap((f) => layerBreaches(f).map((b) => b.text)), []);
 });
 
 test('分了层的模块每个文件都登记进了某一层，层表里写的路径都还在', () => {
@@ -369,12 +378,12 @@ test('共用业务的每个层名都对得上一个服务端模块（不然服�
   assert.deepEqual(unmatchedLayers({ name: '样例', paths: [], allow: [], layers: [{ name: '没有这个模块', paths: [] }] }, serverModules), ['没有这个模块']);
 });
 
-test('回归：分层检查拦住往上引、没登记进层的文件和过期的清单，同层、下层、入口不误报', () => {
+test('回归：分层检查拦住往上引、没登记进层的文件，同层、下层、入口不误报', () => {
   const blocked: [file: string, text: string, to: string][] = [
     ['src/flow/Sample.tsx', "import { RecordPages } from '../records/RecordPages';", 'src/records/RecordPages.tsx'],
     ['src/recordkit/Sample.tsx', "import type { FlowDeskDialogs } from '../flow/FlowDeskDialogs';", 'src/flow/FlowDeskDialogs.tsx'],
     ['shared/business/operations.ts', "import { noteText } from './physical-flow.js';", 'shared/business/physical-flow.ts'],
-    ['server/operations/sample.ts', "import { sumMoney, purchaseLineAmount } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
+    ['server/operations/sample.ts', "import { sumMoney, flowInput } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
     // 模块自己的文件经自己的入口引，也按名字的来源文件算层
     ['shared/business/operations.ts', "import type { FlowDocument } from './index.js';", 'shared/business/flow-document.ts'],
     // 看不出用了哪一层的：不写名字、动态加载、名字在入口里查不到
@@ -383,7 +392,7 @@ test('回归：分层检查拦住往上引、没登记进层的文件和过期�
     ['server/operations/sample.ts', "import { sumMoney, noSuchName } from '../../shared/business/index.js';", 'shared/business/index.ts'],
     ['server/operations/sample.ts', "export * from '../../shared/business/index.js';", 'shared/business/index.ts'],
     // export { … } from 转出去的也按名字的来源文件算
-    ['server/operations/sample.ts', "export { purchaseLineAmount } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
+    ['server/operations/sample.ts', "export { flowInput } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
   ];
   for (const [f, text, to] of blocked)
     assert.deepEqual(layerBreaches(f, refsOf(f, text)).map((b) => b.to), [to], f + ' 应拦住：' + text);
@@ -406,7 +415,6 @@ test('回归：分层检查拦住往上引、没登记进层的文件和过期�
     ),
     ['src/flow/b/y.ts', 'src/no-such/', 'src/no-such/'],
   );
-  assert.deepEqual(compareBacklog(['a → b', 'c → d'], ['a → b', 'e → f']), { extra: ['c → d'], stale: ['e → f'] });
 });
 
 /*
@@ -462,7 +470,7 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     ['src/Sample.tsx', "const R = lazy(() => import('./finance/related-pages'));"],
     ['scripts/sample.mjs', "await import('../server/core/index.ts');\nawait import('../server/app.ts');\nspawnSync('node', ['server/index.ts']);"],
     ['scripts/sample.mjs', "await import('../tests/assistant-workflow-fixture.ts');\nconst { createCanvas } = require('@napi-rs/canvas');"],
-    ['scripts/linux/verify-package.mjs', "await import('../../server/speech/index.ts');"],
+    ['scripts/linux/verify-package.mjs', "await import('../../server/assistant/index.ts');"],
     ['server/index.ts', "import { createRuntimeControl } from '../scripts/runtime-control.mjs';"],
   ];
   for (const [f, text] of allowed) assert.deepEqual(codeCheck(f, text), [], f + ' 不该拦：' + text);

@@ -1,10 +1,10 @@
-import { AppError } from '../core/index.js';
+import { AppError } from '../../core/index.js';
 import {
   SPEECH_MAX_SAMPLES,
   SPEECH_MIN_SAMPLES,
   SPEECH_SAMPLE_RATE,
   SPEECH_WAV_HEADER_BYTES,
-} from '../../shared/ai/index.js';
+} from '../../../shared/assistant/index.js';
 
 /**
  * 录音数据：浏览器传来的裸 PCM（16 位小端、单声道）先核对长度，再包成 WAV。

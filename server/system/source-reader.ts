@@ -1,8 +1,5 @@
 import { readFileSync, statSync } from 'node:fs';
-import type { Actor } from '../actor.js';
-import { AppError } from '../errors.js';
-import { pageWindow, requireSuperAdmin, type PageSize } from './reading.js';
-import { clip, redactCodeSecrets } from './redact.js';
+import { AppError, clip, pageWindow, redactCodeSecrets, requireSuperAdmin, type Actor, type PageSize } from '../core/index.js';
 import {
   existingSourceDirectories,
   readableFile,

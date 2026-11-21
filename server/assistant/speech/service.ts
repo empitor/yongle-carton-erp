@@ -1,7 +1,7 @@
 import type { ServerResponse } from 'node:http';
-import { AppError, pipeBytes, watchDisconnect } from '../core/index.js';
-import { AiConnectionError } from '../ai/index.js';
-import { SPEECH_SAMPLE_RATE, type SpeechResult } from '../../shared/ai/index.js';
+import { AppError, pipeBytes, watchDisconnect } from '../../core/index.js';
+import { AiConnectionError } from '../../ai/index.js';
+import { SPEECH_SAMPLE_RATE, type SpeechResult } from '../../../shared/assistant/index.js';
 import { checkPcm, pcmToWav } from './wav.js';
 
 /**

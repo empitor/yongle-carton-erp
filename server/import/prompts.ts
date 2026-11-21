@@ -1,5 +1,5 @@
 import type { PromptPreset } from '../../shared/ai/index.js';
-import { defaultPromptPreset } from '../ai/index.js';
+import { defaultPromptPreset } from './default-prompts/sales-order.js';
 
 /** 订单识别的口径版本：识别结果里记着，提示词或表的写法变了就改 */
 export const PROMPT_VERSION = 'order-2026-11-form-v1';

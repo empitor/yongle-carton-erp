@@ -1,5 +1,5 @@
 /*
- * 使用手册的接口表（服务端 server/core/user-manual.ts，“使用说明”页读它）。表的写法见 api-table.ts。
+ * 使用手册的接口表（服务端 server/system/user-manual.ts，“使用说明”页读它）。表的写法见 shared/core/api-table.ts。
  */
 
 /** 手册的一节：二级标题和正文（三级标题留在正文里） */

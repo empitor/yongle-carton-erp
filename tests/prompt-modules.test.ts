@@ -10,13 +10,16 @@ import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { promptModules } from '../shared/ai/prompt-modules.js';
 import { orderFormTool } from '../shared/import/order-form.js';
-import { defaultPromptPreset } from '../server/ai/default-prompts/sales-order.js';
-import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { createPromptManagers } from '../server/ai/recognition-modules.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { startHttp } from './http-fixture.js';
 import { assistantFixture } from './assistant-fixture.js';
 
+/** 三个模块各自的默认提示词（正式由装配 server/index.ts 传进去） */
+const defaults = { 'sales-order': defaultPromptPreset, 'supplier-delivery': supplierDefaultPreset, assistant: assistantDefaultPreset };
 const removeDir = (dir: string) => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 /** 接口回答：模块目录的一行、一个模块的设置视图（只认用到的字段） */
 const moduleRows = z.array(z.looseObject({ id: z.string() }));
@@ -73,7 +76,7 @@ test('提示词模块目录：只有会发给模型的三个模块（唛头不�
 test('每个模块独立提示词预设，修改一个模块不影响其他模块并可重开保留', () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-prompt-modules-'));
   try {
-    let managers = createPromptManagers(dir);
+    let managers = createPromptManagers(dir, defaults);
     try {
       assert.deepEqual(Object.keys(managers).sort(), promptModules.map((m) => m.id).sort());
       assert.match(managers['sales-order'].view().presets[0].name, /标准纸箱订单识别/);
@@ -88,7 +91,7 @@ test('每个模块独立提示词预设，修改一个模块不影响其他模�
     } finally {
       for (const manager of Object.values(managers)) manager.close();
     }
-    managers = createPromptManagers(dir);
+    managers = createPromptManagers(dir, defaults);
     try {
       assert.equal(managers['supplier-delivery'].view().presets[0].name, '虚构送货单自定义预设');
       assert.match(managers['sales-order'].view().presets[0].name, /标准纸箱订单识别/);
@@ -102,7 +105,7 @@ test('每个模块独立提示词预设，修改一个模块不影响其他模�
 
 test('提示词模块接口：列目录、读一个模块不带密钥；不带 AI 凭证或跨站 403；进了超级管理员模式五个动作都能用', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-prompt-api-')),
-    managers = createPromptManagers(dir),
+    managers = createPromptManagers(dir, defaults),
     f = assistantFixture(),
     h = await startHttp(f.store, { aiSettings: f.settings, assistant: f.manager, promptModules: managers });
   try {

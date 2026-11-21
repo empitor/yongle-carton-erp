@@ -17,7 +17,7 @@ import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/index.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { errorMessage } from '../shared/core/index.js';
 import { orderDraftSchema, receiptResultSchema, type OrderDraft } from '../shared/import/index.js';
 import { xlsxFixture } from './import-fixtures.js';

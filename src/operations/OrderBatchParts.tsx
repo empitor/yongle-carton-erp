@@ -2,8 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { priceText, type OrderBatchDraft } from '../../shared/business/index';
 import { documentFormats, type BusinessForm, type DocumentFormat, type DocumentTemplate } from '../../shared/documents/index';
 import { EditorFooter, Hint, MoreMenu, Section } from '../ui/index';
-import BusinessFormPreview from '../documents/BusinessFormPreview';
-import { WordFilePreview, afterSaved, type WordFile } from '../documents/export-file';
+import { BusinessFormPreview, WordFilePreview, afterSaved, type WordFile } from '../documents/index';
 import OrderSheetRow from './OrderSheetRow';
 import type { RowDrafts } from './BatchSchedule';
 

@@ -36,7 +36,7 @@ type Limit = [key: string, limit: number, windowMs: number];
 /** 账号库 users 的一行 */
 type UserRow = z.output<typeof accountRows.user>;
 
-/** 记一条登录记录（不记口令），顺手清掉过期的（诊断里的登录记录读这些，server/core/diagnostics/login-records.ts） */
+/** 记一条登录记录（不记口令），顺手清掉过期的（诊断里的登录记录读这些，server/system/login-records.ts） */
 function loginEvent(auth: AuthRoutesHost, userId: string | null, action: string) {
   auth.event(userId, action);
   auth.db

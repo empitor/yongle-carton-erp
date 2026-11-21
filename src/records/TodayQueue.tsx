@@ -16,7 +16,7 @@ import { useTodayData } from './useTodayData';
 type TodayGroup = ReturnType<typeof todayGroups>[number];
 
 const DeliveryExportDialog = lazy(() =>
-  import('../documents/BusinessExport').then((m) => ({ default: m.DeliveryExportDialog })),
+  import('../documents/pages').then((m) => ({ default: m.DeliveryExportDialog })),
 );
 
 /** 一组待办：标题和条数，默认只列前几条，“全部 N 条”展开或跳到对应列表 */

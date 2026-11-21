@@ -3,17 +3,19 @@
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { backupDirectory, configDirectory, defaultDbPath } from '../server/core/index.js';
+import { programSource } from '../server/system/paths.js';
 import { AuthManager, type Actor } from '../server/core/auth.js';
 import type { AppError } from '../server/core/errors.js';
 import { redactSecrets } from '../server/core/diagnostics/redact.js';
-import { RunLog, captureProcessOutput, readRunLog, searchRunLog } from '../server/core/diagnostics/run-log.js';
-import { readProgramSource, searchProgramSource } from '../server/core/diagnostics/source-reader.js';
-import { resolveSourcePath, type SourceScope } from '../server/core/diagnostics/source-paths.js';
+import { RunLog, captureProcessOutput, readRunLog, searchRunLog } from '../server/system/run-log.js';
+import { readProgramSource, searchProgramSource } from '../server/system/source-reader.js';
+import { resolveSourcePath, type SourceScope } from '../server/system/source-paths.js';
 import { ProblemLog, readRecentProblems } from '../server/core/diagnostics/problem-log.js';
-import { readLoginRecords } from '../server/core/diagnostics/login-records.js';
+import { readLoginRecords } from '../server/system/login-records.js';
 
 const boss: Actor = pageActor({ id: 'a1', name: '虚构管理员', permissions: [], role: 'super_admin' });
 const clerk: Actor = pageActor({ id: 's1', name: '虚构业务员', permissions: ['business:edit'], role: 'admin' });
@@ -132,6 +134,12 @@ function fakeProgram() {
   const scope: SourceScope = { root, denied: [join(root, 'server/private')] };
   return { base, root, outside, scope };
 }
+
+test('读程序代码的范围：从程序目录读起，业务库所在的数据目录、备份目录、配置目录列为禁区', () => {
+  const scope = programSource();
+  assert.ok(existsSync(join(scope.root, 'server/system/paths.ts')), '程序目录应当是项目根目录');
+  assert.deepEqual(scope.denied, [dirname(defaultDbPath), backupDirectory(), configDirectory()]);
+});
 
 test('读程序代码：各种越界写法、机密文件、数据和依赖目录、指出去的链接一律拒绝', () => {
   const { base, root, outside, scope } = fakeProgram();

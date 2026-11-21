@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { Store } from '../server/core/db.js';
 import { AuthManager } from '../server/core/auth.js';
 import { ProblemLog } from '../server/core/diagnostics/problem-log.js';
-import { RunLog } from '../server/core/diagnostics/run-log.js';
+import { RunLog } from '../server/system/run-log.js';
 import type { Actor } from '../server/core/index.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';

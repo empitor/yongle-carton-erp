@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEEPSEEK_TTS_SAMPLE_RATE, type ReadAloudRequest } from '../../shared/ai/index';
+import { DEEPSEEK_TTS_SAMPLE_RATE } from '../../shared/ai/index';
+import type { ReadAloudRequest } from '../../shared/assistant/index';
 import { readAuthState } from '../ui/index';
 import { openReadAloud } from './assistant-api';
 import { PcmDecoder, PcmPlayer } from './read-aloud-audio';

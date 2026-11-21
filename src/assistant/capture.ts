@@ -1,4 +1,4 @@
-import { SPEECH_MAX_SECONDS, SPEECH_SAMPLE_RATE } from '../../shared/ai/index';
+import { SPEECH_MAX_SECONDS, SPEECH_SAMPLE_RATE } from '../../shared/assistant/index';
 
 /*
  * 一次录音：要麦克风、接上音频环境收样本、数到上限通知停、交出录到的样本、取消和释放。

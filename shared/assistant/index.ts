@@ -13,5 +13,7 @@ export type { MemoryView } from './assistant-memory.js';
 export { pageResultBody } from './assistant-page.js';
 export type { pageResultSchema } from './assistant-page.js';
 export { acknowledgedBody, cancelUploadBody, executeCardBody, inventoryPolicyBody, pluginSettingBody, toolSettingBody } from './assistant-requests.js';
+export { SPEECH_MAX_SAMPLES, SPEECH_MAX_SECONDS, SPEECH_MIN_SAMPLES, SPEECH_MIN_SECONDS, SPEECH_REQUEST_TIMEOUT_MS, SPEECH_SAMPLE_RATE, SPEECH_WAV_HEADER_BYTES } from './speech.js';
+export type { ReadAloudRequest, SpeechResult } from './speech.js';
 export { cardStateNames, exportFileSchema, interimSaid, jsonValue, planCardSchema, storedMessageSchema, toolParametersSchema } from './assistant-views.js';
 export type { AssistantStateView, CardStateName, JsonView, MessageView, PlanCard, PluginsView, ThreadView, ToolsView } from './assistant-views.js';

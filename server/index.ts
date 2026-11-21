@@ -1,7 +1,8 @@
 import { Store, defaultDbPath, type Deployment } from './core/index.js';
 import { createApp } from './app.js';
 import { acquireLock } from './core/index.js';
-import { ProblemLog, RunLog, captureProcessOutput, defaultProblemLogPath, defaultRunLogPath, programSource } from './core/index.js';
+import { ProblemLog, defaultProblemLogPath } from './core/index.js';
+import { RunLog, captureProcessOutput, defaultRunLogPath, programSource } from './system/index.js';
 import { AiSettingsManager } from './ai/index.js';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { SchemaError, VersionedSqliteError, scheduleDailyBackup } from './core/index.js';
@@ -16,8 +17,8 @@ import { DAY_MS, errorMessage } from '../shared/core/index.js';
 import { defaultPromptSettingsPath } from './ai/index.js';
 import { createPromptManagers } from './ai/index.js';
 import { workspaceHooks } from './import/index.js';
-import { ReceiptAi } from './import/index.js';
-import { defaultAssistantToolsPath } from './assistant/index.js';
+import { ReceiptAi, defaultPromptPreset, supplierDefaultPreset } from './import/index.js';
+import { assistantDefaultPreset, defaultAssistantToolsPath } from './assistant/index.js';
 import { AssistantManager } from './assistant/index.js';
 import { createRuntimeControl } from '../scripts/runtime-control.mjs';
 import { createServer, type Server } from 'node:http';
@@ -69,7 +70,14 @@ function openServices(deployment: Deployment | undefined, runLog: RunLog) {
   const aiSettings = new AiSettingsManager({ file: defaultAiSettingsPath() });
   const aiWarning = deployment && aiSettings.credentialWarning();
   if (aiWarning) console.warn(aiWarning);
-  const promptManagers = opening(() => createPromptManagers(dirname(defaultPromptSettingsPath())));
+  // 默认提示词由用它的模块提供：订单、送货单识别在识别导入，助手的人设在助手
+  const promptManagers = opening(() =>
+    createPromptManagers(dirname(defaultPromptSettingsPath()), {
+      'sales-order': defaultPromptPreset,
+      'supplier-delivery': supplierDefaultPreset,
+      assistant: assistantDefaultPreset,
+    }),
+  );
   const receiptAi = new ReceiptAi(store, aiSettings, promptManagers['supplier-delivery']);
   const assistant = opening(
     () =>

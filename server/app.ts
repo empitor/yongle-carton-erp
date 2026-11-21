@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
-import { pageProblemRouter, proxyIngress, requirePermission, requireSuperModeFor, userManualRouter, type Deployment, type ProblemLog, type Store } from './core/index.js';
+import { pageProblemRouter, proxyIngress, requirePermission, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
+import { userManualRouter } from './system/index.js';
 import { operationsRouter } from './operations/index.js';
 import { MarkService, recordsRouter, workbenchRouter } from './business/index.js';
 import { installRequestGuards } from './http-guards.js';

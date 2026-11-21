@@ -9,7 +9,7 @@ import { Store } from '../server/core/db.js';
 import { count } from '../server/core/sql.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import { promptModules } from '../shared/ai/index.js';
 import { testProtector } from './fake-deepseek.js';

@@ -133,7 +133,7 @@ test('提示词编辑区：不是超级管理员账号时只读，编辑框不�
 
 test('使用说明页的 Markdown 显示（src/ui/Markdown.tsx）：使用手册每一节都显示成标题、段落、列表、表格，不留 ** 和表格竖线，站内 .md 链接只显示文字', async () => {
   const { Markdown } = await import('../src/ui/Markdown.js');
-  const { readUserManual } = await import('../server/core/user-manual.js');
+  const { readUserManual } = await import('../server/system/user-manual.js');
   const manual = readUserManual();
   let tables = 0;
   for (const section of manual.sections) {

@@ -15,7 +15,7 @@ import { ProblemLog, readRecentProblems } from '../server/core/diagnostics/probl
 import { errorReason, problemCategory, stackLines } from '../server/core/diagnostics/problem-kinds.js';
 import { operationName, routePath } from '../server/core/diagnostics/operation-names.js';
 import { pageProblemRouter } from '../server/core/diagnostics/page-problems.js';
-import { readLoginRecords } from '../server/core/diagnostics/login-records.js';
+import { readLoginRecords } from '../server/system/login-records.js';
 import { installRequestGuards } from '../server/http-guards.js';
 import { apiErrorHandler } from '../server/http-errors.js';
 import { createProblemReporter } from '../src/ui/problem-report.js';

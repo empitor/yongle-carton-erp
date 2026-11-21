@@ -7,7 +7,7 @@ import { ImportManager } from '../server/import/manager.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { Store } from '../server/core/index.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { recognizedArrivalDraft, arrivalDraftIssues, matchArrivalBatch, batchKeysFor } from '../shared/business/arrival-draft.js';
 import { fakeAiSettings } from './fake-deepseek.js';

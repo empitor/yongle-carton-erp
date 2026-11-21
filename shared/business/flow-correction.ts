@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { chosenId, dateSchema, exactPriceSchema, positiveQuantity, previewDigestSchema, quantityText } from '../core/index.js';
-import { arrivalDatedMessage, arrivalLineSchema, noteText } from './physical-flow.js';
+import { noteText } from './operations.js';
+import { arrivalDatedMessage, arrivalLineSchema } from './physical-flow.js';
 
 /*
  * 更正已生效单据的输入（server/flow/correction.ts）：到货、送货、完工三种，各一份预览输入；

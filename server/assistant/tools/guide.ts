@@ -1,9 +1,10 @@
-// 只管：读使用说明（guide.read）。读的是使用手册 docs/使用手册.md，读文件和切章节用基础模块的
-// readUserManual（server/core/user-manual.ts），“使用说明”页也走它。不传章节给目录，传了先按标题找那一节，
+// 只管：读使用说明（guide.read）。读的是使用手册 docs/使用手册.md，读文件和切章节用系统资料模块的
+// readUserManual（server/system/user-manual.ts），“使用说明”页也走它。不传章节给目录，传了先按标题找那一节，
 // 标题对不上就按关键词在全文里找含这个词的小节（模型常按问题里的词猜章节名，猜错一次多一轮）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { AppError, findManualSection, readUserManual } from '../../core/index.js';
+import { AppError } from '../../core/index.js';
+import { findManualSection, readUserManual } from '../../system/index.js';
 import { clip, requireActor, SHORT_TEXT_CHARS, type ToolContext, type ToolReader } from './context.js';
 
 type UserManual = ReturnType<typeof readUserManual>;

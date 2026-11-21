@@ -8,7 +8,8 @@ import { costCents, costYuan, plainPrice, precisionTotal, exactText, priceEdit, 
 import { userError } from '../shared/core/user-errors.js';
 import { errorMessage } from '../shared/core/error-message.js';
 import { z } from 'zod';
-import { sheetArea, purchaseLineAmount, flowInput } from '../shared/business/physical-flow.js';
+import { flowInput } from '../shared/business/physical-flow.js';
+import { sheetArea, purchaseLineAmount } from '../shared/business/operations.js';
 import { stockItemSchema, lineMoney } from '../shared/business/operations.js';
 import { positiveQuantity, quantityText, quantityString, quantityUnits, safeUnits } from '../shared/core/quantity.js';
 

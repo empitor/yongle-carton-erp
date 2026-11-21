@@ -7,7 +7,7 @@ import { deleteFile, uploadFile, withUploadedFiles, type UploadInput } from '../
 import { speechToText, textToSpeech } from '../server/ai/speech.js';
 import { webFetch, webSearch } from '../server/ai/web.js';
 import { getBalance } from '../server/ai/balance.js';
-import { pcmToWav } from '../server/speech/wav.js';
+import { pcmToWav } from '../server/assistant/speech/wav.js';
 import { AiConnectionError } from '../server/ai/errors.js';
 
 async function* chunks(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {

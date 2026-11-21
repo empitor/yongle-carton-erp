@@ -3,11 +3,6 @@ import { z } from 'zod';
 import { dateSchema } from '../core/index.js';
 import { quantityText, quantityUnits, quantityString } from '../core/index.js';
 
-export const arrivalTimeSchema = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, '时间使用HH:mm格式')
-  .nullable()
-  .optional();
 export const inspectionFields = {
   acceptedQuantity: quantityText.nullable().optional(),
   rejectedQuantity: quantityText.nullable().optional(),

@@ -1,5 +1,5 @@
 import type { FlowApi } from '../../shared/business/index';
-import { DeliveryExportDialog } from '../documents/BusinessExport';
+import { DeliveryExportDialog } from '../documents/index';
 import RecordContextDialog from '../recordkit/RecordContext';
 import DatabaseDeleteDialog from '../recordkit/DatabaseDeleteDialog';
 import CorrectionDialog from './CorrectionDialog';

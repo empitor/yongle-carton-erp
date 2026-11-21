@@ -1,5 +1,5 @@
 /* 使用说明页 */
-/* 使用说明页：左边章节目录，右边这一节的正文（src/GuidePage.tsx） */
+/* 使用说明页：左边章节目录，右边这一节的正文（src/system/GuidePage.tsx） */
 .guide-grid {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -96,6 +96,13 @@
   .guide-toc button {
     white-space: nowrap;
     flex: none;
+  }
+}
+
+@media (max-width: 950px) {
+  /* 精致版式给 main 里的 .panel 统一了 overflow: hidden，手机上目录要能横着滚（这条比那条多一个类名，压得过它） */
+  :root[data-ui='refined'] main .panel.guide-toc {
+    overflow-x: auto;
   }
 }
 

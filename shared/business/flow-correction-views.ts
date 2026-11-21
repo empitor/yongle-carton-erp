@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { arrivalLineStatus } from '../core/index.js';
 import { flowContentSchema, flowViewSchema } from './flow-document.js';
-import { receiptEventSchema, receiptLineSchema } from './flow-views.js';
+import { receiptEventSchema } from './flow-views.js';
 import { arrivalProgresses, purchaseBusinessStatuses } from './operations.js';
-import { purchaseViewSchema, stockItemViewSchema } from './operations-views.js';
+import { purchaseViewSchema, receiptLineSchema, stockItemViewSchema } from './operations-views.js';
 import { arrivalLineSchema, type FlowKind } from './physical-flow.js';
 
 /*

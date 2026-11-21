@@ -4,7 +4,7 @@
  * 算不出来的（缺数量、缺价格、单位换算不了）报出缺的是哪一样，不拿别的数顶替。
  */
 import { CENTS_PER_YUAN, QUANTITY_DECIMALS, errorMessage, exactText, precisionTotal, quantityUnits, roundedQuotient } from '../core/index.js';
-import { purchaseLineAmount, type SheetItem } from './physical-flow.js';
+import { purchaseLineAmount, type SheetItem } from './operations.js';
 import { MONEY_DECIMALS } from './limits.js';
 
 /** 一行的金额：算出来是精确金额文字（元），算不出来是缺的那一样和原因 */

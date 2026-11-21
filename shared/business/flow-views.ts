@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { arrivalLineStatus, Order } from '../core/index.js';
 import { flowContentSchema, type FlowDocuments, type FlowDocView } from './flow-document.js';
-import { arrivalLineSchema } from './physical-flow.js';
+import { receiptHeadSchema, receiptLineSchema } from './operations-views.js';
 
 /*
  * 单据流转只读接口的回答（接口表 flow-api.ts）：到货事件和到货记录、仓库台账、核对窗口。服务端（server/flow）的类型都由这里推出。
@@ -14,41 +14,13 @@ type MovementJson = { readonly [column: string]: string | number | null };
 
 const arrivalContent = flowContentSchema('arrival');
 
-/** 到货单的一行按采购单读到的样子：lineId、purchaseId 是它现在挂的采购明细和采购单，验收数没写是 null，金额按单价和计价方式算 */
-export const receiptLineSchema = z.strictObject({
-  index: z.number(),
-  lineId: z.number().nullable(),
-  purchaseId: z.number().nullable(),
-  stockId: z.number().nullable(),
-  quantity: z.string(),
-  acceptedQuantity: z.string().nullable(),
-  rejectedQuantity: z.string().nullable(),
-  stockedQuantity: z.string().nullable(),
-  item: arrivalContent.shape.lines.element.shape.item,
-  unitPrice: z.string().nullable(),
-  priceBasis: arrivalLineSchema.shape.priceBasis.unwrap(),
-  amount: z.string().nullable(),
-});
 type ReceiptLine = z.output<typeof receiptLineSchema>;
 
 /**
  * 到货事件：一张到货单读成采购单、到货记录、到货更正能用的样子（server/flow/receipt-events.ts 组装）。
- * id 是“flow-编号”，correctionOf、replacedBy 也按这个写；document 是库里的原单内容（带种类）。
+ * 单头和明细的结构在 operations-views.ts（采购单视图里的到货记录也用）；document 是库里的原单内容（带种类）。
  */
-export const receiptEventSchema = z.strictObject({
-  id: z.string(),
-  flowId: z.number(),
-  version: z.number(),
-  reference: z.string(),
-  date: z.string(),
-  status: z.string(),
-  effective: z.boolean(),
-  supplierId: z.number(),
-  actorName: z.string(),
-  createdAt: z.string(),
-  correctionOf: z.string().nullable(),
-  replacedBy: z.string().nullable(),
-  reversal: arrivalContent.shape.reversal.unwrap().nullable(),
+export const receiptEventSchema = receiptHeadSchema.extend({
   lines: z.array(receiptLineSchema),
   document: arrivalContent,
 });

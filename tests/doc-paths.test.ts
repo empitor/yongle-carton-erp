@@ -35,5 +35,10 @@ test('文档里反引号写的项目路径都存在（行号、锚点不算；�
 
 test('名单里的路径还出现在文档里、也确实还不存在（建出来了、不提了就删掉）', () => {
   const all = docs.map((d) => readFileSync(d, 'utf8')).join('\n');
-  assert.deepEqual(Object.keys(notFiles).filter((p) => !all.includes('`' + p + '`') || existsSync(p)), []);
+  assert.deepEqual(
+    Object.keys(notFiles)
+      .filter((p) => !all.includes('`' + p + '`') || existsSync(p))
+      .map((p) => p + '：文档里不再提或文件已经建出来了，从 notFiles 名单里删掉'),
+    [],
+  );
 });

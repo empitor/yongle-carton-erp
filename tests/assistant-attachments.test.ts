@@ -11,7 +11,7 @@ import { Store } from '../server/core/db.js';
 import { count, one, rows } from '../server/core/index.js';
 import { SCHEMA_LATEST } from '../server/core/schema/index.js';
 import { AssistantManager } from '../server/assistant/manager.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { startHttp } from './http-fixture.js';
 import { actor, actor as assistantActor } from './actor-fixture.js';

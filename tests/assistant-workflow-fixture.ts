@@ -9,11 +9,12 @@ import { tmpdir } from 'node:os';
 import { Store } from '../server/core/db.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import type { AgentOptions } from '../server/assistant/chat/agent-config.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { ImportManager } from '../server/import/manager.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { findImport } from '../server/import/import-records.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { eventData } from './assistant-fixture.js';
 import { fakeAiSettings, freshUserText, httpError, turnFailure } from './fake-deepseek.js';
 import type { ChatBody, ChatCall } from './fake-deepseek-wire.js';
@@ -142,7 +143,7 @@ export function createOrderWorkflowFixture(
   const model: ModelStandIn = { requests: [], replies: [], recognitionCalls: 0, broken: false };
   const settings = options.settings || standInSettings(model, options.wrap);
   const prompts = new PromptPresetManager(':memory:', assistantDefaultPreset),
-    orderPrompts = new PromptPresetManager(':memory:'),
+    orderPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
     manager = new AssistantManager(store, settings, prompts, { agent: options.agent });
   const imports = importsFor(store, dir, settings, orderPrompts);
   const execution = new ImportExecutionService(store, imports, join(dir, 'archive'));

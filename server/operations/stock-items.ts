@@ -3,7 +3,7 @@ import { FINISHED_UNIT, RAW_UNIT, finishedUnitMessage, rawUnitMessage, stockUnit
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, audit, exists, inSavepoint, isLocalAdministrator, isSuperMode, many, one, rows } from '../core/index.js';
-import { stockItemSchema, rawStockKey, type FlowDocument, type StockItemView } from '../../shared/business/index.js';
+import { stockItemSchema, rawStockKey, type ArrivalItem, type StockItemView } from '../../shared/business/index.js';
 import { normalizedDimensions, normalizeDimensionUnit, specification, type Product } from '../../shared/core/index.js';
 import { OperationsRepository } from './repository.js';
 import { adminCascade, arrivalSource } from './hooks.js';
@@ -16,7 +16,7 @@ type StockUsage = (typeof stockUsages)[number];
 /** 要保存的库存品：录入规则核对过、单位按种类定好的 */
 type ItemValues = z.output<typeof stockItemSchema>;
 /** 原材料的内容（到货明细的 item）：到货没选库存品时按它对上已有的原材料，没有就按它新建 */
-export type RawItem = FlowDocument<'arrival'>['lines'][number]['item'];
+export type RawItem = ArrivalItem;
 /** 认原材料只看名称、规格、尺寸、材质、楞型（查重键 rawStockKey） */
 type RawIdentity = Parameters<typeof rawStockKey>[0];
 

@@ -58,7 +58,7 @@ const IMPORT_TOOL = 'order_import.execute';
 const superAdminReads = new Set(['system.status', 'system.check', 'management.context', 'management.delete_preview']);
 /**
  * 只给超级管理员账号的工具（不要求进超级管理员模式）：读账号、设置、运行日志、登录记录、程序代码，和改全员共用的提示词。
- * 执行时各自也查一次（tools/admin-view.ts、server/core/diagnostics/、prompt-edit.ts）；这里让清单显示和执行一致，
+ * 执行时各自也查一次（tools/admin-view.ts、系统资料 server/system/、prompt-edit.ts）；这里让清单显示和执行一致，
  * 别的账号的助手清单里也就没有它们。新加这类工具时补在这里。
  */
 export const superAdminTools = new Set([

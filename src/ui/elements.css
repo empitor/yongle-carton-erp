@@ -207,3 +207,29 @@ main > footer {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+/* 说明文字、行内状态、勾选项：单据导出、数据管理、识别导入、助手、设置页都用 */
+.adm-muted {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.adm-inline-status {
+  margin: var(--space-sm) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.adm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.adm-check.form-field {
+  flex-direction: row;
+  align-items: center;
+}
+.adm-check input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+}

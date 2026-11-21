@@ -78,12 +78,12 @@ import './assistant/window.css';
 // 排在 ui/forms.css 之后
 import './palette.css';
 // 排在 ui/buttons.css、ui/list-layout.css 之后
-import './guide.css';
+import './system/guide.css';
 import './shell.css';
 // 排在 shell.css 之后
 import './settings.css';
 import './cross-module.css';
-// 排在 operations/operations.css、finance/reports.css、records/today.css、import/ai-import-files.css、import/ai-import.css、assistant/window.css、guide.css 之后
+// 排在 operations/operations.css、finance/reports.css、records/today.css、import/ai-import-files.css、import/ai-import.css、assistant/window.css、system/guide.css 之后
 import './ui/buttons-2.css';
 // 排在 import/ai-import-lines.css、settings.css、ui/buttons-2.css 之后
 import './ui/detail.css';

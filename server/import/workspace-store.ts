@@ -22,6 +22,7 @@ import { storeOriginal, detectFormat } from './file-store.js';
 import { ImportRepository } from './repository.js';
 import { failureRecord, type FailureContext, type FailureSubject } from './failure-record.js';
 import { PROMPT_VERSION } from './prompts.js';
+import { defaultPromptPreset } from './default-prompts/sales-order.js';
 import { workspaceText, type Workspace } from './workspace-document.js';
 import type { ArrivalLinks } from './business-links.js';
 
@@ -60,7 +61,7 @@ export class WorkspaceStore {
   private uploading = false;
   constructor(readonly options: WorkspaceOptions) {
     options.directory = resolve(options.directory);
-    this.promptPresets = options.promptPresets || new PromptPresetManager();
+    this.promptPresets = options.promptPresets || new PromptPresetManager(':memory:', defaultPromptPreset);
     this.repo = new ImportRepository(options.database || join(options.directory, 'workspaces.sqlite'));
   }
   close() {

@@ -1,10 +1,10 @@
 // 使用手册（docs/使用手册.md，随安装包发布，见 scripts/release-files.mjs）只有这一份：
-// “使用说明”页走 GET /api/guide（接口表 shared/core/guide-api.ts），助手的 guide.read 也读这里，按二级标题切成章节。
+// “使用说明”页走 GET /api/guide（接口表 shared/system/guide-api.ts），助手的 guide.read 也读这里，按二级标题切成章节。
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
-import type { GuideApi, UserManual } from '../../shared/core/index.js';
-import { route } from './route.js';
+import type { GuideApi, UserManual } from '../../shared/system/index.js';
+import { route } from '../core/index.js';
 
 const manualFile = fileURLToPath(new URL('../../docs/使用手册.md', import.meta.url));
 

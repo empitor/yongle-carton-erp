@@ -1,9 +1,10 @@
-// 使用说明页：显示使用手册 docs/使用手册.md（GET /api/guide，服务端 server/core/user-manual.ts 按章节切好），
+// 使用说明页：显示使用手册 docs/使用手册.md（GET /api/guide，服务端 server/system/user-manual.ts 按章节切好），
 // 助手的 guide.read 读的是同一份。左边章节目录，右边这一节的正文；手机上目录在上面横着排。
 import { useEffect, useState } from 'react';
-import { errorMessage, type UserManual } from '../shared/core/index';
-import { readGuide } from './shell-api';
-import { EmptyState, Markdown } from './ui/index';
+import { errorMessage } from '../../shared/core/index';
+import type { UserManual } from '../../shared/system/index';
+import { readGuide } from './guide-api';
+import { EmptyState, Markdown } from '../ui/index';
 
 export default function GuidePage() {
   const [manual, setManual] = useState<UserManual | null>(null);

@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { FINISHED_UNIT, RAW_UNIT, finishedUnit, rawUnit } from '../core/index.js';
-import { chosenId, dateSchema, exactPriceSchema, priceBases } from '../core/index.js';
-import { stockItemSchema } from './operations.js';
+import { FINISHED_UNIT, finishedUnit, rawUnit } from '../core/index.js';
+import { chosenId, dateSchema, exactPriceSchema } from '../core/index.js';
+import { arrivalItemSchema, arrivalPriceBasisSchema, noteText } from './operations.js';
 import { positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
-import { inspectionFields, arrivalTimeSchema } from './arrival.js';
-import { NOTE_MAX_LENGTH, SQUARE_METRE_SHIFT, UNIT_MAX_LENGTH } from './limits.js';
+import { inspectionFields } from './arrival.js';
+import { arrivalTimeSchema } from './schedule.js';
+import { UNIT_MAX_LENGTH } from './limits.js';
 export const flowKinds = ['arrival', 'task', 'production', 'delivery'] as const;
 export type FlowKind = (typeof flowKinds)[number];
 /** 是不是四种单据之一（到货、生产任务、完工、送货） */
@@ -108,8 +109,6 @@ export const matchesFlowStatus = (row: Omit<Parameters<typeof flowStatusText>[0]
 // 要选的编号：没选、填了 0 或负数报“请选择××”（见 shared/core/domain.ts 的 chosenId），可以不关联的留空是 null
 const id = (what: string) => chosenId(what);
 const optionalId = (what: string) => chosenId(what, true).nullable().default(null);
-/** 单据的说明文字（备注、地址、联系人这类）：去掉首尾空白，最多 2000 字；说明编辑（server/flow/document-info.ts）也用它 */
-export const noteText = z.string().trim().max(NOTE_MAX_LENGTH);
 /** 完工单的实际操作人员（说明编辑也用它） */
 export const operatorText = z.string().trim().min(1, '请填写实际操作人员').max(100);
 const text = noteText.default('');
@@ -118,16 +117,12 @@ const base = { date: dateSchema, notes: text };
 export const arrivalLineSchema = z.object({
   stockId: optionalId('库存品'),
   purchaseLineId: optionalId('采购明细'),
-  item: z
-    .object(stockItemSchema.shape)
-    .omit({ kind: true, productId: true })
-    // 到货的纸板只有“张”：空、没写的 flowInput 归成“张”，别的单位由单据保存服务拦
-    .extend({ unit: z.string().trim().max(UNIT_MAX_LENGTH).default(RAW_UNIT) }),
+  item: arrivalItemSchema,
   quantity: positiveQuantity,
   ...inspectionFields,
   statedQuantity: quantityText.nullable().default(null),
   unitPrice: exactPriceSchema.nullable().default(null),
-  priceBasis: z.enum(priceBases, { error: '计价方式只能选按平方米或按张' }).nullable().default('area'),
+  priceBasis: arrivalPriceBasisSchema.default('area'),
   statedArea: z
     .string()
     .trim()
@@ -253,46 +248,4 @@ const inputOf: { [K in FlowKind]: (raw: unknown) => FlowInputs[K] } = {
  */
 export function flowInput<K extends FlowKind>(kind: K, raw: unknown): FlowInputs[K] {
   return inputOf[kind](raw);
-}
-/** 十进制数里科学记数法的指数最多多大（再大就当无效数，不去算天文数字） */
-const MAX_DECIMAL_EXPONENT = 400;
-/** 一个十进制数写成整数系数和小数位数：12.5 是 125 和 1 位 */
-function decimalTerm(v: string) {
-  const match = /^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(v);
-  if (!match || Math.abs(Number(match[3] || 0)) > MAX_DECIMAL_EXPONENT) throw new Error('无效十进制数');
-  const [, a, b = '', exponent = '0'] = match,
-    termScale = b.length - Number(exponent),
-    digits = BigInt(a + b);
-  return {
-    coefficient: termScale < 0 ? digits * 10n ** BigInt(-termScale) : digits,
-    scale: Math.max(0, termScale),
-  };
-}
-// 十进制精确面积/金额。尺寸单位未知时返回null，不把未知尺寸当作毫米。
-function multiplyDecimal(values: [string, ...string[]], divisionScale = 0): string {
-  const terms = values.map(decimalTerm);
-  const value = terms.map((t) => t.coefficient).reduce((product, c) => product * c),
-    scale = terms.reduce((n, t) => n + t.scale, divisionScale);
-  const s = String(value).padStart(scale + 1, '0');
-  return scale ? (s.slice(0, -scale) + '.' + s.slice(-scale)).replace(/\.?0+$/, '') : s;
-}
-/** 算纸板面积要用的库存品资料：单位、长、宽和尺寸单位 */
-export type SheetItem = {
-  unit?: string | null;
-  length?: number | null;
-  width?: number | null;
-  dimensionUnit?: string | null;
-};
-export function sheetArea(item: SheetItem, quantity: string): string | null {
-  const unit = item.dimensionUnit;
-  if (item.unit !== RAW_UNIT || (unit !== 'mm' && unit !== 'cm') || !((item.length ?? 0) > 0) || !((item.width ?? 0) > 0))
-    return null;
-  return multiplyDecimal([String(item.length), String(item.width), quantity], SQUARE_METRE_SHIFT[unit]);
-}
-/** 采购、到货一行的金额：数量、单价和计价方式（按面积时还要纸板资料） */
-type PricedLine = SheetItem & { quantity: string; unitPrice?: string | null; priceBasis?: string | null };
-export function purchaseLineAmount(line: PricedLine): string | null {
-  if (line.unitPrice == null || line.priceBasis === null) return null;
-  const basis = line.priceBasis === 'area' ? sheetArea(line, line.quantity) : line.quantity;
-  return basis == null ? null : multiplyDecimal([basis, line.unitPrice]);
 }

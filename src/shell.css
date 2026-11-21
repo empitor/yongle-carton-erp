@@ -3,13 +3,6 @@
   display: none !important;
 }
 
-@media (max-width: 950px) {
-  /* 精致版式给 main 里的 .panel 统一了 overflow: hidden，手机上目录要能横着滚 */
-  :root[data-ui='refined'] main .panel.guide-toc {
-    overflow-x: auto;
-  }
-}
-
 @media (max-width: 700px) {
   .sidebar.open {
     transform: translateX(0);

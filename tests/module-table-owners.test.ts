@@ -130,18 +130,18 @@ function sqlViolations(f: string, facts = sqlFacts(f)) {
   const mod = ownerModule(f);
   const bad: string[] = [];
   const writeAny = tableWriteExceptions.some((e) => (e.path.endsWith('/') ? f.startsWith(e.path) : f === e.path));
-  if (!writeAny) for (const line of facts.dynamicWrites) bad.push(f + ':' + line + '：表名是拼出来的写入，看不出写的是谁的表');
+  if (!writeAny) for (const line of facts.dynamicWrites) bad.push(f + ':' + line + '：表名是拼出来的写入，看不出写的是谁的表。把表名写成字面量，或改调表主人模块的接口');
   for (const w of facts.writes) {
     const owner = tableOwner(w.table);
-    if (!owner) bad.push(f + ':' + w.line + '：写了没登记的表 ' + w.table);
-    else if (owner !== mod.name && !writeAny) bad.push(f + ':' + w.line + '（' + mod.name + '）写 ' + w.table + '（' + owner + '）');
+    if (!owner) bad.push(f + ':' + w.line + '：写了没登记的表 ' + w.table + '。在本文件的 tableOwnerList 登记它归哪个模块');
+    else if (owner !== mod.name && !writeAny) bad.push(f + ':' + w.line + '（' + mod.name + '）写 ' + w.table + '（' + owner + '）：表只由主人写，改调' + owner + '的接口去写');
   }
   if (f.startsWith('server/core/schema/') || mod.allow.includes('*')) return bad;
   for (const r of facts.reads) {
     const owner = tableOwner(r.table);
     if (!owner || owner === mod.name || mod.allow.includes(owner)) continue;
     if (tableReadExceptions.some((e) => e.reader === mod.name && e.owner === owner)) continue;
-    bad.push(f + ':' + r.line + '（' + mod.name + '）逆着读 ' + r.table + '（' + owner + '）');
+    bad.push(f + ':' + r.line + '（' + mod.name + '）逆着读 ' + r.table + '（' + owner + '）：只顺着依赖读，改成由' + owner + '的接口给数据（调用方传进来、低层定义接口高层登记）；确实要这样读的在 tableReadExceptions 写明原因');
   }
   return bad;
 }
@@ -164,7 +164,7 @@ test('只许一个文件写的表：采购明细只由 operations/ledger.ts 写�
   const bad: string[] = [];
   for (const f of runtimeFiles)
     for (const w of sqlFacts(f).writes)
-      if (singleWriterTables[w.table] && !singleWriterTables[w.table].includes(f)) bad.push(f + ':' + w.line + ' 写 ' + w.table);
+      if (singleWriterTables[w.table] && !singleWriterTables[w.table].includes(f)) bad.push(f + ':' + w.line + ' 写 ' + w.table + '：这张表只许 ' + singleWriterTables[w.table].join('、') + ' 写，改调它的函数');
   assert.deepEqual(bad, []);
 });
 
@@ -178,7 +178,7 @@ test('登记的逆向读表都还用得上', () => {
     }
   }
   assert.deepEqual(
-    tableReadExceptions.filter((e) => !used.has(e.reader + ' → ' + e.owner)).map((e) => e.reader + ' → ' + e.owner),
+    tableReadExceptions.filter((e) => !used.has(e.reader + ' → ' + e.owner)).map((e) => e.reader + ' → ' + e.owner + '：已经没有这样读了，从 tableReadExceptions 删掉'),
     [],
   );
 });

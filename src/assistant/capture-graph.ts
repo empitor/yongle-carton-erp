@@ -1,4 +1,4 @@
-import { SPEECH_SAMPLE_RATE } from '../../shared/ai/index';
+import { SPEECH_SAMPLE_RATE } from '../../shared/assistant/index';
 import { browserAudioContext } from './audio-context';
 import type { CaptureEnvironment, CaptureGraph } from './capture';
 

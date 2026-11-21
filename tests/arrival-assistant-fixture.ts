@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os';
 import { Store } from '../server/core/db.js';
 import { ImportManager } from '../server/import/manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
-import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { makeSettings } from './assistant-fixture.js';
 import { businessBase } from './business-base-fixture.js';
 import { imageFixture } from './import-fixtures.js';
@@ -68,7 +69,7 @@ export async function arrivalAssistantFixture(realSettings?: AiSettingsManager, 
     requests: ChatCall[] = [];
   const settings = realSettings || standInSettings(replies, requests);
   const prompts = new PromptPresetManager(':memory:', supplierDefaultPreset),
-    orderPrompts = new PromptPresetManager(':memory:'),
+    orderPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
     ai = new ReceiptAi(store, settings, prompts),
     base = businessBase(actor, store),
     { ops } = base;

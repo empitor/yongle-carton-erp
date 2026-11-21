@@ -10,8 +10,9 @@ import { join } from 'node:path';
 import { Store } from '../server/core/db.js';
 import { count, one, rows } from '../server/core/index.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
-import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { ImportManager } from '../server/import/manager.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { FlowService } from '../server/flow/service.js';
@@ -315,7 +316,7 @@ test('送货单走 AI 导入的到货类型：上传、识别、读识别记录�
     const streamed = streamedSource(await f.recognize(w.id));
     assert(streamed.result);
     assert.deepEqual([f.imports.get(w.id).arrivalSourceId, f.imports.get(w.id).draft], [streamed.id, null]);
-    const restarted = new ImportManager({ directory: join(f.dir, 'imports'), settings: f.settings, promptPresets: new PromptPresetManager(':memory:') });
+    const restarted = new ImportManager({ directory: join(f.dir, 'imports'), settings: f.settings, promptPresets: new PromptPresetManager(':memory:', defaultPromptPreset) });
     assert.equal(restarted.get(w.id).arrivalSourceId, streamed.id);
     restarted.close();
     // 模型回的半截：回传错误，不留识别结果

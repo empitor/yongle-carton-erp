@@ -1,6 +1,6 @@
 // 对外接口：别的模块只能从这里引用这个模块
 export { arrivalDraftIssues, arrivalTotals, batchKeysFor, blankArrivalLine, recognizedArrivalDraft } from './arrival-draft.js';
-export { arrivalQuantities, arrivalQuerySchema, arrivalTimeSchema } from './arrival.js';
+export { arrivalQuantities, arrivalQuerySchema } from './arrival.js';
 export { inventoryMetrics, matchesOperationalRecord, matchesProduct, operationalSearchText, orderMetrics, pendingPurchase, productIncomplete, productMetrics, purchaseMetrics, summarizeMovements } from './business-metrics.js';
 export type { MovementSummary } from './business-metrics.js';
 export { deletesDocuments, deletionMeasure, deletionTableLabel, inventoryOptions, keepStockScope, movementWord, stockWord } from './deletion-words.js';
@@ -13,7 +13,8 @@ export { UNPRICED_TEXT, amountText, priceText, sizeText, specLine, taxText } fro
 export { ARRIVAL_HISTORY_TITLE, arrivalProgressText, fieldNames, purchaseState, purchaseStatusLabel, purchaseStatusOptions, recordNames } from './labels.js';
 export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementTypeLabel, movementTypeOf, movementTypes } from './movement-filters.js';
 export type { MovementFilters } from './movement-filters.js';
-export { arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, stockItemSchema, stockKinds, sumMoney, supplierSchema } from './operations.js';
+export { arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineAmount, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, sheetArea, stockItemSchema, stockKinds, sumMoney, supplierSchema } from './operations.js';
+export type { ArrivalItem } from './operations.js';
 export type { RecordEntity } from './operations.js';
 export { allocateReceipt, batchProgress, batchReceiveSchema, batchRowKey, batchRows, batchScheduleSchema, defaultSchedule, dueSegments, scheduleEntrySchema, scheduleText, toScheduleEntries } from './order-batch.js';
 export type { BatchSourceLine, ScheduleEntry } from './order-batch.js';
@@ -26,7 +27,7 @@ export { arrivalLineValue, deliveryLineValue, documentValueCents } from './docum
 export { arrivalCorrectionPreviewSchema, correctionCommit, deliveryCorrectionPreviewSchema, productionCorrectionPreviewSchema } from './flow-correction.js';
 export { flowDocumentContent, flowDocumentOfView, flowDocumentSchema, flowViewSchema } from './flow-document.js';
 export type { FlowDocument, FlowDocuments, FlowDocView, FlowRow } from './flow-document.js';
-export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusLabel, flowStatusText, isFlowKind, pendingLabels, productionSchema, purchaseLineAmount, sheetArea, taskSchema } from './physical-flow.js';
+export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusLabel, flowStatusText, isFlowKind, pendingLabels, productionSchema, taskSchema } from './physical-flow.js';
 export type { FlowKind } from './physical-flow.js';
 export { activeDoc, flowStatusChoices, matchesFlowStatus } from './physical-flow.js';
 export { descendantIds, nestByFamily } from './product-family.js';
@@ -42,7 +43,7 @@ export { historyActionName, historyRefIds } from './history-fields.js';
 export type { HistoryRefs } from './history-fields.js';
 export { orderStatusRules, purchaseStatusRules, recordStatusActionNames, recordStatusActions, recordStatusInputSchema, statusActionFor } from './record-status.js';
 export type { RecordStatusAction } from './record-status.js';
-export { planDate, shiftDate } from './schedule.js';
+export { arrivalTimeSchema, planDate, shiftDate } from './schedule.js';
 export { allWaitingReview, completableTask, taskLeftUnits, taskProgress } from './task-progress.js';
 export { stockBatches } from './stock-batches.js';
 export { rawStockKey, sameRawSpec } from './stock-identity.js';

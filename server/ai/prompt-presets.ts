@@ -12,7 +12,6 @@ import {
   type PromptPreset,
   type PromptState,
 } from '../../shared/ai/index.js';
-import { defaultPromptPreset } from './default-prompts/sales-order.js';
 import { forgetEdited, initialPromptState, refreshDefaults, restoreDefault } from './prompt-defaults.js';
 import { AppError } from '../core/index.js';
 
@@ -50,11 +49,15 @@ const promptDatabase = {
 // 靠这一条认出备份里 ai-prompts 下的文件是提示词库、支持到第几版
 for (const module of promptModules)
   registerVersionedSqlite(promptDatabase, () => join(dirname(defaultPromptSettingsPath()), module.storageFile));
+/**
+ * 一个模块的提示词库。默认内容由用它的模块给（defaultPreset：订单、送货单识别的在识别导入，助手的在助手），
+ * AI 接入只管存取、跟着默认升级和恢复默认。
+ */
 export class PromptPresetManager {
   private db: DatabaseSync;
   constructor(
-    file = ':memory:',
-    private defaultPreset = defaultPromptPreset,
+    file: string,
+    private defaultPreset: () => PromptPreset,
   ) {
     this.db = openVersionedSqlite(file, promptDatabase);
     const latest = this.defaultPreset();

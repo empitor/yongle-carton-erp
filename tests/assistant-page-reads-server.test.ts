@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { exportFileSchema } from '../shared/assistant/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { transcribePcm } from '../server/speech/service.js';
+import { transcribePcm } from '../server/assistant/speech/service.js';
 import { routeChatEvent, type ChatEventHandlers } from '../src/assistant/chat-stream.js';
 import { readExportFile } from '../src/assistant/chat-events.js';
 import { chatAttachmentSchema, speechReplySchema } from '../src/assistant/assistant-api.js';

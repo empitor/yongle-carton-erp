@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { contentParts, fakeAiSettings, messageText } from './fake-deepseek.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
 import { analysisPrompt, fixedRules } from '../server/import/prompts.js';
@@ -51,7 +52,7 @@ function reply() {
 }
 function fixture() {
   const directory = temporary(),
-    prompts = new PromptPresetManager(join(directory, 'prompts.sqlite')),
+    prompts = new PromptPresetManager(join(directory, 'prompts.sqlite'), defaultPromptPreset),
     requests: ChatCall[] = [];
   let response: unknown = reply();
   const { settings } = fakeAiSettings({ chat: (_body, call) => (requests.push(call), response) });
@@ -86,8 +87,8 @@ function fixture() {
 test('并发修改与重复条目、过长内容、未知字段不会覆盖已保存预设', () => {
   const dir = temporary(),
     file = join(dir, 'p.sqlite'),
-    a = new PromptPresetManager(file),
-    b = new PromptPresetManager(file);
+    a = new PromptPresetManager(file, defaultPromptPreset),
+    b = new PromptPresetManager(file, defaultPromptPreset);
   try {
     const p = fresh();
     a.change('save', { expectedRevision: 0, preset: p });

@@ -1,9 +1,9 @@
 import { RAW_UNIT } from '../core/index.js';
 import { dateSchema } from '../core/index.js';
-import { arrivalSchema, sheetArea, type SheetItem } from './physical-flow.js';
+import { arrivalSchema } from './physical-flow.js';
 import { normalizeDimensionUnit, parseDimension } from '../core/index.js';
 import { rawStockKey, sameRawSpec } from './stock-identity.js';
-import { sumMoney } from './operations.js';
+import { sheetArea, sumMoney, type SheetItem } from './operations.js';
 import { NOTE_MAX_LENGTH } from './limits.js';
 import type { MaybeText } from './display-text.js';
 export const blankArrivalLine = () => ({

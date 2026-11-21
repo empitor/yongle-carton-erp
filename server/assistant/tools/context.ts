@@ -3,7 +3,8 @@
 import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Actor, Deployment, ProblemLog, RunLog, SourceScope } from '../../core/index.js';
+import type { Actor, Deployment, ProblemLog } from '../../core/index.js';
+import type { RunLog, SourceScope } from '../../system/index.js';
 import { AppError, canEnterSuperMode, requireLocalAdministrator } from '../../core/index.js';
 import type { AiSettingsManager } from '../../ai/index.js';
 import type { OperationsService } from '../../operations/index.js';
@@ -74,7 +75,7 @@ export type ToolShell = {
 };
 /**
  * 装配时接上的只读服务（AssistantTools.connect）：AI 设置、账号、机器人设置和连接状态、部署方式、助手工具注册表，
- * 以及基础模块的出错记录、运行日志、读代码的范围、账号库（登录记录在里面）。
+ * 以及基础模块的出错记录、账号库（登录记录在里面），系统资料模块的运行日志、读代码的范围。
  * 都是别的模块现成的对象，这里只写用到的几个方法；没接上的，对应的工具说“还没接上”。
  */
 export type ToolServices = {

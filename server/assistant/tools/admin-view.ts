@@ -2,7 +2,7 @@
 // 数据来自装配时接上的现成对象（ToolServices），返回值逐项挑，不整个展开：不含密码、密钥、Secret、页面凭证，也不给机器人 ID。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { readLoginRecords } from '../../core/index.js';
+import { readLoginRecords } from '../../system/index.js';
 import { accountLevelNames } from '../../../shared/core/index.js';
 import { botStateLabels } from '../../../shared/import/index.js';
 import { notConnected, paging, requireSuperAdmin, SHORT_TEXT_CHARS, timeText, type ToolContext, type ToolReader } from './context.js';
