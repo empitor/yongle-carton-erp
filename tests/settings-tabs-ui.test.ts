@@ -48,23 +48,21 @@ test('业务人员、财务账号的设置页只有单据模板；从 API 配置
     }
 });
 
-test('只读账号读不了单据模板，设置一个页签都没有：从链接进来只说一句，不挂任何设置页', () => {
-  for (const hash of links) {
-    const page = settingsAs(viewer, hash);
-    assert.deepEqual(page.tabs, [], hash);
-    assert.match(page.html, /当前账号没有可改的设置/, hash);
-    assert.doesNotMatch(page.html, /tabpanel/, hash);
-  }
+test('只读、出纳账号读不了单据模板，设置一个页签都没有：从链接进来只说一句，不挂任何设置页', () => {
+  for (const who of [viewer, cashier])
+    for (const hash of links) {
+      const page = settingsAs(who, hash);
+      assert.deepEqual(page.tabs, [], who.permissions.join() + hash);
+      assert.match(page.html, /当前账号没有可改的设置/, hash);
+      assert.doesNotMatch(page.html, /tabpanel/, hash);
+    }
 });
 
-test('侧栏的设置：超级管理员、业务人员、财务账号有，只读和出纳没有', () => {
-  const nav = (who: Parameters<typeof settingsTabsOf>[0], financeOnly = false) =>
-    renderToStaticMarkup(
-      createElement(Navigation, { page: 'dashboard', navigate: () => {}, financeOnly, settings: settingsTabsOf(who).length > 0 }),
-    );
+test('侧栏的设置：超级管理员、业务人员、财务账号有，只读账号没有', () => {
+  const nav = (who: Parameters<typeof settingsTabsOf>[0]) =>
+    renderToStaticMarkup(createElement(Navigation, { page: 'dashboard', navigate: () => {}, settings: settingsTabsOf(who).length > 0 }));
   for (const who of [superActor(), staff, finance]) assert.match(nav(who), />设置</, who.permissions.join());
   assert.doesNotMatch(nav(viewer), />设置</);
-  assert.doesNotMatch(nav(cashier, true), />设置</);
 });
 
 test('助手窗口“更多”：插件与工具、管理提示词只给超级管理员账号，记忆人人都有', () => {

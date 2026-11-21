@@ -1,5 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { canEnterSuperMode, isSuperMode, requireSuperAdminAccount, route, superModeDenied, type Actor } from '../core/index.js';
+import { requireSuperAdminAccount, requireSuperModeFor, route, type Actor } from '../core/index.js';
 import { ZodError } from 'zod';
 import type { AiSettingsApi } from '../../shared/ai/index.js';
 import { aiPageGuard } from './page-guard.js';
@@ -33,18 +33,12 @@ export function aiSettingsRouter(manager: AiSettingsManager, actorOf?: (req: Req
   const router = Router();
   const on = route<AiSettingsApi>(router, MOUNT);
   if (actorOf)
-    router.use((req, res, next) => {
-      // 拒绝的说法和类别跟全站一致（server/core/permissions.ts）
+    router.use((req, _res, next) => {
+      // 拒绝的说法和类别跟全站一致（server/core/permissions.ts），拒绝时抛错交全站的出错回答
       const who = actorOf(req);
-      if (req.method === 'GET') {
-        requireSuperAdminAccount(who, '查看 AI 设置');
-        return next();
-      }
-      const allowed = checksOnly.has(req.path) ? canEnterSuperMode(who) : isSuperMode(who);
-      if (!allowed) {
-        const denied = superModeDenied(who, '修改 AI 设置');
-        return res.status(denied.status).json({ message: denied.message, code: denied.code });
-      }
+      if (req.method === 'GET') requireSuperAdminAccount(who, '查看 AI 设置');
+      else if (checksOnly.has(req.path)) requireSuperAdminAccount(who, '修改 AI 设置');
+      else requireSuperModeFor(who, '修改 AI 设置');
       next();
     });
   router.use(aiPageGuard(manager.csrfToken, 'AI 设置'));

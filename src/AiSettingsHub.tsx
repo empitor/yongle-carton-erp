@@ -1,4 +1,4 @@
-import { aiSettingsTab, everyoneSettingsTab } from '../shared/assistant/index';
+import { aiSettingsTab, businessSettingsTab } from '../shared/assistant/index';
 import { useEffect, useState } from 'react';
 import { AiSettingsPage, ChannelSettings, PromptSettingsPage } from './admin/index';
 import type { AuthState } from './ui/index';
@@ -26,12 +26,12 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
-  const admin = actor.role === 'super_admin',
-    tabs = settingsTabsOf(actor);
-  // 除了单据模板都只给超级管理员账号：别人从链接点进来也落到单据模板，不发越权请求、不留白屏。
-  // 一个页签都没有的账号（只读）侧栏没有设置，从链接进来只说一句。
+  const tabs = settingsTabsOf(actor),
+    shown = (key: string) => tabs.some(([k]) => k === key);
+  // 页签谁看得到由 settingsTabsOf 定：链接指的页签这个账号看不到时落到单据模板，不发越权请求、不留白屏。
+  // 一个页签都没有的账号（只读、出纳）侧栏没有设置，从链接进来只说一句。
   if (!tabs.length) return <p className="adm-muted" role="note">当前账号没有可改的设置。</p>;
-  const tab = admin ? hashTab : everyoneSettingsTab;
+  const tab = shown(hashTab) ? hashTab : businessSettingsTab;
   const module = promptModules.find((item) => item.id === promptKind) ?? promptModules[0];
   return (
     <div className="adm-settings">
@@ -63,7 +63,7 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
           <DocumentTemplateSettings />
         </section>
       )}
-      {admin && (
+      {shown('api') && (
         <section role="tabpanel" aria-label="API 配置" hidden={tab !== 'api'}>
           <AiSettingsPage />
         </section>
@@ -73,7 +73,7 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
           <AssistantPlugins />
         </section>
       )}
-      {admin && (
+      {shown('prompts') && (
         <section role="tabpanel" aria-label="提示词" hidden={tab !== 'prompts'}>
           <div className="adm-prompt-module">
             <label className="adm-prompt-module-pick">

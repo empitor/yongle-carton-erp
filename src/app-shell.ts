@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { erpPageIds, everyoneSettingsTab } from '../shared/assistant/index';
+import { erpPageIds, businessSettingsTab } from '../shared/assistant/index';
 import { financeOnlyPageAllowed } from '../shared/core/index';
 import { aiFilesService, inboxService } from './import/index';
 import { canEditBusiness, listen, readNotice, refreshOnReturn, type AuthState, type NoticeDetail, type NoticeTone } from './ui/index';
@@ -60,12 +60,12 @@ const settingsTabs: [string, string][] = [
   ['tools', '高级'],
 ];
 /**
- * 设置里这个账号看得到的页签：超级管理员账号全部；能改业务的只有单据模板（everyoneSettingsTab，读模板也要业务编辑权限）；
+ * 设置里这个账号看得到的页签：超级管理员账号全部；能改业务的只有单据模板（businessSettingsTab，读模板也要业务编辑权限）；
  * 别的账号（只读、纯财务）一个没有，侧栏也不显示“设置”。
  */
 export function settingsTabsOf(actor: NonNullable<AuthState['actor']>) {
   if (actor.role === 'super_admin') return settingsTabs;
-  return canEditBusiness({ actor }) ? settingsTabs.filter(([key]) => key === everyoneSettingsTab) : [];
+  return canEditBusiness({ actor }) ? settingsTabs.filter(([key]) => key === businessSettingsTab) : [];
 }
 
 /**
