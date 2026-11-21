@@ -3,6 +3,7 @@
 //   node scripts/root-notes.mjs                 只核对：根目录每一项都有说明、没有多余的
 //   node scripts/root-notes.mjs --commit 0.9.5  真做（工作区要干净）：先一次提交把每一项都动一下（文件末尾加一个换行，
 //                                               文件夹动里面的一个文件），再一项一次提交恢复原样；做完内容和做之前一字不差
+//   加 --only docs,scripts                      只标这几项：两次发布之间推了改动，把动过的那几项重新标一遍
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -76,10 +77,13 @@ export function noteProblems(entries, notes = rootNotes) {
   ];
 }
 
-function commitNotes(version) {
-  const entries = rootEntries();
-  const problems = noteProblems(entries);
+function commitNotes(version, only) {
+  const all = rootEntries();
+  const problems = noteProblems(all);
   if (problems.length) throw new Error(problems.join('\n'));
+  const unknown = (only ?? []).filter((e) => !all.includes(e));
+  if (unknown.length) throw new Error('根目录没有这几项：' + unknown.join('、'));
+  const entries = only ? all.filter((e) => only.includes(e)) : all;
   if (git('status', '--porcelain')) throw new Error('工作区有没提交的改动，先提交或收好再标。');
   const base = git('rev-parse', 'HEAD');
   const targets = entries.map((e) => [e, touchTarget(e)]);
@@ -102,7 +106,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode = problems.length ? 1 : 0;
   } else {
     const version = process.argv[at + 1];
-    if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) throw new Error('用法：node scripts/root-notes.mjs --commit 版本号');
-    commitNotes(version);
+    if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) throw new Error('用法：node scripts/root-notes.mjs --commit 版本号 [--only 项,项]');
+    const onlyAt = process.argv.indexOf('--only');
+    commitNotes(version, onlyAt < 0 ? undefined : (process.argv[onlyAt + 1] ?? '').split(',').filter(Boolean));
   }
 }

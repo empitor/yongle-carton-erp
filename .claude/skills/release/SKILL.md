@@ -33,7 +33,7 @@ disable-model-invocation: true
 ## 3. 提交、标备注、打标签、推送
 
 - 提交说明：第一行 `发布 $ARGUMENTS：一句话概括`，下面每行一个用户看得懂的改动点（以 `- ` 开头）。**不加 `Co-Authored-By` 之类的合作者行。** `git add` 只加这一版的文件，不用 `git add -A`。
-- 给 GitHub 文件列表标备注：`node scripts/root-notes.mjs --commit $ARGUMENTS`。它先用一次提交把根目录每一项都动一下，再一项一次提交恢复原样，提交说明就是这一项的作用（清单在脚本里，根目录加了新东西要先补清单，`tests/root-notes.test.mjs` 会拦）。做完内容和之前一字不差。
+- 给 GitHub 文件列表标备注：`node scripts/root-notes.mjs --commit $ARGUMENTS`。它先用一次提交把根目录每一项都动一下，再一项一次提交恢复原样，提交说明就是这一项的作用（清单在脚本里，根目录加了新东西要先补清单，`tests/root-notes.test.mjs` 会拦）。做完内容和之前一字不差。两次发布之间推了改动（比如发布后补文档），推之前把动过的那几项重新标一遍：加 `--only docs,scripts` 这样点名。
 - `git tag -a v$ARGUMENTS -m "发布 $ARGUMENTS"`（标签打在标完备注的最后一次提交上），`git push origin main v$ARGUMENTS`。
 
 ## 4. Linux 上测试；整包时打 Linux 包
