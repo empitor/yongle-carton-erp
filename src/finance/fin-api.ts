@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { call, useAuthState, listen, notify, useLoad } from '../ui/index';
-import { errorMessage, MAX_PAGE_SIZE, type FinancePermission } from '../../shared/core/index';
+import { MAX_PAGE_SIZE, type FinancePermission } from '../../shared/core/index';
 import type { FinanceApi } from '../../shared/finance/index';
 
 /*
@@ -27,9 +27,12 @@ export type FinRequest<K extends FinReadKey> = [key: K, ...input: ReadInput<K>];
 export type FinQuery<K extends FinReadKey> =
   FinRequest<K> extends [unknown, (infer I)?] ? (I extends { query?: infer Q } ? NonNullable<Q> : never) : never;
 
-/** 财务数据变了：财务页面里取的数都重读。只在财务模块里用，所以不登记到全站事件表。 */
+/**
+ * 财务数据变了：财务页面里取的数都重读（写完由 finWritten 调；服务端读之前补扫进了新单据时由 reports/unsynced.tsx 调）。
+ * 只在财务模块里用，所以不登记到全站事件表。
+ */
 const changeListeners = new Set<() => void>();
-function finChanged() {
+export function finChanged() {
   for (const listener of changeListeners) listener();
 }
 
@@ -94,47 +97,6 @@ export const uploadQuery = (query: Record<string, unknown>) => qs({ requestId: r
 export const uploadFailure = (file: File) => ({ failure: file.name + ' 上传失败' });
 export const exportHref = (path: string, query?: Record<string, unknown>) =>
   '/api/finance' + path + qs(query);
-
-/** 补扫只在这里发（打开概览、月度台账、业务单据页、结账页、报表页签和启用财务后） */
-const send = call<FinanceWrites>();
-/** 打开财务页面时补扫业务单据（一次一批，最多 20 批），让台账和待补清单都是最新的；补扫到东西时让财务页面重读。 */
-const SYNC_MAX_BATCHES = 20;
-export async function syncEvents() {
-  let processed = 0;
-  try {
-    for (let i = 0; i < SYNC_MAX_BATCHES; i++) {
-      const r = await send('POST /finance/events/sync', { body: { requestId: requestId() } });
-      processed += r.processed;
-      if (!r.remaining) return;
-    }
-  } finally {
-    if (processed > 0) finChanged();
-  }
-}
-/** 补扫没成功时页面上的说法（一整句，句号收尾） */
-export const syncFailure = (e: unknown) => '业务单据没同步进财务：' + errorMessage(e).replace(/。$/, '') + '。';
-/**
- * 打开页面时先补扫一次，key 变了再补（比如月度台账换了月份）。补扫失败不影响看已经进财务的数，
- * 原因交回页面用 FormMessage 显示（结账检查照样由服务端拦），clear 关掉提示。
- */
-export function useSyncOnOpen(key?: string) {
-  const [error, setError] = useState('');
-  useEffect(() => {
-    let active = true;
-    syncEvents().then(
-      () => {
-        if (active) setError('');
-      },
-      (e: unknown) => {
-        if (active) setError(syncFailure(e));
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [key]);
-  return { error, clear: () => setError('') };
-}
 
 /* ---------- 权限、几处共用的选项 ---------- */
 

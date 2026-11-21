@@ -3,8 +3,9 @@ import { FormMessage, ListSummary, Hint, yuan, Segmented, DataTable, col, mon, t
 import { snapshotKinds } from '../../../shared/finance/index';
 import { FinSection, PeriodInput, type HeadFn } from '../layout';
 import { FIN_TABLE } from '../table';
-import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
+import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { readinessOf, reportOf } from './reports-api';
+import { unsyncedNotice, useUnsynced } from './unsynced';
 
 /** 三张正式报表（试算平衡表在结账页） */
 type ReportKind = (typeof snapshotKinds)[number];
@@ -33,22 +34,21 @@ const readinessCols: Col<ReadinessRow>[] = [
 
 /**
  * 正式报表前的提醒：只有这里和结账才要求补完。没有权限补的账号只说明，不给链接。
- * 还没同步进财务的业务单据（新确认、撤销、更正、删掉的）也拦：打开页面时会自动同步，同步没成功（syncError）
- * 就把原因写在这句里，还在同步就说同步完会更新。
+ * 还没进财务的业务单据（新确认、撤销、更正、删掉的）也拦：服务端读之前补扫，还在进财务、进不来、补扫没成功
+ * 的说法见 unsynced.tsx。
  */
-export function Readiness({ period, syncError }: { period: string; syncError: string }) {
+export function Readiness({ period }: { period: string }) {
   const perms = useFinPerms();
-  const { data } = useFinRead(readinessOf(period));
+  const { data, phase } = useUnsynced(period);
   if (!data || data.ready) return null;
-  const unsynced = data.unsynced > 0 && <> 有 {data.unsynced} 张业务单据还没同步进财务，同步后才算数。</>;
+  const notice = unsyncedNotice(data, phase);
   if (!data.count)
     return (
-      <FinSection title={'有 ' + data.unsynced + ' 张业务单据还没同步进财务'}>
-        <Hint tone="warning">
-          同步完才能出正式报表和结账，业务和经营报表不受影响。
-          {syncError || '打开这一页时会自动同步，同步完这里会更新。'}
-        </Hint>
-      </FinSection>
+      notice && (
+        <FinSection title={data.syncFailed ? '业务单据没能进财务' : '有 ' + data.unsynced + ' 张业务单据还没进财务'}>
+          <Hint tone={notice.tone}>{notice.text}业务和经营报表不受影响。</Hint>
+        </FinSection>
+      )
     );
   return (
     <FinSection
@@ -60,7 +60,7 @@ export function Readiness({ period, syncError }: { period: string; syncError: st
         {data.reversalCount > 0 && (
           <> 其中 {data.reversalCount} 张是已冲销的送货单，要先撤销核销。</>
         )}
-        {unsynced}
+        {notice && ' ' + notice.text}
         {perms.edit ? '' : '需要有财务编辑权限的人到月度台账补。'}
       </Hint>
       <DataTable
@@ -197,8 +197,6 @@ function FormalReport({ kind, period }: { kind: ReportKind; period: string }) {
 export function ReportsTab({ head, period, setPeriod, initial }: TabProps & { initial: string }) {
   const perms = useFinPerms();
   const [kind, setKind] = useState<ReportKind>(kindOf(initial) ?? 'balance');
-  // 出报表前先把业务的变化补进来；没补进来的单据照样拦（服务端和结账检查同一个口径）
-  const sync = useSyncOnOpen();
   const readiness = useFinRead(readinessOf(period));
   const ready = !!readiness.data?.ready;
   return (
@@ -230,8 +228,7 @@ export function ReportsTab({ head, period, setPeriod, initial }: TabProps & { in
           options={reportKinds}
         />
       </div>
-      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
-      <Readiness period={period} syncError={sync.error} />
+      <Readiness period={period} />
       <FormalReport key={kind} kind={kind} period={period} />
     </>
   );

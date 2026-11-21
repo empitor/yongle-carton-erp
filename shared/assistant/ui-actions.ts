@@ -233,7 +233,6 @@ const finance: UiAction[] = [
     note: '按钮在票据、资产、费用、坏账、利息、保证金的详情里（src/finance/source-voucher.tsx），后面可能拼用途（“撤回坏账”）',
   },
   { capability: 'finance-ledger', record: '来源页面生成的凭证', verb: '红字冲销', labels: ['红字冲销'], api: 'POST /finance/source-vouchers/:id/reverse', service: 'FinanceDerivedVouchers.reverse' },
-  { capability: 'finance-summary', record: '业务单据（财务事件）', verb: '补扫同步', labels: [], api: 'POST /finance/events/sync', service: 'FinanceEvents.sync', note: '打开概览、月度台账、业务单据页和启用财务后自动补扫，没有按钮' },
   { capability: 'finance-flow', record: '业务单据（财务事件）', verb: '补税率', labels: ['保存税率', '填成无税 / 不开票'], api: 'POST /finance/events/:id/resolve', service: 'FinanceEventHandling.resolve', note: '月度台账详情里单张补' },
   {
     capability: 'finance-flow',

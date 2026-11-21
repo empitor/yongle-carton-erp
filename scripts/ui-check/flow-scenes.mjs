@@ -44,7 +44,7 @@ const shot = async (label) => {
     const preview = await call('POST', '/flow/' + draft.id + '/preview', {});
     const done = await call('POST', '/flow/' + draft.id + '/confirm', { previewDigest: preview.previewDigest, requestId: crypto.randomUUID(), acknowledged: true, shipDate: today });
     if (done.error) fail('确认送货单失败：' + done.error);
-    await fin('POST', '/events/sync', {});
+    await sync();
     // 开票确认收入：送货单同步后等发票，往来先挂上，开票确认时才记收入
     const event = ((await fin('GET', '/events?pageSize=200')).rows || []).find((e) => e.source_kind === 'delivery' && String(e.source_id) === String(draft.id));
     if (!event) fail('没找到这张送货单的财务事件');
@@ -110,7 +110,7 @@ const shot = async (label) => {
   else {
     const reversed = await call('POST', '/flow/' + doc.id + '/reverse', { version: doc.version, reason: '虚构冲销', acknowledged: true });
     if (reversed.error) fail('冲销启用前送货单失败：' + reversed.error);
-    await fin('POST', '/events/sync', {});
+    await sync();
     const check = await fin('GET', '/closing?period=' + period);
     const step = (check.steps || []).find((s) => s.key === 'opening');
     if (!step || step.ok) fail('结账检查里没有启用前单据要核对：' + JSON.stringify(step));

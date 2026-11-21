@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { FormMessage, useConfirm, hashParams, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
-import { useFinPerms, useSyncOnOpen } from '../fin-api';
+import { today } from '../../../shared/core/index';
+import { useFinPerms } from '../fin-api';
+import { UnsyncedNotice } from '../reports/unsynced';
 import { type HeadFn } from '../layout';
 import { FinList } from '../table';
 import { Status } from '../status';
@@ -30,7 +32,6 @@ export default function EventsTab({ head }: { head: HeadFn }) {
   const [row, setRow] = useState<EventRow | null>(null);
   const [rows, setRows] = useState<EventRow[]>([]);
   const action = useAction();
-  const sync = useSyncOnOpen();
   const ready = rows.filter(canGenerate);
   const generateAll = async () => {
     const moved = ready.filter((r) => r.booking_date).length;
@@ -70,7 +71,8 @@ export default function EventsTab({ head }: { head: HeadFn }) {
         </select>
         <span className="fin-note">送货、到货确认后自动进来，这里是记账前的处理。缺税率的到月度台账补。</span>
       </div>
-      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
+      {/* 业务单据不分月份：数到这个月底还没进财务的 */}
+      <UnsyncedNotice period={today().slice(0, 7)} />
       <FormMessage close={action.clear}>{action.error}</FormMessage>
       <FinList
         list={listEvents}

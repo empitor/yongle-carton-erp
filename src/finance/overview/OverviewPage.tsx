@@ -9,7 +9,8 @@ import AccountingSection from './AccountingSection';
 import { financePageTitles } from '../page-titles';
 import { FinSection, PeriodInput } from '../layout';
 import { FIN_TABLE } from '../table';
-import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
+import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
+import { UnsyncedNotice } from '../reports/unsynced';
 import { metricNames, sourceMonthName } from '../labels';
 import { usePeriod } from '../page-state';
 
@@ -191,14 +192,13 @@ function SourceTable({
   );
 }
 
-/** 这个月的经营数和概览要列的几样数；打开页面时先补扫一次业务单据 */
+/** 这个月的经营数和概览要列的几样数 */
 function useOverviewData(period: string) {
-  const sync = useSyncOnOpen();
   const report = useFinRead(['GET /finance/monthly-report', { query: { period } }]);
   const summary = useFinRead(['GET /finance/summary']);
   const soon = useFinRead(['GET /finance/due-soon', { query: { days: 7, pageSize: 1 } }]);
   const discounts = useFinRead(['GET /finance/discount-opportunities', { query: { pageSize: 1 } }]);
-  return { sync, report, summary, soon: soon.data, discounts: discounts.data };
+  return { report, summary, soon: soon.data, discounts: discounts.data };
 }
 
 export default function OverviewPage() {
@@ -211,7 +211,7 @@ export default function OverviewPage() {
   useEffect(() => {
     if (drill) drillRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [drill]);
-  const { sync, report, summary, soon, discounts } = useOverviewData(period);
+  const { report, summary, soon, discounts } = useOverviewData(period);
   const m = report.data;
   const open = (metric: Metric, sourceMonth?: string) => {
     setDrill({ metric, sourceMonth });
@@ -240,7 +240,7 @@ export default function OverviewPage() {
       >
         <PeriodInput value={period} onChange={setPeriod} />
       </PageHeading>
-      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
+      <UnsyncedNotice period={period} enabled={enable.known && enable.enabled} />
       <FormMessage>{report.error}</FormMessage>
       {enable.known && !enable.enabled && (
         <Hint>

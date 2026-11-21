@@ -11,7 +11,6 @@ import { monthlyLedgerWorkbook, monthlyWorkbook } from './export-monthly.js';
 import { FinanceAuditLog } from './audit-log.js';
 import { FinanceBooks } from './books.js';
 import { FinanceDerivedVouchers } from './derived-vouchers.js';
-import { FinanceEvents } from './events.js';
 import { FinanceEventHandling } from './event-handling.js';
 import { FinanceEventViews } from './event-views.js';
 import { FinanceEventVouchers } from './event-voucher.js';
@@ -97,12 +96,10 @@ function ledgerRoutes(routes: FinanceRoutes) {
 
 /** 财务待处理（业务单据进财务） */
 function eventRoutes({ on, store, actor }: FinanceRoutes) {
-  const events = new FinanceEvents(store),
-    eventViews = new FinanceEventViews(store),
+  // 业务单据进财务由 router.ts 在每个请求前补扫，没有单独的地址
+  const eventViews = new FinanceEventViews(store),
     handling = new FinanceEventHandling(store),
     eventVouchers = new FinanceEventVouchers(store);
-  // 请求前已经补扫到完（router.ts），这里再扫一批多半是 0（请求号不再用，补扫本身不会重复记）
-  on('POST /finance/events/sync', ({ req }) => events.sync(actor(req)));
   on('GET /finance/events', ({ query, req }) => eventViews.list(actor(req), query));
   on('GET /finance/events/:id', ({ param, req }) => eventViews.get(actor(req), param('id')));
   on('POST /finance/events/:id/resolve', ({ param, body, req }) => handling.resolve(actor(req), param('id'), body));

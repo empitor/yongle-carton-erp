@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FormMessage, PageHeading, SelectionBar, yuan, hashParams, col, type Col } from '../../ui/index';
+import { PageHeading, SelectionBar, yuan, hashParams, col, type Col } from '../../ui/index';
 import { missingAmountName } from '../../../shared/finance/index';
 import { useEnable } from '../enable';
 import TaxBatchDialog from './TaxBatchDialog';
@@ -8,7 +8,8 @@ import { PeriodInput } from '../layout';
 import { FinList } from '../table';
 import { FlowStatus } from '../status';
 import { documentName, metricNames, sourceMonthName } from '../labels';
-import { exportHref, useFinPerms, useFinRead, useSyncOnOpen } from '../fin-api';
+import { exportHref, useFinPerms, useFinRead } from '../fin-api';
+import { UnsyncedNotice } from '../reports/unsynced';
 import { usePeriod } from '../page-state';
 import type { SourceRow } from '../source-detail-view';
 import { listMonthlyLedger } from './tax-api';
@@ -75,8 +76,6 @@ export default function FlowLedgerPage() {
   const [rows, setRows] = useState<SourceRow[]>([]);
   const [picked, setPicked] = useState<number[]>([]);
   const [dialog, setDialog] = useState<'picked' | 'party' | null>(null);
-  // 换月份、刚启用时再补扫；补扫到新单据时会让财务页面重读，台账跟着刷新
-  const sync = useSyncOnOpen(period + ':' + String(enable.enabled));
   const query = ledgerQuery(period, filter);
   const flow = useFinRead(['GET /finance/monthly-ledger', { query: { period, pageSize: 1 } }]);
   const s = flow.data?.summary;
@@ -110,7 +109,7 @@ export default function FlowLedgerPage() {
           }}
         />
       </PageHeading>
-      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
+      <UnsyncedNotice period={period} enabled={enable.known && enable.enabled} />
       <LedgerSummary s={s} missingCount={missingCount} />
       <MissingTaxHint missingCount={missingCount} enable={enable} canEdit={perms.edit} />
       <LedgerFilters filter={filter} change={change} missingCount={missingCount} />

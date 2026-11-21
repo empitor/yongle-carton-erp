@@ -126,9 +126,13 @@ export function financeKit(page) {
   };
   /** 接口改了数据页面不知道：发一次“业务数据变了”，财务页面的列表和详情重新读取 */
   const refresh = () => page.evaluate(() => window.dispatchEvent(new Event('erp-business-changed')));
-  /** 打开财务页面时页面会补扫业务单据；接口造的单据要自己补扫 */
+  /**
+   * 服务端在每个财务请求前补扫业务单据（一次最多两批）：接口造了单据，读几次资料检查，
+   * 读到没有还没进财务的为止（unsynced 截至本月底）
+   */
   const sync = async () => {
-    for (let i = 0; i < 20; i++) if (!(await must('补扫业务单据', fin('POST', '/events/sync', {}))).remaining) return;
+    for (let i = 0; i < 20; i++)
+      if (!(await must('读资料检查', fin('GET', `/reports/readiness?period=${period}`))).unsynced) return;
   };
   const books = { fin, must, sync, postAll };
   const openBooks = () => openBooksVia(books);
