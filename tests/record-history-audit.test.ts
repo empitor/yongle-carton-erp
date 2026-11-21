@@ -123,7 +123,7 @@ const samples: Record<string, { module: string; detail: unknown }> = {
   cancel: { module: 'delivery', detail: { before: delivery, reason: '不要了' } },
   reverse: { module: 'delivery', detail: { before: { ...delivery, status: 'confirmed' }, after: { ...delivery, status: 'reversed' }, reason: '送错' } },
   'create-draft': { module: 'delivery', detail: { before: null, after: delivery } },
-  // 订单、采购单的状态动作（server/business/order-status.ts、server/operations/purchase-status.ts）
+  // 订单、采购单的状态动作（server/business/order-status.ts、server/flow/stock-entries.ts）
   revert: { module: 'orders', detail: { before: { id: O, status: '已确认' }, after: { id: O, status: '待确认' } } },
   reinstate: { module: 'orders', detail: { before: { id: O, status: '已取消' }, after: { id: O, status: '待确认' } } },
   'update-draft': { module: 'delivery', detail: { before: delivery, after: { ...delivery, address: '新地址' } } },
