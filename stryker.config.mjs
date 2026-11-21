@@ -33,7 +33,7 @@ const sets = {
   },
   // 库存：写流水前的“不能负、不超上限、0 只有盘点能记”和按流水重算结余
   stock: {
-    mutate: ['server/operations/ledger.ts:40-86'],
+    mutate: ['server/operations/ledger/ledger.ts:40-86'],
     tests: ['tests/stock-items.test.ts', 'tests/delivery-flow.test.ts', 'tests/data-management.test.ts', 'tests/stock-ledger-boundaries.test.ts'],
   },
   // 财务凭证：借贷平衡、已记账不可改、红字冲销只做一次

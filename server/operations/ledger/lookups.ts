@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { Store } from '../core/index.js';
-import { many, one, rows } from '../core/index.js';
-import type { stockKinds } from '../../shared/business/index.js';
+import type { Store } from '../../core/index.js';
+import { many, one, rows } from '../../core/index.js';
+import type { stockKinds } from '../../../shared/business/index.js';
 
 /*
  * 采购库存的轻量只读：按编号或条件只取几列（版本号、余额、编号、名称），不组装视图。

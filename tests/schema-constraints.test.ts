@@ -27,7 +27,7 @@ import {
 import * as finance from '../server/finance/stored-values.js';
 import { purchaseReturnStatuses } from '../shared/business/flow-results.js';
 import { flowSourceKinds } from '../server/flow/sources.js';
-import { stockMovementActions } from '../server/operations/ledger.js';
+import { stockMovementActions } from '../server/operations/ledger/ledger.js';
 import { movementSourceKinds } from '../shared/business/movement-filters.js';
 import { purchaseBusinessStatuses, stockKinds } from '../shared/business/operations.js';
 import { flowKinds, flowStates } from '../shared/business/physical-flow.js';

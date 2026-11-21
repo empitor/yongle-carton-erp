@@ -1,7 +1,7 @@
 // 产品改了名称、尺寸、材质、楞型、加工要求（规格说明由它们拼成），它的成品库存跟着改（登记点见 server/core/db.ts 的 registerProductStockSync）。由本模块的 index.ts 引入。
-import { audit, one, registerProductStockSync, rows } from '../core/index.js';
-import { OperationsRepository } from './repository.js';
-import { readStockDocument, stockDocumentText } from './stock-document.js';
+import { audit, one, registerProductStockSync, rows } from '../../core/index.js';
+import { OperationsRepository } from '../ledger/repository.js';
+import { readStockDocument, stockDocumentText } from '../ledger/stock-document.js';
 import { finishedFromProduct } from './stock-items.js';
 
 /** 按产品现在的资料对齐它的成品库存（没有成品库存就不动；跟着产品的几项没变也不动） */

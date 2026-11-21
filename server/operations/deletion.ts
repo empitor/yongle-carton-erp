@@ -2,8 +2,8 @@
 import { audit, one, registerRecordKinds, registerReset, registerTableDeletion, rows } from '../core/index.js';
 import { quantityString } from '../../shared/core/index.js';
 import { batchRowKey } from '../../shared/business/index.js';
-import { batchScheduleText, readBatchSchedule } from './batch-schedule.js';
-import { readPurchaseLineDocument, recordMovementRevision, touchPurchases, touchStockItems } from './ledger.js';
+import { batchScheduleText, readBatchSchedule } from './batches/batch-schedule.js';
+import { readPurchaseLineDocument, recordMovementRevision, touchPurchases, touchStockItems } from './ledger/ledger.js';
 import type { DeletionContext, DeletionGraph, DeletionRow, Store } from '../core/index.js';
 
 // 供应商、采购单、库存品能归档、删了留墓碑（server/core/record-kinds.ts）

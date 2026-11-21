@@ -86,14 +86,14 @@ test('本模块测试名单不留过期登记：文件还在，确实直接引�
 
 test('回归样例：引内部文件、export from、require、import() 内部文件、看不出目标的加载各报一条；引 index.js、登记过的本模块测试不报', () => {
   const sample = 'tests/虚构样例.test.ts';
-  assert.equal(violations(sample, "import { stockLedger } from '../server/operations/ledger.js';").length, 1);
-  assert.equal(violations(sample, "export { insertMovement } from '../server/operations/ledger.js';").length, 1, 'export from 也算');
-  assert.equal(violations(sample, "const ledger = require('../server/operations/ledger.js');").length, 1, 'require 也算');
-  assert.equal(violations(sample, "const m = await import('../server/operations/batches.js');").length, 1);
+  assert.equal(violations(sample, "import { stockLedger } from '../server/operations/ledger/ledger.js';").length, 1);
+  assert.equal(violations(sample, "export { insertMovement } from '../server/operations/ledger/ledger.js';").length, 1, 'export from 也算');
+  assert.equal(violations(sample, "const ledger = require('../server/operations/ledger/ledger.js');").length, 1, 'require 也算');
+  assert.equal(violations(sample, "const m = await import('../server/operations/batches/batches.js');").length, 1);
   assert.equal(violations(sample, "export async function load(n: string) { return import('../server/operations/' + n); }").length, 1, '拼出来的目标看不出来');
   assert.equal(violations(sample, 'export async function load(n: string) { return import(`../server/operations/${n}.js`); }').length, 1, '模板字符串也一样');
   assert.equal(violations(sample, "export async function load(n: string) { return import('../server/flow/' + n); }").length, 0, '和这个模块无关的不报');
   assert.equal(violations(sample, "import { stockLedger } from '../server/operations/index.js';").length, 0);
-  assert.equal(violations(sample, "import type { RecordIds } from '../server/operations/record-scope.js';").length, 1, '只引类型也算');
-  assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/movements.js';").length, 0);
+  assert.equal(violations(sample, "import type { RecordIds } from '../server/operations/ledger/record-scope.js';").length, 1, '只引类型也算');
+  assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/ledger/movements.js';").length, 0);
 });

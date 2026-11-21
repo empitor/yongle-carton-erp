@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { parseStoredJson } from '../core/index.js';
-import { stockDocumentSchema } from '../../shared/business/index.js';
+import { parseStoredJson } from '../../core/index.js';
+import { stockDocumentSchema } from '../../../shared/business/index.js';
 
 /*
  * 库存品存进 document 列的内容（规格说明、长宽高、尺寸单位、材质、楞型、备注）：结构是共用的 stockDocumentSchema

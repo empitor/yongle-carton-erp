@@ -72,7 +72,7 @@ const readOnlyPaths = ['server/flow/finance-facts/'];
  */
 const singleWriterTables: Record<string, string[]> = {
   // 采购明细关联的客户订单只存在 customer_order_id 列里，document 里不存
-  purchase_lines: ['server/operations/ledger.ts', 'server/operations/deletion.ts'],
+  purchase_lines: ['server/operations/ledger/ledger.ts', 'server/operations/deletion.ts'],
   // 单据表有 5 列是 document 里字段的镜像（计划日、送达日、订货批次、更正关系），列的值只在 document-store.ts 里从要写的内容算
   flow_documents: ['server/flow/document-store.ts', 'server/flow/deletion.ts'],
   // 识别原件的用途（kind）是列，不在 document 里；存原件、去掉原件里的内容都在 sources.ts
@@ -254,7 +254,7 @@ test('建的每张表都登记了主人，登记的每张表都还有人建（�
   assert.deepEqual([...tableOwnerMap.keys()].filter((t) => !created.has(t)), [], '没人建的表要从登记里删掉');
 });
 
-test('只许一个文件写的表：采购明细只由 operations/ledger.ts 写，单据只由 flow/document-store.ts 写', () => {
+test('只许一个文件写的表：采购明细只由 operations/ledger/ledger.ts 写，单据只由 flow/document-store.ts 写', () => {
   const bad: string[] = [];
   for (const f of runtimeFiles)
     for (const w of sqlFacts(f).writes)
