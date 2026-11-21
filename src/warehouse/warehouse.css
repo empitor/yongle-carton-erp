@@ -214,7 +214,7 @@ button.wh-ready-more {
   margin: var(--space-sm) var(--space-lg) var(--space-md);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .wh-pending li {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--space-xs) var(--space-md);

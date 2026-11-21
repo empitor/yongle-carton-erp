@@ -19,12 +19,6 @@ body:has(.ga-launcher) .aii-footer {
     padding-right: var(--space-md);
   }
 }
-
-@media (min-width: 761px) {
-  body:has(.ga-launcher) .aii-footer {
-    padding-right: 116px;
-  }
-}
 body:has(.ga-launcher) .order-import {
   height: calc(100dvh - var(--topbar-h) - 24px);
 }

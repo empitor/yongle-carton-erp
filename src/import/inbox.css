@@ -33,7 +33,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .inbox-page td.inbox-sender,
   .inbox-page td.inbox-content {
     width: auto;

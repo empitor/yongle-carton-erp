@@ -12,7 +12,7 @@
   background: var(--surface);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .theme-switcher select {
     max-width: 96px;
   }

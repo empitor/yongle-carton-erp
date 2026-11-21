@@ -63,7 +63,7 @@
   max-width: none;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .list-toolbar .list-search {
     flex: 1 1 100%;
     max-width: none;

@@ -406,7 +406,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .bo-section > header {
     padding: 17px;
     align-items: flex-start;

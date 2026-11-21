@@ -100,6 +100,21 @@
 .sales-line-table th:last-child {
   width: 72px;
 }
+/* 窄屏电脑、平板：上面的固定宽度加起来比表还宽，规格列会被挤没，改成按比例分 */
+@media (min-width: 701px) and (max-width: 1023px) {
+  .sales-line-table th.sales-col-product {
+    width: 25%;
+  }
+  .sales-line-table th.sales-col-qty {
+    width: 17%;
+  }
+  .sales-line-table th.sales-col-price {
+    width: 13%;
+  }
+  .sales-line-table th.sales-col-amount {
+    width: 13%;
+  }
+}
 .sales-line-table.line-table td.num {
   width: auto;
 }
@@ -217,7 +232,7 @@
   color: var(--text-secondary);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .sales-line-table.line-table {
     overflow: visible;
   }
@@ -305,7 +320,7 @@
   padding-bottom: var(--space-2xs);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .sales-line-table .form-inline {
     display: flex;
     width: 100%;
@@ -352,7 +367,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .sales-line-table tr.sales-line-main > td[data-label]::before {
     display: block;
     margin-bottom: var(--space-2xs);

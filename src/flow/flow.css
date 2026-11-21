@@ -190,7 +190,7 @@ table.wh-table td {
   font-size: var(--text-xs);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   /* 安排送货“送哪些货”：标题和搜索框在手机上分两行，标题不被挤成竖排 */
   .ed-section > header:has(.wh-picker-filters) {
     flex-wrap: wrap;

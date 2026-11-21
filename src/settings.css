@@ -9,7 +9,7 @@
   display: none;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .oi-workspace-head .oi-account {
     font-size: var(--text-xs);
     padding: 3px;

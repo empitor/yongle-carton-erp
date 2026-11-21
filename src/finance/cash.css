@@ -210,7 +210,7 @@ fieldset.fin-term-body {
   white-space: nowrap;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .line-table.fin-alloc-table td:last-child {
     width: 112px;
   }
