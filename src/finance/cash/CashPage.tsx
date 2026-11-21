@@ -1,10 +1,10 @@
-import { Segmented } from '../../ui/index';
+import { PageHeading, Segmented } from '../../ui/index';
 import AccountsTab from './AccountsTab';
 import DocumentsTab from './DocumentsTab';
 import InvoicesTab from './InvoicesTab';
 import NotesTab from './NotesTab';
 import { financePageTitles } from '../page-titles';
-import { FinHead, SubBar, type HeadProps } from '../layout';
+import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, useTab } from '../page-state';
 
 /**
@@ -26,7 +26,7 @@ export default function CashPage() {
   useFocusSection(requested, Object.keys(sectionTabs));
   const head = (props: HeadProps) => (
     <>
-      <FinHead title={financePageTitles['finance-cash']} {...props} />
+      <PageHeading title={financePageTitles['finance-cash']} {...props} />
       <SubBar>
         <Segmented className="fin-segmented" label="资金发票分类" value={tab} onChange={setTab} options={tabs} />
       </SubBar>

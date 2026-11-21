@@ -1,5 +1,5 @@
 import { FileUp } from 'lucide-react';
-import { ListSummary, MoreMenu, PageHeading } from '../ui/index';
+import { ListSummary, PageHeading } from '../ui/index';
 import type { OrderBatch } from './order-batch-api';
 import { statusOf, warehouseOverdue, type WarehouseKind, type WarehouseRecord } from './warehouse-list';
 
@@ -31,31 +31,22 @@ export default function WarehouseHeading({ kind, records, batches, canEdit, open
           { label: '待到货', value: batches.length },
           { label: '逾期', value: batches.filter((b) => b.progress.overdue).length },
         ];
+  const arrival = canEdit && kind === 'arrival';
   return (
     <PageHeading
       title={kind === 'arrival' ? '到货' : '送货'}
       meta={<ListSummary items={summary} />}
-      actions={
-        canEdit &&
-        (kind === 'delivery' ? (
-          <button className="primary" onClick={plan}>
-            安排送货
-          </button>
-        ) : (
-          <>
-            <button className="secondary" onClick={() => (location.hash = '#ai-import?mode=arrival')}>
-              <FileUp size={15} aria-hidden="true" />
-              AI 识别送货单
-            </button>
-            <MoreMenu text="更多" label="到货的其他操作">
-              {/* 有采购单的货都在“待到货”里按订货单登记；这里只登记不挂采购单的（多送、样品） */}
-              <button type="button" role="menuitem" disabled={opening} onClick={begin}>
-                登记没有采购单的到货
-              </button>
-            </MoreMenu>
-          </>
-        ))
+      primary={canEdit && kind === 'delivery' && { label: '安排送货', onClick: plan }}
+      secondary={
+        arrival && {
+          label: 'AI 识别送货单',
+          icon: <FileUp size={15} aria-hidden="true" />,
+          onClick: () => (location.hash = '#ai-import?mode=arrival'),
+        }
       }
+      moreLabel="到货的其他操作"
+      // 有采购单的货都在“待到货”里按订货单登记；这里只登记不挂采购单的（多送、样品）
+      more={[arrival && { label: '登记没有采购单的到货', disabled: opening, onClick: begin }]}
     />
   );
 }

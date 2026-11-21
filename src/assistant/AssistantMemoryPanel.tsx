@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { MoreMenu, beijingTime, Loading } from '../ui/index';
+import { MenuItem, MoreMenu, beijingTime, Loading } from '../ui/index';
 import type { ConfirmFn } from './assistant-types';
 import type { AssistantMemoryItem } from './assistant-api';
 import { useAssistantMemory } from './useAssistantMemory';
@@ -34,10 +34,8 @@ export default function AssistantMemoryPanel({
           </small>
         )}
         <MoreMenu label="记忆更多操作">
-          <button
-            type="button"
-            role="menuitem"
-            className="danger-text"
+          <MenuItem
+            danger
             disabled={!view?.memories.length || memory.busy}
             onClick={async () => {
               // 没读到记忆时按钮是灰的
@@ -57,7 +55,7 @@ export default function AssistantMemoryPanel({
             }}
           >
             清空全部记忆
-          </button>
+          </MenuItem>
         </MoreMenu>
       </div>
       <div className="ga-memory-body">

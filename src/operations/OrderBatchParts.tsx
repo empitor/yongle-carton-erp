@@ -1,6 +1,6 @@
 import { priceText, type OrderBatchDraft } from '../../shared/business/index';
 import type { DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
-import { Hint, MoreMenu, Section } from '../ui/index';
+import { Hint, MenuItem, MoreMenu, Section } from '../ui/index';
 import { FormatSelect, TemplateSelect } from '../documents/index';
 import OrderSheetRow from './OrderSheetRow';
 import type { RowDrafts } from './BatchSchedule';
@@ -33,13 +33,13 @@ export function OrderActions(o: ActionProps) {
         </button>
       )}
       <MoreMenu text="更多" label="订货单的更多操作">
-        <button type="button" role="menuitem" disabled={blocked} onClick={o.showWord}>
+        <MenuItem disabled={blocked} onClick={o.showWord}>
           预览 Word 排版
-        </button>
+        </MenuItem>
         {!o.ordered && (
-          <button type="button" role="menuitem" disabled={blocked} onClick={() => o.exportOrder(false)}>
+          <MenuItem disabled={blocked} onClick={() => o.exportOrder(false)}>
             只导出文件，不改状态
-          </button>
+          </MenuItem>
         )}
       </MoreMenu>
       <button type="button" className="primary" disabled={blocked} onClick={() => o.exportOrder(true)}>

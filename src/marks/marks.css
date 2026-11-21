@@ -151,3 +151,12 @@
   background: none;
   text-decoration: underline;
 }
+/* 列表工具栏下面那句说明里的“看全部” */
+.list-toolbar .list-toolbar-note .text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}

@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 import type { PromptPreset, PromptSettingsView } from '../../shared/ai/index';
-import { MoreMenu } from '../ui/index';
+import { MenuItem, MoreMenu } from '../ui/index';
 import { FormField } from '../ui/index';
 
 type Entry = PromptPreset['entries'][number];
@@ -108,28 +108,24 @@ export default function PromptEditor(props: Props) {
 function PresetMenu({ current, state, saved, dirty, busy, command }: Props) {
   return (
     <MoreMenu label="预设更多操作" text="更多">
-      <button
-        type="button"
-        role="menuitem"
+      <MenuItem
         disabled={busy || !saved || dirty}
         title={dirty ? '先保存修改再复制' : undefined}
         onClick={() => command('copy', current.id)}
       >
         复制为新预设
-      </button>
-      <button type="button" role="menuitem" disabled={busy || !saved} onClick={() => command('restore', current.id)}>
+      </MenuItem>
+      <MenuItem disabled={busy || !saved} onClick={() => command('restore', current.id)}>
         恢复默认条目
-      </button>
+      </MenuItem>
       <hr className="more-menu-sep" />
-      <button
-        type="button"
-        role="menuitem"
-        className="danger-text"
+      <MenuItem
+        danger
         disabled={busy || !saved || state?.presets.length === 1}
         onClick={() => command('delete', current.id)}
       >
         删除预设
-      </button>
+      </MenuItem>
     </MoreMenu>
   );
 }
@@ -179,16 +175,16 @@ function EntryCard({
         </label>
         {editable && (
           <MoreMenu label={'条目' + (i + 1) + '更多操作'}>
-            <button type="button" role="menuitem" disabled={busy || i === 0} onClick={() => move(i, -1)}>
+            <MenuItem disabled={busy || i === 0} onClick={() => move(i, -1)}>
               上移
-            </button>
-            <button type="button" role="menuitem" disabled={busy || i === count - 1} onClick={() => move(i, 1)}>
+            </MenuItem>
+            <MenuItem disabled={busy || i === count - 1} onClick={() => move(i, 1)}>
               下移
-            </button>
+            </MenuItem>
             <hr className="more-menu-sep" />
-            <button type="button" role="menuitem" className="danger-text" disabled={busy} onClick={remove}>
+            <MenuItem danger disabled={busy} onClick={remove}>
               删除条目
-            </button>
+            </MenuItem>
           </MoreMenu>
         )}
       </header>
@@ -225,14 +221,12 @@ function SaveFooter({ current, state, dirty, busy, editable, assistant, save }: 
       {editable && (
         <>
           <MoreMenu label="保存的其他方式">
-            <button
-              type="button"
-              role="menuitem"
+            <MenuItem
               disabled={busy || !dirty || !current.name.trim()}
               onClick={() => save()}
             >
               只保存不启用
-            </button>
+            </MenuItem>
           </MoreMenu>
           <button
             type="button"

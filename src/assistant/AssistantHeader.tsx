@@ -1,5 +1,5 @@
 import { GripHorizontal, Plus, X } from 'lucide-react';
-import { MoreMenu } from '../ui/index';
+import { MenuItem, MoreMenu } from '../ui/index';
 import { assistantManagementHash, type AssistantSpeaker } from '../../shared/assistant/index';
 import { assistantDisplayName, saveLauncherIsFloating } from './assistant-launcher';
 import type { AssistantPanelMode } from './floating-assistant';
@@ -78,73 +78,61 @@ export default function AssistantHeader({
         )}
         <MoreMenu label="小甬小勒更多操作">
           {!phone && (
-            <button
-              type="button"
-              role="menuitem"
+            <MenuItem
               onClick={() => onPanelMode(docked ? 'floating' : 'docked')}
             >
               {docked ? '改为浮动窗口' : '停靠到右侧'}
-            </button>
+            </MenuItem>
           )}
           {!phone && (
-            <button type="button" role="menuitem" onClick={onToggleLarge}>
+            <MenuItem onClick={onToggleLarge}>
               {large ? '恢复窗口大小' : '放大窗口'}
-            </button>
+            </MenuItem>
           )}
           {!phone && (
-            <button
-              type="button"
-              role="menuitem"
+            <MenuItem
               onClick={() => saveLauncherIsFloating(!floatingLauncher)}
             >
               {floatingLauncher ? '收起后放到顶栏' : '收起后显示悬浮小人'}
-            </button>
+            </MenuItem>
           )}
           {signedIn && (
-            <button type="button" role="menuitem" onClick={onMemory}>
+            <MenuItem onClick={onMemory}>
               记忆
-            </button>
+            </MenuItem>
           )}
-          <button
-            type="button"
-            role="menuitem"
+          <MenuItem
             onClick={() => {
               location.hash = assistantManagementHash;
             }}
           >
             插件与工具
-          </button>
-          <button
-            type="button"
-            role="menuitem"
+          </MenuItem>
+          <MenuItem
             onClick={() => {
               location.hash = 'ai-settings?tab=prompts&assistant=1';
             }}
           >
             管理提示词
-          </button>
+          </MenuItem>
           {signedIn && <hr className="more-menu-sep" />}
           {signedIn && (
-            <button
-              type="button"
-              role="menuitem"
-              className="danger-text"
+            <MenuItem
+              danger
               disabled={sessionLocked}
               onClick={onClear}
             >
               清空会话
-            </button>
+            </MenuItem>
           )}
           {signedIn && (
-            <button
-              type="button"
-              role="menuitem"
-              className="danger-text"
+            <MenuItem
+              danger
               disabled={sessionLocked}
               onClick={onRemove}
             >
               删除会话
-            </button>
+            </MenuItem>
           )}
         </MoreMenu>
         <button

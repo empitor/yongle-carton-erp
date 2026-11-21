@@ -33,33 +33,26 @@ export default function FlowPageHeading({
       : kind === 'production'
         ? [{ label: '待入库', value: live.filter((r) => r.status === 'draft').length }]
         : [];
+  const shown = canEdit && (kind === 'task' || kind === 'production');
   return (
     <PageHeading
       title={title(kind)}
       meta={summary.length ? <ListSummary items={summary} /> : undefined}
-      actions={
-        canEdit &&
-        (kind === 'task' || kind === 'production') && (
-          <>
-            {kind === 'task' && (
-              <button
-                className="secondary"
-                disabled={busy || !openTasks.length}
-                title={openTasks.length ? undefined : '没有已下达、没做完的任务'}
-                onClick={() => void desk.openCompletion([])}
-              >
-                登记完工
-              </button>
-            )}
-            <button
-              className="primary"
-              disabled={busy || desk.opening > 0}
-              onClick={() => (kind === 'task' ? plan() : void desk.openCompletion([]))}
-            >
-              {kind === 'task' ? '安排生产' : '登记完工'}
-            </button>
-          </>
-        )
+      secondary={
+        shown &&
+        kind === 'task' && {
+          label: '登记完工',
+          disabled: busy || !openTasks.length,
+          title: openTasks.length ? undefined : '没有已下达、没做完的任务',
+          onClick: () => void desk.openCompletion([]),
+        }
+      }
+      primary={
+        shown && {
+          label: kind === 'task' ? '安排生产' : '登记完工',
+          disabled: busy || desk.opening > 0,
+          onClick: () => (kind === 'task' ? plan() : void desk.openCompletion([])),
+        }
       }
     />
   );

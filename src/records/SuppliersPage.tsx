@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { matchesOperationalRecord, type SupplierView } from '../../shared/business/index';
-import { PageHeading } from '../ui/index';
+import { FilterRow, ListToolbar, PageHeading } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import OperationsSummary from './OperationsSummary';
 import { loadSuppliers } from './list-api';
 import { AllRecordsCheck, type Scope } from './page-state';
@@ -51,13 +50,13 @@ export default function SuppliersPage({ recycle = false }: { recycle?: boolean }
       {!recycle && (
         <PageHeading
           title="供应商"
-          actions={
-            p.canEdit && (
-              <button className="primary" disabled={busy} onClick={() => ops.setEditor({ type: 'supplier' })}>
-                <Plus size={17} />
-                新建供应商
-              </button>
-            )
+          primary={
+            p.canEdit && {
+              label: '新建供应商',
+              icon: <Plus size={17} />,
+              disabled: busy,
+              onClick: () => ops.setEditor({ type: 'supplier' }),
+            }
           }
           meta={
             <OperationsSummary

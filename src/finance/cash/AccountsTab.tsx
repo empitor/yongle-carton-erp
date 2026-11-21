@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper, loadingText, DataTable, col, mon, type Col } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper, loadingText, DataTable, col, mon, type Col, type RecordAction } from '../../ui/index';
 import BankSection, { type BankDialog } from './BankSection';
 import { MAX_PAGE_SIZE, today } from '../../../shared/core/index';
-import { FinSection, type HeadAction, type HeadFn } from '../layout';
+import { FinSection, type HeadFn } from '../layout';
 import { FIN_TABLE } from '../table';
 import { FormDialog } from '../FormDialog';
 import { ALL_CASH_ACCOUNTS, useFinPerms, useFinRead, type FinData } from '../fin-api';
@@ -140,7 +140,7 @@ function accountsHead(a: {
   none: boolean;
   bank: boolean;
   cash: boolean;
-  create: HeadAction | null;
+  create: RecordAction | null;
   open: (d: BankDialog) => void;
 }) {
   const upload = a.bank && a.cash;

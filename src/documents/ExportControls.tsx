@@ -1,5 +1,5 @@
 import { Download, Eye } from 'lucide-react';
-import { MoreMenu } from '../ui/index';
+import { MenuItem, MoreMenu } from '../ui/index';
 import type { DocumentExportStatus, DocumentFormat } from '../../shared/documents/index';
 import { ExportFileCard, afterSaved } from './export-file';
 import { FormatSelect } from './ExportDialog';
@@ -55,9 +55,9 @@ export function ExportButtons(o: {
         </>
       )}
       <MoreMenu label="更多送货单操作">
-        <button type="button" role="menuitem" disabled={o.exportBlocked} onClick={o.previewWord}>
+        <MenuItem disabled={o.exportBlocked} onClick={o.previewWord}>
           预览Word排版
-        </button>
+        </MenuItem>
       </MoreMenu>
     </div>
   );

@@ -10,7 +10,7 @@ const api = (path) => page.evaluate(async (p) => (await fetch(p)).json(), path);
 const step = (name, fn) => stepOn(page, name, fn);
 const toast = (pattern) => notice(page, pattern);
 const inbox = async (status) => (await api('/api/inbox?status=' + status)).rows || [];
-const tab = (name) => page.getByRole('region', { name: '收件箱筛选' }).getByRole('button', { name: new RegExp('^' + name) });
+const tab = (name) => page.getByRole('region', { name: '收件箱筛选' }).getByRole('tab', { name: new RegExp('^' + name) });
 await login(page);
 
 await step('收件箱标为已处理再恢复', async () => {

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { flowStatusChoices, type FlowKind } from '../../shared/business/index';
-import { FilterRow } from '../recordkit/ListToolbar';
+import { FilterRow } from '../ui/index';
 
 /** 单据页、到货送货页“筛选”里的状态下拉：选项是这一类单据界面上的状态叫法。 */
 export function StatusFilter({

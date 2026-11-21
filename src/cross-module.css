@@ -1,14 +1,4 @@
 /* 几个模块的东西碰在一起、只能由装配层写的几条（tests/css-modules.test.ts 里登记了原因） */
-.list-toolbar .filter-popover-fields .list-filter-field {
-  display: grid;
-  gap: var(--space-2xs);
-  min-width: 0;
-}
-.list-toolbar .filter-popover-fields .list-filter-field > span {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
 /* 收起的精灵停在右下角，底部按钮让开 */
 body:has(.ga-launcher) .aii-footer {
   padding-right: 116px;

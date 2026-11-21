@@ -1,6 +1,6 @@
 import { useRef, type RefObject } from 'react';
 import { ManagementDialog } from '../ui/index';
-import { MoreMenu } from '../ui/index';
+import { MenuItem, MoreMenu } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { today } from '../../shared/core/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
@@ -206,9 +206,7 @@ function BatchFooter({ b, form, close }: { b: ProductionBatch; form: RefObject<H
       }
     >
       <MoreMenu text="更多" label="登记完工的其他做法">
-        <button
-          type="button"
-          role="menuitem"
+        <MenuItem
           disabled={b.busy || !b.ready}
           onClick={() => {
             // 和主按钮一样先过表单必填检查，再在这个窗口里登记成待入库
@@ -216,7 +214,7 @@ function BatchFooter({ b, form, close }: { b: ProductionBatch; form: RefObject<H
           }}
         >
           先登记，稍后核对入库
-        </button>
+        </MenuItem>
       </MoreMenu>
       <button type="button" className="secondary" disabled={b.busy} onClick={close}>
         取消

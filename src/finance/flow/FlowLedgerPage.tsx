@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { FormMessage, SelectionBar, yuan, hashParams, col, type Col } from '../../ui/index';
+import { FormMessage, PageHeading, SelectionBar, yuan, hashParams, col, type Col } from '../../ui/index';
 import { missingAmountName } from '../../../shared/finance/index';
 import { useEnable } from '../enable';
 import TaxBatchDialog from './TaxBatchDialog';
 import { financePageTitles } from '../page-titles';
-import { FinHead, PeriodInput } from '../layout';
+import { PeriodInput } from '../layout';
 import { FinList } from '../table';
 import { FlowStatus } from '../status';
 import { documentName, metricNames, sourceMonthName } from '../labels';
@@ -97,7 +97,7 @@ export default function FlowLedgerPage() {
       : null);
   return (
     <div className="fin-page">
-      <FinHead
+      <PageHeading
         title={financePageTitles['finance-flow']}
         primary={primary}
         more={[{ label: '导出台账', href: exportHref('/monthly-ledger/export', query), download: true }]}
@@ -109,7 +109,7 @@ export default function FlowLedgerPage() {
             clear();
           }}
         />
-      </FinHead>
+      </PageHeading>
       <FormMessage close={sync.clear}>{sync.error}</FormMessage>
       <LedgerSummary s={s} missingCount={missingCount} />
       <MissingTaxHint missingCount={missingCount} enable={enable} canEdit={perms.edit} />

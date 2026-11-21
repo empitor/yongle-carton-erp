@@ -1,8 +1,8 @@
-import { Segmented } from '../../ui/index';
+import { PageHeading, Segmented } from '../../ui/index';
 import BasicTab from './BasicTab';
 import SubjectsTab from './SubjectsTab';
 import { financePageTitles } from '../page-titles';
-import { FinHead, SubBar, type HeadProps } from '../layout';
+import { SubBar, type HeadProps } from '../layout';
 import { useTab } from '../page-state';
 
 /** 财务设置：基本设置、科目两个页签。会计期间并进了报表结账的“结账”页签。 */
@@ -16,7 +16,7 @@ export default function SettingsPage() {
   const tab = tabs.some(([k]) => k === picked) ? picked : 'basic';
   const head = (props: HeadProps) => (
     <>
-      <FinHead title={financePageTitles['finance-settings']} {...props} />
+      <PageHeading title={financePageTitles['finance-settings']} {...props} />
       <SubBar>
         <Segmented className="fin-segmented" label="财务设置分类" value={tab} onChange={setTab} options={tabs} />
       </SubBar>
