@@ -1,5 +1,5 @@
 {
   "erpUrl": "https://erp.nbyongle.cn/",
-  "updateUrl": "",
-  "updatePubkey": ""
+  "updateUrl": "https://erp.nbyongle.cn/app-update/windows/latest.json",
+  "updatePubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQwRDlFNUY0QUExRkI3NjkKUldScHR4K3E5T1haUU9GcExpRkkvcGpWbW1CSWVGN2hBVmtzWmZaa1VPQXFCMk9RSEd0THZwejYK"
 }

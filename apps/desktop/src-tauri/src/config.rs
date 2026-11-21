@@ -98,11 +98,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_shipped_config_opens_the_formal_address_and_skips_updates() {
+    fn the_shipped_config_opens_the_formal_address_and_checks_the_formal_manifest() {
         let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
         let config = load(&shipped).unwrap();
         assert_eq!(config.erp_url.as_str(), "https://erp.nbyongle.cn/");
-        assert_eq!(config.update, None);
+        let update = config.update.unwrap();
+        assert_eq!(
+            update.manifest.as_str(),
+            "https://erp.nbyongle.cn/app-update/windows/latest.json"
+        );
+        assert!(!update.pubkey.is_empty());
     }
 
     #[test]
