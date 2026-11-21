@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { count } from '../server/core/index.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { maker } from './finance-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
 

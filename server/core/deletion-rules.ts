@@ -2,11 +2,12 @@ import type { SQLOutputValue } from 'node:sqlite';
 import type { Store } from './db.js';
 import type { Actor } from './actor.js';
 import { AppError } from './errors.js';
+import type { ModuleName } from './module-names.js';
 import { count } from './sql.js';
 
 /*
- * 删除记录、初始化时各模块登记的规则。删除路径（业务汇总的删除引擎 database-maintenance.ts、
- * 数据管理的初始化）只调这里登记的规则，不直接写别的模块的表：
+ * 删除记录、初始化时各模块登记的规则。删除路径（删除归档模块的删除引擎 server/lifecycle/database-maintenance.ts、
+ * 数据管理的初始化）只调这里登记的规则，不直接写别的模块的表，也不按模块名点名要谁配合（按表、按记录种类查登记）：
  * - 规划：某条记录删了，哪些行要跟着删、哪些行要解除引用，由知道这层关系的模块判断（只读、只标记）。一般是表的主人；
  *   被删单据的库存流水删还是留由单据流转判断（只有它知道哪些流水来自这些单据），写仍由采购库存做；
  * - 写：删、改自己表里的行，连带的修订记录、版本号由表的主人做；
@@ -64,7 +65,7 @@ export type DeletionPlanner = {
 
 /** 表的主人登记：这几张表删除时怎么写、规划时要多读哪些列、影响清单里怎么称呼一行 */
 export type TableDeletionRules = {
-  module: string;
+  module: ModuleName;
   /** 每张表的写法：写着表名的语句由主人提供（`UPDATE 表 SET`、`DELETE FROM 表 WHERE rowid=?`） */
   statements: Record<string, { update: string; remove: string }>;
   /** 规划时除了主键、外键、单号、名称、状态、版本以外还要读的列（'all' 是整行） */
@@ -94,11 +95,6 @@ export function registerTableDeletion(r: TableDeletionRules) {
     tableRules.set(t, r);
   }
   allRules.push(r);
-}
-/** 删除要哪些模块配合：调用方先确认它们都登记了，免得规划时少算一块 */
-export function requireDeletionModules(modules: readonly string[]) {
-  const missing = modules.filter((m) => !allRules.some((r) => r.module === m));
-  if (missing.length) throw new AppError('删除记录要' + missing.join('、') + '模块配合，但它们没有加载。', 500);
 }
 const unregistered = (table: string) =>
   new AppError('删除要改“' + table + '”表，但它所属的模块没有登记删除规则。', 500);
@@ -161,9 +157,17 @@ export function deletionRemove(store: Store, ctx: DeletionContext, table: string
 
 /** 某种记录（orders、products……）删掉前，别的模块要做的事。删除引擎在删这条记录之前调 */
 type RecordDeletedHook = (store: Store, ctx: DeletionContext, id: number) => void;
-const recordHooks = new Map<string, { module: string; hook: RecordDeletedHook }[]>();
-export function registerRecordDeletion(module: string, entity: string, hook: RecordDeletedHook) {
+const recordHooks = new Map<string, { module: ModuleName; hook: RecordDeletedHook }[]>();
+export function registerRecordDeletion(module: ModuleName, entity: string, hook: RecordDeletedHook) {
   recordHooks.set(entity, [...(recordHooks.get(entity) || []), { module, hook }]);
+}
+/**
+ * 这种记录删掉前一定要有模块配合（比如删订单时识别导入要给导入记录打标记）：规划时就查有没有登记，
+ * 配合的模块没加载就报错，不会删了以后留下指着已删订单的导入记录
+ */
+export function requireRecordDeletionHook(entity: string) {
+  if (!recordHooks.get(entity)?.length)
+    throw new AppError('删除“' + entity + '”记录前要别的模块配合，但没有模块登记删前要做的事，可能是它没有加载。', 500);
 }
 export function beforeRecordDeleted(store: Store, ctx: DeletionContext, entity: string, id: number) {
   for (const { hook } of recordHooks.get(entity) || []) hook(store, ctx, id);
@@ -177,7 +181,7 @@ export function beforeRecordDeleted(store: Store, ctx: DeletionContext, entity: 
  * finance 标记的只在“连财务一起清”时清。
  */
 export type ResetRules = {
-  module: string;
+  module: ModuleName;
   finance?: boolean;
   /** 清空顺序：小的先清（先清引用别人的表） */
   order: number;
@@ -187,7 +191,7 @@ export type ResetRules = {
   /** 财务：已经结账的期间，初始化要用户在预览里明确勾选才清 */
   closedPeriods?(store: Store): { period: string; version: number }[];
 };
-const resetRules = new Map<string, ResetRules>();
+const resetRules = new Map<ModuleName, ResetRules>();
 export function registerReset(r: ResetRules) {
   for (const s of r.statements)
     if (!/^DELETE FROM \w+( WHERE .+)?$/.test(s)) throw new AppError(r.module + '登记的清空语句格式不对：' + s, 500);
@@ -197,8 +201,8 @@ export function registerReset(r: ResetRules) {
  * 参加初始化的模块：modules 是必须登记了的（没登记报错，不会悄悄少清一块）；另外登记了的模块也一起清，
  * 新模块登记了就会参加。财务只在 includeFinance 时参加。
  */
-export function resetParticipants(modules: readonly string[], includeFinance: boolean) {
-  const need = includeFinance ? [...modules, '财务'] : modules;
+export function resetParticipants(modules: readonly ModuleName[], includeFinance: boolean) {
+  const need: readonly ModuleName[] = includeFinance ? [...modules, '财务'] : modules;
   const missing = need.filter((m) => !resetRules.has(m));
   if (missing.length) throw new AppError('初始化要' + missing.join('、') + '模块配合，但它们没有加载。', 500);
   return [...resetRules.values()]

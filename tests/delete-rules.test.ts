@@ -4,14 +4,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { OrderBatchService } from '../server/operations/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { InboxService } from '../server/inbox/service.js';
 import type { InboxIncoming } from '../shared/import/inbox.js';
-import { resetClear, resetParticipants } from '../server/core/deletion-rules.js';
+import { requireRecordDeletionHook, resetClear, resetParticipants } from '../server/core/deletion-rules.js';
+import { AppError } from '../server/core/errors.js';
 import { listingFixture, mergeIntoBatch, orderWithImports, setup } from './delete-fixture.js';
 import { z } from 'zod';
 import { count, many, one, rows } from '../server/core/index.js';
@@ -141,6 +142,15 @@ test('删掉最后一张单据后，新单据不复用单号和编号：单号�
   } finally {
     f.store.close();
   }
+});
+
+test('删前要别的模块配合的记录：没有模块登记删前配合就报 500；识别导入加载后删订单的配合已登记', () => {
+  assert.throws(
+    () => requireRecordDeletionHook('虚构记录'),
+    (e) => e instanceof AppError && e.status === 500 && /没有模块登记删前要做的事/.test(e.message),
+  );
+  // 本文件经 delete-fixture.ts 加载了识别导入（server/import/deletion.ts 登记删订单前给导入记录打标记）
+  assert.doesNotThrow(() => requireRecordDeletionHook('orders'));
 });
 
 test('删掉最后一个客户、最后一张订单后，新编号和订单号不复用', () => {

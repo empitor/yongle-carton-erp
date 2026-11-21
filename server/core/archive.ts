@@ -9,7 +9,7 @@ import { inSavepoint } from './savepoint.js';
 import { canEnterSuperMode, isSuperMode, requirePermission } from './permissions.js';
 
 /*
- * 归档、恢复只有这一份做法：档案（业务汇总）、单据（单据流转）、识别文件（识别导入）都走这里，
+ * 归档、恢复只有这一份做法：档案（删除归档）、单据（单据流转）、识别文件（识别导入）都走这里，
  * 批量、逐条返回结果，版本校验、重复点、被拦时的说法都一样。
  * 记录存在哪、怎么读、怎么打标记、怎么记审计、什么时候不能归档，由调用方的 ArchiveTarget 给出；
  * 业务库里的记录（record_lifecycle 打标记）用 recordArchiveTarget 现成的一套。

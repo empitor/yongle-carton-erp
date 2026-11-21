@@ -1,4 +1,4 @@
-// 删除业务记录只管业务（server/business/database-maintenance.ts）：不要财务模块配合，删除的事务里不写财务的表；
+// 删除业务记录只管业务（server/lifecycle/database-maintenance.ts）：不要财务模块配合，删除的事务里不写财务的表；
 // 被删的来源由财务下次补扫时自己发现（见 finance-source-deletion.test.ts）。全部虚构数据、内存库。
 // 这个文件不静态引入财务：单独跑时第一条就是在没加载财务的情况下删的。
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { many } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { z } from 'zod';
 import { superActor } from './actor-fixture.js';
 import { setup } from './delete-fixture.js';

@@ -10,7 +10,7 @@ import { storedScheduleEntrySchema } from '../shared/business/index.js';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/service.js';
 import { BusinessDocuments } from '../server/documents/service.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { purchaseNextSteps } from '../shared/business/order-next-step.js';
 import { quantityUnits } from '../shared/core/quantity.js';

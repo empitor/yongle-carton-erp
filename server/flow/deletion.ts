@@ -1,8 +1,8 @@
 // 单据流转的表在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。由本模块的 index.ts 引入。
 import type { Store } from '../core/index.js';
 import type { DeletionRow } from '../core/index.js';
-import { registerReset, registerTableDeletion } from '../core/index.js';
-import { flowDocumentContent, type FlowDocument } from '../../shared/business/index.js';
+import { registerRecordKinds, registerReset, registerTableDeletion } from '../core/index.js';
+import { flowDocumentContent, flowKinds, type FlowDocument } from '../../shared/business/index.js';
 import { documentOf, storedDocuments } from './read.js';
 import { readReturnDocument } from './return-document.js';
 import { FlowService } from './service.js';
@@ -27,6 +27,9 @@ function referencesDeleted(doc: FlowDocument, d: Deleted) {
       );
   }
 }
+
+// 四种单据能归档、删了留墓碑：归档标记和墓碑里记成 flow_<种类>（server/core/record-kinds.ts）
+registerRecordKinds('单据流转', flowKinds.map((kind) => 'flow_' + kind));
 
 registerTableDeletion({
   module: '单据流转',

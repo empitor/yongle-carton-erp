@@ -1,5 +1,6 @@
 import type {
   DeletionApi,
+  LifecycleApi,
   StockFlowApi,
   RecordEntity,
   RecordStatusAction,
@@ -16,6 +17,7 @@ import type { LifecycleAction } from './lifecycle';
 const records = call<RecordsApi>(),
   stock = call<StockFlowApi>(),
   workbench = call<WorkbenchApi>(),
+  lifecycle = call<LifecycleApi>(),
   deletions = call<DeletionApi>();
 
 /** 能按一条读的档案（供应商服务端没有单条读的地址）：读回来的样子 */
@@ -77,7 +79,7 @@ export const requestLifecycle = (
   action: LifecycleAction,
   rows: { id: number; version: number }[],
 ) =>
-  records(`POST ${path}`, {
+  lifecycle(`POST ${path}`, {
     body: { action, acknowledged: true, items: rows.map((r) => ({ id: r.id, version: r.version })) },
   }).then((r) => r.results);
 

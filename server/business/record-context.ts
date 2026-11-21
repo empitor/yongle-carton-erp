@@ -6,7 +6,7 @@ import { FlowService } from '../flow/index.js';
 import { AppError, count, many, parseStoredJson, rows } from '../core/index.js';
 import { dataManagementModules, flowKinds, isFlowKind, recordEntities } from '../../shared/business/index.js';
 import { purchaseOrderLinks } from '../operations/index.js';
-import { businessRecord, businessRecords } from './records.js';
+import { businessRecord, businessRecords } from '../lifecycle/index.js';
 import { historyRefs } from './history-refs.js';
 
 /** 记录上的修改历史最多列几条（新的在前） */

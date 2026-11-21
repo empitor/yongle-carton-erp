@@ -12,6 +12,7 @@ import { saveProductRecord } from './products.js';
 import { openBusinessDatabase, optimizeDatabase, reclaimSpace } from './schema/index.js';
 import { AppError, ConflictError } from './errors.js';
 import { inSavepoint } from './savepoint.js';
+import { assertRecordKind } from './record-kinds.js';
 import type { Actor } from './actor.js';
 
 export const defaultDbPath = resolve(process.env.DB_PATH || 'data/erp.sqlite');
@@ -84,8 +85,12 @@ export class Store {
     this.optimize();
     this.db.close();
   }
-  /** 归档：在归档标记表里登记。表归基础，业务汇总、单据流转、识别导入都调这里，不直接写这张表。 */
+  /**
+   * 归档：在归档标记表里登记。表归基础，删除归档、单据流转都调这里，不直接写这张表。
+   * entity 要是各模块登记过的记录种类（record-kinds.ts），没登记的报错。
+   */
   markArchived(entity: string, id: number, actorId: string, options: { ignoreExisting?: boolean } = {}) {
+    assertRecordKind(entity);
     this.db
       .prepare((options.ignoreExisting ? 'INSERT OR IGNORE' : 'INSERT') + ' INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES(?,?,?,?)')
       .run(entity, id, new Date().toISOString(), actorId);

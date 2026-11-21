@@ -1,7 +1,7 @@
 // 订单跟着单据走（shared/business/order-next-step.ts、Store.order）：从采购到货到送货完成的一整条，撤回和编辑的限制，待发数的整数算法。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { count } from '../server/core/index.js';
 import { orderSchema } from '../shared/core/domain.js';
 import { orderNextSteps } from '../shared/business/order-next-step.js';

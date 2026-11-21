@@ -35,7 +35,9 @@ export { registerOrderRules } from './order-hooks.js';
 export type { MaterialProgress, OrderEditGuard } from './order-hooks.js';
 // 基础模块自己的表的删除、初始化规则（加载基础模块时登记）
 import './deletion-base.js';
-export { beforeRecordDeleted, deletionColumns, deletionLabel, deletionMirror, deletionPlanners, deletionRemove, deletionUpdate, registerRecordDeletion, registerReset, registerTableDeletion, requireDeletionModules, requireDeletionTables, resetClear, resetCounts, resetParticipants } from './deletion-rules.js';
+export { beforeRecordDeleted, deletionColumns, deletionLabel, deletionMirror, deletionPlanners, deletionRemove, deletionUpdate, registerRecordDeletion, registerReset, registerTableDeletion, requireDeletionTables, requireRecordDeletionHook, resetClear, resetCounts, resetParticipants } from './deletion-rules.js';
+// 归档标记、墓碑能记的记录种类：各模块登记自己的（server/core/record-kinds.ts）
+export { registerRecordKinds } from './record-kinds.js';
 export type { DeletionContext, DeletionGraph, DeletionRow } from './deletion-rules.js';
 export { onceByRequest, operationRequest, purgeOperationRequests, replayRequest, requestDone, saveRequest, updateRequestResult } from './requests.js';
 export { inSavepoint, rehearse } from './savepoint.js';

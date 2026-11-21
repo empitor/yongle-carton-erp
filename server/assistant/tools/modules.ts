@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { flowKinds, type FlowDocView, type FlowKind, type StockItemView } from '../../../shared/business/index.js';
-import { businessList, businessRecords } from '../../business/index.js';
+import { businessList, businessRecords } from '../../lifecycle/index.js';
 import { requireActor, type ToolContext } from './context.js';
 
 export const assistantModules = [
@@ -43,14 +43,14 @@ export const flowMap: Record<string, (typeof flowKinds)[number]> = {
 };
 export const moduleSchema = z.enum(assistantModules);
 
-/** 档案、订单、采购单这几个模块（直接是业务汇总的记录） */
+/** 档案、订单、采购单这几个模块（直接是删除归档按类型读的记录） */
 type BusinessModule = 'customers' | 'products' | 'orders' | 'suppliers' | 'purchases';
 const businessModules: readonly Module[] = ['customers', 'products', 'orders', 'suppliers', 'purchases'];
 const isBusinessModule = (m: Module): m is BusinessModule => businessModules.includes(m);
 /** 流水的单据来源记在 source_kind 上，单据的是 flow_<种类> */
 const FLOW_SOURCE = 'flow_';
 
-/** 档案、订单、采购单：业务汇总的记录，补上归档标记 */
+/** 档案、订单、采购单：删除归档按类型读的记录，补上归档标记 */
 function businessRows<E extends BusinessModule>(ctx: ToolContext, entity: E, archived: boolean, ids?: readonly number[]) {
   const records = ids ? businessRecords(ctx.store, entity, ids, archived) : businessList(ctx.store, entity, archived);
   return records.map((r) => ({ ...r, archived: ctx.store.archived(entity, r.id) }));

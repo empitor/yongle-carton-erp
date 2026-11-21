@@ -55,6 +55,7 @@ export type { Listed, RecordsApi } from './records-api.js';
 export { customerQuerySchema, orderQuerySchema, productQuerySchema } from './record-queries.js';
 export { DELETION_MAX_RECORDS, deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema, inventoryPolicies } from './deletion-request.js';
 export type { DeletionApi } from './deletion-api.js';
+export type { LifecycleApi } from './lifecycle-api.js';
 export { markRemoveSchema, markSourceKinds, markUpdateSchema } from './mark-inputs.js';
 export type { MarksApi } from './mark-api.js';
 export type { WorkbenchApi } from './workbench-api.js';

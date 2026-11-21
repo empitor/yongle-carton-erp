@@ -12,7 +12,7 @@ import { businessBase } from './business-base-fixture.js';
 import { monthsBefore, presetRange, orderInView } from '../shared/core/date-ranges.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import { displayAmount } from '../shared/core/display-amount.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { receiveLines } from './receive-fixture.js';
 import { z } from 'zod';
 

@@ -115,18 +115,19 @@ CREATE TABLE business_audit(
 ) STRICT;
 CREATE INDEX business_audit_record ON business_audit(entity,record_id);
 
--- 归档标记（各模块共用，写入走 Store.markArchived、unarchive）
+-- 归档标记（各模块共用，写入走 Store.markArchived、unarchive）。entity 是记录种类（表名，单据是 flow_<种类>），
+-- 不列枚举：能记哪些种类由各模块登记（server/core/record-kinds.ts），写入前核对
 CREATE TABLE record_lifecycle(
-  entity TEXT NOT NULL CHECK(entity IN ('customers','products','orders','suppliers','purchases','stock_items','flow_arrival','flow_task','flow_production','flow_delivery')),
+  entity TEXT NOT NULL CHECK(length(entity)>0),
   record_id INTEGER NOT NULL CHECK(record_id>0),
   archived_at TEXT NOT NULL,
   actor_id TEXT NOT NULL,
   PRIMARY KEY(entity,record_id)
 ) STRICT;
 
--- 永久删除的墓碑（谁、什么时候删了什么，各模块共用）；编号不复用靠 AUTOINCREMENT，不靠这张表
+-- 永久删除的墓碑（谁、什么时候删了什么，各模块共用）；编号不复用靠 AUTOINCREMENT，不靠这张表。entity 同归档标记，不列枚举
 CREATE TABLE permanent_record_deletions(
-  entity TEXT NOT NULL CHECK(entity IN ('customers','products','orders','suppliers','purchases','stock_items','flow_arrival','flow_task','flow_production','flow_delivery')),
+  entity TEXT NOT NULL CHECK(length(entity)>0),
   record_id INTEGER NOT NULL CHECK(record_id>0),
   deleted_at TEXT NOT NULL,
   actor_id TEXT NOT NULL,

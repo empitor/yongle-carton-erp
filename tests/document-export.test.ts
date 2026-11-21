@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { EXPORT_FILE_KEEP_DAYS, purgeExportFiles } from '../server/documents/export-records.js';
 import { renderBusinessForm } from '../server/documents/render.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';

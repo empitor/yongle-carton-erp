@@ -10,8 +10,6 @@ import { inventoryEffectText } from './deletion-summary.js';
 import { textOf } from './deletion-impact.js';
 import { businessTables, planDeletion, quote } from './deletion-plan.js';
 import { recomputeAfterFlowDeletion } from '../flow/index.js';
-// 产品唛头资料（业务汇总自己的表）的删除规则：加载删除引擎时登记
-import './marks-deletion.js';
 import { snapshotBeforeDestructive } from '../core/index.js';
 import { onceByRequest, operationRequest, replayRequest, requestDone } from '../core/index.js';
 import { deletionRequestSchema, deletionResultSchema, deletionSelection, flowKinds } from '../../shared/business/index.js';
@@ -29,7 +27,7 @@ type CheckedDeletion = { actor: Actor; v: DeletionRequest; request: ReturnType<t
 /**
  * 删除引擎（受控数据库维护）：删除不是归档/冲销。这里管谁能删、预览和真删；删哪些、解除哪些引用在 deletion-plan.ts 算，
  * 由数据库外键和各模块登记的删除规则决定（server/core/deletion-rules.ts）；改、删每一行都交给表的主人写，这里不直接写别的模块的表。
- * 影响清单怎么显示、库存说明要的数在 deletion-impact.ts；管理员改订单时连带改单据在 order-edit-cascade.ts。
+ * 影响清单怎么显示、库存说明要的数在 deletion-impact.ts；管理员改订单时连带改单据在业务汇总的 order-edit-cascade.ts。
  */
 export class DatabaseMaintenanceService {
   constructor(readonly store: Store) {}
@@ -112,8 +110,8 @@ export class DatabaseMaintenanceService {
 }
 
 /**
- * 拍过破坏前快照的凭证：只有 take 真拍了快照才拿得到（构造函数和字段都是私有的，别处造不出来，
- * 也不从业务汇总的入口交出去）。不另拍快照的删除（deleteAfterSnapshot）要它。
+ * 拍过破坏前快照的凭证：只有 take 真拍了快照才拿得到（构造函数和字段都是私有的，别处造不出来）。
+ * 不另拍快照的删除（deleteAfterSnapshot）要它。
  */
 export class TakenSnapshot {
   private constructor(private readonly store: Store) {}
@@ -128,9 +126,8 @@ export class TakenSnapshot {
 }
 
 /**
- * 调用方在同一次操作里已经拍过破坏前快照时的删除（本机管理员改订单连带删整张送货单：service.ts 改订单前
- * 用 TakenSnapshot.take 拍了一份）：核对和删除跟 delete 一样，只是不再拍第二份。要本库的快照凭证，
- * 没拍过就调不了；不从业务汇总的入口导出。
+ * 调用方在同一次操作里已经拍过破坏前快照时的删除（本机管理员改订单连带删整张送货单：业务汇总的 service.ts 改订单前
+ * 用 TakenSnapshot.take 拍了一份）：核对和删除跟 delete 一样，只是不再拍第二份。要本库的快照凭证，没拍过就调不了。
  */
 export function deleteAfterSnapshot(
   engine: DatabaseMaintenanceService,

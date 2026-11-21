@@ -12,7 +12,7 @@ import { clerk, orderOf } from './flow-fixture.js';
 import { archiveDoc } from './receive-fixture.js';
 import { buildToday } from '../server/business/workbench.js';
 import { orderDashboard } from '../server/business/record-lists.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { readSnapshot } from '../server/finance/source-snapshot.js';
 import { quantityUnits } from '../shared/core/index.js';
 

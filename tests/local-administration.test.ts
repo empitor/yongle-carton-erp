@@ -12,7 +12,7 @@ import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
 import { AuthManager } from '../server/core/auth.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { manageWorkspaces } from '../server/admin/workspace-management.js';
 import { FlowService } from '../server/flow/service.js';
 import { recordContext } from '../server/business/record-context.js';

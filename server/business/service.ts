@@ -7,7 +7,7 @@ import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
 import { FlowService } from '../flow/index.js';
 import { audit, inSavepoint, isSuperMode } from '../core/index.js';
-import { TakenSnapshot } from './database-maintenance.js';
+import { TakenSnapshot } from '../lifecycle/index.js';
 import type { Actor } from '../core/index.js';
 
 const writableEntities = ['customers', 'products', 'orders'] as const;

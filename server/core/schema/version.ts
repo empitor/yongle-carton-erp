@@ -9,6 +9,6 @@ export const SCHEMA_APPLICATION_ID = 0x5a584552;
 /** 0.9.0 的建表是第几版。比它小的都是 0.9.0 以前的旧库，不升级、不恢复。 */
 export const SCHEMA_BASELINE = 20;
 /** 当前程序的结构版本：等于 SCHEMA_BASELINE 加上 steps.ts 里的步骤数（测试会核对）。 */
-export const SCHEMA_LATEST = 21;
+export const SCHEMA_LATEST = 22;
 /** 第 20 版在版本记录里的名字 */
 export const SCHEMA_BASELINE_NAME = '0.9.0 基线';

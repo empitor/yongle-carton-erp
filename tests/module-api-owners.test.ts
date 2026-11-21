@@ -17,13 +17,15 @@ const apiOwners: [prefix: string, module: string][] = [
   // 使用手册（server/system/user-manual.ts），“使用说明”页读
   ['/guide', '系统资料'],
   ['/business', '业务汇总'], ['/dashboard', '业务汇总'], ['/customers', '业务汇总'], ['/products', '业务汇总'],
-  ['/orders', '业务汇总'], ['/deletions', '业务汇总'], ['/marks', '业务汇总'],
-  ['/suppliers', '采购库存'], ['/stock_items', '采购库存'],
+  ['/orders', '业务汇总'], ['/marks', '业务汇总'],
+  ['/suppliers', '采购库存'],
   // 采购单、库存品和流水、订货单（含登记到货）回答带单据的内容，在单据流转（server/flow/stock-router.ts）
   ['/purchases', '单据流转'], ['/warehouse', '单据流转'], ['/order-batches', '单据流转'],
   ['/flow', '单据流转'],
-  // 归档、恢复（server/business/records-router.ts 调业务汇总的 lifecycle）；客户、产品、订单的 /batch 按根前缀就归业务汇总
-  ['/suppliers/batch', '业务汇总'], ['/purchases/batch', '业务汇总'], ['/stock_items/batch', '业务汇总'],
+  // 删除（server/lifecycle/deletion-router.ts）和六类档案的批量归档、恢复（server/lifecycle/lifecycle-router.ts）在删除归档
+  ['/deletions', '删除归档'],
+  ['/customers/batch', '删除归档'], ['/products/batch', '删除归档'], ['/orders/batch', '删除归档'],
+  ['/suppliers/batch', '删除归档'], ['/purchases/batch', '删除归档'], ['/stock_items/batch', '删除归档'],
   // 送货单原件的上传、列表、读识别结果、AI 识别在识别导入；看原件文件在单据流转（原件表归单据流转）
   ['/flow/sources', '识别导入'], ['/flow/sources/:id/file', '单据流转'],
   ['/documents', '单据导出'],
@@ -37,7 +39,7 @@ const apiOwners: [prefix: string, module: string][] = [
 ];
 const apiAllow: Record<string, string[]> = {
   '前端-基础': ['基础'],
-  '前端-业务': ['基础', '采购库存', '单据流转', '业务汇总'],
+  '前端-业务': ['基础', '采购库存', '单据流转', '删除归档', '业务汇总'],
   '前端-单据导出': ['单据导出'],
   '前端-系统资料': ['系统资料'],
   '前端-财务': ['基础', '财务'],

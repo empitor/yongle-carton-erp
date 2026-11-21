@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { z } from 'zod';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { impactRowSchema } from '../shared/business/index.js';
 import { FlowService } from '../server/flow/service.js';
 import { businessBase } from './business-base-fixture.js';

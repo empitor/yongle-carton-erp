@@ -1,7 +1,7 @@
 import { pageActor } from './actor-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
