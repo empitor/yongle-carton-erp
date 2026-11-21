@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { updateDocumentInfo } from '../server/flow/document-info.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { recordContext } from '../server/business/record-context.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
@@ -100,7 +100,7 @@ const shownEntity = (expr: string) =>
 const dynamicActions: Record<string, string[]> = {
   // 本机管理员数据管理：命令里的动作
   'v.action': [...dataManagementCommandSchema.shape.action.options],
-  // 归档 / 恢复（server/business/lifecycle.ts）
+  // 归档 / 恢复（server/lifecycle/lifecycle.ts）
   'input.action': ['archive', 'restore'],
   // 出入库（recordMovement）：手工的 in / out / adjust，到货更正补记的 purchase / out
   'source.action': [...movementSchema.shape.action.options, 'purchase'],

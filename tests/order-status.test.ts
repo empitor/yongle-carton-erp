@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { count, type Actor } from '../server/core/index.js';

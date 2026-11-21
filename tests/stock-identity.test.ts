@@ -10,7 +10,7 @@ import { productSchema } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { rawStockKey, sameRawSpec } from '../shared/business/stock-identity.js';
 import { StockConflictError } from '../server/operations/stock-items.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { viewOfKind } from '../server/flow/read.js';
 import { businessFixture, clerk } from './flow-fixture.js';

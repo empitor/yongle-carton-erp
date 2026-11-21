@@ -6,13 +6,13 @@ import { quantityUnits, type Order } from '../../shared/core/index.js';
 import type { FlowDocView } from '../../shared/business/index.js';
 import { FlowService, carryOverFlowDocument, replaceFlowDocument } from '../flow/index.js';
 import { stockLedger } from '../operations/index.js';
-import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from './database-maintenance.js';
+import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from '../lifecycle/index.js';
 import { referencingDocuments } from './related-business.js';
 
 /*
  * 本机管理员改订单时连带改单据：送货单、生产任务和它们的库存流水跟着订单的新明细、新客户走。
  * 调用方是 service.ts 的订单保存（同一个事务里先 prepareOrderEdit、保存订单、再 alignOrder）。
- * 整张送货单都被删时交给删除引擎（database-maintenance.ts），别的只改单据内容、改挂流水，不另记新流水。
+ * 整张送货单都被删时交给删除引擎（删除归档的 database-maintenance.ts），别的只改单据内容、改挂流水，不另记新流水。
  */
 
 type Delivery = FlowDocView<'delivery'>;

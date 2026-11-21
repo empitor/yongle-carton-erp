@@ -27,7 +27,7 @@ import { receiptSourceRouter } from './import/index.js';
 import type { AssistantManager } from './assistant/index.js';
 import { assistantRouter } from './assistant/index.js';
 import { dataManagementRouter } from './admin/index.js';
-import { deletionRouter } from './business/index.js';
+import { deletionRouter, lifecycleRouter } from './lifecycle/index.js';
 import { APP_VERSION } from '../shared/core/index.js';
 import { SERVICE_APP_NAME } from './local-service.js';
 
@@ -137,8 +137,9 @@ export function createApp(store: Store, options: AppOptions = {}) {
       requirePermission(options.auth.actor(req), 'business:edit');
     next();
   };
-  // 业务汇总：客户、产品、订单的列表、单条、新建、修改，六类档案的批量归档、恢复
+  // 业务汇总：客户、产品、订单的列表、单条、新建、修改；删除归档：六类档案的批量归档、恢复
   app.use('/api', recordsRouter(store, options.auth));
+  app.use('/api', lifecycleRouter(store, options.auth));
   const auth = options.auth;
   // AI 设置：改设置要超级管理员账号，权限关卡在 AI 接入的路由里
   app.use(

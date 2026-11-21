@@ -10,7 +10,7 @@ import { ManualProductionCompletion } from '../server/flow/production-completion
 import { ProductionCompletion } from '../server/flow/batch-completion.js';
 import { today } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { assistantProductionCompletionSchema } from '../shared/business/production-completion.js';
 import type { FlowDocView } from '../shared/business/index.js';
 import { AuthManager } from '../server/core/auth.js';

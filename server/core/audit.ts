@@ -1,6 +1,7 @@
 import type { AuditSource } from '../../shared/core/index.js';
 import type { Actor } from './actor.js';
 import type { Store } from './db.js';
+import { assertRecordKind } from './record-kinds.js';
 
 /** 一条审计记什么：动作、哪种记录、哪一条（不挂在某条记录上的写 null）、改前改后等明细 */
 interface AuditEntry {
@@ -36,7 +37,10 @@ export function viaEntry<T extends Actor | null | undefined>(actor: T, source: A
   return actor ? { ...actor, source } : actor;
 }
 
-/** 永久删除留的墓碑：谁、什么时候删了什么，给审计和“已永久删除”提示用；编号不复用由 AUTOINCREMENT 保证，不靠这张表。 */
+/**
+ * 永久删除留的墓碑：谁、什么时候删了什么，给审计和“已永久删除”提示用；编号不复用由 AUTOINCREMENT 保证，不靠这张表。
+ * entity 要是各模块登记过的记录种类（record-kinds.ts），没登记的报错。
+ */
 export function rememberDeletedRecord(
   store: Store,
   actor: Actor,
@@ -44,6 +48,7 @@ export function rememberDeletedRecord(
   row: { id: number; number?: string; name?: string },
   at = new Date().toISOString(),
 ) {
+  assertRecordKind(entity);
   store.db
     .prepare('INSERT OR REPLACE INTO permanent_record_deletions(entity,record_id,deleted_at,actor_id,label) VALUES(?,?,?,?,?)')
     .run(

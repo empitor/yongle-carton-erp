@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { listen } from './http-fixture.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import {
   orderMetrics,
   purchaseMetrics,

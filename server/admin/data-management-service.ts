@@ -11,7 +11,7 @@ import {
 import { isRecord, productPricePatch, today } from '../../shared/core/index.js';
 import { managementCommandSchema } from '../../shared/admin/index.js';
 import { audit, viaEntry } from '../core/index.js';
-import { archivedOrConflict, changeLifecycle } from '../business/index.js';
+import { archivedOrConflict, changeLifecycle } from '../lifecycle/index.js';
 import { OperationsService } from '../operations/index.js';
 import { FlowService, archiveFlowDocuments } from '../flow/index.js';
 import { AppError, failureMessage } from '../core/index.js';

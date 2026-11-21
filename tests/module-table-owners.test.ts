@@ -38,7 +38,12 @@ const tableOwner = (t: string) =>
 // 删除记录、初始化也不例外：各模块登记自己的删除、初始化规则（server/core/deletion-rules.ts），
 // 删除引擎、初始化只调登记的规则
 const tableWriteExceptions: { path: string; why: string }[] = [
-  { path: 'server/core/schema/', why: '业务库的建表（tables/ 按表的主人分文件）、预置数据和升级步骤：全局只有一条版本序列，表之间有跨模块外键，所以集中放在基础' },
+  {
+    path: 'server/core/schema/',
+    why:
+      '业务库的建表（tables/ 按表的主人分文件）、预置数据和升级步骤：全局只有一条版本序列，表之间有跨模块外键，所以集中放在基础。' +
+      '升级步骤改 CHECK 用 steps.ts 的 rebuildTable 重建（表名拼出来）：临时表 <表>_rebuilt 建完即改回原名，不是新表',
+  },
 ];
 const tableReadExceptions: { reader: string; owner: string; why: string }[] = [
   { reader: '财务', owner: '采购库存', why: '财务按表读业务数据生成凭证、成本和往来，不调用业务代码，只读' },
@@ -241,7 +246,7 @@ test('回归：SQL 读写检查不分大小写，认得出带引号的表名、�
   assert.ok(sqlCheck('server/core/db.ts', "db.prepare('INSERT OR REPLACE INTO ' + table + ' VALUES(?,?)')").length, 'Store 按表名写');
   assert.deepEqual(sqlCheck('server/core/db.ts', "db.prepare('UPDATE orders SET version=version+1 WHERE id=?')"), []);
   // 删除和初始化不例外：删除引擎、初始化按表名写、写别的模块的表都拦（要调各模块登记的规则）
-  assert.ok(sqlCheck('server/business/database-maintenance.ts', "db.prepare('UPDATE ' + quote(t) + ' SET a=1')").length, '删除引擎按表名写');
+  assert.ok(sqlCheck('server/lifecycle/database-maintenance.ts', "db.prepare('UPDATE ' + quote(t) + ' SET a=1')").length, '删除引擎按表名写');
   assert.ok(sqlCheck('server/admin/business-reset.ts', "db.prepare('update fin_settings set a=1')").length, '初始化写财务的表');
   assert.ok(sqlCheck('server/admin/business-reset.ts', "db.prepare('DELETE FROM \"' + name + '\"')").length, '初始化按表名清空');
   assert.ok(sqlCheck('server/admin/data-management-service.ts', "db.prepare('DELETE FROM order_lines WHERE order_id=?')").length, '数据管理删基础的表');

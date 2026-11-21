@@ -9,7 +9,7 @@ import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
 import { flowRouter } from '../server/flow/router.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { today } from '../shared/core/domain.js';
 import { saveDoc, applyCorrection, previewCorrection } from './receive-fixture.js';

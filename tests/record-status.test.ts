@@ -20,7 +20,7 @@ import { recordContext } from '../server/business/record-context.js';
 import { historyView } from '../shared/business/record-history.js';
 import { statusActionFor } from '../shared/business/record-status.js';
 import { InputError } from '../server/core/errors.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { readAs, must } from './read-result.js';
 import { businessBase } from './business-base-fixture.js';

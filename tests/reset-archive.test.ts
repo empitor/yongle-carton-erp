@@ -14,10 +14,12 @@ import type { Actor } from '../server/core/auth.js';
 import { testImports } from './order-import-fixture.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { clearArchiveNow, deferArchiveCleanup } from '../server/admin/reset-archive.js';
-// 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务汇总加载时登记（server/core/deletion-rules.ts）
+// 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务汇总、单据导出加载时登记（server/core/deletion-rules.ts）；
+// 初始化要求单据导出登记了清空规则，不引它，单独跑这个文件会报“初始化要单据导出模块配合”
 import '../server/finance/index.js';
 import '../server/import/index.js';
 import '../server/business/index.js';
+import '../server/documents/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { viaEntry } from '../server/core/audit.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';

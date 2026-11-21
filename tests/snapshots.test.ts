@@ -14,7 +14,7 @@ import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
 import { createBusinessService, manualWrite } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { snapshotBeforeDestructive, pruneSnapshots, snapshotTime } from '../server/core/snapshots.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';

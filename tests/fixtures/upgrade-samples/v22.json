@@ -1,0 +1,26 @@
+{
+  "before": {
+    "record_lifecycle": [
+      { "rowid": 3, "entity": "customers", "record_id": 7, "archived_at": "2026-01-05T08:00:00.000Z", "actor_id": "fict-user-1" },
+      { "rowid": 8, "entity": "stock_items", "record_id": 2, "archived_at": "2026-01-06T09:30:00.000Z", "actor_id": "fict-user-2" },
+      { "rowid": 12, "entity": "flow_delivery", "record_id": 15, "archived_at": "2026-01-08T10:00:00.000Z", "actor_id": "fict-user-1" }
+    ],
+    "permanent_record_deletions": [
+      { "rowid": 4, "entity": "orders", "record_id": 9, "deleted_at": "2026-01-07T11:00:00.000Z", "actor_id": "fict-user-1", "label": "FICT-SO-9" },
+      { "rowid": 5, "entity": "flow_arrival", "record_id": 21, "deleted_at": "2026-01-09T12:00:00.000Z", "actor_id": "fict-user-2", "label": "虚构到货单" },
+      { "rowid": 9, "entity": "suppliers", "record_id": 3, "deleted_at": "2026-01-10T13:00:00.000Z", "actor_id": "fict-user-2", "label": "虚构供应商乙" }
+    ]
+  },
+  "after": {
+    "record_lifecycle": [
+      { "rowid": 3, "entity": "customers", "record_id": 7, "archived_at": "2026-01-05T08:00:00.000Z", "actor_id": "fict-user-1" },
+      { "rowid": 8, "entity": "stock_items", "record_id": 2, "archived_at": "2026-01-06T09:30:00.000Z", "actor_id": "fict-user-2" },
+      { "rowid": 12, "entity": "flow_delivery", "record_id": 15, "archived_at": "2026-01-08T10:00:00.000Z", "actor_id": "fict-user-1" }
+    ],
+    "permanent_record_deletions": [
+      { "rowid": 4, "entity": "orders", "record_id": 9, "deleted_at": "2026-01-07T11:00:00.000Z", "actor_id": "fict-user-1", "label": "FICT-SO-9" },
+      { "rowid": 5, "entity": "flow_arrival", "record_id": 21, "deleted_at": "2026-01-09T12:00:00.000Z", "actor_id": "fict-user-2", "label": "虚构到货单" },
+      { "rowid": 9, "entity": "suppliers", "record_id": 3, "deleted_at": "2026-01-10T13:00:00.000Z", "actor_id": "fict-user-2", "label": "虚构供应商乙" }
+    ]
+  }
+}

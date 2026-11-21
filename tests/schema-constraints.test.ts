@@ -13,7 +13,7 @@ import { markSourceKinds } from '../shared/business/index.js';
 import { Store } from '../server/core/db.js';
 import { count, one } from '../server/core/sql.js';
 import { rows } from '../server/core/schema/rows.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { AppError, CONSTRAINT_MESSAGE, constraintFailure, failureMessage, isConstraintError } from '../server/core/errors.js';
 import {
   isDate,
@@ -29,7 +29,7 @@ import { purchaseReturnStatuses } from '../shared/business/flow-results.js';
 import { flowSourceKinds } from '../server/flow/sources.js';
 import { stockMovementActions } from '../server/operations/ledger.js';
 import { movementSourceKinds } from '../shared/business/movement-filters.js';
-import { purchaseBusinessStatuses, recordEntities, stockKinds } from '../shared/business/operations.js';
+import { purchaseBusinessStatuses, stockKinds } from '../shared/business/operations.js';
 import { flowKinds, flowStates } from '../shared/business/physical-flow.js';
 import { attachmentKinds } from '../shared/core/assistant-attachments.js';
 import { auditSources } from '../shared/core/audit-sources.js';
@@ -99,15 +99,13 @@ test('业务库的表全部是 STRICT', () => {
 
 /** '表.列' → 所属模块里的常量。没有登记的枚举列会让下面那条测试失败：先在所属模块补常量，再登记到这里。 */
 function enumOwners(): Record<string, readonly string[]> {
-  const flowEntities = flowKinds.map((kind) => 'flow_' + kind);
   const revenue = settingsPatchSchema.shape.revenueRecognition.unwrap().options;
   return {
     // 基础
     'orders.status': statuses,
     'orders.rounding_policy': orderSchema.shape.roundingPolicy.unwrap().options,
     'products.dimension_unit': productSchema.shape.dimensionUnit.unwrap().unwrap().options,
-    'record_lifecycle.entity': [...recordEntities, ...flowEntities],
-    'permanent_record_deletions.entity': [...recordEntities, ...flowEntities],
+    // 归档标记、墓碑的记录种类不列枚举，由各模块登记（server/core/record-kinds.ts，tests/record-kinds.test.ts 守）
     'business_audit.source': auditSources,
     // 采购库存
     'stock_items.kind': stockKinds,
@@ -374,11 +372,9 @@ test('助手的工具被数据库约束拦下：交给模型和用户的是那�
       { message: '正在调用真实业务工具。', toolCalls: [{ name: 'records.get', args: { module: 'customers', id: 1 } }] },
       { message: '已经保存好了。', toolCalls: [] },
     );
-    // 模拟程序写错：工具执行时往归档标记里写了一个不认识的对象（正常代码不会这样写）
+    // 模拟程序写错：工具执行时往归档标记里写了一个空的记录种类（正常代码不会这样写）
     f.manager.tools.read = () =>
-      f.store.db
-        .prepare("INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES('不认识的对象',1,'t','x')")
-        .run();
+      f.store.db.prepare("INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES('',1,'t','x')").run();
     const events: { type: string; data: unknown }[] = [];
     const { result, logged } = await capturingErrors(() =>
       f.manager.chat(
@@ -402,7 +398,7 @@ test('助手的工具被数据库约束拦下：交给模型和用户的是那�
     assert.doesNotMatch(sent, /CHECK constraint failed/);
     assert.doesNotMatch(JSON.stringify(result.messages), /CHECK constraint failed/, '聊天记录里没有英文原文');
     assert.match(text(logged), /助手工具 records\.get/);
-    assert.match(text(logged), /CHECK constraint failed: entity IN/, '原始错误在服务端日志里');
+    assert.match(text(logged), /CHECK constraint failed: length\(entity\)>0/, '原始错误在服务端日志里');
     assert.equal(count(f.store.db, 'SELECT count(*) FROM record_lifecycle'), 0);
   } finally {
     f.close();
@@ -434,12 +430,10 @@ test('批量操作逐条结果被数据库约束拦下：那一条给中文提�
       assert.ok(row, '客户 ' + id + ' 在库里');
       return row.version;
     };
-    // 模拟程序写错：归档第二条时往归档标记里写了一个不认识的对象（正常代码不会这样写）
+    // 模拟程序写错：归档第二条时往归档标记里写了一个空的记录种类（正常代码不会这样写）
     store.markArchived = (entity, id, actorId, options) =>
       id === second
-        ? void store.db
-            .prepare("INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES('不认识的对象',?,'t','x')")
-            .run(id)
+        ? void store.db.prepare("INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES('',?,'t','x')").run(id)
         : markArchived(entity, id, actorId, options);
     const { result, logged } = await capturingErrors(() =>
       changeLifecycle(
@@ -466,7 +460,7 @@ test('批量操作逐条结果被数据库约束拦下：那一条给中文提�
     assert.doesNotMatch(JSON.stringify(result), /CHECK|constraint/i, '英文原文不给用户看');
     assert.equal(logged.length, 1);
     assert.match(text(logged), /^\[数据规则\] 批量归档 customers #\d+/);
-    assert.match(text(logged), /CHECK constraint failed: entity IN/, '原始错误在服务端日志里');
+    assert.match(text(logged), /CHECK constraint failed: length\(entity\)>0/, '原始错误在服务端日志里');
     assert.deepEqual(
       store.db.prepare('SELECT entity,record_id FROM record_lifecycle').all().map((r) => [r.entity, r.record_id]),
       [['customers', first]],

@@ -30,7 +30,7 @@ export type UiAction = {
 const save = 'records.propose_save';
 const lifecycle = ['records.propose_batch_lifecycle', 'records.propose_lifecycle'];
 const archiveLabels = ['归档', '恢复', '批量归档', '批量恢复'];
-/** 六类档案的批量归档、恢复：同一个服务（server/business/lifecycle.ts），地址按档案分 */
+/** 六类档案的批量归档、恢复：同一个服务（server/lifecycle/lifecycle.ts），地址按档案分 */
 const archive = (record: string, path: string): UiAction => ({
   capability: 'records',
   record,

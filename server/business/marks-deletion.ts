@@ -1,7 +1,7 @@
 // 产品唛头资料（业务汇总的表）在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。
-// 删除引擎 database-maintenance.ts 引入本文件，加载删除引擎时就登记。
+// 由本模块的 index.ts 引入，加载业务汇总时就登记（删除引擎不点模块名，按表查登记）。
 import { registerReset, registerTableDeletion } from '../core/index.js';
-import { textOf } from './deletion-impact.js';
+import { textOf } from '../lifecycle/index.js';
 
 registerTableDeletion({
   module: '业务汇总',

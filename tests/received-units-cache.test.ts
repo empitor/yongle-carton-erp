@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { many, rows, type Store } from '../server/core/index.js';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
 import { correctDocument, FlowService, planCorrection, PurchaseReturns } from '../server/flow/index.js';
-import { DatabaseMaintenanceService } from '../server/business/index.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { batchRows } from '../shared/business/index.js';
 import { today } from '../shared/core/index.js';
 import { clerk, flowFixture, localAdmin } from './flow-fixture.js';

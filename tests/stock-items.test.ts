@@ -9,7 +9,7 @@ import { orderSchema, productSchema, specification, type Product } from '../shar
 import type { Order } from '../shared/core/order-view.js';
 import { deliveryBlockers } from '../shared/business/warehouse-delivery.js';
 import type { StockItemBaseView } from '../shared/business/index.js';
-import { changeLifecycle } from '../server/business/lifecycle.js';
+import { changeLifecycle } from '../server/lifecycle/index.js';
 import { createBusinessService } from '../server/business/service.js';
 import { stockLedger } from '../server/operations/index.js';
 import { businessFixture } from './flow-fixture.js';

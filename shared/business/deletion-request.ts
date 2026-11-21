@@ -4,7 +4,7 @@ import { dataManagementModules } from './data-management-modules.js';
 
 /*
  * 业务界面删除（POST /deletions/preview、/deletions/execute）收什么、回什么：服务端删除引擎
- * （server/business/deletion-plan.ts、database-maintenance.ts）按它校验和读回，接口表 deletion-api.ts 照它写类型；
+ * （server/lifecycle/deletion-plan.ts、database-maintenance.ts）按它校验和读回，接口表 deletion-api.ts 照它写类型；
  * 助手的删除预览也用 deletionSelection。
  */
 

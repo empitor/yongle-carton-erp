@@ -7,7 +7,7 @@ import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { stockBatches, type BatchMovement } from '../shared/business/stock-batches.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { createBusinessService } from '../server/business/service.js';
 import type { Order } from '../shared/core/order-view.js';
 import type { Actor } from '../server/core/auth.js';

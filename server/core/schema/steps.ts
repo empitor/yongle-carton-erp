@@ -34,8 +34,23 @@ export type UpgradeStep = {
  * - 表一律建成 STRICT（列类型只能是 INTEGER、REAL、TEXT、BLOB）。状态、种类这类固定取值的列加枚举 CHECK，
  *   业务日期、会计期间、JSON 列用 tables/checks.ts 里的片段；会随功能增加的列（审计的来源和动作、防重复提交的种类这些）不列枚举。
  *   枚举在建表里写死，所属模块里要有同一份常量，并登记到 tests/schema-constraints.test.ts（那边逐个比对）。
- * - SQLite 的 CHECK 不能单独改：给枚举加一个值、放宽或收紧一条约束，都要重建那张表（见上面“重建表”）。
+ * - SQLite 的 CHECK 不能单独改：给枚举加一个值、放宽或收紧一条约束，都要重建那张表（见上面“重建表”，可以用下面的 rebuildTable）。
  */
+
+/**
+ * 按官方做法重建一张表（不改表名）：建新表、整行连 rowid 原样复制、删旧表、新表改回原名（主键、UNIQUE 的自动索引跟着改名）。
+ * definition 是改完以后的列定义和表约束，要和 tables/ 里的建表一字不差（空白、引号除外）；columns 是两边都有、要原样复制的列。
+ * 表上另建的索引、触发器删旧表时会一起没掉，由步骤自己重建；自增表的计数由执行器补回（表名不变）。
+ * 已发布的步骤在用它，不改它的做法；要别的做法另写一个。
+ */
+function rebuildTable(db: DatabaseSync, table: string, definition: string, columns: string) {
+  const rebuilt = table + '_rebuilt';
+  db.exec(`CREATE TABLE ${rebuilt}(${definition}) STRICT;
+    INSERT INTO ${rebuilt}(rowid,${columns}) SELECT rowid,${columns} FROM ${table};
+    DROP TABLE ${table};
+    ALTER TABLE ${rebuilt} RENAME TO ${table};`);
+}
+
 export const upgradeSteps: readonly UpgradeStep[] = [
   {
     version: 21,
@@ -69,5 +84,36 @@ export const upgradeSteps: readonly UpgradeStep[] = [
           theoretical_cents=json_extract(snapshot,'$.theoretical.gross'),
           missing_tax=EXISTS(SELECT 1 FROM json_each(snapshot,'$.missing') WHERE value='tax');
         UPDATE fin_events SET snapshot=json_remove(snapshot,'$.previous','$.documentAmount');`),
+  },
+  {
+    version: 22,
+    name: '归档标记、永久删除墓碑的记录种类不再写死',
+    // 两张表的 entity 原来列死了 10 种记录（客户、产品……四种单据），以后加能归档的记录要重建表；
+    // 改成只要求不为空，能记哪些种类由各模块登记、写入前核对（server/core/record-kinds.ts）。
+    // CHECK 改不了，两张都按官方做法重建（rebuildTable），每一行连 rowid 原样搬过去；除了主键没有别的索引。
+    // 两张表都不是自增表，没有别的表用外键引用它们，也没有触发器、视图用到它们
+    up: (db) => {
+      rebuildTable(
+        db,
+        'record_lifecycle',
+        `entity TEXT NOT NULL CHECK(length(entity)>0),
+          record_id INTEGER NOT NULL CHECK(record_id>0),
+          archived_at TEXT NOT NULL,
+          actor_id TEXT NOT NULL,
+          PRIMARY KEY(entity,record_id)`,
+        'entity,record_id,archived_at,actor_id',
+      );
+      rebuildTable(
+        db,
+        'permanent_record_deletions',
+        `entity TEXT NOT NULL CHECK(length(entity)>0),
+          record_id INTEGER NOT NULL CHECK(record_id>0),
+          deleted_at TEXT NOT NULL,
+          actor_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          PRIMARY KEY(entity,record_id)`,
+        'entity,record_id,deleted_at,actor_id,label',
+      );
+    },
   },
 ];

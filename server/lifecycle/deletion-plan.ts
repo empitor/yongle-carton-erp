@@ -2,13 +2,7 @@ import { z } from 'zod';
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
 import type { Store } from '../core/index.js';
 import { AppError, many, one, parseStoredJson, previewDigest } from '../core/index.js';
-import {
-  deletionColumns,
-  deletionMirror,
-  deletionPlanners,
-  requireDeletionModules,
-  requireDeletionTables,
-} from '../core/index.js';
+import { deletionColumns, deletionMirror, deletionPlanners, requireDeletionTables, requireRecordDeletionHook } from '../core/index.js';
 import type { DeletionGraph, DeletionRow as Row } from '../core/index.js';
 import { deletionSelection, flowDocumentContent, flowDocumentSchema, flowKinds } from '../../shared/business/index.js';
 import { impactList, inventoryFigures } from './deletion-impact.js';
@@ -265,8 +259,7 @@ function independentImpact(table: string, selection: Selection, deletions: Delet
 
 /** 算一次删除的范围（不写库）：预览和真删前各算一次，两次的摘要要一样 */
 export function planDeletion(store: Store, raw: unknown) {
-  // 各模块的删除规则由它们加载时登记；这几个是删除引擎自己引用的模块，必然已加载，少了说明登记坏了
-  requireDeletionModules(['基础', '采购库存', '单据流转', '业务汇总']);
+  // 各模块的删除规则由它们加载时登记；不按模块名点名，规划完按要删、要改的表查登记（下面 requireDeletionTables）
   const selection = deletionSelection.parse(raw),
     db = store.db;
   const table = flowKinds.some((k) => k === selection.module) ? 'flow_documents' : selection.module;
@@ -276,9 +269,9 @@ export function planDeletion(store: Store, raw: unknown) {
   runPlanners(state.g, foreignKeyStep(state, facts));
   const deletions = state.deletions(),
     updates = state.updates();
-  // 预览时就查：要删、要改的每张表都有主人登记了写法；要删订单，识别导入要配合给导入记录打标记
+  // 预览时就查：要删、要改的每张表都有主人登记了写法；要删订单，要有模块登记删前配合（识别导入给导入记录打标记）
   requireDeletionTables(new Set([...deletions, ...updates].map((r) => r.table)));
-  if (deletions.some((r) => r.table === 'orders')) requireDeletionModules(['识别导入']);
+  if (deletions.some((r) => r.table === 'orders')) requireRecordDeletionHook('orders');
   const impact = impactList(state.g, deletions, updates, state.documentFields);
   const digest = previewDigest({
     selection,

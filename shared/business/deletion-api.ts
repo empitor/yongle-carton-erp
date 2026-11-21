@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import type { deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema } from './deletion-request.js';
 
 /*
- * 业务界面删除的接口表（服务端 server/business/deletion-router.ts，挂在 /api/deletions 下；前端 src/recordkit/record-api.ts）。
+ * 业务界面删除的接口表（服务端 server/lifecycle/deletion-router.ts，挂在 /api/deletions 下；前端 src/recordkit/record-api.ts）。
  * 表的写法见 shared/core/api-table.ts。正文照服务端的 zod 规则（deletion-request.ts）的输入写，服务端照样先校验。
  */
 

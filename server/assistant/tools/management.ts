@@ -7,7 +7,7 @@ import { withDimensionConversion } from '../management-dimensions.js';
 import { requireLocalAdministrator } from '../../core/index.js';
 import { recordContext } from '../../business/index.js';
 import { deletionSelection } from '../../../shared/business/index.js';
-import { DatabaseMaintenanceService } from '../../business/index.js';
+import { DatabaseMaintenanceService } from '../../lifecycle/index.js';
 import { BusinessReset } from '../../admin/index.js';
 import { businessResetSchema, workspaceCommandSchema } from '../../../shared/admin/index.js';
 import { importStateLabel, type ImportWorkspaceView } from '../../../shared/import/index.js';

@@ -11,7 +11,7 @@ export type Layer = { name: string; paths: string[] };
 /** layers：模块内部从下往上分层，同一模块里只能引同层或下层（module-boundaries 查）；模块的每个文件都要落在某一层，入口 index.ts、pages.ts 可以不登记 */
 export type Rule = { name: string; paths: string[]; allow: string[]; layers?: Layer[] };
 
-/** 共用业务规则（shared/business）按服务端三层分的文件 */
+/** 共用业务规则（shared/business）按服务端四层分的文件 */
 const business = (names: string[]) => names.map((n) => 'shared/business/' + n + '.ts');
 
 // 越往下越基础。paths 按最长前缀匹配；目录写到末尾的斜杠，单个文件写全名。
@@ -22,10 +22,11 @@ export const modules: Rule[] = [
   { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
   // 系统资料：运行日志、登录记录、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
   { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
-  // 业务主线分三层，只能往下：采购库存 ← 单据流转 ← 业务汇总
+  // 业务主线分四层，只能往下：采购库存 ← 单据流转 ← 删除归档 ← 业务汇总
   { name: '采购库存', paths: ['server/operations/'], allow: ['基础', '共用-基础', '共用-业务'] },
   { name: '单据流转', paths: ['server/flow/'], allow: ['基础', '采购库存', '共用-基础', '共用-业务'] },
-  { name: '业务汇总', paths: ['server/business/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
+  { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
+  { name: '业务汇总', paths: ['server/business/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
   // 财务用单据流转只许经只读窗口 financeFacts（module-narrow-refs.test.ts）
   { name: '财务', paths: ['server/finance/'], allow: ['基础', '单据流转', '共用-基础', '共用-业务', '共用-财务'] },
   {
@@ -42,19 +43,19 @@ export const modules: Rule[] = [
     name: '数据管理',
     paths: ['server/admin/'],
     // 识别导入只引类型：识别导入的管理对象由装配传进来
-    allow: ['基础', '采购库存', '单据流转', '业务汇总', '识别导入', '共用-基础', '共用-业务', '共用-管理'],
+    allow: ['基础', '采购库存', '单据流转', '删除归档', '业务汇总', '识别导入', '共用-基础', '共用-业务', '共用-管理'],
   },
   {
     name: '助手',
     paths: ['server/assistant/'],
-    allow: ['基础', 'AI接入', '系统资料', '采购库存', '单据流转', '业务汇总', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
+    allow: ['基础', 'AI接入', '系统资料', '采购库存', '单据流转', '删除归档', '业务汇总', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
   },
   // 服务端根目录只放启动、装配和命令行入口，可以引用全部（只算根目录的文件，新建的子目录要登记进上面的模块）
   { name: '装配', paths: ['server/'], allow: ['*'] },
   // 前后端共用，和服务端同一套分法
   { name: '共用-基础', paths: ['shared/core/'], allow: [] },
   {
-    // 一个平铺的目录，按文件分成和服务端一样的三层；服务端这三层用它时也只能用同层或下层的文件（经 index.ts 引的名字按来源文件算）
+    // 一个平铺的目录，按文件分成和服务端一样的四层；服务端这四层用它时也只能用同层或下层的文件（经 index.ts 引的名字按来源文件算）
     name: '共用-业务',
     paths: ['shared/business/'],
     allow: ['共用-基础'],
@@ -75,11 +76,17 @@ export const modules: Rule[] = [
         ]),
       },
       {
+        // 删除的请求、叫法和清单标题，档案批量归档的接口表；能删的记录种类就是数据管理的模块（data-management-modules）
+        name: '删除归档',
+        paths: business([
+          'deletion-api', 'deletion-request', 'deletion-words', 'deletion-headline', 'lifecycle-api', 'data-management-modules',
+        ]),
+      },
+      {
         name: '业务汇总',
         paths: business([
-          'records-api', 'record-queries', 'deletion-api', 'deletion-request', 'deletion-words', 'deletion-headline', 'mark-api',
-          'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain', 'product-family', 'history-fields',
-          'history-text', 'record-history', 'record-changes', 'data-management-modules', 'data-management-templates',
+          'records-api', 'record-queries', 'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
+          'product-family', 'history-fields', 'history-text', 'record-history', 'record-changes', 'data-management-templates',
         ]),
       },
     ],
@@ -100,7 +107,7 @@ export const modules: Rule[] = [
   { name: '前端-单据导出', paths: ['src/documents/'], allow: ['前端-基础', '共用-基础', '共用-单据'] },
   {
     // 业务主线的前端按界面角色分四层，只往下用：上层嵌下层的窗口，下层要打开上层的页面用页面地址，不引上层的代码。
-    // 单据在采购仓储下面（采购、仓储页面要显示到货单、送货单，单据窗口用不着采购窗口），和服务端三层的顺序不同。
+    // 单据在采购仓储下面（采购、仓储页面要显示到货单、送货单，单据窗口用不着采购窗口），和服务端业务主线的顺序不同。
     name: '前端-业务',
     paths: ['src/records/', 'src/recordkit/', 'src/flow/', 'src/warehouse/', 'src/operations/', 'src/editors/', 'src/marks/'],
     allow: ['前端-基础', '前端-单据导出', '共用-基础', '共用-业务', '共用-单据'],

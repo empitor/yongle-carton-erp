@@ -7,7 +7,7 @@ import { Store } from '../server/core/db.js';
 import { maker, newSettings, postDrafts, physical } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
+import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
 import { FinanceParties } from '../server/finance/parties.js';

@@ -167,11 +167,16 @@ test('审计、归档标记、墓碑：来源只有四种入口，动作、对�
     rejects(db, audit, [now, 'x', '虚构', 'page', 'create', '', 1, '{}']);
     rejects(db, audit, [now, 'x', '虚构', 'page', 'create', 'customers', 0, '{}']);
     rejects(db, audit, [now, 'x', '虚构', 'page', 'create', 'customers', 1, '{bad']);
+    // 归档标记、墓碑的记录种类不列枚举（各模块登记，写入前由程序核对），库里只要求不为空
     const lifecycle = 'INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES(?,?,?,?)';
     accepts(db, lifecycle, ['flow_delivery', 1, now, 'x']);
+    accepts(db, lifecycle, ['以后新加的种类', 1, now, 'x']);
     rejects(db, lifecycle, ['customers', 0, now, 'x']);
+    rejects(db, lifecycle, ['', 2, now, 'x']);
     const tombstone = 'INSERT INTO permanent_record_deletions(entity,record_id,deleted_at,actor_id,label) VALUES(?,?,?,?,?)';
     accepts(db, tombstone, ['stock_items', 1, now, 'x', '虚构']);
+    accepts(db, tombstone, ['以后新加的种类', 1, now, 'x', '虚构']);
+    rejects(db, tombstone, ['', 2, now, 'x', '虚构']);
   });
 });
 
