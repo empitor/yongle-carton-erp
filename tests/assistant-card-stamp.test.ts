@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { updateDocumentInfo } from '../server/flow/index.js';
+import { planStamp } from '../server/assistant/card-stamp.js';
 import { customerSchema, orderSchema } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
@@ -174,5 +175,49 @@ test('卡片要把任务计划数改到已登记的完工数以下：出卡片�
     assert.equal(tools.flow.get(task.id, 'task').quantity, '1000', '被拒的没有执行');
   } finally {
     s.f.close();
+  }
+});
+
+/** 只看数据版本（card-stamp.ts 的 planStamp）：按模块绑定的卡片，别的模块的数据变了不作废，本模块的变了才作废 */
+test('按模块绑定的数据版本：原材料的不受成品出入库影响，成品的随成品库存变；客户的不受库存和单据影响', () => {
+  const { f, who, tools, base, rawItem, stockIn } = setup();
+  try {
+    const p = base.product({ name: '虚构绑定纸箱' }),
+      finished = saved.parse(base.finished(p, { name: '虚构绑定成品' })),
+      raw = rawItem('虚构绑定纸板'),
+      supplier = saved.parse(base.supplier({ name: '虚构绑定供应商' }));
+    base.customer({ name: '虚构绑定客户' });
+    const stampOf = (module?: string) => JSON.stringify(planStamp(f.store, { args: module ? { module } : {} }));
+    const seen = { raw: stampOf('raw_inventory'), finished: stampOf('finished_inventory'), customers: stampOf('customers'), none: stampOf() };
+    stockIn(finished.id, '10');
+    tools.flow.save('arrival', { date: '2026-10-20', supplierId: supplier.id, reference: '虚构样品', lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity: '3' }] }, who);
+    assert.equal(stampOf('raw_inventory'), seen.raw, '成品入库、登记待入库的到货不动原材料的绑定');
+    assert.equal(stampOf('customers'), seen.customers, '库存、单据变了不动客户的绑定');
+    assert.notEqual(stampOf('finished_inventory'), seen.finished, '成品库存变了');
+    assert.notEqual(stampOf(), seen.none, '不带模块的绑定看库存品和单据');
+    assert.equal(stampOf('movements'), stampOf(), '流水没有自己的绑定，按不带模块的取');
+  } finally {
+    f.close();
+  }
+});
+
+test('按模块绑定的数据版本：供应商改名、产品归档、生产任务改了，各自模块的绑定变，别的单据种类的不变', () => {
+  const { f, who, tools, base } = setup();
+  try {
+    const supplier = saved.parse(base.supplier({ name: '虚构改名供应商' })),
+      p = base.product({ name: '虚构归档纸箱' });
+    const task = { date: '2026-10-20', productId: p.id, quantity: '100', unit: '只', orderIds: [], notes: '' };
+    const issued = tools.flow.save('task', task, who);
+    const stampOf = (module: string) => JSON.stringify(planStamp(f.store, { args: { module } }));
+    const seen = { suppliers: stampOf('suppliers'), products: stampOf('products'), tasks: stampOf('production_tasks'), arrivals: stampOf('arrivals') };
+    tools.ops.saveSupplier({ name: '虚构改名后的供应商', version: supplier.version }, who, supplier.id);
+    tools.flow.save('task', { ...task, notes: '虚构改过', version: issued.version }, who, issued.id);
+    assert.notEqual(stampOf('suppliers'), seen.suppliers);
+    assert.notEqual(stampOf('production_tasks'), seen.tasks);
+    assert.equal(stampOf('arrivals'), seen.arrivals, '供应商改名、生产任务改了不动到货的绑定');
+    tools.commit(tools.prepare('records.propose_lifecycle', { module: 'products', id: p.id, action: 'archive' }, who, 'other'), who, 'other');
+    assert.notEqual(stampOf('products'), seen.products);
+  } finally {
+    f.close();
   }
 });

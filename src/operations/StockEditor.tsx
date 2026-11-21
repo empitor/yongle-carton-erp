@@ -115,13 +115,13 @@ function SaveError({ error, existing, close }: { error: string; existing: Existi
   );
 }
 
-/** 窗口标题、副标题和给助手认的模块名：新建按库存页当前的种类，修改按这个库存品 */
+/** 窗口标题、副标题和给助手认的记录种类（全站那一套，助手那边按原材料、成品换成它的模块名）：新建按库存页当前的种类，修改按这个库存品 */
 function editorHeading(value: StockItemView | undefined, kind: string, finished: boolean) {
   if (!value) return { title: '新建' + (kind === 'raw' ? '原材料' : '成品') + '库存品', subtitle: undefined, module: undefined };
   return {
     title: '编辑库存品',
     subtitle: (finished ? '成品' : '原材料') + ' · 现存 ' + value.quantity + ' ' + value.unit,
-    module: finished ? 'finished_inventory' : 'raw_inventory',
+    module: 'stock_items',
   };
 }
 

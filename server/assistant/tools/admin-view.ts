@@ -4,7 +4,8 @@ import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { accountLevelNames } from '../../../shared/core/index.js';
 import { botStateLabels } from '../../../shared/import/index.js';
-import { paging, requireSuperAdmin, SHORT_TEXT_CHARS, timeText, type ToolContext, type ToolReader } from './context.js';
+import { paging, requireSuperAdmin, SHORT_TEXT_CHARS, timeText, type ToolContext } from './context.js';
+import { readTool } from './define.js';
 
 /** 事件叫法最多几个字 */
 const EVENT_MAX_CHARS = 30;
@@ -17,35 +18,33 @@ const eventsSchema = z.strictObject({
 });
 
 export const adminViewTools = [
-  {
-    name: 'accounts.list',
-    risk: 'read',
-    description: '查账号：名字、级别、是否停用，不含密码。',
-    arguments: {},
-    schema: z.strictObject({}),
-  },
-  {
-    name: 'accounts.events',
-    risk: 'read',
-    description:
-      '查登录记录：登录成功、失败、被限流，进出超级管理员模式，改密码，账号申请的处理。可按时间、账号、事件叫法筛。',
-    arguments: { from: '可省略，2026-11-13', account: '可省略', event: '可省略，如 登录失败', limit: 20 },
-    schema: eventsSchema,
-  },
-  {
-    name: 'settings.view',
-    risk: 'read',
-    description:
-      '查各项设置：识别并发数、各家机器人（企业微信、飞书、钉钉）、部署方式和允许的域名、停用的插件和工具，不含密钥。模型和密钥用 ai.status，模板用 documents.templates，提示词用 prompts.get。',
-    arguments: {},
-    schema: z.strictObject({}),
-  },
-] as const;
+  readTool({ name: 'accounts.list', description: '查账号：名字、级别、是否停用，不含密码。', schema: z.strictObject({}) }, (ctx, _args, who) =>
+    listAccounts(ctx, who),
+  ),
+  readTool(
+    {
+      name: 'accounts.events',
+      description:
+        '查登录记录：登录成功、失败、被限流，进出超级管理员模式，改密码，账号申请的处理。可按时间、账号、事件叫法筛。',
+      schema: eventsSchema,
+    },
+    loginEvents,
+  ),
+  readTool(
+    {
+      name: 'settings.view',
+      description:
+        '查各项设置：识别并发数、各家机器人（企业微信、飞书、钉钉）、部署方式和允许的域名、停用的插件和工具，不含密钥。模型和密钥用 ai.status，模板用 documents.templates，提示词用 prompts.get。',
+      schema: z.strictObject({}),
+    },
+    (ctx, _args, who) => viewSettings(ctx, who),
+  ),
+];
 
 /** 级别叫法和界面同一份（shared/core/accounts.ts） */
 const levelNames: Record<string, string> = accountLevelNames;
 
-function listAccounts(ctx: ToolContext, _raw: unknown, who: Actor | null | undefined) {
+function listAccounts(ctx: ToolContext, who: Actor | null | undefined) {
   requireSuperAdmin(who, '账号');
   const rows = ctx.services.accounts.listAccounts();
   return {
@@ -54,8 +53,8 @@ function listAccounts(ctx: ToolContext, _raw: unknown, who: Actor | null | undef
   };
 }
 
-function loginEvents(ctx: ToolContext, raw: unknown, who: Actor | null | undefined) {
-  const r = ctx.services.loginRecords(who, eventsSchema.parse(raw ?? {}));
+function loginEvents(ctx: ToolContext, filter: z.output<typeof eventsSchema>, who: Actor | null | undefined) {
+  const r = ctx.services.loginRecords(who, filter);
   return {
     共: r.total,
     列表: r.items.map((e) => ({ 时间: e.time, 账号: e.account, 事件: e.event, ...(e.target ? { 处理的账号: e.target } : {}) })),
@@ -63,7 +62,7 @@ function loginEvents(ctx: ToolContext, raw: unknown, who: Actor | null | undefin
   };
 }
 
-function viewSettings(ctx: ToolContext, _raw: unknown, who: Actor | null | undefined) {
+function viewSettings(ctx: ToolContext, who: Actor | null | undefined) {
   const actor = requireSuperAdmin(who, '设置');
   const { ai, bots, deployment, registry } = ctx.services;
   const tools = registry.view(actor).tools;
@@ -85,9 +84,3 @@ function viewSettings(ctx: ToolContext, _raw: unknown, who: Actor | null | undef
     },
   };
 }
-
-export const adminViewReaders: Record<string, ToolReader> = {
-  'accounts.list': listAccounts,
-  'accounts.events': loginEvents,
-  'settings.view': viewSettings,
-};

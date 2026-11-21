@@ -88,13 +88,13 @@ export class AssistantPreviews {
             destructive: true,
             highRisk: true,
             // 和人工删除一样：本机最高管理员以外要再输一次密码；还没核对的单据不用
-            requiresPassword: !isLocalAdministrator(current) && !unconfirmedDeletion(this.store, plan),
+            requiresPassword: !isLocalAdministrator(current) && !unconfirmedDeletion(this.tools.flow, plan),
             // 要不要超级管理员模式（records.delete 删已核对的单据和档案，本机最高管理员不用）；
             // 是不是只能在服务器本机做（一键清空、识别工作区的删除）
             requiresSuperMode:
               plan.tool === 'records.delete' &&
               !isLocalAdministrator(current) &&
-              !unconfirmedDeletion(this.store, plan),
+              !unconfirmedDeletion(this.tools.flow, plan),
             localOnly: localOnlyPlan(plan),
           }
         : {}),
@@ -188,7 +188,7 @@ export class AssistantPreviews {
     if (!destructivePlan(plan)) return;
     if (review.automatic) throw new AppError('删除和清空操作只能由人在确认卡片上确认后执行。', 403, 'review-required');
     if (review.proxy && localOnlyPlan(plan)) throw new AppError(localOnlyMessage(plan.tool), 403, 'proxy-deletion');
-    if (!isLocalAdministrator(actor) && !review.passwordVerified && !unconfirmedDeletion(this.store, plan))
+    if (!isLocalAdministrator(actor) && !review.passwordVerified && !unconfirmedDeletion(this.tools.flow, plan))
       throw new AppError('删除操作需要输入当前账号密码确认。', 403, 'step-up');
   }
   /** 业务类方案：数据核对、执行、记回执在同一个事务里；要等的执行先提交同步的那一段，等结果出来再记回执 */

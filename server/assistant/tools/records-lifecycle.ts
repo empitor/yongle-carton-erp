@@ -4,6 +4,7 @@ import {
   deletionHeadline,
   deletionModuleTable,
   deletionSelection,
+  flowKinds,
   impactRowSchema,
   inventoryPolicies,
   type DeletionImpactRow,
@@ -12,20 +13,24 @@ import {
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Actor } from '../../core/index.js';
-import { many, requirePermission } from '../../core/index.js';
-import { archivedOrConflict, changeLifecycle } from '../../lifecycle/index.js';
+import { requirePermission } from '../../core/index.js';
+import { archivedOrConflict, businessRecords, changeLifecycle } from '../../lifecycle/index.js';
 import { archiveFlowDocuments } from '../../flow/index.js';
 import { AppError } from '../../core/index.js';
 import { DatabaseMaintenanceService } from '../../lifecycle/index.js';
 import { recordEntities } from '../../../shared/business/index.js';
+import { flowKindOfModule, moduleName, recordKindOf } from '../../../shared/assistant/index.js';
+import { recordArchiveInputSchema } from '../../../shared/core/index.js';
 import type { ToolPlan } from '../plan-rules.js';
-import { positive, type ToolContext, type ToolWriter } from './context.js';
+import { positive, type ToolContext } from './context.js';
+import { planTool } from './define.js';
 import { inSavepoint, rehearse } from '../../core/index.js';
-import { assistantModules, flowMap, moduleNames, moduleSchema, recordRow, recordVersion } from './modules.js';
+import { moduleSchema, recordRow, recordVersion } from './modules.js';
 
 /** 一次批量归档、恢复最多几条 */
 const BATCH_MAX = 100;
-const lifecycleAction = z.enum(['archive', 'restore']);
+/** 归档还是恢复：和页面批量归档同一份（shared/core/archive-input.ts） */
+const lifecycleAction = recordArchiveInputSchema.shape.action;
 /** 方案里存的归档、恢复参数（确认后执行时按它取；版本是出卡片时那条记录的） */
 const lifecycleArgs = z.object({ module: moduleSchema, id: positive, action: lifecycleAction, version: z.number().optional() });
 /** 删除方案里存的选择：哪种记录、哪几条（编号和版本） */
@@ -51,62 +56,65 @@ const deleteInput = z
     path: ['ids'],
   });
 
+const lifecycleSchema = z.strictObject({ module: moduleSchema, id: positive, action: lifecycleAction });
+const batchLifecycleSchema = z.strictObject({ module: moduleSchema, ids: z.array(positive).min(1).max(BATCH_MAX), action: lifecycleAction });
+
 export const recordLifecycleTools = [
-  {
-    name: 'records.delete',
-    description:
-      '删除记录：物理删除一条或几条时用（用户说“永久删除”也是它），不是归档、取消或冲销，归档用 records.propose_lifecycle。删一条给 id，几条给 ids（同一种记录，最多 ' +
-      DELETION_MAX_RECORDS +
-      ' 条）。关联在事务里级联或解除，删前自动留快照；已有到货的采购单也能删，到货单和库存流水保留。服务器出一张“确认执行”卡片，人在卡片上确认后才删，回复说待确认，不要说已删除。',
-    arguments: {
-      module: assistantModules.filter((m) => m !== 'movements'),
-      id: '删一条时给',
-      ids: ['一次删几条时给'],
-      inventoryPolicy: 'preserve/recalculate',
+  planTool(
+    {
+      name: 'records.delete',
+      description:
+        '删除记录：物理删除一条或几条时用（用户说“永久删除”也是它），不是归档、取消或冲销，归档用 records.propose_lifecycle。删一条给 id，几条给 ids（同一种记录，最多 ' +
+        DELETION_MAX_RECORDS +
+        ' 条）。关联在事务里级联或解除，删前自动留快照；已有到货的采购单也能删，到货单和库存流水保留。服务器出一张“确认执行”卡片，人在卡片上确认后才删，回复说待确认，不要说已删除。',
+      risk: 'review',
+      schema: deleteInput,
     },
-    risk: 'review',
-    schema: deleteInput,
-  },
-  {
-    name: 'records.propose_batch_lifecycle',
-    description:
-      '批量归档或恢复（最多 100 条），全部成功或全部回滚；流水不能归档。',
-    arguments: {
-      module: assistantModules.filter((m) => m !== 'movements'),
-      ids: ['正整数'],
-      action: ['archive', 'restore'],
+    {
+      build: buildDelete,
+      // 一次几条也是交给删除引擎一次删（和页面批量删除同一个服务函数）：先拍快照、逐条记审计、同一请求编号只删一次
+      commit: (ctx, plan, actor, binding) => new DatabaseMaintenanceService(ctx.store).delete(plan.args, actor, binding),
+      stamp: deletionStamp,
     },
-    risk: 'high',
-    schema: z.strictObject({
-      module: moduleSchema,
-      ids: z.array(positive).min(1).max(BATCH_MAX),
-      action: lifecycleAction,
-    }),
-  },
-  {
-    name: 'records.propose_lifecycle',
-    description:
-      '归档或恢复一条记录，不是删除，历史引用保留；归档要满足对应的完成条件。',
-    arguments: { module: assistantModules, id: '正整数', action: ['archive', 'restore'] },
-    risk: 'review',
-    schema: z.strictObject({
-      module: moduleSchema,
-      id: positive,
-      action: z.enum(['archive', 'restore']),
-    }),
-  },
+  ),
+  planTool(
+    {
+      name: 'records.propose_batch_lifecycle',
+      description: '批量归档或恢复（最多 100 条），全部成功或全部回滚；流水不能归档。',
+      risk: 'high',
+      schema: batchLifecycleSchema,
+    },
+    {
+      build: buildBatchLifecycle,
+      // 逐条按单条归档、恢复的同一个执行函数办，整批在一个事务里
+      commit: (ctx, plan, actor) => {
+        const { children } = z.object({ children: z.array(z.object({ args: lifecycleArgs })) }).parse(plan.args);
+        return inSavepoint(ctx.store.db, () => children.map((child) => commitLifecycle(ctx, child.args, actor)));
+      },
+    },
+  ),
+  planTool(
+    {
+      name: 'records.propose_lifecycle',
+      description: '归档或恢复一条记录，不是删除，历史引用保留；归档要满足对应的完成条件。',
+      risk: 'review',
+      schema: lifecycleSchema,
+    },
+    {
+      build: buildLifecycle,
+      commit: (ctx, plan, actor) => commitLifecycle(ctx, lifecycleArgs.parse(plan.args), actor),
+    },
+  ),
 ];
 
-function buildDelete(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
-  const v = deleteInput.parse(raw);
+function buildDelete(ctx: ToolContext, tool: string, v: z.output<typeof deleteInput>, actor: Actor): ToolPlan {
   // 能删什么和人工一样由删除服务判断：草稿有编辑权限就能删，其余要超级管理员模式
   const before = (v.ids ?? (v.id === undefined ? [] : [v.id])).map((id) => {
     const row = recordRow(ctx, v.module, actor, true, id);
     if (!row) throw new AppError('记录不存在：编号 ' + id + '。', 404);
     return row;
   });
-  const module =
-    flowMap[v.module] || (v.module.includes('inventory') ? 'stock_items' : v.module);
+  const module = recordKindOf(v.module);
   const selection = {
     module,
     items: before.map((row) => ({ id: row.id, version: recordVersion(row) })),
@@ -124,20 +132,13 @@ function buildDelete(ctx: ToolContext, tool: string, raw: unknown, actor: Actor)
   };
 }
 
-function buildLifecycle(ctx: ToolContext, tool: string, raw: unknown, actor: Actor, binding: string): ToolPlan {
-  const v = z
-      .strictObject({
-        module: moduleSchema,
-        id: positive,
-        action: z.enum(['archive', 'restore']),
-      })
-      .parse(raw),
-    before = recordRow(ctx, v.module, actor, v.action === 'restore', v.id);
+function buildLifecycle(ctx: ToolContext, tool: string, v: z.output<typeof lifecycleSchema>, actor: Actor, binding: string): ToolPlan {
+  const before = recordRow(ctx, v.module, actor, v.action === 'restore', v.id);
   if (!before) throw new AppError('记录不存在。', 404);
   const plan: ToolPlan = {
     tool,
     args: { ...v, version: recordVersion(before) },
-    label: (v.action === 'archive' ? '归档' : '恢复') + moduleNames[v.module],
+    label: (v.action === 'archive' ? '归档' : '恢复') + moduleName(v.module),
     highRisk: false,
     before,
     after: null,
@@ -147,14 +148,7 @@ function buildLifecycle(ctx: ToolContext, tool: string, raw: unknown, actor: Act
   return plan;
 }
 
-function buildBatchLifecycle(ctx: ToolContext, tool: string, raw: unknown, actor: Actor, binding: string): ToolPlan {
-  const v = z
-    .strictObject({
-      module: moduleSchema,
-      ids: z.array(positive).min(1).max(BATCH_MAX),
-      action: lifecycleAction,
-    })
-    .parse(raw);
+function buildBatchLifecycle(ctx: ToolContext, tool: string, v: z.output<typeof batchLifecycleSchema>, actor: Actor, binding: string): ToolPlan {
   if (new Set(v.ids).size !== v.ids.length || v.module === 'movements')
     throw new AppError('记录重复或模块不支持批量归档。');
   const children = v.ids.map((id) =>
@@ -168,7 +162,7 @@ function buildBatchLifecycle(ctx: ToolContext, tool: string, raw: unknown, actor
   return {
     tool,
     args: { module: v.module, children },
-    label: `批量${v.action === 'restore' ? '恢复' : '归档'}${moduleNames[v.module]}`,
+    label: `批量${v.action === 'restore' ? '恢复' : '归档'}${moduleName(v.module)}`,
     highRisk: true,
     before: children.map((p) => p.before),
     after: children.map((p) => p.after),
@@ -191,8 +185,13 @@ function deletionLabel(module: string, before: unknown, impact: DeletionImpactRo
 
 /** 删除卡片核对用的：哪种记录、每条的编号和出卡片时的版本、库存怎么处理（方案里另有的摘要、请求编号不看） */
 const stampArgs = z.object(deletionSelection.shape);
-const versionRow = z.object({ id: z.number(), version: z.number() });
 const previewRows = z.object({ impact: z.array(impactRowSchema) });
+/** 选中的那几条现在的版本号（按编号读：单据按种类、档案按删除归档按类型读的；不在了的没有） */
+function currentVersions(ctx: ToolContext, module: string, ids: readonly number[]) {
+  const kind = flowKinds.find((k) => k === module);
+  const found = kind ? ctx.flow.list(kind, true, undefined, ids) : isRecordEntity(module) ? businessRecords(ctx.store, module, ids, true) : [];
+  return new Map(found.map((r) => [r.id, r.version]));
+}
 /** 删除预览里选中的那几条的叫法（单号或名称）：卡片作废时说出是哪一条变了 */
 function selectedNames(after: unknown, module: string) {
   const table = deletionModuleTable(module);
@@ -211,9 +210,7 @@ function deletionStamp(ctx: ToolContext, plan: ToolPlan, actor: Actor) {
   const selection = stampArgs.parse(plan.args),
     service = new DatabaseMaintenanceService(ctx.store);
   service.deletionAccess(actor, selection);
-  const ids = selection.items.map((i) => i.id);
-  const sql = 'SELECT id,version FROM ' + deletionModuleTable(selection.module) + ' WHERE id IN (' + ids.map(() => '?').join(',') + ')';
-  const now = new Map(many(ctx.store.db, versionRow, sql, ...ids).map((r) => [r.id, r.version]));
+  const now = currentVersions(ctx, selection.module, selection.items.map((i) => i.id));
   const names = selectedNames(plan.after, selection.module);
   const records = selection.items.map((i) => ({ id: i.id, name: names.get(i.id), version: now.get(i.id) ?? null }));
   if (selection.items.some((i) => now.get(i.id) !== i.version)) return { records };
@@ -244,29 +241,8 @@ export function withInventoryPolicy(
 /** 归档、恢复一条：档案和单据都是 server/core/archive.ts 那一份做法，各模块只给“什么时候不能归档” */
 function commitLifecycle(ctx: ToolContext, a: z.output<typeof lifecycleArgs>, actor: Actor) {
   const body = { action: a.action, acknowledged: true, items: [{ id: a.id, version: a.version }] };
-  const entity = a.module.includes('inventory') ? 'stock_items' : a.module;
-  if (flowMap[a.module]) return archivedOrConflict(archiveFlowDocuments(ctx.flow, body, actor));
+  const entity = recordKindOf(a.module);
+  if (flowKindOfModule(a.module)) return archivedOrConflict(archiveFlowDocuments(ctx.flow, body, actor));
   if (isRecordEntity(entity)) return archivedOrConflict(changeLifecycle(ctx.store, entity, body, actor));
   throw new AppError('不支持归档此模块。');
 }
-
-export const recordLifecycleWriters: Record<string, ToolWriter> = {
-  'records.delete': {
-    build: buildDelete,
-    // 一次几条也是交给删除引擎一次删（和页面批量删除同一个服务函数）：先拍快照、逐条记审计、同一请求编号只删一次
-    commit: (ctx, plan, actor, binding) => new DatabaseMaintenanceService(ctx.store).delete(plan.args, actor, binding),
-    stamp: deletionStamp,
-  },
-  'records.propose_lifecycle': {
-    build: buildLifecycle,
-    commit: (ctx, plan, actor) => commitLifecycle(ctx, lifecycleArgs.parse(plan.args), actor),
-  },
-  'records.propose_batch_lifecycle': {
-    build: buildBatchLifecycle,
-    // 逐条按单条归档、恢复的同一个执行函数办，整批在一个事务里
-    commit: (ctx, plan, actor) => {
-      const { children } = z.object({ children: z.array(z.object({ args: lifecycleArgs })) }).parse(plan.args);
-      return inSavepoint(ctx.store.db, () => children.map((child) => commitLifecycle(ctx, child.args, actor)));
-    },
-  },
-};

@@ -26,7 +26,7 @@ export { describeSchema, normalizeSql, schemaFingerprint } from './describe.js';
 export { SchemaError } from './errors.js';
 export { optimizeDatabase, reclaimSpace } from './pragmas.js';
 export { upgradeSteps } from './steps.js';
-export { SNAPSHOT_DIRECTORY, STAMP_PATTERN, stamp, stampTime, upgradeSchema } from './upgrade.js';
+export { SNAPSHOT_DIRECTORY, STAMP_PATTERN, currentSchemaVersion, stamp, stampTime, upgradeSchema } from './upgrade.js';
 export type { UpgradeStep } from './upgrade.js';
 export { SCHEMA_APPLICATION_ID, SCHEMA_BASELINE, SCHEMA_LATEST } from './version.js';
 

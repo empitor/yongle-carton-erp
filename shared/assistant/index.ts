@@ -1,7 +1,9 @@
 // 对外接口：别的模块只能从这里引用这个模块
 export { assistantManagementSchema } from './assistant-management.js';
+export { assistantModules, flowKindOfModule, isAssistantModule, moduleName, moduleOfRecord, recordKindOf, stockKindOf } from './assistant-modules.js';
+export type { AssistantModule } from './assistant-modules.js';
 export { aiSettingsTab, assistantManagementHash, erpPageIds, financePageTargets, isErpNavigation, navigationTargets, pageLink } from './assistant-navigation.js';
-export { pageObserveSchema, pageSnapshotSchema, pageTools } from './assistant-page.js';
+export { pageObserveSchema, pageSnapshotSchema } from './assistant-page.js';
 export type { PageObserveOptions, PageSnapshot } from './assistant-page.js';
 export { DEFAULT_SPEAKER, readSpeaker, speakerForTools, speakerNames, speakerPairName } from './assistant-personas.js';
 export type { AssistantSpeaker } from './assistant-personas.js';

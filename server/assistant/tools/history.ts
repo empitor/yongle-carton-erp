@@ -6,7 +6,8 @@ import { AppError } from '../../core/index.js';
 import { auditTrail, recordContext } from '../../business/index.js';
 import { DAY_MS, dateSchema } from '../../../shared/core/index.js';
 import { dataManagementModules, flowStatusText, historyActionName, isFlowKind, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
-import { clip, paging, positive, requireSuperAdmin, SHORT_TEXT_CHARS, type ToolContext, type ToolReader } from './context.js';
+import { clip, paging, positive, requireSuperAdmin, SHORT_TEXT_CHARS, type ToolContext } from './context.js';
+import { readTool } from './define.js';
 
 /** 两种查法：按记录，或按时间段（可加人） */
 const HOW_TO_QUERY = '按记录查传 module 和 id；按人、按时间查传 from 和 to（YYYY-MM-DD），可加 person';
@@ -23,15 +24,16 @@ const historySchema = z
   .refine((v) => (v.module ? !!v.id : !!v.from && !!v.to), HOW_TO_QUERY);
 
 export const historyTools = [
-  {
-    name: 'history.records',
-    risk: 'read',
-    description:
-      '查修改历史：谁什么时候改了什么。传 module 和 id 查一条记录的关联单据和修改历史；传 from/to（北京时间，含两头）、可加 person，按时间段查。',
-    arguments: { module: 'orders', id: 1, from: '或改传 2026-11-01', to: '2026-11-13', person: '可省略', limit: 20, offset: 0 },
-    schema: historySchema,
-  },
-] as const;
+  readTool(
+    {
+      name: 'history.records',
+      description:
+        '查修改历史：谁什么时候改了什么。传 module 和 id 查一条记录的关联单据和修改历史；传 from/to（北京时间，含两头）、可加 person，按时间段查。',
+      schema: historySchema,
+    },
+    readHistory,
+  ),
+];
 
 const moduleName = (module: string) => recordNames[module] ?? module;
 /** 单据的审计挂在 flow_<模块> 上 */
@@ -57,8 +59,7 @@ function historyText(h: Entry, module: string, refs: HistoryRefs, recordId?: num
   };
 }
 
-function readHistory(ctx: ToolContext, raw: unknown, who: Actor | null | undefined) {
-  const v = historySchema.parse(raw ?? {});
+function readHistory(ctx: ToolContext, v: z.output<typeof historySchema>, who: Actor | null | undefined) {
   const { module, id, from, to } = v;
   // 结构上的检查（refine）保证：传了 module 就有 id，没传 module 就有 from 和 to
   if (module && id) {
@@ -101,5 +102,3 @@ function readHistory(ctx: ToolContext, raw: unknown, who: Actor | null | undefin
     还有更多: v.offset + t.history.length < t.total,
   };
 }
-
-export const historyReaders: Record<string, ToolReader> = { 'history.records': readHistory };

@@ -2,13 +2,15 @@
 // 和按筛选条件挑记录：各模块共用的条件读记录上的字段，订单、采购单、单据各自的状态、待办、日期范围用各自的类型。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { ISO_DATE_LENGTH, dateSchema, deliverableOrder, orderInView, orderViews, shippingProgresses } from '../../../shared/core/index.js';
+import { ISO_DATE_LENGTH, dateSchema, deliverableOrder, displayOrderStatuses, orderViews, shippingProgresses } from '../../../shared/core/index.js';
 import {
   SEARCH_MAX_LENGTH,
   arrivalProgresses,
   arrivalProgressText,
   matchesFlowSaying,
   matchesFlowStatus,
+  orderInRange,
+  orderStatusMatches,
   pendingPurchase,
   purchaseBusinessStatuses,
   purchaseState,
@@ -16,10 +18,13 @@ import {
   type FlowKind,
 } from '../../../shared/business/index.js';
 import { MONTHS_MAX, fieldList, isFields, positive, type Fields, type ToolContext } from './context.js';
+import { stockKindOf } from '../../../shared/assistant/index.js';
 import { recordRows, type Module, type ModuleRows } from './modules.js';
 
 /** 状态叫法最多几个字（按单号、名称、规格找的字和列表筛选同一个上限 SEARCH_MAX_LENGTH） */
 const STATUS_MAX_CHARS = 40;
+/** 查哪些记录：没归档的、已归档的、全部（records.get 也用） */
+export const recordLifecycles = ['active', 'archived', 'all'] as const;
 
 /**
  * 查记录、汇总能用的筛选键：给模型看的参数结构和执行时的校验用同一份，写错键时报错里列出能用的，不接受别名。
@@ -31,7 +36,11 @@ const filterShape = {
   supplierId: positive.optional(),
   productId: positive.optional(),
   stockId: positive.optional(),
-  status: z.string().max(STATUS_MAX_CHARS).optional(),
+  status: z
+    .string()
+    .max(STATUS_MAX_CHARS)
+    .optional()
+    .describe('状态，用页面上的叫法。订单可选：' + displayOrderStatuses.join('、')),
   businessStatus: z.enum(purchaseBusinessStatuses).optional(),
   arrivalProgress: z.enum(arrivalProgresses).optional(),
   shippingProgress: z.enum(shippingProgresses).optional(),
@@ -40,7 +49,7 @@ const filterShape = {
   end: dateSchema.optional(),
   months: z.number().int().min(1).max(MONTHS_MAX).optional(),
   archived: z.boolean().optional(),
-  lifecycle: z.enum(['active', 'archived', 'all']).optional(),
+  lifecycle: z.enum(recordLifecycles).optional(),
   view: z.enum([...orderViews, 'all']).optional(),
   kind: z.enum(stockKinds).optional(),
   direction: z.enum(['in', 'out']).optional(),
@@ -55,13 +64,16 @@ export type RecordFilters = z.output<typeof filterSchema>;
 /** 各模块共用的条件按字段名读记录（Fields：模块不同，字段不同） */
 const text = (v: unknown) => (typeof v === 'string' ? v : '');
 
-/** 订单、采购单、单据各自的判断：额外认的状态叫法、待办（null 用通用的）、日期范围（null 用通用的） */
+/** 各模块的判断：状态合不合（没给状态的不看它）、待办（null 用通用的）、日期范围（null 用通用的） */
 type Specific = { status: boolean; pending: boolean | null; inView: boolean | null };
-const generic: Specific = { status: false, pending: null, inView: null };
+/** 通用的状态比法：记录上的状态、发货进度、到货进度、采购业务状态有一个是这个字就算 */
+const statusFields = (r: Fields, status: string) =>
+  r.status === status || r.shippingProgress === status || r.arrivalProgress === status || r.businessStatus === status;
+const generic = (r: Fields, f: RecordFilters): Specific => ({ status: !!f.status && statusFields(r, f.status), pending: null, inView: null });
 /** 筛选的现场：模块、筛选条件、按订单或采购单关联出来的产品或库存品编号（没有是 null） */
 export type FilterScope = { module: Module; f: RecordFilters; partyIds: Set<number> | null };
 
-const isInventory = (module: Module) => module === 'raw_inventory' || module === 'finished_inventory';
+const isInventory = (module: Module) => !!stockKindOf(module);
 
 /** 按单号、名称、规格找：这些字段和明细里的品名、规格、备注拼起来，含这个字就算 */
 function textMatch(r: Fields, q: string) {
@@ -97,16 +109,7 @@ function stockMatch(r: Fields, s: FilterScope) {
     fieldList(r.materials).some((m) => m.stockId === f.stockId)
   );
 }
-function statusMatch(r: Fields, f: RecordFilters, specific: Specific) {
-  if (!f.status) return true;
-  return (
-    r.status === f.status ||
-    r.shippingProgress === f.status ||
-    r.arrivalProgress === f.status ||
-    r.businessStatus === f.status ||
-    specific.status
-  );
-}
+const statusMatch = (f: RecordFilters, specific: Specific) => !f.status || specific.status;
 function pendingMatch(r: Fields, f: RecordFilters, specific: Specific) {
   if (!f.pending) return true;
   if (specific.pending !== null) return specific.pending;
@@ -138,18 +141,21 @@ function rowMatches(r: Fields, s: FilterScope, specific: Specific) {
     textMatch(r, (s.f.q || '').toLowerCase()) &&
     partyMatch(r, s) &&
     stockMatch(r, s) &&
-    statusMatch(r, s.f, specific) &&
+    statusMatch(s.f, specific) &&
     pendingMatch(r, s.f, specific) &&
     dateMatch(r, s, specific)
   );
 }
 
-/** 订单：“已完成”等同已发货，“部分发货”按发货进度；待办和日期范围按订单自己的规则 */
+/**
+ * 订单：状态和范围的判断和页面订单列表同一份（shared/business/order-filter.ts），状态只认页面上的叫法
+ * （records-read.ts 先核对过）；待办是还能送的订单
+ */
 function orderSpecific(r: ModuleRows['orders'][number], f: RecordFilters): Specific {
   return {
-    status: (f.status === '已完成' && r.status === '已发货') || (f.status === '部分发货' && r.shippingProgress === '部分发货'),
+    status: orderStatusMatches(r, f.status),
     pending: deliverableOrder(r),
-    inView: orderInView(r, {
+    inView: orderInRange(r, {
       view: f.view === 'all' ? undefined : f.view,
       start: f.start,
       end: f.end,
@@ -160,7 +166,7 @@ function orderSpecific(r: ModuleRows['orders'][number], f: RecordFilters): Speci
 /** 采购单：页面上的叫法（待到货 / 已到齐），到货进度也认页面叫法 */
 function purchaseSpecific(r: ModuleRows['purchases'][number], f: RecordFilters): Specific {
   return {
-    status: !!f.status && (purchaseState(r) === f.status || arrivalProgressText(r.arrivalProgress) === f.status),
+    status: !!f.status && (statusFields(r, f.status) || purchaseState(r) === f.status || arrivalProgressText(r.arrivalProgress) === f.status),
     pending: pendingPurchase(r),
     inView: null,
   };
@@ -169,10 +175,10 @@ function purchaseSpecific(r: ModuleRows['purchases'][number], f: RecordFilters):
  * 单据：界面叫法（和列表的状态筛选同一个比法）；人说的旧叫法（已确认收货、已冲销这类）按存的状态认
  * （shared/business/physical-flow.ts 的 matchesFlowSaying），界面上不再显示这些词
  */
-function flowSpecific(r: Parameters<typeof matchesFlowStatus>[0], kind: FlowKind, f: RecordFilters): Specific {
+function flowSpecific(r: Parameters<typeof matchesFlowStatus>[0] & Fields, kind: FlowKind, f: RecordFilters): Specific {
   const wanted = f.status;
-  if (!wanted) return { ...generic, status: false };
-  return { ...generic, status: matchesFlowSaying(r, kind, wanted) ?? matchesFlowStatus(r, kind, wanted) };
+  if (!wanted) return generic(r, f);
+  return { ...generic(r, f), status: statusFields(r, wanted) || (matchesFlowSaying(r, kind, wanted) ?? matchesFlowStatus(r, kind, wanted)) };
 }
 
 /** 筛出来的记录，带着模块（汇总按模块用各自的类型） */
@@ -180,8 +186,8 @@ export type MatchedRows = { [M in Module]: { module: M; rows: ModuleRows[M] } }[
 /** 按筛选条件挑记录：读这个模块的全部记录，逐条按共用条件和模块自己的判断筛 */
 export function matchingRows(ctx: ToolContext, actor: Actor, archived: boolean, s: FilterScope): MatchedRows {
   const pick = <R extends Fields>(rows: R[], specific: (r: R) => Specific) => rows.filter((r) => rowMatches(r, s, specific(r)));
-  const plain = () => generic;
   const { module, f } = s;
+  const plain = (r: Fields) => generic(r, f);
   switch (module) {
     case 'orders':
       return { module, rows: pick(recordRows(ctx, module, actor, archived), (r) => orderSpecific(r, f)) };

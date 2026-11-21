@@ -10,22 +10,15 @@ import type { Actor } from '../server/core/index.js';
 import { manualWrite } from '../server/business/service.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import type { ToolContext, ToolReader } from '../server/assistant/tools/context.js';
+import type { ToolContext } from '../server/assistant/tools/context.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import { historyReaders } from '../server/assistant/tools/history.js';
-import { aiStatusReaders } from '../server/assistant/tools/ai-status.js';
-import { jobsReaders } from '../server/assistant/tools/jobs.js';
-import { adminViewReaders } from '../server/assistant/tools/admin-view.js';
-import { guideReaders } from '../server/assistant/tools/guide.js';
 import express from 'express';
 import { userManualRouter } from '../server/system/user-manual.js';
-import { documentInboxReaders } from '../server/assistant/tools/documents-inbox.js';
-import { managementReaders } from '../server/assistant/tools/management.js';
 import { systemStatus } from '../server/assistant/tools/system.js';
 import { insertExport } from '../server/documents/export-records.js';
 import { defaultDocumentTemplates } from '../shared/documents/document-templates.js';
 import { fakeAiSettings } from './fake-deepseek.js';
-import { ctxOf } from './assistant-fixture.js';
+import { ctxOf, systemDeps } from './assistant-fixture.js';
 import { listen } from './http-fixture.js';
 import { readAs } from './read-result.js';
 
@@ -33,8 +26,7 @@ const staff = pageActor({ id: 'diag-staff', name: '虚构业务员甲', permissi
 const viewer = pageActor({ id: 'diag-viewer', name: '虚构只读', permissions: [], role: 'admin' });
 // 从域名访问的超级管理员：不是本机最高管理员会话
 const boss = pageActor({ id: 'diag-boss', name: '虚构老板', permissions: ['business:edit'], role: 'super_admin' });
-const call = (readers: Record<string, ToolReader>, name: string, ctx: ToolContext, raw: unknown, who: Actor | null) =>
-  readers[name](ctx, raw, who, name);
+const call = (name: string, ctx: ToolContext, raw: unknown, who: Actor | null) => ctx.tools.read(name, raw, who);
 const denied = (status: number) => (e: unknown) => field(e, 'status') === status;
 const listedRows = z.looseObject({ 列表: z.array(z.looseObject({})) });
 const historyView = { 修改历史: listedRows };
@@ -51,22 +43,22 @@ test('history.records（tools/history.ts）：按记录查给关联记录和中�
   try {
     const c = renamedCustomer(store),
       ctx = ctxOf(store);
-    const one = readAs(call(historyReaders, 'history.records', ctx, { module: 'customers', id: c.id }, staff), historyView);
+    const one = readAs(call('history.records', ctx, { module: 'customers', id: c.id }, staff), historyView);
     assert.equal(one.记录, '客户 ' + c.id);
     assert.equal(one.修改历史.共, 1);
     assert.equal(one.修改历史.列表[0].谁, staff.name);
     assert.match(JSON.stringify(one.修改历史.列表[0].改了什么), /虚构客户新名/);
     // 能看记录的人就能看这条记录的修改历史（只读账号以前被拒）
-    assert.equal(readAs(call(historyReaders, 'history.records', ctx, { module: 'customers', id: c.id }, viewer), historyView).修改历史.共, 1);
+    assert.equal(readAs(call('history.records', ctx, { module: 'customers', id: c.id }, viewer), historyView).修改历史.共, 1);
     const cashier = pageActor({ id: 'diag-cashier', name: '虚构出纳', permissions: ['finance:view', 'finance:cash'], role: 'admin' });
-    assert.throws(() => call(historyReaders, 'history.records', ctx, { module: 'customers', id: c.id }, cashier), denied(403));
+    assert.throws(() => call('history.records', ctx, { module: 'customers', id: c.id }, cashier), denied(403));
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
     const range = { from: today, to: today, person: staff.name };
-    assert.throws(() => call(historyReaders, 'history.records', ctx, range, staff), denied(403));
-    const trail = listedRows.parse(call(historyReaders, 'history.records', ctx, range, boss));
+    assert.throws(() => call('history.records', ctx, range, staff), denied(403));
+    const trail = listedRows.parse(call('history.records', ctx, range, boss));
     assert.equal(trail.共, 1);
     assert.equal(trail.列表[0].记录, '客户 ' + c.id);
-    assert.throws(() => call(historyReaders, 'history.records', ctx, { from: today }, boss), /from 和 to/);
+    assert.throws(() => call('history.records', ctx, { from: today }, boss), /from 和 to/);
   } finally {
     store.close();
   }
@@ -78,11 +70,11 @@ test('ai.status（tools/ai-status.ts）：密钥和上次检查结果；余额�
   try {
     const balanceCalls = () => fake.calls.filter((c) => c.path === '/user/balance').length;
     const ctx = ctxOf(store, { ai: settings });
-    const plain = readAs(await call(aiStatusReaders, 'ai.status', ctx, {}, staff), { 余额: z.string(), 上次检查: lastCheck });
+    const plain = readAs(await call('ai.status', ctx, {}, staff), { 余额: z.string(), 上次检查: lastCheck });
     assert.match(plain.余额, /只有超级管理员能查余额/);
     assert.equal(balanceCalls(), 0, '业务人员不发余额请求');
     assert.equal(plain.上次检查.结果, '保存后还没检查', '也不改全员共用的上次检查');
-    const status = readAs(await call(aiStatusReaders, 'ai.status', ctx, {}, boss), {
+    const status = readAs(await call('ai.status', ctx, {}, boss), {
       密钥: z.string(),
       余额: z.looseObject({ 明细: z.array(z.looseObject({})) }),
       上次检查: lastCheck,
@@ -94,7 +86,7 @@ test('ai.status（tools/ai-status.ts）：密钥和上次检查结果；余额�
     assert.equal(status.余额.明细[0].总余额, '0.00');
     assert.equal(status.上次检查.结果, '余额不足');
     assert.deepEqual(status.最近七天助手用量.按天, []);
-    await assert.rejects(async () => call(aiStatusReaders, 'ai.status', ctx, {}, viewer), denied(403));
+    await assert.rejects(async () => call('ai.status', ctx, {}, viewer), denied(403));
   } finally {
     settings.close();
     store.close();
@@ -119,16 +111,16 @@ test('exports.list 和 jobs.status（tools/documents-inbox.ts、tools/jobs.ts）
     add('someone-else');
     add(staff.id, true);
     const ctx = ctxOf(store, { ai: settings });
-    const own = readAs(call(documentInboxReaders, 'exports.list', ctx, {}, staff), {});
+    const own = readAs(call('exports.list', ctx, {}, staff), {});
     assert.equal(own.共, 2);
-    assert.equal(field(call(documentInboxReaders, 'exports.list', ctx, {}, boss), '共'), 3);
-    const jobs = readAs(call(jobsReaders, 'jobs.status', ctx, {}, staff), { 没交付完的导出: listedRows, 识别: z.looseObject({}) });
+    assert.equal(field(call('exports.list', ctx, {}, boss), '共'), 3);
+    const jobs = readAs(call('jobs.status', ctx, {}, staff), { 没交付完的导出: listedRows, 识别: z.looseObject({}) });
     assert.deepEqual(jobs.没交付完的导出.列表.map((e) => e.导出编号), [mine]);
     assert.equal(jobs.没交付完的导出.列表[0].单据, '采购单 7');
     assert.equal(jobs.没交付完的导出.列表[0].交付, '已生成，还没下载');
     assert.deepEqual(jobs.识别.排队, { 正在识别: 0, 排队: 0, 同时最多: 3 });
     assert.equal(jobs.自动备份, '最近没有失败');
-    assert.throws(() => call(jobsReaders, 'jobs.status', ctx, {}, viewer), denied(403));
+    assert.throws(() => call('jobs.status', ctx, {}, viewer), denied(403));
   } finally {
     settings.close();
     store.close();
@@ -148,17 +140,17 @@ test('accounts.list、settings.view（tools/admin-view.ts）：只给超级管�
       registry,
     };
     const ctx = ctxOf(store, services);
-    assert.deepEqual(field(call(adminViewReaders, 'accounts.list', ctx, {}, boss), '列表'), [
+    assert.deepEqual(field(call('accounts.list', ctx, {}, boss), '列表'), [
       { 名字: '虚构出纳', 级别: '出纳', 状态: '已停用', 账号编号: '1' },
     ]);
-    assert.throws(() => call(adminViewReaders, 'accounts.list', ctx, {}, staff), denied(403));
-    const view = readAs(call(adminViewReaders, 'settings.view', ctx, {}, boss), { 助手工具: z.looseObject({}) });
+    assert.throws(() => call('accounts.list', ctx, {}, staff), denied(403));
+    const view = readAs(call('settings.view', ctx, {}, boss), { 助手工具: z.looseObject({}) });
     assert.deepEqual(view.机器人, { 企业微信机器人: { 凭据: '已填写', 启用: '没启用', 连接: '未启用' } });
     assert.deepEqual(view.部署, { 方式: '本机运行' });
     assert.equal(view.同时识别几个文件, 3);
     assert.deepEqual(view.助手工具.停用的工具, []);
     assert.ok(!JSON.stringify(view).includes('bot-虚构编号'));
-    assert.throws(() => call(adminViewReaders, 'settings.view', ctx, {}, staff), denied(403));
+    assert.throws(() => call('settings.view', ctx, {}, staff), denied(403));
   } finally {
     registry.close();
     settings.close();
@@ -170,18 +162,18 @@ test('guide.read（tools/guide.ts）：不传章节给目录，传了给那一�
   const store = new Store(':memory:');
   try {
     const ctx = ctxOf(store);
-    const toc = readAs(call(guideReaders, 'guide.read', ctx, {}, viewer), { 章节: z.array(z.string()) }).章节;
+    const toc = readAs(call('guide.read', ctx, {}, viewer), { 章节: z.array(z.string()) }).章节;
     assert.ok(toc.includes('备份') && toc.includes('送货'), toc.join('、'));
-    const backup = readAs(call(guideReaders, 'guide.read', ctx, { section: '备份' }, viewer), { 内容: z.string() });
+    const backup = readAs(call('guide.read', ctx, { section: '备份' }, viewer), { 内容: z.string() });
     assert.equal(backup.章节, '备份');
     assert.ok(backup.内容.length > 0);
-    assert.throws(() => call(guideReaders, 'guide.read', ctx, { section: '虚构章节' }, viewer), /有这些/);
+    assert.throws(() => call('guide.read', ctx, { section: '虚构章节' }, viewer), /有这些/);
     // 标题里没有的词（“收款”在“财务”一节的小标题里）按关键词在全文里找，不让模型一次次猜章节名
-    const pay = readAs(call(guideReaders, 'guide.read', ctx, { section: '收款' }, viewer), {
+    const pay = readAs(call('guide.read', ctx, { section: '收款' }, viewer), {
       对得上的小节: z.array(z.looseObject({ 小节: z.string(), 内容: z.string() })),
     });
     assert.ok(pay.对得上的小节.some((b) => b.小节 === '财务 › 收款和付款' && b.内容.includes('收款')), JSON.stringify(pay).slice(0, 300));
-    assert.throws(() => call(guideReaders, 'guide.read', ctx, {}, null), denied(401));
+    assert.throws(() => call('guide.read', ctx, {}, null), denied(401));
   } finally {
     store.close();
   }
@@ -200,11 +192,11 @@ test('使用说明只有一份：“使用说明”页的 GET /api/guide 和 gui
     assert.equal(page.title, '使用手册');
     assert.ok(page.intro.length > 0, '第一节之前的引言也给页面');
     const ctx = ctxOf(store);
-    assert.deepEqual(field(call(guideReaders, 'guide.read', ctx, {}, viewer), '章节'), page.sections.map((s) => s.title));
+    assert.deepEqual(field(call('guide.read', ctx, {}, viewer), '章节'), page.sections.map((s) => s.title));
     for (const words of ['送货', '备份']) {
       const shown = page.sections.find((s) => s.title.includes(words));
       assert.ok(shown, words);
-      assert.equal(field(call(guideReaders, 'guide.read', ctx, { section: words }, viewer), '内容'), shown.body, words);
+      assert.equal(field(call('guide.read', ctx, { section: words }, viewer), '内容'), shown.body, words);
     }
   } finally {
     store.close();
@@ -222,13 +214,13 @@ test('本机专用的只读工具放开给从域名访问的超级管理员：�
     for (const name of ['system.backup', 'management.reset', 'management.reset_preview', 'management.execute'])
       assert.equal(usable.get(name), false, name);
     assert.equal(new Map(registry.view(staff).tools.map((t) => [t.name, t.permitted])).get('system.status'), false);
-    const status = systemStatus({ store, backingUp: false });
+    const status = systemStatus(systemDeps(store));
     assert.equal(typeof status.uptimeMinutes, 'number');
     assert.equal(status.disk, null);
     const c = renamedCustomer(store);
-    const context = readAs(call(managementReaders, 'management.context', ctxOf(store), { module: 'customers', id: c.id }, boss), { history: z.array(z.unknown()) });
+    const context = readAs(call('management.context', ctxOf(store), { module: 'customers', id: c.id }, boss), { history: z.array(z.unknown()) });
     assert.equal(context.history.length, 1);
-    assert.throws(() => call(managementReaders, 'management.context', ctxOf(store), { module: 'customers', id: c.id }, staff), denied(403));
+    assert.throws(() => call('management.context', ctxOf(store), { module: 'customers', id: c.id }, staff), denied(403));
   } finally {
     registry.close();
     store.close();

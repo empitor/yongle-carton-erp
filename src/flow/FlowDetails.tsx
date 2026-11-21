@@ -4,7 +4,6 @@ import {
   type ArrivalDaily,
   type DeliveryDaily,
   type FlowDocView,
-  type FlowKind,
 } from '../../shared/business/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { businessStatusTone, useRecordContext } from '../recordkit/record-meta';
@@ -22,13 +21,6 @@ type DetailData = Partial<CatalogLists>;
 /** 到货单、送货单在台账里的样子（flow-api.ts 的 readFlowRecord 读的）：验收入库、每行的进度和流水 */
 export type FlowRecord = ArrivalDaily | DeliveryDaily;
 type DetailProps = { doc: FlowDocView; data: DetailData; record?: FlowRecord };
-
-const agentModule: Record<FlowKind, string> = {
-  arrival: 'arrivals',
-  task: 'production_tasks',
-  production: 'production_records',
-  delivery: 'deliveries',
-};
 
 /** 单据状态的颜色：按状态文字走全站同一个颜色函数 */
 export function flowStatusTone(d: Parameters<typeof flowStatusText>[0]): Tone {
@@ -98,11 +90,12 @@ function KindDetails({ doc: d, data, record }: DetailProps) {
  * record 是到货单、送货单的台账记录（核对窗里没有）。
  */
 export default function FlowDetails({ doc: d, data, record }: DetailProps) {
-  useRecordContext(agentModule[d.kind], d.id, d.number);
+  // 告诉助手正在看哪张单据：报单据种类（全站的记录种类），助手那边换成它自己的模块名
+  useRecordContext(d.kind, d.id, d.number);
   return (
     <div
       className="flow-details"
-      data-agent-module={agentModule[d.kind]}
+      data-agent-module={d.kind}
       data-agent-record={d.id}
       data-agent-label={d.number}
     >

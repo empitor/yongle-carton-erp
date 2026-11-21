@@ -55,6 +55,7 @@ export { deliveryPlan, openOrder, overOrderLines } from './delivery-plan.js';
 export type { PlanPreset } from './delivery-plan.js';
 export type { Listed, RecordsApi } from './records-api.js';
 export { customerQuerySchema, orderQuerySchema, productQuerySchema } from './record-queries.js';
+export { orderInRange, orderMatches, orderStatusMatches } from './order-filter.js';
 export { DELETION_MAX_RECORDS, deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema, inventoryPolicies } from './deletion-request.js';
 export type { DeletionApi } from './deletion-api.js';
 export type { LifecycleApi } from './lifecycle-api.js';

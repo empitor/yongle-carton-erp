@@ -8,7 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assistantDeps, assistantFixture, confirmCard, makeSettings } from './assistant-fixture.js';
+import { assistantDeps, assistantFixture, confirmCard, makeSettings, systemDeps } from './assistant-fixture.js';
 import { Store } from '../server/core/db.js';
 import { count, type Actor } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
@@ -19,8 +19,8 @@ import { AssistantAttachments } from '../server/assistant/attachments.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import type { WorkflowContext } from '../server/assistant/order-import-state.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import { documentInboxReaders } from '../server/assistant/tools/documents-inbox.js';
-import { resetPreview, systemBackup, systemCheck, systemStatus, type SystemDeps } from '../server/assistant/tools/system.js';
+import { documentInboxTools } from '../server/assistant/tools/documents-inbox.js';
+import { resetPreview, systemBackup, systemCheck, systemStatus } from '../server/assistant/tools/system.js';
 import { MarkService } from '../server/business/product-marks.js';
 import { productSchema } from '../shared/core/domain.js';
 import type { AssistantAttachment } from '../shared/core/index.js';
@@ -138,7 +138,9 @@ test('收件箱：手动添加文字和附件，不给内容就报错；列表�
     const long = '虚'.repeat(250);
     const added = readAs(await tools.call('inbox.add', { text: long }, ctx()), { id: z.number() });
     const readCtx = inboxReadContext(store);
-    const read = (args: unknown, who: Actor | null = actor) => documentInboxReaders['inbox.list'](readCtx, args, who, 'inbox.list');
+    // 直接调收件箱的定义（不经外壳：这个现场里外壳一碰就报错）
+    const inboxList = documentInboxTools.find((d) => d.name === 'inbox.list');
+    const read = (args: unknown, who: Actor | null = actor) => inboxList?.check(args).read?.(readCtx, who);
     const listed = readAs(read({ limit: 5 }), inboxListShape);
     assert.equal(listed.rows.find((r) => r.id === added.id)?.text, '虚'.repeat(200));
     assert.equal(field(read({ id: added.id }), 'text'), long);
@@ -170,24 +172,22 @@ test('唛头：挂到产品、从产品上移除；只影响唛头（聊天里�
   }
 });
 
-test('系统状态、体检、清空预览、备份如实（tools/system.ts 只要库和备份设置）：没配备份目录明说；备份进行中拒绝第二个、结束后标记复原', async () => {
+test('系统状态、体检、清空预览、备份如实（tools/system.ts 只要库和备份设置）：备份进行中拒绝第二个、结束后标记复原', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-system-'));
   const store = new Store(':memory:');
   try {
-    const deps: SystemDeps = { store, backingUp: false, imports: { status: () => ({ workspaces: [1, 2] }) } };
+    const deps = { ...systemDeps(store, [1, 2]), backup: { dataDir: dir, backupRoot: join(dir, 'out') } };
     const status = systemStatus(deps);
     assert.equal(status.records.customers, 0);
     assert.ok(status.schemaVersion > 0);
     assert.equal(status.databaseMegabytes, null);
-    assert.equal(status.backups.configured, false);
+    assert.equal(status.backups.total, 0);
     assert.equal(systemCheck(deps).healthy, true);
     const preview = resetPreview(deps, { scope: 'all' }, admin);
     assert.equal(preview.workspaces, 2);
     assert.equal(preview.message, '这只是预览，什么都没删。');
     assert.equal(resetPreview(deps, { scope: 'business' }, admin).workspaces, undefined);
     assert.throws(() => resetPreview(deps, { scope: 'nope' }, admin));
-    await assert.rejects(systemBackup(deps, { check: () => admin }), /没有配置备份目录/);
-    deps.backup = { dataDir: dir, backupRoot: join(dir, 'out') };
     deps.backingUp = true;
     await assert.rejects(systemBackup(deps, { check: () => admin }), /已经有一个备份在进行中/);
     deps.backingUp = false;

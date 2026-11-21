@@ -6,6 +6,7 @@ import { promptModules, promptPresetSchema, type PromptModuleId } from '../../sh
 import type { PromptPresetManager } from '../ai/index.js';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, requirePermission, requireSuperModeFor } from '../core/index.js';
+import { toolSpec } from './tools/define.js';
 
 /** 提出修改时一条提示词最多多少字（和提示词预设单条的上限一样，shared/ai/prompt-presets.ts） */
 const PROMPT_ENTRY_CHARS = 16000;
@@ -23,23 +24,15 @@ export const promptTools = [
     name: 'prompts.get',
     risk: 'read',
     description: '读提示词模块和预设，默认读活动预设。助手自己的是 assistant，订单识别是 sales-order，别混。',
-    arguments: { module: '可省略，默认assistant；其他模块先查看目录', presetId: '可省略；真实预设UUID' },
     schema: readArgs,
   },
   {
     name: 'prompts.propose',
     risk: 'workflow',
     description: '提出修改一条提示词：先 prompts.get，content 传目标条目改完后的全文。出确认卡片（有前后对比），人确认后才保存。',
-    arguments: {
-      module: 'get返回模块',
-      presetId: '真实UUID',
-      entryId: '真实UUID',
-      expectedRevision: 'get返回修订',
-      content: '完整修改后条目，不是摘要',
-    },
     schema: proposal,
   },
-] as const;
+].map((t) => toolSpec<z.ZodType>(t));
 
 /** 确认卡片存下来、确认时原样执行的内容 */
 const promptChange = proposal.extend({ before: z.string(), presetName: z.string(), entryName: z.string() });

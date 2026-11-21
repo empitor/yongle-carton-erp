@@ -77,10 +77,18 @@ const auditReaders: { file: string; why: string }[] = [
   { file: 'server/admin/reset-archive.ts', why: '初始化后确认自己刚写的那条审计已经提交，再删原件归档；技术用途' },
 ];
 
+/**
+ * 助手只读自己的表（assistant_ 开头的、助手的配置库）：业务数据一律经各模块的读函数和服务拿，表名拼出来的读也算
+ * （docs/架构说明.md“助手”）。SQLite 自己的伪表（pragma_ 开头、json_each）不是谁的表；别的例外登记在这里，写明原因。
+ */
+const assistantReadExceptions: { table: string; why: string }[] = [];
+const sqliteOwn = (t: string) => t.startsWith('pragma_') || t === 'json_each';
+
 type Facts = {
   writes: { table: string; line: number }[];
   dynamicWrites: number[];
   reads: { table: string; line: number }[];
+  dynamicReads: number[];
   creates: string[];
 };
 const factsCache = new Map<string, Facts>();
@@ -120,12 +128,13 @@ function sqlFacts(f: string, text?: string): Facts {
   const name = '["`\\[]?([a-z_][a-z0-9_]*)';
   // ON UPDATE CASCADE、DO UPDATE SET 这类不是写表
   const notTable = new Set(['set', 'cascade', 'restrict', 'no']);
-  const facts: Facts = { writes: [], dynamicWrites: [], reads: [], creates: [] };
+  const facts: Facts = { writes: [], dynamicWrites: [], reads: [], dynamicReads: [], creates: [] };
   for (const s of strings) {
     for (const m of s.text.matchAll(new RegExp('\\b(?:into|update(?:\\s+or\\s+\\w+)?|delete\\s+from|drop\\s+(?:table|view)(?:\\s+if\\s+exists)?|alter\\s+table)\\s+' + name, 'gi')))
       if (!notTable.has(m[1].toLowerCase())) facts.writes.push({ table: m[1].toLowerCase(), line: s.line });
     if (/\b(?:into|update|delete\s+from|drop\s+table(?:\s+if\s+exists)?|alter\s+table)\s*["`[]?\u0001/i.test(s.text)) facts.dynamicWrites.push(s.line);
     for (const m of s.text.matchAll(new RegExp('\\b(?:from|join)\\s+' + name, 'gi'))) facts.reads.push({ table: m[1].toLowerCase(), line: s.line });
+    if (/\b(?:from|join)\s*["`[]?\u0001/i.test(s.text)) facts.dynamicReads.push(s.line);
     for (const m of s.text.matchAll(new RegExp('\\bcreate\\s+(?:temp(?:orary)?\\s+)?(?:table|view)\\s+(?:if\\s+not\\s+exists\\s+)?' + name, 'gi')))
       facts.creates.push(m[1].toLowerCase());
   }
@@ -272,4 +281,35 @@ test('只读目录里没有写库的 SQL，自己模块的表也不写；登记�
   ])
     assert.ok(sqlCheck(s).some((x) => x.includes('只读目录')), '只读目录里应拦住：' + s);
   assert.deepEqual(sqlCheck("db.prepare('SELECT p.name FROM customers p JOIN flow_documents f ON f.id=p.id')"), [], '只读目录里读不该拦');
+});
+
+/** 助手的文件里读了别人的表、或表名是拼出来的读（回归测试直接喂样例） */
+function assistantReadViolations(f: string, facts = sqlFacts(f)) {
+  if (!f.startsWith('server/assistant/')) return [];
+  const bad = facts.dynamicReads.map((line) => f + ':' + line + '：表名是拼出来的读，看不出读的是谁的表。助手只读自己的表，业务数据调各模块的读函数');
+  for (const r of facts.reads)
+    if (tableOwner(r.table) !== '助手' && !sqliteOwn(r.table) && !assistantReadExceptions.some((e) => e.table === r.table))
+      bad.push(f + ':' + r.line + '：助手直接读了 ' + r.table + '（' + (tableOwner(r.table) ?? '没登记') + '）。助手只读自己的表，业务数据调表主人模块的读函数或服务');
+  return bad;
+}
+
+test('助手不直接读业务表：server/assistant/ 下的 SQL 只读助手自己的表，拼出来的读也拦；登记的例外都还用得上', () => {
+  assert.deepEqual(serverFiles.flatMap((f) => assistantReadViolations(f)), []);
+  const read = new Set(serverFiles.filter((f) => f.startsWith('server/assistant/')).flatMap((f) => sqlFacts(f).reads.map((r) => r.table)));
+  assert.deepEqual(assistantReadExceptions.filter((e) => !read.has(e.table)).map((e) => e.table), [], '已经不读了，从 assistantReadExceptions 删掉');
+  const check = (text: string) => assistantReadViolations('server/assistant/sample.ts', sqlFacts('server/assistant/sample.ts', text));
+  for (const s of [
+    "one(db, row, 'SELECT * FROM stock_items WHERE id=?', id)",
+    'many(db, row, `SELECT t.id,t.version FROM ${table} t ORDER BY t.id`)',
+    "count(db, 'SELECT COUNT(*) AS n FROM \"' + table + '\"')",
+    "many(db, row, 'SELECT a.id FROM assistant_runs a JOIN flow_documents d ON d.id=a.thread_id')",
+    "one(db, row, 'select kind,status from flow_documents where id=?', id)",
+  ])
+    assert.ok(check(s).length, '助手里应拦住：' + s);
+  for (const s of [
+    "one(db, row, 'SELECT seq FROM assistant_messages WHERE id=?', id)",
+    "one(db, row, 'SELECT enabled FROM tool_settings WHERE name=?', name)",
+    "count(db, 'SELECT COUNT(*) FROM pragma_foreign_key_check')",
+  ])
+    assert.deepEqual(check(s), [], '助手里不该拦：' + s);
 });

@@ -20,7 +20,7 @@ export { forwardedClient, hasProxyHeaders, proxyIngress, readDeployment } from '
 export type { Deployment } from './deployment.js';
 export { isLocalAdministrator, requireLocalAdministrator } from './local-administrator.js';
 export { AppError, ConflictError, InputError, StoredDataError, constraintFailure, failureMessage, isConstraintError } from './errors.js';
-export { SchemaError, stamp } from './schema/index.js';
+export { SchemaError, currentSchemaVersion, stamp } from './schema/index.js';
 export { acquireLock } from './lock.js';
 export { clampPage, pageRows, parsePaging } from './paging.js';
 export {

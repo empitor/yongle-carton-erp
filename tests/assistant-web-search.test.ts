@@ -7,10 +7,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { requestWindow, webSearch } from '../server/ai/web.js';
-import { mergeSearchResults, webReaders, WEB_READ_CHUNK, WEB_SEARCH } from '../server/assistant/tools/web.js';
+import { mergeSearchResults, webTools, WEB_READ_CHUNK, WEB_SEARCH } from '../server/assistant/tools/web.js';
 import { allowedUrl, noteSearchResult } from '../server/assistant/chat/external-content.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import type { ToolContext } from '../server/assistant/tools/context.js';
+import type { ReadExtra, ToolContext } from '../server/assistant/tools/context.js';
 import type { Actor } from '../server/core/index.js';
 import { Store } from '../server/core/db.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
@@ -50,8 +50,13 @@ const cashier = pageActor({ id: 'web-cashier', name: '虚构出纳乙', permissi
 /** 搜索结果、读到的网页：取出要比的几项，其余键保留 */
 const searched = z.looseObject({ 结果: z.array(z.looseObject({ 标题: z.string(), 摘要: z.string() })), 截掉了: z.string(), 说明: z.string() });
 const readPage = z.looseObject({ 正文: z.string() });
-const call = (name: string, ctx: ToolContext, raw: unknown, who: Actor | null) =>
-  webReaders[name](ctx, raw, who, name, { allowedUrl: (url) => url });
+/** 直接调联网工具的定义（不经外壳：外壳本身就是 ctx.tools，这里一碰就报错） */
+function readWeb(name: string, ctx: ToolContext, raw: unknown, who: Actor | null, extra: ReadExtra) {
+  const read = webTools.find((t) => t.name === name)?.check(raw).read;
+  if (!read) throw new Error('没有这个联网工具：' + name);
+  return read(ctx, who, extra);
+}
+const call = (name: string, ctx: ToolContext, raw: unknown, who: Actor | null) => readWeb(name, ctx, raw, who, { allowedUrl: (url) => url });
 const statusIs = (status: number) => (e: unknown) => field(e, 'status') === status;
 /** 一个搜索词返回的虚构结果：网址带上词和名次，summary 给多长就多长 */
 const hits = (q: string, n: number, summary = '虚构摘要') =>
@@ -125,7 +130,7 @@ test('web.search：几个词同时搜、重复的词只搜一次；合起来最�
   try {
     const ctx = ctxOf(settings);
     const found = searched.parse(
-      await webReaders['web.search'](ctx, { queries: ['甲', '乙', '甲'] }, staff, 'web.search', {
+      await readWeb('web.search', ctx, { queries: ['甲', '乙', '甲'] }, staff, {
         question: '虚构的问题：最近\n瓦楞纸价格',
       }),
     );
@@ -213,7 +218,7 @@ test('web.read 只开用户在这个会话里给的、或这个会话里搜索�
     noteSearchResult(f.store, thread.id, { 结果: [{ 网址: 'https://example.com/fictional' }] });
     const ctx = ctxOf(settings);
     const read = async (url: string, who: Actor) =>
-      readAs(await webReaders['web.read'](ctx, { url }, who, 'web.read', { allowedUrl: (u) => allowedUrl(f.store, thread.id, u) }), {});
+      readAs(await readWeb('web.read', ctx, { url }, who, { allowedUrl: (u) => allowedUrl(f.store, thread.id, u) }), {});
     for (const who of [staff, cashier]) {
       assert.equal((await read('https://example.com/a', who)).标题, '虚构网页甲');
       assert.equal((await read('https://example.com/fictional', who)).标题, '虚构网页乙');
@@ -296,7 +301,7 @@ test('读网页去掉 # 片段才对上也放行，但打开的永远是放行�
     assert.equal(pick('https://example.com/a#d=虚构客户甲'), 'https://example.com/a#1', '模型自己写的片段不带进去');
     for (const url of ['https://example.com/a?d=1', 'https://example.com/a/b', 'https://example.com/b#1']) assert.equal(pick(url), null, url);
     const ctx = ctxOf(settings);
-    const read = async (url: string) => readAs(await webReaders['web.read'](ctx, { url }, staff, 'web.read', { allowedUrl: pick }), {});
+    const read = async (url: string) => readAs(await readWeb('web.read', ctx, { url }, staff, { allowedUrl: pick }), {});
     for (const url of ['https://example.com/a', 'https://example.com/a#d=虚构客户甲']) {
       const page = await read(url);
       assert.equal(page.标题, '虚构网页');

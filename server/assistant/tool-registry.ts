@@ -12,6 +12,7 @@ import { AssistantMemory } from './memory-store.js';
 import { asJson } from './json-view.js';
 import { pluginSettingBody, toolParametersSchema, toolSettingBody, type PluginsView, type ToolsView } from '../../shared/assistant/index.js';
 import { memoryExecutors } from './tools/memory.js';
+import type { CheckedCall } from './tools/define.js';
 
 export const defaultAssistantToolsPath = () =>
   join(dirname(defaultDbPath), 'ai-tools', 'tools.sqlite');
@@ -43,8 +44,8 @@ const toolSettingsDatabase = {
 // 默认位置登记进配置库登记表：恢复备份的维护命令行不打开这个库，靠这一条认出备份里的 ai-tools/tools.sqlite、支持到第几版
 registerVersionedSqlite(toolSettingsDatabase, defaultAssistantToolsPath);
 export type ToolKind = 'read' | 'business' | 'workflow';
-/** 按类别执行工具的函数（对话层给的）：参数已经按工具的结构校验过 */
-export type ToolHandlers = Record<ToolKind, (name: string, args: unknown) => unknown>;
+/** 按类别执行工具的函数（对话层给的）：拿到的调用已经按工具的结构校验过（tools/define.ts 的 CheckedCall） */
+export type ToolHandlers = Record<ToolKind, (name: string, call: CheckedCall) => unknown>;
 /** 分派时对话层给的：现在登录的是谁（中途换人、改权限就停）、这一轮的中止信号 */
 type DispatchContext = { check?: () => Actor; signal?: AbortSignal };
 /** 插件整组启停在设置表里的名字前缀 */
@@ -116,15 +117,18 @@ export class AssistantToolRegistry {
   private closed = false;
   private readonly plugins = new Map(builtinPlugins.map((p) => [p.id, p]));
   private readonly definitions = new Map<string, RegisteredTool>(
-    toolDefinitions.map(({ schema, ...t }) => [
-      t.name,
+    toolDefinitions.map(({ name, description, risk, schema, check }) => [
+      name,
       {
-        ...t,
-        ...(t.name.startsWith('prompts.') ? { permissions: ['business:edit'] } : {}),
-        ...(t.name.startsWith('finance.') ? { permissions: ['finance:view'] } : {}),
-        pluginId: builtinPluginFor(t.name),
-        kind: kindOf(t.risk),
+        name,
+        description,
+        risk,
         schema,
+        check,
+        ...(name.startsWith('prompts.') ? { permissions: ['business:edit'] } : {}),
+        ...(name.startsWith('finance.') ? { permissions: ['finance:view'] } : {}),
+        pluginId: builtinPluginFor(name),
+        kind: kindOf(risk),
       },
     ]),
   );
@@ -162,9 +166,6 @@ export class AssistantToolRegistry {
   private enabled(name: string) {
     return one(this.db, rows.tool_settings.pick({ enabled: true }), 'SELECT enabled FROM tool_settings WHERE name=?', name)?.enabled !== 0;
   }
-  private serviceReady(t: RegisteredTool, actor?: Actor | null) {
-    return t.available?.(actor) ?? true;
-  }
   private access(t: PluginTool, actor?: Actor | null) {
     const { required, permissions } = toolPermissions(t);
     const permissionNote =
@@ -187,45 +188,33 @@ export class AssistantToolRegistry {
   view(actor?: Actor | null): ToolsView {
     return {
       revision: this.revision(),
-      tools: [...this.definitions.values()].map(
-        ({ schema, execute, available: readiness, ...t }) => {
-          const pluginEnabled = this.enabled(PLUGIN_PREFIX + t.pluginId),
-            toolEnabled = this.enabled(t.name);
-          const available = this.serviceReady(
-            { ...t, schema, execute, available: readiness },
-            actor,
-          );
-          const access = this.access({ ...t, schema, execute }, actor);
-          const enabled = pluginEnabled && toolEnabled;
-          const unavailableReasons = [
-            !pluginEnabled ? '插件已停用' : '',
-            !toolEnabled ? '工具已停用' : '',
-            !access.permitted ? access.permissionReason : '',
-            !available ? '执行服务未连接' : '',
-          ].filter(Boolean);
-          return {
-            ...t,
-            module: this.pluginName(t.pluginId),
-            arguments: asJson(t.arguments),
-            parameters: toolParametersSchema.parse(asJson(z.toJSONSchema(schema))),
-            enabled,
-            pluginEnabled,
-            toolEnabled,
-            available,
-            ...access,
-            usable: enabled && access.permitted && available,
-            unavailableReasons,
-            status: unavailableReasons.length
-              ? unavailableReasons.join('；')
-              : '可用',
-            serviceStatus: !available
-              ? '执行服务未连接'
-              : t.pluginId === 'erp-page'
-                ? '页面桥接服务已接入；执行时核验当前标签页连接'
-                : '已接入原业务服务',
-          };
-        },
-      ),
+      tools: [...this.definitions.values()].map((t) => {
+        const pluginEnabled = this.enabled(PLUGIN_PREFIX + t.pluginId),
+          toolEnabled = this.enabled(t.name);
+        const access = this.access(t, actor);
+        const enabled = pluginEnabled && toolEnabled;
+        const unavailableReasons = [
+          !pluginEnabled ? '插件已停用' : '',
+          !toolEnabled ? '工具已停用' : '',
+          !access.permitted ? access.permissionReason : '',
+        ].filter(Boolean);
+        return {
+          name: t.name,
+          description: t.description,
+          risk: t.risk,
+          kind: t.kind,
+          pluginId: t.pluginId,
+          module: this.pluginName(t.pluginId),
+          parameters: toolParametersSchema.parse(asJson(z.toJSONSchema(t.schema))),
+          enabled,
+          pluginEnabled,
+          toolEnabled,
+          ...access,
+          usable: enabled && access.permitted,
+          unavailableReasons,
+          status: unavailableReasons.length ? unavailableReasons.join('；') : '可用',
+        };
+      }),
     };
   }
   exposed(actor?: Actor | null) {
@@ -240,8 +229,6 @@ export class AssistantToolRegistry {
     if (!this.enabled(PLUGIN_PREFIX + t.pluginId)) throw new AppError('此AI插件已停用。', 403, 'tool-disabled');
     if (!this.enabled(name))
       throw new AppError('此AI工具已停用，请在AI工具管理中启用。', 403, 'tool-disabled');
-    if (!this.serviceReady(t))
-      throw new AppError('执行服务未连接。', 503);
     return t;
   }
   set(raw: unknown, actor: Actor) {
@@ -271,8 +258,9 @@ export class AssistantToolRegistry {
   }
   async dispatch(name: string, args: unknown, actor: Actor, handlers: ToolHandlers, context?: DispatchContext) {
     if (!actor) throw new AppError('请先登录。', 401);
+    // 参数只在这里按工具的结构校验一次：执行函数拿到的是校验过的（tools/define.ts）
     const t = this.assertAvailable(name),
-      parsed: unknown = t.schema.parse(args);
+      call = t.check(args);
     const supplied = context;
     const check = () => {
       const live = supplied?.check ? supplied.check() : actor;
@@ -285,8 +273,8 @@ export class AssistantToolRegistry {
     };
     const current = check();
     const value = t.execute
-      ? await t.execute(parsed, current, { ...context, check })
-      : await handlers[t.kind](name, parsed);
+      ? await t.execute(call.args, current, { ...context, check })
+      : await handlers[t.kind](name, call);
     check();
     return { kind: t.kind, value };
   }

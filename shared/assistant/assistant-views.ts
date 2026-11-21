@@ -151,8 +151,6 @@ export const toolParametersSchema = z.custom<ToolParameters>((v) => toolParamete
 export type ToolView = {
   name: string;
   description: string;
-  /** 参数的示例写法（各工具不同） */
-  arguments: JsonView;
   risk: string;
   kind: 'read' | 'business' | 'workflow';
   pluginId: string;
@@ -162,7 +160,6 @@ export type ToolView = {
   enabled: boolean;
   pluginEnabled: boolean;
   toolEnabled: boolean;
-  available: boolean;
   permitted: boolean;
   permissions: string[];
   permissionNote: string;
@@ -170,7 +167,6 @@ export type ToolView = {
   usable: boolean;
   unavailableReasons: string[];
   status: string;
-  serviceStatus: string;
 };
 export type ToolsView = { revision: number; tools: ToolView[] };
 /** 工具清单页：多带每个工具最后一次执行的情况、能不能启停 */

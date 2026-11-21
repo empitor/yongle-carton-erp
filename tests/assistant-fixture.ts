@@ -10,6 +10,7 @@ import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager, type AssistantDeps } from '../server/assistant/manager.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import type { ToolContext, ToolServices } from '../server/assistant/tools/context.js';
+import type { SystemDeps } from '../server/assistant/tools/system.js';
 import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
@@ -59,6 +60,11 @@ export function toolServices(store: Store, over: Partial<ToolServices> = {}): To
 }
 /** 只测业务工具的工具外壳（AssistantTools），服务见 toolServices */
 export const toolsOf = (store: Store, over: Partial<ToolServices> = {}) => new AssistantTools(store, toolServices(store, over));
+/** 直接调系统维护工具（tools/system.ts）时给的：业务库、一个还没有备份的备份目录、几份识别工作区 */
+export function systemDeps(store: Store, workspaces: unknown[] = []): SystemDeps {
+  const dir = unusedDir();
+  return { store, backingUp: false, backup: { dataDir: dir, backupRoot: join(dir, 'backups') }, imports: { status: () => ({ workspaces }) } };
+}
 /** 直接调各业务域读写函数时的上下文 */
 export function ctxOf(store: Store, over: Partial<ToolServices> = {}): ToolContext {
   const services = toolServices(store, over),

@@ -1,3 +1,5 @@
+import { modulePages } from './assistant-modules.js';
+
 export const assistantManagementHash = '#ai-settings?tab=tools';
 export function aiSettingsTab(hash: string): 'api' | 'prompts' | 'tools' | 'templates' {
   const tab = new URLSearchParams(hash.split('?')[1] || '').get('tab');
@@ -40,14 +42,9 @@ export const navigationAliases: Record<string, string> = {
   'document-templates': '#ai-settings?tab=templates',
   'ai-plugins': assistantManagementHash,
   'ai-prompts': '#ai-settings?tab=prompts',
-  raw_inventory: '#warehouse?kind=raw',
-  finished_inventory: '#warehouse?kind=finished',
-  production_tasks: '#production',
-  production_records: '#production?view=production',
-  deliveries: '#warehouse?kind=finished&deliveries=1',
-  arrivals: '#warehouse?arrivals=1',
+  // 助手的模块名（原材料库存、到货、流水这些）打开各自的页面（assistant-modules.ts）
+  ...modulePages,
   delivery_plans: '#warehouse?kind=finished&deliveries=1',
-  movements: '#warehouse?flow=1',
 };
 /** 至少有一项的列表（给 z.enum 用） */
 function nonEmpty<T>(list: T[]): [T, ...T[]] {

@@ -6,6 +6,17 @@ export { OrderBatchService } from './batches.js';
 export { readBatchSchedule } from './batch-schedule.js';
 export { stockLedger } from './ledger.js';
 export { readStockDocument } from './stock-document.js';
+export {
+  batchNumbers,
+  finishedIdsOfProducts,
+  movementScope,
+  namedVersions,
+  negativeStock,
+  numberedVersions,
+  orderIdsOfProducts,
+  stockVersions,
+  suppliersOfPurchaseLines,
+} from './lookups.js';
 export { productIdsOfCustomer, stockIdsOfParty } from './party-links.js';
 export { lineOrderId, purchaseOrderLinks } from './purchase-rows.js';
 export { operationsRouter } from './router.js';

@@ -28,7 +28,7 @@ function toolNamed<T extends { name: string }>(tools: readonly T[], name: string
   return tool;
 }
 
-const listedTool = z.looseObject({ name: z.string(), available: z.boolean() });
+const listedTool = z.looseObject({ name: z.string(), usable: z.boolean() });
 
 test('工具管理在 AI 设置的工具页签：助手按名字打开设置里的页签', () => {
   assert.equal(assistantManagementHash, '#ai-settings?tab=tools');
