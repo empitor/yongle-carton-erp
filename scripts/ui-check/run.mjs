@@ -5,7 +5,8 @@
 //   npm run test:ui                     全部流程（发布前跑）
 //   npm run test:ui -- production mobile 只跑这几组；写组名或组里任一流程名都行
 //   npm run test:ui -- --list           列出各组
-// 各组用自己的端口（3201 起，不占预览用的 3199/3198）和自己的实例，默认同时跑 6 组（UI_CHECK_JOBS 改）。
+//   npm run test:ui -- --port 4201 production  端口从 4201 起（几路同时跑时各用各的一段）
+// 各组用自己的端口（默认 3201 起，不占预览用的 3199/3198）和自己的实例，默认同时跑 6 组（UI_CHECK_JOBS 改）。
 // 每组的输出边跑边写进截图目录的 group-<组名>.log，服务端输出写进 group-<组名>-server.log；
 // 流程中途出错时 lib.mjs 在截图目录留 FAIL-<流程>-N.png 和 trace（npx playwright show-trace 回放）。
 import { spawn, spawnSync } from 'node:child_process';
@@ -44,13 +45,27 @@ function pickGroups(args) {
     for (const g of groups) console.log(g.name.padEnd(15) + g.flows.join(', ').padEnd(24) + '  ' + g.about);
     process.exit(0);
   }
-  const wanted = args.filter((a) => !a.startsWith('-'));
+  const wanted = args.filter((a, i) => !a.startsWith('-') && args[i - 1] !== '--port');
   const unknown = wanted.filter((w) => !groups.some((g) => g.name === w || g.flows.includes(w)));
   if (unknown.length) {
     console.error('没有这个流程：' + unknown.join('、') + '。用 --list 看有哪些。');
     process.exit(1);
   }
   return wanted.length ? groups.filter((g) => wanted.some((w) => g.name === w || g.flows.includes(w))) : groups;
+}
+
+// 3201 以下留给预览（3199/3198/3197）和样式比对（3195），a11y 流程也靠这条认出隔离实例
+const lowestPort = 3201;
+/** 起始端口：--port 端口，不写从 3201 起；写错或低于 3201 报错退出 */
+function firstPort(args) {
+  const at = args.indexOf('--port');
+  if (at < 0) return lowestPort;
+  const port = Number(args[at + 1]);
+  if (!Number.isInteger(port) || port < lowestPort || port > 65535) {
+    console.error(`--port 后面写起始端口，${lowestPort} 到 65535，例如 --port 4201。`);
+    process.exit(1);
+  }
+  return port;
 }
 
 const seconds = (from) => Math.round((Date.now() - from) / 1000) + ' 秒';
@@ -123,6 +138,7 @@ async function runGroup(group, port, { dir, baseEnv }) {
 
 async function main(args) {
   const picked = pickGroups(args);
+  const start = firstPort(args);
   const dir = mkdtempSync(join(tmpdir(), 'erp-ui-check-'));
   const started = Date.now();
   const baseEnv = { ...process.env, UI_CHECK_DIR: dir.replaceAll('\\', '/'), UI_CHECK_REMOTE: '' };
@@ -137,7 +153,7 @@ async function main(args) {
 
   // 默认同时跑 6 组，其余排队、长的组先跑：12 组全开每组慢一倍多、机器忙时会超时，6 组总用时差不多、稳得多
   const jobs = Math.max(1, Number(process.env.UI_CHECK_JOBS) || 6);
-  const queue = picked.map((group) => ({ group, port: 3201 + groups.indexOf(group) }));
+  const queue = picked.map((group) => ({ group, port: start + groups.indexOf(group) }));
   const results = [];
   await Promise.all(
     Array.from({ length: Math.min(jobs, queue.length) }, async () => {
