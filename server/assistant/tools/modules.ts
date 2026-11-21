@@ -1,12 +1,11 @@
-// 只管：按业务模块读记录——取列表 recordRows、按编号取一条 recordRow、记录在页面上的链接 recordLink、页面报的记录种类换成助手模块。
+// 只管：按业务模块读记录——取列表 recordRows、按编号取一条 recordRow、记录在页面上的链接 recordLink（页面报的记录种类和助手模块的换算在 page-record.ts）。
 // 模块名单、中文名和全站记录种类的对照在 shared/assistant/assistant-modules.ts；档案、库存品和单据按业务汇总的
 // module-records.ts 读（和数据管理同一份，单据补好关联的名称），这里只加助手筛选要用的几项（归档标记、关联的客户）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { AppError } from '../../core/index.js';
-import type { FlowDocView, FlowKind, StockItemView, dataManagementModules } from '../../../shared/business/index.js';
+import type { FlowDocView, FlowKind, StockItemView } from '../../../shared/business/index.js';
 import { flowEntityPrefix } from '../../../shared/business/index.js';
-import { assistantModules, flowKindOfModule, moduleOfRecord, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
+import { assistantModules, flowKindOfModule, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
 import { entityRecords, namedDocuments, type NamedDocument } from '../../business/index.js';
 import { movementScope, suppliersOfPurchaseLines } from '../../operations/index.js';
 import { requireActor, type ToolContext } from './context.js';
@@ -180,16 +179,6 @@ export function recordRow(ctx: ToolContext, module: Module, actor: Actor, archiv
     case 'deliveries':
       return flowRows(ctx, 'delivery', archived, [n])[0];
   }
-}
-/**
- * 页面报的记录种类（全站那一套：stock_items、arrival……）换成助手模块：库存品按这条记录是原材料还是成品分。
- * 库存品不在了按“记录不存在”报（和 records.get 读不到同一句）。
- */
-export function moduleOfPageRecord(ctx: ToolContext, record: (typeof dataManagementModules)[number], id: number): Module | undefined {
-  if (record !== 'stock_items') return moduleOfRecord(record);
-  const item = ctx.ops.items(true, id)[0];
-  if (!item) throw new AppError('记录不存在或已归档。', 404);
-  return moduleOfRecord(record, item.kind);
 }
 /** 记录在页面上的链接要用的几项 */
 type Linkable = { id: number | string; archived?: boolean; name?: string; number?: string; receiptRecordId?: string };

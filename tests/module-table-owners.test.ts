@@ -103,6 +103,8 @@ type Facts = {
   reads: { table: string; line: number }[];
   /** 表名位置是拼进来的读：拼进来的是什么（表达式开头的名字） */
   dynamicReads: { splice: string; line: number }[];
+  /** 交给读写库函数（one、many、count、exists、prepare、exec）的 SQL 不是本文件写的（别处导入的、参数传进来的、函数算出来的） */
+  foreignSql: { sql: string; line: number }[];
   creates: string[];
 };
 
@@ -148,6 +150,49 @@ function sqlReads(sql: string, splices: readonly string[]) {
   for (const m of sql.matchAll(/\bfrom\s+/gi)) fromList(sql, m.index + m[0].length).forEach(item);
   return { tables, dynamic };
 }
+const isPlus = (n: ts.Node): n is ts.BinaryExpression => ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.PlusToken;
+/** 字符串的 .concat(…)：接在本文件写出来的 SQL 文字后面的才算（数组的 concat 不算） */
+const isConcat = (n: ts.Node): n is ts.CallExpression & { expression: ts.PropertyAccessExpression } =>
+  ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'concat' && writtenSql(n.expression.expression);
+/** 本文件里写出来的 SQL 文字：字面量、模板、+ 拼接（有一段是写出来的）、字符串的 concat、两边都是这些的 ?: */
+function writtenSql(n: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(n)) return writtenSql(n.expression);
+  if (ts.isStringLiteralLike(n) || ts.isTemplateExpression(n)) return true;
+  if (isPlus(n)) return writtenSql(n.left) || writtenSql(n.right);
+  if (ts.isConditionalExpression(n)) return writtenSql(n.whenTrue) && writtenSql(n.whenFalse);
+  return isConcat(n);
+}
+/** 读写库的函数和 SQL 是第几个参数：server/core 的 one、many 第 3 个，count、exists 第 2 个（按引入时的原名认，改了名也认） */
+const SQL_ARG: Record<string, number> = { one: 2, many: 2, count: 1, exists: 1 };
+/**
+ * 交给读写库函数的 SQL 不是本文件写的：one、many、count、exists 和库连接（…db）的 prepare、exec，SQL 参数既不是写出来的文字，
+ * 也不是本文件里用写出来的文字定义的常量（别处导入的 SQL、参数传进来的、函数算出来的）。这种读看不出读的是谁的表。
+ */
+function foreignSql(source: ts.SourceFile): Facts['foreignSql'] {
+  const helpers = new Map<string, number>(),
+    written = new Set<string>(),
+    found: Facts['foreignSql'] = [];
+  const collect = (n: ts.Node): void => {
+    if (ts.isImportSpecifier(n) && Object.hasOwn(SQL_ARG, (n.propertyName ?? n.name).text)) helpers.set(n.name.text, SQL_ARG[(n.propertyName ?? n.name).text]);
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && writtenSql(n.initializer)) written.add(n.name.text);
+    ts.forEachChild(n, collect);
+  };
+  const sqlAt = (callee: ts.Expression) => {
+    if (ts.isIdentifier(callee)) return helpers.get(callee.text);
+    const onDb = ts.isPropertyAccessExpression(callee) && /\bdb$/.test(callee.expression.getText(source));
+    return onDb && ['prepare', 'exec'].includes(callee.name.text) ? 0 : undefined;
+  };
+  const check = (n: ts.Node): void => {
+    const at = ts.isCallExpression(n) ? sqlAt(n.expression) : undefined;
+    const arg = at === undefined || !ts.isCallExpression(n) ? undefined : n.arguments[at];
+    if (arg && !writtenSql(arg) && !(ts.isIdentifier(arg) && written.has(arg.text)))
+      found.push({ sql: arg.getText(source), line: source.getLineAndCharacterOfPosition(arg.getStart(source)).line + 1 });
+    ts.forEachChild(n, check);
+  };
+  collect(source);
+  check(source);
+  return found;
+}
 const factsCache = new Map<string, Facts>();
 /**
  * 取一个文件里的 SQL 读写（text 不给就读文件并记住结果）。只看字符串，不看注释；不分大小写（update、Update、UPDATE 一样）。
@@ -161,19 +206,19 @@ function sqlFacts(f: string, text?: string): Facts {
   const source = ts.createSourceFile(f, text ?? readFileSync(f, 'utf8'), ts.ScriptTarget.Latest, true, scriptKind(f));
   const strings: { text: string; line: number; splices: string[] }[] = [];
   const lineOf = (n: ts.Node) => source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1;
-  const isPlus = (n: ts.Node): n is ts.BinaryExpression => ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.PlusToken;
   const templateText = (n: ts.TemplateExpression) => n.head.text + n.templateSpans.map((s) => '\u0001' + s.literal.text).join('');
   /** 拼进来的是什么：表达式开头的名字（snapshotLines('e.snapshot') 记 snapshotLines，this.t 记 this.t） */
   const spliceName = (e: ts.Node) => /^[\w.$]+/.exec(e.getText(source))?.[0] ?? '?';
   const chain = (n: ts.Expression, parts: string[], rest: ts.Node[]) => {
     if (isPlus(n)) chain(n.left, parts, rest), chain(n.right, parts, rest);
-    else if (ts.isParenthesizedExpression(n) && isPlus(n.expression)) chain(n.expression, parts, rest);
+    else if (isConcat(n)) [n.expression.expression, ...n.arguments].forEach((a) => chain(a, parts, rest));
+    else if (ts.isParenthesizedExpression(n) && (isPlus(n.expression) || isConcat(n.expression))) chain(n.expression, parts, rest);
     else if (ts.isStringLiteralLike(n)) parts.push(n.text);
     else if (ts.isTemplateExpression(n)) parts.push(templateText(n)), n.templateSpans.forEach((s) => rest.push(s.expression));
     else parts.push('\u0001'), rest.push(n);
   };
   const visit = (n: ts.Node): void => {
-    if (isPlus(n)) {
+    if (isPlus(n) || isConcat(n)) {
       const parts: string[] = [], rest: ts.Node[] = [];
       chain(n, parts, rest);
       strings.push({ text: parts.join(''), line: lineOf(n), splices: rest.map(spliceName) });
@@ -188,7 +233,7 @@ function sqlFacts(f: string, text?: string): Facts {
   const name = '["`\\[]?([a-z_][a-z0-9_]*)';
   // ON UPDATE CASCADE、DO UPDATE SET 这类不是写表
   const notTable = new Set(['set', 'cascade', 'restrict', 'no']);
-  const facts: Facts = { writes: [], dynamicWrites: [], reads: [], dynamicReads: [], creates: [] };
+  const facts: Facts = { writes: [], dynamicWrites: [], reads: [], dynamicReads: [], foreignSql: foreignSql(source), creates: [] };
   for (const s of strings) {
     for (const m of s.text.matchAll(new RegExp('\\b(?:into|update(?:\\s+or\\s+\\w+)?|delete\\s+from|drop\\s+(?:table|view)(?:\\s+if\\s+exists)?|alter\\s+table)\\s+' + name, 'gi')))
       if (!notTable.has(m[1].toLowerCase())) facts.writes.push({ table: m[1].toLowerCase(), line: s.line });
@@ -380,6 +425,8 @@ test('只读目录里没有写库的 SQL，自己模块的表也不写；登记�
 function assistantReadViolations(f: string, facts = sqlFacts(f)) {
   if (!f.startsWith('server/assistant/')) return [];
   const bad = facts.dynamicReads.map((d) => f + ':' + d.line + '：表名是拼出来的读（拼进来的是 ' + d.splice + '），看不出读的是谁的表。助手只读自己的表，业务数据调各模块的读函数');
+  for (const s of facts.foreignSql)
+    bad.push(f + ':' + s.line + '：交给读库函数的 SQL（' + s.sql + '）不是本文件写的，看不出读的是谁的表。助手的 SQL 写在本文件里且只读自己的表，业务数据调各模块的读函数');
   for (const r of facts.reads)
     if (tableOwner(r.table) !== '助手' && !sqliteOwn(r.table) && !assistantReadExceptions.some((e) => e.table === r.table))
       bad.push(f + ':' + r.line + '：助手直接读了 ' + r.table + '（' + (tableOwner(r.table) ?? '没登记') + '）。助手只读自己的表，业务数据调表主人模块的读函数或服务');
@@ -397,12 +444,23 @@ test('助手不直接读业务表：server/assistant/ 下的 SQL 只读助手自
     "count(db, 'SELECT COUNT(*) AS n FROM \"' + table + '\"')",
     "many(db, row, 'SELECT a.id FROM assistant_runs a JOIN flow_documents d ON d.id=a.thread_id')",
     "one(db, row, 'select kind,status from flow_documents where id=?', id)",
+    // 用 .concat 拼表名
+    "many(db, row, 'SELECT * FROM '.concat(table))",
+    "one(db, row, 'SELECT id FROM assistant_runs WHERE x IN (SELECT id FROM '.concat(table, ')'))",
+    // SQL 在别的模块写好、导入进来再交给读库函数（改了名也认）
+    "import { many as rowsOf } from '../core/index.js';\nimport { stockSql } from '../operations/index.js';\nrowsOf(store.db, row, stockSql);",
+    "import { count } from '../core/index.js';\ncount(store.db, sqlFor(table));",
+    "store.db.prepare(STOCK_SQL).all()",
   ])
     assert.ok(check(s).length, '助手里应拦住：' + s);
   for (const s of [
     "one(db, row, 'SELECT seq FROM assistant_messages WHERE id=?', id)",
     "one(db, row, 'SELECT enabled FROM tool_settings WHERE name=?', name)",
     "count(db, 'SELECT COUNT(*) FROM pragma_foreign_key_check')",
+    // 本文件写的 SQL 放进常量再交给读库函数；不是库连接的 exec（正则）不算
+    "import { many } from '../core/index.js';\nconst SQL = 'SELECT seq FROM assistant_messages WHERE thread_id=?';\nmany(db, row, SQL, id);",
+    "const m = /x/.exec(text);",
+    "store.db.exec('BEGIN IMMEDIATE')",
   ])
     assert.deepEqual(check(s), [], '助手里不该拦：' + s);
 });

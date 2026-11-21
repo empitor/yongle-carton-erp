@@ -20,6 +20,7 @@ import { selfBoundedResults } from '../tools/web.js';
 import { noteSources, stepLabel } from './turn-trail.js';
 import { WORKFLOW_DIRECT } from './workflow-direct.js';
 import { moduleSchema } from '../tools/modules.js';
+import { observeForPage } from '../tools/page-record.js';
 import { objectArgs } from '../tools/context.js';
 import { field, firstText, listField } from './result-fields.js';
 import { planCard } from '../json-view.js';
@@ -86,17 +87,20 @@ function read(svc: ChatServices, run: ChatRun, name: string, call: CheckedCall, 
   const { args } = call;
   if (name === 'prompts.get') return svc.promptEdit.get(args, check());
   if (name === 'chat.list') return svc.conversations.listThreads(id, check());
+  // 看页面：模型说的记录（助手模块名）换回页面上的全站记录种类再交给页面，看到的快照换成助手模块名再交给模型
   if (name === 'page.observe')
-    return svc.pageBridge.observe(args, {
-      actor: run.actor,
-      binding,
-      clientId: input.pageClientId,
-      threadId: id,
-      requestId: input.requestId,
-      check,
-      signal,
-      emit,
-    });
+    return svc.pageBridge
+      .observe(observeForPage(args), {
+        actor: run.actor,
+        binding,
+        clientId: input.pageClientId,
+        threadId: id,
+        requestId: input.requestId,
+        check,
+        signal,
+        emit,
+      })
+      .then((seen) => (seen.snapshot ? { ...seen, snapshot: svc.tools.pageSnapshot(seen.snapshot) } : seen));
   if (svc.extras.handles(name)) return svc.extras.read(name, args, check());
   return svc.tools.readChecked(name, call, check(), {
     signal,

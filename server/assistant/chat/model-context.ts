@@ -45,7 +45,11 @@ export function buildModelMessages(
   const exposedTools = svc.registry.exposed(actor).filter((t) => pageConnected || t.name !== 'page.observe');
   const contextData = {
     context: selectedRecord ?? { page: input.context?.page || '' },
-    page: pageConnected && exposedTools.some((t) => t.name === 'page.observe') ? input.pageSnapshot : undefined,
+    // 快照里当前记录的种类换成助手模块名（页面报的是全站记录种类），模型照着就能查
+    page:
+      pageConnected && input.pageSnapshot && exposedTools.some((t) => t.name === 'page.observe')
+        ? svc.tools.pageSnapshot(input.pageSnapshot)
+        : undefined,
     attachments: files.map((f) => ({ id: f.id, name: f.name })),
     orderWorkflow: workflow.tasks.length
       ? {

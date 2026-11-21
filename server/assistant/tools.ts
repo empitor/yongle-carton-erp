@@ -13,8 +13,10 @@ import { localOnlyMessage, localOnlyPlan, type ToolPlan } from './plan-rules.js'
 import { planStamp } from './card-stamp.js';
 import { requireActor, type ReadExtra, type ToolContext, type ToolServices } from './tools/context.js';
 import type { CheckedCall } from './tools/define.js';
-import { moduleOfPageRecord, recordLink, type Module } from './tools/modules.js';
+import { recordLink, type Module } from './tools/modules.js';
+import { moduleOfPageRecord, snapshotForModel } from './tools/page-record.js';
 import type { dataManagementModules } from '../../shared/business/index.js';
+import type { PageSnapshot } from '../../shared/assistant/index.js';
 import { recordCard, withCard } from './tools/card-summary.js';
 import { withInventoryPolicy } from './tools/records-lifecycle.js';
 import { toolDefinitions } from './tool-catalog.js';
@@ -58,12 +60,15 @@ export class AssistantTools {
     });
   }
   /**
-   * 页面上正在看的那条记录（页面报全站记录种类和编号）：换成助手模块（tools/modules.ts 的 moduleOfPageRecord）后按 records.get 读，
+   * 页面上正在看的那条记录（页面报全站记录种类和编号）：换成助手模块（tools/page-record.ts 的 moduleOfPageRecord）后按 records.get 读，
    * 预读进聊天的上下文。
    */
   pageRecord(record: (typeof dataManagementModules)[number], id: number, who: Who): unknown {
-    const module = moduleOfPageRecord(this.ctx, record, id);
-    return module ? this.read('records.get', { module, id }, who) : null;
+    return this.read('records.get', { module: moduleOfPageRecord(this.ctx, record, id), id }, who);
+  }
+  /** 交给模型的页面快照（这一轮带来的、page.observe 看到的）：当前记录的种类换成助手模块名（tools/page-record.ts） */
+  pageSnapshot(snapshot: PageSnapshot): PageSnapshot {
+    return snapshotForModel(this.ctx, snapshot);
   }
   /** 内部调用和直接调用（工具之间互相调、打开记录、预读上下文）：参数在这里按工具的结构校验。extra：这一轮的中止信号等，聊天里才给。 */
   read(name: string, raw: unknown, who: Who, extra?: ReadExtra): unknown {
