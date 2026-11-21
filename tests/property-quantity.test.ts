@@ -62,14 +62,14 @@ test('库存品的单位：原材料只存成“张”、成品只存成“只�
     fc.assert(
       fc.property(fc.constantFrom('raw', 'finished'), unitArb, (kind, unit) => {
         const expected = kind === 'raw' ? RAW_UNIT : FINISHED_UNIT;
-        const before = f.ops.repo.items(true).length;
+        const before = f.ops.items(true).length;
         // 成品要挂一个还没有成品库存的产品
         const productId = kind === 'finished' ? f.store.saveProduct(productSchema.parse({ name: '虚构单位产品' + ++serial })).id : undefined;
         try {
           const saved = f.ops.saveItem({ name: '虚构单位' + ++serial, kind, unit, productId }, clerk);
           return stockUnit(kind, unit) === expected && saved.unit === expected;
         } catch {
-          return stockUnit(kind, unit) !== expected && f.ops.repo.items(true).length === before;
+          return stockUnit(kind, unit) !== expected && f.ops.items(true).length === before;
         }
       }),
       { numRuns: 60 },

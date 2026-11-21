@@ -31,7 +31,7 @@ test('助手照读到的记录原样带回明细、只改一格能存：订单�
     resend(f, 'orders', f.order.id, 900);
     assert.equal(f.store.order(f.order.id, true)?.lines[0].quantity, 900);
     resend(f, 'purchases', f.purchase.id, '900');
-    assert.equal(f.ops.repo.purchases(true, [f.purchase.id])[0].lines[0].quantity, '900');
+    assert.equal(f.flow.views.purchases(true, [f.purchase.id])[0].lines[0].quantity, '900');
     const arrival = f.flow.save(
       'arrival',
       { date: '2026-10-27', supplierId: f.supplier.id, reference: '虚构派生栏目到货', lines: [{ stockId: f.raw.id, item: { name: f.raw.name, unit: '张' }, quantity: '10', purchaseLineId: f.purchase.lines[0].id }] },

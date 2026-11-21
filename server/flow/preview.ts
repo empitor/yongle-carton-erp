@@ -111,7 +111,7 @@ export function preview(flow: FlowCommands, id: number, who: Actor | null | unde
  */
 function describeChanges(flow: FlowCommands, changes: StockChange[]) {
   const ids = changes.flatMap((c) => (c.stockId ? [c.stockId] : []));
-  const balances = new Map<number, number>(flow.ops.repo.items(true, ids).map((i) => [i.id, i.balanceUnits]));
+  const balances = new Map<number, number>(flow.ops.items(true, ids).map((i) => [i.id, i.balanceUnits]));
   const running = new Map<string, number>(),
     firstNew = new Map<string, number>();
   changes.forEach((c, index) => {

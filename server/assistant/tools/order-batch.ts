@@ -63,7 +63,7 @@ export const orderBatchTools = [
   },
 ];
 
-/** aiBatch 读的那几行：订货单详情（OrderBatchService.view、open）和导出前的合并预览（draft）都有这些 */
+/** aiBatch 读的那几行：订货单详情（单据流转的 views.batch、openBatches）和导出前的合并预览（draft）都有这些 */
 type BatchRowView = ReturnType<typeof batchRows>[number];
 /** 行键（key）在这里，但不给模型看 */
 type BatchRowSource = Pick<BatchRowView, 'key' | 'name' | 'specification' | 'unit' | 'unitPrice' | 'orderedUnits' | 'receivedUnits' | 'remainingUnits'> & {
@@ -151,7 +151,7 @@ function batchTarget(batches: OrderBatchService, v: { id?: number; purchaseId?: 
  * 以前订的采购单没有订货单：这里只在回滚预演里补建（调用方放在 rehearse 里），正式补建放到执行时。
  * 返回的 id 为 null 表示执行时再补建。
  */
-function batchReceiveInput(batches: OrderBatchService, raw: unknown, actor: Actor) {
+function batchReceiveInput(ctx: ToolContext, batches: OrderBatchService, raw: unknown, actor: Actor) {
   const row = z.number().int().positive();
   const v = z
     .strictObject({
@@ -169,7 +169,8 @@ function batchReceiveInput(batches: OrderBatchService, raw: unknown, actor: Acto
   const target = batchTarget(batches, v);
   if (target.existing !== null && v.expectedVersion === undefined)
     fail('按订货单登记到货要带 expectedVersion：先用 order_batch.get 读这份订货单的最新 version。');
-  const view = target.existing !== null ? batches.view(target.existing) : batches.ensureFor(target.purchaseId, actor);
+  // 订货单详情带按它登记的到货单（完整视图），卡片的“之前”给模型看的就是它
+  const view = ctx.flow.views.batch(target.existing ?? batches.ensureFor(target.purchaseId, actor).id);
   const key = (n: number) => view.rows[n - 1]?.key ?? fail('订货单 ' + view.number + ' 没有第 ' + n + ' 行。');
   return {
     id: target.existing,
@@ -201,12 +202,12 @@ function readBatches(ctx: ToolContext, raw: unknown, who: Actor | null | undefin
   }
   if (name === 'order_batch.list') {
     const v = z.strictObject({ supplierId: positive.optional(), purchaseId: positive.optional() }).parse(raw ?? {});
-    // 和到货页“待到货”同一个口径（OrderBatchService.open：先在库里按供应商、采购单和还没到齐圈出来再组装）
-    return { batches: batches.open(v).map(aiBatch), url: '#warehouse?arrivals=1' };
+    // 和到货页“待到货”同一个口径（views.openBatches：先在库里按供应商、采购单和还没到齐圈出来再组装，带到货单）
+    return { batches: ctx.flow.views.openBatches(v).map(aiBatch), url: '#warehouse?arrivals=1' };
   }
   const v = z.strictObject({ id: positive.optional(), purchaseId: positive.optional() }).parse(raw ?? {});
   const id = v.id ?? (v.purchaseId ? batches.batchIdOf(v.purchaseId) : fail('请传订货单id或purchaseId。'));
-  return id === null ? null : aiBatch(batches.view(id));
+  return id === null ? null : aiBatch(ctx.flow.views.batch(id));
 }
 
 export const orderBatchReaders: Record<string, ToolReader> = {
@@ -218,8 +219,8 @@ export const orderBatchReaders: Record<string, ToolReader> = {
 function buildBatchSchedule(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
   const batches = new OrderBatchService(ctx.store);
   const { id, input } = batchScheduleInput(batches, raw);
-  const before = aiBatch(batches.view(id));
-  const after = rehearse(ctx.store.db, () => batches.saveSchedule(id, input, actor));
+  const before = aiBatch(ctx.flow.views.batch(id));
+  const after = rehearse(ctx.store.db, () => ctx.flow.views.batch(batches.saveSchedule(id, input, actor).id));
   return {
     tool,
     args: { id, input },
@@ -235,7 +236,7 @@ function buildBatchReceive(ctx: ToolContext, tool: string, raw: unknown, actor: 
   const batches = new OrderBatchService(ctx.store);
   // 生成方案不写库：没有订货单时补建、登记到货都只在回滚预演里做
   const { id, purchaseId, input, before, after } = rehearse(ctx.store.db, () => {
-    const prepared = batchReceiveInput(batches, raw, actor);
+    const prepared = batchReceiveInput(ctx, batches, raw, actor);
     return {
       id: prepared.id,
       purchaseId: prepared.purchaseId,
@@ -275,7 +276,7 @@ export const orderBatchWriters: Record<string, ToolWriter> = {
     build: buildBatchSchedule,
     commit: (ctx, plan, actor) => {
       const { id, input } = idAndInput.parse(plan.args);
-      return new OrderBatchService(ctx.store).saveSchedule(id, input, actor);
+      return ctx.flow.views.batch(new OrderBatchService(ctx.store).saveSchedule(id, input, actor).id);
     },
   },
   'order_batch.receive': {

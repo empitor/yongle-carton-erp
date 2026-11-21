@@ -30,7 +30,7 @@ function setup(unit?: string, specification = '虚构纸箱A-300x200x150') {
     { name: product.name, specification: '300 × 200 × 150 mm / 虚构三层瓦楞纸板 / B楞' },
     { quantity: '1000', date: '2026-11-09' },
   );
-  const item = () => ops.repo.items(true, stock.id)[0];
+  const item = () => flow.views.items(true, stock.id)[0];
   return { store, ops, flow, check: base.check, customer, product, order, item };
 }
 
@@ -87,7 +87,7 @@ test('“个”就是“只”：订单、库存品、生产任务写“个”�
   );
   // 数据库这一层的单位约束由 schema-constraints.test.ts 守着；已有的档案改成别的单位，保存服务照样拦并说明原因
   assert.throws(
-    () => f.ops.saveItem({ name: '虚构成品B改名', kind: 'finished', unit: '箱', version: finished.version }, actor, finished.id),
+    () => f.flow.stock.saveItem({ name: '虚构成品B改名', kind: 'finished', unit: '箱', version: finished.version }, actor, finished.id),
     /只有“只”/,
   );
   const task = f.flow.save('task', { date: '2026-11-10', plannedDate: '2026-11-11', productId: f.product.id, quantity: '100', unit: '个', orderIds: [f.order.id], notes: '' }, actor);
@@ -326,7 +326,7 @@ test('今日页“待排产”只排还要做的产品：只剩规格对不上�
     const task = flow.save('task', { date: day, plannedDate: day, productId: box.id, quantity: '1000', unit: '只', orderIds: [first.id], notes: '' }, actor);
     confirm(flow.save('production', { date: day, taskId: task.id, productId: box.id, goodQuantity: '1000', scrapQuantity: '0', operator: '虚构机长', materials: [{ stockId: raw.id, issued: '10', returned: '0' }] }, actor));
     const stockOf = (productId: number) => {
-      const found = ops.repo.items(false).find((i) => i.kind === 'finished' && i.productId === productId);
+      const found = ops.items(false).find((i) => i.kind === 'finished' && i.productId === productId);
       assert.ok(found, '有这个产品的成品库存品');
       return found;
     };

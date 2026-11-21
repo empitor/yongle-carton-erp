@@ -1,7 +1,6 @@
 // 确认卡片动的是哪几条（card-summary.ts 用）：按工具的参数认，不看模型写的说法；再按各自的读法读出它现在的样子。
 import type { Actor } from '../../core/index.js';
 import { AppError, exists, one, rows } from '../../core/index.js';
-import { OrderBatchService } from '../../operations/index.js';
 import { planModule, type Obj } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
 import type { Touched } from './card-rehearsal.js';
@@ -42,7 +41,7 @@ function readRow(ctx: ToolContext, t: Target, actor: Actor): Obj | undefined {
   if (flowKindOf(t.module)) return flowRow(ctx, t.id);
   const other = otherTable(t.module);
   if (other) return one(ctx.store.db, other.row, 'SELECT * FROM ' + other.table + ' WHERE id=?', t.id);
-  if (t.module === 'stock_items') return ctx.ops.repo.items(true, t.id)[0];
+  if (t.module === 'stock_items') return ctx.flow.views.items(true, t.id)[0];
   if (!t.assistant) return undefined;
   const row: unknown = recordRow(ctx, t.assistant, actor, true, t.id);
   return isRecord(row) ? row : undefined;
@@ -50,7 +49,7 @@ function readRow(ctx: ToolContext, t: Target, actor: Actor): Obj | undefined {
 /** 订货单按给助手看的那个样子读（每行订购、已到、到货安排），卡片按它比 */
 function batchRow(ctx: ToolContext, id: number): Obj | undefined {
   if (!exists(ctx.store.db, 'SELECT id FROM order_batches WHERE id=?', id)) return undefined;
-  const view = new OrderBatchService(ctx.store).view(id),
+  const view = ctx.flow.views.batch(id),
     batch = aiBatch(view);
   return { ...batch, rows: batch.rows.map((r, i) => ({ ...r, key: view.rows[i]?.key })) };
 }
@@ -60,7 +59,7 @@ function flowRow(ctx: ToolContext, id: number): Obj {
   return {
     ...doc,
     customerName: doc.kind === 'delivery' ? doc.customerName || ctx.store.customer(doc.customerId, true)?.name : undefined,
-    supplierName: doc.kind === 'arrival' ? doc.supplierName || ctx.ops.repo.supplierName(doc.supplierId, true) : undefined,
+    supplierName: doc.kind === 'arrival' ? doc.supplierName || ctx.ops.supplierName(doc.supplierId, true) : undefined,
   };
 }
 

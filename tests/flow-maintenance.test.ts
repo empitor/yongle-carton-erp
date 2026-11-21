@@ -12,7 +12,7 @@ test('库存品改名对齐到货单、采购明细解除关联、整份替换�
   const f = flowFixture();
   try {
     const done = f.arrive('虚构送货单-对齐', '10');
-    const item = f.ops.repo.items(true, f.raw.id)[0];
+    const item = f.ops.items(true, f.raw.id)[0];
     alignStock(f.flow, item, { ...item, name: '虚构纸板改名' }, localAdmin());
     assert.equal(get(f.store, done.id, 'arrival').lines[0].item.name, '虚构纸板改名');
     // 采购明细解除关联：挂在上面的到货单不再指向它
@@ -29,7 +29,7 @@ test('库存品改名对齐到货单、采购明细解除关联、整份替换�
     );
     detachPurchaseLines(f.flow, purchase.id, [lineId], localAdmin());
     assert.equal(get(f.store, received.arrival.id, 'arrival').lines[0].purchaseLineId, null);
-    assert.equal(f.ops.repo.purchases(true, purchase.id)[0].lines[0].receivedQuantity, '0');
+    assert.equal(f.flow.views.purchases(true, purchase.id)[0].lines[0].receivedQuantity, '0');
     // 整份替换单据：版本号加一
     const version = get(f.store, done.id).version;
     replaceFlowDocument(f.store, done.id, { ...get(f.store, done.id), notes: '虚构备注' });

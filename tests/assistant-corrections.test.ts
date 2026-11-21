@@ -79,8 +79,8 @@ test('助手更正送货单：出卡片后库存被人动过，确认被拒、�
   const thread = f.manager.create(actor).id;
   f.replies.push(call('delivery.correct', { id: doc.id, expectedVersion: doc.version, reason: '虚构：点错', lines: [{ index: 0, quantity: '550' }] }));
   const v = await f.say(thread, '送货单改成 550 只');
-  const it = ops.repo.items(true, item.id)[0];
-  ops.move(item.id, { action: 'in', quantity: '10', date: '2026-11-03', notes: '虚构补入库', acknowledged: true, requestId: randomUUID(), expectedVersion: it.version }, actor);
+  const it = ops.items(true, item.id)[0];
+  flow.stock.move(item.id, { action: 'in', quantity: '10', date: '2026-11-03', notes: '虚构补入库', acknowledged: true, requestId: randomUUID(), expectedVersion: it.version }, actor);
   await assert.rejects(async () => confirmCard(f, v, 0, actor, 's'));
   assert.equal(flow.get(doc.id).status, 'confirmed');
   assert.equal(flow.get(doc.id).replacedBy ?? null, null);
@@ -128,7 +128,7 @@ function completed(t: TestContext) {
 test('助手更正完工单（超级管理员）：卡片写合格、领料、任务已入库前后和成品、纸板库存；点了才改', async (t) => {
   const { b, task, done, f } = completed(t),
     boss = superActor();
-  const balances = () => [b.ops.repo.balance(b.finished.id), b.ops.repo.balance(b.raw.id)];
+  const balances = () => [b.ops.balance(b.finished.id), b.ops.balance(b.raw.id)];
   f.replies.push(call('production.correct', { id: done.id, expectedVersion: done.version, reason: '虚构：多点了一箱', goodQuantity: '900', materials: [{ index: 0, issued: '90' }] }));
   const v = await f.say(f.manager.create(boss).id, '完工单 ' + done.number + ' 合格其实是 900 只，纸板领了 90 张', {}, boss);
   const card = lastCard(v);

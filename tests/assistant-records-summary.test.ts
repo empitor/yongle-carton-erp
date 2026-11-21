@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { toolsOf } from './assistant-fixture.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { actor } from './actor-fixture.js';

@@ -1,6 +1,6 @@
 import type {
   DeletionApi,
-  OperationsApi,
+  StockFlowApi,
   RecordEntity,
   RecordStatusAction,
   RecordsApi,
@@ -14,7 +14,7 @@ import type { LifecycleAction } from './lifecycle';
  * 单据（/flow/:id）走 flow/flow-api.ts 的 readFlow；档案清单走 catalog-api.ts。
  */
 const records = call<RecordsApi>(),
-  operations = call<OperationsApi>(),
+  stock = call<StockFlowApi>(),
   workbench = call<WorkbenchApi>(),
   deletions = call<DeletionApi>();
 
@@ -23,16 +23,16 @@ type RecordById = {
   customers: RecordsApi['GET /customers/:id']['response'];
   products: RecordsApi['GET /products/:id']['response'];
   orders: RecordsApi['GET /orders/:id']['response'];
-  purchases: OperationsApi['GET /purchases/:id']['response'];
-  stock_items: OperationsApi['GET /warehouse/items/:id']['response'];
+  purchases: StockFlowApi['GET /purchases/:id']['response'];
+  stock_items: StockFlowApi['GET /warehouse/items/:id']['response'];
 };
 const recordReaders: { [E in keyof RecordById]: (id: number | string) => Promise<RecordById[E]> } = {
   customers: (id) => records('GET /customers/:id', { params: { id } }),
   products: (id) => records('GET /products/:id', { params: { id } }),
   orders: (id) => records('GET /orders/:id', { params: { id } }),
-  purchases: (id) => operations('GET /purchases/:id', { params: { id } }),
+  purchases: (id) => stock('GET /purchases/:id', { params: { id } }),
   // 库存品的地址在仓库下面
-  stock_items: (id) => operations('GET /warehouse/items/:id', { params: { id } }),
+  stock_items: (id) => stock('GET /warehouse/items/:id', { params: { id } }),
 };
 
 /** 一条档案；能看这条的账号都能读，含已归档的 */

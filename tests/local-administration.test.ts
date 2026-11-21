@@ -14,7 +14,7 @@ import { AuthManager } from '../server/core/auth.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { manageWorkspaces } from '../server/admin/workspace-management.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { FlowService } from '../server/flow/service.js';
 import { recordContext } from '../server/business/record-context.js';
 import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
@@ -154,13 +154,13 @@ test('数据管理改已生效的完工单、送货单：改数量、日期被�
     const task = f.task(),
       production = f.production(task.id),
       delivery = f.delivery();
-    const before = f.ops.repo.movements().length;
+    const before = f.ops.movements().length;
     const command = cmd('production', 'update', [production], { goodQuantity: '850' });
     assert.throws(() => f.dataManagement.execute(command, f.who, 's'), (e: unknown) => e instanceof AppError && e.status === 409 && /改数量请用“更正完工单”/.test(e.message));
     assert.throws(() => f.dataManagement.execute(cmd('delivery', 'update', [delivery], { lines: [{ ...editorLines(f, 'delivery', delivery.id)[0], quantity: '90' }] }), f.who, 's'), /改数量请用“更正送货单”/);
     assert.throws(() => f.dataManagement.execute(cmd('delivery', 'update', [delivery], { plannedDate: '2026-11-01' }), f.who, 's'), /更正送货单/);
-    assert.equal(f.ops.repo.movements().length, before);
-    assert.deepEqual([f.ops.repo.balance(f.raw.id), f.ops.repo.balance(f.finished.id)], [100000, 760000]);
+    assert.equal(f.ops.movements().length, before);
+    assert.deepEqual([f.ops.balance(f.raw.id), f.ops.balance(f.finished.id)], [100000, 760000]);
     assert.equal(f.flow.get(task.id, 'task').completed, '860');
     assert.equal(f.store.order(f.order.id, true)?.lines[0].shippedQuantity, 100);
     f.flow.reverse(delivery.id, { version: f.flow.get(delivery.id).version, reason: '虚构发错', acknowledged: true }, f.who);
@@ -176,17 +176,17 @@ test('数据管理只改已生效单据的说明（备注、操作人、地址�
     f.arrival();
     const production = f.production(f.task().id),
       delivery = f.delivery();
-    const before = f.ops.repo.movements().length;
+    const before = f.ops.movements().length;
     const result = firstResult(f.dataManagement.execute({ ...cmd('production', 'update', [production], { notes: '虚构批次备注B', operator: '实际机长' }), entry: AUDIT_SOURCE.dataManagement }, f.who, 's'));
     assert.deepEqual([result.notes, result.operator, result.version, result.status], ['虚构批次备注B', '实际机长', production.version + 1, 'confirmed']);
     const shipped = firstResult(f.dataManagement.execute(cmd('delivery', 'update', [delivery], { address: '虚构新地址', notes: '虚构送货备注' }), f.who, 's'));
     assert.deepEqual([shipped.address, shipped.notes], ['虚构新地址', '虚构送货备注']);
-    assert.equal(f.ops.repo.movements().length, before);
+    assert.equal(f.ops.movements().length, before);
     const history = recordContext(f.store, 'production', production.id, superActor()).history;
     const labeled = history.filter((e) => e.sourceLabel === '数据管理');
     assert.deepEqual(labeled.map((e) => historyActionName(e.action)), ['修改', '编辑说明'], '数据管理记的和说明编辑自己记的都在，来源都是数据管理');
     for (const e of history) assert.doesNotMatch(historyActionName(e.action), /数据管理/, e.action);
-    const raw = f.ops.repo.items().find((s) => s.id === f.raw.id);
+    const raw = f.ops.items().find((s) => s.id === f.raw.id);
     assert.ok(raw);
     assert.throws(
       () => f.dataManagement.execute(cmd('stock_items', 'update', [raw], { balanceUnits: -1 }), f.who, 's'),
@@ -214,12 +214,12 @@ test('本机管理员删订单（删除引擎）：连送货一起删，留下�
     assert.equal(f.store.order(order.id, true), undefined);
     assert.equal(f.flow.list('delivery', true).length, 0);
     assert.equal(f.flow.list('production', true).length, 1);
-    assert.equal(f.ops.repo.balance(f.finished.id), 760000);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.finished.id), 760000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     assert.deepEqual(f.flow.get(task.id, 'task').orderIds, []);
-    assert.equal(new OperationsRepository(f.store).purchases(true)[0].customerOrderId, null);
+    assert.equal(new FlowService(f.store).views.purchases(true)[0].customerOrderId, null);
     f.service.delete(command, f.who, 's');
-    assert.equal(f.ops.repo.balance(f.finished.id), 760000);
+    assert.equal(f.ops.balance(f.finished.id), 760000);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     f.store.close();
@@ -246,7 +246,7 @@ test('本机管理员删订单（删除引擎）：订单版本变了、看过�
     assert.throws(() => remove(fresh.digest), /fixture abort/);
     assert.ok(f.store.order(order.id, true));
     assert.equal(f.flow.list('delivery', true).length, 1);
-    assert.equal(f.ops.repo.balance(f.finished.id), 760000);
+    assert.equal(f.ops.balance(f.finished.id), 760000);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
     f.store.db.exec('DROP TRIGGER fictional_delete_failure');
     remove(maintenance.preview(selection(), f.who).digest);

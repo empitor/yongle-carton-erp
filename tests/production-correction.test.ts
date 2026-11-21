@@ -47,7 +47,7 @@ function setup(t: TestContext, good = '1000') {
       plan = planCorrection(f.store, id, v, who);
     return ofKind(correctDocument(f.store, id, { ...v, previewDigest: plan.previewDigest, requestId: randomUUID() }, who), 'production');
   };
-  const balance = (id: number) => f.ops.repo.balance(id);
+  const balance = (id: number) => f.ops.balance(id);
   return { ...f, task, done, ship, preview, correct, balance };
 }
 
@@ -106,8 +106,8 @@ test('权限和拦下：没进超级管理员模式 403；合格报废都 0 提�
 test('超计划只提示，“已入库”不算原单自己；加一行衬板、再更正一次成链', (t) => {
   const f = setup(t);
   f.arrival('50');
-  const glueIn = f.ops.repo.items(true, f.glue.id)[0];
-  f.ops.move(f.glue.id, { action: 'in', quantity: '20', date: '2026-10-20', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: glueIn.version }, f.actor);
+  const glueIn = f.ops.items(true, f.glue.id)[0];
+  f.flow.stock.move(f.glue.id, { action: 'in', quantity: '20', date: '2026-10-20', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: glueIn.version }, f.actor);
   const over = f.preview(f.done.id, { goodQuantity: '1100' });
   assert.ok(over.warnings.some((w: string) => /超过生产计划数量.*已核对入库 0 只/.test(w)), over.warnings.join('|'));
   const first = f.correct(f.done.id, { goodQuantity: '1100', materials: [{ index: 0, issued: '100' }, { stockId: f.glue.id, issued: '20', returned: '5' }] });

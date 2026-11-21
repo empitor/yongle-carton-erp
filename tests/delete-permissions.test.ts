@@ -148,7 +148,7 @@ test('删除的库存处理：没动过库存的单据不用选；动过库存�
     notes: '',
     costs: null,
   });
-  const balance = () => ops.repo.balance(item.id);
+  const balance = () => ops.balance(item.id);
   const remove = (doc: { id: number; version: number }, inventoryPolicy?: 'preserve' | 'recalculate') => {
     const selection = { module: 'delivery', items: [{ id: doc.id, version: doc.version }], ...(inventoryPolicy ? { inventoryPolicy } : {}) };
     const plan = f.service.preview(selection, owner);

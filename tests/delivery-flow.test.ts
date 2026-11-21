@@ -64,9 +64,9 @@ test('送货改期让旧确认失效；库存被用掉后预览就拦下；补�
     const preview = () => f.flow.preview(doc.id, clerk);
     const confirm = (previewDigest: string) => f.flow.confirm(doc.id, { previewDigest, requestId, acknowledged: true }, clerk);
     const move = (action: 'in' | 'out', quantity: string) =>
-      f.ops.move(
+      f.flow.stock.move(
         f.finished.id,
-        { action, quantity, date: '2026-10-22', acknowledged: true, notes: '虚构库存变动', requestId: randomUUID(), expectedVersion: f.ops.repo.items(true, f.finished.id)[0].version },
+        { action, quantity, date: '2026-10-22', acknowledged: true, notes: '虚构库存变动', requestId: randomUUID(), expectedVersion: f.ops.items(true, f.finished.id)[0].version },
         clerk,
       );
     const original = preview();
@@ -86,7 +86,7 @@ test('送货改期让旧确认失效；库存被用掉后预览就拦下；补�
     const saved = confirm(valid.previewDigest);
     assert.equal(saved.status, 'confirmed');
     assert.equal(orderOf(f.store, order.id).lines[0].shippedQuantity, 10);
-    assert.equal(f.ops.repo.balance(f.finished.id), 0);
+    assert.equal(f.ops.balance(f.finished.id), 0);
     const after = f.snapshot();
     assert.deepEqual(confirm(valid.previewDigest), saved);
     assert.deepEqual(f.snapshot(), after);
@@ -112,7 +112,7 @@ test('一张任务排两张订单、不挂任务的完工也入库；一张送�
       ],
     });
     assert.deepEqual([orderOf(f.store, first.id).status, orderOf(f.store, second.id).status], ['已发货', '已发货']);
-    assert.equal(f.ops.repo.balance(f.finished.id), 0);
+    assert.equal(f.ops.balance(f.finished.id), 0);
   } finally {
     f.store.close();
   }
@@ -167,7 +167,7 @@ test('多种产品的送货单：待送货不扣库存；保存、确认同一�
       })),
     };
     const doc = f.flow.save('delivery', input, actor);
-    assert.equal(f.ops.repo.balance(f.stocks[0].id), 50000);
+    assert.equal(f.ops.balance(f.stocks[0].id), 50000);
     assert.equal(f.flow.save('delivery', input, actor).id, doc.id);
     assert.equal(f.flow.list('delivery').length, 1);
     assert.throws(
@@ -179,8 +179,8 @@ test('多种产品的送货单：待送货不扣库存；保存、确认同一�
     const saved = f.flow.confirm(doc.id, confirm, actor);
     assert.equal(saved.status, 'confirmed');
     f.flow.confirm(doc.id, confirm, actor);
-    assert.equal(f.ops.repo.balance(f.stocks[0].id), 46000);
-    assert.equal(f.ops.repo.balance(f.stocks[1].id), 42000);
+    assert.equal(f.ops.balance(f.stocks[0].id), 46000);
+    assert.equal(f.ops.balance(f.stocks[1].id), 42000);
     assert.equal(orderOf(f.store, f.order.id).status, '待发货');
     assert.equal(orderOf(f.store, f.order.id).lines[0].remainingQuantity, 6);
     const second = f.flow.save(
@@ -254,7 +254,7 @@ test('库存不够、同一种成品几张订单合计超过库存时预览就�
     );
     assert.throws(() => f.flow.preview(doc.id, actor), /库存不足/);
     assert.equal(f.flow.get(doc.id).status, 'draft');
-    assert.equal(f.ops.repo.balance(f.stocks[0].id), 50000);
+    assert.equal(f.ops.balance(f.stocks[0].id), 50000);
     const split = f.flow.save(
       'delivery',
       {
@@ -279,7 +279,7 @@ test('库存不够、同一种成品几张订单合计超过库存时预览就�
     );
     assert.throws(() => f.flow.preview(split.id, actor), /库存不足/);
     assert.equal(f.flow.get(split.id).status, 'draft');
-    assert.equal(f.ops.repo.balance(f.stocks[0].id), 50000);
+    assert.equal(f.ops.balance(f.stocks[0].id), 50000);
   } finally {
     f.store.close();
   }

@@ -3,8 +3,8 @@ import { count, many, type Store } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { WarehouseDaily } from '../flow/index.js';
 import { periodOrders } from './period-records.js';
-import { OperationsRepository, OrderBatchService, purchaseOrderLinks } from '../operations/index.js';
-import { dueSegments, sumMoney, type FlowDocView } from '../../shared/business/index.js';
+import { OperationsService, purchaseOrderLinks } from '../operations/index.js';
+import { dueSegments, sumMoney, type FlowDocView, type PurchaseView, type StockItemView } from '../../shared/business/index.js';
 import { DAY_MS, UNITS_PER_QUANTITY, deliverableOrder, effectiveOrder, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
 import { orderNextSteps, type NextStep } from '../../shared/business/index.js';
 import { pendingByOrderLine, specificationMismatch } from '../../shared/business/index.js';
@@ -17,7 +17,7 @@ import { pendingByOrderLine, specificationMismatch } from '../../shared/business
 export function buildWorkbench(store: Store, date: string) {
   const flow = new FlowService(store),
     daily = new WarehouseDaily(store),
-    repo = new OperationsRepository(store);
+    ops = new OperationsService(store);
   const tasks = flow.list('task');
   const activeTasks = tasks.filter(
     (t) => t.status === 'confirmed' && t.progress < 100,
@@ -33,7 +33,7 @@ export function buildWorkbench(store: Store, date: string) {
     pendingArrivals: arrivalRecords.filter((r) => r.pending && !r.cancelled).length,
     arrivalsToday: daily.daySummary(arrivalRecords, date).completed,
     // 当天原材料的采购入库流水（数量为 0 的也按“+”方向计）。
-    stockedToday: repo.movementCount({ start: date, end: date, kind: 'raw' }, {
+    stockedToday: ops.movementCount({ start: date, end: date, kind: 'raw' }, {
       inbound: true,
       sourceKinds: ['purchase', 'flow_arrival'],
     }),
@@ -63,8 +63,8 @@ const daysBetween = (from: string, to: string) =>
 const monthStart = (date: string) => date.slice(0, 'YYYY-MM'.length) + '-01';
 
 type Order = ReturnType<Store['orders']>[number];
-type StockItem = ReturnType<OperationsRepository['items']>[number];
-type Purchase = ReturnType<OperationsRepository['purchases']>[number];
+type StockItem = StockItemView;
+type Purchase = PurchaseView;
 type Task = FlowDocView<'task'>;
 /** 台账里的送货单（WarehouseDaily.records('delivery')）这里要用的几项：明细的品名、金额可能没有 */
 type DeliveryRecord = {
@@ -319,17 +319,16 @@ function daySchedule({ store, dueArrivals, tasks, deliveryRecords, date }: Sched
  */
 export function buildToday(store: Store, date: string) {
   const flow = new FlowService(store),
-    daily = new WarehouseDaily(store),
-    repo = new OperationsRepository(store);
+    daily = new WarehouseDaily(store);
   // 本月接单算上这个月里已归档的订单（只按日期圈出来读），待办用没归档的
   const orders = periodOrders(store, { start: monthStart(date) }),
     tasks = flow.list('task'),
-    purchases = repo.purchases(),
-    items = repo.items(),
+    purchases = flow.views.purchases(),
+    items = flow.views.items(),
     allDeliveries = daily.records('delivery', date, { includeArchived: true }),
     deliveryRecords = allDeliveries.filter((d) => !d.archived),
     // 今天要到的按订货单的到货安排：截止日是今天、还没到齐的段，逾期没到齐的排在前面
-    dueArrivals = dueSegments(new OrderBatchService(store).open(), date);
+    dueArrivals = dueSegments(flow.views.openBatches(), date);
   const active = orders.current.filter(deliverableOrder),
     finished = items.filter((i) => i.kind === 'finished');
   const facts = orderFacts({ store, flow, active, tasks, purchases, finished });

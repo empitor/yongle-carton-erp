@@ -35,7 +35,7 @@ function setup(t: TestContext) {
   );
   const stock = (productId: number, spec: string) => {
     const it = f.ops.saveItem({ name: '虚构成品' + productId, kind: 'finished', unit: '只', productId, specification: spec }, actor);
-    f.ops.move(it.id, { expectedVersion: it.version, requestId: randomUUID(), action: 'in', quantity: '100', date: f.order.orderDate, notes: '虚构期初', acknowledged: true }, actor);
+    f.flow.stock.move(it.id, { expectedVersion: it.version, requestId: randomUUID(), action: 'in', quantity: '100', date: f.order.orderDate, notes: '虚构期初', acknowledged: true }, actor);
     return it.id;
   };
   const boxed = stock(f.product.id, specification(f.product)),

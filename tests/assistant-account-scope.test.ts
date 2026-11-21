@@ -170,7 +170,7 @@ test('要超级管理员模式的事统一分两类：业务员让助手撤销�
     assert.equal(flow.get(done.id).status, 'confirmed', '都没撤成');
     assert.equal(flow.get(task.id).status, 'confirmed');
     const archiveFail = (who: Actor) => {
-      const item = ops.repo.items(true, raw.id)[0];
+      const item = ops.items(true, raw.id)[0];
       return changeLifecycle(f.store, 'stock_items', { action: 'archive', items: [{ id: raw.id, version: item.version }] }, who).results[0].message;
     };
     // 还有库存时不按账号分，一律引导先出库或盘点清零，不提删除

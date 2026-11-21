@@ -6,7 +6,6 @@ import { businessBase } from './business-base-fixture.js';
 import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
 import { assistantFixture, ctxOf, toolsOf } from './assistant-fixture.js';
 import type { Store as StoreType } from '../server/core/db.js';
-import type { OperationsRepository } from '../server/operations/repository.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { readAs } from './read-result.js';
 
@@ -55,7 +54,7 @@ test('按交期先后把成品排满：先给交期早的甲，剩下给乙；�
     assert.deepEqual(onlyB.groups.map((g) => [g.customerName, g.lines[0].quantity]), [['虚构乙食品', '400']]);
     assert.equal(onlyB.contested.length, 0);
     // 和人工窗口同一份算法
-    const items = f.ops.repo.items().filter((i) => i.kind === 'finished');
+    const items = f.base.flow.views.items().filter((i) => i.kind === 'finished');
     assert.deepEqual(
       planStockDelivery(items.filter((i) => i.id === f.stock.id), fx.store.orders()).map((g) => g.lines),
       plan.groups.map((g) => g.lines.map(({ orderNumber, productName, unit, ...l }) => l)),
@@ -98,11 +97,11 @@ test('delivery.plan 按主键批量读：不全量加载订单和库存品再筛
     const otherStock = f.base.finished(other, { name: '虚构无关纸箱' });
     const expectedByOrders = tools.read('delivery.plan', { orderIds: [f.oa.id, f.ob.id, f.oc.id] }, actor);
     const expectedByStock = tools.read('delivery.plan', { stockIds: [f.stock.id] }, actor);
-    const repo = tools.ops.repo,
-      items = repo.items.bind(repo);
+    const views = tools.flow.views,
+      items = views.items.bind(views);
     const seenItems: number[][] = [];
     t.mock.method(fx.store, 'orders', () => assert.fail('不能先读全部订单'));
-    t.mock.method(repo, 'items', (include: boolean, ids?: Parameters<OperationsRepository['items']>[1]) => {
+    t.mock.method(views, 'items', (include: boolean, ids?: Parameters<typeof views.items>[1]) => {
       assert.ok(ids !== undefined, '库存品要按编号读');
       seenItems.push([ids].flat());
       return items(include, ids);

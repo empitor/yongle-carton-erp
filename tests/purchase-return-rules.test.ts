@@ -16,8 +16,8 @@ test('采购退货：扣库存、冲减采购已到货，超量和带退货冲�
   try {
     const supervisor = { ...maker, superAdminMode: true, superAdminUntil: Date.now() + 600000 };
     const receivedUnits = () =>
-      Number(f.ops.repo.purchases(true, f.purchase.id)[0].lines[0].receivedUnits);
-    assert.equal(f.ops.repo.balance(f.raw.id), 10000);
+      Number(f.flow.views.purchases(true, f.purchase.id)[0].lines[0].receivedUnits);
+    assert.equal(f.ops.balance(f.raw.id), 10000);
     assert.throws(
       () => f.returns.create(maker, { arrivalId: f.received.id, date: '2026-02-08', reason: '虚构质量问题', requestId: 'return-too-much', lines: [{ lineIndex: 0, quantity: '11' }] }),
       /最多还能退 10/,
@@ -30,7 +30,7 @@ test('采购退货：扣库存、冲减采购已到货，超量和带退货冲�
       lines: [{ lineIndex: 0, quantity: '3' }],
     });
     assert.match(back.number, /^TH-20260208-0001$/);
-    assert.equal(f.ops.repo.balance(f.raw.id), 7000, '库存剩 7 张');
+    assert.equal(f.ops.balance(f.raw.id), 7000, '库存剩 7 张');
     assert.equal(receivedUnits(), 7000, '采购单已到货变成 7 张，供应商补货还能再到');
     assert.equal(f.returns.returnable(f.received.id).lines[0].returnable, '7');
     const arrival = f.flow.get(f.received.id);
@@ -40,7 +40,7 @@ test('采购退货：扣库存、冲减采购已到货，超量和带退货冲�
     );
     assert.throws(() => f.returns.reverse(maker, back.id, { version: back.version, reason: '虚构' }), /超级管理员/);
     f.returns.reverse(supervisor, back.id, { version: back.version, reason: '虚构退错了' });
-    assert.equal(f.ops.repo.balance(f.raw.id), 10000, '冲销退货后库存加回来');
+    assert.equal(f.ops.balance(f.raw.id), 10000, '冲销退货后库存加回来');
     assert.equal(receivedUnits(), 10000);
     assert.deepEqual(f.s.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {

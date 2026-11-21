@@ -17,7 +17,7 @@ test('每日到货按到货日期归属：待入库列在登记那天、核对�
       { version: cancelled.version, reason: '虚构取消', acknowledged: true },
       actor,
     );
-    assert.equal(f.ops.repo.balance(f.raw.id), 0);
+    assert.equal(f.ops.balance(f.raw.id), 0);
     // 到货没有计划日（安排在订货单上）：待入库的列在登记那天，不计“已完成”
     const day = f.daily.get({ kind: 'arrival', date: '2026-10-30' });
     if (day.kind !== 'arrival') throw new Error('预期到货台账');
@@ -53,7 +53,7 @@ test('每日到货按到货日期归属：待入库列在登记那天、核对�
     const correctedDay = f.daily.get({ kind: 'arrival', date: '2026-10-29' }).summary;
     assert.ok(correctedDay);
     assert.equal(correctedDay.completed, 2);
-    assert.equal(f.ops.repo.balance(f.raw.id), 4500 * 1000);
+    assert.equal(f.ops.balance(f.raw.id), 4500 * 1000);
   } finally {
     f.store.close();
   }
@@ -63,7 +63,7 @@ test('每日送货按计划日和实际出库日分别归属，分批送货的�
   const f = setup();
   try {
     const p = f.saveDelivery();
-    assert.equal(f.ops.repo.balance(f.stock.id), 10000000);
+    assert.equal(f.ops.balance(f.stock.id), 10000000);
     const pendingDay = f.daily.get({ kind: 'delivery', date: '2026-10-30' }).summary;
     assert.ok(pendingDay);
     assert.equal(pendingDay.pending, 1);
@@ -90,7 +90,7 @@ test('每日送货按计划日和实际出库日分别归属，分批送货的�
     assert.equal(first.records[0].lines[0].movements.length, 1);
     f.confirm(f.saveDelivery('6000', { date: '2026-10-30', plannedDate: null }));
     assert.equal(f.store.orders()[0].shippingProgress, '已发完');
-    assert.equal(f.ops.repo.balance(f.stock.id), 0);
+    assert.equal(f.ops.balance(f.stock.id), 0);
     const secondDay = f.daily.get({ kind: 'delivery', date: '2026-10-30' }).summary;
     assert.ok(secondDay);
     assert.equal(secondDay.completed, 1);

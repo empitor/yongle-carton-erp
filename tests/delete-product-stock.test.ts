@@ -37,9 +37,9 @@ async function deletionServer() {
   const base = businessBase(actor, store),
     { flow, ops } = base;
   const move = (item: { id: number }, action: string, quantity: string) =>
-    ops.move(
+    flow.stock.move(
       item.id,
-      { action, quantity, date: '2026-11-09', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: ops.repo.items(true, item.id)[0].version },
+      { action, quantity, date: '2026-11-09', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: ops.items(true, item.id)[0].version },
       actor,
     );
   const preview = async (selection: unknown) => previewAnswer.parse(await post('/deletions/preview', selection));
@@ -108,20 +108,20 @@ test('删产品：它的成品库存跟着删（成品一定关联产品，不�
   const s = await deletionServer();
   try {
     const p = productStocks(s);
-    assert.equal(s.ops.repo.balance(p.busyStock), 70_000);
-    assert.equal(s.ops.repo.balance(p.board.id), 90_000);
+    assert.equal(s.ops.balance(p.busyStock), 70_000);
+    assert.equal(s.ops.balance(p.board.id), 90_000);
     // 甲：完工、送货单跟着删，选“库存一起改回”时领的纸板退回去
     const plan = await removeProduct(s, p.busy, p.busyStock, 'recalculate');
     assert.ok(plan.inventoryChoice > 0, '有完工、送货的流水要选库存怎么处理');
     assert.ok(plan.impact.some((r) => r.table === 'flow_documents' && r.kind === 'production' && r.action === 'delete'));
-    assert.equal(s.ops.repo.balance(p.board.id), 100_000);
+    assert.equal(s.ops.balance(p.board.id), 100_000);
     assert.deepEqual(s.flow.list('production', true), []);
     // 乙：只有手工流水，不用选库存怎么处理
     assert.equal((await removeProduct(s, p.idle, p.idleStock)).inventoryChoice, 0);
     // 丙：从没用过，清单里只有产品和它的成品库存
     const plain = await removeProduct(s, p.fresh, p.freshStock);
     assert.deepEqual(plain.impact.map((r) => [r.table, r.action]).sort(), [['products', 'delete'], ['stock_items', 'delete']]);
-    assert.equal(s.ops.repo.balance(p.board.id), 100_000, '纸板不受影响');
+    assert.equal(s.ops.balance(p.board.id), 100_000, '纸板不受影响');
   } finally {
     await s.close();
     s.store.close();
@@ -147,7 +147,7 @@ test('删客户不动成品库存和它关联的产品；初始化（清空业�
     const customerPlan = await s.preview(customerSelection);
     assert.ok(!customerPlan.impact.some((r) => ['products', 'stock_items'].includes(r.table)));
     await s.execute(customerSelection, customerPlan.digest);
-    assert.equal(ops.repo.items(true, keepStock.id)[0].productId, keep.id);
+    assert.equal(ops.items(true, keepStock.id)[0].productId, keep.id);
     assert.deepEqual(store.db.prepare('PRAGMA foreign_key_check').all(), []);
     // 初始化（清空业务数据）：成品库存先于产品清掉，不撞“成品一定关联产品”
     new BusinessReset(store).execute({ scope: 'business' }, localAdministratorActor(superActor()));

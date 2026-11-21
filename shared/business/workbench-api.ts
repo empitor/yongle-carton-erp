@@ -6,7 +6,7 @@ import type { ProductMark } from './mark-api.js';
 import type { NextStep } from './order-next-step.js';
 import type { Dashboard } from './overview.js';
 import type { ArrivalDaily } from './flow-views.js';
-import type { PurchaseView, StockItemView } from './operations-views.js';
+import type { PurchaseView, StockItemView } from './stock-flow-views.js';
 import type { orderQuerySchema } from './record-queries.js';
 
 /*

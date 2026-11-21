@@ -14,7 +14,7 @@ import { rejectionText } from './field-rejection.js';
 export type Origin = 'management-ui' | 'management-assistant';
 /** 保存一条要的：哪个模块、谁办的（数据管理窗口发来的已标上入口）、从哪来，改的时候还有手里的那条（新建没有） */
 type SaveContext = { module: ManagedModule; actor: Actor; origin: Origin; current?: Current };
-/** 档案和订单走业务汇总的保存服务（客户、产品、订单）；供应商、采购单、库存品走采购库存 */
+/** 档案和订单走业务汇总的保存服务（客户、产品、订单）；供应商走采购库存，采购单、库存品走单据流转的保存入口 */
 const businessWritable = ['customers', 'products', 'orders'] as const;
 const isBusinessWritable = (module: string): module is (typeof businessWritable)[number] =>
   businessWritable.some((m) => m === module);
@@ -62,8 +62,8 @@ export class ManagedSaves {
         },
       );
     if (module === 'suppliers') return this.ops.saveSupplier(input, actor, id);
-    if (module === 'purchases') return this.ops.savePurchase(input, actor, id);
-    if (module === 'stock_items') return this.ops.saveItem(input, actor, id);
+    if (module === 'purchases') return this.flow.stock.savePurchase(input, actor, id);
+    if (module === 'stock_items') return this.flow.stock.saveItem(input, actor, id);
     return this.saveFlow(module, input, actor, id);
   }
   /**

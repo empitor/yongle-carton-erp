@@ -2,9 +2,8 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import { clampPage, count, many, parseStoredJson, rows } from '../core/index.js';
 import { formatStockSize, matchesMovement, movementColumnsSchema, stockKinds, type MovementFilters } from '../../shared/business/index.js';
-import type { MovementRevision, MovementView } from '../../shared/business/index.js';
+import type { MovementBaseView, MovementRevision } from '../../shared/business/index.js';
 import { quantityString } from '../../shared/core/index.js';
-import { arrivalSource } from './hooks.js';
 import { readStockDocument } from './stock-document.js';
 
 /*
@@ -189,19 +188,12 @@ export class MovementQueries {
           );
     return new Map(counted.map((r) => [r.movement_id, r.n]));
   }
-  /** 补上单据编号、修订次数和数量文字；单据编号和修订次数只为这些流水查询。 */
-  private presentMovements(found: PresentedRow[]): MovementView[] {
-    const isFlow = (row: MovementRow) => row.source_kind.startsWith('flow_') && !!row.source_id;
-    const flowIds = [...new Set(found.flatMap(({ row }) => (isFlow(row) ? [Number(row.source_id)] : [])))].filter(Number.isSafeInteger);
-    // 来源单据的种类和单号在单据流转，经 ArrivalSource 读
-    const flows = flowIds.length ? arrivalSource().documentNumbers(this.store, flowIds) : new Map<string, { kind: string; number: string }>();
+  /** 补上修订次数和数量文字；修订次数只为这些流水查询。来源单据的单号由单据流转补（server/flow/stock-views.ts）。 */
+  private presentMovements(found: PresentedRow[]): MovementBaseView[] {
     const revisions = this.revisionCounts(found.map(({ row }) => row.id));
     return found.map(({ row, detail }) => {
-      const flow = isFlow(row) ? flows.get(String(row.source_id)) : undefined;
       return {
         ...row,
-        flowNumber: flow?.number,
-        flowKind: flow?.kind,
         revisionCount: revisions.get(row.id) || 0,
         ...detail,
         delta: quantityString(Math.abs(row.delta_units)),

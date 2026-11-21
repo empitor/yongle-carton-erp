@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { dateSchema, quantityText } from '../core/index.js';
-import { reversalRecordSchema } from './operations-views.js';
+import { reversalRecordSchema } from './stock-flow-views.js';
 import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema, type FlowKind } from './physical-flow.js';
 
 /*

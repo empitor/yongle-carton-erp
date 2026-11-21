@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import type { arrivalLineStatus } from '../core/index.js';
 import {
-  arrivalItemSchema,
-  arrivalPriceBasisSchema,
   arrivalProgresses,
   purchaseBusinessStatuses,
   purchaseLineDocumentSchema,
@@ -13,16 +11,13 @@ import { movementColumnsSchema, stockDocumentSchema, storedScheduleEntrySchema }
 import type { batchProgress, batchRows } from './order-batch.js';
 
 /*
- * 采购库存读出来交给别处的样子：库存品、采购单、供应商、订货单、库存流水（接口表 operations-api.ts 的回答；服务端 server/operations
- * 按这些类型组装，单据流转、业务汇总、助手也按它们用）。库存品、采购单、订货单写成 zod 结构，因为它们会跟着写接口的结果存进防重复记录，
- * 同一请求号重发时按结构读回来（手工出入库、采购单状态动作、登记到货）。
+ * 采购库存自己读出来的样子（基本视图）：库存品、采购单、供应商、订货单、库存流水，只有采购库存自己的数据，不带单据的内容。
+ * 单据流转在这上面补已安排、到货记录、按单据现算的已到货、到货单、单号，拼成完整视图（stock-flow-views.ts，接口的回答）。
+ * 完整视图要在基本视图的栏目中间插几项，所以库存品、订货单的栏目分前后两段定义，两边按同一个顺序拼，回答的栏目顺序不变。
  */
 
-/**
- * 库存品：库里的内容（规格、尺寸、材质、楞型、备注）加上结余、已安排（待送货、待入库的单据要用掉的）、
- * 可用（结余减已安排，只作提示，可能为负）、在途（已订货还没到齐的）；数量都有千分整数和文字两种。
- */
-export const stockItemViewSchema = z.object({
+/** 库存品的前半段：库里的内容（规格、尺寸、材质、楞型、备注）、种类、单位、版本、结余（千分整数和文字） */
+export const stockItemHead = {
   ...stockDocumentSchema.shape,
   id: z.number(),
   name: z.string(),
@@ -34,20 +29,22 @@ export const stockItemViewSchema = z.object({
   updatedAt: z.string(),
   quantity: z.string(),
   balanceUnits: z.number(),
-  reservedUnits: z.number(),
-  reserved: z.string(),
-  availableUnits: z.number(),
+};
+/** 库存品的后半段：在途（已订货还没到齐的，按采购明细的已到货缓存算）、是否归档 */
+export const stockItemTail = {
   onOrderUnits: z.number(),
   onOrder: z.string(),
   archived: z.boolean(),
-});
-export type StockItemView = z.output<typeof stockItemViewSchema>;
+};
+const stockItemBaseViewSchema = z.object({ ...stockItemHead, ...stockItemTail });
+/** 库存品的基本视图：没有已安排、可用（那是单据的内容） */
+export type StockItemBaseView = z.output<typeof stockItemBaseViewSchema>;
 
 /** 采购明细的到货情况：取值照 shared/core 的 arrivalLineStatus（那边多了取值这里编译不过） */
 const arrivalLineStates = ['已到齐', '部分到货', '未到货'] as const satisfies readonly ReturnType<typeof arrivalLineStatus>[];
 
 /** 采购明细：库里的明细内容加上列里的库存品、数量、已到货、关联订单，和由它们算出的剩余、到货情况、金额 */
-const purchaseLineViewSchema = purchaseLineDocumentSchema.extend({
+export const purchaseLineViewSchema = purchaseLineDocumentSchema.extend({
   id: z.number(),
   stockItemId: z.number().nullable(),
   /** 这一行自己关联的订单；null 跟单头走 */
@@ -65,7 +62,7 @@ const purchaseLineViewSchema = purchaseLineDocumentSchema.extend({
 export type PurchaseLineView = z.output<typeof purchaseLineViewSchema>;
 
 /** 采购单的单头、到货进度和状态（明细另算） */
-const purchaseHead = {
+export const purchaseHead = {
   id: z.number(),
   number: z.string(),
   supplierId: z.number(),
@@ -94,74 +91,7 @@ const purchaseHead = {
 const purchaseRowViewSchema = z.strictObject({ ...purchaseHead, lines: z.array(purchaseLineViewSchema) });
 export type PurchaseRowView = z.output<typeof purchaseRowViewSchema>;
 
-/** 单据被撤销的记录（原因、谁、什么时候、冲掉的流水）：单据内容（flow-document.ts 的 lifecycle）和下面的到货事件都按它 */
-export const reversalRecordSchema = z.strictObject({
-  reason: z.string(),
-  by: z.string(),
-  at: z.string(),
-  requestId: z.string().optional(),
-  movements: z.array(z.string()),
-});
-
-/** 到货单的一行按采购单读到的样子：lineId、purchaseId 是它现在挂的采购明细和采购单，验收数没写是 null，金额按单价和计价方式算 */
-export const receiptLineSchema = z.strictObject({
-  index: z.number(),
-  lineId: z.number().nullable(),
-  purchaseId: z.number().nullable(),
-  stockId: z.number().nullable(),
-  quantity: z.string(),
-  acceptedQuantity: z.string().nullable(),
-  rejectedQuantity: z.string().nullable(),
-  stockedQuantity: z.string().nullable(),
-  item: z.strictObject(arrivalItemSchema.shape),
-  unitPrice: z.string().nullable(),
-  priceBasis: arrivalPriceBasisSchema,
-  amount: z.string().nullable(),
-});
-
-/**
- * 到货事件的单头（不含明细和原单内容）：一张到货单读成采购单、到货记录、到货更正能用的样子，
- * 整个到货事件（加上明细和原单）见 flow-views.ts 的 receiptEventSchema。
- * id 是“flow-编号”，correctionOf、replacedBy 也按这个写。
- */
-export const receiptHeadSchema = z.strictObject({
-  id: z.string(),
-  flowId: z.number(),
-  version: z.number(),
-  reference: z.string(),
-  date: z.string(),
-  status: z.string(),
-  effective: z.boolean(),
-  supplierId: z.number(),
-  actorName: z.string(),
-  createdAt: z.string(),
-  correctionOf: z.string().nullable(),
-  replacedBy: z.string().nullable(),
-  reversal: reversalRecordSchema.nullable(),
-});
-
-/**
- * 采购单的一条到货记录（一张到货单）：到货事件的单头加上原件、原因、撤销没有，
- * items 是挂在这张采购单上的行，correctionLines 是整张到货单的行（更正要用），amount 是整张的金额
- */
-const purchaseReceiptSchema = receiptHeadSchema.extend({
-  sourceId: z.string().nullable(),
-  reason: z.string(),
-  reversed: z.boolean(),
-  items: z.array(receiptLineSchema),
-  correctionLines: z.array(receiptLineSchema),
-  amount: z.string().nullable(),
-});
-/** 采购单的完整样子：采购单本身，加上单据流转补的到货记录、有效到货金额（整张和每行） */
-export const purchaseViewSchema = z.strictObject({
-  ...purchaseHead,
-  lines: z.array(purchaseLineViewSchema.extend({ receivedAmount: z.string().nullable() })),
-  receivedAmount: z.string().nullable(),
-  receipts: z.array(purchaseReceiptSchema),
-});
-export type PurchaseView = z.output<typeof purchaseViewSchema>;
-
-/** 供应商：档案加上它的采购历史（只带单号、日期和状态） */
+/** 供应商：档案加上它的采购历史（只带单号、日期和状态；到货进度按采购明细的已到货缓存算） */
 export type SupplierView = {
   id: number;
   name: string;
@@ -215,8 +145,8 @@ const orderBatchRowSchema = z.object({
   purchaseNumbers: z.array(z.string()),
   parts: z.array(z.object({ purchaseNumber: z.string(), remainingUnits: z.number() })),
 });
-/** 订货单详情：单头、到货安排、里面的采购单、合成的行、按它登记的到货单、到货进度 */
-export const orderBatchViewSchema = z.object({
+/** 订货单的前半段：单头、到货安排、里面的采购单、合成的行（行里的已到货按采购明细的缓存算） */
+export const orderBatchHead = {
   id: z.number(),
   number: z.string(),
   supplierId: z.number(),
@@ -229,12 +159,14 @@ export const orderBatchViewSchema = z.object({
     z.object({ id: z.number(), number: z.string(), status: z.enum(purchaseStatuses), customerOrderNumber: z.string() }),
   ),
   rows: z.array(orderBatchRowSchema),
-  arrivals: z.array(
-    z.object({ id: z.number(), number: z.string(), date: z.string(), status: z.string(), reference: z.string() }),
-  ),
+};
+/** 订货单的后半段：到货进度 */
+export const orderBatchTail = {
   progress: z.object({ state: z.enum(batchProgressStates), overdue: z.boolean(), nextDue: z.string().nullable() }),
-});
-export type OrderBatchView = z.output<typeof orderBatchViewSchema>;
+};
+const orderBatchBaseViewSchema = z.object({ ...orderBatchHead, ...orderBatchTail });
+/** 订货单的基本视图：没有按它登记的到货单 */
+export type OrderBatchBaseView = z.output<typeof orderBatchBaseViewSchema>;
 
 /** 导出订货单前按几张采购单排的预览：合成的行（已订过货的按原订货单的到货安排），带着原订货单 */
 export type OrderBatchDraft = {
@@ -253,10 +185,10 @@ export type OrderBatchDraft = {
 };
 
 /**
- * 库存流水列表的一行：stock_movements 那一行（列名是库里的）加上库存品的名称、种类、单位、规格、材质、楞型，
- * 关联的采购单号、订单号，来源单据的种类和单号（不是单据来的没有）、改写过几次，数量的文字（大小、方向、前后结余）
+ * 库存流水列表的一行（基本视图）：stock_movements 那一行（列名是库里的）加上库存品的名称、种类、单位、规格、材质、楞型，
+ * 关联的采购单号、订单号、改写过几次，数量的文字（大小、方向、前后结余）；来源单据的单号由单据流转补（stock-flow-views.ts）
  */
-export type MovementView = {
+export type MovementBaseView = {
   seq: number;
   id: string;
   item_id: number;
@@ -278,8 +210,6 @@ export type MovementView = {
   unit: string;
   purchaseNumber: string | null;
   customerOrderNumber: string | null;
-  flowNumber?: string;
-  flowKind?: string;
   revisionCount: number;
   itemSpecification: string;
   material: string;

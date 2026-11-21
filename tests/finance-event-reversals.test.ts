@@ -59,11 +59,11 @@ test('盘点调整的事件单号显示库存品名、规格和调整量，不�
   try {
     newSettings(s);
     const base = businessBase(maker, s),
-      { ops } = base,
+      { flow } = base,
       events = new FinanceEvents(s);
     const item = base.raw({ name: '虚构盘点纸板', specification: '1000*800' });
     const move = (action: 'in' | 'adjust', quantity: string, date: string) =>
-      ops.move(
+      flow.stock.move(
         item.id,
         {
           action,

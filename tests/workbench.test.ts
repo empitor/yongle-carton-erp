@@ -4,9 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { OperationsRepository } from '../server/operations/repository.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OperationsService } from '../server/operations/index.js';
+import { OrderBatchService } from '../server/operations/index.js';
 import { ManualProductionCompletion } from '../server/flow/production-completion.js';
 import { WarehouseDaily } from '../server/flow/daily.js';
 import { registerArrival } from '../server/flow/register-arrival.js';
@@ -24,7 +23,7 @@ test('工作台读取真实待办、跨日计划与当日实绩，读取及登�
   const f = workbenchFixture(actor);
   try {
     assert.equal(buildWorkbench(f.store, date).toOrder, 1);
-    const ordered = f.ops.savePurchase({ ...f.purchase, version: f.purchase.version, status: '已订货' }, actor, f.purchase.id);
+    const ordered = f.flow.stock.savePurchase({ ...f.purchase, version: f.purchase.version, status: '已订货' }, actor, f.purchase.id);
     // 改成已订货时自动建好订货单；按它登记一张待入库的到货（AI 识别送货单那样，还没核对）
     const batches = new OrderBatchService(f.store);
     const batchId = batches.batchIdOf(ordered.id);
@@ -43,7 +42,7 @@ test('工作台读取真实待办、跨日计划与当日实绩，读取及登�
       },
       actor,
     );
-    const before = f.ops.repo.balance(f.raw.id),
+    const before = f.ops.balance(f.raw.id),
       work = buildWorkbench(f.store, date);
     assert.deepEqual(
       [work.toOrder, work.pendingArrivals, work.arrivalsToday, work.activeTasks, work.tasksToday, work.productionToday],
@@ -54,7 +53,7 @@ test('工作台读取真实待办、跨日计划与当日实绩，读取及登�
     const purchase = relatedBusiness(f.store, 'purchases', f.purchase.id);
     assert.ok(purchase);
     assert.equal(purchase.arrivals[0].flowId, pending.arrival.id);
-    assert.equal(f.ops.repo.balance(f.raw.id), before);
+    assert.equal(f.ops.balance(f.raw.id), before);
     const sales = relatedBusiness(f.store, 'orders', f.order.id);
     assert.ok(sales);
     assert.equal(sales.tasks[0].id, f.task.id);
@@ -140,7 +139,7 @@ test('有客户料号的纸箱从整批完工到部分送货：成品规格按�
         quantities: [{ taskId: f.task.id, goodQuantity: '100', scrapQuantity: '0' }],
       };
     completion.execute({ input, previewDigest: completion.preview(input, actor).previewDigest }, actor);
-    const stock = new OperationsRepository(f.store).items().find((s) => s.kind === 'finished');
+    const stock = new OperationsService(f.store).items().find((s) => s.kind === 'finished');
     assert.ok(stock);
     assert.equal(stock.specification, specification(f.product));
     assert.notEqual(stock.specification, '000123');
@@ -151,7 +150,7 @@ test('有客户料号的纸箱从整批完工到部分送货：成品规格按�
       actor,
     );
     f.base.check(doc, shipOnDocDate(f.flow, doc.id), actor);
-    assert.equal(f.ops.repo.balance(stock.id), 60000);
+    assert.equal(f.ops.balance(stock.id), 60000);
     assert.equal(f.store.orders()[0].shippingProgress, '部分发货');
     const work = buildWorkbench(f.store, date);
     assert.deepEqual([work.activeTasks, work.productionToday, work.deliveriesToday], [0, 1, 1]);

@@ -6,7 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { pageActor } from './actor-fixture.js';
 import { listen } from './http-fixture.js';
 
@@ -14,11 +15,12 @@ const actor = pageActor({ id: 'movement-no-sort', name: '虚构仓管', permissi
 
 test('流水列表带了 sort（哪怕是不认识的值）也照常回答，仍按业务日期新的在前', async () => {
   const store = new Store(':memory:'),
-    ops = new OperationsService(store);
+    ops = new OperationsService(store),
+    flow = new FlowService(store);
   const item = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor);
   for (const [date, notes] of [['2026-10-05', '虚构早'], ['2026-10-07', '虚构晚']]) {
-    const current = ops.repo.items(true, item.id)[0];
-    ops.move(item.id, { expectedVersion: current.version, requestId: randomUUID(), action: 'in', quantity: '1', date, notes, acknowledged: true }, actor);
+    const current = ops.items(true, item.id)[0];
+    flow.stock.move(item.id, { expectedVersion: current.version, requestId: randomUUID(), action: 'in', quantity: '1', date, notes, acknowledged: true }, actor);
   }
   const server = await listen(createApp(store));
   try {

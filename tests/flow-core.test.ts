@@ -20,7 +20,7 @@ const check = (f: ReturnType<typeof flowFixture>): Check => ({
   confirm: true,
   skipRemaining: false,
   registered: false,
-  item: (id) => f.ops.repo.items(true, id === null ? [] : [id])[0],
+  item: (id) => f.ops.items(true, id === null ? [] : [id])[0],
   change() {},
   changes: [],
   warnings: [],
@@ -87,7 +87,7 @@ test('读单据直接调用：按主键读、按编号列、待核对编号、�
 test('核对、确认、取消、撤销直接调用：预览给出摘要（按当前数据重算一样），确认入库，撤销把库存扣回', () => {
   const f = flowFixture();
   try {
-    const stock = () => f.ops.repo.items(true, f.raw.id)[0].balanceUnits;
+    const stock = () => f.ops.items(true, f.raw.id)[0].balanceUnits;
     const d = f.draft('arrival', {
       supplierId: f.supplier.id,
       reference: '虚构送货单-确认',

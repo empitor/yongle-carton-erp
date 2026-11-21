@@ -8,7 +8,7 @@ import { businessList } from '../server/business/records.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { orderSchema } from '../shared/core/domain.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { FlowService } from '../server/flow/service.js';
 import { flowStatusText } from '../shared/business/physical-flow.js';
 import { fixture } from './maintenance-fixture.js';
 import { applyCorrection, archiveDoc, previewCorrection } from './receive-fixture.js';
@@ -33,7 +33,7 @@ test('删除客户、产品、供应商、订单、采购单、库存品和四�
         suppliers: must(businessList(f.store, 'suppliers', true).find((r) => r.id === f.supplier.id), 'suppliers'),
         orders: must(businessList(f.store, 'orders', true).find((r) => r.id === f.order.id), 'orders'),
         purchases: must(businessList(f.store, 'purchases', true).find((r) => r.id === f.purchase.id), 'purchases'),
-        stock_items: must(f.ops.repo.items(true).find((i) => i.id === f.finished.id), 'stock_items'),
+        stock_items: must(f.ops.items(true).find((i) => i.id === f.finished.id), 'stock_items'),
         arrival: f.flow.get(arrival.id), task: f.flow.get(task.id), production, delivery,
       };
       const row = targets[module];
@@ -53,13 +53,13 @@ test('还有库存的库存品不能归档，但能删：库存品和它的流�
   const f = fixture();
   try {
     f.arrival();
-    const current = must(f.ops.repo.items(true).find((r) => r.id === f.raw.id), '原料库存');
+    const current = must(f.ops.items(true).find((r) => r.id === f.raw.id), '原料库存');
     assert.equal(current.balanceUnits, 1000000);
     const archived = changeLifecycle(f.store, 'stock_items', { action: 'archive', items: [{ id: current.id, version: current.version }] }, f.who);
     assert.equal(archived.results[0].success, false);
     f.del('stock_items', current);
     assert.equal(f.store.db.prepare('SELECT id FROM stock_items WHERE id=?').get(current.id), undefined);
-    assert.equal(f.ops.repo.purchases(true)[0].lines[0].stockItemId, null);
+    assert.equal(f.flow.views.purchases(true)[0].lines[0].stockItemId, null);
     assert.deepEqual(f.flow.list('arrival', true)[0].movements, []);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
@@ -81,7 +81,7 @@ test('零库存仍有未完成生产工作时不能归档，但库存档案仍�
       },
       f.who,
     ); // 安排生产即下达，没有核对这一步
-    const stock = must(f.ops.repo.items(true).find((s) => s.id === f.finished.id), '成品库存');
+    const stock = must(f.ops.items(true).find((s) => s.id === f.finished.id), '成品库存');
     const result = changeLifecycle(
       f.store,
       'stock_items',
@@ -114,7 +114,7 @@ test('归档只保留并隐藏记录，恢复只针对归档；未完成采购�
       false,
     );
     f.del('purchases', f.purchase);
-    assert.equal(new OperationsRepository(f.store).purchases(true).length, 0);
+    assert.equal(new FlowService(f.store).views.purchases(true).length, 0);
     f.store.db.prepare("UPDATE orders SET status='已发货' WHERE id=?").run(f.order.id);
     const item = { id: f.order.id, version: f.order.version };
     assert.equal(
@@ -140,14 +140,14 @@ test('已确认生产和送货可直接物理删除并明确保留/重算库存�
     f.arrival();
     const production = f.production(),
       delivery = f.delivery();
-    assert.equal(f.ops.repo.balance(f.finished.id), 760000);
+    assert.equal(f.ops.balance(f.finished.id), 760000);
     f.del('delivery', delivery, 'recalculate');
     assert.equal(f.flow.list('delivery', true).length, 0);
-    assert.equal(f.ops.repo.balance(f.finished.id), 860000);
+    assert.equal(f.ops.balance(f.finished.id), 860000);
     assert.equal(must(f.store.order(f.order.id), '订单').lines[0].shippedQuantity, 0);
     f.del('production', production);
     assert.equal(f.flow.list('production', true).length, 0);
-    assert.equal(f.ops.repo.balance(f.finished.id), 860000);
+    assert.equal(f.ops.balance(f.finished.id), 860000);
     assert.ok(
       f.store.db
         .prepare("SELECT 1 FROM stock_movements WHERE source_kind='database-maintenance'")
@@ -164,10 +164,10 @@ test('删单据选“库存数量不动”：留下的系统维护流水，修�
     f.arrival();
     const production = f.production(),
       delivery = f.delivery();
-    const before = f.ops.repo.balance(f.finished.id);
+    const before = f.ops.balance(f.finished.id);
     f.del('delivery', delivery, 'preserve');
     f.del('production', production, 'preserve');
-    assert.equal(f.ops.repo.balance(f.finished.id), before, '库存数量不动');
+    assert.equal(f.ops.balance(f.finished.id), before, '库存数量不动');
     const revisionDoc = z.looseObject({ source_kind: z.string(), delta_units: z.number() });
     const revisionRows = many(f.store.db, rows.stock_movement_revisions.pick({ reason: true, before_document: true, after_document: true }), 'SELECT reason,before_document,after_document FROM stock_movement_revisions ORDER BY id')
       .map((r) => ({ reason: r.reason, before: revisionDoc.parse(JSON.parse(r.before_document)), after: r.after_document ? z.record(z.string(), z.unknown()).parse(JSON.parse(r.after_document)) : null }));
@@ -195,8 +195,8 @@ test('已入库完工 860、已发货 100：更正成 850 不用先撤销送货�
     const saved = f.flow.get(correctDocument(f.store, p.id, { ...v, previewDigest: planCorrection(f.store, p.id, v, f.who).previewDigest, requestId: randomUUID() }, f.who).replacementId);
     assert.deepEqual([saved.status, saved.correctionOf, f.flow.get(p.id).status], ['confirmed', p.id, 'reversed']);
     assert.equal(f.flow.list(undefined, true).length, n + 1);
-    assert.equal(f.ops.repo.balance(f.finished.id), 750000);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.finished.id), 750000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     f.store.close();
@@ -263,16 +263,16 @@ test('有到货的采购可改计划到实收以下或更换供应商，旧实�
   const f = fixture();
   try {
     f.arrival();
-    let p = new OperationsRepository(f.store).purchases(true)[0];
-    p = must(f.ops.savePurchase({ ...p, status: p.baseStatus, lines: p.lines.map((l) => ({ ...l, quantity: '500' })) }, f.who, p.id), '改量后采购单');
+    let p = new FlowService(f.store).views.purchases(true)[0];
+    p = must(f.flow.stock.savePurchase({ ...p, status: p.baseStatus, lines: p.lines.map((l) => ({ ...l, quantity: '500' })) }, f.who, p.id), '改量后采购单');
     assert.equal(p.lines[0].quantity, '500');
     assert.equal(p.lines[0].receivedQuantity, '1000');
     assert.equal(p.status, '全部到货');
     const supplier = f.ops.saveSupplier({ name: '明确更正的另一供应商' }, f.who);
-    p = must(f.ops.savePurchase({ ...p, status: p.baseStatus, supplierId: supplier.id }, f.who, p.id), '改供应商后采购单');
+    p = must(f.flow.stock.savePurchase({ ...p, status: p.baseStatus, supplierId: supplier.id }, f.who, p.id), '改供应商后采购单');
     assert.equal(p.supplierId, supplier.id);
     assert.equal(p.lines[0].receivedQuantity, '0');
-    assert.equal(f.ops.repo.balance(f.raw.id), 1000000);
+    assert.equal(f.ops.balance(f.raw.id), 1000000);
     assert.equal(f.flow.list('arrival')[0].lines[0].purchaseLineId, null);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
@@ -288,7 +288,7 @@ test('采购明细的计划数量可以改得比已到货少，已到货、库�
       before = db.prepare('SELECT * FROM purchase_lines').all();
     db.prepare('UPDATE purchase_lines SET quantity_units=500000 WHERE id=?').run(before[0].id);
     assert.equal(must(one(db, rows.purchase_lines.pick({ received_units: true }), 'SELECT received_units FROM purchase_lines'), '采购明细').received_units, 1000000);
-    assert.equal(f.ops.repo.balance(f.raw.id), 1000000);
+    assert.equal(f.ops.balance(f.raw.id), 1000000);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
     assert.equal(must(one(db, z.object({ foreign_keys: z.number() }), 'PRAGMA foreign_keys'), '外键开关').foreign_keys, 1);
   } finally {
@@ -308,7 +308,7 @@ test('已归档的完工单要先恢复再更正：归档时预览就拒，恢�
     const input = v(),
       saved = correctDocument(f.store, production.id, { ...input, previewDigest: planCorrection(f.store, production.id, input, f.who).previewDigest, requestId: randomUUID() }, f.who);
     assert.equal(f.flow.get(saved.replacementId).status, 'confirmed');
-    assert.equal(f.ops.repo.balance(f.finished.id), 850000);
+    assert.equal(f.ops.balance(f.finished.id), 850000);
     assert.equal(f.flow.list('production').length, 2);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
@@ -337,7 +337,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
       },
       f.who,
     );
-    const purchase = f.ops.repo.purchases(true, created.id)[0];
+    const purchase = f.flow.views.purchases(true, created.id)[0];
     assert.equal(purchase.lines[0].customerOrderId, other.id, '这一行给另一张订单订料');
     const order = must(f.store.order(other.id), '订单'),
       selection = { module: 'orders', items: [{ id: order.id, version: order.version }] },
@@ -347,7 +347,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
     assert.deepEqual(entry.fields, ['customer_order_id']);
     assert.match(entry.name, new RegExp(purchase.number));
     f.service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, f.who, 's');
-    const after = f.ops.repo.purchases(true, purchase.id)[0];
+    const after = f.flow.views.purchases(true, purchase.id)[0];
     assert.equal(after.lines[0].customerOrderId ?? null, null, '明细上不再记着删掉的订单');
     assert.equal(
       must(one(f.store.db, rows.purchase_lines.pick({ customer_order_id: true }), 'SELECT customer_order_id FROM purchase_lines WHERE id=?', after.lines[0].id), '采购明细').customer_order_id,
@@ -369,7 +369,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
     );
     const done = f.base.check(arrival, {}, f.who);
     assert.equal(done.status, 'confirmed');
-    assert.equal(f.ops.repo.purchases(true, purchase.id)[0].lines[0].receivedUnits, 300_000);
+    assert.equal(f.flow.views.purchases(true, purchase.id)[0].lines[0].receivedUnits, 300_000);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     f.store.close();
@@ -421,7 +421,7 @@ test('删除有更正关系的到货单：替代单删了，原单不再指向�
     const f = fixture();
     try {
       const original = f.arrival();
-      const current = () => f.ops.repo.purchases(true, f.purchase.id)[0];
+      const current = () => f.flow.views.purchases(true, f.purchase.id)[0];
       const receipt = current().receipts.find((r) => r.effective) ?? assert.fail('采购单上没有有效的到货记录');
       const input = {
         expectedVersion: receipt.version,

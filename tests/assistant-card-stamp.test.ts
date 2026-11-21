@@ -83,7 +83,7 @@ test('出卡片以后库存品的库存变了：出入库卡片、改库存品�
     stockIn(raw.id, '10');
     assert.throws(out, stale('虚构纸板乙'));
     assert.throws(rename, stale('虚构纸板乙'));
-    assert.equal(tools.ops.repo.balance(raw.id), 40_000, '库存只有两次入库');
+    assert.equal(tools.ops.balance(raw.id), 40_000, '库存只有两次入库');
   } finally {
     f.close();
   }
@@ -120,14 +120,14 @@ test('出卡片以后只是采购单由单据算出的进度变了（登记了�
     const purchase = purchaseSaved.parse(
       tools.ops.savePurchase({ supplierId: supplier.id, status: '已订货', orderDate: '2026-11-01', lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '2', priceBasis: 'quantity' }] }, who),
     );
-    const version = tools.ops.repo.purchases(true, purchase.id)[0].version,
+    const version = tools.flow.views.purchases(true, purchase.id)[0].version,
       seen = JSON.stringify(tools.read('records.get', { module: 'purchases', id: purchase.id }, who));
     const edit = card('records.propose_save', { module: 'purchases', id: purchase.id, patch: { notes: '虚构卡片上改的备注' } });
     tools.flow.save('arrival', { date: '2026-11-02', supplierId: supplier.id, reference: '虚构送货单', lines: [{ stockId: raw.id, purchaseLineId: purchase.lines[0].id, item: { name: raw.name, unit: '张' }, quantity: '300' }] }, who);
-    assert.equal(tools.ops.repo.purchases(true, purchase.id)[0].version, version, '采购单本身没改（版本号没动）');
+    assert.equal(tools.flow.views.purchases(true, purchase.id)[0].version, version, '采购单本身没改（版本号没动）');
     assert.notEqual(JSON.stringify(tools.read('records.get', { module: 'purchases', id: purchase.id }, who)), seen, '助手看到的到货进度变了');
     edit();
-    assert.equal(tools.ops.repo.purchases(true, purchase.id)[0].notes, '虚构卡片上改的备注');
+    assert.equal(tools.flow.views.purchases(true, purchase.id)[0].notes, '虚构卡片上改的备注');
   } finally {
     s.f.close();
   }

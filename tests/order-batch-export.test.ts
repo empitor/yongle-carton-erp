@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { AppError, count, one as oneRow, rows } from '../server/core/index.js';
-import { OperationsService } from '../server/operations/service.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OperationsService, OrderBatchService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { actor } from './actor-fixture.js';
@@ -20,6 +20,7 @@ function batchNo(e: { batchNumber?: string | null }) {
 function setup() {
   const store = new Store(':memory:'),
     ops = new OperationsService(store),
+    flow = new FlowService(store),
     docs = new BusinessDocuments(store, async () => Buffer.from('虚构订货单文件')),
     batches = new OrderBatchService(store);
   const supplier = ops.saveSupplier({ name: '虚构春芳纸板厂', contact: '虚构联系人', phone: '000', address: '' }, actor);
@@ -36,12 +37,12 @@ function setup() {
   /** 把采购单改成已订货；skipBatch 时不自动建订货单（测试自己合并建） */
   const ordered = (ids: number[], options: { skipBatch?: boolean } = {}) => {
     for (const id of ids) {
-      const cur = ops.repo.purchases(true, id)[0];
-      ops.savePurchase({ ...cur, status: '已订货', version: cur.version }, actor, id, options);
+      const cur = flow.views.purchases(true, id)[0];
+      flow.stock.savePurchase({ ...cur, status: '已订货', version: cur.version }, actor, id, options);
     }
   };
-  const stock = () => quantityUnits(ops.repo.items(true, item.id)[0].quantity);
-  return { store, ops, docs, batches, supplier, other, item, purchase, ordered, stock };
+  const stock = () => quantityUnits(ops.items(true, item.id)[0].quantity);
+  return { store, ops, flow, docs, batches, supplier, other, item, purchase, ordered, stock };
 }
 
 /** 两张采购单合并导出的请求 */
@@ -150,7 +151,7 @@ test('合并订货单号按天取号：预览只看不占，生成了导出记�
   assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   // 已经在订货单里的再导出，沿用原来的号，不占新号
   const current = (p: { id: number }) => {
-    const now = f.ops.repo.purchases(true, p.id)[0];
+    const now = f.flow.views.purchases(true, p.id)[0];
     return { id: now.id, version: now.version };
   };
   const again = await f.docs.generate(merged(current(a), current(b), false), actor);
@@ -254,7 +255,7 @@ test('预览 Word 排版只排版不落库：订货单号、导出记录、审�
     exports: count(f.store.db, 'SELECT COUNT(*) n FROM document_exports'),
     audits: count(f.store.db, 'SELECT COUNT(*) n FROM business_audit'),
     batches: count(f.store.db, 'SELECT COUNT(*) n FROM order_batches'),
-    purchases: f.ops.repo.purchases(true, [a.id, b.id]).map((p) => [p.id, p.version, p.businessStatus]),
+    purchases: f.flow.views.purchases(true, [a.id, b.id]).map((p) => [p.id, p.version, p.businessStatus]),
   });
   const before = snapshot();
   assert.deepEqual(before.sequences, []);
@@ -281,7 +282,7 @@ test('同一组采购单先后导出两份订货单：先完成的建批次，�
   const f = setup();
   const [a, b] = ['2026-11-01', '2026-11-02'].map((day) => f.purchase('100', day));
   const current = (p: { id: number }) => {
-    const now = f.ops.repo.purchases(true, p.id)[0];
+    const now = f.flow.views.purchases(true, p.id)[0];
     return { id: now.id, version: now.version };
   };
   const voided = (who: string, number: string) => (e: unknown) =>

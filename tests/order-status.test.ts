@@ -48,7 +48,7 @@ test('分批做分批发：今天做一半发一半是部分发货，明天做�
     const shown = () => orderDisplayStatus(order());
     const today = () => buildToday(f.store, date);
     const has = (rows: readonly { id: number }[]) => rows.some((o) => o.id === f.order.id);
-    const steps = () => orderNextSteps(order(), { tasks: f.flow.list('task'), stocks: f.ops.repo.items(), deliveries: [], purchases: [] }).steps;
+    const steps = () => orderNextSteps(order(), { tasks: f.flow.list('task'), stocks: f.flow.views.items(), deliveries: [], purchases: [] }).steps;
     const ship = (quantity: string) =>
       f.confirm('delivery', { customerId: f.customer.id, lines: [{ orderId: f.order.id, orderLineId: f.order.lines[0].id, stockId: f.finished.id, quantity }] });
     f.arrival('100');
@@ -135,7 +135,7 @@ test('同产品两行各 100，只做了 100：不算做完，要提醒再排 10
     f.make([o.id], '100');
     assert.equal(orderOf(f.store, o.id).status, '生产中');
     assert.ok(f.unscheduled(o.id));
-    const related = { tasks: f.flow.list('task'), stocks: f.ops.repo.items(), deliveries: [], purchases: [] };
+    const related = { tasks: f.flow.list('task'), stocks: f.flow.views.items(), deliveries: [], purchases: [] };
     const current = f.store.order(o.id);
     assert.ok(current);
     const schedule = orderNextSteps(current, related).steps.filter((s) => s.kind === 'schedule');

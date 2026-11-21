@@ -83,7 +83,7 @@ test('所有生产任务100%良品，整批547张共享领料完工入库，自�
       productions.reduce((n, p) => n + Number(p.goodQuantity), 0),
       1093,
     );
-    assert.equal(f.manager.tools.ops.repo.items().filter((i) => i.kind === 'finished').length, 6);
+    assert.equal(f.manager.tools.ops.items().filter((i) => i.kind === 'finished').length, 6);
     // 同一张卡片再确认一次：原样返回上次的结果，不重复登记
     const executed = f.store.db.prepare('SELECT id FROM assistant_previews WHERE result IS NOT NULL ORDER BY rowid DESC LIMIT 1').get();
     assert.ok(executed, '有执行过的卡片');
@@ -91,10 +91,10 @@ test('所有生产任务100%良品，整批547张共享领料完工入库，自�
     f.manager.execute(preview, { acknowledged: true }, f.who, 'real-session');
     assert.equal(f.manager.tools.flow.list('production').length, 6);
     assert.equal(
-      f.manager.tools.ops.repo
+      f.manager.tools.ops
         .items()
         .filter((i) => i.kind === 'raw')
-        .reduce((n, i) => n + f.manager.tools.ops.repo.balance(i.id), 0),
+        .reduce((n, i) => n + f.manager.tools.ops.balance(i.id), 0),
       1000,
     );
   } finally {
@@ -177,7 +177,7 @@ test('无效完工分配、库存不足整批不写，成品入这个产品唯�
       /库存不足/,
     );
     assert.equal(f.manager.tools.flow.list('production').length, 0);
-    assert.equal(f.manager.tools.ops.repo.items().filter((i) => i.kind === 'finished').length, 0);
+    assert.equal(f.manager.tools.ops.items().filter((i) => i.kind === 'finished').length, 0);
     const task = f.manager.tools.flow.list('task')[0];
     const first = f.manager.tools.ops.saveItem({ name: '虚构待选成品A', kind: 'finished', unit: task.unit, productId: task.productId }, actor);
     const valid = { ...args, materials: [{ unit: '张', issued: '547' }] };
@@ -202,7 +202,7 @@ test('无效完工分配、库存不足整批不写，成品入这个产品唯�
       /分配必须完整/,
     );
     assert.equal(
-      f.manager.tools.ops.repo.items().filter((i) => i.kind === 'finished').length,
+      f.manager.tools.ops.items().filter((i) => i.kind === 'finished').length,
       1,
       '失败预检不能留下后续档案',
     );

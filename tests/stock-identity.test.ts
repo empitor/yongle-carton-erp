@@ -86,17 +86,17 @@ test('同一种货只有一个库存品：成品要先选产品、一个产品�
     // 规格说明不同就是不同的货，可以建；改成和别的原材料一样也不行；改自己（查重的几项不变）不算撞
     const better = f.ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', specification: '优等' }, f.actor);
     assert.throws(
-      () => f.ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', version: better.version }, f.actor, better.id),
+      () => f.flow.stock.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', version: better.version }, f.actor, better.id),
       conflict(f.raw.id, false, /已经有一样的原材料“虚构纸板”/),
     );
-    const noted = f.ops.saveItem(
+    const noted = f.flow.stock.saveItem(
       { name: '虚构纸板', kind: 'raw', unit: '张', specification: '优等', notes: '虚构备注', version: better.version },
       f.actor,
       better.id,
     );
     assert.equal(noted.notes, '虚构备注');
     // 归档的也算：提示去恢复
-    const glue = f.ops.repo.items(true, f.glue.id)[0];
+    const glue = f.ops.items(true, f.glue.id)[0];
     assert.ok(changeLifecycle(f.store, 'stock_items', { action: 'archive', items: [{ id: glue.id, version: glue.version }] }, f.actor).results[0].success);
     assert.throws(
       () => f.ops.saveItem({ name: '虚构衬板', kind: 'raw', unit: '张' }, f.actor),
@@ -119,9 +119,9 @@ test('同一种货只有一个库存品：成品要先选产品、一个产品�
 test('到货没选库存品：已经有一样的原材料（归档的也算）就入到它那里，归档的自动恢复并写审计；一样的几行只建一个', () => {
   const f = businessFixture();
   try {
-    const glue = f.ops.repo.items(true, f.glue.id)[0];
+    const glue = f.ops.items(true, f.glue.id)[0];
     assert.ok(changeLifecycle(f.store, 'stock_items', { action: 'archive', items: [{ id: glue.id, version: glue.version }] }, f.actor).results[0].success);
-    const before = f.ops.repo.items(true).filter((i) => i.kind === 'raw').length;
+    const before = f.ops.items(true).filter((i) => i.kind === 'raw').length;
     const doc = f.confirm('arrival', {
       supplierId: f.supplier.id,
       reference: randomUUID(),
@@ -133,10 +133,10 @@ test('到货没选库存品：已经有一样的原材料（归档的也算）�
     });
     assert.equal(doc.lines[0].stockId, f.glue.id);
     assert.equal(f.store.archived('stock_items', f.glue.id), false);
-    assert.equal(f.ops.repo.balance(f.glue.id), 30000);
+    assert.equal(f.ops.balance(f.glue.id), 30000);
     assert.equal(doc.lines[1].stockId, doc.lines[2].stockId);
-    assert.equal(f.ops.repo.balance(Number(doc.lines[1].stockId)), 15000);
-    assert.equal(f.ops.repo.items(true).filter((i) => i.kind === 'raw').length, before + 1, '只新建了“虚构新纸板”一个');
+    assert.equal(f.ops.balance(Number(doc.lines[1].stockId)), 15000);
+    assert.equal(f.ops.items(true).filter((i) => i.kind === 'raw').length, before + 1, '只新建了“虚构新纸板”一个');
     const restored = one(f.store.db, tableRows.business_audit.pick({ document: true }), "SELECT document FROM business_audit WHERE entity='stock_items' AND record_id=? AND action='restore'", f.glue.id);
     assert.ok(restored);
     // 审计看得出是哪张到货单自动恢复、自动新建的，和人手动新建分得开
@@ -183,7 +183,7 @@ test('同一种纸板只差大小写、全半角、厘米毫米写法：到货�
       },
       clerk,
     );
-    const line = () => f.ops.repo.purchases(true, purchase.id)[0].lines[0];
+    const line = () => f.flow.views.purchases(true, purchase.id)[0].lines[0];
     const arrive = (quantity: string, select: boolean) => {
       const pl = line();
       return arriveAs(f, clerk, [{ purchaseLineId: pl.id, ...(select ? { stockId: pl.stockItemId } : {}), item: { ...pl }, quantity }]);
@@ -194,11 +194,11 @@ test('同一种纸板只差大小写、全半角、厘米毫米写法：到货�
     // 第二次明确选它、第三次不选：都入同一个，结果一样
     assert.equal(arrive('30', true).lines[0].stockId, board.id);
     assert.equal(arrive('30', false).lines[0].stockId, board.id);
-    assert.equal(f.ops.repo.balance(board.id), 100_000);
+    assert.equal(f.ops.balance(board.id), 100_000);
     assert.equal(line().receivedQuantity, '100');
     // 采购单照常能改（只改备注）
-    const p = f.ops.repo.purchases(true, purchase.id)[0];
-    assert.equal(f.ops.savePurchase({ ...p, status: p.baseStatus, notes: '虚构改备注' }, clerk, purchase.id).notes, '虚构改备注');
+    const p = f.flow.views.purchases(true, purchase.id)[0];
+    assert.equal(f.flow.stock.savePurchase({ ...p, status: p.baseStatus, notes: '虚构改备注' }, clerk, purchase.id).notes, '虚构改备注');
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     f.store.close();
@@ -220,13 +220,13 @@ test('同一张到货单里只差大小写的两行并进同一个库存品：�
     const corrected = ofKind(correctDocument(f.store, doc.id, { ...input, previewDigest: plan.previewDigest, requestId: randomUUID() }, clerk), 'arrival');
     const replacement = f.flow.get(corrected.replacementFlowId, 'arrival');
     assert.deepEqual(replacement.lines.map((l) => l.stockId), [stockId, stockId]);
-    assert.equal(f.ops.repo.balance(stockId), 13_000);
+    assert.equal(f.ops.balance(stockId), 13_000);
     // 撤销后重新登记（到货不再按原单重新填写）：走同一个核对，照常入库
     f.flow.reverse(replacement.id, { version: replacement.version, reason: '虚构登记错了', acknowledged: true }, f.actor);
-    assert.equal(f.ops.repo.balance(stockId), 0);
+    assert.equal(f.ops.balance(stockId), 0);
     const redo = arriveAs(f, clerk, replacement.lines.map((l) => ({ stockId: l.stockId, item: l.item, quantity: l.quantity, differenceReason: l.differenceReason })));
     assert.equal(redo.correctionOf ?? null, null);
-    assert.equal(f.ops.repo.balance(stockId), 13_000);
+    assert.equal(f.ops.balance(stockId), 13_000);
   } finally {
     f.store.close();
   }
@@ -239,7 +239,7 @@ test('已有原材料只选了尺寸单位、没填尺寸：同名、没写单�
     const line = (patch: Record<string, unknown> = {}) => [{ item: { name: '虚构纸板X', unit: '张' }, quantity: '10', differenceReason: '虚构无单收货', ...patch }];
     assert.equal(arriveAs(f, clerk, line()).lines[0].stockId, board.id);
     assert.equal(arriveAs(f, clerk, line({ stockId: board.id })).lines[0].stockId, board.id);
-    assert.equal(f.ops.repo.balance(board.id), 20_000);
+    assert.equal(f.ops.balance(board.id), 20_000);
   } finally {
     f.store.close();
   }
@@ -280,7 +280,7 @@ test('真的不同的规格仍然被拒：材质、尺寸、规格说明不同�
         JSON.stringify(patch),
       );
     }
-    assert.equal(f.ops.repo.balance(board.id), 0);
+    assert.equal(f.ops.balance(board.id), 0);
   } finally {
     f.store.close();
   }
@@ -290,8 +290,8 @@ test('核对入库的预览和实际一致：没选库存品的到货行写清�
   const f = businessFixture();
   try {
     const board = f.ops.saveItem({ name: '虚构E三层', kind: 'raw', unit: '张', length: 800, width: 600, dimensionUnit: 'mm', material: 'W=A', flute: 'E' }, clerk);
-    f.ops.move(board.id, { action: 'in', quantity: '450', date: '2026-10-20', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: board.version }, clerk);
-    const glue = f.ops.repo.items(true, f.glue.id)[0];
+    f.flow.stock.move(board.id, { action: 'in', quantity: '450', date: '2026-10-20', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: board.version }, clerk);
+    const glue = f.ops.items(true, f.glue.id)[0];
     assert.ok(changeLifecycle(f.store, 'stock_items', { action: 'archive', items: [{ id: glue.id, version: glue.version }] }, f.actor).results[0].success);
     const stockCount = () => count(f.store.db, 'SELECT count(*) AS n FROM stock_items');
     const before = stockCount();
@@ -328,9 +328,9 @@ test('核对入库的预览和实际一致：没选库存品的到货行写清�
     const done = viewOfKind(f.flow.confirm(draft.id, { previewDigest: preview.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
     assert.deepEqual(done.lines.map((l) => l.stockId).slice(0, 2), [board.id, f.glue.id]);
     assert.equal(done.lines[2].stockId, done.lines[3].stockId);
-    assert.equal(f.ops.repo.balance(board.id), 560_000);
-    assert.equal(f.ops.repo.balance(f.glue.id), 20_000);
-    assert.equal(f.ops.repo.balance(Number(done.lines[2].stockId)), 35_000);
+    assert.equal(f.ops.balance(board.id), 560_000);
+    assert.equal(f.ops.balance(f.glue.id), 20_000);
+    assert.equal(f.ops.balance(Number(done.lines[2].stockId)), 35_000);
     assert.equal(stockCount(), before + 1);
   } finally {
     f.store.close();
@@ -356,14 +356,14 @@ test('核对入库预览之后，没选库存品的到货行将要入的原材�
     const again = f.flow.preview(first.id, clerk);
     assert.equal(again.changes[0].target?.id, other.id);
     // 预览写“入到已有的”，确认前它有出入库
-    f.ops.move(other.id, { action: 'in', quantity: '450', date: '2026-10-27', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: other.version }, clerk);
+    f.flow.stock.move(other.id, { action: 'in', quantity: '450', date: '2026-10-27', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: other.version }, clerk);
     assert.throws(() => confirm(first, again), changed);
     // 预览写“入到已有的”，确认前它改了名
     const second = arrival(),
       secondPreview = f.flow.preview(second.id, clerk);
     assert.equal(secondPreview.changes[0].target?.id, other.id);
-    const current = f.ops.repo.items(true, other.id)[0];
-    f.ops.saveItem({ ...current, name: '虚构E三层（旧）', version: current.version }, clerk, other.id);
+    const current = f.ops.items(true, other.id)[0];
+    f.flow.stock.saveItem({ ...current, name: '虚构E三层（旧）', version: current.version }, clerk, other.id);
     assert.throws(() => confirm(second, secondPreview), changed);
     // 没人动：照常入库，入的就是预览说的那个
     const third = arrival(),
@@ -371,7 +371,7 @@ test('核对入库预览之后，没选库存品的到货行将要入的原材�
     const done = confirm(third, thirdPreview);
     assert.equal(thirdPreview.changes[0].target ?? null, null);
     assert.notEqual(done.lines[0].stockId, other.id);
-    assert.equal(f.ops.repo.balance(Number(done.lines[0].stockId)), 100_000);
+    assert.equal(f.ops.balance(Number(done.lines[0].stockId)), 100_000);
   } finally {
     f.store.close();
   }

@@ -88,7 +88,7 @@ test('导出接口：排不下的（Word、Excel 都是）给出具体中文原�
   try {
     const { origin, cookie } = h;
     const headers = { 'Content-Type': 'application/json', Origin: allowedOrigin, cookie, 'x-erp-auth-token': await csrfOf(origin, cookie) };
-    const longPurchase = f.ops.savePurchase(
+    const longPurchase = f.flow.stock.savePurchase(
       {
         ...f.current(),
         version: f.current().version,

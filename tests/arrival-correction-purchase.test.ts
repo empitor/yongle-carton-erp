@@ -8,7 +8,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { FlowService } from '../server/flow/service.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import { toolsOf } from './assistant-fixture.js';
 import { planCorrection } from '../server/flow/correction.js';
@@ -45,7 +45,7 @@ function fixture(count = 1) {
     actor,
   );
   const current = () =>
-    new OperationsRepository(store).purchases(true).find((p) => p.id === purchase.id) ?? assert.fail('采购单 ' + purchase.id + ' 读不到');
+    new FlowService(store).views.purchases(true).find((p) => p.id === purchase.id) ?? assert.fail('采购单 ' + purchase.id + ' 读不到');
   const confirm = (d: { id: number }) => base.check(d);
   const arrival = (quantities = ['10000'], reference: string = randomUUID()) =>
     saveDoc(
@@ -162,8 +162,8 @@ test('一张到货跨两张采购，部分更正同步更新两张采购并保�
     f.confirm(saved);
     const result = f.correct(['5000']);
     assert.equal(result.purchases.length, 2);
-    assert.equal(new OperationsRepository(f.store).purchases().find((p) => p.id === p2.id)?.arrivalProgress, '全部到货');
-    assert.equal(f.ops.repo.balance(f.items[0].id), 15000000);
+    assert.equal(new FlowService(f.store).views.purchases().find((p) => p.id === p2.id)?.arrivalProgress, '全部到货');
+    assert.equal(f.ops.balance(f.items[0].id), 15000000);
   } finally {
     f.store.close();
   }
@@ -295,7 +295,7 @@ test('到货更正把某一行改成 0：替代单留着这一行、不记 0 数
       '替代单留着更正成 0 的这一行',
     );
     assert.deepEqual(f.current().lines.map((l) => l.receivedQuantity), ['0', '10000']);
-    assert.deepEqual([f.ops.repo.balance(f.items[0].id), f.ops.repo.balance(f.items[1].id)], [0, 10000000]);
+    assert.deepEqual([f.ops.balance(f.items[0].id), f.ops.balance(f.items[1].id)], [0, 10000000]);
     // 替代单名下只有第二行的一笔入库，没有 0 数量的流水
     const own = (id: number) =>
       moves()

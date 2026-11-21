@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import type { Actor } from '../../core/index.js';
 import { isSuperMode } from '../../core/index.js';
 import { changeOrderStatus, createBusinessService } from '../../business/index.js';
-import { changePurchaseStatus } from '../../operations/index.js';
 import { reviewedAssistantGrant } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { DataManagementService } from '../../admin/index.js';
@@ -61,12 +60,12 @@ function currentStatus(ctx: ToolContext, module: 'orders' | 'purchases', id: num
     const order = ctx.store.order(id, true);
     return order && { from: order.status, version: order.version };
   }
-  const purchase = ctx.ops.repo.purchases(true, id)[0];
+  const purchase = ctx.flow.views.purchases(true, id)[0];
   return purchase && { from: purchase.baseStatus, version: purchase.version };
 }
 
 /**
- * 订单、采购单的状态变了：改调状态动作（server/business/order-status.ts、server/operations/purchase-status.ts），
+ * 订单、采购单的状态变了：改调状态动作（server/business/order-status.ts、server/flow/stock-entries.ts 的 changePurchaseStatus），
  * 和页面详情里的“确认 / 退回 / 取消 / 恢复”同一个服务函数；同时改了别的内容的，先按原状态保存内容。
  * 状态没变返回 null，照常保存。
  */
@@ -85,8 +84,10 @@ function saveStatus(ctx: ToolContext, job: SaveJob & { id: number }, actor: Acto
   const version = job.fields.some((k) => k !== 'status')
     ? z.object({ version: z.number() }).parse(executeSave(ctx, { ...job, input: { ...input, status: from }, fields: [] }, actor, binding)).version
     : current.version;
-  const change = module === 'orders' ? changeOrderStatus : changePurchaseStatus;
-  return change(ctx.store, id, action, { expectedVersion: version, requestId: randomUUID(), reason: job.reason }, actor);
+  const statusInput = { expectedVersion: version, requestId: randomUUID(), reason: job.reason };
+  return module === 'orders'
+    ? changeOrderStatus(ctx.store, id, action, statusInput, actor)
+    : ctx.flow.stock.changePurchaseStatus(id, action, statusInput, actor);
 }
 
 const isWritable = (m: Module): m is 'customers' | 'products' | 'orders' => m === 'customers' || m === 'products' || m === 'orders';
@@ -130,9 +131,9 @@ function executeSave(ctx: ToolContext, job: SaveJob, actor: Actor, binding: stri
       },
     );
   if (module === 'suppliers') return ctx.ops.saveSupplier(input, actor, id);
-  if (module === 'purchases') return ctx.ops.savePurchase(input, actor, id);
+  if (module === 'purchases') return ctx.flow.stock.savePurchase(input, actor, id);
   if (module === 'raw_inventory' || module === 'finished_inventory')
-    return ctx.ops.saveItem({ ...input, kind: module === 'raw_inventory' ? 'raw' : 'finished' }, actor, id);
+    return ctx.flow.stock.saveItem({ ...input, kind: module === 'raw_inventory' ? 'raw' : 'finished' }, actor, id);
   const kind = flowMap[module];
   if (kind) return saveFlow(ctx, kind, job, actor, binding);
   throw new AppError('此模块不允许直接修改。', 403);

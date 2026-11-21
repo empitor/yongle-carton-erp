@@ -4,6 +4,7 @@ import { arrivalQuerySchema, type ArrivalRecord, type PurchaseView, type Receipt
 import { many, rows } from '../core/index.js';
 import { receiptEvents } from './receipt-events.js';
 import type { FlowCommands } from './base.js';
+import { StockViews } from './stock-views.js';
 
 /* 到货记录的查询（回答的结构在 shared/business/flow-views.ts）。到货单本身的保存、核对、确认在 FlowService，登记到货在 register-arrival.ts。 */
 
@@ -109,8 +110,7 @@ export function arrivalRecords(
     (!v.purchaseId || e.lines.some((l) => l.purchaseId === v.purchaseId)) && (v.includeInactive || e.effective) &&
     !archived?.has(e.flowId)).reverse();
   const purchases = new Map<number, PurchaseView>(
-    flow.ops.repo
-      .purchases(true, [...new Set(events.flatMap((e) => e.lines.map((l) => l.purchaseId)).filter((id): id is number => typeof id === 'number'))])
+    new StockViews(flow.store).purchases(true, [...new Set(events.flatMap((e) => e.lines.map((l) => l.purchaseId)).filter((id): id is number => typeof id === 'number'))])
       .map((p) => [p.id, p]),
   );
   const suppliers = supplierNames(flow, events.map((e) => e.supplierId));

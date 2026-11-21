@@ -1,16 +1,20 @@
 import type { Store } from '../core/index.js';
-import { OperationsRepository } from '../operations/index.js';
-import type { RecordEntity } from '../../shared/business/index.js';
+import { OperationsService } from '../operations/index.js';
+import { FlowService } from '../flow/index.js';
+import type { PurchaseView, RecordEntity, StockItemView, SupplierView } from '../../shared/business/index.js';
 import type { Customer, Order, Product } from '../../shared/core/index.js';
 
-/** 每类记录读出来的样子：客户、产品、订单在数据库层的 Store 里，供应商、采购、库存在采购库存模块 */
+/**
+ * 每类记录读出来的样子：客户、产品、订单在数据库层的 Store 里，供应商在采购库存模块；
+ * 采购单、库存品读带单据内容的完整视图（单据流转的 views：到货记录、已安排）
+ */
 export type BusinessRecordOf = {
   customers: Customer;
   products: Product;
   orders: Order;
-  suppliers: ReturnType<OperationsRepository['suppliers']>[number];
-  purchases: ReturnType<OperationsRepository['purchases']>[number];
-  stock_items: ReturnType<OperationsRepository['items']>[number];
+  suppliers: SupplierView;
+  purchases: PurchaseView;
+  stock_items: StockItemView;
 };
 
 /** 每类记录怎么读：给了编号只读这几条，没给读全部；按 entity 取，返回值跟着 entity 走 */
@@ -20,14 +24,14 @@ const readers: {
   customers: (store, include, ids) => store.customers(include, ids),
   products: (store, include, ids) => store.products(include, ids),
   orders: (store, include, ids) => (ids ? store.ordersByIds(ids, include) : store.orders(include)),
-  suppliers: (store, include, ids) => new OperationsRepository(store).suppliers(include, ids),
-  purchases: (store, include, ids) => new OperationsRepository(store).purchases(include, ids),
-  stock_items: (store, include, ids) => new OperationsRepository(store).items(include, ids),
+  suppliers: (store, include, ids) => new OperationsService(store).suppliers(include, ids),
+  purchases: (store, include, ids) => new FlowService(store).views.purchases(include, ids),
+  stock_items: (store, include, ids) => new FlowService(store).views.items(include, ids),
 };
 
 /**
  * 按类型取客户、产品、订单、供应商、采购单、库存品（归档、删除、关联记录、助手按编号查都用它）。
- * 客户、产品、订单在数据库层的 Store 里，供应商、采购、库存在采购库存模块，这里统一一个入口。
+ * 客户、产品、订单在数据库层的 Store 里，供应商在采购库存模块，采购单、库存品读单据流转的完整视图，这里统一一个入口。
  */
 export function businessRecord<E extends RecordEntity>(
   store: Store,

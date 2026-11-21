@@ -4,25 +4,40 @@ import { RAW_UNIT, rawUnit, rawUnitMessage, quantityUnits, quantityString } from
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, audit, inSavepoint, isLocalAdministrator, isSuperMode, nextAutoId } from '../core/index.js';
-import { purchaseSchema, requiredPurchaseSize, sameRawSpec, type PurchaseView } from '../../shared/business/index.js';
-import { OperationsRepository } from './repository.js';
+import { purchaseSchema, requiredPurchaseSize, sameRawSpec, type PurchaseRowView } from '../../shared/business/index.js';
+import type { OperationsRepository } from './repository.js';
 import { deletePurchaseLines, insertPurchaseLine, setPurchaseLineOrder, updatePurchaseLine } from './ledger.js';
 import { OrderBatchService } from './batches.js';
-import { adminCascade, arrivalSource } from './hooks.js';
 import { businessActor, priorRecord } from './write-base.js';
 
 /**
  * 保存采购单的选项：skipBatch 合并导出订货单时由导出那边建批次；keepStatus 整张保存（PUT）不许改状态；
- * statusAction 是状态动作（purchase-status.ts）在保存，审计记这个动作和原因，不记成普通修改。
+ * statusAction 是状态动作（单据流转的 changePurchaseStatus）在保存，审计记这个动作和原因，不记成普通修改。
  */
 export type PurchaseSaveOptions = {
   skipBatch?: boolean;
   keepStatus?: boolean;
   statusAction?: { action: string; reason?: string };
 };
+/**
+ * 改已有采购单时调用方（单据流转的保存入口 server/flow/stock-entries.ts）算好的单据事实和连带：
+ * receivedUnits 每行按到货单现算的已到货（读原单用，“全部到货”的判断和原来一样）；hasReceipts 有到货记录；
+ * referenced 被单据关联；batchHasArrivals 它所在的订货单登记过到货（换供应商移出订货单时看要不要删订货单）；
+ * detachLines 本机管理员改了哪几行由这里算出，交给它在同一保存点里让挂在上面的到货单解除关联。
+ */
+export type PurchaseEdit = {
+  id: number;
+  receivedUnits: Map<number, number>;
+  hasReceipts: boolean;
+  referenced: boolean;
+  batchHasArrivals: boolean;
+  detachLines(lineIds: number[], actor: Actor): void;
+};
 /** 保存采购单时校验过的内容（明细的单位已归成“张”） */
 type PurchaseInput = z.infer<typeof purchaseSchema>;
 type PurchaseLineInput = PurchaseInput['lines'][number];
+/** 改已有采购单时的原单和调用方给的事实（新建两样都没有） */
+type Prior = { before: PurchaseRowView | null; edit: PurchaseEdit | undefined };
 const purchaseLineInput = purchaseSchema.shape.lines.element;
 const sizeNames = { length: '长', width: '宽' } as const;
 /** 采购单号 CG-日期-序号 里序号的位数 */
@@ -47,19 +62,20 @@ function lineOf(l: PurchaseLineInput) {
 
 /** 保存采购单：核对、写单头、写明细、跟着调整订货单 */
 export class PurchaseWriter {
-  readonly repo: OperationsRepository;
-  constructor(readonly store: Store) {
-    this.repo = new OperationsRepository(store);
-  }
+  constructor(
+    readonly store: Store,
+    private readonly repo: OperationsRepository,
+  ) {}
   /**
    * 保存采购单。改成已订货时自动建一个只含这张采购单的订货批次，到货页的待到货里就有它；
    * 合并导出订货单时由导出那边一次建好批次，传 skipBatch。
    * 明细按三种情况写（writePurchaseLines）：本机管理员改已有的采购单、已登记到货的只改订单关联、其余整组重写。
+   * 改已有的（edit）要调用方给单据事实和连带（PurchaseEdit）；新建不用。
    */
   savePurchase(
     raw: unknown,
     who: Actor | null | undefined,
-    id?: number,
+    edit?: PurchaseEdit,
     options: PurchaseSaveOptions = {},
   ) {
     const actor = businessActor(who),
@@ -67,20 +83,19 @@ export class PurchaseWriter {
       // 采购的纸板只有“张”
       v = { ...parsed, lines: parsed.lines.map((l) => ({ ...l, unit: rawUnit(l.unit) })) };
     return inSavepoint(this.store.db, () => {
-      const before = priorRecord(this.repo, 'purchases', id, raw, actor);
+      const before = edit ? priorRecord((all) => this.repo.purchases(all, edit.id, undefined, () => edit.receivedUnits)[0], raw, actor) : null;
       if (options.keepStatus && before && v.status !== before.baseStatus)
         throw new AppError(
           '保存采购单不改状态。改成待到货、退回待订货、取消、恢复请用采购单详情里的对应按钮（取消要写原因）。',
           409,
         );
       const supplierName = this.checkParties(v, before, actor);
-      this.checkLineStock(v, before, actor);
+      this.checkLineStock(v, before, actor, !!edit?.hasReceipts);
       this.checkLineSizes(v);
-      const hasReceipts =
-        !!before && (before.receipts.length > 0 || arrivalSource().purchaseReferenced(this.store, before.id));
+      const hasReceipts = !!before && !!edit && (edit.hasReceipts || edit.referenced);
       if (before && hasReceipts && !isLocalAdministrator(actor)) this.checkReceivedPurchase(v, before);
       const savedId = this.writePurchaseHead(v, before, supplierName);
-      this.writePurchaseLines(savedId, v, before, actor, hasReceipts);
+      this.writePurchaseLines(savedId, v, { before, edit }, actor, hasReceipts);
       const after = this.repo.purchases(true, savedId)[0];
       audit(this.store, actor, {
         action: options.statusAction?.action ?? (before ? 'update' : 'create'),
@@ -88,12 +103,12 @@ export class PurchaseWriter {
         id: savedId,
         document: { before, after, ...(options.statusAction?.reason ? { reason: options.statusAction.reason } : {}) },
       });
-      this.syncOrderBatch(savedId, v, before, actor, options);
+      this.syncOrderBatch(savedId, v, { before, edit }, actor, options);
       return after;
     });
   }
   /** 单位、供应商、关联的订单能不能这样存；返回要记的供应商名称 */
-  private checkParties(v: PurchaseInput, before: PurchaseView | null, actor: Actor) {
+  private checkParties(v: PurchaseInput, before: PurchaseRowView | null, actor: Actor) {
     // 纸板只有“张”，别的单位拒收
     if (v.lines.some((l) => l.unit !== RAW_UNIT)) throw new AppError(rawUnitMessage);
     const supplierName = this.repo.supplierName(v.supplierId, isSuperMode(actor) || !!before);
@@ -121,16 +136,16 @@ export class PurchaseWriter {
   }
   /**
    * 明细关联的库存品：要是没归档的原材料（到货后、或取消的采购单留着原来关联的不算），规格要和库存品一样。
-   * 本机管理员改的规格对不上时，这一行改成不关联库存品（改的是 v 里的这一行）。
+   * 本机管理员改的规格对不上时，这一行改成不关联库存品（改的是 v 里的这一行）。hasReceipts：原单有到货记录。
    */
-  private checkLineStock(v: PurchaseInput, before: PurchaseView | null, actor: Actor) {
+  private checkLineStock(v: PurchaseInput, before: PurchaseRowView | null, actor: Actor, hasReceipts: boolean) {
     const stock = new Map(this.repo.items(true, v.lines.flatMap((l) => l.stockItemId ? [l.stockItemId] : [])).map((item) => [item.id, item]));
     for (const l of v.lines) {
       if (!l.stockItemId) continue;
       const item = stock.get(l.stockItemId);
       const retaining =
         !!before?.lines.some((old) => old.id === l.id && old.stockItemId === l.stockItemId) &&
-        (before.receipts.length > 0 || v.status === '已取消');
+        (hasReceipts || v.status === '已取消');
       if (!item || (item.archived && !retaining && !isLocalAdministrator(actor)) || item.kind !== 'raw')
         throw new AppError('采购明细须关联正常原材料库存品。');
       // 原材料库存品只有“张”（数据库约束），明细上面也只收“张”，单位不会对不上；
@@ -153,7 +168,7 @@ export class PurchaseWriter {
     });
   }
   /** 已登记到货的采购单（本机管理员以外）：日期、供应商、明细、数量、价格都不能改，也不能退回待订货、全部到货后取消 */
-  private checkReceivedPurchase(v: PurchaseInput, before: PurchaseView) {
+  private checkReceivedPurchase(v: PurchaseInput, before: PurchaseRowView) {
     if (
       v.orderDate !== before.orderDate ||
       v.supplierId !== before.supplierId ||
@@ -172,7 +187,7 @@ export class PurchaseWriter {
       throw new AppError('已经全部到货，不能取消；库存不会因取消而回退。');
   }
   /** 写采购单单头，返回编号（新建的编号由数据库分配） */
-  private writePurchaseHead(v: PurchaseInput, before: PurchaseView | null, supplierName: string): number {
+  private writePurchaseHead(v: PurchaseInput, before: PurchaseRowView | null, supplierName: string): number {
     const at = new Date().toISOString();
     if (before) {
       this.store.db
@@ -218,9 +233,9 @@ export class PurchaseWriter {
    *   明细和原来的一一对应（行数、每行编号都一样），所以按原来的明细编号逐行改；
    * - 其余：整组删掉重写。
    */
-  private writePurchaseLines(id: number, v: PurchaseInput, before: PurchaseView | null, actor: Actor, hasReceipts: boolean) {
-    if (before && isLocalAdministrator(actor)) {
-      this.rewriteLinesAsAdmin(id, v, before, actor);
+  private writePurchaseLines(id: number, v: PurchaseInput, { before, edit }: Prior, actor: Actor, hasReceipts: boolean) {
+    if (before && edit && isLocalAdministrator(actor)) {
+      this.rewriteLinesAsAdmin(id, v, before, (lineIds) => edit.detachLines(lineIds, actor));
       return;
     }
     if (before && hasReceipts) {
@@ -231,7 +246,7 @@ export class PurchaseWriter {
     for (const l of v.lines) insertPurchaseLine(this.store, id, lineOf(l));
   }
   /** 本机管理员改已有的采购单：改了库存品、规格、供应商或删掉的行，先让挂在上面的到货单解除关联，再按编号逐行删、改、加 */
-  private rewriteLinesAsAdmin(id: number, v: PurchaseInput, before: PurchaseView, actor: Actor) {
+  private rewriteLinesAsAdmin(id: number, v: PurchaseInput, before: PurchaseRowView, detach: (lineIds: number[]) => void) {
     const changed = before.lines
       .filter((old) => {
         const next = v.lines.find((l) => l.id === old.id);
@@ -244,7 +259,7 @@ export class PurchaseWriter {
         );
       })
       .map((l) => l.id);
-    if (changed.length) adminCascade().detachPurchaseLines(this.store, id, changed, actor);
+    if (changed.length) detach(changed);
     for (const old of before.lines)
       if (!v.lines.some((l) => l.id === old.id)) deletePurchaseLines(this.store, id, old.id);
     for (const l of v.lines) {
@@ -256,13 +271,13 @@ export class PurchaseWriter {
     }
   }
   /** 换了供应商的采购单移出原来那家的订货单；改成已订货（或换了供应商）的按新供应商单独建一份 */
-  private syncOrderBatch(id: number, v: PurchaseInput, before: PurchaseView | null, actor: Actor, options: PurchaseSaveOptions) {
+  private syncOrderBatch(id: number, v: PurchaseInput, { before, edit }: Prior, actor: Actor, options: PurchaseSaveOptions) {
     // 库里存的状态只有待订货、已订货、已取消（部分到货、全部到货是按到货显示的），订过货就是“已订货”
     const wasOrdered = before?.baseStatus === '已订货';
     const batches = new OrderBatchService(this.store);
     // 换了供应商的采购单移出原来那家的订货单；还是已订货的，按新供应商单独建一份
     const moved = !!before && before.supplierId !== v.supplierId && batches.batchIdOf(id) !== null;
-    if (moved) batches.detach(id, actor);
+    if (moved) batches.detach(id, actor, !!edit?.batchHasArrivals);
     if (!options.skipBatch && v.status === '已订货' && (!wasOrdered || moved)) {
       if (batches.batchIdOf(id) === null) batches.create([id], actor);
     }

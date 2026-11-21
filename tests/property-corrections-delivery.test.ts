@@ -201,7 +201,7 @@ function remat(f: Setup, product: number, m: number) {
 }
 
 function step(f: Setup, op: Op) {
-  if (op.t === 'use') return useStock(f.ops, f.stocks[op.stock].id, op.q, f.used);
+  if (op.t === 'use') return useStock(f.flow, f.stocks[op.stock].id, op.q, f.used);
   if (op.t === 'remat') return remat(f, op.product, op.m);
   const ids = effectiveIds(f.store, 'delivery');
   if (!ids.length) return;
@@ -234,7 +234,7 @@ test('送货：领用掉一部分以后再改多，会出负库存的被拒、�
     fc.property(shipsArb, fc.nat(1), fc.integer({ min: 1, max: 3000 }), fc.nat(), fc.integer({ min: 1, max: 900 }), (ships, stock, q, line, to) => {
       const f = setup(ships);
       try {
-        useStock(f.ops, f.stocks[stock].id, q, f.used);
+        useStock(f.flow, f.stocks[stock].id, q, f.used);
         step(f, { t: 'qty', doc: 0, line, q: to });
         assertDerived(f);
       } finally {

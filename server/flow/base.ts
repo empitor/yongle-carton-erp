@@ -1,7 +1,7 @@
 import type { Actor, Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import type { OperationsService } from '../operations/index.js';
-import type { FlowDocument, FlowDocuments, FlowDocView, FlowKind, FlowPreview } from '../../shared/business/index.js';
+import type { FlowDocument, FlowDocuments, FlowDocView, FlowKind, FlowPreview, StockItemBaseView } from '../../shared/business/index.js';
 
 /*
  * 单据流转最底下的一层：各文件共用的 fail、FlowCommands 和核对用的类型。这个文件不引用单据流转的任何别的文件。
@@ -16,8 +16,8 @@ export function fail(message: string, status = 422): never {
 /** 到货、送货的一行明细（库里存的样子：核对时补全的字段都在） */
 export type ArrivalLine = FlowDocuments['arrival']['lines'][number];
 export type DeliveryLine = FlowDocuments['delivery']['lines'][number];
-/** 库存品（采购库存读出来的样子） */
-export type StockItemRow = ReturnType<OperationsService['repo']['items']>[number];
+/** 库存品（采购库存读出来的基本视图：结余、在途） */
+export type StockItemRow = StockItemBaseView;
 
 /**
  * 一笔库存变化（单据核对 validateFlow 算出来的 changes）：到货新加的行还没有库存品时 stockId 是 null、带 newItem；

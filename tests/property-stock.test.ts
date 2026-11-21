@@ -31,12 +31,12 @@ test('任意一串入库、出库、盘点之后，每个库存品的余额等�
         for (const s of steps) {
           const id = ids[s.target];
           const units = s.quantity * 1000;
-          const item = f.ops.repo.items(true, id)[0];
+          const item = f.ops.items(true, id)[0];
           const before = movements();
           const expected = s.action === 'in' ? model[s.target] + units : s.action === 'out' ? model[s.target] - units : units;
           const refused = (s.action !== 'adjust' && units === 0) || expected < 0;
           const run = () =>
-            f.ops.move(
+            f.flow.stock.move(
               id,
               {
                 expectedVersion: item.version,
@@ -57,7 +57,7 @@ test('任意一串入库、出库、盘点之后，每个库存品的余额等�
             model[s.target] = expected;
           }
           for (const key of ['raw', 'finished'] as const) {
-            const balance = f.ops.repo.balance(ids[key]);
+            const balance = f.ops.balance(ids[key]);
             assert.equal(balance, model[key]);
             assert.equal(balance, ledgerSum(ids[key]));
             assert.ok(balance >= 0);

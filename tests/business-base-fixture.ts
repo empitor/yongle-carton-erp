@@ -3,7 +3,7 @@
 // 以后拆客户产品订单、采购库存时，主要改这一份。名字、数量、有没有期初库存这些差别用参数给，默认值是最常用的那套。
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/service.js';
 import type { Actor } from '../server/core/auth.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
@@ -25,9 +25,9 @@ export function businessBase(who: Actor, store = new Store(':memory:')) {
   const ops = new OperationsService(store),
     flow = new FlowService(store);
   const stockIn = (item: Ref, { quantity, date, notes = '虚构期初' }: Opening) =>
-    ops.move(
+    flow.stock.move(
       item.id,
-      { expectedVersion: ops.repo.items(true, item.id)[0].version, requestId: randomUUID(), action: 'in', quantity, date, notes, acknowledged: true },
+      { expectedVersion: ops.items(true, item.id)[0].version, requestId: randomUUID(), action: 'in', quantity, date, notes, acknowledged: true },
       who,
     );
   const withOpening = <T extends Ref>(item: T, opening?: Opening) => {

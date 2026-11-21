@@ -2,7 +2,7 @@ import type { Actor } from '../core/index.js';
 import { assertPreviewCurrent, audit, exists, onceByRequest, one, operationRequest, requirePermission, rows } from '../core/index.js';
 import { MAX_STOCK_UNITS, today } from '../../shared/core/index.js';
 import { flowConfirmSchema, flowViewSchema, type FlowDocument, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
-import { insertMovement, setPurchaseLineStock, touchOrderBatch, touchPurchases, touchStockItems } from '../operations/index.js';
+import { stockLedger } from '../operations/index.js';
 import { fail, newItemOf, taskOf, type FlowCommands } from './base.js';
 import { touchFlowDocument, writeFlowDocument } from './document-store.js';
 import { storedDocument } from './read.js';
@@ -11,6 +11,8 @@ import { receiptKey, rewriteRefs, saveReceiptKey } from './refs.js';
 import { updateOrders } from './order-progress.js';
 import { examine, requireDraft } from './preview.js';
 import { validateFlow } from './validate.js';
+
+const { insertMovement, setPurchaseLineStock, touchOrderBatch, touchPurchases, touchStockItems } = stockLedger;
 
 /*
  * 确认单据（核对入库、出库、下达）：按当前数据重算核对内容、和预览摘要比对，按单据写库存流水、改状态、记审计，
@@ -36,7 +38,7 @@ type MovementInput = {
 
 export function movement(flow: FlowCommands, m: MovementInput) {
   const { stockId, delta, doc } = m,
-    before = flow.ops.repo.balance(stockId),
+    before = flow.ops.balance(stockId),
     after = before + delta;
   if (after < 0 || !Number.isSafeInteger(after) || after > MAX_STOCK_UNITS)
     fail('库存不足或数量超限，整张单据未提交。', 409);
@@ -103,7 +105,7 @@ function confirmedDocument(
   const confirmed = { movements: done.movements, confirmedBy: done.by, confirmedAt: done.at };
   switch (doc.kind) {
     case 'arrival':
-      return { ...doc, supplierName: flow.ops.repo.supplierName(doc.supplierId, true), ...confirmed };
+      return { ...doc, supplierName: flow.ops.supplierName(doc.supplierId, true), ...confirmed };
     case 'delivery':
       return {
         ...doc,

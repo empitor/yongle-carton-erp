@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { OperationsRepository } from '../server/operations/repository.js';
 import { shipOnDocDate } from './ship-date.js';
 import { applyCorrection, previewCorrection, saveDoc } from './receive-fixture.js';
 import { businessBase } from './business-base-fixture.js';
@@ -28,7 +27,7 @@ export function fixture(store = new Store(':memory:')) {
     actor,
   );
   const current = () =>
-    new OperationsRepository(store).purchases(true).find((p) => p.id === purchase.id) ?? assert.fail('采购单 ' + purchase.id + ' 读不到');
+    flow.views.purchases(true).find((p) => p.id === purchase.id) ?? assert.fail('采购单 ' + purchase.id + ' 读不到');
   const confirm = (doc: { id: number }) => base.check(doc, shipOnDocDate(flow, doc.id));
   const receive = () =>
     confirm(

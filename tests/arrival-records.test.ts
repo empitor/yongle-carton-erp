@@ -1,11 +1,11 @@
-// 到货记录（server/flow/arrivals.ts、receipt-events.ts、arrival-source.ts）：验收和入库状态、逐行入库流水、采购库存要看的到货数据。
+// 到货记录（server/flow/arrivals.ts、receipt-events.ts、stock-facts.ts）：验收和入库状态、逐行入库流水、采购库存要看的到货数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { orderedPurchase, saveDoc } from './receive-fixture.js';
 import { many, rows as tableRows } from '../server/core/index.js';
-import { arrivalSource, purchaseArrivals, reservedUnits } from '../server/flow/arrival-source.js';
+import { batchArrivals, batchHasArrivals, documentNumbers, purchaseArrivals, purchaseReferenced, referencedStock, reservedUnits } from '../server/flow/stock-facts.js';
 import { receiptEvents } from '../server/flow/receipt-events.js';
 
 function fixture() {
@@ -124,13 +124,13 @@ test('采购库存要看的到货数据：已到货和到货记录、单据引�
     const received = f.receive('300', '虚构送货单-数据');
     const loaded = purchaseArrivals(f.store, [f.purchase.id]);
     assert.equal(loaded.receivedUnits.get(f.purchase.lines[0].id), 300000);
-    assert.equal(loaded.apply(f.ops.repo.purchaseRows(true, f.purchase.id))[0].receipts.length, 1);
-    assert.equal(arrivalSource.purchaseReferenced(f.store, f.purchase.id), true);
-    assert.deepEqual([...arrivalSource.referencedStock(f.store, [f.raw.id, f.finished.id])], [f.raw.id]);
-    assert.equal(arrivalSource.documentNumbers(f.store, [received.arrival.id]).get(String(received.arrival.id))?.number, received.arrival.number);
+    assert.equal(loaded.apply(f.ops.purchases(true, f.purchase.id))[0].receipts.length, 1);
+    assert.equal(purchaseReferenced(f.store, f.purchase.id), true);
+    assert.deepEqual([...referencedStock(f.store, [f.raw.id, f.finished.id])], [f.raw.id]);
+    assert.equal(documentNumbers(f.store, [received.arrival.id]).get(String(received.arrival.id))?.number, received.arrival.number);
     const batchId = f.batch().id;
-    assert.equal(arrivalSource.batchHasArrivals(f.store, batchId), true);
-    assert.deepEqual(arrivalSource.batchArrivals(f.store, batchId).map((a) => [a.id, a.reference]), [[received.arrival.id, '虚构送货单-数据']]);
+    assert.equal(batchHasArrivals(f.store, batchId), true);
+    assert.deepEqual(batchArrivals(f.store, batchId).map((a) => [a.id, a.reference]), [[received.arrival.id, '虚构送货单-数据']]);
     const order = f.order(50);
     f.stockIn('100');
     saveDoc(f.flow, 'delivery', { date: '2026-10-27', customerId: f.customer.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: f.finished.id, quantity: '30' }] }, clerk);

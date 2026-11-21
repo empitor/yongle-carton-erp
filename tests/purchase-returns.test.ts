@@ -93,10 +93,10 @@ function fixture(quantities = ['10'], store = new Store(':memory:')) {
       requestId,
       lines: [{ lineIndex: 0, quantity }],
     });
-  const current = () => ops.repo.purchases(true, purchase.id)[0];
+  const current = () => flow.views.purchases(true, purchase.id)[0];
   const received = (lineId = purchase.lines[0].id) =>
     Number(current().lines.find((l) => l.id === lineId)?.receivedUnits ?? 0);
-  const balance = () => ops.repo.balance(raw.id);
+  const balance = () => ops.balance(raw.id);
   const remove = (module: string, id: number, version: number, inventoryPolicy = 'preserve') => {
     const maintenance = new DatabaseMaintenanceService(s),
       selection = { module, items: [{ id, version }], inventoryPolicy };
@@ -148,7 +148,7 @@ test('采购明细删掉换新后，退货按到货单现在的明细挂账，�
     const { id: _id, version: _v, ...spec } = f.raw;
     const p = f.current();
     // 管理员删掉原明细、另加一条：新明细拿新编号，删掉的编号不重用（AUTOINCREMENT）。
-    const edited = f.ops.savePurchase(
+    const edited = f.flow.stock.savePurchase(
       {
         supplierId: f.supplier.id,
         orderDate: '2026-02-01',
@@ -210,7 +210,7 @@ test('数据维护删采购单或库存品后，退货单引用同步清掉，�
     try {
       const b = g.arrive([{ quantity: '10' }]);
       const back = g.ret(b.id, '3');
-      g.remove('stock_items', g.raw.id, g.ops.repo.items(true, g.raw.id)[0].version);
+      g.remove('stock_items', g.raw.id, g.ops.items(true, g.raw.id)[0].version);
       const kept = g.returns.list(b.id)[0];
       assert.equal(kept.lines[0].stockId, null);
       assert.throws(
@@ -243,8 +243,8 @@ test('退货不能让库存变负：到货 10 张、领用 8 张，退 3 张拦�
   const f = fixture();
   try {
     const a = f.arrive([{ quantity: '10' }]);
-    const it = f.ops.repo.items(true, f.raw.id)[0];
-    f.ops.move(f.raw.id, { expectedVersion: it.version, requestId: randomUUID(), action: 'out', quantity: '8', date: '2026-02-06', notes: '虚构领料', acknowledged: true }, maker);
+    const it = f.ops.items(true, f.raw.id)[0];
+    f.flow.stock.move(f.raw.id, { expectedVersion: it.version, requestId: randomUUID(), action: 'out', quantity: '8', date: '2026-02-06', notes: '虚构领料', acknowledged: true }, maker);
     const moves = count(f.s.db, 'SELECT count(*) n FROM stock_movements');
     assert.throws(() => f.ret(a.id, '3'), failed(409, /库存不足，不能退这么多：退货会让库存变成负数。/));
     assert.equal(f.balance(), 2000);

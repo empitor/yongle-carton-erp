@@ -190,8 +190,8 @@ test('更正结果里的采购单、库存品是更正后读回的完整视图�
     const result = f.correct(f.arrivalId, [{ index: 0, quantity: '900' }]);
     assert.equal(result.purchases.length, 1);
     assert.equal(result.stock.length, 1);
-    assert.deepEqual(result.purchases, f.ops.repo.purchases(true, result.purchases.map((p) => p.id)));
-    assert.deepEqual(result.stock, f.ops.repo.items(true, result.stock.map((s) => s.id)));
+    assert.deepEqual(result.purchases, f.flow.views.purchases(true, result.purchases.map((p) => p.id)));
+    assert.deepEqual(result.stock, f.flow.views.items(true, result.stock.map((s) => s.id)));
   } finally {
     f.store.close();
   }
@@ -236,7 +236,7 @@ test('原来有不合格或没全入库的行：改数量要把合格、不合�
       '虚构混合验收',
     ).arrival;
     const record = () => f.flow.arrivalRecords().find((r) => r.effective) ?? assert.fail('没有有效的到货记录');
-    const balances = () => [f.ops.repo.balance(f.raw.id), f.ops.repo.balance(glue.id)];
+    const balances = () => [f.ops.balance(f.raw.id), f.ops.balance(glue.id)];
     assert.deepEqual([record().inspectionStatus, record().inventoryStatus], ['含不合格品', '部分入库']);
     assert.deepEqual(balances(), [4000000, 0]);
     assert.equal(count(f.store.db, 'SELECT count(*) n FROM stock_movements'), 1, '零入库的行不出流水');

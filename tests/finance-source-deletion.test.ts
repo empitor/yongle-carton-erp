@@ -10,7 +10,8 @@ import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { FinanceAllocations } from '../server/finance/allocations.js';
 import { FinanceMargin } from '../server/finance/margin.js';
 import { maker, newSettings, physical, deliveryDoc, postDrafts, reverseSource, eventsStep, ledgerBalance, subledger, obligation, funds, confirmBlue, confirmRed, unbalancedVouchers } from './finance-fixture.js';
@@ -138,10 +139,11 @@ test('已记账的送货单被删除后核对无误、保留凭证：凭证和�
 test('盘点流水被删除：核对前、核对后都直接已更正，不卡结账', () => {
   const t = books();
   try {
-    const ops = new OperationsService(t.s);
+    const ops = new OperationsService(t.s),
+      flow = new FlowService(t.s);
     const item = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, maker);
     const move = (action: 'in' | 'adjust', quantity: string) =>
-      ops.move(
+      flow.stock.move(
         item.id,
         {
           action,

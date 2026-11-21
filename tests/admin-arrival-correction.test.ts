@@ -45,7 +45,7 @@ test('助手的到货更正（arrival.correct，id 是到货单编号，加每�
     assert.equal(f.current().lines[0].receivedQuantity, '10000', '出卡片不改');
     tools.commit(plan, owner(), 'test');
     assert.equal(f.current().lines[0].receivedQuantity, '5000');
-    assert.equal(f.ops.repo.items()[0].quantity, '5000', '库存跟着变');
+    assert.equal(f.ops.items()[0].quantity, '5000', '库存跟着变');
     // 启停助手工具要在超级管理员模式里
     const superMode = { ...owner(), superAdminMode: true, superAdminUntil: Date.now() + 60_000 };
     registry.set({ name: 'arrival.correct', enabled: false, expectedRevision: registry.view().revision }, superMode);
@@ -90,7 +90,7 @@ test('HTTP更正到货单与排程复用真实身份、CSRF和原服务；改单
     assert.equal(saved.status, 200);
     assert.equal(correctionResultSchema('arrival', arrivalCorrectionExtraSchema).parse(await saved.json()).verified, true);
     assert.equal(f.current().lines[0].receivedQuantity, '5000');
-    assert.equal(f.ops.repo.items()[0].quantity, '5000');
+    assert.equal(f.ops.items()[0].quantity, '5000');
     // 采购单下面的老地址没有了，更正只走到货单的地址
     const again = f.current().receipts.find((r) => r.effective);
     assert.ok(again);
@@ -210,7 +210,7 @@ test('已入库到货单有一行入库 0：更正时入库 0 的行不记 0 数
     assert.deepEqual(moves().slice(0, before.length), before);
     assert.deepEqual(inbound(second), [2500000]);
     assert.equal(revisions(), 0);
-    assert.equal(f.ops.repo.balance(f.raw.id), 2500000);
+    assert.equal(f.ops.balance(f.raw.id), 2500000);
     assert.equal(record(second).inventoryStatus, '部分入库', '不会变成入库待核对');
     assert.deepEqual(
       record(second).lines.map((l) => [l.stockedQuantity, l.inventoryMismatch]),
@@ -228,7 +228,7 @@ test('已入库到货单有一行入库 0：更正时入库 0 的行不记 0 数
     ]);
     assert.deepEqual(inbound(third).sort((a, b) => a - b), [2500000, 5000000]);
     assert.ok(moves().every((m) => Number(m.delta_units) !== 0), '库里没有 0 数量的流水');
-    assert.equal(f.ops.repo.balance(f.raw.id), 7500000);
+    assert.equal(f.ops.balance(f.raw.id), 7500000);
     assert.equal(record(third).inventoryStatus, '已入库');
     assert.equal(revisions(), 0, '流水只追加，没有改写');
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
@@ -273,8 +273,8 @@ test('本机管理员更正到货单时加一行数量 0、没选库存品的新
     assert.equal(items(), before.items + 1);
     const created = saved.lines[1].stockId;
     assert.ok(created && created !== f.raw.id);
-    assert.equal(f.ops.repo.balance(created), 200000);
-    assert.equal(f.ops.repo.balance(f.raw.id), 1000000);
+    assert.equal(f.ops.balance(created), 200000);
+    assert.equal(f.ops.balance(f.raw.id), 1000000);
     assert.ok(moves().every((m) => Number(m.delta_units) !== 0));
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {

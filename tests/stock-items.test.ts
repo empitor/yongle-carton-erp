@@ -8,17 +8,17 @@ import { count, many, one, rows as tableRows } from '../server/core/index.js';
 import { orderSchema, productSchema, specification, type Product } from '../shared/core/domain.js';
 import type { Order } from '../shared/core/order-view.js';
 import { deliveryBlockers } from '../shared/business/warehouse-delivery.js';
-import type { StockItemView } from '../shared/business/index.js';
+import type { StockItemBaseView } from '../shared/business/index.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { createBusinessService } from '../server/business/service.js';
-import { insertMovement } from '../server/operations/ledger.js';
+import { stockLedger } from '../server/operations/index.js';
 import { businessFixture } from './flow-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 
 /** businessFixture 加：item(编号) 读库存品，change(编号, 改的字段) 按现在的版本保存 */
 function fixture() {
   const f = businessFixture();
-  const items = (id?: number) => f.ops.repo.items(true, id);
+  const items = (id?: number) => f.flow.views.items(true, id);
   const item = (id: number) => {
     const found = items(id).find((row) => row.id === id);
     assert.ok(found);
@@ -26,7 +26,7 @@ function fixture() {
   };
   const change = (id: number, patch: Record<string, unknown>) => {
     const now = item(id);
-    return f.ops.saveItem({ name: now.name, kind: now.kind, unit: now.unit, productId: now.productId, version: now.version, ...patch }, f.actor, id);
+    return f.flow.stock.saveItem({ name: now.name, kind: now.kind, unit: now.unit, productId: now.productId, version: now.version, ...patch }, f.actor, id);
   };
   const productRow = (id: number): Product => {
     const found = f.store.product(id, true);
@@ -48,7 +48,7 @@ function fixture() {
   return { ...f, item, items, change, productRow, orderRow, moves, revisions, lines };
 }
 
-const pick = (s: StockItemView) => [s.name, s.length, s.width, s.height, s.dimensionUnit, s.material, s.flute, s.specification, s.notes];
+const pick = (s: StockItemBaseView) => [s.name, s.length, s.width, s.height, s.dimensionUnit, s.material, s.flute, s.specification, s.notes];
 
 test('已有出入库记录或被单据、采购明细引用的库存品不能改种类，本机管理员也不行；名称照常改，数量和流水不动', () => {
   const f = fixture();
@@ -107,7 +107,7 @@ test('已有出入库记录或被单据、采购明细引用的库存品不能�
       () => change(f.glue.id, { kind: 'finished', unit: '只', productId: f.product.id }),
       /这个库存品已被单据或采购明细引用，不能改种类.*请新建一个库存品/,
     );
-    assert.equal(f.ops.repo.purchases(true, purchase.id)[0].lines[0].stockItemId, f.glue.id);
+    assert.equal(f.flow.views.purchases(true, purchase.id)[0].lines[0].stockItemId, f.glue.id);
 
     // 没有流水，只被待入库的到货单引用
     const board = f.ops.saveItem({ name: '虚构待入库纸板', kind: 'raw', unit: '张' }, f.actor);
@@ -132,10 +132,10 @@ test('已有出入库记录或被单据、采购明细引用的库存品不能�
     change(f.glue.id, { name: '虚构衬板改名' });
     const line = f.flow.get(arrival.id, 'arrival').lines[0];
     assert.deepEqual([line.stockId, line.item.name, line.item.unit, line.quantity], [f.raw.id, '虚构纸板改名', '张', '3000']);
-    assert.equal(f.ops.repo.purchases(true, purchase.id)[0].lines[0].name, '虚构衬板改名');
+    assert.equal(f.flow.views.purchases(true, purchase.id)[0].lines[0].name, '虚构衬板改名');
     assert.deepEqual(moves(), before.moves);
-    assert.equal(f.ops.repo.balance(f.raw.id), 2990000);
-    assert.equal(f.ops.repo.balance(f.finished.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 2990000);
+    assert.equal(f.ops.balance(f.finished.id), 100000);
     assert.equal(revisions(), 0);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
@@ -246,14 +246,14 @@ test('数量是 0 的出入库不记流水：写入前先拦住并说清原因�
     });
     for (const action of ['in', 'out', 'purchase'])
       assert.throws(
-        () => insertMovement(f.store, movement(action, 0)),
+        () => stockLedger.insertMovement(f.store, movement(action, 0)),
         /这笔出入库的数量是 0，不记流水；只有盘点可以记“数量没变”。请核对单据上的数量。/,
         action,
       );
     assert.equal(movementCount(), before, '被拦下的不进库，也不是靠数据库约束报错');
     // 盘点盘出来和账上一样：记一笔 0 的盘点流水
-    const now = f.ops.repo.items(true, f.raw.id)[0];
-    f.ops.move(
+    const now = f.ops.items(true, f.raw.id)[0];
+    f.flow.stock.move(
       f.raw.id,
       { expectedVersion: now.version, requestId: randomUUID(), action: 'adjust', quantity: '100', date: '2026-10-28', notes: '虚构盘点，数量没变', acknowledged: true },
       f.actor,
@@ -265,7 +265,7 @@ test('数量是 0 的出入库不记流水：写入前先拦住并说清原因�
     );
     assert.ok(last);
     assert.deepEqual([last.action, last.delta_units], ['adjust', 0]);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
   } finally {
     f.store.close();
   }
@@ -304,7 +304,7 @@ test('成品的名称、尺寸、材质、楞型、规格说明按产品；产�
         { source: 'manual-ui', operatorId: f.actor.id, actor: f.actor },
       );
     };
-    const current = () => f.ops.repo.items(true, stock.id)[0];
+    const current = () => f.ops.items(true, stock.id)[0];
     const audits = () =>
       many(
         f.store.db,
@@ -373,7 +373,7 @@ test('产品改了尺寸，成品库存的规格说明跟着改；按新规格�
       { entity: 'products', action: 'update', id: box.id, input: { ...p, length: 310, version: p.version } },
       { source: 'manual-ui', operatorId: f.actor.id, actor: f.actor },
     );
-    const now = f.ops.repo.items(true, stock.id)[0];
+    const now = f.ops.items(true, stock.id)[0];
     assert.equal(now.specification, '310 × 200 × 150 mm / K=A / B');
     assert.equal(now.specification, specification(f.productRow(box.id)));
     const fresh = orderFor(specification(f.productRow(box.id)));
@@ -404,7 +404,7 @@ test('产品改了尺寸，成品库存的规格说明跟着改；按新规格�
 test('库存可用量扣掉待送货占用的，送出后变成实际库存；在途只算已订货还没到齐的', () => {
   const f = fixture();
   try {
-    f.ops.move(f.finished.id, { action: 'in', quantity: '100', date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: f.finished.version }, f.actor);
+    f.flow.stock.move(f.finished.id, { action: 'in', quantity: '100', date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: f.finished.version }, f.actor);
     const draft = saveDoc(f.flow, 'delivery', { date: '2026-10-06', customerId: f.customer.id, lines: [{ orderId: f.order.id, orderLineId: f.order.lines[0].id, stockId: f.finished.id, quantity: '80' }] }, f.actor);
     const units = () => [f.item(f.finished.id).balanceUnits, f.item(f.finished.id).reservedUnits, f.item(f.finished.id).availableUnits];
     assert.deepEqual(units(), [100000, 80000, 20000]);

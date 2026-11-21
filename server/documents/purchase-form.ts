@@ -1,6 +1,7 @@
 import type { Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import { OrderBatchService } from '../operations/index.js';
+import { FlowService } from '../flow/index.js';
 import {
   batchRows,
   defaultSchedule,
@@ -23,20 +24,20 @@ type Row = ReturnType<typeof batchRows>[number];
 const SPLIT_DUE = '分批，见交货安排';
 
 /** 已经在订货批次里的采购单按整个批次导出；不在同一份订货单里的不能合在一起 */
-function batchOf(batches: OrderBatchService, ids: number[]): OrderBatchView | null {
+function batchOf(flow: FlowService, batches: OrderBatchService, ids: number[]): OrderBatchView | null {
   const owners = [...new Set(ids.map((id) => batches.batchIdOf(id)))];
   if (owners.length > 1)
     throw new AppError('这些采购单不在同一份订货单里，已订货的只能按原来那份订货单重新导出。', 409);
   const owner = owners[0] ?? null;
-  const batch = owner !== null ? batches.view(owner) : null;
+  const batch = owner !== null ? flow.views.batch(owner) : null;
   if (batch && ids.length > 1 && batch.purchases.length !== ids.length)
     throw new AppError('已订货的只能按原来那份订货单整份重新导出。', 409);
   return batch;
 }
 
 /** 要合的采购单（含归档的），按下单日期排；必须都在、都是同一家供应商 */
-function purchasesOf(batches: OrderBatchService, memberIds: number[]): PurchaseView[] {
-  const purchases = batches.repo
+function purchasesOf(flow: FlowService, batches: OrderBatchService, memberIds: number[]): PurchaseView[] {
+  const purchases = flow.views
     .purchases(true, memberIds)
     .sort((a, b) => a.orderDate.localeCompare(b.orderDate) || a.id - b.id);
   if (purchases.length !== memberIds.length) throw new AppError('采购单不存在。', 404);
@@ -114,11 +115,12 @@ const totalText = (rows: Row[]) => {
  * 到货安排写在明细备注和单据备注里。已经在订货批次里的采购单，按整个批次导出。
  */
 export function purchaseForm(store: Store, ids: number[], schedule?: ScheduleEntry[]): RawForm<'purchase'> {
-  const batches = new OrderBatchService(store),
-    batch = batchOf(batches, ids);
-  const purchases = purchasesOf(batches, batch ? batch.purchases.map((p) => p.id) : [...new Set(ids)]);
+  const flow = new FlowService(store),
+    batches = new OrderBatchService(store),
+    batch = batchOf(flow, batches, ids);
+  const purchases = purchasesOf(flow, batches, batch ? batch.purchases.map((p) => p.id) : [...new Set(ids)]);
   const record = purchases[0],
-    supplier = batches.repo.suppliers(true, record.supplierId)[0];
+    supplier = flow.ops.suppliers(true, record.supplierId)[0];
   const lines = purchaseLinesOf(purchases.filter((p) => p.baseStatus !== '已取消'));
   // 没给到货安排时按采购单上的预计到货日期排：一行里各采购单的日期相同才写上
   const expected = new Map(purchases.map((p) => [p.id, p.expectedDate || null]));

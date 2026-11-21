@@ -5,7 +5,7 @@ import { AppError, audit, exists, many, requireLocalAdministrator, rows } from '
 import { quantityUnits, type Order } from '../../shared/core/index.js';
 import type { FlowDocView } from '../../shared/business/index.js';
 import { FlowService, carryOverFlowDocument, replaceFlowDocument } from '../flow/index.js';
-import { recordMovementRevision, relinkMovement } from '../operations/index.js';
+import { stockLedger } from '../operations/index.js';
 import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from './database-maintenance.js';
 import { referencingDocuments } from './related-business.js';
 
@@ -116,12 +116,12 @@ function detachMovements(store: Store, job: { d: Delivery; lines: DeliveryLine[]
   return leaving.map((m) => {
     // 改挂到新送货单：备注里的单号跟着换成新单的，和来源对得上；不是这个写法的备注原样留着
     const notes = moveTo && m.notes.startsWith(prefix) ? moveTo.number + ' · ' + m.notes.slice(prefix.length) : undefined;
-    recordMovementRevision(store, job.actor, reason, m, {
+    stockLedger.recordMovementRevision(store, job.actor, reason, m, {
       source_kind: sourceKind,
       source_id: sourceId,
       ...(notes === undefined ? {} : { notes }),
     });
-    relinkMovement(store, m.id, { sourceKind, sourceId, orderId: m.customer_order_id, notes });
+    stockLedger.relinkMovement(store, m.id, { sourceKind, sourceId, orderId: m.customer_order_id, notes });
     return m.id;
   });
 }

@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { deletionImpactView } from '../src/recordkit/deletion-impact.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OrderBatchService } from '../server/operations/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { InboxService } from '../server/inbox/service.js';
@@ -259,7 +259,7 @@ function mergedBatch() {
     );
     const opened = batch; // 打开着的到货安排窗口拿到的是这一版
     const remove = (p: { id: number }) => {
-      const row = f.ops.repo.purchases(true, p.id)[0];
+      const row = f.flow.views.purchases(true, p.id)[0];
       const selection = { module: 'purchases' as const, items: [{ id: row.id, version: row.version }], inventoryPolicy: 'recalculate' as const };
       const plan = f.service.preview(selection, owner);
       f.service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, owner, 's');

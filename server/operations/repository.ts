@@ -2,9 +2,8 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import { many, one, partyView, rows } from '../core/index.js';
 import { stockKinds, type MovementFilters } from '../../shared/business/index.js';
-import type { PurchaseRowView, PurchaseView, StockItemView, SupplierView } from '../../shared/business/index.js';
+import type { PurchaseRowView, StockItemBaseView, SupplierView } from '../../shared/business/index.js';
 import { quantityString } from '../../shared/core/index.js';
-import { arrivalSource } from './hooks.js';
 import { MovementQueries } from './movements.js';
 import { assemblePurchases, purchaseHeads, purchaseScope } from './purchase-rows.js';
 import { noRecords, recordScope, type RecordIds } from './record-scope.js';
@@ -14,11 +13,8 @@ const totalRow = z.object({ n: z.number() });
 const stockTotalRow = z.object({ id: z.number(), n: z.number() });
 const stockRow = rows.stock_items.extend({ kind: z.enum(stockKinds) });
 
-/** 一个库存品的样子：库里的一行加上结余、已安排、在途（千分整数），archived 是否已归档 */
-function stockItemView(
-  r: z.output<typeof stockRow>,
-  n: { balance: number; reserved: number; onOrder: number; archived: boolean },
-): StockItemView {
+/** 一个库存品的基本视图：库里的一行加上结余、在途（千分整数），archived 是否已归档；已安排、可用由单据流转补 */
+function stockItemView(r: z.output<typeof stockRow>, n: { balance: number; onOrder: number; archived: boolean }): StockItemBaseView {
   return {
     ...readStockDocument(r.document, r.id),
     id: r.id,
@@ -31,10 +27,6 @@ function stockItemView(
     updatedAt: r.updated_at,
     quantity: quantityString(n.balance),
     balanceUnits: n.balance,
-    reservedUnits: n.reserved,
-    reserved: quantityString(n.reserved),
-    // 可用量只用于提示，可能因还没核对的单据超排而为负；实际扣减仍在确认时校验。
-    availableUnits: n.balance - n.reserved,
     onOrderUnits: n.onOrder,
     onOrder: quantityString(n.onOrder),
     archived: n.archived,
@@ -60,12 +52,10 @@ export class OperationsRepository {
         purchaseHistory: history.get(r.id) || [],
       }));
   }
-  /** 这几家供应商的采购历史（归档的采购单也算），按供应商分组 */
+  /** 这几家供应商的采购历史（归档的采购单也算），按供应商分组；到货进度按采购明细的已到货缓存算 */
   private purchaseHistory(supplierIds: RecordIds) {
     const history = new Map<number, SupplierView['purchaseHistory']>();
-    // 已到货和到货进度与采购单完整视图同一个口径（单据流转没加载时读明细的缓存列，见 purchaseRows）
-    const arrivals = arrivalSource(false);
-    for (const p of this.purchaseRows(true, undefined, supplierIds, arrivals ? (pids) => arrivals.purchases(this.store, pids).receivedUnits : undefined)) {
+    for (const p of this.purchases(true, undefined, supplierIds)) {
       const group = history.get(p.supplierId) || [];
       group.push({
         id: p.id,
@@ -85,23 +75,12 @@ export class OperationsRepository {
     return one(this.store.db, rows.suppliers.pick({ name: true }), 'SELECT name FROM suppliers WHERE id=?', id)?.name;
   }
   /**
-   * 采购单的完整视图：已到货按有效到货单现算，再补上到货单的信息（到货记录、待核对差异、有效到货金额），
-   * 两样都由单据流转提供（hooks.ts 的 ArrivalSource.purchases）。主记录、明细和到货历史均按同一范围组装；列表仍批量读取。
+   * 采购单的基本视图：单头、明细、已到货和到货进度，不读单据流转的表。
+   * receivedOf：按这批采购单的编号给出每条明细的已到货（千分整数，单据流转按有效到货单现算的）；不给时取明细的缓存列
+   * received_units（单据流转按有效到货单、退货维护，见 server/flow/receipt-events.ts 的 syncReceivedUnits）。
+   * 到货记录、到货金额由单据流转补（server/flow/stock-views.ts）。主记录、明细均按同一范围批量组装。
    */
-  purchases(include = false, ids?: RecordIds, supplierIds?: RecordIds): PurchaseView[] {
-    const arrivals = arrivalSource();
-    if (noRecords(ids)) return [];
-    const scope = purchaseScope(ids, supplierIds),
-      { heads, archived } = purchaseHeads(this.store, scope, include);
-    const loaded = arrivals.purchases(this.store, heads.map((h) => h.id));
-    return loaded.apply(assemblePurchases(this.store, { heads, scope, archived, received: loaded.receivedUnits }));
-  }
-  /**
-   * 采购单本身：单头、明细、已到货和到货进度，不读单据流转的表。
-   * receivedOf：按这批采购单的编号给出每条明细的已到货（千分整数）；不给时取明细的缓存列 received_units
-   * （单据流转按有效到货单、退货维护，见 server/flow/receipt-events.ts 的 syncReceivedUnits）。
-   */
-  purchaseRows(
+  purchases(
     include = false,
     ids?: RecordIds,
     supplierIds?: RecordIds,
@@ -124,10 +103,6 @@ export class OperationsRepository {
     if (!row) throw new Error('合计库存流水的查询没有返回行');
     return row.n;
   }
-  /** 已安排：待送货的送货单和待入库的完工登记将要用掉、但尚未确认出库的数量（单据在单据流转，经 ArrivalSource 读）。 */
-  private reservedUnits(ids: RecordIds) {
-    return arrivalSource().reservedUnits(this.store, ids === undefined ? undefined : typeof ids === 'number' ? [ids] : ids);
-  }
   /** 在途：已订货采购尚未到齐的数量。 */
   private onOrderUnits(ids: RecordIds) {
     const { predicate, params } = recordScope(ids);
@@ -141,7 +116,8 @@ export class OperationsRepository {
       ).map((r) => [r.id, r.n]),
     );
   }
-  items(include = false, ids?: RecordIds): StockItemView[] {
+  /** 库存品的基本视图（结余、在途）；已安排、可用由单据流转补（server/flow/stock-views.ts） */
+  items(include = false, ids?: RecordIds): StockItemBaseView[] {
     if (noRecords(ids)) return [];
     const { predicate, params } = recordScope(ids);
     const archived = this.store.archivedIds('stock_items'),
@@ -153,14 +129,12 @@ export class OperationsRepository {
           ...params,
         ).map((r) => [r.id, r.n]),
       ),
-      reserved = this.reservedUnits(ids),
       onOrder = this.onOrderUnits(ids);
     return many(this.store.db, stockRow, 'SELECT * FROM stock_items' + (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC', ...params)
       .filter((r) => include || !archived.has(r.id))
       .map((r) =>
         stockItemView(r, {
           balance: balances.get(r.id) || 0,
-          reserved: reserved.get(r.id) || 0,
           onOrder: onOrder.get(r.id) || 0,
           archived: archived.has(r.id),
         }),
@@ -175,9 +149,6 @@ export class OperationsRepository {
   }
   movementCount(query: MovementFilters = {}, extra: { inbound?: boolean; sourceKinds?: readonly string[] } = {}) {
     return this.moves.movementCount(query, extra);
-  }
-  movementTotals(query: MovementFilters = {}) {
-    return this.moves.movementTotals(query);
   }
   movementItemIds(query: MovementFilters = {}) {
     return this.moves.movementItemIds(query);

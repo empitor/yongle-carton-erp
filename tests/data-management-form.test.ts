@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { costSchema, customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { dataManagementFieldName, dataManagementModules } from '../shared/business/data-management-modules.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { dataManagementCommand } from '../src/admin/data-api.js';

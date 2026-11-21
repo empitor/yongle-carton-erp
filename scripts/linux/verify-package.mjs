@@ -37,11 +37,11 @@ const { customerSchema, productSchema, orderSchema } = await import('../../share
 const store = new Store(), ops = new OperationsService(store), flow = new FlowService(store);
 const actor = { id: 'fictional-package-check', name: '虚构安装包验收', role: 'admin', permissions: ['business:edit'] };
 const supplier = ops.saveSupplier({ name: '虚构供应商', contact: '', phone: '', address: '' }, actor);
-const raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', specification: '虚构规格' }, actor);
-const purchase = ops.savePurchase({ supplierId: supplier.id, orderDate: '2026-11-07', status: '待订货', lines: [{ ...raw, stockItemId: raw.id, quantity: '10', unitPrice: '1.2345', priceBasis: 'quantity' }] }, actor);
+const raw = flow.stock.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', specification: '虚构规格' }, actor);
+const purchase = flow.stock.savePurchase({ supplierId: supplier.id, orderDate: '2026-11-07', status: '待订货', lines: [{ ...raw, stockItemId: raw.id, quantity: '10', unitPrice: '1.2345', priceBasis: 'quantity' }] }, actor);
 const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
 const product = store.saveProduct(productSchema.parse({ name: '虚构纸箱', length: 300, width: 200, height: 100 }));
-const stock = ops.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '只', productId: product.id }, actor);
+const stock = flow.stock.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '只', productId: product.id }, actor);
 const order = store.saveOrder(orderSchema.parse({ customerId: customer.id, orderDate: '2026-11-07', deliveryDate: '2026-11-08', status: '已确认', lines: [{ productId: product.id, productName: product.name, specification: '', quantity: 10, unit: '只', unitPriceCents: 100 }] }));
 const delivery = flow.save('delivery', { date: '2026-11-07', customerId: customer.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: stock.id, quantity: '2' }] }, actor);
 store.close();

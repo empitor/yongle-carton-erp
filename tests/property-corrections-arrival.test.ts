@@ -144,7 +144,7 @@ function correctOnce(f: Setup, d: Arrival, c: { lines: Line[]; who: Actor }) {
 }
 
 function step(f: Setup, op: Op) {
-  if (op.t === 'use') return useStock(f.ops, f.stocks[op.stock].id, op.q, f.used);
+  if (op.t === 'use') return useStock(f.flow, f.stocks[op.stock].id, op.q, f.used);
   const ids = effectiveIds(f.store, 'arrival');
   if (!ids.length) return;
   const d = f.flow.get(ids[op.doc % ids.length], 'arrival');
@@ -176,7 +176,7 @@ test('到货：领用掉一部分以后再改少，会出负库存的被拒、�
     fc.property(arrivalsArb, fc.nat(1), fc.integer({ min: 1, max: 800 }), fc.nat(), fc.integer({ min: 0, max: 400 }), (arrivals, stock, q, line, to) => {
       const f = setup(arrivals);
       try {
-        useStock(f.ops, f.stocks[stock].id, q, f.used);
+        useStock(f.flow, f.stocks[stock].id, q, f.used);
         step(f, { t: 'qty', doc: 0, line, q: to });
         assertDerived(f);
       } finally {

@@ -8,7 +8,7 @@ import { Store } from '../server/core/db.js';
 import type { FlowService } from '../server/flow/service.js';
 import { WarehouseDaily } from '../server/flow/daily.js';
 import { BusinessDocuments } from '../server/documents/service.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OrderBatchService } from '../server/operations/index.js';
 import { registerArrival } from '../server/flow/register-arrival.js';
 import { shipOnDocDate } from './ship-date.js';
 import { receiveLines } from './receive-fixture.js';
@@ -39,7 +39,7 @@ export function setup(store = new Store(':memory:')) {
 }
 
 /** 采购这边：供应商、纸板 raw、一张待订货的采购单（10000 张、1.2345 元/张）；current() 读采购单现在的样子，ordered() 改成已订货 */
-function purchaseSide({ ops, supplier: newSupplier, raw: newRaw }: Base) {
+function purchaseSide({ ops, flow, supplier: newSupplier, raw: newRaw }: Base) {
   const supplier = newSupplier({ name: '虚构春芳纸板厂', contact: '虚构联系人', phone: '000-0000', address: '虚构供应商地址' });
   const raw = newRaw({ name: '虚构纸板A', length: 1000, width: 800, dimensionUnit: 'mm', specification: 'K=A B楞' });
   const purchase = ops.savePurchase(
@@ -53,8 +53,8 @@ function purchaseSide({ ops, supplier: newSupplier, raw: newRaw }: Base) {
     },
     actor,
   );
-  const current = () => ops.repo.purchases(true, purchase.id)[0];
-  const ordered = () => ops.savePurchase({ ...current(), status: '已订货', version: current().version }, actor, purchase.id);
+  const current = () => flow.views.purchases(true, purchase.id)[0];
+  const ordered = () => flow.stock.savePurchase({ ...current(), status: '已订货', version: current().version }, actor, purchase.id);
   return { raw, purchase, current, ordered };
 }
 

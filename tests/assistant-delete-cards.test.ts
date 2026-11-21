@@ -324,7 +324,7 @@ test('助手用 records.delete 删已全部到货的采购单：不在本机的�
       },
       who,
     );
-    purchase = ops.repo.purchases(true, purchase.id)[0];
+    purchase = flow.views.purchases(true, purchase.id)[0];
     assert.equal(purchase.status, '全部到货');
     const arrivalRow = f.store.db.prepare("SELECT id FROM flow_documents WHERE kind='arrival'").get();
     assert.ok(arrivalRow, '收货生成了到货单');
@@ -354,9 +354,9 @@ test('助手用 records.delete 删已全部到货的采购单：不在本机的�
     assert.equal(impact('flow_documents', 'detach'), 1);
     assert.equal(impact('stock_movements', 'detach'), 1);
     assert.throws(() => f.manager.execute(plan.id, { acknowledged: true, deletionDigest: field(plan.args, 'deletionDigest') }, who, 'session'), /密码/);
-    assert.equal(ops.repo.purchases(true, purchase.id).length, 1, '没核验密码不删');
+    assert.equal(flow.views.purchases(true, purchase.id).length, 1, '没核验密码不删');
     f.manager.execute(plan.id, { acknowledged: true, deletionDigest: field(plan.args, 'deletionDigest') }, who, 'session', { passwordVerified: true });
-    assert.equal(ops.repo.purchases(true, purchase.id).length, 0, '采购单删了');
+    assert.equal(flow.views.purchases(true, purchase.id).length, 0, '采购单删了');
     // 到货单还在、仍是已入库，对采购单的关联解除
     const arrival = flow.get(arrivalId, 'arrival');
     assert.equal(arrival.status, 'confirmed');
@@ -365,7 +365,7 @@ test('助手用 records.delete 删已全部到货的采购单：不在本机的�
     assert.equal(arrival.lines[0].purchaseLineId, null);
     // 库存流水还在、数量和来源不变，只是不再指向被删的采购明细；库存数量不动
     assert.deepEqual(movements(), [{ ...before[0], purchase_line_id: null }]);
-    assert.equal(ops.repo.items(true, item.id)[0].quantity, '100');
+    assert.equal(ops.items(true, item.id)[0].quantity, '100');
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     f.close();

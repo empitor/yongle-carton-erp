@@ -1,25 +1,20 @@
 import type { Actor } from '../core/index.js';
 import { audit, many, requireLocalAdministrator, rows } from '../core/index.js';
-import { sheetArea, purchaseLineAmount, type StockItemView } from '../../shared/business/index.js';
-import {
-  readPurchaseLineDocument,
-  recordMovementRevision,
-  resetPurchaseLineReceived,
-  touchPurchases,
-  unlinkPurchaseLineMovements,
-  updatePurchaseLineDocument,
-} from '../operations/index.js';
+import { sheetArea, purchaseLineAmount, type StockItemBaseView } from '../../shared/business/index.js';
+import { stockLedger } from '../operations/index.js';
 import type { ArrivalLine, FlowCommands } from './base.js';
 import { writeFlowDocument } from './document-store.js';
 import { storedDocuments } from './read.js';
 import { readReturnDocument, returnDocumentText } from './return-document.js';
 
-// 本机管理员直接改库存品、删采购明细时，已有单据要跟着改。采购库存经 operations/hooks.ts 调这两个函数，
-// 由 FlowService 所在的模块登记进去（见 service.ts 末尾），采购库存不反过来引用单据流转。
+// 本机管理员直接改库存品、删采购明细时，已有单据要跟着改。保存入口（stock-entries.ts）把这两个函数作为连带交给采购库存，
+// 采购库存在原位置、同一保存点里调，不反过来引用单据流转。
 // 改单据和同模块别处一样：取库里那份内容（read.ts 的 storedDocuments）改好整份写回（document-store.ts）。
+const { readPurchaseLineDocument, recordMovementRevision, resetPurchaseLineReceived, touchPurchases, unlinkPurchaseLineMovements, updatePurchaseLineDocument } =
+  stockLedger;
 
 /** 库存品里存进采购明细、到货明细的那份内容（名称、单位、规格、尺寸、材质、楞型、备注） */
-function stockContent(s: StockItemView) {
+function stockContent(s: StockItemBaseView) {
   return {
     name: s.name,
     unit: s.unit,
@@ -62,7 +57,7 @@ function alignedLine(l: ArrivalLine, content: ReturnType<typeof stockContent>): 
  * （OperationsService.saveItem 拦，本机管理员也一样），单位又跟着种类走（原材料“张”、成品“只”，数据库约束）。
  * 所以这里只对齐内容，不改数量、不动流水，也不碰完工单、送货单和生产任务的关联。
  */
-export function alignStock(flow: FlowCommands, before: StockItemView, after: StockItemView, actor: Actor) {
+export function alignStock(flow: FlowCommands, before: StockItemBaseView, after: StockItemBaseView, actor: Actor) {
   requireLocalAdministrator(actor);
   const content = stockContent(after);
   for (const line of many(

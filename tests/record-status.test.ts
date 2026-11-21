@@ -14,9 +14,8 @@ import { AuthManager } from '../server/core/auth.js';
 import { z } from 'zod';
 import { cookieOf, startHttp } from './http-fixture.js';
 import { count } from '../server/core/index.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OrderBatchService } from '../server/operations/index.js';
 import { changeOrderStatus, assertOrderStatusKept } from '../server/business/order-status.js';
-import { changePurchaseStatus } from '../server/operations/purchase-status.js';
 import { recordContext } from '../server/business/record-context.js';
 import { historyView } from '../shared/business/record-history.js';
 import { statusActionFor } from '../shared/business/record-status.js';
@@ -31,7 +30,7 @@ const reader = pageActor({ id: 'fictional-reader', name: '虚构只读', permiss
 
 function fixture() {
   const base = businessBase(actor),
-    { store, ops } = base;
+    { store, ops, flow } = base;
   const customer = base.customer({ name: '虚构状态客户' }),
     product = base.product({ name: '虚构状态纸箱' });
   const order = base.order(customer, [base.line(product, 100)], { orderDate: '2026-11-01', deliveryDate: '2026-11-30', status: '待确认' });
@@ -51,7 +50,7 @@ function fixture() {
       .prepare('SELECT action,document FROM business_audit WHERE entity=? AND record_id=? ORDER BY id')
       .all(entity, id)
       .map((r) => ({ action: String(r.action), document: auditDocument.parse(JSON.parse(String(r.document))) }));
-  return { store, ops, order, purchase, audits };
+  return { store, ops, flow, order, purchase, audits };
 }
 /** 状态动作的审计内容里测试要看的：原因、改前改后的状态 */
 const withStatus = z.looseObject({ status: z.string() }).nullish();
@@ -192,25 +191,25 @@ test('采购单的改成待到货、退回、取消、恢复：改成待到货�
   const f = fixture();
   try {
     const batches = new OrderBatchService(f.store);
-    let p = changePurchaseStatus(f.store, f.purchase.id, 'confirm', input(f.purchase), actor);
+    let p = f.flow.stock.changePurchaseStatus(f.purchase.id, 'confirm', input(f.purchase), actor);
     assert.equal(p.baseStatus, '已订货');
     assert.notEqual(batches.batchIdOf(p.id), null, '改成已订货自动建订货单，和整张保存时一样');
-    p = changePurchaseStatus(f.store, p.id, 'revert', input(p), actor);
+    p = f.flow.stock.changePurchaseStatus(p.id, 'revert', input(p), actor);
     assert.equal(p.baseStatus, '待订货');
-    assert.throws(() => changePurchaseStatus(f.store, p.id, 'cancel', input(p), actor), /请填写取消原因/);
-    p = changePurchaseStatus(f.store, p.id, 'cancel', input(p, '供应商停产，虚构原因'), actor);
+    assert.throws(() => f.flow.stock.changePurchaseStatus(p.id, 'cancel', input(p), actor), /请填写取消原因/);
+    p = f.flow.stock.changePurchaseStatus(p.id, 'cancel', input(p, '供应商停产，虚构原因'), actor);
     assert.equal(p.baseStatus, '已取消');
-    p = changePurchaseStatus(f.store, p.id, 'reinstate', input(p), actor);
+    p = f.flow.stock.changePurchaseStatus(p.id, 'reinstate', input(p), actor);
     assert.equal(p.baseStatus, '待订货', '没到过货的恢复为待订货');
     const rows = f.audits('purchases', p.id).slice(1);
     assert.deepEqual(rows.map((r) => r.action), ['confirm', 'revert', 'cancel', 'reinstate']);
     assert.equal(rows[2].document.reason, '供应商停产，虚构原因');
     // 整张保存（PUT 走 keepStatus）不改状态
     assert.throws(
-      () => f.ops.savePurchase({ ...p, status: '已取消', version: p.version }, actor, p.id, { keepStatus: true }),
+      () => f.flow.stock.savePurchase({ ...p, status: '已取消', version: p.version }, actor, p.id, { keepStatus: true }),
       failsWith(409, /采购单详情/),
     );
-    const kept = f.ops.savePurchase({ ...p, status: p.baseStatus, notes: '只改备注', version: p.version }, actor, p.id, { keepStatus: true });
+    const kept = f.flow.stock.savePurchase({ ...p, status: p.baseStatus, notes: '只改备注', version: p.version }, actor, p.id, { keepStatus: true });
     assert.equal(kept.notes, '只改备注');
   } finally {
     f.store.close();
@@ -220,17 +219,17 @@ test('采购单的改成待到货、退回、取消、恢复：改成待到货�
 test('采购单状态动作：没权限、版本对不上、当前状态不对拒绝；同一请求号重试原样返回', () => {
   const f = fixture();
   try {
-    assert.throws(() => changePurchaseStatus(f.store, f.purchase.id, 'confirm', input(f.purchase), reader), failsWith(403));
+    assert.throws(() => f.flow.stock.changePurchaseStatus(f.purchase.id, 'confirm', input(f.purchase), reader), failsWith(403));
     assert.throws(
-      () => changePurchaseStatus(f.store, f.purchase.id, 'confirm', { ...input(f.purchase), expectedVersion: 99 }, actor),
+      () => f.flow.stock.changePurchaseStatus(f.purchase.id, 'confirm', { ...input(f.purchase), expectedVersion: 99 }, actor),
       failsWith(409),
     );
-    assert.throws(() => changePurchaseStatus(f.store, f.purchase.id, 'revert', input(f.purchase), actor), failsWith(409));
+    assert.throws(() => f.flow.stock.changePurchaseStatus(f.purchase.id, 'revert', input(f.purchase), actor), failsWith(409));
     const once = input(f.purchase);
-    const first = changePurchaseStatus(f.store, f.purchase.id, 'confirm', once, actor);
-    assert.deepEqual(changePurchaseStatus(f.store, f.purchase.id, 'confirm', once, actor), first);
+    const first = f.flow.stock.changePurchaseStatus(f.purchase.id, 'confirm', once, actor);
+    assert.deepEqual(f.flow.stock.changePurchaseStatus(f.purchase.id, 'confirm', once, actor), first);
     assert.equal(f.audits('purchases', f.purchase.id).filter((r) => r.action === 'confirm').length, 1);
-    assert.throws(() => changePurchaseStatus(f.store, f.purchase.id, 'cancel', { ...once, reason: '换了' }, actor), failsWith(409));
+    assert.throws(() => f.flow.stock.changePurchaseStatus(f.purchase.id, 'cancel', { ...once, reason: '换了' }, actor), failsWith(409));
   } finally {
     f.store.close();
   }

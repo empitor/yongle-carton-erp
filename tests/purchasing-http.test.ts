@@ -46,7 +46,7 @@ test('供应商新建、编辑、按电话搜到并带历史采购；采购单�
     const other = await f.saveSupplier({ name: '第二供应商' });
     p = await f.savePurchase(p.id, { ...p, supplierId: other.id, status: p.baseStatus, notes: '变更供应商' });
     assert.equal(p.supplierName, other.name);
-    assert.equal(f.repo.purchases(true, p.id)[0].supplierId, other.id);
+    assert.equal(f.views.purchases(true, p.id)[0].supplierId, other.id);
   } finally {
     await f.close();
   }
@@ -121,8 +121,8 @@ test('登记到货接口：要登录和页面凭证；同一请求原样返回�
     });
     assert.equal((await f.req(...bad)).status, 422);
     assert.equal(movementCount(), before);
-    assert.equal(f.repo.purchases().find((p) => p.id === multi.id)?.lines[0].receivedUnits, 0);
-    assert.equal(f.repo.purchases().find((p) => p.id === multi.id)?.receipts.length, 0);
+    assert.equal(f.views.purchases().find((p) => p.id === multi.id)?.lines[0].receivedUnits, 0);
+    assert.equal(f.views.purchases().find((p) => p.id === multi.id)?.receipts.length, 0);
   } finally {
     await f.close();
   }
@@ -137,7 +137,7 @@ test('整张保存采购单（PUT）不改状态：改成已订货、已取消�
       assert.equal(r.status, 409, status);
       assert.match((await problem(r)).message, /保存采购单不改状态。.*请用采购单详情里的对应按钮/);
     }
-    assert.equal(f.repo.purchases(true, p.id)[0].version, p.version);
+    assert.equal(f.views.purchases(true, p.id)[0].version, p.version);
     assert.equal(await json(await f.req('/order-batches/by-purchase/' + p.id)), null);
   } finally {
     await f.close();
@@ -183,9 +183,9 @@ test('采购和库存的尺寸按 mm、cm 换算比对；有流水后不能改�
       lines: [f.line({ ...stockItemSchema.parse(item), stockItemId: item.id, length: 300, width: 200, dimensionUnit: 'mm' })],
     });
     await f.received(p, '10');
-    assert.equal(f.repo.items(true, item.id)[0].quantity, '10');
+    assert.equal(f.views.items(true, item.id)[0].quantity, '10');
     // 同一个尺寸换个写法可以，真改尺寸不行
-    item = await f.saveItem({ ...item, length: 300, width: 200, dimensionUnit: 'mm', version: f.repo.items(true, item.id)[0].version }, item.id);
+    item = await f.saveItem({ ...item, length: 300, width: 200, dimensionUnit: 'mm', version: f.views.items(true, item.id)[0].version }, item.id);
     assert.deepEqual([item.length, item.dimensionUnit], [300, 'mm']);
     assert.equal((await f.req('/warehouse/items/' + item.id, { ...item, length: 400 }, 'PUT')).status, 400);
     const wrongUnit = { supplierId: f.supplier.id, orderDate: '2026-10-25', status: '已订货', lines: [f.line({ ...stockItemSchema.parse(item), stockItemId: item.id, unit: '只' })] };
@@ -211,7 +211,7 @@ test('写接口要登录、业务权限和页面凭证：没登录 401，没有�
       assert.equal((await f.req(path, body, 'POST', reader)).status, 403, path);
       assert.equal((await f.req(path, body, 'POST', f.h.cookie, false)).status, 403, path);
     }
-    assert.equal(f.repo.purchases(true, p.id)[0].lines[0].receivedQuantity, '0', '被拒的到货没有落库');
+    assert.equal(f.views.purchases(true, p.id)[0].lines[0].receivedQuantity, '0', '被拒的到货没有落库');
   } finally {
     await f.close();
   }
@@ -224,8 +224,8 @@ test('归档：有采购关联的订单、有库存的库存品不能归档；�
     assert.equal((await f.batch('orders', f.order)).results[0].success, false);
     const item = (await f.items())[0];
     assert.equal((await f.batch('stock_items', item)).results[0].success, false);
-    assert.equal(f.repo.items(true, item.id)[0].quantity, '400');
-    assert.equal(f.repo.purchases(true, p.id)[0].archived, false);
+    assert.equal(f.views.items(true, item.id)[0].quantity, '400');
+    assert.equal(f.views.purchases(true, p.id)[0].archived, false);
     await f.batch('suppliers', f.supplier);
     // 已归档的记录没进超级管理员模式改不了：说清要进模式（403），不笼统说“不存在或已归档”（404）
     assert.equal((await f.req('/suppliers/' + f.supplier.id, { ...f.supplier, notes: '普通越权' }, 'PUT')).status, 403);
@@ -269,10 +269,10 @@ test('部分到货后：明细锁定，取消只停余量、不再收货，归�
     // 取消的采购单不再算进订货单的待到货
     assert.match((await problem(stopped)).message, /不在订货单里/);
     assert.equal((await f.batch('purchases', p)).results[0].success, true);
-    assert.equal(f.repo.items()[0].quantity, '400');
+    assert.equal(f.views.items()[0].quantity, '400');
     assert.equal((await f.batch('purchases', p, 'restore')).results[0].success, true);
-    assert.equal(f.repo.items()[0].quantity, '400');
-    assert.equal(f.repo.purchases()[0].receipts.length, 1);
+    assert.equal(f.views.items()[0].quantity, '400');
+    assert.equal(f.views.purchases()[0].receipts.length, 1);
     let item = (await f.items())[0];
     item = (await f.moveItem(item, f.move(item, 'out', '400'))).item;
     assert.equal((await f.batch('stock_items', item)).results[0].success, true);
@@ -312,7 +312,7 @@ test('供应商批量归档、恢复；删除没有往来的供应商只删它�
     const deletion = { ...selection, requestId: randomUUID(), deletionDigest: preview.digest };
     // 档案删除要超级管理员模式和本人密码（不输不删）由 delete-permissions 守着，这里照规矩带上
     assert.equal((await f.req('/deletions/execute', { ...deletion, password })).status, 200);
-    assert.equal(f.repo.suppliers(true).length, 1, '只剩一开始那家');
+    assert.equal(f.ops.suppliers(true).length, 1, '只剩一开始那家');
     assert.equal((await f.batch('suppliers', a, 'restore')).results[0].success, false);
   } finally {
     await f.close();

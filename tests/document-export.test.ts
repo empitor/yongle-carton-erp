@@ -54,7 +54,7 @@ test('导出交付的状态：已生成 → 已下载 → 交付完成；没下�
     f.docs.delivered(again.exportId, actor);
     f.docs.complete(again.exportId, again.sha256, actor);
     assert.equal(f.current().version, version);
-    assert.deepEqual([f.ops.repo.balance(f.raw.id), f.current().lines[0].receivedQuantity], [0, '0']);
+    assert.deepEqual([f.ops.balance(f.raw.id), f.current().lines[0].receivedQuantity], [0, '0']);
     assert.equal(audits('download-complete'), 2, '原单和再导出的 Excel 各一次');
     const batches = f.store.db.prepare('SELECT number,export_id FROM order_batches').all();
     assert.equal(batches.length, 1, '订货批次只有一个');
@@ -98,7 +98,7 @@ test('生成失败、生成后采购单改了、采购单已取消，都不误�
     await assert.rejects(() => fail.generate(f.exp('purchase', f.purchase.id), actor), /导出失败/);
     assert.equal(f.current().businessStatus, '待订货');
     const file = await f.docs.generate(f.exp('purchase', f.purchase.id), actor);
-    f.ops.savePurchase(
+    f.flow.stock.savePurchase(
       { ...f.current(), status: '待订货', notes: '虚构并发修改', version: f.current().version },
       actor,
       f.purchase.id,
@@ -106,7 +106,7 @@ test('生成失败、生成后采购单改了、采购单已取消，都不误�
     f.docs.delivered(file.exportId, actor);
     assert.throws(() => f.docs.complete(file.exportId, file.sha256, actor), /采购单已变化/);
     assert.equal(f.current().businessStatus, '待订货');
-    const cancelled = f.ops.savePurchase(
+    const cancelled = f.flow.stock.savePurchase(
       { ...f.current(), status: '已取消', version: f.current().version },
       actor,
       f.purchase.id,
@@ -163,7 +163,7 @@ test('生成期间单据改了版本：拒绝交付旧文件，不改订货状�
   const f = setup();
   try {
     const concurrent = new BusinessDocuments(f.store, async (form, format) => {
-      f.ops.savePurchase(
+      f.flow.stock.savePurchase(
         {
           ...f.current(),
           version: f.current().version,
@@ -316,7 +316,7 @@ test('采购单删掉以后导出记录还在、文件还能下载；它的订�
       plan = service.preview(selection, owner);
     assert.equal(plan.impact.some((r) => r.table === 'document_exports'), false, '导出记录不在连带范围里');
     service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, owner, 'test-binding');
-    assert.equal(f.ops.repo.purchases(true).length, 0);
+    assert.equal(f.flow.views.purchases(true).length, 0);
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM order_batches'), 0);
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM document_exports'), 1);
     assert.equal(f.docs.file(file.exportId, actor).buffer.length, file.size);

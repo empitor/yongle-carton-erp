@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { many, rows } from '../server/core/index.js';
-import { OperationsService } from '../server/operations/service.js';
-import { insertMovement, rebalanceMovements } from '../server/operations/index.js';
+import { OperationsService } from '../server/operations/index.js';
+import { stockLedger } from '../server/operations/index.js';
 import { MAX_STOCK_UNITS } from '../shared/core/index.js';
 import { rawInput, stackActor } from './stack-fixture.js';
 
@@ -13,7 +13,7 @@ function setup() {
   const store = new Store(':memory:');
   const item = new OperationsService(store).saveItem(rawInput, stackActor);
   const move = (delta: number, before = 0, after = 0) =>
-    insertMovement(store, {
+    stockLedger.insertMovement(store, {
       stockId: item.id,
       action: delta < 0 ? 'out' : 'in',
       delta,
@@ -54,7 +54,7 @@ test('按流水重算结余：逐笔改成前一笔的结余和加上本笔后�
     move(-30000, 5, 5);
     move(20000, 70000, 90000);
     move(-90000, 1, 0);
-    rebalanceMovements(store, () => assert.fail('结余不会变负'));
+    stockLedger.rebalanceMovements(store, () => assert.fail('结余不会变负'));
     assert.deepEqual(balances(), [[0, 100000], [100000, 70000], [70000, 90000], [90000, 0]]);
   } finally {
     store.close();
@@ -65,9 +65,9 @@ test('重算时结余正好到 0 或正好到上限都可以', () => {
   const { store, move, balances } = setup();
   try {
     move(MAX_STOCK_UNITS);
-    rebalanceMovements(store, () => assert.fail('正好到上限可以'));
+    stockLedger.rebalanceMovements(store, () => assert.fail('正好到上限可以'));
     move(-MAX_STOCK_UNITS);
-    rebalanceMovements(store, () => assert.fail('正好到 0 可以'));
+    stockLedger.rebalanceMovements(store, () => assert.fail('正好到 0 可以'));
     assert.deepEqual(balances(), [[0, MAX_STOCK_UNITS], [MAX_STOCK_UNITS, 0]]);
   } finally {
     store.close();
@@ -80,7 +80,7 @@ test('重算时结余会变负或超过上限，按库存品名称交给调用�
     try {
       for (const d of deltas) move(d);
       assert.throws(
-        () => rebalanceMovements(store, (name) => {
+        () => stockLedger.rebalanceMovements(store, (name) => {
           throw new Error('结余不够：' + name);
         }),
         new RegExp('^Error: 结余不够：' + rawInput.name + '$'),

@@ -1,5 +1,5 @@
 import type { Order } from '../core/index.js';
-import type { MovementView } from './operations-views.js';
+import type { MovementView } from './stock-flow-views.js';
 export type UnitBalance = { unit: string; quantity: string; itemCount: number };
 type BusinessOverview = {
   workbench?: {

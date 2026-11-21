@@ -18,7 +18,7 @@ function fixture(lines?: (string | [StockItemView, string])[]) {
   const moves = () =>
     many(f.store.db, tableRows.stock_movements, 'SELECT * FROM stock_movements ORDER BY rowid');
   const arrivals = () => f.flow.list('arrival');
-  return { ...f, ...orderedPurchase(f, clerk, lines), moves, arrivals, balance: () => f.ops.repo.balance(f.raw.id) };
+  return { ...f, ...orderedPurchase(f, clerk, lines), moves, arrivals, balance: () => f.ops.balance(f.raw.id) };
 }
 
 test('登记到货：给采购单就按它的订货单登记，当场入库；合格、不合格、实际入库分开存，库存只加实际入库；不带订货单版本被拒', () => {
@@ -254,7 +254,7 @@ test('到货明细的单位：空、没写按“张”，单据和新建的库�
     assert.throws(() => draft({ ...noUnit, unit: '公斤' }), /原材料的数量单位只有“张”；别的单位请先换算成张再填。/);
     const d = draft({ ...noUnit, name: '虚构新纸板', length: 90, unit: '' }, null);
     const done = viewOfKind(f.base.check(d, {}, clerk), 'arrival');
-    assert.equal(f.ops.repo.items(true, Number(done.lines[0].stockId))[0].unit, '张');
+    assert.equal(f.ops.items(true, Number(done.lines[0].stockId))[0].unit, '张');
     const stored = one(f.store.db, tableRows.flow_documents.pick({ document: true }), 'SELECT document FROM flow_documents WHERE id=?', done.id);
     assert.ok(stored);
     const parsed = z
@@ -301,7 +301,7 @@ test('到货单先校验再写：订货单不存在、识别原件不存在都�
 test('核对入库时写库失败：整单回滚，没建出库存品、没占送货单号，单据还是待核对', () => {
   const f = fixture();
   try {
-    const items = () => f.ops.repo.items().length;
+    const items = () => f.ops.items().length;
     const before = items();
     const d = looseArrival(f, [{ item: { name: '虚构新独立规格', unit: '张' }, quantity: '10' }], 'ROLLBACK'),
       p = f.flow.preview(d.id, clerk);
@@ -325,8 +325,8 @@ test('撤销到货：料被领用了不够扣时拦下（超级管理员也一�
       f.flow.reverse(a.id, { version: f.flow.get(a.id).version, reason: '虚构核错', acknowledged: true }, who);
     for (const who of [clerk, localAdmin()]) assert.throws(() => reverse(who), /撤销要扣回.*不够扣。这批库存已经被后面的业务用掉了/);
     // 领的料退回来以后能撤
-    const it = f.ops.repo.items(true, f.raw.id)[0];
-    f.ops.move(f.raw.id, { expectedVersion: it.version, requestId: randomUUID(), action: 'in', quantity: '60', date: '2026-10-20', notes: '虚构退料', acknowledged: true }, clerk);
+    const it = f.ops.items(true, f.raw.id)[0];
+    f.flow.stock.move(f.raw.id, { expectedVersion: it.version, requestId: randomUUID(), action: 'in', quantity: '60', date: '2026-10-20', notes: '虚构退料', acknowledged: true }, clerk);
     const version = f.current().version;
     reverse(clerk);
     assert.equal(f.current().lines[0].receivedQuantity, '0');

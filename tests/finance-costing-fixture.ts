@@ -15,7 +15,7 @@ import { applyCorrection, previewCorrection, saveDoc } from './receive-fixture.j
 import { bill, event, maker, newSettings, obligation, obligationRow, postDrafts as postAll, supervisor } from './finance-fixture.js';
 import { many, one, rows } from '../server/core/index.js';
 import { readCostingDetails } from '../server/finance/costing-details.js';
-import type { StockItemView } from '../shared/business/index.js';
+import type { StockItemBaseView } from '../shared/business/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 
@@ -80,7 +80,7 @@ function rawMaker(base: ReturnType<typeof businessBase>) {
  * 送货单号按纸板和日期起，同一种纸不同日期能收几批。
  */
 function receiver({ s, ops, flow, events, confirm, postDrafts }: CostingBase) {
-  return (item: StockItemView, date = '2026-02-05', unitPrice = '10.0000') => {
+  return (item: StockItemBaseView, date = '2026-02-05', unitPrice = '10.0000') => {
     const purchase = ops.savePurchase(
       {
         supplierId: 1,
@@ -144,7 +144,7 @@ function invoicing({ s, invoices }: CostingBase) {
 function salesSide({ base, flow, confirm }: CostingBase) {
   const product = base.product();
   const finished = base.finished(product, { name: '虚构纸箱' });
-  const produce = (item: StockItemView, date: string, qty: string) =>
+  const produce = (item: StockItemBaseView, date: string, qty: string) =>
     confirm(
       saveDoc(
         flow,
@@ -177,7 +177,7 @@ function salesSide({ base, flow, confirm }: CostingBase) {
  * correctArrival(到货单, 数量, 日期) 更正第一行数量（冲回流水挪到这天），财务的处理由测试自己接着 redReverse。
  */
 function arrivals({ s, flow, events, confirm, postDrafts }: CostingBase) {
-  const arrive = (item: StockItemView, date: string, { unitPrice, quantities = ['10'] }: { unitPrice?: string; quantities?: string[] } = {}) => {
+  const arrive = (item: StockItemBaseView, date: string, { unitPrice, quantities = ['10'] }: { unitPrice?: string; quantities?: string[] } = {}) => {
     const lines = quantities.map((quantity) => ({ stockId: item.id, item, quantity, ...(unitPrice ? { unitPrice, priceBasis: 'quantity' } : {}) }));
     const confirmed = confirm(flow.save('arrival', { supplierId: 1, date, reference: '虚构登记到货-' + item.id + '-' + date, lines }, maker));
     events.sync(maker);

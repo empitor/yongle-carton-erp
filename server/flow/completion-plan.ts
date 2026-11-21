@@ -4,6 +4,7 @@ import { productionCompletionSchema, taskLeftUnits, type FlowDocView } from '../
 import { UNITS_PER_QUANTITY, quantityUnits, quantityString } from '../../shared/core/index.js';
 import { purchaseOrderLinks } from '../operations/index.js';
 import type { FlowCommands } from './base.js';
+import { StockViews } from './stock-views.js';
 
 /*
  * 批量登记完工的方案（只读，不写库）：核对用户已确认的事实、选出本批生产任务、算每张任务的合格和废品、
@@ -157,7 +158,7 @@ export function taskRows(options: CompletionOptions, v: CompletionInput, tasks: 
  */
 function linkedStock(flow: FlowCommands, tasks: readonly Task[]) {
   const orderIds = new Set(tasks.flatMap((t) => t.orderIds));
-  const purchases = flow.ops.repo.purchases(
+  const purchases = new StockViews(flow.store).purchases(
     false,
     many(
       flow.store.db,
@@ -176,7 +177,7 @@ export function matchMaterials(flow: FlowCommands, v: CompletionInput, tasks: re
   // 库存品只读声明的原料、关联采购明细上的，一次查完。
   // 成品库存不在这里读：一个产品只有一个，登记每张任务时按产品对应（OperationsService.finishedStockFor）。
   const linked = linkedStock(flow, tasks);
-  const items = flow.ops.repo.items(false, [
+  const items = flow.ops.items(false, [
     ...new Set<number>(
       [...v.materials.map((m) => m.stockId), ...linked].filter((id): id is number => id != null),
     ),
@@ -198,7 +199,7 @@ export function matchMaterials(flow: FlowCommands, v: CompletionInput, tasks: re
     if (issued % UNITS_PER_QUANTITY || returned % UNITS_PER_QUANTITY || returned > issued)
       throw new AppError('生产领退料须整张，退料不得超过领料。');
     // 库存够不够和单张完工同一个规则：核对入库（扣库存）时才拦；只登记成待入库时不拦，核对入库时再拦
-    if (!pending && issued > flow.ops.repo.balance(matches[0].id))
+    if (!pending && issued > flow.ops.balance(matches[0].id))
       throw new AppError('原料库存不足，整批未提交。', 409);
     return { stockId: matches[0].id, issued, returned };
   });

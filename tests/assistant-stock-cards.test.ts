@@ -44,9 +44,9 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
       lines: [{ stockId: raw.id, item: { name: '虚构纸板', unit: '张' }, quantity: '100' }],
     }, actor);
     const a = await propose(f, thread, owner, 'flow.propose_confirmation', { id: arrival.id });
-    assert.equal(ops.repo.balance(raw.id), 0, '出卡片不动库存');
+    assert.equal(ops.balance(raw.id), 0, '出卡片不动库存');
     f.manager.execute(a.id, { acknowledged: true }, owner, 's');
-    assert.equal(ops.repo.balance(raw.id), 100000);
+    assert.equal(ops.balance(raw.id), 100000);
     const production = saveDoc(flow, 'production', {
       date: '2026-10-25',
       productId: product.id,
@@ -57,8 +57,8 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
       materials: [{ stockId: raw.id, issued: '60', returned: '10' }],
     }, actor);
     await confirm('flow.propose_confirmation', { id: production.id });
-    assert.equal(ops.repo.balance(raw.id), 50000);
-    assert.equal(ops.repo.balance(finished.id), 50000);
+    assert.equal(ops.balance(raw.id), 50000);
+    assert.equal(ops.balance(finished.id), 50000);
     const order = base.order(customer, [base.line(product, 100, { productName: product.name, specification: '型号A' })], {
       orderDate: '2026-10-25',
       deliveryDate: '2026-10-25',
@@ -72,10 +72,10 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
     // 出库按实际出库那天记：单据写的是 10-25，今天确认，单据日期和出库流水都是今天，原来的日期留作计划送货日
     const shipped = flow.get(delivery.id, 'delivery');
     assert.deepEqual([shipped.date, shipped.plannedDate], [today(), '2026-10-25']);
-    assert.equal(ops.repo.balance(finished.id), 20000);
+    assert.equal(ops.balance(finished.id), 20000);
     assert.equal(f.store.order(order.id)?.lines[0].shippedQuantity, 30);
     await confirm('flow.propose_reversal', { id: delivery.id, reason: '人工核对后撤销错误送货' });
-    assert.equal(ops.repo.balance(finished.id), 50000);
+    assert.equal(ops.balance(finished.id), 50000);
     const reversed = f.store.order(order.id);
     assert.ok(reversed, '订单还在');
     assert.equal(reversed.lines[0].shippedQuantity, 0);
@@ -101,9 +101,9 @@ test('出入库卡片要编辑权限、点了才入库、出库超过库存拒�
     assert(f.manager.tools.prepare('inventory.propose_movement', move('10'), actor, 's'));
     assert.throws(() => f.manager.tools.prepare('inventory.propose_movement', move('1'), { ...actor, permissions: [] }, 's'), /权限/);
     const plan = await propose(f, f.manager.create(owner).id, owner, 'inventory.propose_movement', move('10'));
-    assert.equal(ops.repo.balance(item.id), 0);
+    assert.equal(ops.balance(item.id), 0);
     f.manager.execute(plan.id, { acknowledged: true }, owner, 's');
-    assert.equal(ops.repo.balance(item.id), 10000);
+    assert.equal(ops.balance(item.id), 10000);
     assert.throws(() => f.manager.tools.prepare('inventory.propose_movement', move('11', 'out'), owner, 's'), /库存不足/);
     const supplier = base.supplier({ name: '虚构供应商' }),
       purchase = ops.savePurchase(
@@ -122,7 +122,7 @@ test('出入库卡片要编辑权限、点了才入库、出库超过库存拒�
       owner,
       's',
     );
-    assert.equal(ops.repo.purchases()[0].lines[0].receivedQuantity, '0');
+    assert.equal(base.flow.views.purchases()[0].lines[0].receivedQuantity, '0');
     assert.equal(field(field(receipt.after, 'arrival'), 'status'), 'confirmed');
     assert.equal(field((asList(field(field(receipt.after, 'batch'), 'rows')) ?? [])[0], 'remainingUnits'), 15000);
   } finally {
@@ -160,20 +160,20 @@ test('采购退货：查可退数量；退货和撤销退货只出卡片，和�
       requestId: randomUUID(),
     });
     base.raw({ name: '虚构无关纸板' }, { quantity: '5', date: today(), notes: '虚构无关入库' });
-    assert.equal(ops.repo.balance(raw.id), 100000, '没人确认前不扣库存');
+    assert.equal(ops.balance(raw.id), 100000, '没人确认前不扣库存');
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM purchase_returns'), 0);
     const created = f.manager.execute(plan.id, { acknowledged: true }, actor, 's');
-    assert.equal(ops.repo.balance(raw.id), 70000);
+    assert.equal(ops.balance(raw.id), 70000);
     assert.equal(field(f.manager.execute(plan.id, { acknowledged: true }, actor, 's'), 'id'), field(created, 'id'), '再点一次不重复退');
-    assert.equal(ops.repo.balance(raw.id), 70000);
+    assert.equal(ops.balance(raw.id), 70000);
     assert.ok(f.store.db.prepare("SELECT 1 FROM business_audit WHERE entity='purchase_returns' AND action='create'").get());
     assert.equal(returnable().lines[0].returnable, '70');
     // 撤销退货要超级管理员模式（没权限、没进模式两种说法见 assistant-account-scope.test.ts）
     const owner = superActor();
     const reverse = await propose(f, f.manager.create(owner).id, owner, 'purchase_return.reverse', { id: field(created, 'id'), version: field(created, 'version'), reason: '虚构退错' });
-    assert.equal(ops.repo.balance(raw.id), 70000);
+    assert.equal(ops.balance(raw.id), 70000);
     f.manager.execute(reverse.id, { acknowledged: true }, owner, 's');
-    assert.equal(ops.repo.balance(raw.id), 100000);
+    assert.equal(ops.balance(raw.id), 100000);
     assert.ok(f.store.db.prepare("SELECT 1 FROM business_audit WHERE entity='purchase_returns' AND action='reverse'").get());
   } finally {
     f.close();

@@ -60,7 +60,7 @@ function finishedOfProducts(ctx: ToolContext, productIds: number[]) {
  */
 function deliverySources(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema>) {
   if (v.stockIds) {
-    const stocks = ctx.ops.repo.items(false, v.stockIds).filter((i) => i.kind === 'finished');
+    const stocks = ctx.flow.views.items(false, v.stockIds).filter((i) => i.kind === 'finished');
     const orders = ctx.store.ordersByIds(orderIdsOfProducts(ctx, [...new Set(stocks.map((s) => Number(s.productId)).filter(Boolean))]));
     return { stocks, items: stocks, orders };
   }
@@ -68,7 +68,7 @@ function deliverySources(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema
   const orders = ctx.store.ordersByIds(v.orderIds ?? fail(PICK_ONE));
   const productIds = [...new Set(orders.flatMap((o) => o.lines.map((l) => Number(l.productId))))];
   const stocks: StockItemView[] = [];
-  return { stocks, items: ctx.ops.repo.items(false, finishedOfProducts(ctx, productIds)).filter((i) => i.kind === 'finished'), orders };
+  return { stocks, items: ctx.flow.views.items(false, finishedOfProducts(ctx, productIds)).filter((i) => i.kind === 'finished'), orders };
 }
 
 /** 选中的库存里可用的、没指定给谁、又有几个客户在等的：先问用户给谁 */
@@ -124,7 +124,7 @@ function planProduction(ctx: ToolContext, raw: unknown, who: Actor | null | unde
   const v = productionPlanSchema.parse(raw ?? {});
   const orders = ctx.store.ordersByIds(v.orderIds),
     related = orders.map((o) => relatedBusiness(ctx.store, 'orders', o.id));
-  const plan = planProductionForOrders(orders, related, ctx.ops.repo.items());
+  const plan = planProductionForOrders(orders, related, ctx.flow.views.items());
   return {
     groups: plan.groups.map((g) => ({
       productId: g.productId,

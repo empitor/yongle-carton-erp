@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { maker } from './finance-fixture.js';
 import { startHttp } from './http-fixture.js';

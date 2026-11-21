@@ -15,6 +15,7 @@ import { arrivalLineStatus, fulfillmentSummary, quantityString, quantityUnits } 
 import { fail, type ArrivalLine, type FlowCheck, type FlowCommands } from './base.js';
 import { receiptEvents } from './receipt-events.js';
 import { receiptKey } from './refs.js';
+import { StockViews } from './stock-views.js';
 import { assertNoActiveReturns } from './undo.js';
 import { documentInput, validateFlow } from './validate.js';
 import { inBatch, linkedPurchaseIds } from './validate-arrival.js';
@@ -129,11 +130,11 @@ function checkNewLinks(flow: FlowCommands, stored: Arrival, document: Arrival, a
     movedPurchases = linkedPurchaseIds(store, relinked);
   if (!inBatch(store, stored.orderBatchId, movedPurchases))
     fail('更正只能挂这张到货单的订货单里的采购明细；要挂到别的订货单，请撤销这次到货，再在“待到货”里按订货单重新登记。');
-  const live = flow.ops.repo.purchases(false, movedPurchases);
+  const live = new StockViews(flow.store).purchases(false, movedPurchases);
   if (movedPurchases.some((id) => live.find((p) => p.id === id)?.baseStatus !== '已订货'))
     fail('新挂上的采购明细要属于正常已订货的采购单（不能是已取消、待订货或已归档的）。');
   const newStock = [...new Set(document.lines.flatMap((l) => (l.stockId && !keptStock.has(l.stockId) ? [l.stockId] : [])))];
-  if (flow.ops.repo.items(false, newStock).length !== newStock.length) fail('换上的库存品已归档或不存在，请选正常的原材料库存品。');
+  if (flow.ops.items(false, newStock).length !== newStock.length) fail('换上的库存品已归档或不存在，请选正常的原材料库存品。');
   const key = one(
     store.db,
     rows.flow_receipt_keys.pick({ document_id: true }),
@@ -174,7 +175,7 @@ function purchaseImpactOf(flow: FlowCommands, original: ReceiptEvent, checked: C
   const purchaseIds = [
     ...new Set([...original.lines.map((l) => l.purchaseId), ...checked.lines.map((l) => l.purchaseId)].filter((id): id is number => !!id)),
   ];
-  const purchases = flow.ops.repo.purchases(true, purchaseIds);
+  const purchases = new StockViews(flow.store).purchases(true, purchaseIds);
   return purchaseIds.flatMap((id) => {
     const p = purchases.find((x) => x.id === id);
     if (!p) return [];

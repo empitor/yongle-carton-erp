@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
-import type { RecordIds } from '../server/operations/record-scope.js';
-import type { StockItemView } from '../shared/business/index.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import type { StockItemBaseView } from '../shared/business/index.js';
+import { OperationsService } from '../server/operations/index.js';
+import { StockViews } from '../server/flow/stock-views.js';
 import { FlowService } from '../server/flow/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { businessBase } from './business-base-fixture.js';
@@ -109,8 +109,8 @@ test('库存余额、期初只读覆盖索引，不回表读流水', () => {
       item = base.raw({ name: '虚构覆盖索引纸板' }, { quantity: '10', date: '2026-10-01' });
     // 记下库存列表和单个余额实际发出的流水汇总语句，再看它们的查询计划
     const { seen } = sqlOf(store, () => {
-      assert.equal(ops.repo.items(true)[0].id, item.id);
-      assert.equal(ops.repo.balance(item.id), 10000);
+      assert.equal(ops.items(true)[0].id, item.id);
+      assert.equal(ops.balance(item.id), 10000);
     });
     const sums = seen.filter((sql) => /SUM\(delta_units\)/i.test(sql) && sql.includes('FROM stock_movements'));
     assert.equal(sums.length, 2, '全部余额、单个余额各一句');
@@ -206,6 +206,8 @@ test('读一张订单、读全部订单：语句条数不随订单量增长，�
 
 /** 一次被记下的读取：哪个函数、按编号读的那个参数、读回的编号 */
 type WatchedRead = { name: string; byIds: RecordIds; ids: number[] };
+/** 按编号读的参数：一个编号或一组编号，不给就是全部（照采购库存读库存品的参数） */
+type RecordIds = Parameters<OperationsService['items']>[1];
 /** 记下的调用里由 from 直接发起的那些；idsArg 取出按编号读的那个参数 */
 function directCalls<A extends readonly unknown[]>(
   from: RegExp,
@@ -223,14 +225,19 @@ function directCalls<A extends readonly unknown[]>(
 function watchReads(from: RegExp) {
   const spies = {
     list: mock.method(FlowService.prototype, 'list'),
-    items: mock.method(OperationsRepository.prototype, 'items'),
-    purchases: mock.method(OperationsRepository.prototype, 'purchases'),
+    // 基本读法（采购库存）和完整视图（单据流转）都记：完整视图转调基本读法那一次的直接调用方是 stock-views.ts，不算
+    items: mock.method(OperationsService.prototype, 'items'),
+    viewItems: mock.method(StockViews.prototype, 'items'),
+    purchases: mock.method(OperationsService.prototype, 'purchases'),
+    viewPurchases: mock.method(StockViews.prototype, 'purchases'),
   };
   return {
     calls: () => [
       ...directCalls(from, 'list', spies.list.mock.calls, (a) => a[3]),
       ...directCalls(from, 'items', spies.items.mock.calls, (a) => a[1]),
+      ...directCalls(from, 'items', spies.viewItems.mock.calls, (a) => a[1]),
       ...directCalls(from, 'purchases', spies.purchases.mock.calls, (a) => a[1]),
+      ...directCalls(from, 'purchases', spies.viewPurchases.mock.calls, (a) => a[1]),
     ],
     reset() {
       for (const spy of Object.values(spies)) spy.mock.resetCalls();
@@ -250,7 +257,7 @@ function completionWorld() {
   const order = (p: { id: number }) => base.order(customer, [{ productId: p.id, quantity: 100, unitPriceCents: 100 }], { deliveryDate: '2026-10-30' });
   const supplier = base.supplier({ name: '虚构完工供应商' });
   const board = (name: string) => base.raw({ name }, { quantity: '100', date: '2026-10-01' });
-  const buy = (item: StockItemView, customerOrderId: number | null) =>
+  const buy = (item: StockItemBaseView, customerOrderId: number | null) =>
     ops.savePurchase({ supplierId: supplier.id, customerOrderId, orderDate: '2026-10-01', status: '待订货', lines: [{ ...item, stockItemId: item.id, quantity: '10', unitPrice: '1.2345', priceBasis: 'quantity' }] }, actor);
   const task = (p: { id: number }, o: { id: number }, quantity: string) =>
     saveDoc(flow, 'task', { productId: p.id, quantity, unit: '只', date: '2026-10-02', plannedDate: '2026-10-02', orderIds: [o.id] }, actor);
@@ -382,7 +389,9 @@ test('今日页、经营概况的月度统计只读这段时间里已归档的�
   const spies = {
     orders: mock.method(store, 'orders'),
     ordersByIds: mock.method(store, 'ordersByIds'),
-    purchases: mock.method(OperationsRepository.prototype, 'purchases'),
+    // 所有采购单读取最后都到基本读法；period-records.ts 读的是完整视图
+    purchases: mock.method(OperationsService.prototype, 'purchases'),
+    viewPurchases: mock.method(StockViews.prototype, 'purchases'),
   };
   try {
     buildToday(store, '2026-10-31');
@@ -394,7 +403,7 @@ test('今日页、经营概况的月度统计只读这段时间里已归档的�
     assert.deepEqual(
       [
         ...directCalls(fromPeriod, 'orders', spies.ordersByIds.mock.calls, (a) => a[0]),
-        ...directCalls(fromPeriod, 'purchases', spies.purchases.mock.calls.filter((c) => c.arguments[0]), (a) => a[1]),
+        ...directCalls(fromPeriod, 'purchases', spies.viewPurchases.mock.calls.filter((c) => c.arguments[0]), (a) => a[1]),
       ].map((r) => [r.name, r.ids]),
       [
         ['orders', [recentOrder]],

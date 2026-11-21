@@ -138,13 +138,13 @@ export function registerArrival(store: Store, target: ArrivalTarget, raw: unknow
   const actor = requirePermission(who, 'business:edit'),
     v = batchReceiveSchema.parse(raw);
   if (v.arrival && !v.pending) fail('只有待入库的到货单能改存，当场入库的请重新登记。');
-  const batches = new OrderBatchService(store);
+  const batches = new OrderBatchService(store),
+    flow = new FlowService(store);
   return onceByRequest(store, operationRequest('batch-receive', v.requestId, actor, { target, v }), (): RegisteredArrival => {
     const batch = targetBatch(store, batches, target, v.expectedVersion, actor),
-      purchases = batches.repo.purchases(false, batches.memberIds(batch.id)),
+      purchases = flow.views.purchases(false, batches.memberIds(batch.id)),
       rowsOfBatch = batchRows(batches.sourceLines(purchases), readBatchSchedule(batch.schedule, batch.id)),
       allocated = allocation(rowsOfBatch, v);
-    const flow = new FlowService(store);
     const draft = flow.save(
       'arrival',
       {
@@ -164,9 +164,9 @@ export function registerArrival(store: Store, target: ArrivalTarget, raw: unknow
       { registered: true },
     );
     if (v.pending)
-      return { arrival: draft, batch: batches.view(batch.id), verified: true, summary: '已存成待入库的到货单 ' + draft.number + '，核对后入库。' };
+      return { arrival: draft, batch: flow.views.batch(batch.id), verified: true, summary: '已存成待入库的到货单 ' + draft.number + '，核对后入库。' };
     const arrival = receiveNow(flow, { draftId: draft.id, batchId: batch.id }, allocated, v, actor);
-    const view = batches.view(batch.id);
+    const view = flow.views.batch(batch.id);
     return {
       arrival,
       batch: view,

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { arrivalLineStatus, Order } from '../core/index.js';
 import { flowContentSchema, type FlowDocuments, type FlowDocView } from './flow-document.js';
-import { receiptHeadSchema, receiptLineSchema } from './operations-views.js';
+import { receiptHeadSchema, receiptLineSchema } from './stock-flow-views.js';
 
 /*
  * 单据流转只读接口的回答（接口表 flow-api.ts）：到货事件和到货记录、仓库台账、核对窗口。服务端（server/flow）的类型都由这里推出。
@@ -18,7 +18,7 @@ type ReceiptLine = z.output<typeof receiptLineSchema>;
 
 /**
  * 到货事件：一张到货单读成采购单、到货记录、到货更正能用的样子（server/flow/receipt-events.ts 组装）。
- * 单头和明细的结构在 operations-views.ts（采购单视图里的到货记录也用）；document 是库里的原单内容（带种类）。
+ * 单头和明细的结构在 stock-flow-views.ts（采购单视图里的到货记录也用）；document 是库里的原单内容（带种类）。
  */
 export const receiptEventSchema = receiptHeadSchema.extend({
   lines: z.array(receiptLineSchema),

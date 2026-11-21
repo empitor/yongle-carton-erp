@@ -4,10 +4,12 @@ import { AppError, many, registerOrderRules, rows, type MaterialProgress } from 
 import { orderScope, shippedByLine } from './shipped.js';
 import { effectiveOrder, quantityUnits } from '../../shared/core/index.js';
 import type { FlowDocView } from '../../shared/business/index.js';
-import { rebalanceMovements } from '../operations/index.js';
+import { stockLedger } from '../operations/index.js';
 import { syncReceivedUnits } from './receipt-events.js';
 import type { FlowCommands } from './base.js';
 import { orderEditGuard } from './order-edit-guard.js';
+
+const { rebalanceMovements } = stockLedger;
 
 /*
  * 订单的生产中、待发货、已发货由有效单据派生（AGENTS.md“订单状态”）：按生产任务、完工、送货重算订单状态，

@@ -8,7 +8,7 @@ import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
 import type { Actor } from '../server/core/index.js';
 import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { customerSchema, today } from '../shared/core/domain.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { cookieOf, startHttp, startProxied, stateActor } from './http-fixture.js';

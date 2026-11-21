@@ -167,9 +167,9 @@ test('经接口聊天和点卡片：未登录 401、没页面凭证 403；高风
     await (await req('/assistant/threads/' + t.id + '/chat', f.input('增加5张库存', randomUUID()))).text();
     const high = await lastPlan();
     assert(high.highRisk);
-    assert.equal(ops.repo.balance(item.id), 0);
+    assert.equal(ops.balance(item.id), 0);
     assert.equal((await req('/assistant/previews/' + high.id + '/execute', { acknowledged: true })).status, 200);
-    assert.equal(ops.repo.balance(item.id), 5000);
+    assert.equal(ops.balance(item.id), 5000);
     await req('/auth/users', { name: '只读第二账号', password: 'Fictional-viewer-123', level: 'viewer' });
     const reader = await h.login('只读第二账号', 'Fictional-viewer-123');
     assert.equal((await req('/assistant/threads/' + t.id, undefined, reader)).status, 404);
