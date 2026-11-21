@@ -4,7 +4,7 @@ import { afterBackLayersClosed, hasBackLayer, notify, type NoticeTone } from '..
 import { MAX_FILE_BYTES, NOT_READY, TOO_LARGE, type UploadReport } from './useUploadQueue';
 
 /*
- * 安卓 App 分享进来的文件（只在安卓 App 里有；通道在 src/app-bridge.ts，消息约定见 docs/架构说明.md“安卓 App 通道”）：
+ * 安卓 App 分享进来的文件（只在安卓 App 里有；通道在 src/app-bridge.ts，消息约定见 docs/架构/外壳和网页.md“安卓 App 通道”）：
  * App 先发 share-offer（编号和文件清单）。还没登录就等登录完；这个账号进不了 AI 导入回 share-rejected；
  * 能进就跳到 AI 导入页（开着窗口时先提示、等窗口都关了再跳），页面读好工作区（能上传了）回 share-ready。
  * App 再一份一份发 share-file，每份走 AI 导入现有的上传（服务端按内容去重、只存原件不识别），每一条都回结果；

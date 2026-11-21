@@ -63,14 +63,14 @@ node scripts/ui-check/preview.mjs
 | `npm.cmd run check:apps` | 两个应用外壳的检查，全部离线：安卓 Lint、Checkstyle、单元测试；Windows `cargo fmt`、`clippy`、`cargo test`、边界检查。只跑一个加 `-- android` 或 `-- desktop`；要先按两个外壳的“构建与测试”装好工具链，缺什么会列出来 |
 | `npm.cmd run package` | 生成安装包 |
 
-各项检查守什么、怎么跑见[架构说明](docs/架构说明.md)“检查和测试”。
+各项检查守什么、怎么跑见[检查和测试](docs/架构/检查和测试.md)。
 
 ## 从哪读起
 
 1. 本页。
 2. [文档目录](docs/README.md)：每份文档讲什么、按什么顺序读。
 3. `AGENTS.md`：改代码的硬规则和怎么验证（只在开发机上，不随仓库公开）。
-4. [架构说明](docs/架构说明.md)：模块、目录、数据怎么走、关键机制。
+4. [架构说明](docs/架构说明.md)：总览、数据怎么走、模块、目录、一次请求怎么走；各机制在 `docs/架构/` 下各一份，从它末尾“别的在哪份”进。
 
 用软件看[使用手册](docs/使用手册.md)；部署运维看[部署与运维](docs/部署与运维.md)；现在做到哪、还剩什么看[路线图](docs/路线图.md)；还没发布的改动看[更新日志](docs/CHANGELOG.md)，以前的版本看 Git 标签和 GitHub 发布。
 
