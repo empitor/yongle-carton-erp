@@ -180,9 +180,9 @@ test('从提示词里删掉的用法句，在命令说明或查字段写法里�
       got = readAs(tools.read('records.search', { module: 'purchases', describe: true }, actor), {});
     const text = JSON.stringify(got.dependencies);
     for (const words of ['每平方米', 'stockItemId', '高度传 null', '备货']) assert.ok(text.includes(words), words);
-    // 到货的计价方式：挂了采购明细的跟着走，没说就不填、不猜
+    // 到货的计价方式、单价：挂了采购明细的跟着走，没说就不填、不猜
     const arrivals = JSON.stringify(readAs(tools.read('records.search', { module: 'arrivals', describe: true }, actor), {}).dependencies);
-    assert.match(arrivals, /跟采购明细走.*没说就不填.*不猜/);
+    assert.match(arrivals, /计价方式、单价都不用填，跟采购明细走.*没说就不填.*不猜/);
     const customers = readAs(tools.read('records.search', { module: 'customers', describe: true }, actor), {});
     assert.equal(customers.module, 'customers');
     assert.ok(customers.inputSchema && customers.template);

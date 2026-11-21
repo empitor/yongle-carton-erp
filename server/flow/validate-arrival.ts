@@ -116,7 +116,8 @@ function purchaseLineOf(purchases: PurchaseView[], lineId: number | null | undef
 
 /**
  * 挂了采购明细的一行：采购单是当前供应商正常已订货的，不早于采购日期，规格一样，不超采购剩余（更正不查），
- * 采购明细已经关联了库存品的，没选的就入那一个（和明确选它一样），选了别的拒收；没写计价方式的按采购明细的
+ * 采购明细已经关联了库存品的，没选的就入那一个（和明确选它一样），选了别的拒收；没写计价方式的按采购明细的，
+ * 没写单价、计价方式和采购明细一样的用采购明细的单价
  */
 function checkPurchaseLine(ctx: ArrivalCheck, v: Arrival, l: ArrivalLine, found: ReturnType<typeof purchaseLineOf>) {
   const { maintenance, skipRemaining } = ctx;
@@ -134,8 +135,10 @@ function checkPurchaseLine(ctx: ArrivalCheck, v: Arrival, l: ArrivalLine, found:
     fail('实收超过采购剩余数量；请核对采购，超出部分作为独立无采购单明细并填写差异原因。', 409);
   if (pl.stockItemId && l.stockId == null) l.stockId = pl.stockItemId;
   if (pl.stockItemId && l.stockId !== pl.stockItemId) fail('请使用采购明细已关联的原材料库存品。');
-  // 没写计价方式的按采购明细上写的（这是已知的，不是猜）；写了的照写的
+  // 没写计价方式、单价的按采购明细上写的（这是已知的，不是猜）；写了的照写的。
+  // 到货行自己写了别的计价方式又没写单价的，单价留空：不换算
   if (l.priceBasis == null) l.priceBasis = priceBases.find((b) => b === pl.priceBasis) ?? null;
+  if (l.unitPrice == null && l.priceBasis === pl.priceBasis) l.unitPrice = pl.unitPrice;
 }
 
 /** 一行的数量：纸板按整张，验收三个数合规，实收和送货单数量不一样要写差异原因；返回验收后的三个数 */

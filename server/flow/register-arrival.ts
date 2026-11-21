@@ -103,10 +103,9 @@ function arrivalLines(rowsOfBatch: BatchRow[], allocated: Allocation[], v: Recei
       ...stated(a),
       stockId: l.stockItemId,
       purchaseLineId: l.id,
-      // 到货明细的物料就是这条采购明细（名称、单位、规格尺寸），单据保存按到货明细的结构取用
+      // 到货明细的物料就是这条采购明细（名称、单位、规格尺寸），单据保存按到货明细的结构取用；
+      // 单价、计价方式不写，由保存时的核对（validate-arrival.ts 的 checkPurchaseLine）跟采购明细走
       item: l,
-      unitPrice: l.unitPrice,
-      priceBasis: l.priceBasis,
       quantity: quantityString(a.quantityUnits),
       acceptedQuantity: quantityString(a.quantityUnits - a.rejectedUnits),
       rejectedQuantity: quantityString(a.rejectedUnits),
