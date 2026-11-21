@@ -94,6 +94,24 @@ await page.waitForTimeout(300);
 if (await page.locator('.mobile-backdrop').count()) fail('点遮罩抽屉没关');
 else console.log('抽屉 ok');
 
+// 从下面升起的小窗口：点背后的暗处等于点 ×；在窗口里按下、拖到暗处松手不关（电脑上点暗处不关，在后面 900 宽那段）
+await go(page, '#dashboard');
+await page.getByRole('button', { name: '确认订单', exact: true }).first().tap();
+await dialog().waitFor();
+const sheet = await dialog().boundingBox();
+if (!sheet || sheet.y < 40) fail('确认订单窗口不是从下面升起的小窗口');
+const dimY = sheet.y / 2;
+await page.mouse.move(WIDTH / 2, sheet.y + 30);
+await page.mouse.down();
+await page.mouse.move(WIDTH / 2, dimY, { steps: 5 });
+await page.mouse.up();
+await page.waitForTimeout(300);
+if (!(await dialog().count())) fail('在窗口里按下、拖到暗处松手，窗口被关了');
+await page.touchscreen.tap(WIDTH / 2, dimY);
+await page.waitForTimeout(400);
+if (await dialog().count()) fail('点小窗口背后的暗处没关');
+else console.log('小窗口点暗处关 ok');
+
 // 筛选默认收起：订单页工具栏只有搜索、待处理 / 全部 / 已归档和“筛选”，客户、状态、日期在弹层里
 await go(page, '#orders');
 await page.waitForTimeout(500);
@@ -276,6 +294,15 @@ for (const [hash, label] of sitePages) {
   if (errors.length) fail('900 宽 ' + label + ' 页面报错：' + errors.join(' | ').slice(0, 120));
 }
 console.log('900 宽巡检 ' + sitePages.length + ' 页 ok');
+// 电脑样式下居中的窗口点暗处不关，只能点 ×（用户定的）
+await go(page, '#orders');
+await page.getByRole('button', { name: /新建订单/ }).first().click();
+await dialog().waitFor();
+await page.mouse.click(10, 400);
+await page.waitForTimeout(300);
+if (!(await dialog().count())) fail('900 宽点暗处把窗口关了');
+else console.log('900 宽点暗处不关 ok');
+await dialog().getByRole('button', { name: '关闭窗口' }).click();
 await page.setViewportSize({ width: WIDTH, height: 844 });
 
 const real = [...new Set(consoleErrors)].filter((e) => !/status of (401|403|404|422|503)/.test(e));
