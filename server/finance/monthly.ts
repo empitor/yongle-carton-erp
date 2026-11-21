@@ -70,6 +70,7 @@ export class FinanceMonthly {
     financeActor(actor);
     const q = filters.parse(raw);
     const pending = new FinanceEventViews(this.store).unsynced(actor, q.period);
+    const range = { from: q.period + '-01', to: endOfMonth(q.period) };
     const sql = `SELECT * FROM (${monthlyAll}) WHERE date BETWEEN ? AND ?
       AND (? IS NULL OR metric=?) AND (? IS NULL OR source_month=?)
       AND (? IS NULL OR missing_tax=?) AND (amount IS NULL OR amount<>0)`;
@@ -79,9 +80,9 @@ export class FinanceMonthly {
         schema: detailRow,
         sql,
         values: [
-        ...monthlyAllParams(pending),
-        q.period + '-01',
-        endOfMonth(q.period),
+        ...monthlyAllParams(this.db, pending, range),
+        range.from,
+        range.to,
         q.metric ?? null,
         q.metric ?? null,
         q.sourceMonth ?? null,
@@ -116,7 +117,7 @@ export class FinanceMonthly {
       `SELECT substr(date,1,7) AS period,metric,source_month,sum(amount) AS amount,
       sum(amount IS NULL) AS missing,count(*) AS count,sum(missing_tax) AS missing_tax
       FROM (${monthlyObserved}) WHERE date BETWEEN ? AND ? GROUP BY period,metric,source_month`,
-      ...monthlyObservedParams(pending),
+      ...monthlyObservedParams(this.db, pending, { from, to }),
       from,
       to,
     );

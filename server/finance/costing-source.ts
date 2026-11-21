@@ -19,17 +19,6 @@ export const movementSource = {
   manual: 'manual',
 } as const satisfies Record<string, (typeof movementSourceKinds)[number]>;
 
-/**
- * 财务事件 e 的来源到货单撤销（更正）那天：已撤销的取冲回它库存的流水日期；更正出来的替代单还没记过账时
- * （更正带出来的那一次“有差异”）取原单冲回流水的日期，记过账以后再改的不算。没有的是 NULL。SQL 表达式。
- */
-export const arrivalReversedOn = (e: string) =>
-  `(SELECT max(r.date) FROM stock_movements r WHERE r.source_kind='${movementSource.reversal}' AND r.source_id IN (
-    SELECT cast(u.id AS TEXT) FROM flow_documents u WHERE u.kind='arrival' AND u.status='reversed'
-      AND (u.id=cast(${e}.source_id AS INTEGER) OR (u.replaced_by=cast(${e}.source_id AS INTEGER)
-        AND NOT EXISTS(SELECT 1 FROM fin_events g WHERE g.source_kind='arrival' AND g.source_id=${e}.source_id
-          AND g.status='generated')))))`;
-
 const arrivalId = z.object({ id: z.string() });
 /**
  * 不计成本的到货单编号：已撤销或被更正替代（窗口给的已撤销到货单）、又从没记过账的（没有已生成凭证的事件，

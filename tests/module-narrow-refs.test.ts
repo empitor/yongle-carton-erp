@@ -31,7 +31,6 @@ const narrowRefs: { from: string; to: string; allowed: () => string[]; how: stri
  * 不许往里加。
  */
 const narrowPending: { from: string; to: string; name: string; batch: string; why: string }[] = [
-  { from: '财务', to: '共用-业务', name: 'flowDocumentSchema', batch: 'B1 来源', why: 'business-source.ts 的 readSource 按单据结构读单据内容，改由窗口的 sources.read 给财务口径' },
 ];
 
 /** 表里管着的模块的文件（只解析这些，别的模块不受这张表管） */
@@ -76,6 +75,7 @@ test('回归：窄引用拦住财务引单据流转的服务和别的名字、�
     ["import * as flow from '../flow/index.js';", '看不出引了哪些名字'],
     ["export const load = () => import('../flow/index.js');", '看不出引了哪些名字'],
     ["import { flowInput } from '../../shared/business/index.js';", '的 flowInput'],
+    ["import { flowDocumentSchema } from '../../shared/business/index.js';", '的 flowDocumentSchema'],
   ];
   for (const [text, expect] of blocked) {
     const found = narrowViolations('server/finance/sample.ts', refsOf('server/finance/sample.ts', text));
@@ -84,7 +84,6 @@ test('回归：窄引用拦住财务引单据流转的服务和别的名字、�
   const allowed = [
     "import { financeFacts } from '../flow/index.js';",
     "import { priceText, financialContent, type FinanceSource } from '../../shared/business/index.js';",
-    "import { flowDocumentSchema } from '../../shared/business/index.js';",
   ];
   for (const text of allowed) assert.deepEqual(narrowViolations('server/finance/sample.ts', refsOf('server/finance/sample.ts', text)), [], '不该拦：' + text);
   // 别的模块不受这张表管

@@ -17,3 +17,4 @@ export { updateDocumentInfo } from './document-info.js';
 // 财务从业务拿数据的只读窗口：财务只引这一个对象（tests/module-narrow-refs.test.ts）
 export { financeFacts } from './finance-facts/facts.js';
 export type { ReversalOriginal, StockMovement } from './finance-facts/facts.js';
+export type { SourceHead, SourceText } from './finance-facts/facts.js';

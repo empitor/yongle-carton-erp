@@ -12,7 +12,7 @@ import { FinanceAssets } from './assets.js';
 import { FinancePayroll } from './payroll.js';
 import { FinanceCosting } from './costing.js';
 import { activeCashAllocation } from './obligation-sql.js';
-import { sourceDocumentNumber, sourceReversed } from './business-source.js';
+import { lapsedStatuses, sourceIs, sourceKey, sourceTexts } from './source-scan.js';
 import { readFinanceSettings } from './settings.js';
 import { nextOpenPeriod } from './periods.js';
 import { taxPlan } from './closing-tax.js';
@@ -61,11 +61,34 @@ const outstandingEvents = (db: Store['db'], period: string) =>
       -- 下一次成本计算，那次会把它标成已处理，这里不拦结账
       AND NOT (status='cost_pending' AND EXISTS(SELECT 1 FROM fin_period_jobs j
         WHERE j.kind='costing' AND j.period=substr(e.date,1,7)))
-      AND NOT (status='info_pending' AND source_kind='delivery' AND ${sourceReversed('e', 'delivery')}
+      AND NOT (status='info_pending' AND source_kind='delivery' AND ${sourceIs('e', 'reversed')}
         AND NOT EXISTS(SELECT 1 FROM fin_obligations o JOIN fin_allocations a ON a.obligation_id=o.id
           JOIN fin_vouchers original ON original.id=a.voucher_id WHERE o.event_id=e.id AND ${activeCashAllocation}))`,
     period,
+    lapsedStatuses(db),
   );
+
+/**
+ * 启用前的单据启用后被冲销或改价（只提醒核对期初往来）：带上单据现在的单号。启用前的事件快照是空的，单号向窗口按批读；
+ * 盘点流水没有单号，单据已被删的也没有（null）。窗口的原文只给已确认、已撤销的单据：这里依赖“确认后的单据只会变成
+ * 已撤销或被删”（单据流转的取消只收待核对的），以后单据确认后多了别的状态，这里的单号会变空，要跟着改。
+ */
+function openingProblems(db: Store['db']) {
+  const found = many(
+    db,
+    openingProblem.omit({ number: true }),
+    `SELECT id,version,source_kind,source_id,date,problem FROM fin_events
+        WHERE status='before_opening' AND problem IS NOT NULL ORDER BY date,id`,
+  );
+  const documents = found.filter((e) => e.source_kind !== 'stock').map((e) => ({ kind: e.source_kind, id: e.source_id }));
+  const texts = sourceTexts(db, documents);
+  return found.map(({ date, problem, ...e }) => ({
+    ...e,
+    number: e.source_kind === 'stock' ? null : (texts.get(sourceKey({ kind: e.source_kind, id: e.source_id }))?.number ?? null),
+    date,
+    problem,
+  }));
+}
 
 /** 某一步跑过以后，按现在的数重算是不是不一样了；不一样返回原因。重算本身报错也算要重做。 */
 function staleReason(store: Store, user: Actor, period: string, kind: RequiredJob): string | null {
@@ -161,12 +184,7 @@ export function closingCheck(store: Store, reports: FinanceReports, user: Actor,
   const balance = trial && !readiness.count ? reports.currentBalance(user, period) : null;
   const bank = count(db, 'SELECT count(*) FROM fin_bank_rows WHERE substr(date,1,7)<=? AND voucher_id IS NULL', period);
   // 启用前的单据启用后被冲销或改价：不进账，只提醒核对期初往来，不卡结账（见 flagBeforeOpeningChange）
-  const opening = many(
-    db,
-    openingProblem,
-    `SELECT e.id,e.version,e.source_kind,e.source_id,${sourceDocumentNumber('e')} AS number,e.date,e.problem FROM fin_events e
-        WHERE status='before_opening' AND problem IS NOT NULL ORDER BY date,id`,
-  );
+  const opening = openingProblems(db);
   const steps: ClosingStep[] = [
     // 读之前的补扫没成功时这一步也不过（readiness.syncFailed，catch-up.ts）
     { key: 'events', ok: !outstanding && !readiness.syncFailed, count: outstanding, blocking: true },

@@ -10,7 +10,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, one, rows } from '../core/index.js';
 import { checkVersion, financeAudit, financeError } from './core.js';
-import { sourceObserved } from './catch-up.js';
+import { lapsedStatuses, sourceIs } from './source-scan.js';
 import type { FinanceLedger } from './ledger.js';
 import { allocationReversalMessage, allocationSum, obligationBaseDate } from './obligation-sql.js';
 import { entry, id, label, money, row } from './query.js';
@@ -127,12 +127,17 @@ function allocationRule({ c, date }: Allocation, before: ObligationRow) {
   return rule;
 }
 
-/** 往来还能核销：来源送货单没冲销（按补扫看到的状态，财务请求前已补扫过）、往来凭证已记账、往来没被红冲 */
+/** 往来还能核销：来源送货单没冲销（source-scan.ts 的 sourceIs，还没补扫进来的撤销也算）、往来凭证已记账、往来没被红冲 */
 function checkObligationOpen(store: Store, ledger: FinanceLedger, user: Actor, before: ObligationRow) {
   const db = store.db;
   if (
     before.event_id &&
-    exists(db, `SELECT 1 FROM fin_events e WHERE e.id=? AND e.source_kind='delivery' AND ${sourceObserved('e', 'reversed')}`, before.event_id)
+    exists(
+      db,
+      `SELECT 1 FROM fin_events e WHERE e.id=? AND e.source_kind='delivery' AND ${sourceIs('e', 'reversed')}`,
+      before.event_id,
+      lapsedStatuses(db),
+    )
   )
     financeError(allocationReversalMessage, 409);
   if (before.tax_status === 'superseded' || (before.voucher_id && ledger.get(user, before.voucher_id).header.status !== 'posted'))

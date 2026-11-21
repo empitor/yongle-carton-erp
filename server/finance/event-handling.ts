@@ -10,7 +10,8 @@ import { dateSchema } from '../../shared/core/index.js';
 import { periodSchema, versionSchema } from '../../shared/finance/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
-import { readSource, type SourceRow } from './business-source.js';
+import type { SourceText } from '../flow/index.js';
+import { readSource } from './source-scan.js';
 import { reverseOriginalObligation } from './event-correction.js';
 import { hasBookedObligations } from './event-source-obligations.js';
 import { evaluateSource } from './event-evaluate.js';
@@ -209,7 +210,7 @@ export class FinanceEventHandling {
    * 红字冲销以后这条事件怎么记，返回新状态：单据还有效、没被替代的，按现在的内容重做，快照和状态、金额、说明一起换；
    * 别的记成已更正，说明写处理了什么和为什么不再重做。凭证号都清掉。
    */
-  private redoOrClose(event: FinanceEvent, snapshot: EventSnapshot, source: SourceRow | undefined, handled: string) {
+  private redoOrClose(event: FinanceEvent, snapshot: EventSnapshot, source: SourceText | undefined, handled: string) {
     const doc = snapshot.doc;
     if (source?.status === 'confirmed' && doc && !doc.replacedBy) {
       const redo = evaluateSource(this.db, source, doc, { policy: String(event.revenue_recognition), replacement: true });

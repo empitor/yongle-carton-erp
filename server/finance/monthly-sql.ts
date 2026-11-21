@@ -3,11 +3,12 @@
  * 直接记在资金科目上的凭证分录，现结优惠、压款利息、保证金和退回，接单（不算待确认、已取消）。每一路查成同样的 13 列，合在一起。
  * 参数用 monthlyAllParams、monthlyObservedParams 排。
  */
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
+import { financeFacts } from '../flow/index.js';
 import { isReversed } from './reversal-pairs.js';
 import { allocationSum, voucherReversed } from './obligation-sql.js';
-import { sourceConfirmed } from './business-source.js';
-import { uncountedOrderStatuses } from '../../shared/core/index.js';
+import { lapsedStatuses, sourceIs } from './source-scan.js';
 
 const cashSign =
   "CASE WHEN c.kind IN ('receipt','income') THEN 'actualIncome' ELSE 'actualExpense' END";
@@ -24,10 +25,9 @@ const eventSql = `SELECT CASE WHEN e.source_kind='delivery' THEN 'theoreticalInc
   LEFT JOIN fin_obligations o ON o.id=(SELECT max(x.id) FROM fin_obligations x LEFT JOIN fin_vouchers xv ON xv.id=x.voucher_id
     WHERE x.event_id=e.id AND x.reversal_of IS NULL AND x.tax_status<>'superseded' AND (x.voucher_id IS NULL OR xv.status<>'void')
     AND NOT ${isReversed('x')})
-  WHERE e.source_kind IN ('delivery','arrival') AND obs.status='confirmed'
+  WHERE e.source_kind IN ('delivery','arrival') AND ${sourceIs('e', 'confirmed')}
   AND e.status NOT IN ('before_opening','source_deleted','corrected')
-  AND e.id NOT IN (SELECT value FROM json_each(?))
-  AND ${sourceConfirmed('e')}`;
+  AND e.id NOT IN (SELECT value FROM json_each(?))`;
 const allocationRows = `SELECT ${cashSign} AS metric,c.id,c.date,substr(o.date,1,7) AS source_month,
   e.source_id AS source_id,CAST(c.id AS TEXT) AS number,c.party_name AS party,
   a.amount_cents-a.discount_cents AS amount,
@@ -89,8 +89,9 @@ const supplementary = `
     'posted',NULL,0,0 FROM fin_deposit_actions a
     JOIN fin_deposits d ON d.id=a.deposit_id JOIN fin_vouchers v ON v.id=a.voucher_id WHERE v.status='posted' AND NOT ${voucherReversed('v', true)} AND a.kind='refund'
   UNION ALL
-  SELECT 'ordered',id,order_date,substr(order_date,1,7),cast(id AS TEXT),number,customer_name,total_cents,
-    json_object('orderId',id),status,NULL,0,0 FROM orders WHERE status NOT IN (${uncountedOrderStatuses.map(() => '?').join(',')})`;
+  SELECT 'ordered',o.value->>'$.id',o.value->>'$.order_date',substr(o.value->>'$.order_date',1,7),cast(o.value->>'$.id' AS TEXT),
+    o.value->>'$.number',o.value->>'$.customer_name',o.value->>'$.total_cents',json_object('orderId',o.value->>'$.id'),
+    o.value->>'$.status',NULL,0,0 FROM json_each(?) o`;
 const unsyncedSql = `SELECT CASE WHEN json_extract(u.value,'$.source_kind')='delivery' THEN 'theoreticalIncome' ELSE 'theoreticalExpense' END,
   json_extract(u.value,'$.id'),json_extract(u.value,'$.date'),substr(json_extract(u.value,'$.date'),1,7),
   json_extract(u.value,'$.source_id'),coalesce(json_extract(u.value,'$.number'),json_extract(u.value,'$.source_id')),
@@ -99,14 +100,27 @@ const unsyncedSql = `SELECT CASE WHEN json_extract(u.value,'$.source_kind')='del
   EXISTS(SELECT 1 FROM json_each(u.value,'$.missing') WHERE value='tax') FROM json_each(?) u`;
 export const monthlyAll = `${eventSql} UNION ALL ${unsyncedSql} UNION ALL ${allocationRows} UNION ALL ${cashSql} UNION ALL ${ledgerCash} UNION ALL ${supplementary}`;
 export const monthlyObserved = `${eventSql} UNION ALL ${allocationRows} UNION ALL ${cashSql} UNION ALL ${ledgerCash} UNION ALL ${supplementary}`;
+/** 被还没同步的单据（按单据现在的内容算）替掉的事件，不按事件列，JSON 文字 */
 const replacedEvents = (pending: { id: number | null }[]) =>
-  JSON.stringify(pending.flatMap((row) => row.id === null ? [] : [row.id]));
+  JSON.stringify(pending.flatMap((row) => (row.id === null ? [] : [row.id])));
+/** 日期段 from 到 to（含两头）里接的订单（只读窗口给，待确认、已取消的不算），JSON 文字 */
+const orderedBetween = (db: DatabaseSync, { from, to }: DateRange) => JSON.stringify(financeFacts.orders.between(db, from, to));
+type DateRange = { from: string; to: string };
 /**
- * 两份查询的参数，按 SQL 里 ? 的先后：被还没同步的单据替掉的事件、（monthlyAll 才有）还没同步的单据，
- * 最后是接单不算的订单状态（待确认、已取消，和今日页、经营概况同一份清单）。接在后面的条件参数由调用方再加。
+ * 两份查询的参数，按 SQL 里 ? 的先后：来源现在的状态（sourceIs 要的，还没补扫进来的撤销、删除）、被还没同步的单据替掉的事件、
+ * （monthlyAll 才有）还没同步的单据，最后是这段日期里接的订单（range 要盖住调用方按日期筛的那一段）。接在后面的条件参数由调用方再加。
  */
-export const monthlyAllParams = (pending: { id: number | null }[]) => [replacedEvents(pending), JSON.stringify(pending), ...uncountedOrderStatuses];
-export const monthlyObservedParams = (pending: { id: number | null }[]) => [replacedEvents(pending), ...uncountedOrderStatuses];
+export const monthlyAllParams = (db: DatabaseSync, pending: { id: number | null }[], range: DateRange) => [
+  lapsedStatuses(db),
+  replacedEvents(pending),
+  JSON.stringify(pending),
+  orderedBetween(db, range),
+];
+export const monthlyObservedParams = (db: DatabaseSync, pending: { id: number | null }[], range: DateRange) => [
+  lapsedStatuses(db),
+  replacedEvents(pending),
+  orderedBetween(db, range),
+];
 /** 月度台账明细一行（各来源合在一起）：哪项、编号、日期、来源月份、单号、往来单位、金额、明细 JSON、状态、到期日、已收付、是否缺税率 */
 export const detailRow = z.object({
   metric: z.string(),
