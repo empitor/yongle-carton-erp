@@ -40,13 +40,8 @@ export default function AccountManagement({
             ]}
           />
         }
-        actions={
-          changing && (
-            <button className="primary" onClick={() => setCreating(true)}>
-              <Plus size={15} aria-hidden="true" />
-              新建账号
-            </button>
-          )
+        primary={
+          changing && { label: '新建账号', icon: <Plus size={15} aria-hidden="true" />, onClick: () => setCreating(true) }
         }
       />
       <SuperModeNotice what="新建和修改账号、处理申请" />

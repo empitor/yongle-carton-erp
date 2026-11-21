@@ -43,11 +43,6 @@
 .channel-state[data-tone='bad'] {
   color: var(--danger);
 }
-.channel-error {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--danger);
-}
 .channel-form {
   display: flex;
   flex-direction: column;

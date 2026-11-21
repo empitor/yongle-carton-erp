@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { inventoryMetrics, matchesOperationalRecord, type StockItemView } from '../../shared/business/index';
-import { MoreMenu, PageHeading, useLoad } from '../ui/index';
+import { FilterRow, ListToolbar, PageHeading, useLoad, type RecordAction } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import { readCatalog } from '../recordkit/catalog-api';
 import WarehouseNavigation from '../warehouse/WarehouseNavigation';
 import OperationsSummary from './OperationsSummary';
@@ -74,18 +73,10 @@ function StockFilters({
 }
 
 /** 库存不放主按钮：新建库存品和只看零库存收进“更多” */
-function StockMore(o: { kind: string; busy: boolean; zeroOnly: boolean; create: () => void; toggleZero: () => void }) {
-  return (
-    <MoreMenu text="更多" label="库存的更多操作">
-      <button type="button" role="menuitem" disabled={o.busy} onClick={o.create}>
-        新建{o.kind === 'raw' ? '原材料' : '成品'}库存品
-      </button>
-      <button type="button" role="menuitem" onClick={o.toggleZero}>
-        {o.zeroOnly ? '显示全部库存' : '只看零库存'}
-      </button>
-    </MoreMenu>
-  );
-}
+const stockMore = (o: { kind: string; busy: boolean; zeroOnly: boolean; create: () => void; toggleZero: () => void }): RecordAction[] => [
+  { label: '新建' + (o.kind === 'raw' ? '原材料' : '成品') + '库存品', disabled: o.busy, onClick: o.create },
+  { label: o.zeroOnly ? '显示全部库存' : '只看零库存', onClick: o.toggleZero },
+];
 
 /**
  * 库存页：原材料 / 成品两个分段，按往来单位筛（原材料按供应商，成品按客户），只看零库存。
@@ -131,16 +122,17 @@ export default function StockPage({ recycle = false }: { recycle?: boolean }) {
       {!recycle && (
         <PageHeading
           title="库存"
-          actions={
-            p.canEdit && (
-              <StockMore
-                kind={kind}
-                busy={busy}
-                zeroOnly={zeroOnly}
-                create={() => ops.setEditor({ type: 'stock' })}
-                toggleZero={() => setZeroOnly((v) => !v)}
-              />
-            )
+          moreLabel="库存的更多操作"
+          more={
+            p.canEdit
+              ? stockMore({
+                  kind,
+                  busy,
+                  zeroOnly,
+                  create: () => ops.setEditor({ type: 'stock' }),
+                  toggleZero: () => setZeroOnly((v) => !v),
+                })
+              : []
           }
           meta={
             <OperationsSummary

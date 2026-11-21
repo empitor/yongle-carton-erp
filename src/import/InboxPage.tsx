@@ -58,30 +58,26 @@ export default function InboxPage() {
     <div className="inbox-page">
       <PageHeading
         title="收件箱"
-        actions={
-          <>
-            <button disabled={!canEdit} onClick={() => setPasting(true)}>
-              <Plus size={15} />
-              粘贴文字
-            </button>
-            <button className="primary" disabled={!canEdit} onClick={() => input.current?.click()}>
-              <Upload size={15} />
-              上传文件
-            </button>
-            <input
-              ref={input}
-              type="file"
-              multiple
-              hidden
-              aria-label="上传到收件箱"
-              onChange={(e) => {
-                void addFiles(Array.from(e.target.files || []));
-                e.target.value = '';
-              }}
-            />
-          </>
-        }
-      />
+        secondary={{ label: '粘贴文字', icon: <Plus size={15} />, disabled: !canEdit, onClick: () => setPasting(true) }}
+        primary={{
+          label: '上传文件',
+          icon: <Upload size={15} />,
+          disabled: !canEdit,
+          onClick: () => input.current?.click(),
+        }}
+      >
+        <input
+          ref={input}
+          type="file"
+          multiple
+          hidden
+          aria-label="上传到收件箱"
+          onChange={(e) => {
+            void addFiles(Array.from(e.target.files || []));
+            e.target.value = '';
+          }}
+        />
+      </PageHeading>
       <InboxFilters list={list} />
       <ChannelNote channels={list.channels} isAdmin={auth?.actor?.role === 'super_admin'} />
       <FormMessage

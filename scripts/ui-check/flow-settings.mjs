@@ -64,7 +64,7 @@ for (const t of await page.locator('.ai-settings-tabs [role=tab], .ai-settings-t
     await card.locator('input').nth(1).fill(secret);
     await card.getByRole('button', { name: /保存并/ }).click();
     const ok = await card.locator('.channel-state', { hasText: '已连接' }).waitFor({ timeout: 8000 }).then(() => true, () => false);
-    if (!ok) log('  ERR: ' + label + ' 没有显示已连接：' + (await card.locator('.channel-head, .channel-error').allInnerTexts()).join(' | '));
+    if (!ok) log('  ERR: ' + label + ' 没有显示已连接：' + (await card.locator('.channel-head, .form-message').allInnerTexts()).join(' | '));
     if ((await card.locator('button.primary').count()) !== 1) log('  ERR: ' + label + ' 卡片的主按钮不是一个');
   }
   await shot('settings-channels-connected');

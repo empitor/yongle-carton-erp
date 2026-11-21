@@ -4,25 +4,39 @@ import {
   ChevronRight,
   Inbox,
 } from 'lucide-react';
+import { pageActions, type PageActionProps } from './Actions';
+
+/**
+ * 页头：标题、一行统计；右边是 children（月份、日期这类条件）和按钮（“更多”、一个次要、一个主按钮，
+ * 规则见 Actions.tsx）。
+ */
 export function PageHeading({
   title,
-  actions,
   meta,
+  children,
+  ...actions
 }: {
   title: string;
   description?: ReactNode;
   kicker?: string;
-  actions?: ReactNode;
   /** 紧跟标题的统计，和标题同一行。 */
   meta?: ReactNode;
-}) {
+  /** 放在按钮左边的条件，例如月份 */
+  children?: ReactNode;
+} & PageActionProps) {
+  const buttons = pageActions(actions);
   return (
     <div className="page-heading unified-heading">
       <div className="page-title">
         <h1>{title}</h1>
         {meta}
       </div>
-      {actions && <div className="page-actions">{actions}</div>}
+      {(children || buttons) && (
+        <div className="page-actions">
+          {children}
+          {buttons}
+        </div>
+      )}
     </div>
   );
 }

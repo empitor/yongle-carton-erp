@@ -10,8 +10,7 @@ import {
   type StockItemView,
 } from '../../shared/business/index';
 import { presetRange, type DatePreset } from '../../shared/core/index';
-import { PageHeading, useResettingPage, DateFilter, hashParams, LIST_PAGE_SIZE } from '../ui/index';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
+import { PageHeading, useResettingPage, DateFilter, hashParams, LIST_PAGE_SIZE, ListToolbar, FilterRow } from '../ui/index';
 import MovementRecords from '../warehouse/MovementRecords';
 import { loadMovements, loadStockItems } from './list-api';
 import { recordRange } from './page-state';

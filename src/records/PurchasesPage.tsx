@@ -2,9 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Plus } from 'lucide-react';
 import { presetRange, type DatePreset, type RecordSort } from '../../shared/core/index';
 import { matchesPurchase, purchaseStatuses, purchaseStatusOptions } from '../../shared/business/index';
-import { PageHeading, readOnlyNotice, useResettingPage, notify, DateFilter, hashParams } from '../ui/index';
+import { PageHeading, readOnlyNotice, useResettingPage, notify, DateFilter, hashParams, ListToolbar, FilterRow } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
-import ListToolbar, { FilterRow } from '../recordkit/ListToolbar';
 import { idList } from '../recordkit/launch';
 import OperationsSummary from './OperationsSummary';
 import { AllRecordsCheck } from './page-state';
@@ -164,13 +163,13 @@ export default function PurchasesPage({ recycle = false }: { recycle?: boolean }
       {!recycle && (
         <PageHeading
           title="采购单"
-          actions={
-            p.canEdit && (
-              <button className="primary" disabled={busy} onClick={() => ops.setEditor({ type: 'purchase' })}>
-                <Plus size={17} />
-                新建采购单
-              </button>
-            )
+          primary={
+            p.canEdit && {
+              label: '新建采购单',
+              icon: <Plus size={17} />,
+              disabled: busy,
+              onClick: () => ops.setEditor({ type: 'purchase' }),
+            }
           }
           meta={
             <OperationsSummary

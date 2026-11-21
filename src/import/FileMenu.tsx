@@ -1,4 +1,4 @@
-import { useAdmin } from '../ui/index';
+import { MenuItem, useAdmin } from '../ui/index';
 import { errorMessage } from '../../shared/core/index';
 import type { useOrderWorkspace } from './useOrderWorkspace';
 
@@ -41,19 +41,19 @@ export default function FileMenu({
   return (
     <>
       {reanalyze && (
-        <button type="button" role="menuitem" aria-label={'重新识别 ' + fileName} onClick={reanalyze}>
+        <MenuItem label={'重新识别 ' + fileName} onClick={reanalyze}>
           重新识别
-        </button>
+        </MenuItem>
       )}
       {localAdmin && (
-        <button type="button" role="menuitem" disabled={busy} onClick={() => void fork()}>
+        <MenuItem disabled={busy} onClick={() => void fork()}>
           复制成新文件
-        </button>
+        </MenuItem>
       )}
       <hr className="more-menu-sep" />
-      <button type="button" role="menuitem" aria-label={'归档文件 ' + fileName} onClick={remove}>
+      <MenuItem label={'归档文件 ' + fileName} onClick={remove}>
         归档
-      </button>
+      </MenuItem>
     </>
   );
 }

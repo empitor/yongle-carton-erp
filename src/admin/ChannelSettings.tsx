@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SuperModeNotice, useAuthState } from '../ui/index';
+import { FormMessage, SuperModeNotice, useAuthState } from '../ui/index';
 import type { BotView } from '../../shared/import/index';
 import { errorMessage } from '../../shared/core/index';
 import BotCard from './BotCard';
@@ -32,11 +32,7 @@ export default function ChannelSettings() {
   return (
     <div className="channel-list">
       <SuperModeNotice what="填写或更换机器人凭据、连接和断开" />
-      {error && (
-        <p className="channel-error" role="alert">
-          {error}
-        </p>
-      )}
+      <FormMessage>{error}</FormMessage>
       {views?.map((view) => <BotCard key={view.channel} view={view} onSaved={setViews} changing={changing} />)}
     </div>
   );

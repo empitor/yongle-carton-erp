@@ -1,11 +1,11 @@
-import { Segmented } from '../../ui/index';
+import { PageHeading, Segmented } from '../../ui/index';
 import { NeedEnable, useEnable } from '../enable';
 import ExpensesTab from './ExpensesTab';
 import AssetsTab from './AssetsTab';
 import PayrollTab from './PayrollTab';
 import CostingTab from './CostingTab';
 import { financePageTitles } from '../page-titles';
-import { FinHead, SubBar, type HeadProps } from '../layout';
+import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, useTab } from '../page-state';
 
 /** 费用资产工资：四个页签。毛利并进“成本毛利”，员工借还款在“费用报销”页头的“更多”里。 */
@@ -25,7 +25,7 @@ export default function CostsPage() {
   useFocusSection(requested, Object.keys(sectionTabs));
   const head = (props: HeadProps) => (
     <>
-      <FinHead
+      <PageHeading
         title={financePageTitles['finance-costs']}
         {...props}
         // 没启用时这几页都记不了账：主按钮只给“启用财务”（没权限的就不放）

@@ -1,4 +1,4 @@
-import { Segmented } from '../../ui/index';
+import { PageHeading, Segmented } from '../../ui/index';
 import { NeedEnable, useEnable } from '../enable';
 import EventsTab from './EventsTab';
 import VouchersTab from './VouchersTab';
@@ -6,7 +6,7 @@ import BooksTab from './BooksTab';
 import TemplatesTab from './TemplatesTab';
 import AuditTab from './AuditTab';
 import { financePageTitles } from '../page-titles';
-import { FinHead, SubBar, type HeadProps } from '../layout';
+import { SubBar, type HeadProps } from '../layout';
 import { useFinPerms } from '../fin-api';
 import { useTab } from '../page-state';
 
@@ -32,7 +32,7 @@ export default function LedgerPage() {
   const options = extraTabs[tab] ? [...tabs, [tab, extraTabs[tab]] as const] : tabs;
   const head = (props: HeadProps) => (
     <>
-      <FinHead
+      <PageHeading
         title={financePageTitles['finance-ledger']}
         {...props}
         more={[
@@ -49,7 +49,7 @@ export default function LedgerPage() {
   if (enable.known && !enable.enabled)
     return (
       <div className="fin-page">
-        <FinHead title={financePageTitles['finance-ledger']} primary={enable.action} />
+        <PageHeading title={financePageTitles['finance-ledger']} primary={enable.action} />
         <NeedEnable what="做凭证、看账簿" canEnable={enable.canEnable} />
         {enable.dialog}
       </div>

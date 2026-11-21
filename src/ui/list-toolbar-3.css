@@ -1,0 +1,12 @@
+/* 列表工具栏（第 3 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+:root[data-ui='refined'] .list-search > div:focus-within {
+  background: var(--surface);
+  box-shadow: var(--ring);
+}
+:root[data-ui='refined'] .list-search input,
+:root[data-ui='refined'] .list-search input:focus,
+:root[data-ui='refined'] .list-search input:hover {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}

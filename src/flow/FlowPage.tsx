@@ -1,7 +1,6 @@
 import { Suspense, lazy, useState } from 'react';
 import type { FlowKind, FlowDocView as DocView } from '../../shared/business/index';
-import { DateFilter, FormMessage, LIST_PAGE_SIZE, Pagination, loadingText, stepper } from '../ui/index';
-import ListToolbar from '../recordkit/ListToolbar';
+import { DateFilter, FormMessage, LIST_PAGE_SIZE, ListToolbar, Pagination, loadingText, stepper } from '../ui/index';
 import FlowPageHeading from './FlowPageHeading';
 import FlowSelectionBar from './FlowSelectionBar';
 import FlowDocView from './FlowDocView';

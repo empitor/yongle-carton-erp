@@ -1,6 +1,6 @@
 import { Bot, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { DEEPSEEK_NAME, type AiKeyState, type AiSettingsView } from '../../shared/ai/index';
-import { MoreMenu, StatusChip } from '../ui/index';
+import { MenuItem, MoreMenu, StatusChip } from '../ui/index';
 import { concurrencyLabel, stateNames, stateTone } from './ai-settings-words';
 import type { AiKeyActions } from './useAiSettings';
 
@@ -81,20 +81,18 @@ export function KeyFooter({
       </span>
       {changing && (
         <MoreMenu label="密钥更多操作">
-          <button type="button" role="menuitem" disabled={locked || !typed} onClick={() => void actions.saveKey(false)}>
+          <MenuItem disabled={locked || !typed} onClick={() => void actions.saveKey(false)}>
             只保存不测试
-          </button>
+          </MenuItem>
           {hasKey && <hr className="more-menu-sep" />}
           {hasKey && (
-            <button
-              type="button"
-              role="menuitem"
-              className="danger-text"
+            <MenuItem
+              danger
               disabled={locked}
               onClick={() => actions.setDeleting(true)}
             >
               删除密钥
-            </button>
+            </MenuItem>
           )}
         </MoreMenu>
       )}

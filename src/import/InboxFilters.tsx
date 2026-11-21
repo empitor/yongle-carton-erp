@@ -1,4 +1,5 @@
 import type { InboxChannelOption, InboxStatus } from '../../shared/import/index';
+import { ListToolbar } from '../ui/index';
 import type { useInboxList } from './useInboxList';
 
 const tabs: [InboxStatus, string][] = [
@@ -6,40 +7,37 @@ const tabs: [InboxStatus, string][] = [
   ['converted', '已处理'],
   ['ignored', '已忽略'],
 ];
+/** 分段点出来的值（只会是上面几种之一） */
+const isStatus = (value: string): value is InboxStatus => tabs.some(([key]) => key === value);
 
-/** 收件箱筛选：处理状态（带条数）、搜索、来源。 */
+/** 收件箱筛选：搜索、处理状态（带条数）、来源。 */
 export function InboxFilters({ list }: { list: ReturnType<typeof useInboxList> }) {
   const { status, channel, q } = list.filter;
+  const counts = list.data?.counts;
   return (
-    <section className="list-filters" aria-label="收件箱筛选">
-      <div className="record-view-tabs" aria-label="处理状态">
-        {tabs.map(([value, label]) => (
-          <button
-            key={value}
-            className={status === value ? 'selected' : ''}
-            onClick={() => list.setStatus(value)}
-          >
-            {label}
-            {list.data?.counts ? ' ' + list.data.counts[value] : ''}
-          </button>
-        ))}
-      </div>
-      <input
-        className="inbox-search"
-        aria-label="搜索收件箱"
-        placeholder="搜索发送人、内容、文件名"
-        value={q}
-        onChange={(e) => list.setQ(e.target.value)}
-      />
-      <select aria-label="筛选来源" value={channel} onChange={(e) => list.setChannel(e.target.value)}>
-        <option value="">全部来源</option>
-        {list.channels.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.label}
-          </option>
-        ))}
-      </select>
-    </section>
+    <ListToolbar
+      label="收件箱筛选"
+      search={q}
+      onSearch={list.setQ}
+      searchLabel="搜索收件箱"
+      placeholder="搜索发送人、内容、文件名"
+      scopeLabel="处理状态"
+      scopes={tabs.map(([value, label]) => ({ value, label: label + (counts ? ' ' + counts[value] : '') }))}
+      scope={status}
+      onScope={(v) => {
+        if (isStatus(v)) list.setStatus(v);
+      }}
+      keyFilter={
+        <select aria-label="筛选来源" value={channel} onChange={(e) => list.setChannel(e.target.value)}>
+          <option value="">全部来源</option>
+          {list.channels.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      }
+    />
   );
 }
 
