@@ -179,12 +179,12 @@ export function openRun(svc: ChatServices, args: OpenRunArgs): { replayed: Threa
   if (svc.conversations.busy.has(id)) throw new AppError('本会话正在生成，请等待或停止。', 409);
   if (!svc.settings.status().ready) throw new AppError(svc.settings.status().message, 400, 'key_required');
   const files = svc.attachments.select(id, input.attachmentIds, input.usePreviousAttachments, actor),
-    workflow = svc.orderWorkflow?.view(id, actor);
+    workflow = svc.orderWorkflow.view(id, actor);
   const card = input.card ? cardTurn(svc, id, actor, input.card) : undefined;
   if (!card && !input.text && !files.length) throw new AppError('请输入消息或选择附件。');
   const selected = selectedRecord(svc, input, actor);
   const { controller, deadline } = startDeadline(svc.budgetLimits.timeoutMs);
-  const keepFiles = !(workflow?.tasks.length && !input.attachmentIds.length);
+  const keepFiles = !(workflow.tasks.length && !input.attachmentIds.length);
   const userMessageId = saveUserTurn(svc, { id, actor, input, files, titled: thread.title !== '新会话' }, card, keepFiles);
   const check = liveCheck(controller, liveActor, actor);
   const thinking = chooseThinking(svc.registry, actor, input.thinking);

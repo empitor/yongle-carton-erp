@@ -28,7 +28,7 @@ export function buildModelMessages(
     actor: Actor;
     input: ChatInput;
     files: AssistantAttachment[];
-    workflow: ReturnType<AssistantOrderWorkflow['view']> | undefined;
+    workflow: ReturnType<AssistantOrderWorkflow['view']>;
     /** 页面上选中的那条记录（预读好的） */
     selectedRecord: unknown;
     thinking: DeepSeekThinking;
@@ -47,7 +47,7 @@ export function buildModelMessages(
     context: selectedRecord ?? { page: input.context?.page || '' },
     page: pageConnected && exposedTools.some((t) => t.name === 'page.observe') ? input.pageSnapshot : undefined,
     attachments: files.map((f) => ({ id: f.id, name: f.name })),
-    orderWorkflow: workflow?.tasks.length
+    orderWorkflow: workflow.tasks.length
       ? {
           activeId: workflow.activeId,
           tasks: workflow.tasks.map((t) => {

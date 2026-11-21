@@ -12,7 +12,8 @@ import { defaultPromptSettingsPath } from '../server/ai/prompt-presets.js';
 import { createApp } from '../server/app.js';
 import { listen, startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
-import { ImportManager } from '../server/import/manager.js';
+import { testImports } from './order-import-fixture.js';
+import { promptTable } from './assistant-fixture.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { fakeAiSettings, fakeDeepSeek, fakeKey, httpError } from './fake-deepseek.js';
@@ -194,12 +195,12 @@ test('只读和业务账号不能改 AI 设置；只读账号不能动导入工�
   const store = new Store(':memory:'),
     { settings } = fakeAiSettings(),
     prompts = new PromptPresetManager(':memory:', defaultPromptPreset),
-    imports = new ImportManager({
+    imports = testImports({
       directory: join(dir, 'imports'),
       settings,
       promptPresets: prompts,
     }),
-    h = await startHttp(store, { aiSettings: settings, imports }),
+    h = await startHttp(store, { aiSettings: settings, imports, promptModules: promptTable({ 'sales-order': prompts }) }),
     base = h.api,
     auth = h.auth;
   const send = (path: string, body?: unknown, cookie = '', extra: Record<string, string> = {}) =>

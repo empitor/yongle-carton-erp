@@ -59,7 +59,6 @@ export class ImportExecutionService {
   constructor(
     private store: Store,
     private manager: ImportManager,
-    private archiveRoot: string,
   ) {}
   private actor(who: Actor | null | undefined) {
     const a = requirePermission(who, 'import:execute');
@@ -105,7 +104,7 @@ export class ImportExecutionService {
       const plan = importPlan(this.store, w);
       assertPreviewCurrent(input.previewDigest, previewDigest(plan));
       assertConfirmed(plan, input.distinctProducts);
-      const sourcePath = await archiveOriginal(this.archiveRoot, w.fileHash, bytes);
+      const sourcePath = await archiveOriginal(this.manager.archiveDirectory, w.fileHash, bytes);
       const liveActor = this.actor(recheck ? recheck() : actor);
       if (liveActor.id !== actor.id) throw new AppError('登录身份已变化，请重新确认。', 403);
       this.store.db.exec('BEGIN IMMEDIATE');

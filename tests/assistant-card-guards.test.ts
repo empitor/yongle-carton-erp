@@ -10,17 +10,16 @@ import { withCard } from '../server/assistant/tools/card-summary.js';
 import { readTarget } from '../server/assistant/tools/card-targets.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { planCardSchema } from '../shared/assistant/index.js';
-import { autoConfirmAssistant } from './assistant-fixture.js';
+import { autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { superActor } from './actor-fixture.js';
 
 /** 工具上下文：和外壳给的一样，执行函数换成测试给的 */
 function context(f: ReturnType<typeof autoConfirmAssistant>, commit: () => unknown): ToolContext {
   const tools = f.manager.tools;
   return {
-    store: f.store,
+    ...ctxOf(f.store),
     ops: tools.ops,
     flow: tools.flow,
-    services: {},
     tools: { read: () => undefined, prepare: (tool, raw, who, binding) => tools.prepare(tool, raw, who, binding), commit },
   };
 }

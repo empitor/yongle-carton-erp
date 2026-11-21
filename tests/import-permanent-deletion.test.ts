@@ -10,8 +10,9 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { count, one, parseStoredJson, rows } from '../server/core/index.js';
 import { storedReceipt } from '../server/import/import-receipt.js';
-import { ImportManager } from '../server/import/manager.js';
+import { testImports } from './order-import-fixture.js';
 import { findImport } from '../server/import/import-records.js';
+import { ImportExecutionService } from '../server/import/import-execution.js';
 import { ImportRepository } from '../server/import/repository.js';
 import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { docxFixture, workspaceRecord } from './import-fixtures.js';
@@ -38,16 +39,16 @@ async function fixture() {
       };
     },
   });
-  const manager = new ImportManager({
+  const manager = testImports({
     directory: join(dir, 'imports'),
+    archiveDirectory: join(dir, 'archive'),
     settings,
-    findImport: (id, hash) => findImport(store, id, hash),
+    store,
   });
   const h = await startHttp(store, {
     aiSettings: settings,
     imports: manager,
-    enableReviewedImports: true,
-    importArchiveDirectory: join(dir, 'archive'),
+    execution: new ImportExecutionService(store, manager),
   });
   await h.enterSuperMode();
   const request = (path: string, body: unknown) =>

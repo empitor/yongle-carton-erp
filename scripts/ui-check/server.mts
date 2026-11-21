@@ -43,7 +43,10 @@ const slowRecognition = (next: (request: Request) => Promise<Response>) => async
   });
   return new Response(body, { status: response.status, headers: response.headers });
 };
-const f = createOrderWorkflowFixture(undefined, real ? { settings: real.settings } : { wrap: slowRecognition });
+// 到货识别：模型替身固定回一张虚构送货单（supplierReply 在下面造好种子数据以后才定，识别时才读；真实模型模式用真实设置）
+const { makeSettings } = await import('../../tests/assistant-fixture.ts');
+const receiptSettings = real ? real.settings : makeSettings(() => supplierReply);
+const f = createOrderWorkflowFixture(undefined, { ...(real ? { settings: real.settings } : { wrap: slowRecognition }), receiptSettings });
 const authPath = join(f.dir, 'users.sqlite');
 const auth = new AuthManager(authPath, Date.now, { localAdministration: !remote });
 const db = new DatabaseSync(authPath);
@@ -133,26 +136,20 @@ inbox.ingest({ channel: 'wecom_bot', externalId: 'v4', senderName: '张会计', 
 inbox.ingest({ channel: 'manual', externalId: 'v5', kind: 'text', text: '客户电话：月底对账单已发，请核对。', receivedAt: nowIso(600) });
 // 三家机器人连本机假服务端（tests/bot-fakes.ts），不会连到真的企业微信、飞书、钉钉；
 // 填 tests/bot-fakes-http.ts 里的虚构凭据能看到“已连接”，填别的看“连接被拒绝”。Secret 只在这个临时目录里，不加密
-const { BotManager, BotSettings } = await import('../../server/inbox/index.ts');
+const { inboxBots, BotSettings } = await import('../../server/inbox/index.ts');
 const { startFakeBots } = await import('../../tests/bot-fakes.ts');
 const fakeBots = await startFakeBots();
 const botSettings = new BotSettings(join(f.dir, 'bots.sqlite'), { protect: (v) => v, unprotect: (v) => v });
-const bots = new BotManager(botSettings, {
-  ingest: (incoming) => inbox.ingest(incoming),
-  exists: (channel, id) => inbox.has(channel, id),
+const bots = inboxBots(f.store, botSettings, {
   fetchImpl: fakeBots.fetchImpl,
   checkHost: fakeBots.checkHost,
   WebSocketImpl: fakeBots.WebSocketImpl,
 });
-// 到货识别：模型替身固定回一张虚构送货单（真实模型模式用真实设置）
-const { ReceiptAi, defaultPromptPreset } = await import('../../server/import/index.ts');
-const { PromptPresetManager } = await import('../../server/ai/index.ts');
-const { makeSettings } = await import('../../tests/assistant-fixture.ts');
 const supplierReply = {
   supplierName: suppliers[0].name, reference: 'GYS-SD-虚构', purchaseNumber: null, date: today(), notes: null, warnings: [],
   lines: [{ name: raws[0][0], specification: null, material: raws[0][3], flute: raws[0][4], length: String(raws[0][1]), width: String(raws[0][2]), dimensionUnit: 'mm', quantity: '500', unit: '张', area: null, unitPrice: null, priceBasis: null, notes: null }],
 };
-const receiptAi = new ReceiptAi(f.store, real ? real.settings : makeSettings(() => supplierReply), new PromptPresetManager(':memory:', defaultPromptPreset));
+const { receiptAi } = f.deps;
 // 识别好的文件（模型替身给结果，不调真实模型）：AI 导入页、助手导入卡片、“助手改的”标记要看。
 // 订单那份是“聊天验收客户”的：第 1 行“聊天纸箱甲 300×200×150”这位客户以前订过（一张早就取消的老订单），第 2 行要新建产品。
 if (!real) {
@@ -192,13 +189,19 @@ if (!real) {
   };
 }
 const backupRoot = mkdtempSync(join(tmpdir(), 'erp-ui-check-backups-'));
-f.manager.tools.connect({ ai: f.settings, accounts: auth, deployment: null, registry: f.manager.registry, bots, problems, runLog, source: programSource(), accountsDb: auth.db });
-// 备份和正式装配一样从 connectExtras 接，目录是这个实例自己的临时目录
-f.manager.connectExtras({ backup: { dataDir: f.dir, backupRoot } });
-const app = createApp(f.store, { auth, assistant: f.manager, imports: f.imports, aiSettings: f.settings, receiptAi, problems, enableReviewedImports: true, importArchiveDirectory: join(f.dir, 'archive'), bots });
+// 页面用的助手和正式装配（server/index.ts）一样一次给全；提示词表同一张也挂设置页，备份目录是这个实例自己的临时目录
+const { AssistantManager } = await import('../../server/assistant/index.ts');
+const { readLoginRecords } = await import('../../server/system/index.ts');
+const promptModules = f.deps.prompts;
+const assistant = new AssistantManager({
+  store: f.store, ai: f.settings, prompts: promptModules, imports: f.imports, execution: f.execution, receiptAi,
+  accounts: auth, loginRecords: (who, filter) => readLoginRecords(auth.db, who, filter), bots, deployment: null, problems, runLog,
+  source: programSource(), backup: { dataDir: f.dir, backupRoot }, toolSettingsFile: ':memory:',
+});
+const app = createApp(f.store, { auth, assistant, imports: f.imports, execution: f.execution, aiSettings: f.settings, receiptAi, problems, promptModules, bots });
 // 只有这个隔离实例有：界面实测往模型替身里排好下一次的回复（比如让助手提出删除方案），再在页面上点确认卡片
 const { createServer } = await import('node:http');
-const smoke = real ? (await import('./real-model.mts')).realSmokeHandler(real, (req) => auth.actor(req), f.manager.agent) : null;
+const smoke = real ? (await import('./real-model.mts')).realSmokeHandler(real, (req) => auth.actor(req), assistant.agent) : null;
 const server = createServer((req, res) => {
   if (smoke?.(req, res)) return;
   if (!real && req.method === 'POST' && req.url === '/__ui-check/replies') {

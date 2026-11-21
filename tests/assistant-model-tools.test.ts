@@ -6,7 +6,7 @@ import { buildModelTools, modelToolName, trimSchema } from '../server/assistant/
 import { readAs } from './read-result.js';
 
 test('发给模型的工具：目录里每个工具都能换成合法且不重名的名字，反查回原名；不另加别的工具', () => {
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     const tools = registry.view().tools;
     const { tools: sent, registryName } = buildModelTools(tools);

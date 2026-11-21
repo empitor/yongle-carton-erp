@@ -48,7 +48,7 @@ test('工具定义只写一处：目录和定义一一对应、每个都带参�
   assert.equal(deleteChat.safeParse({ threadIds: ['不是UUID'] }).success, false);
   assert.deepEqual(named(orderImportTools, 'order_import.start').schema.parse({}), { recognitionType: 'order' });
   assert.equal(named(orderImportTools, 'order_import.get').schema.safeParse({ taskId: randomUUID(), extra: 1 }).success, false);
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     assert.deepEqual(registry.view().tools.map((t) => t.name), toolCatalog.map((t) => t.name));
     const schema = named(registry.view().tools, 'records.propose_save').parameters;
@@ -63,7 +63,7 @@ test('工具定义只写一处：目录和定义一一对应、每个都带参�
 test('启停：只有超级管理员能改、版本过期拒绝；停用的模型看不到、分派也拒绝；重开还在；参数不对和没注册的不执行', async () => {
   const dir = tempDir('erp-tool-registry-'),
     path = join(dir, 'tools.sqlite');
-  let r = new AssistantToolRegistry(path, () => true);
+  let r = new AssistantToolRegistry(path);
   const { handlers, count } = counting();
   try {
     assert.throws(() => r.set({ name: 'ui.open', enabled: false, expectedRevision: 0 }, actor), /超级管理员/);
@@ -74,7 +74,7 @@ test('启停：只有超级管理员能改、版本过期拒绝；停用的模�
     await assert.rejects(() => r.dispatch('shell.execute', {}, actor, handlers), /未注册/);
     assert.equal(count(), 0);
     r.close();
-    r = new AssistantToolRegistry(path, () => true);
+    r = new AssistantToolRegistry(path);
     assert.equal(named(r.view().tools, 'ui.open').enabled, false);
     assert(!r.exposed().some((t) => t.name === 'ui.open'));
     r.set({ name: 'ui.open', enabled: true, expectedRevision: 1 }, superActor());
@@ -119,7 +119,7 @@ test('写入类一律要编辑权限（清单和分派一致）；本机专用�
 });
 
 test('只给超级管理员的工具：业务人员调每一个都 403，清单里也是不可用；超级管理员账号（不用进模式）照常可用', async () => {
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     const sample: Record<string, unknown> = {
       'source.search': { text: '虚构' },
@@ -181,7 +181,7 @@ test('0.8.4 的助手工具设置库（没记版本）打开时删掉重建，�
         db.close();
       }
     };
-    let r = new AssistantToolRegistry(path, () => true);
+    let r = new AssistantToolRegistry(path);
     let revision: number;
     try {
       assert.deepEqual(settingsRows(), { version: 2, rows: [] }, '按当前结构重建，旧的启停记录不留');
@@ -192,7 +192,7 @@ test('0.8.4 的助手工具设置库（没记版本）打开时删掉重建，�
     } finally {
       r.close();
     }
-    r = new AssistantToolRegistry(path, () => true);
+    r = new AssistantToolRegistry(path);
     try {
       assert.equal(r.view().revision, revision + 1, '当前版本原样打开，刚改的还在');
     } finally {
@@ -202,7 +202,7 @@ test('0.8.4 的助手工具设置库（没记版本）打开时删掉重建，�
     newer.exec('PRAGMA user_version=3');
     newer.close();
     const bytes = readFileSync(path);
-    assert.throws(() => new AssistantToolRegistry(path, () => true), /助手工具设置库比当前程序新，不能打开：它是第 3 版/);
+    assert.throws(() => new AssistantToolRegistry(path), /助手工具设置库比当前程序新，不能打开：它是第 3 版/);
     assert.deepEqual(readFileSync(path), bytes);
   } finally {
     removeDir(dir);

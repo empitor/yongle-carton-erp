@@ -6,14 +6,14 @@ import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
 import { OperationsService } from '../server/operations/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { actor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 
 function setup() {
   const store = new Store(':memory:');
-  const tools = new AssistantTools(store),
+  const tools = toolsOf(store),
     summarize = (args: object) => tools.read('records.summarize', args, actor);
   const product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
   const order = (customerId: number, status: string, quantities: number[], unitPriceCents = 100) =>

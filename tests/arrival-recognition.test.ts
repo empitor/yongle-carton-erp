@@ -3,7 +3,6 @@ import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareArrivalRecognition } from '../server/import/arrival-recognition.js';
-import { ImportManager } from '../server/import/manager.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { Store } from '../server/core/index.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
@@ -12,7 +11,7 @@ import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { recognizedArrivalDraft, arrivalDraftIssues, matchArrivalBatch, batchKeysFor } from '../shared/business/arrival-draft.js';
 import { fakeAiSettings } from './fake-deepseek.js';
 import { workspaceRecord } from './import-fixtures.js';
-import { tempDir } from './order-import-fixture.js';
+import { tempDir, testImports } from './order-import-fixture.js';
 
 const admin = localAdministratorActor(pageActor({
   id: 'fixture-owner',
@@ -28,7 +27,7 @@ test('到货识别没填 DeepSeek 密钥就停下，不读原件、不外发', a
   const { settings } = fakeAiSettings({ saveKey: false });
   const store = new Store(':memory:');
   const prompts = new PromptPresetManager(':memory:', supplierDefaultPreset);
-  const manager = new ImportManager({ directory: temp.dir, settings });
+  const manager = testImports({ directory: temp.dir, settings });
   const receiptAi = new ReceiptAi(store, settings, prompts);
   try {
     manager.get = () => workspaceRecord({ id: 'w', mode: 'arrival', revision: 1, fileHash: '虚构' });

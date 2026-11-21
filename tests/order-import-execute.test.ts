@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { Store } from '../server/core/db.js';
 import { AuthManager } from '../server/core/auth.js';
-import { ImportManager } from '../server/import/manager.js';
-import { findImport } from '../server/import/import-records.js';
+import { testImports } from './order-import-fixture.js';
+import { ImportExecutionService } from '../server/import/import-execution.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { startHttp } from './http-fixture.js';
 import { imageFixture } from './import-fixtures.js';
@@ -72,23 +72,17 @@ async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-formal-')),
     store = new Store(join(dir, 'business.sqlite')),
     { settings } = fakeAiSettings({ chat: () => filled() });
-  const manager = new ImportManager({
+  const manager = testImports({
       directory: join(dir, 'imports'),
+      archiveDirectory: join(dir, 'source-archive'),
       settings,
-      findImport: (id, hash) => findImport(store, id, hash),
-      validateMapping: (m) => {
-        if (m.customer.mode === 'existing' && store.customer(m.customer.id)?.version !== m.customer.version)
-          throw new Error('客户选择失效');
-        for (const p of Object.values(m.products))
-          if (p.mode === 'existing' && store.product(p.id)?.version !== p.version) throw new Error('产品选择失效');
-      },
+      store,
     }),
     h = await startHttp(store, {
       aiSettings: settings,
       imports: manager,
+      execution: new ImportExecutionService(store, manager),
       auth: new AuthManager(join(dir, 'users.sqlite')),
-      enableReviewedImports: true,
-      importArchiveDirectory: join(dir, 'source-archive'),
       admin: { name: '测试管理员', password: 'Test-password-at-least-12' },
     });
   const request = (path: string, body?: unknown, anonymous = false) =>
@@ -158,7 +152,7 @@ test('正式导入要登录和绑定的预览、要确认；字段、精度、�
     assert.equal(removed.results[0].success, true);
     assert.equal(f.store.orders().length, 1);
     assert.ok(existsSync(stored.sourcePath));
-    const reopened = new ImportManager({ directory: join(f.dir, 'imports'), settings: f.settings });
+    const reopened = testImports({ directory: join(f.dir, 'imports'), settings: f.settings, store: f.store });
     assert.equal(reopened.status().workspaces.length, 0);
     reopened.close();
     // 已导入过的原件再次上传另建任务，历史订单只作提示；采购单号重复的预览拦下

@@ -8,6 +8,7 @@ import { WorkspaceStore, type WorkspaceOptions } from './workspace-store.js';
 import * as files from './workspace-files.js';
 import { applyDraftOperations, applyMapping, undoDraftEdit } from './order-draft-edits.js';
 import { OrderRecognition } from './order-recognition.js';
+import { validateMapping } from './business-links.js';
 
 /**
  * 识别导入对外的总入口（路由、助手、收件箱、数据管理都用它）。
@@ -22,7 +23,7 @@ export class ImportManager extends WorkspaceStore {
     this.recognition = new OrderRecognition(this);
   }
   get archiveDirectory() {
-    return this.options.archiveDirectory ? resolve(this.options.archiveDirectory) : undefined;
+    return resolve(this.options.archiveDirectory);
   }
   // —— 归档和永久删除（软删除只有归档一种） ——
   /** 页面上的归档、恢复（批量，和单据、档案同一个写法） */
@@ -47,7 +48,7 @@ export class ImportManager extends WorkspaceStore {
     const v = workspaceMappingSchema.parse(raw),
       w = this.load(id);
     this.check(w, v.expectedRevision, isLocalAdministrator(who));
-    applyMapping(w, v.mapping, this.options.validateMapping);
+    applyMapping(w, v.mapping, (m) => validateMapping(this.options.store, m));
     this.save(w, v.expectedRevision, 'mapping');
     return this.view(w);
   }

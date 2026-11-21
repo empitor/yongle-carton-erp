@@ -7,7 +7,6 @@ import { FlowService } from '../flow/index.js';
 import { AppError } from '../core/index.js';
 import { readFinanceTool } from '../finance/index.js';
 import { financeForModel } from '../../shared/finance/index.js';
-import type { ImportManager } from '../import/index.js';
 import { financeOnlyAccount, financeOnlyToolAllowed } from '../../shared/core/index.js';
 import { localOnlyMessage, localOnlyPlan, type ToolPlan } from './plan-rules.js';
 import { planStamp } from './card-stamp.js';
@@ -68,22 +67,16 @@ const toolWriters: Record<string, ToolWriter> = {
 export class AssistantTools {
   readonly ops: OperationsService;
   readonly flow: FlowService;
-  private imports?: ImportManager;
-  private readonly services: ToolServices = {};
-  constructor(readonly store: Store) {
+  /** 各业务域读写函数拿到的东西（tools/context.ts 的 ToolContext） */
+  private readonly ctx: ToolContext;
+  /** services：排查问题、看设置要读的服务和识别导入，建助手时一次给全（tools/context.ts 的 ToolServices） */
+  constructor(
+    readonly store: Store,
+    services: ToolServices,
+  ) {
     this.ops = new OperationsService(store);
     this.flow = new FlowService(store);
-  }
-  attachImports(imports: ImportManager) {
-    this.imports = imports;
-  }
-  /** 装配时接上排查问题要读的服务（AI 设置、账号、机器人设置、部署方式、工具注册表），见 tools/context.ts 的 ToolServices。 */
-  connect(services: ToolServices) {
-    Object.assign(this.services, services);
-  }
-  /** 各业务域读写函数拿到的东西（tools/modules.ts 的 ToolContext）。imports 可能后来才接上，所以每次现取。 */
-  private get ctx(): ToolContext {
-    return { store: this.store, ops: this.ops, flow: this.flow, imports: this.imports, services: this.services, tools: this };
+    this.ctx = { store, ops: this.ops, flow: this.flow, imports: services.imports, services, tools: this };
   }
   /** 流程类卡片写“动的是哪条、每行多少、库存怎么变”，和业务类卡片同一份写法（tools/card-summary.ts 的 recordCard） */
   recordCard(module: string, id: number, actor: Actor, rehearsal?: () => unknown) {

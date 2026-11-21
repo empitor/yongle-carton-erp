@@ -3,12 +3,11 @@ import { many, one, rows, type Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import type { ImportMapping } from '../../shared/import/index.js';
 import { jsonTruthy } from './repository.js';
-import { findImport } from './import-records.js';
 
 /**
- * 识别工作区（独立的工作区库）要问业务库的几件事，都在这里接：
- * 这份文件导入过哪张订单、选的客户和产品还在不在、关联的到货单在不在和锁没锁、到货原件识别到哪一步。
- * 只读，按编号批量查；装配时一次接好（工作区选项用 workspaceHooks，到货用 arrivalLinks）。
+ * 识别工作区（独立的工作区库）要问业务库的几件事，都在这里：
+ * 选的客户和产品还在不在、关联的到货单在不在和锁没锁、到货原件识别到哪一步（导入过哪张订单在 import-records.ts）。
+ * 只读，按编号批量查；识别导入管理器建的时候用业务库自己接好（workspace-store.ts）。
  */
 export type ArrivalLinks = {
   /** 还在的到货单编号 */
@@ -16,26 +15,21 @@ export type ArrivalLinks = {
   /** 到货单已确认或取消：不能再换识别类型 */
   locked(id: number): boolean;
   /** 停掉这份到货原件正在进行的识别 */
-  abort?(sourceId: string): void;
+  abort(sourceId: string): void;
 };
 
-/** 工作区选项里问业务库的两件：导入记录、保存客户和产品选择前核对档案和版本 */
-export function workspaceHooks(store: Store) {
-  return {
-    findImport: (id: string, hash?: string) => findImport(store, id, hash),
-    validateMapping(m: ImportMapping) {
-      if (m.customer.mode === 'existing') {
-        const c = store.customer(m.customer.id);
-        if (!c || c.version !== m.customer.version) throw new AppError('客户不存在或版本已变化，请重新选择', 409);
-      }
-      for (const p of Object.values(m.products))
-        if (p.mode === 'existing') {
-          const product = store.product(p.id);
-          if (!product || product.version !== p.version)
-            throw new AppError('产品不存在或版本已变化，请重新选择', 409);
-        }
-    },
-  };
+/** 保存客户和产品选择前核对档案在不在、版本对不对 */
+export function validateMapping(store: Store, m: ImportMapping) {
+  if (m.customer.mode === 'existing') {
+    const c = store.customer(m.customer.id);
+    if (!c || c.version !== m.customer.version) throw new AppError('客户不存在或版本已变化，请重新选择', 409);
+  }
+  for (const p of Object.values(m.products))
+    if (p.mode === 'existing') {
+      const product = store.product(p.id);
+      if (!product || product.version !== p.version)
+        throw new AppError('产品不存在或版本已变化，请重新选择', 409);
+    }
 }
 
 const documentRow = rows.flow_documents.pick({ id: true, number: true, status: true });
@@ -71,14 +65,14 @@ export function arrivalSources(store: Store, ids: unknown[]) {
   );
 }
 
-export function arrivalLinks(store: Store, abort?: (sourceId: string) => void): ArrivalLinks {
+export function arrivalLinks(store: Store, abort: (sourceId: string) => void): ArrivalLinks {
   return {
     exists: (ids) => new Set(arrivalDocuments(store, ids).keys()),
     locked(id) {
       const row = one(store.db, documentRow.pick({ status: true }), "SELECT status FROM flow_documents WHERE id=? AND kind='arrival'", id);
       return !!row && row.status !== 'draft';
     },
-    ...(abort ? { abort } : {}),
+    abort,
   };
 }
 

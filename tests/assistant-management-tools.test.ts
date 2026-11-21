@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { localAdministratorActor, isLocalAdministrator } from '../server/core/local-administrator.js';
 import { OperationsRepository } from '../server/operations/repository.js';
-import { assistantFixture, autoConfirmAssistant } from './assistant-fixture.js';
+import { assistantFixture, autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 import { fixture } from './maintenance-fixture.js';
@@ -14,9 +14,6 @@ import { field } from '../server/assistant/chat/result-fields.js';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { readAs } from './read-result.js';
 
@@ -203,7 +200,7 @@ test('助手读记录上下文（management.context）只给本机最高管理�
   assert.equal(isLocalAdministrator(who), false);
   const store = new Store(':memory:');
   try {
-    const ctx: ToolContext = { store, ops: new OperationsService(store), flow: new FlowService(store), services: {}, tools: new AssistantTools(store) };
+    const ctx: ToolContext = ctxOf(store);
     for (const someone of [who, null])
       assert.throws(
         () => context(ctx, { module: 'customers', id: 1 }, someone, 'management.context'),

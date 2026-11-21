@@ -2,7 +2,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import { pageProblemRouter, proxyIngress, requirePermission, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
 import { userManualRouter } from './system/index.js';
 import { operationsRouter } from './operations/index.js';
-import { MarkService, recordsRouter, workbenchRouter } from './business/index.js';
+import { recordsRouter, workbenchRouter } from './business/index.js';
 import { installRequestGuards } from './http-guards.js';
 import { apiErrorHandler } from './http-errors.js';
 import { resolve } from 'node:path';
@@ -14,8 +14,8 @@ import type { ImportManager } from './import/index.js';
 import { AuthManager } from './core/index.js';
 import { promptModuleListRouter, promptSettingsRouter } from './ai/index.js';
 import type { PromptPresetManager } from './ai/index.js';
-import { promptModules } from '../shared/ai/index.js';
-import { ImportExecutionService } from './import/index.js';
+import { promptModules, type PromptModuleId } from '../shared/ai/index.js';
+import type { ImportExecutionService } from './import/index.js';
 import { marksRouter } from './business/index.js';
 import { inboxRouter, type BotManager } from './inbox/index.js';
 import { receivingRouter } from './flow/index.js';
@@ -31,22 +31,18 @@ import { deletionRouter } from './business/index.js';
 import { APP_VERSION } from '../shared/core/index.js';
 import { SERVICE_APP_NAME } from './local-service.js';
 
-/** 原件归档目录必须由调用方给：不回退到程序目录下的固定位置，免得测试或漏配的实例写进真实数据目录。 */
-const noArchiveDirectory = (): never => {
-  throw new Error('没有给原件归档目录：建识别导入管理器时传 archiveDirectory，或建应用时传 importArchiveDirectory。');
-};
-
 type AppOptions = {
   aiSettings?: AiSettingsManager;
   imports?: ImportManager;
+  /** 识别结果确认后写进业务库（正式导入的预览、执行）：给了才挂这两条地址，助手用的是同一个 */
+  execution?: ImportExecutionService;
   auth?: AuthManager;
   deployment?: Deployment;
-  enableReviewedImports?: boolean;
-  importArchiveDirectory?: string;
   receiptAi?: ReceiptAi;
   bots?: BotManager;
   assistant?: AssistantManager;
-  promptModules?: Partial<Record<string, PromptPresetManager>>;
+  /** 三个提示词模块各自的管理器：挂提示词设置页的地址，和交给助手、识别导入的是同一张表 */
+  promptModules?: Record<PromptModuleId, PromptPresetManager>;
   /** 出错记录库：请求失败由请求守卫记，页面报错走 /api/diagnostics */
   problems?: ProblemLog;
 };
@@ -69,23 +65,11 @@ function healthRoute(app: Express, deployment: Deployment | undefined) {
   );
 }
 
-/** 提示词模块对应的管理器：建应用时给的优先，没给就用识别导入、送货单识别、助手各自带的那份 */
-function promptManagerFor(id: string, options: AppOptions) {
-  const given = options.promptModules?.[id];
-  if (given) return given;
-  if (id === 'sales-order') return options.imports?.promptPresets;
-  if (id === 'supplier-delivery') return options.receiptAi?.prompts;
-  if (id === 'assistant') return options.assistant?.prompts;
-  return undefined;
-}
-
 /** 提示词只有这一套地址：/api/ai/prompt-modules 列模块，每个模块挂在自己的 apiPath 下。 */
-function promptRoutes(app: Express, auth: AuthManager, options: AppOptions) {
+function promptRoutes(app: Express, auth: AuthManager, managers: Record<PromptModuleId, PromptPresetManager>) {
   app.use('/api/ai/prompt-modules', promptModuleListRouter((req) => auth.actor(req)));
   for (const module of promptModules) {
-    const manager = promptManagerFor(module.id, options);
-    if (!manager) continue;
-    options.assistant?.promptEdit.managers.set(module.id, manager);
+    const manager = managers[module.id];
     app.use(
       module.apiPath,
       (req, _res, next) => {
@@ -98,22 +82,6 @@ function promptRoutes(app: Express, auth: AuthManager, options: AppOptions) {
       promptSettingsRouter(module.id, manager, auth.csrf),
     );
   }
-}
-
-/** 识别结果确认后写进业务库：开了识别导入、有账号体系、允许执行时才有，有就交给助手一起用 */
-function importExecution(store: Store, options: AppOptions) {
-  if (!options.imports || !options.auth || !options.enableReviewedImports) return undefined;
-  const execution = new ImportExecutionService(
-    store,
-    options.imports,
-    options.importArchiveDirectory || options.imports.archiveDirectory || noArchiveDirectory(),
-  );
-  options.assistant?.connectImports(options.imports, execution);
-  options.assistant?.connectExtras({
-    marks: new MarkService(store),
-    ...(options.receiptAi ? { receiptAi: options.receiptAi } : {}),
-  });
-  return execution;
 }
 
 /** 有构建好的页面（dist）就一起发：入口页不缓存，带内容摘要的资源长期缓存，别的地址都回入口页 */
@@ -162,8 +130,7 @@ export function createApp(store: Store, options: AppOptions = {}) {
   app.use('/api/flow', flowRouter(store, options.auth));
   app.use('/api/finance', financeRouter(store, options.auth));
   app.use('/api/documents', documentsRouter(store, options.auth));
-  if (options.auth) promptRoutes(app, options.auth, options);
-  const execution = importExecution(store, options);
+  if (options.auth && options.promptModules) promptRoutes(app, options.auth, options.promptModules);
   /** 识别要花钱、工作区里是客户文件，写操作都要业务编辑权限；读取放开。 */
   const writeGuard = (req: Request, _res: Response, next: NextFunction) => {
     if (options.auth && req.method !== 'GET')
@@ -182,7 +149,7 @@ export function createApp(store: Store, options: AppOptions = {}) {
     app.use(
       '/api/ai/imports',
       writeGuard,
-      importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, { store, execution }),
+      importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, { store, execution: options.execution }),
     );
   // 页面上报的报错存进出错记录库，助手和管理员排查时一起查（server/core/diagnostics/）
   if (options.problems)

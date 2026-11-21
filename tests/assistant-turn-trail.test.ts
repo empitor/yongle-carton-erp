@@ -9,7 +9,6 @@ import { noteSources, trailOf } from '../server/assistant/chat/turn-trail.js';
 import type { ChatRun } from '../server/assistant/chat/run-state.js';
 import { WEB_SEARCH } from '../server/assistant/tools/web.js';
 import { assistantFixture, scriptModel } from './assistant-fixture.js';
-import { fakeAiSettings } from './fake-deepseek.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { actor } from './actor-fixture.js';
 
@@ -27,20 +26,20 @@ test('页面看得到过程：tool 事件带叫法；先说的话发 said、存�
     },
     { message: '', toolCalls: [{ name: 'web.read', args: { url: 'https://example.com/b' } }] },
     { message: '虚构的回答：纸价持平。', toolCalls: [] },
-  ]);
-  const { settings } = fakeAiSettings({
-    search: (q) =>
-      q === '虚构瓦楞纸价格'
-        ? [
-            { title: '虚构甲', url: 'https://example.com/a', snippet: '甲', site_name: '虚构站点甲', date: '2026-11-01' },
-            { title: '坏链接', url: 'javascript:alert(1)', snippet: '坏' },
-          ]
-        : [{ title: '虚构乙', url: 'https://example.com/b', snippet: '乙', site_name: '虚构站点乙', date: null }],
-    pages: { 'https://example.com/b': { title: '虚构乙全文', content: '虚构正文' } },
+  ], {
+    web: {
+      search: (q) =>
+        q === '虚构瓦楞纸价格'
+          ? [
+              { title: '虚构甲', url: 'https://example.com/a', snippet: '甲', site_name: '虚构站点甲', date: '2026-11-01' },
+              { title: '坏链接', url: 'javascript:alert(1)', snippet: '坏' },
+            ]
+          : [{ title: '虚构乙', url: 'https://example.com/b', snippet: '乙', site_name: '虚构站点乙', date: null }],
+      pages: { 'https://example.com/b': { title: '虚构乙全文', content: '虚构正文' } },
+    },
   });
   const events: [string, unknown][] = [];
   try {
-    f.manager.tools.connect({ ai: settings });
     const thread = f.manager.create(actor);
     const view = await f.manager.chat(
       thread.id,
@@ -69,14 +68,12 @@ test('页面看得到过程：tool 事件带叫法；先说的话发 said、存�
     const sent = JSON.stringify(f.requests.at(-1)?.body.messages);
     assert.equal(sent.split('我先上网查一下最近的纸价。').length - 1, 1);
   } finally {
-    settings.close();
     f.close();
   }
 });
 
 test('先说的话存全文、不限段数（和生成时页面上看到的一样）；出错收尾也存下先说的话和来源', async () => {
   const f = assistantFixture();
-  const { settings } = fakeAiSettings();
   let n = 0;
   // 只第一段联网：搜索限速每秒 5 个，8 次都搜会白等一秒
   scriptModel(f.settings, () => {
@@ -86,7 +83,6 @@ test('先说的话存全文、不限段数（和生成时页面上看到的一�
   });
   const said: string[] = [];
   try {
-    f.manager.tools.connect({ ai: settings });
     const thread = f.manager.create(actor);
     await assert.rejects(
       f.manager.chat(thread.id, f.input('虚构的问题', randomUUID()), actor, 's', (e, d) => e === 'said' && said.push(String(field(d, 'text'))), () => actor),
@@ -100,7 +96,6 @@ test('先说的话存全文、不限段数（和生成时页面上看到的一�
     assert.equal(last.interim[0].text, '虚'.repeat(600));
     assert.deepEqual(last.sources?.map((s) => s.url), ['https://example.com/fictional']);
   } finally {
-    settings.close();
     f.close();
   }
 });

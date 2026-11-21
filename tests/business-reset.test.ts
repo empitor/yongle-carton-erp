@@ -18,10 +18,9 @@ import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { financePermissions } from '../shared/core/accounts.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
 import { businessBase } from './business-base-fixture.js';
-import { assistantFixture } from './assistant-fixture.js';
+import { assistantDeps, assistantFixture, makeSettings, toolsOf } from './assistant-fixture.js';
 import { InboxService } from '../server/inbox/service.js';
 import { BotSettings } from '../server/inbox/bots/settings.js';
 import { imageFixture } from './import-fixtures.js';
@@ -29,6 +28,12 @@ import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { readAs } from './read-result.js';
+
+/** 助手的系统维护工具（清空预览只用业务库和识别导入，别的依赖是虚构的） */
+function extraTools(store: Store) {
+  const { deps } = assistantDeps(store, makeSettings());
+  return new AssistantExtraTools({ ...deps, attachments: new AssistantAttachments(store) });
+}
 
 const who = () =>
   localAdministratorActor(pageActor({
@@ -169,7 +174,7 @@ test('助手清空业务数据时，财务已有记录就拒绝，不留孤儿�
       requestId: 'bank',
     });
     businessBase(actor, store).customer({ name: '虚构客户' });
-    const tools = new AssistantTools(store);
+    const tools = toolsOf(store);
     assert.throws(
       () => tools.prepare('management.reset', { scope: 'business' }, actor, 'binding'),
       /财务/,
@@ -177,7 +182,7 @@ test('助手清空业务数据时，财务已有记录就拒绝，不留孤儿�
     assert.ok(count(store.db, 'SELECT count(*) FROM customers'));
     // 预览时就说清楚，不等到执行才拒绝
     const preview = readAs(
-      new AssistantExtraTools(store, new AssistantAttachments(store)).read('management.reset_preview', { scope: 'business' }, actor),
+      extraTools(store).read('management.reset_preview', { scope: 'business' }, actor),
       { financeRows: z.number(), blocked: z.string() },
     );
     assert.ok(preview.financeRows > 0);

@@ -17,6 +17,8 @@ import type { BotSettings } from './settings.js';
 import { wecomProtocol } from './wecom.js';
 import { feishuProtocol } from './feishu.js';
 import { dingtalkProtocol } from './dingtalk.js';
+import type { Store } from '../../core/index.js';
+import { InboxService } from '../service.js';
 
 /** 测试和预览把请求、WebSocket 换成本机假服务端；生产都不传。 */
 export type BotManagerOptions = {
@@ -72,6 +74,19 @@ export class BotManager {
       status: this.connection(channel).status(),
     }));
   }
+}
+
+/**
+ * 建好接上收件箱的机器人总管：收到的消息存进收件箱，同一条消息（同一家、同一个编号）不重复收。
+ * 装配和预览实例都用它；fakes 只给测试和预览把请求、WebSocket 换成本机假服务端，生产不传。
+ */
+export function inboxBots(store: Store, settings: BotSettings, fakes: Omit<BotManagerOptions, 'ingest' | 'exists'> = {}) {
+  const inbox = new InboxService(store);
+  return new BotManager(settings, {
+    ...fakes,
+    ingest: (incoming) => inbox.ingest(incoming),
+    exists: (channel, externalId) => inbox.has(channel, externalId),
+  });
 }
 
 /** 收件箱的来源：手动添加和三家机器人（填好凭据、启用了才算配好）。没接上总管时机器人都算没配。 */

@@ -13,7 +13,8 @@ import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
-import { ImportManager } from '../server/import/manager.js';
+import { testImports } from './order-import-fixture.js';
+import { promptTable } from './assistant-fixture.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
@@ -260,8 +261,8 @@ async function served() {
   let broken = false;
   const f = fixture(() => (broken ? replyFinish('length', JSON.stringify(analysis()).slice(0, 20)) : analysis())),
     dir = mkdtempSync(join(tmpdir(), 'erp-receipt-http-')),
-    imports = new ImportManager({ directory: join(dir, 'imports'), settings: f.settings }),
-    h = await startHttp(f.store, { aiSettings: f.settings, receiptAi: f.ai, imports });
+    imports = testImports({ directory: join(dir, 'imports'), archiveDirectory: join(dir, 'archive'), settings: f.settings, store: f.store, receiptAi: f.ai }),
+    h = await startHttp(f.store, { aiSettings: f.settings, receiptAi: f.ai, imports, promptModules: promptTable({ 'sales-order': imports.promptPresets, 'supplier-delivery': f.ai.prompts }) });
   const headers = (login = true) => ({
     'Content-Type': 'application/json',
     'X-ERP-Auth-Token': h.auth.csrf,
@@ -316,7 +317,7 @@ test('送货单走 AI 导入的到货类型：上传、识别、读识别记录�
     const streamed = streamedSource(await f.recognize(w.id));
     assert(streamed.result);
     assert.deepEqual([f.imports.get(w.id).arrivalSourceId, f.imports.get(w.id).draft], [streamed.id, null]);
-    const restarted = new ImportManager({ directory: join(f.dir, 'imports'), settings: f.settings, promptPresets: new PromptPresetManager(':memory:', defaultPromptPreset) });
+    const restarted = testImports({ directory: join(f.dir, 'imports'), settings: f.settings, store: f.store, receiptAi: f.ai, promptPresets: new PromptPresetManager(':memory:', defaultPromptPreset) });
     assert.equal(restarted.get(w.id).arrivalSourceId, streamed.id);
     restarted.close();
     // 模型回的半截：回传错误，不留识别结果
@@ -356,7 +357,7 @@ test('识别结果关联到货单：要登录、换别的原件被拒；核对�
     assert.deepEqual([items.length, items[0].kind, items[0].quantity, ops.repo.movements().length, f.store.orders().length], [1, 'raw', '100', 1, 0]);
     const other = f.ai.upload(docxFixture(), '其他.docx', actor);
     assert.equal((await link(other.id)).status, 409);
-    const importer = new ImportExecutionService(f.store, f.imports, join(f.dir, 'archive'));
+    const importer = new ImportExecutionService(f.store, f.imports);
     await assert.rejects(
       () => importer.preview(w.id, { expectedRevision: f.imports.get(w.id).revision }, { ...actor, permissions: ['business:edit', 'import:execute'] }),
       /到货单/,

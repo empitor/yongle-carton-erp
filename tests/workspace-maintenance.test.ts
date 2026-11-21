@@ -10,7 +10,6 @@ import { DatabaseMaintenanceService } from '../server/business/database-maintena
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { arrivalLinks } from '../server/import/business-links.js';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
@@ -75,7 +74,6 @@ test('物理删除到货后工作区解除跨库引用，保留独立识别草�
       expectedRevision: f.manager.get(f.workspace.id).revision,
       docId: arrival.id,
     });
-    f.manager.connectArrivals(arrivalLinks(f.store));
     const service = new DatabaseMaintenanceService(f.store),
       selection = { module: 'arrival', items: [{ id: arrival.id, version: arrival.version }] };
     const plan = service.preview(selection, who);

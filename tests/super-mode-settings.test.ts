@@ -8,8 +8,7 @@ import { AuthManager } from '../server/core/auth.js';
 import { Store } from '../server/core/db.js';
 import { count } from '../server/core/sql.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
+import { assistantDeps } from './assistant-fixture.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import { promptModules } from '../shared/ai/index.js';
 import { testProtector } from './fake-deepseek.js';
@@ -24,11 +23,11 @@ async function setup() {
   const clock = { now: Date.now() };
   const store = new Store(':memory:'),
     settings = new AiSettingsManager({ protector: testProtector }),
-    prompts = new PromptPresetManager(':memory:', assistantDefaultPreset),
-    assistant = new AssistantManager(store, settings, prompts, {});
+    built = assistantDeps(store, settings),
+    assistant = new AssistantManager(built.deps);
   const p = await startProxied(
     store,
-    { assistant, aiSettings: settings },
+    { assistant, aiSettings: settings, promptModules: built.deps.prompts },
     { makeAuth: (deployment) => new AuthManager(':memory:', () => clock.now, { deployment, localAdministration: true }) },
   );
   const local = cookieOf(await p.call(p.localPort, '/auth/setup', { body: testAdmin }));
@@ -57,8 +56,8 @@ async function setup() {
     async close() {
       await p.close();
       assistant.registry.close();
+      built.close();
       settings.close();
-      prompts.close();
       store.close();
     },
   };
@@ -191,8 +190,8 @@ test('超级管理员模式 15 分钟后失效，再改账号又被拦', async (
 test('助手改提示词：没进模式的超级管理员出不了确认卡片，也存不了', () => {
   const store = new Store(':memory:'),
     settings = new AiSettingsManager({ protector: testProtector }),
-    prompts = new PromptPresetManager(':memory:', assistantDefaultPreset),
-    assistant = new AssistantManager(store, settings, prompts, {});
+    built = assistantDeps(store, settings),
+    assistant = new AssistantManager(built.deps);
   try {
     const admin = pageActor({ id: 'fictional-admin', name: '虚构管理员', role: 'super_admin' as const, permissions: [] });
     const superMode = (e: unknown) => typeof e === 'object' && e !== null && 'code' in e && e.code === 'super-mode';
@@ -201,8 +200,8 @@ test('助手改提示词：没进模式的超级管理员出不了确认卡片�
     assert.throws(() => assistant.promptEdit.save({}, admin), superMode);
   } finally {
     assistant.registry.close();
+    built.close();
     settings.close();
-    prompts.close();
     store.close();
   }
 });

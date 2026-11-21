@@ -5,10 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { OperationsService } from '../server/operations/service.js';
 import { OrderBatchService } from '../server/operations/batches.js';
 import { BusinessDocuments } from '../server/documents/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { quantityUnits } from '../shared/core/quantity.js';
-import { autoConfirmAssistant } from './assistant-fixture.js';
+import { autoConfirmAssistant, toolsOf } from './assistant-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
@@ -50,7 +49,7 @@ test('助手合并导出订货单：先看合并后的行，再按行号写到�
   const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     const draft = readAs(tools.read('order_batch.draft', { purchaseIds: [f.a.id, f.b.id] }, actor), { rows: z.array(z.looseObject({})) });
     assert.equal(draft.rows.length, 1);
     assert.equal(draft.rows[0].row, 1);
@@ -120,7 +119,7 @@ test('助手按订货单登记到货：和人工同一个服务入库，分到�
   const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     for (const p of [f.a, f.b]) {
       const current = f.ops.repo.purchases(true, p.id)[0];
       f.ops.savePurchase({ ...current, status: '已订货', version: current.version }, actor, p.id);
@@ -210,7 +209,7 @@ test('以前订的采购单按 purchaseId 登记到货：生成方案（生成�
     const audits = () =>
       count(fx.store.db, "SELECT COUNT(*) n FROM business_audit WHERE entity='order_batches'");
     const auditsBefore = audits();
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     const args = { purchaseId: f.a.id, date: '2026-11-10', rows: [{ row: 1, quantity: '100', rejectedQuantity: '0' }], requestId: randomUUID() };
     for (const _again of [1, 2]) {
       const plan = tools.prepare('order_batch.receive', args, actor, 'test');
@@ -257,7 +256,7 @@ test('order_batch.list 先按供应商、采购单筛再组装，结果和全部
     };
     order(f.a);
     order(f.b);
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     const all = readAs(tools.read('order_batch.list', {}, actor), { batches: z.array(z.looseObject({ id: z.unknown() })) }).batches;
     assert.equal(all.length, 2);
     // 不先把全部待到货组装出来：按供应商、采购单在库里圈好，只组装圈出来的那几份

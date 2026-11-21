@@ -55,7 +55,7 @@ class FixedAuth extends AuthManager {
 function tempRegistry() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-memory-'));
   const path = join(dir, 'tools.sqlite');
-  let registry = new AssistantToolRegistry(path, () => true);
+  let registry = new AssistantToolRegistry(path);
   return {
     path,
     get registry() {
@@ -63,7 +63,7 @@ function tempRegistry() {
     },
     reopen() {
       registry.close();
-      registry = new AssistantToolRegistry(path, () => true);
+      registry = new AssistantToolRegistry(path);
     },
     close() {
       registry.close();
@@ -115,7 +115,7 @@ test('存储：按账号分开，别的账号（包括超级管理员）读不�
 
 test('存储：每个账号最多 100 条，满了拒绝并提示到面板整理，不挤掉旧的；放进上下文的有条数和字数上限，最常用到的优先', () => {
   // 这条不用重开，内存库就行（文件库每条都落盘，慢）
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     const memory = registry.memory;
     for (let i = 1; i <= memoryLimits.count; i++) memory.add(actor.id, '虚构偏好第' + i + '条 ' + '字'.repeat(150), 'manual');

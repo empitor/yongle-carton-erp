@@ -22,8 +22,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { DatabaseSync } from 'node:sqlite';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { AssistantManager } from '../server/assistant/manager.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
+import { assistantDeps } from './assistant-fixture.js';
 import { fakeAiSettings } from './fake-deepseek.js';
 import { orderBasics } from './stack-fixture.js';
 import { fixture } from './maintenance-fixture.js';
@@ -289,8 +288,8 @@ test('本机管理员改订单删掉一行、只挂这一行的送货单整张�
 test('助手删对话前拍快照，快照里还有删掉的对话；没有要删的对话时不拍', () => {
   const f = tempStore('erp-snapshot-chat-');
   const settings = fakeAiSettings({}).settings,
-    prompts = new PromptPresetManager(':memory:', assistantDefaultPreset),
-    manager = new AssistantManager(f.store, settings, prompts);
+    built = assistantDeps(f.store, settings),
+    manager = new AssistantManager(built.deps);
   const who: Actor = pageActor({ id: 'fictional-chat-user', name: '虚构用户', permissions: ['business:edit'], role: 'admin' });
   try {
     const current = manager.create(who),
@@ -304,8 +303,8 @@ test('助手删对话前拍快照，快照里还有删掉的对话；没有要�
     assert.equal(f.store.db.prepare('SELECT 1 FROM assistant_threads WHERE id=?').get(old.id), undefined);
   } finally {
     manager.registry.close();
+    built.close();
     settings.close();
-    prompts.close();
     f.close();
   }
 });
