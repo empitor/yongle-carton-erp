@@ -5,8 +5,9 @@
  * （AGENTS.md“财务不卡业务……卡点越少越好”）；结账、正式报表按 catchUpFailed 拦（reports.ts 的 readiness）；
  * 只有要按来源单据状态核对的写入在核对前调 assertSourcesCaughtUp 拦下。调它的地方就是这份名单（docs/架构说明.md 列着）：
  * 收付款核销（cash-posting.ts 的 addAllocation）、发票关联和确认（invoice-rules.ts 的 assertInvoiceableObligation）、
- * 票据冲往来（note-settlements.ts 的 planSettlement）、业务单据的财务事件处理（event-handling.ts 的补资料、批量补税率、
- * 红字冲销并重做、核对无误，event-voucher.ts 的生成凭证）。
+ * 业务单据的财务事件处理（event-handling.ts 的补资料、批量补税率、红字冲销并重做、核对无误，event-voucher.ts 的生成凭证）。
+ * 收到、开出票据时自动冲往来（note-settlements.ts 的 planSettlement）算收付款，照常不拦（用户定的“收付款全部照常，
+ * 卡点越少越好”）：它挑往来时照样排除已撤销的送货（source-scan.ts 的 sourceIs），核销后来源才撤销的另有处理。
  * 这个文件不引补扫本身，财务各处都能引，不会成环。
  */
 import type { DatabaseSync } from 'node:sqlite';

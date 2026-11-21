@@ -9,7 +9,6 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { many, rows } from '../core/index.js';
 import { financeAudit, financeError } from './core.js';
-import { assertSourcesCaughtUp } from './sync-health.js';
 import { lapsedStatuses, sourceIs } from './source-scan.js';
 import { FinanceLedger } from './ledger.js';
 import { entry, id, money, row } from './query.js';
@@ -133,8 +132,6 @@ type SettlementPlan = { side: Side; partyId: string; date: string; amount: numbe
 
 /** 这次冲哪几笔往来：指定了按指定的，没指定按到期先后冲，冲不完的留给预收、预付。 */
 export function planSettlement(db: DatabaseSync, plan: SettlementPlan) {
-  // 冲哪几笔要看送货单撤没撤销：补扫没成功时先拦下（sync-health.ts）
-  assertSourcesCaughtUp(db);
   const { side, partyId, date, amount, explicit } = plan;
   // 指定了的按指定的那几笔查，不受“先取前 500 笔”的限制
   const open = openItems(db, side, partyId, date, explicit?.map((a) => a.obligationId));

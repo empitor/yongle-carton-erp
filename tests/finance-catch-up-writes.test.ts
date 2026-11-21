@@ -1,6 +1,6 @@
-// 补扫没成功时拦哪些财务写入（server/finance/sync-health.ts）：要按来源单据状态核对的（核销、关联和确认发票、票据冲往来、
-// 业务单据财务事件的补资料、批量补税率、生成凭证、红字冲销并重做、核对无误）拦下，和来源单据无关的（登记收付款、
-// 不核销的确认收付款、登记发票、改往来条款）照常；补扫好了就放开（全部是虚构数据，只用内存库）
+// 补扫没成功时拦哪些财务写入（server/finance/sync-health.ts）：要按来源单据状态核对的（核销、关联和确认发票、
+// 业务单据财务事件的补资料、批量补税率、生成凭证、红字冲销并重做、核对无误）拦下，收付款和和来源单据无关的（登记收付款、
+// 不核销的确认收付款、收票时自动冲往来、登记发票、改往来条款）照常；补扫好了就放开（全部是虚构数据，只用内存库）
 import '../server/flow/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -48,7 +48,7 @@ const receipt = (cash: FinanceSettlements, requestId: string) =>
     cash.saveCash(maker, { requestId, kind: 'receipt', accountId: 1, partyId: 1, date: '2026-01-25', amount: 10000, method: '银行', description: '虚构收款' }).id,
   );
 
-test('补扫没成功：要按来源单据状态核对的写入拦下（核销、关联和确认发票、票据冲往来、财务事件的处理）', () => {
+test('补扫没成功：要按来源单据状态核对的写入拦下（核销、关联和确认发票、财务事件的处理）', () => {
   const f = failedCatchUp();
   try {
     const events = new FinanceEventHandling(f.s),
@@ -59,7 +59,6 @@ test('补扫没成功：要按来源单据状态核对的写入拦下（核销�
       ['核销', () => f.cash.confirm(maker, receipt(f.cash, 'cash-allocate'), { ...edit, allocations: [allocation] })],
       ['关联发票', () => f.invoices.link(maker, f.draft.id, { ...edit, version: 2, links: [{ obligationId: f.receivable.id, amount: 10000 }] })],
       ['确认发票', () => new FinanceInvoiceConfirm(f.s).confirm(maker, f.draft.id, { ...edit, version: 2 })],
-      ['票据冲往来', () => new FinanceNotes(f.s).add(maker, { requestId: 'note', kind: 'receivable', partyId: 1, number: '虚构票', bank: '虚构银行', date: '2026-01-25', dueDate: '2026-07-31', amount: 10000 })],
       ['补资料', () => events.resolve(maker, f.pending.id, {})],
       ['批量补税率', () => events.resolveBatch(maker, {})],
       ['生成凭证', () => vouchers.generate(maker, f.ready.id, edit)],
@@ -84,6 +83,17 @@ test('补扫没成功：和来源单据无关的写入照常（登记收付款�
     assert.equal(catchUp(f.s, maker, quietLog).failed, false, '补扫好了');
     const allocation = { obligationId: f.receivable.id, version: f.receivable.version, amount: 10000 };
     f.cash.confirm(maker, receipt(f.cash, 'cash-after'), { version: 1, requestId: 'confirm-after', allocations: [allocation] });
+  } finally {
+    f.s.close();
+  }
+});
+
+test('补扫没成功：收到承兑汇票时自动冲应收照常（收付款不拦）', () => {
+  const f = failedCatchUp();
+  try {
+    const note = { requestId: 'note', kind: 'receivable', partyId: 1, number: '虚构票', bank: '虚构银行', date: '2026-01-25', dueDate: '2026-07-31', amount: 10000 };
+    assert.ok(new FinanceNotes(f.s).add(maker, note), '收票照常');
+    assert.equal(obligation(f.s, 1).version > f.receivable.version, true, '自动冲了这笔应收');
   } finally {
     f.s.close();
   }
