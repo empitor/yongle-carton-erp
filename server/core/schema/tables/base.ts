@@ -6,7 +6,7 @@ import { FINISHED_UNIT } from '../../../../shared/core/index.js';
 import { isDate, isDateOrNull, isJsonObject } from './checks.js';
 
 export const baseTables = `
--- 数据库版本记录：新库只有第 20 版一行，以后每段升级加一行
+-- 数据库版本记录：新库按当前结构直接建，第 20 版到当前版本各记一行；升级上来的每段升级加一行
 CREATE TABLE schema_migrations(
   version INTEGER PRIMARY KEY CHECK(version>0),
   name TEXT NOT NULL,
