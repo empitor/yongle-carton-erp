@@ -24,7 +24,7 @@ const production = flowContentSchema('production').shape;
 /**
  * 每种来源的财务口径。库里的单据已经补过默认值，这里取业务结构时去掉默认值（unwrap）：
  * 快照不记种类，读快照时四种合在一起读（server/finance/source-snapshot.ts），补了默认值别的种类会多出不相干的项。
- * 盘点流水没有单据，是库存流水的几项拼成的（server/finance/business-source.ts 的 sourcesCte）。
+ * 盘点流水没有单据，是库存流水的几项拼成的（server/flow/finance-facts/sources.ts 的 texts）。
  */
 export const financeSourceSchemas = {
   delivery: z.object({

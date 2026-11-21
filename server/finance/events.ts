@@ -4,20 +4,21 @@
  * 一次扫一批（sync）；谁来扫、扫到完见 catch-up.ts。
  */
 import type { DatabaseSync } from 'node:sqlite';
-import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
-import { count, exists, many, one, rows } from '../core/index.js';
+import { exists, many, one, rows } from '../core/index.js';
+import type { SourceHead, SourceText } from '../flow/index.js';
 import { financeActor, financeAudit, financeTransaction } from './core.js';
 import {
   readSource,
   readSourceOrSkip,
-  sourceMissing,
-  sourceRow,
-  sourcesCte,
-  sourceUnseen,
-  type SourceRow,
-} from './business-source.js';
+  scanSources,
+  skippedSources,
+  sourceKey,
+  sourceTexts,
+  unseenCount,
+  type UnseenSource,
+} from './source-scan.js';
 import { eventChangesSince } from './event-changes.js';
 import { differenceProblem, evaluateSource, taxBasis, type Evaluation } from './event-evaluate.js';
 import { provisionalObligation, readEvent, revenuePolicy, type FinanceEvent } from './event-shared.js';
@@ -31,8 +32,6 @@ import {
 import { eventColumns, insertEvent, updateEventSnapshot } from './event-columns.js';
 import { expectRow } from './finance-rows.js';
 import { returnEstimatesPending, syncReturnEstimates } from './return-estimates.js';
-import { eventSourceKinds } from './stored-values.js';
-import { skippedKeys } from './unreadable.js';
 import { readSnapshot, type EventSnapshot, type FinanceSourceDocument } from './source-snapshot.js';
 import {
   allocationsPending,
@@ -44,14 +43,9 @@ import {
 
 /** 一次同步最多扫几条来源、几条被删的来源；扫满了告诉页面还有（remaining） */
 const BATCH_SIZE = 100;
-/** 还没扫过这一版的来源：来源一行，加上财务上次看到它时挂的事件和它的状态（第一次看到都是 null） */
-const observedSource = sourceRow.extend({ previous: z.number().nullable(), observed: z.string().nullable() });
-type ObservedSource = z.output<typeof observedSource>;
+/** 要同步的一条来源：原文（带单号），加上财务上次看到它时挂的事件和它的状态（第一次看到都是 null） */
+type ObservedSource = SourceText & Pick<UnseenSource, 'previous' | 'observed'>;
 const startPeriod = rows.fin_settings.pick({ start_period: true });
-/** 跳过的来源现在的内容（核对改好了没有，unreadable.ts 的 skippedKeys） */
-const sourceContent = sourceRow.pick({ kind: true, id: true, number: true }).extend({ content: z.string() });
-/** 来源 s 的“种类:编号”（SQL），和 unreadable.ts 跳过的键同一个写法 */
-const sourceKey = (s: string) => `${s}.kind||':'||${s}.id`;
 
 /** 同步一条来源时要的：账号、来源、单据内容（带单号）、上一条事件、来源指纹、事件类型、收入确认口径 */
 type SyncContext = {
@@ -65,7 +59,7 @@ type SyncContext = {
 };
 
 /** 来源单据对应的财务事件类型：送货确认或冲销、到货确认或更正、完工、盘点调整 */
-function eventTypeOf(source: SourceRow, doc: FinanceSourceDocument) {
+function eventTypeOf(source: Pick<SourceHead, 'kind' | 'status'>, doc: FinanceSourceDocument) {
   const reversal = source.status === 'reversed' || doc.correctionOf || doc.correctionOfReceiptId || doc.replacedBy;
   if (source.kind === 'delivery') return reversal ? 'delivery.reversed' : 'delivery.confirmed';
   if (source.kind === 'production') return 'production.completed';
@@ -77,24 +71,14 @@ function eventTypeOf(source: SourceRow, doc: FinanceSourceDocument) {
 const recordedAmount = (kind: string, result: Evaluation) =>
   (kind === 'delivery' ? result.money?.gross : result.money?.net) ?? null;
 
-/** 被删的来源（FROM 和 WHERE，o 是观察记录、e 是它挂的事件）：财务看到过、还没记成已删除的；启用前的不管 */
-const missingSources = `FROM fin_source_observations o JOIN fin_events e ON e.id=o.event_id
-        WHERE o.status<>'deleted' AND e.status<>'before_opening' AND ${sourceMissing('o')}`;
-
 /**
- * 截至 end（含）还没同步进财务的来源有几条，和补扫同一个条件：这一版财务还没扫到的（不分种类、状态：新确认的、
- * 内容变了的、已撤销或被更正替代的、盘点流水改写的），加上单据、盘点流水已被删、还没记成已删除的。
- * 补扫前它们还不是事件，结账检查的“业务单据”一步按它们拦；启用前的、只改了说明的也先算上，补扫一次就清掉。
+ * 截至 end（含）还没同步进财务的来源有几条，和补扫同一个对照（source-scan.ts）：这一版财务还没扫到的（不分种类、状态：
+ * 新确认的、内容变了的、已撤销或被更正替代的、盘点流水改写的；读不出来跳过的也算），加上单据、盘点流水已被删、
+ * 还没记成已删除的（按它挂的事件的日期）。补扫前它们还不是事件，结账检查的“业务单据”一步按它们拦；
+ * 启用前的、只改了说明的也先算上，补扫一次就清掉。
  */
 export function unseenSources(db: DatabaseSync, end: string) {
-  return count(
-    db,
-    `${sourcesCte}
-    SELECT (SELECT count(*) FROM sources s LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
-      WHERE s.date<=?1 AND ${sourceUnseen('s', 'o')})
-      + (SELECT count(*) ${missingSources} AND e.date<=?1)`,
-    end,
-  );
+  return unseenCount(scanSources(db), end);
 }
 
 export class FinanceEvents {
@@ -103,27 +87,14 @@ export class FinanceEvents {
     return this.store.db;
   }
 
-  /** 只返回尚未扫描的版本（内容读不出来、已经跳过又没改过的不算），采购投影的来源是同一张到货单。 */
-  private sources(limit = BATCH_SIZE) {
-    const skipped = skippedKeys(this.db, eventSourceKinds, (keys) =>
-      many(
-        this.db,
-        sourceContent,
-        `${sourcesCte} SELECT kind,id,number,document AS content FROM sources s WHERE ${sourceKey('s')} IN (SELECT value FROM json_each(?))`,
-        JSON.stringify(keys),
-      ),
-    );
-    return many(
-      this.db,
-      observedSource,
-      `${sourcesCte}
-    SELECT s.*,o.event_id AS previous,o.status AS observed FROM sources s
-    LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
-    WHERE ${sourceUnseen('s', 'o')} AND ${sourceKey('s')} NOT IN (SELECT value FROM json_each(?))
-    LIMIT ?`,
-      JSON.stringify(skipped),
-      limit,
-    );
+  /**
+   * 要补扫的：尚未扫描的版本（内容读不出来、已经跳过又没改过的不算；采购投影的来源是同一张到货单），
+   * 和被删、还没记成已删除的来源（挂的事件编号）。只对照，不读内容（source-scan.ts）。
+   */
+  private toSync() {
+    const { unseen, missing } = scanSources(this.db);
+    const skipped = skippedSources(this.db);
+    return { unseen: unseen.filter((s) => !skipped.has(sourceKey(s))), missing };
   }
 
   /** 财务启用的月份，没启用是 null */
@@ -137,17 +108,13 @@ export class FinanceEvents {
    */
   pending(user: Actor) {
     if (!this.start()) return false;
-    return (
-      this.sources(1).length > 0 ||
-      exists(this.db, `SELECT 1 ${missingSources} LIMIT 1`) ||
-      deliveryReversalsPending(this.db) ||
-      returnEstimatesPending(this.store, user)
-    );
+    const { unseen, missing } = this.toSync();
+    return unseen.length > 0 || missing.length > 0 || deliveryReversalsPending(this.db) || returnEstimatesPending(this.store, user);
   }
 
   /**
    * 补扫一批（一个写事务）：最多 BATCH_SIZE 条来源、BATCH_SIZE 条被删的来源；扫满了 remaining 是 true，再调一次接着扫。
-   * 内容读不出来的来源跳过（unreadable.ts），读出来以后的步骤出错照常抛、整批回滚。
+   * 先对照（不读内容），挑出的来源再按批读原文；内容读不出来的来源跳过（unreadable.ts），读出来以后的步骤出错照常抛、整批回滚。
    * 审计记的是 actor（发起这次读取或补扫的人）；财务未启用时什么都不做。
    */
   sync(actor: Actor | null) {
@@ -155,20 +122,30 @@ export class FinanceEvents {
     return financeTransaction(this.db, () => {
       const start = this.start();
       if (!start) return { processed: 0, remaining: false };
-      const sources = this.sources();
+      const { unseen, missing } = this.toSync();
+      const sources = unseen.slice(0, BATCH_SIZE),
+        gone = missing.slice(0, BATCH_SIZE);
+      const texts = sourceTexts(this.db, sources);
+      // 同一个事务里对照出来的来源都读得到原文（heads 和 texts 是同一个口径）；按对照的先后扫
+      const observed = sources.flatMap(({ previous, observed: status, ...head }) => {
+        const text = texts.get(sourceKey(head));
+        return text ? [{ ...text, previous, observed: status }] : [];
+      });
       let processed = 0;
-      for (const source of sources) {
+      for (const source of observed) {
         const read = readSourceOrSkip(this.db, source);
         if (read) processed += this.syncSource(user, source, start, read);
       }
-      const missing = many(this.db, rows.fin_events, `SELECT e.* ${missingSources} LIMIT ?`, BATCH_SIZE);
-      for (const before of missing) markSourceDeleted(this.store, user, before);
+      const deleted = gone.length
+        ? many(this.db, rows.fin_events, 'SELECT * FROM fin_events WHERE id IN (SELECT value FROM json_each(?))', JSON.stringify(gone.map((m) => m.eventId)))
+        : [];
+      for (const before of deleted) markSourceDeleted(this.store, user, before);
       refreshPendingDeliveryReversals(this.store, user);
       // 未到票的采购退货按暂估单价冲减暂估（退货撤销时加回来），见 return-estimates.ts
       processed += syncReturnEstimates(this.store, user);
       return {
-        processed: processed + missing.length,
-        remaining: sources.length === BATCH_SIZE || missing.length === BATCH_SIZE,
+        processed: processed + deleted.length,
+        remaining: sources.length === BATCH_SIZE || gone.length === BATCH_SIZE,
       };
     });
   }

@@ -65,6 +65,25 @@ const calls: Calls = {
     names: (w) => financeFacts.parties.names(w.db, 'customer', [w.kept, w.archived]),
     options: (w) => financeFacts.parties.options(w.db, 'supplier'),
   },
+  sources: {
+    heads: (w) => financeFacts.sources.heads(w.db),
+    texts: (w) => financeFacts.sources.texts(w.db, [{ kind: 'delivery', id: '1' }]),
+    read: () =>
+      financeFacts.sources.read({
+        kind: 'stock',
+        id: '虚构流水',
+        version: 1,
+        status: 'confirmed',
+        date: '2026-10-01',
+        number: null,
+        at: '2026-10-01',
+        text: JSON.stringify({ stockId: 1, deltaUnits: -1000, reason: null, createdAt: '2026-10-01T08:00:00.000Z' }),
+      }),
+    arrivalReversalDates: (w) => financeFacts.sources.arrivalReversalDates(w.db, ['1']),
+  },
+  orders: {
+    between: (w) => financeFacts.orders.between(w.db, '2026-01-01', '2026-12-31'),
+  },
 };
 
 /** 只是数据：文字、数字、布尔、null，数组、Map 和普通对象里装着这些；类的实例（Store、连接、服务对象）、函数都不算 */

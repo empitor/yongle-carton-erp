@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { quantityString } from '../../shared/core/index.js';
 import { many, one, rows } from '../core/index.js';
 import { financeError } from './core.js';
-import { sourceDocumentNumber, sourceReversed } from './business-source.js';
+import { lapsedStatuses, sourceIs } from './source-scan.js';
 import { sumOf } from './finance-rows.js';
 import { row } from './query.js';
 import { reissueReleasedByObligation } from './red-invoices.js';
@@ -52,9 +52,10 @@ export function assertInvoiceableObligation(db: DatabaseSync, obligationId: numb
     z.object({ n: z.number().nullable(), voided: z.string().nullable() }),
     `SELECT o.tax_status='superseded' OR (o.voucher_id IS NOT NULL AND v.status='void') OR o.reversal_of IS NOT NULL
           OR ${isReversed('o')} AS n,
-        CASE WHEN e.source_kind='arrival' AND ${sourceReversed('e', 'arrival')} THEN ${sourceDocumentNumber('e')} END AS voided
+        CASE WHEN e.source_kind='arrival' AND ${sourceIs('e', 'reversed')} THEN coalesce(e.source_number,e.source_id) END AS voided
         FROM fin_obligations o LEFT JOIN fin_vouchers v ON v.id=o.voucher_id LEFT JOIN fin_events e ON e.id=o.event_id
         WHERE o.id=?`,
+    lapsedStatuses(db),
     obligationId,
   );
   if (!stale) financeError('往来单不存在。', 404);

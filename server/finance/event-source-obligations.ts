@@ -8,14 +8,14 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, rows } from '../core/index.js';
 import { financeAudit } from './core.js';
-import type { SourceRow } from './business-source.js';
+import type { SourceHead } from '../flow/index.js';
 import { row } from './query.js';
 import { isReversed } from './reversal-pairs.js';
 import { allocationSum, voucherStands } from './obligation-sql.js';
 import type { FinanceSourceDocument } from './source-snapshot.js';
 
 /** 送货、到货单据和它更正的原单的来源编号（这张在前）；别的来源返回 null。 */
-export function relatedSources(source: SourceRow, doc: FinanceSourceDocument) {
+export function relatedSources(source: Pick<SourceHead, 'kind' | 'id'>, doc: FinanceSourceDocument) {
   if (!['delivery', 'arrival'].includes(source.kind)) return null;
   const origin = doc.correctionOfReceiptId ?? doc.correctionOf;
   const id = origin == null ? null : String(origin).replace(/^flow-/, '');

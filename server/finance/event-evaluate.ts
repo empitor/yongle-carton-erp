@@ -4,12 +4,14 @@ import { errorMessage, quantityUnits } from '../../shared/core/index.js';
 import { one, rows } from '../core/index.js';
 import { financeError } from './core.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
-import type { SourceRow } from './business-source.js';
+import type { SourceHead } from '../flow/index.js';
 import type { EventColumns } from './event-columns.js';
 import type { DocumentMoney, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
 import { taxModes } from '../../shared/finance/index.js';
 
 type TaxTerms = { tax_rate: string | null; tax_mode: string | null };
+/** 评估只看来源的种类和状态（窗口交出的来源一条里的这两项） */
+type SourceKindStatus = Pick<SourceHead, 'kind' | 'status'>;
 /** 查往来单位默认税率和含税口径的函数：kind 是客户还是供应商，id 是往来单位编号 */
 type PartyTaxTerms = (kind: 'customer' | 'supplier', id: string) => TaxTerms | undefined;
 const taxTermsRow = rows.fin_party_terms.pick({ tax_rate: true, tax_mode: true });
@@ -77,7 +79,7 @@ type EvaluateOptions = { policy: string; replacement?: boolean; taxTerms?: Party
  */
 export function evaluateSource(
   db: DatabaseSync,
-  source: SourceRow,
+  source: SourceKindStatus,
   doc: FinanceSourceDocument,
   options: EvaluateOptions,
 ): Evaluation {
@@ -114,7 +116,7 @@ const priced = (exact: string, tax: { mode: string; rate: string }) =>
 
 /** 算一张单据逐行金额时的上下文：哪种单据、往来单位默认税率，逐行记下税率来源和提醒，缺资料时缺的是数量还是价格 */
 type LineContext = {
-  kind: SourceRow['kind'];
+  kind: SourceHead['kind'];
   term: TaxTerms | undefined;
   taxSource: TaxSource[];
   warnings: string[];
@@ -145,7 +147,7 @@ function lineValue(context: LineContext, line: FinanceSourceLine, index: number)
 }
 
 /** 送货、到货按明细算金额：缺税率的待补（先记理论金额），0 元的不挂往来，齐了的可记账（开票确认收入的送货等开票） */
-function evaluateLines(source: SourceRow, doc: FinanceSourceDocument, policy: string, taxTerms: PartyTaxTerms): Evaluation {
+function evaluateLines(source: SourceKindStatus, doc: FinanceSourceDocument, policy: string, taxTerms: PartyTaxTerms): Evaluation {
   const delivery = source.kind === 'delivery';
   // 资料待补时缺的是数量还是价格，按出错时正在算哪一步定，不去匹配报错文字：
   // 报错里碰巧带了“单位”“数量”（比如“缺少到货价格或计价单位”）也不会分错。

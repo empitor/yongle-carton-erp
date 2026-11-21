@@ -3,7 +3,8 @@
  * 业务单据同步进来（每批一个写事务，events.ts 的 FinanceEvents.sync）。没有要补的只读，不开写事务；财务没启用什么都不做。
  *
  * 财务不卡业务：业务保存不调它；node:sqlite 是同步调用，补扫时整个服务都在等，所以一次最多扫 CATCH_UP_BATCHES 批，
- * 剩下的留给后面的财务请求（每个请求都会接着扫）。没扫完时还没同步的单据照样算“还没同步”，结账、正式报表照样拦。
+ * 剩下的留给后面的财务请求（每个请求都会接着扫）。没扫完时还没同步的单据照样算“还没同步”，结账、正式报表照样拦；
+ * 财务看来源撤没撤销、删没删（source-scan.ts 的 sourceIs）把还没补扫进来的也算上，写入照样拦得住撤销过的单据。
  *
  * 这是系统按固定规则做的同步，不是谁要写财务：审计记发起这次读取的人（financeActor，要财务查看权限），
  * 只做同步本身（建事件、挂暂估往来、记“来源已删除”、已撤销送货的自动收尾；采购退货暂估要财务编辑权限才记，
@@ -16,12 +17,12 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, ProblemLog, Store } from '../core/index.js';
-import { errorReason, many } from '../core/index.js';
+import { errorReason } from '../core/index.js';
 import { errorMessage } from '../../shared/core/index.js';
-import { sourceRow, sourcesCte, sourceUnseen } from './business-source.js';
+import type { SourceHead } from '../flow/index.js';
 import { financeActor } from './core.js';
 import { FinanceEvents } from './events.js';
-import type { observationStatuses } from './stored-values.js';
+import { scanSources, sourceKey, sourceTexts } from './source-scan.js';
 import { unreportedSkips } from './unreadable.js';
 
 /** 出错记录：只用到记一条（装配时给的 server/core 的 ProblemLog；没给就不记） */
@@ -92,28 +93,19 @@ function syncBatches(store: Store, user: Actor) {
   return { processed, remaining };
 }
 
-/** 还没同步的来源一条：种类、编号、单号（盘点流水是拼的说明） */
-const unseenListed = sourceRow.pick({ kind: true, id: true, number: true });
+/** 文字按编码先后比（和 SQL 的 ORDER BY 一样，不按语言习惯） */
+const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+/** 先后：日期、种类、编号（编号按文字比） */
+const byDateKindId = (a: SourceHead, b: SourceHead) => compareText(a.date, b.date) || compareText(a.kind, b.kind) || compareText(a.id, b.id);
 /**
- * 截至 end（含）还没同步进财务、来源还在的前 limit 张（unseenSources 数的那些，不含已被删的），正式报表、结账拦下时写明是哪几张。
- * 读之前已经补扫到完，剩下的就是内容读不出来、补扫跳过的。
+ * 截至 end（含）还没同步进财务、来源还在的前 limit 张（unseenSources 数的那些，不含已被删的）：种类、编号、单号（盘点流水是拼的说明），
+ * 正式报表、结账拦下时写明是哪几张。读之前已经补扫到完，剩下的就是内容读不出来、补扫跳过的。
  */
 export function unseenSourceList(db: DatabaseSync, end: string, limit: number) {
-  return many(
-    db,
-    unseenListed,
-    `${sourcesCte}
-    SELECT s.kind,s.id,s.number FROM sources s LEFT JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
-      WHERE s.date<=? AND ${sourceUnseen('s', 'o')} ORDER BY s.date,s.kind,s.id LIMIT ?`,
-    end,
-    limit,
-  );
+  const listed = scanSources(db)
+    .unseen.filter((s) => s.date <= end)
+    .sort(byDateKindId)
+    .slice(0, limit);
+  const texts = sourceTexts(db, listed);
+  return listed.map((s) => ({ kind: s.kind, id: s.id, number: texts.get(sourceKey(s))?.number ?? null }));
 }
-
-/**
- * 财务事件 e 的来源最近一次被补扫看到时是 status（财务自己的 fin_source_observations，不读业务表）：
- * 已撤销、被更正替代的原单都是 reversed，被删的是 deleted。读之前已经补扫过（catchUp）才准。条件。
- */
-export const sourceObserved = (e: string, status: (typeof observationStatuses)[number]) =>
-  `EXISTS(SELECT 1 FROM fin_source_observations seen
-    WHERE seen.source_kind=${e}.source_kind AND seen.source_id=${e}.source_id AND seen.status='${status}')`;

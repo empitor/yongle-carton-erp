@@ -11,11 +11,10 @@ import { FinanceOverview } from './overview.js';
 import { FinanceParties } from './parties.js';
 import { entry, pageSql, request } from './query.js';
 import { activeCashAllocation, allocationReversalMessage } from './obligation-sql.js';
-import { sourceReversed } from './business-source.js';
 import { readSnapshot } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
-import { unseenSources } from './events.js';
 import { catchUpFailed, unseenSourceList } from './catch-up.js';
+import { lapsedStatuses, scanSources, sourceIs, unseenCount } from './source-scan.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
 import {
   balanceSheet,
@@ -91,19 +90,21 @@ export class FinanceReports {
   readiness(actor: Actor | null, raw: unknown) {
     financeActor(actor);
     const { period } = filter.parse(raw);
-    const unseen = unseenSources(this.db, endOfMonth(period));
+    const unseen = unseenCount(scanSources(this.db), endOfMonth(period));
     // 读之前的补扫没成功（catch-up.ts）：财务的数可能不是最新的，照样拦
     const syncFailed = catchUpFailed(this.db);
     const unsynced = new FinanceEventViews(this.store).unsynced(actor, period);
     const pending = unsynced.filter((r) => r.status === 'info_pending');
+    // 送货单已冲销：还没补扫进来的冲销也算（source-scan.ts 的 sourceIs）
     const query = `FROM (
-      SELECT e.*, (e.source_kind='delivery' AND ${sourceReversed('e', 'delivery')}) AS reversed,
+      SELECT e.*, (e.source_kind='delivery' AND ${sourceIs('e', 'reversed')}) AS reversed,
         EXISTS(SELECT 1 FROM fin_obligations o JOIN fin_allocations a ON a.obligation_id=o.id
           JOIN fin_vouchers original ON original.id=a.voucher_id WHERE o.event_id=e.id AND ${activeCashAllocation}) AS allocated
       FROM fin_events e WHERE e.status IN ('info_pending','awaiting_allocation_reversal') AND e.date BETWEEN ? AND ?
       AND e.id NOT IN (SELECT value FROM json_each(?))
     ) WHERE status='awaiting_allocation_reversal' OR NOT reversed OR allocated`;
     const bounds = [
+      lapsedStatuses(this.db),
       period + '-01',
       endOfMonth(period),
       JSON.stringify(unsynced.flatMap((r) => (r.id == null ? [] : [r.id]))),

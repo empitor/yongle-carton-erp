@@ -7,8 +7,9 @@ import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, one, rows } from '../core/index.js';
+import { financeFacts, type SourceText } from '../flow/index.js';
 import { financeAudit, financeError } from './core.js';
-import { readSource, sourceRow, sourcesCte } from './business-source.js';
+import { readSource } from './source-scan.js';
 import { row } from './query.js';
 import { documentNumber, type FinanceSourceDocument } from './source-snapshot.js';
 import {
@@ -164,23 +165,24 @@ export function revenuePolicy(db: DatabaseSync, at: string) {
   return found?.policy === 'invoice' ? 'invoice' : 'delivery';
 }
 
-/** 一张来源单据现在的那一行（sourcesCte 的列）；没有（被删了）是 undefined */
-export function currentSource(db: DatabaseSync, kind: string, id: string) {
-  return one(db, sourceRow, `${sourcesCte} SELECT * FROM sources WHERE kind=? AND id=?`, kind, id);
+/** 一张来源单据现在的原文（窗口的 sources.texts）；没有（被删了）是 undefined */
+export function currentSource(db: DatabaseSync, kind: string, id: string): SourceText | undefined {
+  return financeFacts.sources.texts(db, [{ kind, id }])[0];
 }
 
-/** 事件对应的来源单据还是当时看到的那一版，改过或删了就报错让人刷新。 */
+const seenVersion = rows.fin_source_observations.pick({ source_version: true, status: true });
+/** 事件对应的来源单据还是当时看到的那一版（观察记录挂着这条事件，版本、状态、指纹都对得上），改过或删了就报错让人刷新。 */
 export function assertSourceCurrent(db: DatabaseSync, before: FinanceEvent) {
-  const source = one(
+  const source = currentSource(db, before.source_kind, before.source_id);
+  const seen = one(
     db,
-    sourceRow,
-    `${sourcesCte} SELECT s.* FROM sources s
-    JOIN fin_source_observations o ON o.source_kind=s.kind AND o.source_id=s.id
-    WHERE s.kind=? AND s.id=? AND o.event_id=? AND o.source_version=s.version AND o.status=s.status`,
+    seenVersion,
+    'SELECT source_version,status FROM fin_source_observations WHERE source_kind=? AND source_id=? AND event_id=?',
     before.source_kind,
     before.source_id,
     before.id,
   );
-  if (!source || before.source_hash !== readSource(source).hash)
-    financeError('单据已经改过或删除了，请刷新后再处理。', 409);
+  const changed =
+    !source || !seen || seen.source_version !== source.version || seen.status !== source.status || before.source_hash !== readSource(source).hash;
+  if (changed) financeError('单据已经改过或删除了，请刷新后再处理。', 409);
 }
