@@ -5,12 +5,12 @@ import type { Actor } from '../core/index.js';
 import { AppError, audit, inSavepoint, isSuperMode } from '../core/index.js';
 import { supplierSchema, type MovementFilters, type movementSchema } from '../../shared/business/index.js';
 import { MAX_STOCK_UNITS, quantityUnits, quantityString, today } from '../../shared/core/index.js';
-import { OperationsRepository } from './repository.js';
-import type { RecordIds } from './record-scope.js';
-import { insertMovement, touchStockItems } from './ledger.js';
-import { StockItems, type ItemEdit, type RawItem } from './stock-items.js';
-import { PurchaseWriter, type PurchaseEdit, type PurchaseSaveOptions } from './purchase-save.js';
-import { businessActor, priorRecord } from './write-base.js';
+import { OperationsRepository } from './ledger/repository.js';
+import type { RecordIds } from './ledger/record-scope.js';
+import { insertMovement, touchStockItems } from './ledger/ledger.js';
+import { StockItems, type ItemEdit, type RawItem } from './stock/stock-items.js';
+import { PurchaseWriter, type PurchaseEdit, type PurchaseSaveOptions } from './purchases/purchase-save.js';
+import { businessActor, priorRecord } from './ledger/write-base.js';
 
 /*
  * 采购库存的服务（别的模块只用它和 OrderBatchService）：读供应商、采购单、库存品、流水的基本视图（只有采购库存自己的数据），

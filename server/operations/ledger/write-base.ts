@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { Actor } from '../core/index.js';
-import { AppError, isSuperMode, requirePermission, superModeDenied } from '../core/index.js';
+import type { Actor } from '../../core/index.js';
+import { AppError, isSuperMode, requirePermission, superModeDenied } from '../../core/index.js';
 
 /*
  * 采购库存的写入共用的两件小事：写入要的权限、改记录前取原记录并核对版本（事务用基础的 inSavepoint）。

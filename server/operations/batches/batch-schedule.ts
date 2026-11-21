@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { parseStoredJson } from '../core/index.js';
-import { storedScheduleEntrySchema, type ScheduleEntry } from '../../shared/business/index.js';
+import { parseStoredJson } from '../../core/index.js';
+import { storedScheduleEntrySchema, type ScheduleEntry } from '../../../shared/business/index.js';
 
 /**
  * 订货单的到货安排（order_batches.schedule）：每段的结构是共用的 storedScheduleEntrySchema（shared/business/operations-stored.ts）。

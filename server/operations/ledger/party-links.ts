@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { Store } from '../core/index.js';
-import { many } from '../core/index.js';
+import type { Store } from '../../core/index.js';
+import { many } from '../../core/index.js';
 
 /**
  * 档案和往来单位的关联，产品、库存列表按客户、供应商筛选用（页面和助手同一套）。
