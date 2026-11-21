@@ -15,6 +15,7 @@ import { FinanceAllocations } from '../server/finance/allocations.js';
 import { FinanceMargin } from '../server/finance/margin.js';
 import { maker, newSettings, physical, deliveryDoc, postDrafts, reverseSource, eventsStep, ledgerBalance, subledger, obligation, funds, confirmBlue, confirmRed, unbalancedVouchers } from './finance-fixture.js';
 import { FinanceSettings } from '../server/finance/settings.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 /** 财务从 2026-01 启用；删掉单据后同步一次，返回这张单据最后那条事件 */
 function books() {
@@ -28,7 +29,7 @@ function books() {
     return row;
   };
   const remove = (id: number) => {
-    s.db.prepare('DELETE FROM flow_documents WHERE id=?').run(id);
+    businessChanges(s).remove(id);
     sync();
     return latest(id);
   };
@@ -163,7 +164,7 @@ test('盘点流水被删除：核对前、核对后都直接已更正，不卡�
       requestId: randomUUID(),
       reason: '虚构：核对过',
     });
-    t.s.db.prepare('DELETE FROM stock_movements WHERE id IN (?,?)').run(pending, checked);
+    businessChanges(t.s, maker).removeMovements([pending, checked]);
     t.sync();
     for (const id of [pending, checked]) assert.equal(t.latest(id).status, 'corrected');
     assert.match(String(t.latest(pending).problem), /月末成本计算/);

@@ -17,6 +17,7 @@ import { many, one, rows } from '../server/core/index.js';
 import { readCostingDetails } from '../server/finance/costing-details.js';
 import type { StockItemView } from '../shared/business/index.js';
 import { businessBase } from './business-base-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 export { maker };
 
@@ -199,7 +200,7 @@ function arrivals({ s, flow, events, confirm, postDrafts }: CostingBase) {
     const input = { expectedVersion: record.version, reason: '虚构：点错数量', items: [{ index: 0, quantity }] };
     const preview = previewCorrection(s, 'flow-' + arrivalId, input, maker);
     applyCorrection(s, 'flow-' + arrivalId, { ...input, requestId: randomUUID(), previewDigest: preview.previewDigest }, maker);
-    s.db.prepare("UPDATE stock_movements SET date=? WHERE source_kind='flow_reversal' AND source_id=?").run(date, String(arrivalId));
+    businessChanges(s, maker).moveMovements({ kind: 'flow_reversal', id: arrivalId }, date);
   };
   return { arrive, redReverse, correctArrival };
 }
@@ -209,7 +210,7 @@ function afterwards({ s, flow, costing, reports, returns, postDrafts }: CostingB
   /** 冲销单据。冲销流水默认记成今天，测试把它挪到指定日期，模拟那天冲销。 */
   const reverse = (doc: { id: number }, date: string) => {
     flow.reverse(doc.id, { version: flow.get(doc.id).version, reason: '虚构冲销', acknowledged: true }, supervisor);
-    s.db.prepare("UPDATE stock_movements SET date=? WHERE source_kind='flow_reversal' AND source_id=?").run(date, String(doc.id));
+    businessChanges(s, maker).moveMovements({ kind: 'flow_reversal', id: doc.id }, date);
   };
   /** 这张单据冲销时这个库存品的那条冲销流水编号 */
   const reversal = (doc: { id: number }, stockId: number) => {

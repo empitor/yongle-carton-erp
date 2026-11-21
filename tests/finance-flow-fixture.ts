@@ -15,6 +15,7 @@ import { applyCorrection, previewCorrection } from './receive-fixture.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { updateDocumentInfo } from '../server/flow/document-info.js';
 import { lineMoney } from '../shared/business/operations.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 type FlowBase = ReturnType<(typeof import('./flow-fixture.js'))['flowFixture']>;
 /** 送货要的订单：编号和明细编号（送每张订单的第一行） */
@@ -98,8 +99,8 @@ function documentEdits(f: FlowBase, admin: Actor, newId: () => string) {
     return f.flow.get(correctDocument(f.store, id, { ...v, previewDigest: digest, requestId: newId() }, admin).replacementId);
   };
   /**
-   * 不经程序直接改库：把单据每行的数量改掉（按单价重算金额），版本号加一。程序里改数量只能走更正（原单撤销、出替代单），
-   * 这里只给“单据被直接改动，财务能发现”的防篡改测试用（finance-source-fingerprint），所以只能直接改库造出来。
+   * 不经业务服务直接改单据内容：把单据每行的数量改掉（按单价重算金额），版本号加一（tests/business-changes-fixture.ts 的 rewrite）。
+   * 程序里改数量只能走更正（原单撤销、出替代单），这里只给“单据被直接改动，财务能发现”的防篡改测试用（finance-source-fingerprint）。
    */
   const tamperQuantity = (id: number, quantity: string) => {
     const where = 'flow_documents.document（单据 ' + id + '）';
@@ -107,7 +108,7 @@ function documentEdits(f: FlowBase, admin: Actor, newId: () => string) {
     if (!stored) throw new Error('测试数据：没有单据 ' + id);
     const doc = parseStoredJson(pricedLines, stored.document, where);
     const lines = doc.lines.map((l) => ({ ...l, quantity, amountExact: lineMoney(quantity, l.unitPriceExact) }));
-    f.store.db.prepare('UPDATE flow_documents SET document=?,version=version+1 WHERE id=?').run(JSON.stringify({ ...doc, lines }), id);
+    businessChanges(f.store, admin).rewrite(id, { ...doc, lines });
   };
   return { info, correct, tamperQuantity };
 }

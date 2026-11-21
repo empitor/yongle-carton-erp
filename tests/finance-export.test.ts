@@ -11,6 +11,7 @@ import { FinanceSettlements } from '../server/finance/settlements.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
 import { maker, period, request, workbook, findRow, checkLayout, fixture, prepare, next } from './finance-http-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 type Api = (path: string, cookie?: string) => Promise<Response>;
 /** 月度台账读接口回答里用到的：每行的状态，别的项原样留着（看有没有 detail） */
@@ -26,13 +27,11 @@ function exportWorld(store: Store) {
   const post = prepare(store);
   const customer = store.saveCustomer(customerSchema.parse({ name: '=1+1' }));
   const other = store.saveCustomer(customerSchema.parse({ name: '虚构预收客户' }));
-  const insert = store.db.prepare(`INSERT INTO flow_documents(kind,number,date,planned_date,status,document,actor_id,actor_name,created_at,updated_at)
-      VALUES('delivery',?,?,?,'confirmed',?,'seed','虚构导出测试',?,?)`);
   for (const [index, price] of ['300', '0.01', '0.02', undefined].entries()) {
     const date = next + '-05';
     const line = { orderId: 1, orderLineId: 1, stockId: 1, quantity: '1', unit: '只', unitPriceExact: price, taxMode: '未税' };
     const doc = { date, plannedDate: date, customerId: customer.id, customerName: customer.name, lines: [line] };
-    insert.run('虚构送货-' + index, date, date, JSON.stringify(doc), date, date);
+    businessChanges(store).confirmed('delivery', date, doc, { number: '虚构送货-' + index });
   }
   new FinanceEvents(store).sync(maker, request());
   const cash = new FinanceSettlements(store);
@@ -205,14 +204,14 @@ async function unknownReport({ api }: Ctx) {
 async function bulkLedgerExport({ store, download, customer }: Ctx) {
   const bulkPeriod = '2026-12',
     bulkDate = bulkPeriod + '-05';
-  store.db
-    .prepare(`WITH RECURSIVE seq(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM seq WHERE n<205)
-        INSERT INTO flow_documents(kind,number,date,planned_date,status,document,actor_id,actor_name,created_at,updated_at)
-        SELECT 'delivery','虚构批量-'||n,?,?,'confirmed',
-          json_object('date',?,'plannedDate',?,'customerId',?,'customerName',?,
-            'lines',json('[{"orderId":1,"orderLineId":1,"stockId":1,"quantity":"1","unit":"只","unitPriceExact":"0.01","taxMode":"未税","taxRate":"0"}]')),
-          'seed','虚构导出测试',?,? FROM seq`)
-    .run(bulkDate, bulkDate, bulkDate, bulkDate, customer.id, customer.name, bulkDate, bulkDate);
+  const line = { orderId: 1, orderLineId: 1, stockId: 1, quantity: '1', unit: '只', unitPriceExact: '0.01', taxMode: '未税', taxRate: '0' };
+  for (let n = 1; n <= 205; n++)
+    businessChanges(store).confirmed(
+      'delivery',
+      bulkDate,
+      { plannedDate: bulkDate, customerId: customer.id, customerName: customer.name, lines: [line] },
+      { number: '虚构批量-' + n },
+    );
   const bulk = await download(`/monthly-ledger/export?period=${bulkPeriod}&metric=theoreticalIncome&page=2&pageSize=1`, '月度台账-' + bulkPeriod);
   assert.equal(bulk.rowCount, 209);
   assert.equal(new Set(bulk.getRows(4, 205)?.map((row) => row.getCell(3).value)).size, 205);

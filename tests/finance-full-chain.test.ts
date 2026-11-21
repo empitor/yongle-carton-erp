@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceReports } from '../server/finance/reports.js';
@@ -159,13 +160,14 @@ function februaryExpenseAndWages(s: Store, payroll: FinancePayroll) {
  * 成品一定关联产品、不存原材料查重键（数据库约束）：改成成品时一起挂到一个没有成品库存的产品上，改回来再还原。
  */
 function assertUnitFollowsKind(s: Store, raw: { id: number }, cost: FinanceCosting) {
-  assert.throws(() => s.db.prepare("UPDATE stock_items SET unit='卷' WHERE id=?").run(raw.id), /CHECK constraint failed/);
+  const changes = businessChanges(s, maker);
+  assert.throws(() => changes.stockItem(raw.id, { unit: '卷' }), /CHECK constraint failed/);
   const before = one(s.db, rows.stock_items.pick({ raw_key: true }), 'SELECT raw_key FROM stock_items WHERE id=?', raw.id);
   if (!before) throw new Error('测试数据：没有库存品 ' + raw.id);
   const spare = businessBase(maker, s).product({ name: '虚构改类别用的产品' });
-  s.db.prepare("UPDATE stock_items SET kind='finished',unit='只',product_id=?,raw_key=NULL WHERE id=?").run(spare.id, raw.id);
+  changes.stockItem(raw.id, { kind: 'finished', unit: '只', product_id: spare.id, raw_key: null });
   assert.throws(() => cost.run(maker, { period: '2026-02', requestId: 'wrong-unit' }), /单位/);
-  s.db.prepare("UPDATE stock_items SET kind='raw',unit='张',product_id=NULL,raw_key=? WHERE id=?").run(before.raw_key, raw.id);
+  changes.stockItem(raw.id, { kind: 'raw', unit: '张', product_id: null, raw_key: before.raw_key });
 }
 
 test('虚构制造业全链路的计价、费用、工资、折旧和三张报表可手算，按顺序结账', () => {

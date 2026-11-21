@@ -9,6 +9,7 @@ import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { bookingDate } from '../server/finance/periods.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligation, obligationRow, funds, ledgerBalance, subledger, reverseSource, eventsStep, unbalancedVouchers } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceDue } from '../server/finance/due.js';
 import { count, one, rows } from '../server/core/index.js';
 
@@ -140,7 +141,7 @@ test('红字冲销并重做选的日期只定记账日：重做的往来到期�
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'g' });
     postDrafts(s);
     // 改了数量，红冲重做选 1 月 25 日
-    s.db.prepare("UPDATE flow_documents SET document=json_set(document,'$.lines[0].quantity','2'),version=version+1 WHERE id=1").run();
+    businessChanges(s).edit(1, '$.lines[0].quantity', '2');
     events.sync(maker, { requestId: 'rescan' });
     const diff = event(s, 1);
     const redo = new FinanceEventHandling(s).correct(maker, diff.id, {
