@@ -15,4 +15,4 @@ export { insertSource, updateSourceDocument } from './sources.js';
 export { carryOverFlowDocument, replaceFlowDocument } from './maintenance-writes.js';
 export { FlowService } from './service.js';
 export { finishedStockOfProduct, stockItemBatches } from './stock-batches.js';
-export { documentInfoFields, updateDocumentInfo } from './document-info.js';
+export { updateDocumentInfo } from './document-info.js';

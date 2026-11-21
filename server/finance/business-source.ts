@@ -7,9 +7,11 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { flowDocumentSchema, purchaseLineDocumentSchema } from '../../shared/business/index.js';
+import { financeSourceSchemas, flowDocumentSchema, purchaseLineDocumentSchema, toFinanceSource } from '../../shared/business/index.js';
+import type { FinanceSource } from '../../shared/business/index.js';
 import { exists, many, one, parseStoredJson, rows } from '../core/index.js';
 import { financeError } from './core.js';
+import { sourceHash, withNumber } from './source-fingerprint.js';
 import type { FinanceSourceDocument } from './source-snapshot.js';
 import { snapshotLines } from './source-snapshot.js';
 import { eventSourceKinds } from './stored-values.js';
@@ -81,24 +83,31 @@ export const sourceRow = z.object({
 });
 export type SourceRow = z.output<typeof sourceRow>;
 
-/** 盘点流水在 sourcesCte 里拼成的内容 */
-const stockSource = z.strictObject({
-  stockId: z.number(),
-  deltaUnits: z.number(),
-  reason: z.string().nullable(),
-  createdAt: z.string(),
-});
-
 /**
- * 来源的内容：送货、到货、完工单按库里的单据结构读（不带种类，种类在行上），盘点流水按拼出来的那几项读。
- * 来源指纹按它算，快照里存它加上单号。
+ * 读一条来源：快照存的财务口径（shared/business 的 toFinanceSource，加上单号）和来源指纹（按完整内容算，见 sourceHash）。
+ * 送货、到货、完工单按库里的单据结构读（种类在行上，不在 document 里，读出来去掉），盘点流水按 sourcesCte 拼出来的那几项读。
  */
-export function sourceContent(source: SourceRow): FinanceSourceDocument {
-  if (source.kind === 'stock')
-    return parseStoredJson(stockSource, source.document, `盘点流水 ${source.id} 拼出的来源内容`);
+export function readSource(source: SourceRow): { doc: FinanceSourceDocument; hash: string } {
+  const read = (content: object, doc: FinanceSource) => ({ doc: withNumber(doc, source.number), hash: sourceHash(source, content) });
   const where = `flow_documents.document（单据 ${source.id}，单号 ${source.number ?? '—'}）`;
-  const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema(source.kind), source.document, where);
-  return content;
+  switch (source.kind) {
+    case 'delivery': {
+      const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema('delivery'), source.document, where);
+      return read(content, toFinanceSource('delivery', content));
+    }
+    case 'arrival': {
+      const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema('arrival'), source.document, where);
+      return read(content, toFinanceSource('arrival', content));
+    }
+    case 'production': {
+      const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema('production'), source.document, where);
+      return read(content, toFinanceSource('production', content));
+    }
+    case 'stock': {
+      const content = parseStoredJson(financeSourceSchemas.stock, source.document, `盘点流水 ${source.id} 拼出的来源内容`);
+      return read(content, content);
+    }
+  }
 }
 
 /** 一段日期里已确认的送货、到货单（CTE 名字和列同 sourcesCte），参数 ?1、?2 是起止日期。月度台账、报表检查算还没同步的单据用。 */

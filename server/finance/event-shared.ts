@@ -8,9 +8,8 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, one, rows } from '../core/index.js';
 import { financeAudit, financeError } from './core.js';
-import { sourceContent, sourceRow, sourcesCte } from './business-source.js';
+import { readSource, sourceRow, sourcesCte } from './business-source.js';
 import { row } from './query.js';
-import { sourceHash } from './source-fingerprint.js';
 import { documentNumber, type FinanceSourceDocument } from './source-snapshot.js';
 import {
   dueDate,
@@ -182,6 +181,6 @@ export function assertSourceCurrent(db: DatabaseSync, before: FinanceEvent) {
     before.source_id,
     before.id,
   );
-  if (!source || before.source_hash !== sourceHash(source, sourceContent(source)))
+  if (!source || before.source_hash !== readSource(source).hash)
     financeError('单据已经改过或删除了，请刷新后再处理。', 409);
 }

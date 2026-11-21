@@ -8,7 +8,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { count, exists, many, one, rows } from '../core/index.js';
 import { financeActor, financeAudit, financeWrite } from './core.js';
-import { sourceContent, sourceMissing, sourceRow, sourcesCte, sourceUnseen, type SourceRow } from './business-source.js';
+import { readSource, sourceMissing, sourceRow, sourcesCte, sourceUnseen, type SourceRow } from './business-source.js';
 import { eventChangesSince } from './event-changes.js';
 import { differenceProblem, evaluateSource, taxBasis, type Evaluation } from './event-evaluate.js';
 import { provisionalObligation, readEvent, revenuePolicy, type FinanceEvent } from './event-shared.js';
@@ -20,7 +20,6 @@ import {
 } from './event-status.js';
 import { expectRow } from './finance-rows.js';
 import { request } from './query.js';
-import { sourceHash, withNumber } from './source-fingerprint.js';
 import { syncReturnEstimates } from './return-estimates.js';
 import { readSnapshot, snapshotText, type FinanceSourceDocument } from './source-snapshot.js';
 import {
@@ -129,8 +128,7 @@ export class FinanceEvents {
 
   /** 同步一条来源：返回 1 是新增或改动了事件，0 是只记下看到了（没变、启用前的）。 */
   private syncSource(user: Actor, source: ObservedSource, start: string) {
-    const content = sourceContent(source);
-    const doc = withNumber(content, source.number);
+    const { doc, hash } = readSource(source);
     const previous =
       source.previous === null ? undefined : one(this.db, rows.fin_events, 'SELECT * FROM fin_events WHERE id=?', source.previous);
     const policy = previous?.revenue_recognition ?? revenuePolicy(this.db, doc.confirmedAt ?? source.at);
@@ -139,7 +137,7 @@ export class FinanceEvents {
       source,
       doc,
       previous,
-      hash: sourceHash(source, content),
+      hash,
       eventType: eventTypeOf(source, doc),
       policy,
     };

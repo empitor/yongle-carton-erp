@@ -27,6 +27,8 @@ export { arrivalLineValue, deliveryLineValue, documentValueCents } from './docum
 export { arrivalCorrectionPreviewSchema, correctionCommit, deliveryCorrectionPreviewSchema, productionCorrectionPreviewSchema } from './flow-correction.js';
 export { flowDocumentContent, flowDocumentOfView, flowDocumentSchema, flowViewSchema } from './flow-document.js';
 export type { FlowDocument, FlowDocuments, FlowDocView, FlowRow } from './flow-document.js';
+export { documentInfoFields, financeSourceSchemas, financialContent, toFinanceSource } from './finance-source.js';
+export type { FinanceSource } from './finance-source.js';
 export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusLabel, flowStatusText, isFlowKind, pendingLabels, productionSchema, taskSchema } from './physical-flow.js';
 export type { FlowKind } from './physical-flow.js';
 export { activeDoc, flowStatusChoices, matchesFlowStatus } from './physical-flow.js';
