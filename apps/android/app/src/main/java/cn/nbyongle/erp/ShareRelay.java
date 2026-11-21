@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * 一批分享怎么交给网页（纯 Java，只在主线程上用）。消息约定见 ERP 项目 docs/架构说明.md“安卓 App 通道”：
+ * 一批分享怎么交给网页（纯 Java，只在主线程上用）。消息约定见 ERP 项目 docs/架构/外壳和网页.md“安卓 App 通道”：
  * 接通后发 share-offer；网页回 share-ready 就从第 0 份起一份一份发 share-file，每份等网页回 share-uploaded 或
  * share-failed 再发下一份（自己读不出的记一条失败、直接往下走）；最后一份有了结果就由外壳自己收尾。网页回
  * share-rejected（这个账号进不了 AI 导入）也收尾。页面重新接通时退回“已发清单、没收到 share-ready”，从第 0 份重来。

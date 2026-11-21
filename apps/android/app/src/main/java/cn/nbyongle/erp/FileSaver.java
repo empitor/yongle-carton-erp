@@ -20,7 +20,7 @@ import org.json.JSONObject;
  * 网页要保存的文件（导出的订货单、送货单这类内存里的文件，WebView 的 blob: 下载外壳存不了）：网页发 save-file，
  * 外壳核对、解码后在后台存进系统“下载”（MediaStore.Downloads，安卓 10 起不要存储权限），对每条都回且只回一条
  * save-result（带同一个 id）：存好回 ok:true 并提示“已保存到‘下载’：文件名”，不成回 ok:false 和给人看的原因。
- * 消息约定见 ERP 项目 docs/架构说明.md“安卓 App 通道”。
+ * 消息约定见 ERP 项目 docs/架构/外壳和网页.md“安卓 App 通道”。
  */
 final class FileSaver {
     static final String SAVE = "save-file";

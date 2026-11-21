@@ -1,4 +1,4 @@
-// 安卓 App 通道（src/app-bridge.ts，消息约定见 docs/架构说明.md“安卓 App 通道”）：手机宽度、带 App 标记的 User-Agent 下模拟 App 发来的消息。
+// 安卓 App 通道（src/app-bridge.ts，消息约定见 docs/架构/外壳和网页.md“安卓 App 通道”）：手机宽度、带 App 标记的 User-Agent 下模拟 App 发来的消息。
 // 一、没登录时先接通、发分享（真实 App 页面一加载完就接通）不回话；登录（页面重新加载）后 App 重新接通、重发清单，
 //     这回自动到 AI 导入、回 share-ready，文件进工作区待识别、不自动识别，传完提示换成总结；
 //     几 MB 的虚构文件照样传上去（打印用时），清单里超过上限（10MB）的不解码、直接回 share-failed；

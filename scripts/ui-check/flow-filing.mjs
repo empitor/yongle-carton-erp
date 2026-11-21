@@ -62,6 +62,6 @@ await expectShown('电脑', desktop);
 await expectShown('手机', phone);
 await expectNone('安卓 App 里', { ...phone, ...DOMAIN, userAgent: ANDROID_UA });
 await expectNone('Windows 客户端里', { ...desktop, ...DOMAIN }, () => {
-  // Tauri 往 Windows 客户端打开的每个网页注入的对象（docs/架构说明.md“网页怎么认出两个外壳”）
+  // Tauri 往 Windows 客户端打开的每个网页注入的对象（docs/架构/外壳和网页.md“网页怎么认出两个外壳”）
   Object.defineProperty(window, '__TAURI_INTERNALS__', { value: {} });
 });

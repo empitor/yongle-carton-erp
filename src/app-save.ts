@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /*
- * 安卓 App 里保存文件（通道在 src/app-bridge.ts，消息约定见 docs/架构说明.md“安卓 App 通道”）：
+ * 安卓 App 里保存文件（通道在 src/app-bridge.ts，消息约定见 docs/架构/外壳和网页.md“安卓 App 通道”）：
  * 网页发 save-file {id, name, mime, data(base64)}，App 存进手机“下载”后回 save-result {id, ok, message?}。
  * id 是本页从 1 递增的正整数，收到不在等的 id 丢掉。存好的提示 App 自己弹，这里不再说。
  * 没接通、发不出去、等太久、页面重新接通（App 那头的旧端口已关，回话不会再来）都按没存成处理（不改业务状态）；

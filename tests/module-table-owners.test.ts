@@ -49,7 +49,7 @@ const tableWriteExceptions: { path: string; why: string }[] = [
 /**
  * 财务的 SQL 只许读这些表：自己的 fin_ 表，和基础的审计表（只给财务操作记录页展示，见 auditReaders）。
  * 业务数据（单据流转、采购库存的表，基础的 customers、orders、record_lifecycle）一律经只读窗口 financeFacts 拿
- * （server/flow/finance-facts/，docs/架构说明.md“财务事件和凭证”），业务改表时财务一行不用动。
+ * （server/flow/finance-facts/，docs/架构/财务.md“财务从哪拿业务数据”），业务改表时财务一行不用动。
  * 不是表的名字（json_each、WITH 起的名字）不算。FROM、JOIN 后表名位置是拼进来的，看不出读谁，也报；
  * 拼的是财务自己的 SQL 片段（片段的文字也在财务文件里，同样受这条查）或类型只收 fin_ 表的表名，按“哪个文件拼的什么”登记在 financeDynamicReads。
  */
@@ -63,7 +63,7 @@ const financeDynamicReads: { file: string; splice: string; why: string }[] = [
   { file: 'server/finance/overview.ts', splice: 'snapshotLines', why: 'source-snapshot.ts 的片段：事件快照明细的 json_each' },
 ];
 
-/** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构说明.md“财务事件和凭证”） */
+/** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构/财务.md“财务从哪拿业务数据”） */
 const readOnlyPaths = ['server/flow/finance-facts/'];
 
 /**
@@ -92,7 +92,7 @@ const auditReaders: { file: string; why: string }[] = [
 
 /**
  * 助手只读自己的表（assistant_ 开头的、助手的配置库）：业务数据一律经各模块的读函数和服务拿，表名拼出来的读也算
- * （docs/架构说明.md“助手”）。SQLite 自己的伪表（pragma_ 开头、json_each）不是谁的表；别的例外登记在这里，写明原因。
+ * （docs/架构/助手.md“读业务数据走各模块的正门”）。SQLite 自己的伪表（pragma_ 开头、json_each）不是谁的表；别的例外登记在这里，写明原因。
  */
 const assistantReadExceptions: { table: string; why: string }[] = [];
 const sqliteOwn = (t: string) => t.startsWith('pragma_') || t === 'json_each';

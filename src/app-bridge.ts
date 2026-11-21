@@ -5,7 +5,7 @@ import { receiveAppShare } from './import/index';
 import type { createAppSaver } from './app-save';
 
 /*
- * 安卓 App（apps/android）的接通通道，消息约定见 docs/架构说明.md“安卓 App 通道”。
+ * 安卓 App（apps/android）的接通通道，消息约定见 docs/架构/外壳和网页.md“安卓 App 通道”。
  * App 加载完 ERP 页面后发来接通消息并附一个专用端口，之后返回键（back）、分享文件（share-*）、
  * 保存文件（save-*，src/app-save.ts，由 main.tsx 建好交进来）都走这个端口；又收到接通消息就换新端口、关掉旧的。
  * 浏览器和 Windows 外壳里没人发接通消息，这里什么都不做，行为不变。
@@ -18,7 +18,7 @@ const APP_MARK = / YongleErpAndroid\/[\w.-]+$/;
 export const inAndroidApp = (userAgent: string) => APP_MARK.test(userAgent);
 /** Windows 客户端（apps/desktop，Tauri）往它打开的每个网页注入的对象；浏览器里没有 */
 const DESKTOP_MARK = '__TAURI_INTERNALS__';
-/** 是不是在两个应用程序（安卓 App、Windows 客户端）里打开的，约定见 docs/架构说明.md“网页怎么认出两个外壳” */
+/** 是不是在两个应用程序（安卓 App、Windows 客户端）里打开的，约定见 docs/架构/外壳和网页.md“网页怎么认出两个外壳” */
 export const inShellApp = (win: { navigator: { userAgent: string } }) =>
   inAndroidApp(win.navigator.userAgent) || DESKTOP_MARK in win;
 /** 接通消息，必须一字不差 */

@@ -11,7 +11,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * 和 ERP 网页的接通通道（消息约定见 ERP 项目 docs/架构说明.md“安卓 App 通道”）：ERP 页面加载完由入口调 open，
+ * 和 ERP 网页的接通通道（消息约定见 ERP 项目 docs/架构/外壳和网页.md“安卓 App 通道”）：ERP 页面加载完由入口调 open，
  * 建一对端口，把接通消息和其中一个端口发给 ERP 来源的主页面（系统只投给这个来源）；网页回 bridge-ready 才算接通。
  * 之后网页的每句话解析出 type 交给入口；页面重新加载时入口调 close。只做传输，不管消息的意思。
  */
