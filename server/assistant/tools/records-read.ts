@@ -104,7 +104,7 @@ const dependencies: Partial<Record<Module, Record<string, string>>> = {
     supplierId: 'suppliers',
     lines: 'purchases中的真实明细关联与raw_inventory/新纸板库存品',
     'lines.priceBasis':
-      '挂了采购明细的不用填，跟采购明细走；没挂的用户说“X元每平方米”是 area，“X元每张”是 quantity，没说就不填（留空等人补），不猜',
+      '挂了采购明细的计价方式、单价都不用填，跟采购明细走；没挂的用户说“X元每平方米”是 area，“X元每张”是 quantity，没说就不填（留空等人补），不猜',
   },
   purchases: {
     customerOrderId: '用户没说关联哪张客户订单就不填，当备货，不追问',

@@ -42,6 +42,8 @@ test('登记到货：给采购单就按它的订货单登记，当场入库；�
       done.arrival.lines.map((l) => [l.purchaseLineId, l.quantity, l.acceptedQuantity, l.rejectedQuantity, l.stockedQuantity]),
       [[line.id, '400', '350', '50', '300']],
     );
+    // 单价、计价方式跟采购明细（2 元/张）
+    assert.deepEqual(done.arrival.lines.map((l) => [l.unitPrice, l.priceBasis, l.amount]), [['2', 'quantity', '800']]);
     assert.equal(f.balance(), 300000);
     assert.equal(f.current().lines[0].receivedQuantity, '400', '采购已到货按实到算');
     assert.equal(done.batch.rows[0].remainingUnits, 600000);

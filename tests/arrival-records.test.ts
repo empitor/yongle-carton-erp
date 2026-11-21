@@ -118,6 +118,43 @@ test('到货行没写计价方式：挂了采购明细的跟采购明细走，�
   }
 });
 
+test('到货行没写单价：挂了采购明细、计价方式没写或一样的用采购明细的单价，写了的照写的；计价方式不一样、没挂、采购明细没单价的留空', () => {
+  const f = fixture();
+  try {
+    const priced = orderedPurchase(f, clerk, ['100', '100', '100', '100']).purchase.lines.map((l) => l.id);
+    const unpriced = f.ops.savePurchase(
+      {
+        supplierId: f.supplier.id,
+        status: '已订货',
+        orderDate: '2026-10-01',
+        lines: [{ ...f.raw, stockItemId: f.raw.id, quantity: '100', unitPrice: null, priceBasis: 'quantity' }],
+      },
+      clerk,
+    );
+    const on = (lineId: number, extra = {}) => f.linked('10', { purchaseLineId: lineId, ...extra });
+    const lines = [
+      on(priced[0]),
+      on(priced[1], { priceBasis: 'quantity' }),
+      on(priced[2], { priceBasis: 'area' }),
+      on(priced[3], { unitPrice: '3.5' }),
+      f.loose('10'),
+      on(unpriced.lines[0].id),
+    ];
+    const d = f.confirm(f.draft(lines));
+    // 采购明细是 2 元/张；按面积没写单价的不换算、不猜
+    assert.deepEqual(f.flow.get(d.id, 'arrival').lines.map((l) => [l.unitPrice, l.priceBasis, l.amount]), [
+      ['2', 'quantity', '20'],
+      ['2', 'quantity', '20'],
+      [null, 'area', null],
+      ['3.5', 'quantity', '35'],
+      [null, null, null],
+      [null, 'quantity', null],
+    ]);
+  } finally {
+    f.store.close();
+  }
+});
+
 test('采购库存要看的到货数据：已到货和到货记录、单据引用、订货单的到货、待送货占用的成品', () => {
   const f = fixture();
   try {
