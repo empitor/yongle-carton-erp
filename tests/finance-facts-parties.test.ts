@@ -59,11 +59,27 @@ test('财务取一个单位的名字：有就给名字，没有报“往来单�
  * 窗口每个函数跑一遍用的调用。按 financeFacts 的结构定类型：以后加组、加函数，这里不写调用就编译不过，
  * 下面的测试也按 financeFacts 实际有的函数逐个核对，漏写的报出来。
  */
+/** 库存一组要的登记时间点（虚构） */
+const mark = { ranAt: '2026-03-01T00:00:00.000Z', maxRowid: 0 };
 type Calls = { [G in keyof typeof financeFacts]: { [F in keyof (typeof financeFacts)[G]]: (w: World) => unknown } };
 const calls: Calls = {
   parties: {
     names: (w) => financeFacts.parties.names(w.db, 'customer', [w.kept, w.archived]),
     options: (w) => financeFacts.parties.options(w.db, 'supplier'),
+  },
+  stock: {
+    movements: (w) =>
+      financeFacts.stock.movements(w.db, { dates: { before: '2026-02-01' }, after: mark, asOf: mark, exclude: ['1'] }),
+    balancesBefore: (w) => financeFacts.stock.balancesBefore(w.db, { start: '2026-02-01', end: '2026-02-28', asOf: mark, exclude: [] }),
+    openingBalances: (w) => financeFacts.stock.openingBalances(w.db, '2026-02-01', []),
+    manualMovements: (w) => financeFacts.stock.manualMovements(w.db, { from: '2026-02-01', to: '2026-02-28', ids: ['m'], exclude: [] }),
+    reversalOriginals: (w) => financeFacts.stock.reversalOriginals(w.db, [{ sourceId: '1', itemId: 1 }]),
+    completionOriginals: (w) => financeFacts.stock.completionOriginals(w.db, [{ sourceId: '1', itemId: 1 }]),
+    undoneArrivals: (w) => financeFacts.stock.undoneArrivals(w.db, { stockIds: [1], end: '2026-02-28', asOf: mark, exclude: [] }),
+    reversedArrivals: (w) => financeFacts.stock.reversedArrivals(w.db),
+    adjustIds: (w) => financeFacts.stock.adjustIds(w.db, '2026-02-28'),
+    maxRowid: (w) => financeFacts.stock.maxRowid(w.db),
+    deliveryOutflows: (w) => financeFacts.stock.deliveryOutflows(w.db, '2026-02'),
   },
 };
 

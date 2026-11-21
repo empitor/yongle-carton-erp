@@ -9,7 +9,8 @@ import type { Actor } from '../server/core/auth.js';
 import { AppError, count, one, rows } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';
-import { completionOrigin, originOf } from '../server/finance/costing-origins.js';
+import { originsOf } from '../server/finance/costing-origins.js';
+import { must } from './read-result.js';
 import type { Store } from '../server/core/db.js';
 import { productSchema } from '../shared/core/domain.js';
 import { businessFixture, clerk, flowFixture } from './flow-fixture.js';
@@ -86,8 +87,9 @@ test('完工 1000 已发 800：撤销被拒，更正成 900（领料 100 → 90�
   const finishedBack = reversals.find((m) => m.item_id === f.finished.id),
     rawBack = reversals.find((m) => m.item_id === f.raw.id);
   assert.ok(finishedBack && rawBack);
-  assert.deepEqual(completionOrigin(f.store.db, finishedBack, '2026-10-01'), { same: true });
-  const found = originOf(f.store.db, { ...rawBack, kind: 'raw' }, '2026-10-01');
+  const origins = originsOf(f.store.db, [{ ...finishedBack, kind: 'finished' }, { ...rawBack, kind: 'raw' }], '2026-10-01');
+  assert.deepEqual(must(origins.get(finishedBack.id), '成品冲回找到的原完工入库').origin, { same: true });
+  const found = must(origins.get(rawBack.id), '纸板冲回找到的原单据');
   assert.equal(found.kind === 'reversal' && found.origin?.same, true);
 });
 

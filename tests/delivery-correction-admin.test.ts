@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import type { Actor } from '../server/core/auth.js';
 import { AppError, one as oneRow, rows } from '../server/core/index.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';
-import { originOf } from '../server/finance/costing-origins.js';
+import { originsOf } from '../server/finance/costing-origins.js';
+import { must } from './read-result.js';
 import { today } from '../shared/core/index.js';
 import { clerk, localAdmin } from './flow-fixture.js';
 import { deliveryCorrectionSetup } from './delivery-correction-fixture.js';
@@ -85,7 +86,7 @@ test('一张送货单两行出同一个成品：更正后成品批次没有多�
     reversal,
   );
   assert.ok(m, '有冲回的那笔流水');
-  const found = originOf(f.store.db, { ...m, kind: 'finished' }, '2026-11-01');
+  const found = must(originsOf(f.store.db, [{ ...m, kind: 'finished' }], '2026-11-01').get(m.id), '冲回找到的原单据');
   assert.equal(found.kind === 'reversal' && found.origin?.same, true);
 });
 

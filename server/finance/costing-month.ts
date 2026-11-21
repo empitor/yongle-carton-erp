@@ -7,7 +7,8 @@ import { quantityUnits } from '../../shared/core/index.js';
 import { financeError } from './core.js';
 import { proportion } from './amounts.js';
 import { spreadAdjustment, type InvoiceAdjustments } from './costing-invoice-adjust.js';
-import { movementSource, type Movement } from './costing-source.js';
+import type { StockMovement as Movement } from '../flow/index.js';
+import { movementSource, type ArrivalEvent } from './costing-source.js';
 import { expectRow } from './finance-rows.js';
 import { readSnapshot } from './source-snapshot.js';
 
@@ -41,8 +42,6 @@ export type CompletionOrigin = { same: true } | { same: false; cost: number; cou
 type Valuation = { movementId: string; unit: string; amount: number; counterAccount?: string; reason: string };
 /** 完工批次：领料成本、产量、分到的费用后的完工成本 */
 export type ProductionJob = { materials: number; qty: number; unit: string; stockId: number; cost: number };
-/** 到货入库对应的财务事件（已生成凭证的那条），查不到是 undefined */
-type ArrivalEvent = { id: number; snapshot: string; status: string } | undefined;
 /** 系统算出的入库成本（算不出是 null）和对方科目 */
 type SystemInbound = { amount: number | null; parts: [string, number][] };
 
@@ -83,8 +82,8 @@ export class MonthCostBook {
       consumed: Set<number>;
       /** 本月有到票调差或红票冲减的库存品 */
       adjustedStocks: Set<number>;
-      /** 到货流水对应的财务事件 */
-      arrivalEvent: (m: Movement) => ArrivalEvent;
+      /** 到货流水对应的财务事件（已生成凭证的那条），查不到是 undefined */
+      arrivalEvent: (m: Movement) => ArrivalEvent | undefined;
       /** 撤销或更正冲回到货的流水（查到了记账的暂估）→ 要冲减的入库金额 */
       arrivals: Map<string, number>;
     },

@@ -15,7 +15,7 @@ import { businessChanges } from './business-changes-fixture.js';
 import { FinanceMargin } from '../server/finance/margin.js';
 import { MonthCostBook, type Item } from '../server/finance/costing-month.js';
 import { spreadAdjustment } from '../server/finance/costing-invoice-adjust.js';
-import type { Movement } from '../server/finance/costing-source.js';
+import type { StockMovement as Movement } from '../server/flow/index.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { one, rows } from '../server/core/index.js';
 
