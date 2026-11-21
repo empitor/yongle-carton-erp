@@ -1,9 +1,9 @@
-// 单张完工单（server/flow/service.ts 的保存、核对）：成品库存按产品对应，待入库的完工数算进任务视图，
+// 单张完工单（server/flow/rules/service.ts 的保存、核对）：成品库存按产品对应，待入库的完工数算进任务视图，
 // 超计划只提示、口径和登记完工一样。整批登记见 batch-completion.test.ts。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { ProductionCompletion } from '../server/flow/batch-completion.js';
+import { ProductionCompletion } from '../server/flow/index.js';
 import { today } from '../shared/core/domain.js';
 import { completionFixture as fixture } from './completion-fixture.js';
 import { actor } from './actor-fixture.js';

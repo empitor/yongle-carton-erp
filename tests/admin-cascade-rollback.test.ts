@@ -1,5 +1,5 @@
-// 本机管理员改有到货的采购明细、改被到货单用着的库存品时，连带改单据（server/flow/maintenance-cascade.ts 的 detachPurchaseLines、
-// alignStock，由保存入口 server/flow/stock-entries.ts 交给采购库存在原位置调）和保存在同一个保存点：连带里出错整笔退回，
+// 本机管理员改有到货的采购明细、改被到货单用着的库存品时，连带改单据（server/flow/rules/maintenance-cascade.ts 的 detachPurchaseLines、
+// alignStock，由保存入口 server/flow/stock/stock-entries.ts 交给采购库存在原位置调）和保存在同一个保存点：连带里出错整笔退回，
 // 采购单、明细、库存品、到货单、关联表、审计、流水修订都不变。内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

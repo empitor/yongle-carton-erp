@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import type { MovementFilters } from '../shared/business/index.js';
 import { pageActor } from './actor-fixture.js';

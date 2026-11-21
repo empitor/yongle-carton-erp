@@ -12,14 +12,14 @@ import {
   stockBatchesQuerySchema,
   type FlowApi,
 } from '../../shared/business/index.js';
-import { FlowService } from './service.js';
+import { FlowService } from './rules/service.js';
 import { WarehouseDaily } from './daily.js';
-import { ManualProductionCompletion } from './production-completion.js';
-import { PurchaseReturns } from './returns.js';
-import { archiveFlowDocuments } from './archive.js';
-import { stockItemBatches } from './stock-batches.js';
-import { updateDocumentInfo } from './document-info.js';
-import { correctDocument, planCorrection } from './correction.js';
+import { ManualProductionCompletion } from './production/production-completion.js';
+import { PurchaseReturns } from './arrival/returns.js';
+import { archiveFlowDocuments } from './documents/archive.js';
+import { stockItemBatches } from './stock/stock-batches.js';
+import { updateDocumentInfo } from './correction/document-info.js';
+import { correctDocument, planCorrection } from './correction/correction.js';
 
 /*
  * 单据流转的接口（挂在 /api/flow 下，接口表 shared/business/flow-api.ts）：只取参数、认人、调服务；查询参数和正文由服务（或这里）先用 zod 校验。
@@ -146,13 +146,13 @@ function saveRoutes({ on, store, service, who }: FlowRoutes) {
 
 /** 办一张单据：更正、核对、排期、编辑说明、确认、送达、取消和撤销 */
 function documentRoutes({ on, store, service, who }: FlowRoutes) {
-  // 更正已生效的到货、送货、完工单（撤销原单、另出替代单）：改数量这类只有这一条路，按单据种类分派（server/flow/correction.ts）；
+  // 更正已生效的到货、送货、完工单（撤销原单、另出替代单）：改数量这类只有这一条路，按单据种类分派（server/flow/correction/correction.ts）；
   // 提交时正文由更正自己先校验，同一请求号重发返回上次的结果
   on('POST /flow/:id/correct', ({ param, body, req }) => correctDocument(store, recordId(param('id')), body, who.editor(req)));
   on('POST /flow/:id/correction-preview', ({ param, body, req }) => planCorrection(store, recordId(param('id')), body, who.editor(req)));
   on('POST /flow/:id/preview', ({ param, req }) => service.preview(recordId(param('id')), who.editor(req)));
   on('POST /flow/:id/schedule', ({ param, body, req }) => service.schedule(recordId(param('id')), body, who.editor(req)));
-  // 已生效的到货、送货、完工单的“编辑”：只改备注这类说明，不动库存和金额，不出替代单（server/flow/document-info.ts）
+  // 已生效的到货、送货、完工单的“编辑”：只改备注这类说明，不动库存和金额，不出替代单（server/flow/correction/document-info.ts）
   on('POST /flow/:id/info', ({ param, body, req }) => updateDocumentInfo(store, recordId(param('id')), body, who.editor(req)));
   on('POST /flow/:id/confirm', ({ param, body, req }) => service.confirm(recordId(param('id')), body, who.editor(req)));
   // 客户收到货：只记送达，不动库存

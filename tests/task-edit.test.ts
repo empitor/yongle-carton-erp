@@ -1,4 +1,4 @@
-// 生产任务的修改（server/flow/service.ts）：已下达还没开工的能改，开工后不能；单位只有“只”；助手和人工同一条规则；
+// 生产任务的修改（server/flow/rules/service.ts）：已下达还没开工的能改，开工后不能；单位只有“只”；助手和人工同一条规则；
 // 计划数不能少于已登记的完工数（已入库加待核对入库，取消、撤销的不算）。内存库、虚构数据。
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';

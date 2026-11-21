@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { pageActor } from './actor-fixture.js';
 import { listen, testProblems } from './http-fixture.js';
 

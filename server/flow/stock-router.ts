@@ -19,8 +19,8 @@ import {
   type StockFlowApi,
 } from '../../shared/business/index.js';
 import { OrderBatchService, stockIdsOfParty } from '../operations/index.js';
-import { registerArrival } from './register-arrival.js';
-import { FlowService } from './service.js';
+import { registerArrival } from './arrival/register-arrival.js';
+import { FlowService } from './rules/service.js';
 
 /*
  * 采购单、库存品和流水、订货单的接口（挂在 /api 下，接口表 shared/business/stock-flow-api.ts）：回答带单据的内容，归单据流转。

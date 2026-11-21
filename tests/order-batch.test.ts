@@ -8,14 +8,14 @@ import { Store } from '../server/core/db.js';
 import { AppError, count, one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
 import { storedScheduleEntrySchema } from '../shared/business/index.js';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { purchaseNextSteps } from '../shared/business/order-next-step.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { flowFixture, clerk } from './flow-fixture.js';
-import { registerArrival } from '../server/flow/register-arrival.js';
+import { registerArrival } from '../server/flow/index.js';
 import { actor, superActor } from './actor-fixture.js';
 
 /** 移出订货单那条审计的内容：这里要看的几项（版本号前后原样取，整个对象比） */

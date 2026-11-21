@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { FlowService } from '../server/flow/service.js';
-import { PurchaseReturns } from '../server/flow/returns.js';
+import { FlowService } from '../server/flow/index.js';
+import { PurchaseReturns } from '../server/flow/index.js';
 import { setDoc, supervisor } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { FinanceEvents } from '../server/finance/events.js';

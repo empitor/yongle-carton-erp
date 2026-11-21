@@ -1,6 +1,6 @@
 // 送货出库、送达的测试共用（delivery-shipping、delivery-ship-date）：内存库、虚构数据，测试结束自动关库。
 import type { TestContext } from 'node:test';
-import { viewOfKind } from '../server/flow/read.js';
+import { viewAs } from './read-result.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
@@ -34,7 +34,7 @@ export function deliverySetup(t: TestContext, stock = '1000') {
       who,
     );
   const ship = (id: number, extra: Record<string, unknown> = {}, who: Actor = actor) =>
-    viewOfKind(base.check({ id }, extra, who), 'delivery');
+    viewAs(base.check({ id }, extra, who), 'delivery');
   const delivery = arrange('2026-11-10', '600');
   const balance = () => ops.items(true, item.id)[0].balanceUnits;
   return { store, ops, flow, docs, order, item, delivery, arrange, ship, balance };

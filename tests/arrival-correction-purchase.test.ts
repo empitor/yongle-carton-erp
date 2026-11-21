@@ -1,4 +1,4 @@
-// 到货和更正到货单跟采购单走（server/flow/arrival-correction.ts、server/operations/）：采购进度按有效到货算，
+// 到货和更正到货单跟采购单走（server/flow/correction/arrival-correction.ts、server/operations/）：采购进度按有效到货算，
 // 多批次、多行、跨两张采购的更正，界面、概览、助手读到的一致，接口和输入的校验，改成 0 的行。内存库、虚构数据。
 import { z } from 'zod';
 import { test } from 'node:test';
@@ -8,10 +8,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import { toolsOf } from './assistant-fixture.js';
-import { planCorrection } from '../server/flow/correction.js';
+import { planCorrection } from '../server/flow/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { flowInput } from '../shared/business/physical-flow.js';

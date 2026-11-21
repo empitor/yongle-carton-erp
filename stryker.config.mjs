@@ -54,7 +54,7 @@ const sets = {
   },
   // 单位和数量的校验入口：单据输入归一单位、拒收别的单位、到货行的 0
   units: {
-    mutate: ['server/flow/validate.ts:16-57', 'shared/business/physical-flow.ts:233-251'],
+    mutate: ['server/flow/rules/validate.ts:16-57', 'shared/business/physical-flow.ts:233-251'],
     tests: ['tests/flow-core.test.ts', 'tests/arrival-register.test.ts', 'tests/task-edit.test.ts', 'tests/stock-items.test.ts', 'tests/flow-input-units.test.ts'],
   },
 };

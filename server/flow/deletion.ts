@@ -3,9 +3,9 @@ import type { Store } from '../core/index.js';
 import type { DeletionRow } from '../core/index.js';
 import { registerRecordKinds, registerReset, registerTableDeletion } from '../core/index.js';
 import { flowDocumentContent, flowKinds, type FlowDocument } from '../../shared/business/index.js';
-import { documentOf, storedDocuments } from './read.js';
-import { readReturnDocument } from './return-document.js';
-import { FlowService } from './service.js';
+import { documentOf, storedDocuments } from './documents/read.js';
+import { readReturnDocument } from './documents/return-document.js';
+import { FlowService } from './rules/service.js';
 
 /** 删除引擎读到的一行单据（规划时读了编号、单号、kind、document 列）的内容 */
 const rowDocument = (row: DeletionRow) =>

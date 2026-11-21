@@ -12,8 +12,8 @@ import type { Actor } from '../server/core/auth.js';
 import { maker, postDrafts, event } from './finance-fixture.js';
 import { receiveLines } from './receive-fixture.js';
 import { applyCorrection, previewCorrection } from './receive-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { updateDocumentInfo } from '../server/flow/document-info.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { updateDocumentInfo } from '../server/flow/index.js';
 import { lineMoney } from '../shared/business/operations.js';
 import { businessChanges } from './business-changes-fixture.js';
 
@@ -89,10 +89,10 @@ function arrivalPurchase(f: FlowBase, who: Actor) {
 
 /** 已生效单据的改法：info 只改说明、correct 更正（本机管理员）、tamperQuantity 不经程序直接改库 */
 function documentEdits(f: FlowBase, admin: Actor, newId: () => string) {
-  /** 已生效的单据只改说明（备注这类，server/flow/document-info.ts） */
+  /** 已生效的单据只改说明（备注这类，server/flow/correction/document-info.ts） */
   const info = (id: number, patch: Record<string, unknown>) =>
     updateDocumentInfo(f.store, id, { ...patch, expectedVersion: f.flow.get(id).version }, admin);
-  /** 更正一张已生效的单据（server/flow/correction.ts，本机管理员），返回替代单 */
+  /** 更正一张已生效的单据（server/flow/correction/correction.ts，本机管理员），返回替代单 */
   const correct = (id: number, input: Record<string, unknown>) => {
     const v = { expectedVersion: f.flow.get(id).version, reason: '虚构：数量登记错了', ...input };
     const digest = planCorrection(f.store, id, v, admin).previewDigest;

@@ -5,8 +5,8 @@ import { test } from 'node:test';
 // 删除引擎要各模块登记的删除规则（改订单整张删送货单时用）
 import '../server/import/index.js';
 import assert from 'node:assert/strict';
-import { alignStock, detachPurchaseLines } from '../server/flow/maintenance-cascade.js';
-import { storedDocument } from '../server/flow/read.js';
+import { alignStock, detachPurchaseLines } from '../server/flow/rules/maintenance-cascade.js';
+import { storedDocument } from '../server/flow/documents/read.js';
 import { orderOf } from './flow-fixture.js';
 import { fixture, splitDeliveryFixture } from './maintenance-fixture.js';
 import { assertSnapshots, markSnapshots } from './snapshot-fixture.js';

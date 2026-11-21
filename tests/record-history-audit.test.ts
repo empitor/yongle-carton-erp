@@ -7,7 +7,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { updateDocumentInfo } from '../server/flow/document-info.js';
+import { updateDocumentInfo } from '../server/flow/index.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { recordContext } from '../server/business/record-context.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
@@ -123,7 +123,7 @@ const samples: Record<string, { module: string; detail: unknown }> = {
   cancel: { module: 'delivery', detail: { before: delivery, reason: '不要了' } },
   reverse: { module: 'delivery', detail: { before: { ...delivery, status: 'confirmed' }, after: { ...delivery, status: 'reversed' }, reason: '送错' } },
   'create-draft': { module: 'delivery', detail: { before: null, after: delivery } },
-  // 订单、采购单的状态动作（server/business/order-status.ts、server/flow/stock-entries.ts）
+  // 订单、采购单的状态动作（server/business/order-status.ts、server/flow/stock/stock-entries.ts）
   revert: { module: 'orders', detail: { before: { id: O, status: '已确认' }, after: { id: O, status: '待确认' } } },
   reinstate: { module: 'orders', detail: { before: { id: O, status: '已取消' }, after: { id: O, status: '待确认' } } },
   'update-draft': { module: 'delivery', detail: { before: delivery, after: { ...delivery, address: '新地址' } } },

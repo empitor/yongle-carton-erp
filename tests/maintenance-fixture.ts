@@ -7,7 +7,7 @@ import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { businessBase, standardRecords } from './business-base-fixture.js';
-import { viewOfKind } from '../server/flow/read.js';
+import { viewAs } from './read-result.js';
 import type { FlowKind } from '../shared/business/index.js';
 import type { Actor } from '../server/core/auth.js';
 import { count } from '../server/core/index.js';
@@ -71,7 +71,7 @@ function baseRecords(base: Base, who: Actor) {
 /** 各确认一张单据：arrival 到货 1000 张、task 安排 1000 只（安排即下达）、production(任务) 完工 860 只、delivery 送 100 只 */
 function documentMakers(base: Base, r: ReturnType<typeof baseRecords>, who: Actor) {
   const save = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => saveDoc(base.flow, kind, { date: '2026-10-27', ...input }, who);
-  const confirm = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => viewOfKind(base.check(save(kind, input)), kind);
+  const confirm = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => viewAs(base.check(save(kind, input)), kind);
   const arrival = () =>
     confirm('arrival', {
       supplierId: r.supplier.id,
@@ -128,7 +128,7 @@ export function splitDeliveryFixture() {
       },
       f.who,
     );
-  const ship = (lines: ShipLine[], extra: object = {}) => viewOfKind(f.base.check(pending(lines, extra)), 'delivery');
+  const ship = (lines: ShipLine[], extra: object = {}) => viewAs(f.base.check(pending(lines, extra)), 'delivery');
   const undo = (id: number) => f.flow.reverse(id, { version: f.flow.get(id).version, reason: '虚构：发错了', acknowledged: true }, f.who);
   const editOrder = (id: number, patch: Record<string, unknown>, who: Actor = f.who) => {
     const current = f.store.order(id);

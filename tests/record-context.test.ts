@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { recordContext } from '../server/business/record-context.js';
 import { flowStatusText } from '../shared/business/index.js';
 import { saveDoc } from './receive-fixture.js';

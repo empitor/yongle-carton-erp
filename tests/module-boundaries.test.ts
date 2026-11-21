@@ -378,6 +378,12 @@ test('共用业务的每个层名都对得上一个服务端模块（不然服�
   assert.deepEqual(unmatchedLayers({ name: '样例', paths: [], allow: [], layers: [{ name: '没有这个模块', paths: [] }] }, serverModules), ['没有这个模块']);
 });
 
+test('只管模块内部的层不用模块名（跨模块的分层限制按“层名 = 模块名”对，撞名会被当成跨模块的层）', () => {
+  const inner = modules.filter((m) => !m.paths.includes('shared/business/'));
+  const clash = inner.flatMap((m) => (m.layers ?? []).filter((l) => modules.some((x) => x.name === l.name)).map((l) => m.name + '·' + l.name));
+  assert.deepEqual(clash, [], '这几个层名和模块同名，换个名字');
+});
+
 test('回归：分层检查拦住往上引、没登记进层的文件，同层、下层、入口不误报', () => {
   const blocked: [file: string, text: string, to: string][] = [
     ['src/flow/Sample.tsx', "import { RecordPages } from '../records/RecordPages';", 'src/records/RecordPages.tsx'],
@@ -428,21 +434,21 @@ const codeCheck = (f: string, text: string) => {
 };
 test('回归：代码引用检查认得出 .mjs、变量动态导入、require、文件地址、脚本路径，合法写法不误报', () => {
   const blocked: [file: string, text: string, expect: string][] = [
-    ['server/import/parse-worker.mjs', "import '../flow/service.ts';", '→ server/flow/service.ts'],
-    ['server/operations/service.ts', "const target = '../flow/service.js';\nexport const load = () => import(target);", '（采购库存）→ server/flow/service.ts'],
+    ['server/import/parse-worker.mjs', "import '../flow/rules/service.ts';", '→ server/flow/rules/service.ts'],
+    ['server/operations/service.ts', "const target = '../flow/rules/service.js';\nexport const load = () => import(target);", '（采购库存）→ server/flow/rules/service.ts'],
     ['server/operations/service.ts', 'export const load = (p: string) => import(p);', '的目标看不出来'],
-    ['server/business/sample.ts', "const m = require('../flow/service.js');", '→ server/flow/service.ts（require）'],
+    ['server/business/sample.ts', "const m = require('../flow/rules/service.js');", '→ server/flow/rules/service.ts（require）'],
     ['server/business/sample.ts', "export const w = new URL('../import/manager.ts', import.meta.url);", '→ server/import/manager.ts（url）'],
     ['server/business/sample.ts', 'export const w = (name: string) => new URL(name, import.meta.url);', '的目标看不出来'],
     // 带 ? 后缀（Vite 的 ?no-inline、?raw）去掉后缀再认文件，越界照样拦
     ['server/business/sample.ts', "export const w = new URL('../import/manager.ts?no-inline', import.meta.url);", '→ server/import/manager.ts（url）'],
-    ['server/business/sample.ts', "import text from '../flow/service.ts?raw';", '→ server/flow/service.ts'],
+    ['server/business/sample.ts', "import text from '../flow/rules/service.ts?raw';", '→ server/flow/rules/service.ts'],
     ['server/business/sample.ts', "import '../../scripts/runtime-control.mjs';", '（模块外的文件）'],
     ['server/business/sample.ts', "import './no-such-file.js';", '找不到'],
     // 同名参数遮住了常量：不能把参数当成那个常量算
     ['server/business/sample.ts', "const p = '../flow/index.js';\nexport const load = (p: string) => import(p);", '的目标看不出来'],
     // createRequire 换了名字、require.resolve 也算
-    ['scripts/sample.mjs', "const req = createRequire(import.meta.url);\nreq('../server/flow/service.ts');", '（单据流转 的内部文件）'],
+    ['scripts/sample.mjs', "const req = createRequire(import.meta.url);\nreq('../server/flow/rules/service.ts');", '（单据流转 的内部文件）'],
     ['scripts/sample.mjs', "require.resolve('../server/core/db.ts');", '（基础 的内部文件）'],
     // 登记过的工具才放行：别的脚本引同一个内部文件照样拦
     ['scripts/linux/verify-package.mjs', "await import('../../server/inbox/service.ts');", '（识别导入 的内部文件）'],
@@ -453,7 +459,7 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     ['src/Sample.tsx', "import { FinanceRelated } from './finance/related-pages';", '→ src/finance/related-pages.ts'],
     ['scripts/sample.mjs', "await import('../server/core/db.ts');", '（基础 的内部文件）'],
     ['scripts/sample.mjs', "const P = new URL('../', import.meta.url).href;\nawait import(P + 'server/core/index.ts');", '的目标看不出来'],
-    ['scripts/sample.mjs', "spawnSync(process.execPath, ['--import', 'tsx', 'server/flow/service.ts']);", '（单据流转 的内部文件）'],
+    ['scripts/sample.mjs', "spawnSync(process.execPath, ['--import', 'tsx', 'server/flow/rules/service.ts']);", '（单据流转 的内部文件）'],
     ['vite.config.ts', "import { AI_HTTP_TIMEOUT_MS } from './shared/ai/ai-runtime';", '（共用-AI 的内部文件）'],
   ];
   for (const [f, text, expect] of blocked)

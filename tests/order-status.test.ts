@@ -1,4 +1,4 @@
-// 订单状态由有效单据派生（server/flow/order-progress.ts、server/business/service.ts）：生产中、待发货、已发货跟着任务、完工、
+// 订单状态由有效单据派生（server/flow/rules/order-progress.ts、server/business/service.ts）：生产中、待发货、已发货跟着任务、完工、
 // 送货走，分批做分批发、一张任务挂多张单、撤销和删除单据后回退；人工只定待确认、已确认、已取消。下一步见 order-next-step.test.ts。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -10,12 +10,12 @@ import { count, type Actor } from '../server/core/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, orderDisplayStatus, productSchema, statuses, uncountedOrderStatuses } from '../shared/core/domain.js';
 import { buildToday } from '../server/business/workbench.js';
 import { orderNextSteps } from '../shared/business/order-next-step.js';
-import { shippedByLine, shippedUnits } from '../server/flow/shipped.js';
-import { materialByOrder } from '../server/flow/order-progress.js';
-import { orderEditGuard } from '../server/flow/order-edit-guard.js';
+import { shippedByLine, shippedUnits } from '../server/flow/documents/shipped.js';
+import { materialByOrder } from '../server/flow/rules/order-progress.js';
+import { orderEditGuard } from '../server/flow/rules/order-edit-guard.js';
 import { businessFixture, flowFixture, clerk, localAdmin, orderOf } from './flow-fixture.js';
 import { rawInput, stackActor as actor, stackFixture } from './stack-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { superActor } from './actor-fixture.js';
 
 /** flowFixture 加纸板 100 张；make(订单, 数量) 安排一张任务并全部完工入库 */

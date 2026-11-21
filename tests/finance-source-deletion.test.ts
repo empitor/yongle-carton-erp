@@ -11,7 +11,7 @@ import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { FinanceAllocations } from '../server/finance/allocations.js';
 import { FinanceMargin } from '../server/finance/margin.js';
 import { maker, newSettings, physical, deliveryDoc, postDrafts, reverseSource, eventsStep, ledgerBalance, subledger, obligation, funds, confirmBlue, confirmRed, unbalancedVouchers } from './finance-fixture.js';

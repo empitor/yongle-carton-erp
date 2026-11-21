@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import {
   batchRowKey,
   flowViewSchema,

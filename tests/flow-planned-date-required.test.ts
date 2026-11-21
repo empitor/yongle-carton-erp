@@ -1,4 +1,4 @@
-// 生产任务、送货单的计划日：保存时没写就按单据日期补上（server/flow/validate.ts），所以库里一定有；
+// 生产任务、送货单的计划日：保存时没写就按单据日期补上（server/flow/rules/validate.ts），所以库里一定有；
 // 建表（server/core/schema/tables/flow.ts）也约束这两种单据的 planned_date 不能为空，到货单、完工单照旧没有。
 // 内存库、虚构数据。
 import { test } from 'node:test';

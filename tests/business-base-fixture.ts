@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import type { Actor } from '../server/core/auth.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 

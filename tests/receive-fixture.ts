@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import type { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
 import { OrderBatchService } from '../server/operations/index.js';
-import { registerArrival } from '../server/flow/register-arrival.js';
-import { archiveFlowDocuments } from '../server/flow/archive.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { receiptEvents } from '../server/flow/receipt-events.js';
-import { FlowService } from '../server/flow/service.js';
+import { registerArrival } from '../server/flow/index.js';
+import { archiveFlowDocuments } from '../server/flow/index.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { receiptEvents } from '../server/flow/rules/receipt-events.js';
+import { FlowService } from '../server/flow/index.js';
 import type { FlowKind } from '../shared/business/physical-flow.js';
 import { arrivalCorrectionPreviewSchema, type FlowDocView, type StockItemBaseView } from '../shared/business/index.js';
 import type { OperationsService } from '../server/operations/index.js';
@@ -220,7 +220,7 @@ export function archiveDoc(flow: FlowService, id: number, restore: boolean, who:
 }
 
 /**
- * 测试里按“要改的几行”更正一张已入库的到货单：没列的行照原数量带上，直接调 server/flow/arrival-correction.ts。
+ * 测试里按“要改的几行”更正一张已入库的到货单：没列的行照原数量带上，直接调 server/flow/correction/arrival-correction.ts。
  * receipt 是到货单编号，或采购单上的到货记录键（flow-到货单编号）；items 每行 index 加要改的数量和验收数。
  */
 type CorrectionItems = {

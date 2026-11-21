@@ -1,18 +1,21 @@
 // “假装业务变了”：财务测试要的业务单据、库存流水、采购退货、库存品的改动都从这里造（虚构数据、内存库）。
-// 写入走表主人自己的写法：单据经 server/flow/document-store.ts，流水修订经 server/operations/ledger.ts，
+// 写入走表主人自己的写法：单据经 server/flow/documents/document-store.ts，流水修订经采购库存入口的 stockLedger，
 // 删除走删除规则登记的语句（server/core/deletion-rules.ts）。没有现成写法、只能写 SQL 的几处都在这个文件里，各自写明为什么。
 // 业务改了表，只改这一个文件。
 // 删除规则（单据、采购退货；库存流水、库存品）在单据流转、采购库存各自的 deletion.ts 里登记：
-// 单据流转只加载它那一份；采购库存的测试只许走入口（tests/module-test-entries.test.ts），入口加载时就登记了
-import '../server/flow/deletion.js';
+// 测试引这两个模块都走入口（tests/module-test-entries.test.ts），入口加载时就登记了
+import '../server/flow/index.js';
 import { stockLedger } from '../server/operations/index.js';
 import type { SQLOutputValue } from 'node:sqlite';
 import type { Actor, DeletionContext, Store } from '../server/core/index.js';
 import { deletionRemove, deletionUpdate, nextAutoId, one, rows } from '../server/core/index.js';
-import { flowColumns, writeFlowDocument } from '../server/flow/document-store.js';
-import { documentOf, storedDocument } from '../server/flow/read.js';
+import { flowColumns, writeFlowDocument } from '../server/flow/documents/document-store.js';
+import { documentOf, storedDocument } from '../server/flow/documents/read.js';
 import { flowDocumentContent, flowDocumentSchema, type FlowKind } from '../shared/business/index.js';
 import { actor as defaultActor } from './actor-fixture.js';
+
+/** 造单据时内容里决定镜像列的几项（计划日、送达、订货单、更正关系；单据表的镜像列由 flowColumns 从这些算） */
+export type MirroredFields = Omit<Parameters<typeof flowColumns>[0], 'kind'>;
 
 /** 删除规则要的上下文：谁、什么时候（这里只删单行，没有连带的“改过的行”） */
 const deletionContext = (who: Actor): DeletionContext => ({ actor: who, at: new Date().toISOString(), mark: {}, updated: () => [] });

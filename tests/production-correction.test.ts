@@ -1,4 +1,4 @@
-// 更正完工单（server/flow/correction.ts + production-correction-plan.ts）：超级管理员模式改合格数、报废数、领料；
+// 更正完工单（server/flow/correction/correction.ts + production-correction-plan.ts）：超级管理员模式改合格数、报废数、领料；
 // 本机管理员另能改完工日期、产品、生产任务。撤销原单、另出替代单，流水只追加。内存库、虚构数据。
 // 末尾一条守三种更正（到货、送货、完工）同一请求号重发交回的结果和第一次一样。
 import { pageActor } from './actor-fixture.js';
@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Actor } from '../server/core/auth.js';
 import { AppError, count, one, rows } from '../server/core/index.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { stockItemBatches } from '../server/flow/stock-batches.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { stockItemBatches } from '../server/flow/index.js';
 import { originsOf } from '../server/finance/costing-origins.js';
 import { must } from './read-result.js';
 import type { Store } from '../server/core/db.js';

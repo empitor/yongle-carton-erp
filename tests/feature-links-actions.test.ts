@@ -155,13 +155,19 @@ test('助手和界面同一个服务：会写库的助手命令都挂在动作�
   assert.deepEqual(bad, []);
 });
 
+/** 文件所在的模块目录（server/flow/rules/x.ts → server/flow，含子目录）；直接在 server/ 下的就是 server 本层 */
+const moduleDir = (file: string) => {
+  const parts = file.split('/');
+  return parts.slice(0, Math.min(2, parts.length - 1)).join('/');
+};
+
 test('登记的服务函数真有：注册写地址的文件或它所在的模块目录里写着这个名字', () => {
   const files = new Map(routes.map((r) => [routeKey(r), r.file]));
   const dirText = new Map<string, string>();
   const textOf = (dir: string) =>
     dirText.get(dir) ??
     dirText
-      .set(dir, readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => readFileSync(dir + '/' + f, 'utf8')).join('\n'))
+      .set(dir, readdirSync(dir, { recursive: dir.includes('/'), encoding: 'utf8' }).filter((f) => f.endsWith('.ts')).map((f) => readFileSync(dir + '/' + f, 'utf8')).join('\n'))
       .get(dir) ??
     '';
   const bad: string[] = [];
@@ -171,7 +177,7 @@ test('登记的服务函数真有：注册写地址的文件或它所在的模�
     const file = key ? files.get(key) : undefined;
     if (!file) continue; // 没有路由的上一条测试报
     const name = methodName(a.service);
-    if (!word(name).test(readFileSync(file, 'utf8')) && !word(name).test(textOf(file.slice(0, file.lastIndexOf('/')))))
+    if (!word(name).test(readFileSync(file, 'utf8')) && !word(name).test(textOf(moduleDir(file))))
       bad.push(label(a) + '：' + file + ' 和它的目录里都没有 ' + a.service);
   }
   assert.deepEqual(bad, []);

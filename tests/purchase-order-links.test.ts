@@ -8,7 +8,7 @@ import { relatedBusiness } from '../server/business/related-business.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 // 删订单要识别导入配合（给导入记录打标记），加载时登记
 import '../server/import/index.js';
-import { registerArrival } from '../server/flow/register-arrival.js';
+import { registerArrival } from '../server/flow/index.js';
 import { one, parseStoredJson, rows } from '../server/core/index.js';
 import { purchaseLineDocumentSchema } from '../shared/business/index.js';
 import { actor, superActor } from './actor-fixture.js';

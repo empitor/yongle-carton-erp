@@ -1,11 +1,11 @@
-// 成品库存按“每次完工”分批（server/flow/stock-batches.ts、shared/business/stock-batches.ts）：批次怎么算、估计还剩多少、批量取数。
+// 成品库存按“每次完工”分批（server/flow/stock/stock-batches.ts、shared/business/stock-batches.ts）：批次怎么算、估计还剩多少、批量取数。
 // 批次备注、批次接口在 document-info.test.ts。数据全是虚构的，库在内存里。
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
-import { stockItemBatches } from '../server/flow/stock-batches.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { stockItemBatches } from '../server/flow/index.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { stockBatches, type BatchMovement } from '../shared/business/stock-batches.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { createBusinessService } from '../server/business/service.js';

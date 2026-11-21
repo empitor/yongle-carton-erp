@@ -3,8 +3,8 @@
 import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
 import type { Actor } from '../server/core/auth.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { viewOfKind } from '../server/flow/read.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { viewAs } from './read-result.js';
 import { clerk } from './flow-fixture.js';
 import { businessBase } from './business-base-fixture.js';
 import { ofKind } from './receive-fixture.js';
@@ -38,7 +38,7 @@ export function deliveryCorrectionSetup(t: TestContext, stock = '1000') {
       },
       who,
     );
-    return viewOfKind(base.check(d, { shipDate: date }, who), 'delivery');
+    return viewAs(base.check(d, { shipDate: date }, who), 'delivery');
   };
   const input = (id: number, lines: CorrectionLine[], extra: Record<string, unknown> = {}) => ({
     expectedVersion: flow.get(id).version,

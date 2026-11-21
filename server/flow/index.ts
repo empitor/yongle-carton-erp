@@ -1,20 +1,20 @@
 // 单据流转的表的删除、初始化规则（server/core/deletion-rules.ts）
 import './deletion.js';
 export { recomputeAfterFlowDeletion } from './deletion.js';
-export { archiveFlowDocuments } from './archive.js';
-export { ProductionCompletion } from './batch-completion.js';
+export { archiveFlowDocuments } from './documents/archive.js';
+export { ProductionCompletion } from './production/batch-completion.js';
 export { WarehouseDaily } from './daily.js';
 export { stockFlowRouter } from './stock-router.js';
-export { registerArrival } from './register-arrival.js';
-export { correctDocument, planCorrection } from './correction.js';
-export { PurchaseReturns } from './returns.js';
+export { registerArrival } from './arrival/register-arrival.js';
+export { correctDocument, planCorrection } from './correction/correction.js';
+export { PurchaseReturns } from './arrival/returns.js';
 export { flowRouter } from './router.js';
-export { insertSource, updateSourceDocument } from './sources.js';
-export { carryOverFlowDocument, replaceFlowDocument } from './maintenance-writes.js';
-export { FlowService } from './service.js';
-export { arrivalHeads, documentVersions, pendingCompletionVersions, sourceFileNames } from './document-lookups.js';
-export { finishedStockOfProduct, stockItemBatches } from './stock-batches.js';
-export { updateDocumentInfo } from './document-info.js';
+export { insertSource, updateSourceDocument } from './documents/sources.js';
+export { carryOverFlowDocument, replaceFlowDocument } from './rules/maintenance-writes.js';
+export { FlowService } from './rules/service.js';
+export { arrivalHeads, documentVersions, pendingCompletionVersions, sourceFileNames } from './documents/document-lookups.js';
+export { finishedStockOfProduct, stockItemBatches } from './stock/stock-batches.js';
+export { updateDocumentInfo } from './correction/document-info.js';
 // 财务从业务拿数据的只读窗口：财务只引这一个对象（tests/module-narrow-refs.test.ts）
 export { financeFacts } from './finance-facts/facts.js';
 export type { ReversalOriginal, StockMovement } from './finance-facts/facts.js';

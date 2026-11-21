@@ -14,7 +14,7 @@ import { imageFixture, docxFixture, xlsxFixture, pdfFixture } from './import-fix
 import { createOrderWorkflowFixture, importer as actor } from './assistant-workflow-fixture.js';
 import { startHttp } from './http-fixture.js';
 import { SseParser } from '../shared/core/sse.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { readAs } from './read-result.js';
 /** 工作流 call() 交回的结果（各命令不同）按路径取一项 */

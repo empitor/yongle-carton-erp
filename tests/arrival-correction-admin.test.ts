@@ -1,4 +1,4 @@
-// 本机管理员更正已入库的到货单（server/flow/arrival-correction-plan.ts）：改日期、送货单号、单价，增删行，换挂订货单里的采购明细。
+// 本机管理员更正已入库的到货单（server/flow/correction/arrival-correction-plan.ts）：改日期、送货单号、单价，增删行，换挂订货单里的采购明细。
 // 同样撤销原单、另出替代单；挂的明细、库存品、送货单号守登记到货的规矩。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 import { errorMessage } from '../shared/core/error-message.js';
 import { correctionFixture, ofKind, orderedPurchase, saveDoc } from './receive-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { AppError } from '../server/core/errors.js';
 import { count } from '../server/core/index.js';
 import type { Actor } from '../server/core/actor.js';

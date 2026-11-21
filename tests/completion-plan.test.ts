@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture } from './flow-fixture.js';
-import { allocate, checkFacts, pickTasks, type CompletionInput } from '../server/flow/completion-plan.js';
+import { allocate, checkFacts, pickTasks, type CompletionInput } from '../server/flow/production/completion-plan.js';
 
 /** 按录入规则整理过的登记完工输入（领 10 张纸板、按产量比例分），各条只换要试的几项 */
 const input = (over: Partial<CompletionInput> = {}): CompletionInput => ({

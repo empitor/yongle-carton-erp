@@ -8,8 +8,8 @@ import { flowStatusLabel } from '../shared/business/physical-flow.js';
 import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
 import { flowFixture, clerk, clerk as actor, localAdmin } from './flow-fixture.js';
-import { updateDocumentInfo } from '../server/flow/document-info.js';
-import { viewOfKind } from '../server/flow/read.js';
+import { updateDocumentInfo } from '../server/flow/index.js';
+import { viewAs } from './read-result.js';
 import { one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
 import { flowDocumentSchema } from '../shared/business/index.js';
 
@@ -122,10 +122,10 @@ test('改已送达的送货单的说明（编辑只改备注）：出库、送�
   const f = fixture('10');
   try {
     const order = f.order(10);
-    const shipped = viewOfKind(f.confirmId(f.delivery(order, '10', { plannedDate: '2026-10-25' }).id), 'delivery');
+    const shipped = viewAs(f.confirmId(f.delivery(order, '10', { plannedDate: '2026-10-25' }).id), 'delivery');
     assert.equal(shipped.plannedDate, '2026-10-25');
     const done = f.flow.markDelivered(shipped.id, { version: shipped.version }, clerk);
-    const edited = viewOfKind(updateDocumentInfo(f.store, shipped.id, { notes: '虚构备注', expectedVersion: done.version }, clerk), 'delivery');
+    const edited = viewAs(updateDocumentInfo(f.store, shipped.id, { notes: '虚构备注', expectedVersion: done.version }, clerk), 'delivery');
     assert.deepEqual([edited.notes, edited.plannedDate], ['虚构备注', '2026-10-25']);
     for (const k of ['shippedAt', 'shippedBy', 'deliveredAt', 'deliveredBy'] as const) assert.equal(edited[k], done[k], k);
     assert.equal(flowStatusLabel(edited), '已送达');

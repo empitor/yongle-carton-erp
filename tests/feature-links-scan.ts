@@ -156,7 +156,7 @@ export function writeSenders(
 
 // ---------- 服务端改单据状态的写法 ----------
 
-/** 写单据表的两个函数（server/flow/document-store.ts）：参数对象里的 status 就是把单据改成什么状态 */
+/** 写单据表的两个函数（server/flow/documents/document-store.ts）：参数对象里的 status 就是把单据改成什么状态 */
 const flowWriters = new Set(['writeFlowDocument', 'insertFlowDocument']);
 const VARIABLE = '（变量）';
 /** 调写单据的函数时参数对象里的 status：字面量（含三元两边）取值，别的写法记成“（变量）” */

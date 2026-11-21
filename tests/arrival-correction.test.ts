@@ -1,12 +1,12 @@
-// 更正已入库的到货单（server/flow/arrival-correction.ts）：业务账号改每行的数量和验收数，撤销原单、另出替代单，流水只追加。
+// 更正已入库的到货单（server/flow/correction/arrival-correction.ts）：业务账号改每行的数量和验收数，撤销原单、另出替代单，流水只追加。
 // 本机管理员改单头、单价、增删行、换挂明细的在 arrival-correction-admin.test.ts。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 import { correctionFixture, ofKind, orderedPurchase } from './receive-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { PurchaseReturns } from '../server/flow/returns.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { PurchaseReturns } from '../server/flow/index.js';
 import { AppError } from '../server/core/errors.js';
 import { errorMessage } from '../shared/core/error-message.js';
 import { count, one, rows } from '../server/core/index.js';

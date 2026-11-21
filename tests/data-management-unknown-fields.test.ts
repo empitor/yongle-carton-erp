@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { unknownFields } from '../server/admin/input-fields.js';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

@@ -12,23 +12,23 @@ import { statusWrites } from './feature-links-scan.js';
 
 /** 哪张表、改成什么状态（单据表按状态值；别的表的 UPDATE 语句记成“语句”；状态是变量的记成“（变量）”）、哪些文件能写、为什么 */
 const statusWriters: { table: string; status: string; files: string[]; why: string }[] = [
-  { table: 'flow_documents', status: 'draft', files: ['server/flow/service.ts'], why: '新建待核对的单据（安排送货、登记没有采购单的到货、待入库的完工单）' },
+  { table: 'flow_documents', status: 'draft', files: ['server/flow/rules/service.ts'], why: '新建待核对的单据（安排送货、登记没有采购单的到货、待入库的完工单）' },
   {
     table: 'flow_documents',
     status: 'confirmed',
-    files: ['server/flow/confirm.ts', 'server/flow/correction.ts', 'server/flow/service.ts'],
+    files: ['server/flow/rules/confirm.ts', 'server/flow/correction/correction.ts', 'server/flow/rules/service.ts'],
     why: '核对生效（核对入库、出库）只在 confirm.ts；更正出的替代单当场生效；安排生产即下达（service.ts 新建任务）',
   },
   {
     table: 'flow_documents',
     status: 'reversed',
-    files: ['server/flow/undo.ts', 'server/flow/correction.ts'],
+    files: ['server/flow/rules/undo.ts', 'server/flow/correction/correction.ts'],
     why: '撤销在 undo.ts；更正时原单标成已撤销并指向替代单',
   },
-  { table: 'flow_documents', status: 'cancelled', files: ['server/flow/undo.ts'], why: '取消还没核对的单据' },
-  { table: 'flow_documents', status: '（变量）', files: ['server/flow/maintenance-writes.ts'], why: '管理员拆分送货单：拆出来的新单沿用原单的状态' },
-  { table: 'flow_documents', status: '语句', files: ['server/flow/document-store.ts'], why: '单据表只由 document-store.ts 写，状态和镜像列一起写' },
-  { table: 'purchase_returns', status: '语句', files: ['server/flow/returns.ts'], why: '采购退货的撤销' },
+  { table: 'flow_documents', status: 'cancelled', files: ['server/flow/rules/undo.ts'], why: '取消还没核对的单据' },
+  { table: 'flow_documents', status: '（变量）', files: ['server/flow/rules/maintenance-writes.ts'], why: '管理员拆分送货单：拆出来的新单沿用原单的状态' },
+  { table: 'flow_documents', status: '语句', files: ['server/flow/documents/document-store.ts'], why: '单据表只由 document-store.ts 写，状态和镜像列一起写' },
+  { table: 'purchase_returns', status: '语句', files: ['server/flow/arrival/returns.ts'], why: '采购退货的撤销' },
   {
     table: 'orders',
     status: '语句',
