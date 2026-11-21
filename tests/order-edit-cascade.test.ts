@@ -3,8 +3,7 @@
 // 审计和流水备注见 order-edit-audit.test.ts，删除引擎本身见 database-maintenance.test.ts。
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
-// 删除引擎要各模块登记的删除规则：整张送货单被删时财务要配合
-import '../server/finance/index.js';
+// 删除引擎要各模块登记的删除规则
 import '../server/import/index.js';
 import assert from 'node:assert/strict';
 import { z } from 'zod';

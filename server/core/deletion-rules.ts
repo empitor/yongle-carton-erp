@@ -15,27 +15,6 @@ import { count } from './sql.js';
  * 各模块加载时登记（各自的 deletion.ts，由模块的 index.ts 引入）。要用到却没登记的报错，不会悄悄跳过。
  */
 
-// ———————————————————— 财务 ————————————————————
-
-/**
- * 删除业务记录时财务要配合的两件事：
- * - 要删的记录有多少条财务记录（分录、财务事件）引用着，删除预览要列出来，删除时保留这些引用；
- * - 删掉的业务单据、库存流水，在财务里标成“来源已删除”（和业务删除在同一个事务里写）。
- * 由财务模块加载时登记实现（server/finance/source-deletion.ts 末尾）。
- */
-export type FinanceDeletionRules = {
-  retainedFinanceReferences(store: Store, entity: string, ids: number[]): number;
-  deletedFinanceSource(store: Store, actor: Actor, kind: string, sourceId: string): void;
-};
-let rules: FinanceDeletionRules | null = null;
-export function registerFinanceDeletionRules(r: FinanceDeletionRules) {
-  rules = r;
-}
-export function financeDeletionRules(): FinanceDeletionRules {
-  if (!rules) throw new AppError('删除业务记录要财务模块配合，但财务模块没有加载。', 500);
-  return rules;
-}
-
 // ———————————————————— 删除时的行 ————————————————————
 
 /** 删除时的一行：带 rowid，列只有规划时读过的那些（见 DeletionPlanner.columns），值是库里读出来的原样 */
@@ -96,7 +75,7 @@ export type TableDeletionRules = {
    * remove 是去掉这个键，null 是写成 null。登记了镜像的表规划时自动多读 document 列。
    */
   mirrors?: Record<string, Record<string, { field: string; clear: 'remove' | 'null' }>>;
-  /** 改一行之前、删一行之前主人要做的（修订记录、财务配合等），和写在同一个事务里 */
+  /** 改一行之前、删一行之前主人要做的（修订记录等），和写在同一个事务里 */
   beforeUpdate?(store: Store, ctx: DeletionContext, table: string, row: DeletionRow, values: DeletionValues): void;
   beforeRemove?(store: Store, ctx: DeletionContext, table: string, row: DeletionRow): void;
   /** 改完一行之后（比如所属采购单、产品的版本号加一） */

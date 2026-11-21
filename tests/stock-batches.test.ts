@@ -13,7 +13,6 @@ import type { Order } from '../shared/core/order-view.js';
 import type { Actor } from '../server/core/auth.js';
 // 删除引擎要用到各模块登记的删除规则（和 tests/delete-rules.test.ts 一样先加载）
 import '../server/import/index.js';
-import '../server/finance/index.js';
 
 function setup() {
   const f = flowFixture();

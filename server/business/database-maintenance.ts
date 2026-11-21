@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { exists, isLocalAdministrator, one, rows } from '../core/index.js';
-import { AppError, assertPreviewCurrent, financeDeletionRules } from '../core/index.js';
+import { AppError, assertPreviewCurrent } from '../core/index.js';
 import { beforeRecordDeleted, deletionRemove, deletionUpdate } from '../core/index.js';
 import type { DeletionContext, DeletionRow } from '../core/index.js';
 import { audit, isSuperMode, rememberDeletedRecord, superModeDenied } from '../core/index.js';
@@ -78,7 +78,6 @@ export class DatabaseMaintenanceService {
       hasIndependentImpact: p.hasIndependentImpact,
       // 被删单据有几笔出入库流水要按“库存处理方式”处理；0 表示没动过库存，不用选
       inventoryChoice: p.inventoryChoice,
-      financeReferencesRetained:financeDeletionRules().retainedFinanceReferences(this.store,p.table,p.selection.items.map(i=>i.id)),
       // 库存怎么变：按实际删的对象说（这张采购单、这家供应商、这个原材料库存），笔数和影响清单对得上。
       // “库存怎么处理”的选项文字界面按删的对象自己取（shared/business/deletion-words.ts），不在这里给
       inventoryEffect: inventoryEffectText({
@@ -192,13 +191,12 @@ function applyDeletion(store: Store, v: DeletionRequest, actor: Actor): z.output
     results: v.items.map((r) => ({ id: r.id, deleted: true })),
   };
 }
-/** 删一行：财务标“来源已删除”；业务记录另记审计和“删掉的记录”、取消归档、让别的模块先配合，再交给表的主人删 */
+/**
+ * 删一行：业务记录另记审计和“删掉的记录”、取消归档、让别的模块先配合，再交给表的主人删。
+ * 不通知财务：被删的单据、库存流水由财务下次补扫时自己发现，标成“来源已删除”
+ */
 function removeRow(store: Store, ctx: DeletionContext, v: DeletionRequest, { table, row }: { table: string; row: DeletionRow }) {
   const { actor } = ctx;
-  if (table === 'flow_documents')
-    financeDeletionRules().deletedFinanceSource(store, actor, String(row.kind), String(row.id));
-  if (table === 'stock_movements')
-    financeDeletionRules().deletedFinanceSource(store, actor, 'stock', String(row.id));
   if (businessTables.has(table)) {
     const entity = table === 'flow_documents' ? 'flow_' + String(row.kind) : table;
     // 影响范围只取了关联要用的列，审计要整行：按 rowid 再取一次（业务表没有大文件列）

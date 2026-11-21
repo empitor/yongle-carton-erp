@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { parseStoredJson } from '../core/index.js';
 import { priceBases } from '../../shared/core/index.js';
-import { taxModes } from './stored-values.js';
+import { taxModes } from '../../shared/finance/index.js';
 
 /*
  * 财务事件存的来源单据快照（fin_events.snapshot）：同步时（events.ts）写，补财务资料、红字冲销并重做时

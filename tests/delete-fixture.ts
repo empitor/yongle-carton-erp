@@ -1,9 +1,8 @@
 // 删除测试共用的准备：几张不同状态的单据、带导入记录的订单、影响清单用的采购到货生产送货。
 import { Store } from '../server/core/db.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
-// 删除时识别导入、财务按登记的规则配合（server/core/deletion-rules.ts），正式服务启动时都会加载
+// 删除时识别导入按登记的规则配合（server/core/deletion-rules.ts），正式服务启动时都会加载
 import '../server/import/index.js';
-import '../server/finance/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { z } from 'zod';
 import { one, parseStoredJson, rows } from '../server/core/index.js';

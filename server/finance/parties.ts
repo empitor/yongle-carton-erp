@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { many, one, rows } from '../core/index.js';
-import { accountCodeSchema, centsSchema, requestIdSchema, termTypes, versionSchema } from '../../shared/finance/index.js';
+import { accountCodeSchema, centsSchema, requestIdSchema, taxModes, termTypes, versionSchema } from '../../shared/finance/index.js';
 import { dateSchema, today } from '../../shared/core/index.js';
 import { FinanceLedger } from './ledger.js';
 import {
@@ -21,7 +21,7 @@ import { parsePaging } from '../core/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
 import { partyName, partyOptions } from './business-source.js';
 import { financeTemplate } from './template.js';
-import { obligationKinds, partyKinds, taxModes } from './stored-values.js';
+import { obligationKinds, partyKinds } from './stored-values.js';
 import { isReversed } from './reversal-pairs.js';
 import { agingBucket, allocationSum, obligationBaseDate, openItems } from './obligation-sql.js';
 import { obligationList } from './obligation-list.js';
