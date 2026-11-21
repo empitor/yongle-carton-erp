@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import type { FlowKind, NextSteps } from '../../shared/business/index';
-import { canEditBusiness, useAuthState, FinanceRelatedSlot, Hint, Section } from '../ui/index';
+import { canEditBusiness, useAuthState, FinanceRelatedSlot, Hint, Section, Loading } from '../ui/index';
 import { MarkCards } from '../marks/ProductMarks';
 import { useRelatedData, type Related, type RelatedData } from './useRelatedData';
 import { nextPlan, stepSentence } from './order-step';
@@ -18,9 +18,7 @@ function NextStepSection(o: { plan: NextSteps | null; error: string; canEdit: bo
       {error && <Hint tone="danger">{error}</Hint>}
       {!canEdit && <p className="help-text">当前账号只能查看单据，操作需要业务编辑权限。</p>}
       {canEdit && !plan && !error && !o.archived && (
-        <p className="help-text" role="status">
-          正在读取…
-        </p>
+        <Loading />
       )}
       {plan?.done && (
         <p className="rb-done">

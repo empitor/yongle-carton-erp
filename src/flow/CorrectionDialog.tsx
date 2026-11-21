@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FlowDocView } from '../../shared/business/index';
-import { FormMessage, ManagementDialog, useLoad } from '../ui/index';
+import { FormMessage, ManagementDialog, useLoad, Loading } from '../ui/index';
 import ArrivalCorrection from './ArrivalCorrection';
 import DeliveryCorrection from './DeliveryCorrection';
 import ProductionCorrection from './ProductionCorrection';
@@ -37,7 +37,7 @@ export default function CorrectionDialog({
   if (!doc)
     return (
       <ManagementDialog title={correctLabel(kind)} size="lg" close={close}>
-        {error ? <FormMessage>{error}</FormMessage> : <p role="status">正在读取单据…</p>}
+        {error ? <FormMessage>{error}</FormMessage> : <Loading what="单据" />}
       </ManagementDialog>
     );
   // 各种单据的更正内容：拿到最新的单据，自己管“改成多少”那几栏，外壳用 CorrectionShell

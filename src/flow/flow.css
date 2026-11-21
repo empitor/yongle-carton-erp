@@ -259,6 +259,10 @@ table.wh-table td {
   display: grid;
   gap: var(--space-sm);
 }
+/* 列表工具栏和下面的间距由页面的 gap 给，不再加工具栏自己的下边距 */
+:root[data-ui='refined'] .flow-page > .list-toolbar {
+  margin-bottom: 0;
+}
 /* 看板列宽是固定的，窄窗口时只让看板内部横向滚动，不撑宽整页。 */
 .flow-page > * {
   min-width: 0;
@@ -324,13 +328,6 @@ table.wh-table td {
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-:root[data-ui='refined'] .flow-search > input,
-:root[data-ui='refined'] .flow-search > input:focus,
-:root[data-ui='refined'] .flow-search > input:hover {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
 }
 /* 详情明细表里的单号（到货明细的采购单链接、到货记录的单号）不在连字符处拆成几行；放不下时表格在卡片里左右滑 */
 :root[data-ui='refined'] .detail-panel-body table.wh-linked td > a {

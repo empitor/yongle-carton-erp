@@ -1,5 +1,5 @@
 import type { ImportMapping, ImportMatchData } from '../../shared/import/index';
-import { FormField, type Tone } from '../ui/index';
+import { FormField, type Tone, loadingText } from '../ui/index';
 import { choiceValue, selectChoice, type Match } from './ImportMatch';
 
 type CustomerChoice = ImportMapping['customer'];
@@ -13,13 +13,13 @@ function customerStatus(
   const { selected, unavailable, loaded, candidates } = found;
   if (chosen.mode === 'existing') {
     if (unavailable) return { tone: 'danger', text: '原客户选择已失效，请重新选择' };
-    if (!selected) return { tone: 'success', text: loaded ? '档案待核对' : '正在读取档案…' };
+    if (!selected) return { tone: 'success', text: loaded ? '档案待核对' : loadingText('档案') };
     const contact = [selected.contact, selected.phone, selected.address].filter(Boolean);
     return { tone: 'success', text: '已匹配已有档案' + (contact.length ? ' · ' + contact.join(' · ') : '') };
   }
   if (chosen.mode === 'new') return { tone: 'neutral', text: '导入时新建客户，现在只保存计划' };
   if (candidates) return { tone: 'warning', text: '找到客户候选，请在下面确认' };
-  return { tone: 'neutral', text: loaded ? '没有匹配档案，导入时新建客户' : '正在读取客户候选…' };
+  return { tone: 'neutral', text: loaded ? '没有匹配档案，导入时新建客户' : loadingText('客户候选') };
 }
 
 /** 客户候选：选过的档案改过了要重新确认；没定时把候选逐个列出来 */

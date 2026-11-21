@@ -19,7 +19,7 @@ async function busy(page, path, times) {
 async function midway(page, scope, label) {
   await page.waitForTimeout(500);
   const text = await scope.locator('button.primary').last().innerText();
-  const alerts = (await scope.locator('[role=alert], .form-alert, .form-error').allInnerTexts()).join(' ');
+  const alerts = (await scope.locator('[role=alert], .form-alert, .form-message.tone-danger').allInnerTexts()).join(' ');
   if (!/^正在/.test(text.trim())) fail(label + '等着自动再试时按钮不是“正在……”：' + text);
   if (alerts.includes(BUSY)) fail(label + '第一次正忙就显示了报错');
 }

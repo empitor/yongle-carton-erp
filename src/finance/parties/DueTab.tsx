@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ListSummary, yuan } from '../../ui/index';
+import { FormMessage, ListSummary, yuan, loadingText } from '../../ui/index';
 import { percentOf } from '../percent';
 import { type Kind, kindWord } from './shared';
 import { MAX_PAGE_SIZE, today } from '../../../shared/core/index';
-import { ErrorLine, FinSection, type HeadFn } from '../layout';
+import { FinSection, type HeadFn } from '../layout';
 import { FinList, FinTable, col, mon, type Col } from '../table';
 import { useFinRead, type FinData } from '../fin-api';
 import { listDiscountOpportunities } from './parties-api';
@@ -71,12 +71,12 @@ function SoonSection({ kind }: { kind: Kind }) {
         </label>
       }
     >
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <FinTable
         label="到期提醒"
         rows={rows}
         rowKey={(r, i) => r.id + ':' + r.installment_id + ':' + i}
-        empty={data ? '这段时间没有到期的' + kindWord(kind) : '正在读取…'}
+        empty={data ? '这段时间没有到期的' + kindWord(kind) : loadingText()}
         cols={soonCols}
       />
       {data && data.filteredRecords > SOON_LIMIT && (
@@ -174,7 +174,7 @@ function PlanSection({ kind }: { kind: Kind }) {
         </label>
       }
     >
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <ListSummary
         items={[
           { label: '现在的资金', value: yuan(data?.openingCash) },

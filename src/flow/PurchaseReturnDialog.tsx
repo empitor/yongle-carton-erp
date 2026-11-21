@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { today } from '../../shared/core/index';
-import { EditorFooter, FormField, FormMessage, FormSection, ManagementDialog, useAction, useLoad } from '../ui/index';
+import { EditorFooter, FormField, FormMessage, FormSection, Loading, ManagementDialog, useAction, useLoad } from '../ui/index';
 import { readReturnable, saveReturn } from './flow-api';
 
 /** 采购退货：对已确认的到货单按明细退回。扣库存、冲减采购已到货；金额以到票或供应商红票为准。 */
@@ -54,10 +54,10 @@ export function PurchaseReturnDialog({
     >
       <FormMessage>{error || loaded.error}</FormMessage>
       <FormSection title="退哪些纸板" hint="只填要退的行，最多退到已入库减已退。" columns={1}>
-        {!lines ? (
-          <p className="wh-muted" role="status">
-            {loaded.error ? '到货明细读取失败。' : '正在读取到货明细…'}
-          </p>
+        {!lines && loaded.error ? (
+          <p className="wh-muted">到货明细读取失败。</p>
+        ) : !lines ? (
+          <Loading what="到货明细" />
         ) : (
           <div className="line-table wh-no-action">
             <table>

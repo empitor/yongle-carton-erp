@@ -249,11 +249,7 @@ export default function DocumentTemplateSettings() {
     <div className="adm-template">
       {!s.auth?.actor && <p className="adm-muted">{signedOutNotice}</p>}
       <FormMessage>{s.action.error || s.loadError}</FormMessage>
-      {s.message && (
-        <p role="status" className="form-message tone-info">
-          {s.message}
-        </p>
-      )}
+      <FormMessage tone="info">{s.message}</FormMessage>
       {state && template && (
         <form
           onSubmit={(e) => {

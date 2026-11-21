@@ -1,8 +1,7 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { displayAmount, errorMessage, finishedUnit, today, type Order } from '../../shared/core/index';
-import { X } from 'lucide-react';
 import type { FlowDocView, NextStep } from '../../shared/business/index';
-import { yuan, notify, beijingTime, canEditBusiness, useAuthState, useAction, ConfirmDialog, Facts, emit } from '../ui/index';
+import { yuan, notify, beijingTime, canEditBusiness, useAuthState, useAction, ConfirmDialog, Facts, emit, FormMessage, Loading } from '../ui/index';
 import { BatchReceiveButton, OrderBatchButton } from '../operations/BatchCard';
 import TodaySide from './TodaySide';
 import TodayRow from './TodayRow';
@@ -134,13 +133,13 @@ export default function TodayQueue() {
     }
   };
 
-  if (error)
+  if (error) return <FormMessage>{error}</FormMessage>;
+  if (!data)
     return (
-      <div className="error" role="alert">
-        {error}
+      <div className="td-empty">
+        <Loading what="今日待办" />
       </div>
     );
-  if (!data) return <div className="td-empty">正在读取今日待办…</div>;
 
   const groups = todayGroups({ data, pendingConfirm, mail, imports, aiNote, today: today() });
   /** 行上的动作画成按钮或链接：按钮类的要业务编辑权限 */
@@ -183,19 +182,12 @@ export default function TodayQueue() {
   return (
     <>
       {data.backupFailedAt && (
-        <div className="error" role="alert">
+        <FormMessage>
           自动备份失败（{beijingTime(data.backupFailedAt)}
           ）。请检查磁盘空间或备份目录权限，并尽快手动备份。
-        </div>
+        </FormMessage>
       )}
-      {actionError && (
-        <div className="error" role="alert">
-          {actionError}
-          <button type="button" aria-label="关闭提示" onClick={() => setActionError('')}>
-            <X size={14} />
-          </button>
-        </div>
-      )}
+      <FormMessage close={() => setActionError('')}>{actionError}</FormMessage>
       <div className="td-stats" aria-label="本月摘要">
         <div>
           本月接单 <strong>¥{yuan(s.monthOrderCents)}</strong>

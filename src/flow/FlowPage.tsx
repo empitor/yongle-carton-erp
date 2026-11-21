@@ -1,14 +1,14 @@
-import { Suspense, lazy, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import type { FlowKind, FlowDocView as DocView } from '../../shared/business/index';
-import { LIST_PAGE_SIZE, Pagination, stepper } from '../ui/index';
+import { DateFilter, FormMessage, LIST_PAGE_SIZE, Pagination, loadingText, stepper } from '../ui/index';
+import ListToolbar from '../recordkit/ListToolbar';
 import FlowPageHeading from './FlowPageHeading';
 import FlowSelectionBar from './FlowSelectionBar';
 import FlowDocView from './FlowDocView';
 import FlowTable from './FlowTable';
-import FlowToolbar from './FlowToolbar';
 import FlowDeskDialogs from './FlowDeskDialogs';
 import ProductionBoard from './ProductionBoard';
-import { ListEmpty } from './ListParts';
+import { ListEmpty, StatusFilter } from './ListParts';
 import { title } from './lookups';
 import { useFlowDesk, type FlowDesk } from './useFlowDesk';
 import { useFlowLaunch } from './useFlowLaunch';
@@ -29,7 +29,6 @@ export default function FlowPage({
   dialogOnly = false,
   launch,
   onClose,
-  toolbarLead,
 }: {
   mode: FlowKind;
   recycle?: boolean;
@@ -53,8 +52,6 @@ export default function FlowPage({
     export?: string;
   };
   onClose?: () => void;
-  /** 嵌在别的页面时放在工具栏最前面的控件（例如到货、送货页的“待处理 / 全部 / 已归档”） */
-  toolbarLead?: ReactNode;
 }) {
   const list = useFlowList({ mode, recycle, dialogOnly });
   const { kind, rows, archived, showBoard, filtered, selected, setSelected } = list;
@@ -88,17 +85,13 @@ export default function FlowPage({
           {!embedded && !recycle && (
             <FlowPageHeading desk={desk} kind={kind} rows={rows} plan={() => setPlanning([])} />
           )}
-          {(desk.error || list.error) && (
-            <div className="form-error" role="alert">
-              {desk.error || list.error}
-            </div>
-          )}
+          <FormMessage>{desk.error || list.error}</FormMessage>
           {notice && (
             <div className="success-banner" role="status">
               {notice}
             </div>
           )}
-          <FlowToolbar list={list} mode={mode} recycle={recycle} lead={toolbarLead} closeView={() => setView(null)} />
+          <FlowToolbar list={list} mode={mode} recycle={recycle} closeView={() => setView(null)} />
           <FlowListBody list={list} desk={desk} recycle={recycle} plan={() => setPlanning([])} />
           <FlowSelectionBar
             desk={desk}
@@ -128,6 +121,78 @@ export default function FlowPage({
     </div>
   );
 }
+
+/**
+ * 列表上方：搜索、一个分段（生产任务多一个“排产板”，其余是待处理 / 全部 / 已归档；归档页不显示）、
+ * “筛选”里的状态和日期。排产板上只留分段。换了看哪些记录就关掉打开着的详情。
+ */
+function FlowToolbar({
+  list,
+  mode,
+  recycle,
+  closeView,
+}: {
+  list: ReturnType<typeof useFlowList>;
+  mode: FlowKind;
+  recycle: boolean;
+  closeView: () => void;
+}) {
+  const { kind, showBoard, archived, scope } = list;
+  const pick = (key: string) => {
+    closeView();
+    if (key === 'board') {
+      list.setArchived(false);
+      list.setListView(false);
+      return;
+    }
+    list.setListView(true);
+    if (key === 'archived') list.setArchived(true);
+    else if (key === 'open' || key === 'all') {
+      list.setArchived(false);
+      list.setScope(key);
+    }
+  };
+  return (
+    <ListToolbar
+      search={list.q}
+      onSearch={showBoard ? undefined : list.setQ}
+      placeholder="搜索单号、产品、备注"
+      searchLabel={'搜索' + title(kind)}
+      scopes={recycle ? undefined : flowScopes(mode === 'task' && kind === 'task')}
+      scope={showBoard ? 'board' : archived ? 'archived' : scope}
+      onScope={pick}
+      scopeLabel="看哪些记录"
+      filters={
+        !showBoard && (
+          <>
+            <StatusFilter kind={kind} label="状态" value={list.status} change={list.setStatus} />
+            <DateFilter
+              label={list.planned ? '计划日期' : '日期'}
+              preset={list.datePreset}
+              start={list.from}
+              end={list.to}
+              change={(preset, start, end) => {
+                list.setDatePreset(preset);
+                list.setFrom(start);
+                list.setTo(end);
+              }}
+            />
+          </>
+        )
+      }
+      filterCount={list.filterCount}
+      onClearFilters={list.clearFilters}
+    />
+  );
+}
+
+/** 单据页的分段：生产任务页多一个排产板 */
+const flowScopes = (board: boolean) => [
+  ...(board ? [{ value: 'board', label: '排产板' }] : []),
+  { value: 'open', label: '待处理' },
+  { value: 'all', label: '全部' },
+  { value: 'archived', label: '已归档' },
+];
 
 /** 列表区：生产任务的排产板，或单据表格（空着时说为什么、给下一步）加翻页 */
 function FlowListBody({
@@ -167,7 +232,7 @@ function FlowListBody({
       />
       {!sliced.length && (
         <ListEmpty
-          text={busy ? '正在读取…' : emptyText(kind, searched, archived, list.scope)}
+          text={busy ? loadingText() : emptyText(kind, searched, archived, list.scope)}
           busy={busy}
           filtered={searched}
           clear={() => {

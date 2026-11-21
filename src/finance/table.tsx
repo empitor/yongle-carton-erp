@@ -1,7 +1,6 @@
 import { useEffect, useEffectEvent, type ReactNode } from 'react';
-import { EmptyState, Pagination, TableRegion, useResettingPage, yuan, LIST_PAGE_SIZE } from '../ui/index';
+import { FormMessage, EmptyState, Pagination, TableRegion, useResettingPage, yuan, LIST_PAGE_SIZE, loadingText } from '../ui/index';
 import { useFinLoad } from './fin-api';
-import { ErrorLine } from './layout';
 
 /* 财务各页的表格：列定义、表格和带翻页的列表。 */
 
@@ -165,14 +164,14 @@ export function FinList<Q extends object, D extends FinPage<FinRow>>(props: FinL
   }, [data]);
   return (
     <section className="panel business-records">
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <FinTable
         cols={cols}
         rows={data?.rows || []}
         rowKey={rowKey}
         onRow={onRow}
         selected={selected}
-        empty={data ? empty : '正在读取…'}
+        empty={data ? empty : loadingText()}
         label={label}
       />
       {data && data.filteredRecords > (data.pageSize || pageSize) && (

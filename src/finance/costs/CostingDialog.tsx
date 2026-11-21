@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { FormMessage, FormSection, centsInput, toCents } from '../../ui/index';
+import { FormMessage, FormSection, centsInput, toCents, Loading } from '../../ui/index';
 import { UNITS_PER_QUANTITY } from '../../../shared/core/index';
 import { EditorShell } from '../editor';
 import { useAccounts, useFinRead, type FinData } from '../fin-api';
@@ -209,9 +209,7 @@ export default function CostingDialog({ period, close }: { period: string; close
     >
       <FormMessage>{error}</FormMessage>
       {!data ? (
-        <p className="fin-note" role="status">
-          正在读取…
-        </p>
+        <Loading />
       ) : (
         <>
           {redo && (

@@ -8,7 +8,7 @@ let n = 0;
 const log = (...a) => console.log(...a);
 const shot = async (label) => {
   await page.waitForTimeout(500);
-  const errs = await page.locator('.error,[role=alert]').allInnerTexts();
+  const errs = await page.locator('.form-message.tone-danger,[role=alert]').allInnerTexts();
   await page.screenshot({ path: `${out}/${String(++n).padStart(2, '0')}-${label}.png` });
   log(`[${n}] ${label}`, errs.length ? 'ERR: ' + errs.join(' | ').slice(0, 300) : 'ok');
 };
@@ -38,7 +38,7 @@ const submit = async (text) => {
   await dlg().getByRole('button', { name: text, exact: true }).click();
   await page.waitForTimeout(700);
   const open = await page.locator('[role="dialog"][aria-modal="true"]').count();
-  if (open) log('  dialog still open:', (await dlg().locator('.form-error,.error').allInnerTexts()).join('|'));
+  if (open) log('  dialog still open:', (await dlg().locator('.form-message.tone-danger').allInnerTexts()).join('|'));
 };
 
 // 1 未启用
@@ -108,7 +108,7 @@ for (const [where, list] of Object.entries(tabs))
   for (const [t, name] of Object.entries(list)) {
     await go(page, '#' + where + '?tab=' + t);
     const selected = await page.locator('.fin-subbar .fin-segmented button.selected').first().innerText();
-    const errors = await page.locator('main .error, main [role=alert]').allInnerTexts();
+    const errors = await page.locator('main .form-message.tone-danger, main [role=alert]').allInnerTexts();
     if (selected.trim() !== name) fail(where + '?tab=' + t + ' 选中的页签是“' + selected + '”，应为“' + name + '”');
     if (errors.length) fail(where + '?tab=' + t + ' 页面报错：' + errors.join(' | ').slice(0, 200));
   }

@@ -1,4 +1,4 @@
-import { ManagementDialog } from '../ui/index';
+import { ManagementDialog, Loading } from '../ui/index';
 import type { FlowKind, FlowPreview } from '../../shared/business/index';
 import { quantityString } from '../../shared/core/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
@@ -107,9 +107,7 @@ export function FlowReviewDialog({
       {ready ? (
         <FlowDetails doc={doc} data={data} />
       ) : (
-        <p className="help-text" role="status">
-          正在读取关联档案…
-        </p>
+        <Loading what="关联档案" />
       )}
       {preview.changes.length > 0 && <StockChanges changes={preview.changes} />}
       {preview.sourceHash && (

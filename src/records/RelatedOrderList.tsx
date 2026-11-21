@@ -1,4 +1,4 @@
-import { Section, StatusChip, useLoad } from '../ui/index';
+import { FormMessage, Loading, Section, StatusChip, useLoad } from '../ui/index';
 import { loadOrdersWhere, type OrdersWhere } from './list-api';
 import Chain from './Chain';
 import { orderDisplayStatus } from '../../shared/core/index';
@@ -33,13 +33,9 @@ export default function RelatedOrderList({
       }
     >
       {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <FormMessage>{error}</FormMessage>
       ) : !orders ? (
-        <p className="sales-muted" role="status">
-          正在读取订单…
-        </p>
+        <Loading what="订单" />
       ) : !orders.length ? (
         <p className="sales-muted">还没有订单。</p>
       ) : (

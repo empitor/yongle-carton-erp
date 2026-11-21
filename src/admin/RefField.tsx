@@ -1,4 +1,4 @@
-import { Combobox } from '../ui/index';
+import { Combobox, loadingText } from '../ui/index';
 import { refKinds, refOptions, refPlaceholders, type FieldContext } from './field-rules';
 import { textOf, type JsonObject } from './record-types';
 /** 关联字段：可搜索选择器，显示名称或单号，名称后面小字带能认出来的信息 */
@@ -53,7 +53,7 @@ export default function RefField({
       value={value == null ? '' : String(value)}
       options={options}
       disabled={disabled}
-      placeholder={ctx.refs ? refPlaceholders[kind] || '输入名称搜索' : '正在读取…'}
+      placeholder={ctx.refs ? refPlaceholders[kind] || '输入名称搜索' : loadingText()}
       onChange={(v) => update(v === '' ? null : Number(v))}
     />
   );

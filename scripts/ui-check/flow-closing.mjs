@@ -17,7 +17,7 @@ const log = (...a) => console.log(...a);
 let n = 200;
 const shot = async (label) => {
   await page.waitForTimeout(300);
-  const errs = await page.locator('.fin-page .error, .detail-panel .error,[role=alert]').allInnerTexts();
+  const errs = await page.locator('.fin-page .form-message.tone-danger, .detail-panel .form-message.tone-danger,[role=alert]').allInnerTexts();
   await page.screenshot({ path: `${out}/${++n}-${label}.png` });
   log(`[${n}] ${label}`, errs.length ? 'ERR: ' + errs.join(' | ').slice(0, 260) : 'ok');
 };
@@ -301,7 +301,7 @@ const clickJobs = async () => {
     if (await b.count()) {
       await b.click();
       await confirmDialog();
-      const e = await page.locator('.fin-page .error').allInnerTexts();
+      const e = await page.locator('.fin-page .form-message.tone-danger').allInnerTexts();
       log('  job', label, e.join('|').slice(0, 200) || 'ok');
       await postAll();
       await go(page, '#finance-reports?tab=closing');
@@ -345,7 +345,7 @@ for (const input of await dlg().locator('input').all()) await input.fill('100');
 await dlg().getByRole('button', { name: '计算', exact: true }).click();
 await dlg().waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
 const stillOpen = await page.locator('[role="dialog"][aria-modal="true"]').count();
-if (stillOpen) { fail('计算成本失败：' + (await dlg().locator('.error').allInnerTexts()).join('|').slice(0, 300)); await dlg().getByRole('button', { name: '取消', exact: true }).click(); }
+if (stillOpen) { fail('计算成本失败：' + (await dlg().locator('.form-message.tone-danger').allInnerTexts()).join('|').slice(0, 300)); await dlg().getByRole('button', { name: '取消', exact: true }).click(); }
 await shot('costing-done');
 await postAll();
 await clickJobs();
@@ -467,7 +467,7 @@ if (await closeBtn.isEnabled().catch(() => false)) {
 
 // 深色和 900 宽：财务几页查报错、深色确实生效（换了系统深浅要重新载入）、900 宽不横向溢出，凭证编辑窗放得下
 const looks = async (label) => {
-  const errors = await page.locator('main .error, [role=dialog] .error').allInnerTexts();
+  const errors = await page.locator('main .form-message.tone-danger, [role=dialog] .form-message.tone-danger').allInnerTexts();
   const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   const theme = await page.evaluate(() => document.documentElement.dataset.theme);
   if (errors.length) fail(label + ' 页面报错：' + errors.join(' | ').slice(0, 120));

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, X, Download, Plus, Minus } from 'lucide-react';
 import type { ChatAttachment } from './assistant-types';
-import { useBackLayer } from '../ui/index';
+import { useBackLayer, Loading } from '../ui/index';
 import { attachmentUrl, fileSize, remoteCopyNote } from './attachment-slots';
 import { useAttachmentDocument } from './useAttachmentDocument';
 
@@ -89,7 +89,7 @@ export function AttachmentPreview({
           </div>
         )}
         <div className="ga-preview-content">
-          {doc.loading && <p role="status">正在读取附件…</p>}
+          {doc.loading && <Loading what="附件" />}
           {doc.error && <p role="alert">{doc.error}</p>}
           {file.kind === 'image' && !file.deleted && (
             <img

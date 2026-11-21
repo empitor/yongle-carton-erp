@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DatePreset } from '../../shared/core/index';
-import { Segmented, DateFilter, useBusinessRevision, hashParams, useLoad } from '../ui/index';
+import { Segmented, DateFilter, FormMessage, Loading, useBusinessRevision, hashParams, useLoad } from '../ui/index';
 import { loadDashboard } from './list-api';
 import TodayQueue from './TodayQueue';
 import BusinessOverview from './BusinessOverview';
@@ -67,13 +67,13 @@ function OverviewSection() {
     const r = presetRange('2');
     setRange({ preset: '2', start: r.start, end: r.end, customerId: '' });
   };
-  if (error)
+  if (error) return <FormMessage>{error}</FormMessage>;
+  if (!data)
     return (
-      <div className="error" role="alert">
-        {error}
+      <div className="td-empty">
+        <Loading what="经营概况" />
       </div>
     );
-  if (!data) return <div className="td-empty">正在读取经营概况…</div>;
   return (
     <BusinessOverview
       data={data}

@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Hint, Section, StatusChip, type RecordAction, yuan, notify, useAction } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, StatusChip, type RecordAction, yuan, notify, useAction } from '../../ui/index';
 import { today } from '../../../shared/core/index';
-import { ErrorLine } from '../layout';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { invoiceStateName, invoiceStateTone } from './shared';
@@ -245,7 +244,7 @@ export default function InvoicePanel({
       previous={previous}
       next={next}
     >
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       {needsLink && perms.edit && <Hint>确认前要先关联这张发票对应的送货单或到货单。</Hint>}
       {red && draft && <Hint>红字发票冲的是原蓝票，不用关联单据。</Hint>}
       <Section title="基本信息">

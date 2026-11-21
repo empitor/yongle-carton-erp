@@ -172,6 +172,25 @@ textarea:focus-visible {
 .form-message.tone-info {
   background: var(--info-soft);
 }
+/* 带关闭或动作按钮的提示：话在左、按钮在右 */
+.form-message.has-side {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.form-message-close {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+/* 正在读取：一句小字（src/ui/Message.tsx 的 Loading） */
+.loading-note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
 .choice-list {
   display: grid;
   gap: var(--space-2xs);

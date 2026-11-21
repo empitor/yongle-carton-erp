@@ -1,6 +1,5 @@
-import { DetailPanel, ActionBar, Facts, Section, StatusChip, yuan, notify, useAction } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Section, StatusChip, yuan, notify, useAction } from '../../ui/index';
 import { signedAmount } from '../detail';
-import { ErrorLine } from '../layout';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { matchBankRow, type BankMatch } from './cash-api';
 
@@ -105,7 +104,7 @@ export default function BankRowPanel({
       previous={previous}
       next={next}
     >
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       <Section title="基本信息">
         <Facts
           items={[

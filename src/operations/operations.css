@@ -1,4 +1,10 @@
 /* 采购单、订货批次、库存品编辑 */
+/* 页面和窗口里一句灰色小字说明（采购、仓储、详情页都用） */
+.help-text {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  margin: 0 0 18px;
+}
 /* 尺寸单位下拉自带的长说明换成字段下面的一句提示 */
 .pur-unit-select .dimension-unit-control small {
   display: none;

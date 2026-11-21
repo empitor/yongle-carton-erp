@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import ManagementDialog from './ManagementDialog';
-import { EditorFooter, FormMessage } from './Editor';
+import { EditorFooter } from './Editor';
+import { FormMessage } from './Message';
 
 /**
  * 确认窗：标题、说明、底部“取消 / 确认”，危险操作用红色按钮。

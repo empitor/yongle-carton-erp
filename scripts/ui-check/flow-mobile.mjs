@@ -241,7 +241,7 @@ await page.reload();
 await page.locator('.shell').waitFor();
 
 // 深色：每页没有报错、页面底色确实变深；900 宽：整页不横向溢出、没有报错
-const pageErrors = () => page.locator('main .error, main [role=alert]').allInnerTexts();
+const pageErrors = () => page.locator('main .form-message.tone-danger, main [role=alert]').allInnerTexts();
 // 主题跟随系统只在打开页面时定一次（src/ui/theme.ts），换了系统深浅要重新载入
 const scheme = async (colorScheme) => {
   await page.emulateMedia({ colorScheme });

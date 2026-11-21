@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useConfirm, notify, stepper, useAction } from '../../ui/index';
+import { FormMessage, useConfirm, notify, stepper, useAction } from '../../ui/index';
 import { today } from '../../../shared/core/index';
-import { ErrorLine, FinSection, PeriodInput, type HeadFn } from '../layout';
+import { FinSection, PeriodInput, type HeadFn } from '../layout';
 import { FinList, col, mon, type Col } from '../table';
 import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { Status } from '../status';
@@ -95,7 +95,7 @@ export default function AssetsTab({ head }: { head: HeadFn }) {
           },
         ],
       })}
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       <FinList
         list={listAssets}
         query={{}}

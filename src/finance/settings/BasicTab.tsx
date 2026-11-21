@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Facts, Hint, Section } from '../../ui/index';
+import { FormMessage, Facts, Hint, Section } from '../../ui/index';
 import { bpText } from '../percent';
 import { useEnable } from '../enable';
-import { ErrorLine, FinSection, type HeadFn } from '../layout';
+import { FinSection, type HeadFn } from '../layout';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { saveSettings } from './settings-api';
 import { costOptions, rateFields, revenueOptions, settingsBody, settingsInitial } from './settings-forms';
@@ -102,7 +102,7 @@ export default function BasicTab({ head }: { head: HeadFn }) {
         secondary:
           data && perms.close ? { label: '编辑设置', onClick: () => setEditing(true) } : null,
       })}
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       {data && !data.startPeriod && (
         <FinSection title="启用财务">
           <p className="fin-note">

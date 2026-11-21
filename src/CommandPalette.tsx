@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { operationalSearchText, purchaseState } from '../shared/business/index';
 import { readCatalog } from './recordkit/index';
 import { orderDisplayStatus } from '../shared/core/index';
-import { useBackLayer } from './ui/index';
+import { useBackLayer, loadingText } from './ui/index';
 
 type Item = { group: string; label: string; hint?: string; target: string; keywords: string };
 /**
@@ -164,7 +164,7 @@ export default function CommandPalette({ close, canEdit }: { close: () => void; 
           ))}
           {!results.length && (
             <div className="palette-empty">
-              {loading ? '正在读取…' : query.trim() ? '没有找到匹配的记录' : '输入单号、客户或产品名称搜索'}
+              {loading ? loadingText() : query.trim() ? '没有找到匹配的记录' : '输入单号、客户或产品名称搜索'}
             </div>
           )}
         </div>

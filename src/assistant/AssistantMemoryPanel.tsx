@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { MoreMenu, beijingTime } from '../ui/index';
+import { MoreMenu, beijingTime, Loading } from '../ui/index';
 import type { ConfirmFn } from './assistant-types';
 import type { AssistantMemoryItem } from './assistant-api';
 import { useAssistantMemory } from './useAssistantMemory';
@@ -106,7 +106,7 @@ export default function AssistantMemoryPanel({
           </p>
         )}
         {!view ? (
-          !memory.error && <p className="ga-empty">正在读取…</p>
+          !memory.error && <Loading />
         ) : !view.memories.length ? (
           <p className="ga-empty">
             还没有记忆。你说出以后都适用的偏好时，助手会自己记下；也可以在上面手动加。

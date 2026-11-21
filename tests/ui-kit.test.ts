@@ -1,7 +1,7 @@
-// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、切回页面重新取数。
+// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、切回页面重新取数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { yuan } from '../src/ui/money.js';
@@ -151,6 +151,43 @@ test('使用说明页的 Markdown 显示（src/ui/Markdown.tsx）：使用手册
     sample,
     '<h3>小标题</h3><ol><li><strong>第一步：</strong> 点<code>保存</code><ul><li>子项</li></ul></li><li>见说明和<a href="#orders">订单</a></li></ol><div class="markdown-table"><table><thead><tr><th>列</th><th>值</th></tr></thead><tbody><tr><td>甲</td><td>乙</td></tr></tbody></table></div>',
   );
+});
+
+test('出错提示：红色一块、读屏立刻念；给了关闭就带“关闭提示”按钮，给了动作就排在右边；没有内容不显示', async () => {
+  const { FormMessage } = await import('../src/ui/Message.js');
+  assert.equal(renderToStaticMarkup(h(FormMessage, { children: '' })), '');
+  const plain = renderToStaticMarkup(h(FormMessage, { children: '虚构原因' }));
+  assert.equal(plain, '<div class="form-message tone-danger" role="alert">虚构原因</div>');
+  const closable = renderToStaticMarkup(h(FormMessage, { close: () => {}, children: '虚构原因' }));
+  assert.match(closable, /class="form-message tone-danger has-side"/);
+  assert.match(closable, /<button type="button" class="form-message-close" aria-label="关闭提示">/);
+  const action = renderToStaticMarkup(
+    h(FormMessage, { action: h('button', { type: 'button' }, '重新加载'), children: '虚构原因' }),
+  );
+  assert.match(action, /has-side[^>]*><span>虚构原因<\/span><button type="button">重新加载<\/button><\/div>/);
+  assert.match(renderToStaticMarkup(h(FormMessage, { tone: 'info', children: '虚构说明' })), /tone-info" role="status"/);
+});
+
+test('正在读取：一句小字、读屏会念，说明读的是什么', async () => {
+  const { Loading, loadingText } = await import('../src/ui/Message.js');
+  assert.equal(loadingText(), '正在读取…');
+  assert.equal(
+    renderToStaticMarkup(h(Loading, { what: '订单' })),
+    '<p class="loading-note" role="status">正在读取订单…</p>',
+  );
+});
+
+// 出错提示只用 FormMessage、“正在读取”只用 Loading 或 loadingText：别处不再手写这两种样式和这句话
+test('出错和正在读取的提示只在 src/ui 写一份', () => {
+  const files = readdirSync('src', { recursive: true, encoding: 'utf8' })
+    .filter((f) => /\.tsx?$/.test(f) && !f.replaceAll('\\', '/').startsWith('ui/'))
+    .map((f) => 'src/' + f.replaceAll('\\', '/'));
+  assert.ok(files.length > 100);
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /className="(error|form-error|operation-error)"|['"]form-message\b/, file + ' 手写了出错提示的样式，改用 FormMessage');
+    assert.doesNotMatch(source, /正在读取/, file + ' 手写了“正在读取”，改用 Loading 或 loadingText');
+  }
 });
 
 test('切回页面时重新取数：页面可见才发，离上一次不到间隔的不重复发', async () => {

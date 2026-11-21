@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { OrderBatchDraft, OrderBatchView } from '../../shared/business/index';
 import { errorMessage } from '../../shared/core/index';
 import type { DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
-import { FormMessage, ManagementDialog, emit, useAction, useSaveFile } from '../ui/index';
+import { FormMessage, ManagementDialog, emit, useAction, useSaveFile, loadingText } from '../ui/index';
 import { deliverBusinessFile } from '../documents/export-file';
 import { exportDocument, previewDocumentBatch, previewWordFile, readDocumentTemplates } from '../documents/document-api';
 import { draftOrderBatch, scheduleOrderBatch } from '../warehouse/order-batch-api';
@@ -172,7 +172,7 @@ export default function OrderBatchDialog({
       <FormMessage>{error || problem}</FormMessage>
       {!draft ? (
         <p className="help-text" role="status">
-          {busy ? '正在读取采购单…' : ''}
+          {busy ? loadingText('采购单') : ''}
         </p>
       ) : preview ? (
         <PreviewPane preview={preview} />

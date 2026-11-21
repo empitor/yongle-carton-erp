@@ -2,24 +2,6 @@
 textarea {
   resize: vertical;
 }
-.error,
-.form-error {
-  padding: var(--space-md) var(--space-lg);
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: var(--text-xs);
-  border: 1px solid var(--danger-border);
-  border-radius: var(--r-small);
-  margin: 0 0 var(--space-xl);
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  align-items: center;
-}
-.error button {
-  font-size: var(--text-xs);
-  color: var(--danger);
-}
 .field {
   display: flex;
   flex-direction: column;
@@ -38,18 +20,9 @@ textarea {
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
 }
-.form-error {
-  margin: 0 26px 15px;
-  max-height: 80px;
-  overflow: auto;
-  flex-shrink: 0;
-}
 @media (max-width: 700px) {
   .dimensions {
     gap: 10px;
-  }
-  .form-error {
-    margin: 0 18px var(--space-md);
   }
   .field > span {
     font-size: var(--text-xs);
