@@ -70,7 +70,7 @@
   color: var(--ink);
 }
 :root[data-ui='refined'] .record-view-tabs button.selected {
-  background: var(--segment-selected);
+  background: var(--input-bg);
   color: var(--ink);
   box-shadow: var(--segment-shadow);
 }

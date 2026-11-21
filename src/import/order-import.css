@@ -361,7 +361,7 @@
 }
 .oi-file-row.active {
   border-left-color: var(--oi-teal);
-  background: var(--accent-soft);
+  background: var(--selected-bg);
 }
 
 /* 收件箱三栏：文件、原件、草稿 */

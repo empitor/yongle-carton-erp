@@ -1,6 +1,2 @@
 [
-  {"rule":"color-contrast","selector":".top-search","reason":"深色的 --placeholder 对比度不足（浅色已调深）；深色换“墨纸留光”时删掉。"},
-  {"rule":"color-contrast","selector":".top-search > kbd","reason":"快捷键标记继承深色的 --placeholder，对比度不足；深色换“墨纸留光”时删掉。"},
-  {"rule":"color-contrast","selector":".shell main > footer","reason":"页脚用深色的 --placeholder，对比度不足；深色换“墨纸留光”时删掉。"},
-  {"rule":"color-contrast","selector":".shell main > footer > span","reason":"页脚版本号继承深色的 --placeholder，对比度不足；深色换“墨纸留光”时删掉。"}
 ]

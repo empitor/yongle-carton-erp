@@ -35,7 +35,7 @@
   background: var(--surface-hover);
 }
 .guide-toc button.active {
-  background: var(--accent-soft);
+  background: var(--selected-bg);
   color: var(--accent-ink);
   font-weight: 600;
 }

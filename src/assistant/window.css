@@ -137,7 +137,7 @@
   flex-shrink: 0;
 }
 .ga-panel button:not(.primary) {
-  background: var(--surface-muted);
+  background: var(--fill-1);
   color: var(--ink);
   border: 1px solid var(--border);
   border-radius: var(--r-control);

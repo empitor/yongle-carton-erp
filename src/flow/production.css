@@ -138,7 +138,7 @@
   border-right: 0;
 }
 .board-column.today {
-  background: var(--accent-soft);
+  background: var(--selected-bg);
 }
 .board-column.over {
   outline: 2px dashed var(--teal);

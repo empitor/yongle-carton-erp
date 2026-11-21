@@ -170,10 +170,10 @@
 }
 :root[data-ui='refined'] :is(main, .management-dialog, .detail-panel) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea):hover:not(:disabled, :focus) {
   border-color: var(--rule-field-hover);
-  background-color: var(--field-hover-bg);
+  background-color: var(--input-bg);
 }
 :root[data-ui='refined'] :is(main, .management-dialog, .detail-panel) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea):focus {
-  border-color: color-mix(in srgb, var(--teal) 55%, transparent);
+  border-color: var(--rule-field-focus);
   background-color: var(--input-bg);
   box-shadow: var(--ring);
   outline: none;

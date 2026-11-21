@@ -27,15 +27,11 @@
   background: var(--fill-1);
   color: var(--ink);
 }
-:root[data-ui='refined'] .record-view-tabs.fin-tabs button.selected {
-  background: var(--tab-selected-bg);
-  color: var(--ink);
-  box-shadow: var(--tab-selected-shadow);
-}
+:root[data-ui='refined'] .record-view-tabs.fin-tabs button.selected,
 :root[data-ui='refined'] .ai-settings-tabs button:is(.selected, [aria-selected='true']) {
-  background: var(--tab-selected-bg);
+  background: var(--input-bg);
   color: var(--ink);
-  box-shadow: var(--tab-selected-shadow);
+  box-shadow: var(--segment-shadow);
 }
 /* 底部提示：靠左贴着侧栏，长句子换行，不被推出屏幕 */
 :root[data-ui='refined'] .toast {

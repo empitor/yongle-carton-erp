@@ -34,33 +34,33 @@ html {
 /* ---- 设计系统 ---- */
 /* 语义化外观变量：同一组件在浅色和深色下保持一致的层级与操作含义。 */
 :root[data-theme='dark'] {
-  --focus-ring: #75c6d4;
-  --teal: #8fa8e8;
-  --accent-hover: #a8bcee;
-  --accent-soft: #232c42;
-  --accent-ink: #a8bcee;
-  --on-accent: #141822;
-  --kraft: #d2a468;
-  --kraft-deep: #b98a4e;
-  --danger: #f0938a;
-  --danger-fill: #b8453b;
-  --danger-hover: #c9554b;
-  --danger-soft: #3d2826;
-  --danger-border: #6d3d39;
-  --warning: #e9bd70;
-  --warning-soft: #3a3020;
-  --warning-border: #6b5a36;
-  --success: #6fcf9f;
-  --info: #84bdec;
-  --info-soft: #1f3040;
-  --purple: #b9a6ec;
-  --purple-soft: #2d2743;
+  --focus-ring: #7f9fdc;
+  --teal: #86a9ea;
+  --accent-hover: #a3bff0;
+  --accent-soft: #24334d;
+  --accent-ink: #9cbbef;
+  --on-accent: #0f1a2e;
+  --kraft: #cc9c5e;
+  --kraft-deep: #b4884c;
+  --danger: #f09a8e;
+  --danger-fill: #b9483c;
+  --danger-hover: #c8574a;
+  --danger-soft: #45261f;
+  --danger-border: #6e3b32;
+  --warning: #eac462;
+  --warning-soft: #3b3117;
+  --warning-border: #6b5a2e;
+  --success: #7fcb9d;
+  --info: #7fc9da;
+  --info-soft: #1b363c;
+  --purple: #cba9f7;
+  --purple-soft: #3a2952;
   --overlay: #000000a0;
   --shadow: 0 12px 32px rgb(0 0 0 / 0.5);
   --shadow-sm: 0 4px 12px rgb(0 0 0 / 0.35);
-  --sidebar-ink: #c8c5bd;
-  --sidebar-selected: #3a2f20;
-  --sidebar-active-ink: #f0e6d6;
+  --sidebar-ink: #cfc8b9;
+  --sidebar-selected: #34302a;
+  --sidebar-active-ink: #f3eddf;
 }
 
 /* 基础 */
@@ -179,7 +179,6 @@ html {
   --sep: rgb(96 74 34 / 0.12);
   --line-strong: #c9bda3; /* 产品附属关系的连接线 */
   --card-shadow: 0 0 0 1px rgb(96 74 34 / 0.12);
-  --today-card-shadow: var(--card-shadow); /* 今日页的卡片：浅色和别的卡片一样一圈细线 */
   --pop-shadow:
     0 0 0 1px rgb(96 74 34 / 0.16), 0 18px 44px rgb(72 52 16 / 0.2), 0 3px 10px rgb(72 52 16 / 0.08);
   --btn-shadow: 0 0.5px 1px rgb(40 30 10 / 0.18);
@@ -189,23 +188,16 @@ html {
   --assistant-panel-shadow: 0 18px 65px rgb(58 44 18 / 0.34);
   --review-bar-shadow: 0 -10px 18px -14px rgb(58 44 18 / 0.4);
   --on-success: #fffdf8;
-  /* 选中：列表选中的行、分段和页签选中的一格都提亮成白；列表行左边再加一条主色 */
+  /* 选中：列表选中的行提亮成白（左边再加一条主色，list-layout-5.css）；分段、页签选中的一格用 --input-bg 加这圈影 */
   --selected-bg: #fffdf8;
-  --selected-edge: inset 3px 0 0 var(--teal);
-  --segment-selected: var(--input-bg);
   --segment-shadow: 0 0 0 1px rgb(96 74 34 / 0.14), 0 1px 2px rgb(72 52 16 / 0.1);
-  --tab-selected-bg: var(--input-bg);
-  --tab-selected-shadow: var(--segment-shadow);
   --sidebar-selected-shadow: inset 3px 0 0 var(--kraft), 0 0 0 1px rgb(96 74 34 / 0.1);
-  /* 表格：表头压深一档、下面一条实线 */
-  --table-head-bg: var(--surface-muted);
-  --table-head-weight: 600;
+  /* 表头下面的线（表头底色是 --surface-muted，压深一档） */
   --rule-head: rgb(96 74 34 / 0.4);
-  /* 要填的格子：比纸白一档、一圈细线；鼠标停着只是线加重、底变白 */
+  /* 要填的格子的一圈线；鼠标停着时加重 */
   --rule-field: rgb(96 74 34 / 0.24);
   --rule-field-hover: rgb(96 74 34 / 0.42);
-  --field-hover-bg: var(--input-bg);
-  --search-edge: inset 0 0 0 1px var(--rule-field);
+  --rule-field-focus: color-mix(in srgb, var(--teal) 55%, transparent); /* 点进去：一条主色的细边，外面一圈 --ring */
   /* 字体：正文思源黑体；标题思源宋体；金额、数量、单号、日期这些数据格里的数字和字母用思源宋体（汉字仍是黑体）。
      网页字体来自 @fontsource-variable/noto-sans-sc、noto-serif-sc（src/main.tsx 引入），后面跟系统字体做后备。
      “·”“×”在思源里是全角的，交给系统字体的半角（ERP Marks）；数据格只换拉丁字母和数字（ERP Data）。 */
@@ -214,59 +206,46 @@ html {
     'HarmonyOS Sans SC', sans-serif;
   --font-serif: 'ERP Marks', 'Noto Serif SC Variable', 'Songti SC', 'SimSun', serif;
   --font-num: 'ERP Marks', 'ERP Data', var(--font-sans);
-  --num-weight: 500;
   --ring: 0 0 0 3px color-mix(in srgb, var(--teal) 24%, transparent);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --panel-w: min(480px, calc(100vw - var(--sidebar-w) - var(--assistant-w) - 600px));
 }
+/* 深色“墨纸留光”：同一张纸到了晚上。纸是带一点暖的墨色，字是米色；明暗次序和浅色一样
+   （侧栏 < 页面底 < 卡片 < 要填的格子 < 正在用的），浅色里“白的”在这里是“亮一档的”。没写的变量和浅色同一个写法。 */
 :root[data-ui='refined'][data-theme='dark'] {
-  --page-bg: #111113;
-  --surface: #1c1c1e;
-  --input-bg: #1c1c1e;
-  --surface-muted: #232326;
-  --surface-hover: rgb(118 118 128 / 0.16);
-  --ink: #f2f2f4;
-  --text-secondary: #a1a1a6;
-  --muted: #a1a1a6;
-  --placeholder: #77777c;
-  --border: rgb(255 255 255 / 0.09);
-  --border-strong: rgb(255 255 255 / 0.16);
-  --sidebar-bg: #18181a;
-  --sidebar-hover: rgb(118 118 128 / 0.22);
-  --fill-1: rgb(118 118 128 / 0.24);
-  --fill-2: rgb(118 118 128 / 0.32);
-  --field-bg: rgb(118 118 128 / 0.18);
-  --sep: rgb(255 255 255 / 0.08);
-  --line-strong: #c7c7cc; /* 深色下看不太清，待改 */
-  --card-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.07);
-  --today-card-shadow: none;
-  --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 24px 64px rgb(0 0 0 / 0.55);
+  --sidebar-bg: #191714;
+  --page-bg: #1f1d19;
+  --surface-muted: #1f1d19;
+  --surface: #282521;
+  --field-bg: #302c27;
+  --input-bg: #3a352e;
+  --surface-hover: rgb(237 230 215 / 0.04);
+  --sidebar-hover: rgb(237 230 215 / 0.07);
+  --ink: #ede6d7;
+  --text-secondary: #b2aa9a;
+  --muted: #b2aa9a;
+  --placeholder: #aba393;
+  --border: rgb(237 230 215 / 0.1);
+  --border-strong: rgb(237 230 215 / 0.2);
+  --fill-1: rgb(237 230 215 / 0.09);
+  --fill-2: rgb(237 230 215 / 0.14);
+  --sep: rgb(237 230 215 / 0.08);
+  --line-strong: #5a5449;
+  --card-shadow: 0 0 0 1px rgb(237 230 215 / 0.09);
+  --pop-shadow: 0 0 0 1px rgb(237 230 215 / 0.12), 0 22px 60px rgb(0 0 0 / 0.55), 0 4px 14px rgb(0 0 0 / 0.3);
   --btn-shadow: none;
-  --primary-btn-highlight: inset 0 1px 0 rgb(255 255 255 / 0.12);
-  --overlay-dim: rgb(0 0 0 / 0.28);
-  --drawer-shadow: 20px 0 50px #142a3c33;
-  --assistant-panel-shadow: 0 18px 65px #0006;
-  --review-bar-shadow: 0 -10px 18px -14px #0006;
-  --on-success: #fff;
-  --selected-bg: color-mix(in srgb, var(--teal) 9%, var(--surface));
-  --selected-edge: none;
-  --segment-selected: #636366;
-  --segment-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.12);
-  --tab-selected-bg: var(--fill-2);
-  --tab-selected-shadow: none;
-  --sidebar-selected-shadow: inset 3px 0 0 var(--kraft);
-  --table-head-bg: var(--surface);
-  --table-head-weight: 500;
-  --rule-head: var(--sep);
-  --rule-field: transparent;
-  --rule-field-hover: transparent;
-  --field-hover-bg: var(--fill-1);
-  --search-edge: none;
-  /* 深色这一轮不换字体：标题、数据格也是正文的雅黑 */
-  --font-sans: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'HarmonyOS Sans SC', sans-serif;
-  --font-serif: var(--font-sans);
-  --font-num: var(--font-sans);
-  --num-weight: 400;
+  --primary-btn-highlight: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  --overlay-dim: rgb(0 0 0 / 0.52);
+  --drawer-shadow: 20px 0 50px rgb(0 0 0 / 0.45);
+  --assistant-panel-shadow: 0 18px 65px rgb(0 0 0 / 0.6);
+  --review-bar-shadow: 0 -10px 18px -14px rgb(0 0 0 / 0.6);
+  --on-success: #10241a;
+  --selected-bg: #3a352e;
+  --segment-shadow: 0 0 0 1px rgb(237 230 215 / 0.14), 0 1px 3px rgb(0 0 0 / 0.4);
+  --sidebar-selected-shadow: inset 3px 0 0 var(--kraft), 0 0 0 1px rgb(237 230 215 / 0.08);
+  --rule-head: rgb(237 230 215 / 0.26);
+  --rule-field: rgb(237 230 215 / 0.16);
+  --rule-field-hover: rgb(237 230 215 / 0.32);
 }
 
 /* —— 外壳 —— */
@@ -289,7 +268,7 @@ html {
 }
 /* 宋体的横画细，列表里的数字加半档字重才站得住（特异性为 0，合计行这类自己定了字重的照它自己的） */
 :where(main .panel, main .unified-table-region) :where(td.num) {
-  font-weight: var(--num-weight);
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {

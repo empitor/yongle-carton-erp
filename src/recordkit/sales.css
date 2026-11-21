@@ -125,6 +125,7 @@
 }
 .sales-progress-list .num {
   text-align: right;
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
 .sales-progress-row > div {

@@ -175,7 +175,7 @@ fieldset.fin-term-body {
   margin: 0;
 }
 .choice-list.fin-choices label.selected {
-  background: var(--accent-soft);
+  background: var(--selected-bg);
 }
 
 /* 只读的小表格（重算预览） */

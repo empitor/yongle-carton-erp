@@ -230,7 +230,7 @@
 :root[data-ui='refined'] .top-search {
   border: 0;
   background: var(--field-bg);
-  box-shadow: var(--search-edge);
+  box-shadow: inset 0 0 0 1px var(--rule-field);
   border-radius: var(--r-control);
   transition: background 0.15s var(--ease);
 }

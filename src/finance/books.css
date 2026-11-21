@@ -117,7 +117,7 @@
 }
 .fb-choice:has(input:checked) {
   border-color: var(--accent-ink);
-  background: var(--accent-soft);
+  background: var(--selected-bg);
   color: var(--accent-ink);
 }
 

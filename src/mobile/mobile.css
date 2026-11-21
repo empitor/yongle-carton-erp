@@ -146,10 +146,10 @@
     font-size: var(--text-md);
   }
   .mobile-subnav button.selected {
-    background: var(--surface);
+    background: var(--input-bg);
     color: var(--ink);
     font-weight: 600;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--segment-shadow);
   }
 
   /* 表格变卡片 */

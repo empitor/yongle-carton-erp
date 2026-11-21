@@ -13,6 +13,10 @@
   flex: 1;
   font-size: var(--text-sm);
 }
+/* 点进去和全站输入框一样是一条主色的细边（全站那条只管页面、窗口和详情，不管助手面板） */
+.ga-compose textarea:focus {
+  border-color: var(--rule-field-focus);
+}
 .ga-compose button {
   min-width: 42px;
   flex: 0 0 42px;

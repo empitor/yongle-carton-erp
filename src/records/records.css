@@ -92,6 +92,7 @@
 }
 .sales-section-sum {
   color: var(--text-secondary);
+  font-family: var(--font-num);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
