@@ -6,7 +6,7 @@ import type { deletionRequestSchema, deletionResultSchema, deletionSelection, im
  * 表的写法见 shared/core/api-table.ts。正文照服务端的 zod 规则（deletion-request.ts）的输入写，服务端照样先校验。
  */
 
-/** 删除预览：范围、范围摘要、影响清单，和库存怎么变、财务里保留几处引用 */
+/** 删除预览：范围、范围摘要、影响清单，和库存怎么变 */
 type DeletionPreview = {
   selection: z.output<typeof deletionSelection>;
   digest: string;
@@ -15,7 +15,6 @@ type DeletionPreview = {
   hasIndependentImpact: boolean;
   /** 被删单据有几笔出入库流水要按“库存处理方式”处理；0 表示没动过库存 */
   inventoryChoice: number;
-  financeReferencesRetained: number;
   inventoryEffect: string;
 };
 

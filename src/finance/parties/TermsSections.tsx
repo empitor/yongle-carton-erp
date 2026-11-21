@@ -1,5 +1,5 @@
 import { FormSection, FormField } from '../../ui/index';
-import { FinCheck, UnitInput, taxModes } from '../fields';
+import { FinCheck, UnitInput, taxModeOptions } from '../fields';
 import { termTypes } from '../../../shared/finance/index';
 import { num, optionOf, type Interest, type TermsForm } from './terms-form';
 
@@ -101,7 +101,7 @@ export function TaxCreditSection({ form, set }: Props) {
       <FormField label="默认口径">
         <select value={taxMode} onChange={(e) => set({ taxMode: e.target.value })}>
           <option value="">未选择</option>
-          {taxModes.map(([k, label]) => (
+          {taxModeOptions.map(([k, label]) => (
             <option key={k} value={k}>
               {label}
             </option>

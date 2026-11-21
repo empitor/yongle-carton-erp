@@ -42,6 +42,7 @@ import {
   auxiliaryKinds,
   cashMethods,
   settingsPatchSchema,
+  taxModes,
   taxpayerSchema,
   termTypes,
 } from '../shared/finance/finance.js';
@@ -157,7 +158,7 @@ function enumOwners(): Record<string, readonly string[]> {
     'fin_templates.name': finance.templateNames,
     'fin_party_terms.kind': finance.partyKinds,
     'fin_party_terms.term_type': termTypes,
-    'fin_party_terms.tax_mode': finance.taxModes,
+    'fin_party_terms.tax_mode': taxModes,
     'fin_obligations.kind': finance.obligationKinds,
     'fin_obligations.tax_status': finance.obligationTaxStatuses,
     'fin_cash_accounts.kind': finance.cashAccountKinds,

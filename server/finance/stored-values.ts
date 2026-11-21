@@ -6,7 +6,8 @@
  * 0.9.0 发布以后要加值，除了改这里和建表，还要写升级步骤重建那张表（SQLite 的 CHECK 不能单独改）。
  *
  * 这里只列存进库的值。只用来筛选、显示的（比如事件列表能筛的状态）在用的地方从这里取一部分。
- * 页面下拉也要列的两组（收付方式 fin_cash_documents.method、账期方式 fin_party_terms.term_type）放在
+ * 页面下拉也要列的三组（收付方式 fin_cash_documents.method、账期方式 fin_party_terms.term_type、
+ * 税率口径 fin_party_terms.tax_mode）放在
  * shared/finance/finance.ts，前后端共用。
  */
 
@@ -90,9 +91,6 @@ export const templateNames = [
 
 /** fin_party_terms.kind、fin_deposits.party_kind：往来单位是客户还是供应商 */
 export const partyKinds = ['customer', 'supplier'] as const;
-
-/** fin_party_terms.tax_mode */
-export const taxModes = ['含税', '未税', '不含税'] as const;
 
 /** fin_obligations.kind、fin_statements.kind、fin_notes.kind：应收还是应付 */
 export const obligationKinds = ['receivable', 'payable'] as const;

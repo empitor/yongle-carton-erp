@@ -1,7 +1,5 @@
 // 订单状态由有效单据派生（server/flow/order-progress.ts、server/business/service.ts）：生产中、待发货、已发货跟着任务、完工、
 // 送货走，分批做分批发、一张任务挂多张单、撤销和删除单据后回退；人工只定待确认、已确认、已取消。下一步见 order-next-step.test.ts。
-// 删除业务记录时财务要登记配合规则（server/core/deletion-rules.ts），正式服务启动时一定会加载财务
-import '../server/finance/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';

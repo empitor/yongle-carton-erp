@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FormGroup, FormMessage, FormSection, FormField } from '../../ui/index';
 import { EditorShell } from '../editor';
 import { completeTaxForEvents, completeTaxForParty } from './tax-api';
-import { taxModes, PartyField } from '../fields';
+import { taxModeOptions, PartyField } from '../fields';
 
 type How = 'rate' | 'noTax' | 'party';
 const hows: [How, string][] = [
@@ -132,7 +132,7 @@ export default function TaxBatchDialog({
             <FormField label="口径" required>
               <select required value={mode} onChange={(e) => setMode(e.target.value)}>
                 <option value="">请选择</option>
-                {taxModes.map(([k, label]) => (
+                {taxModeOptions.map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
                   </option>

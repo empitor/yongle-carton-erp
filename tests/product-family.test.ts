@@ -1,6 +1,4 @@
-// 删除业务记录时财务要登记配合规则（server/core/deletion-rules.ts），正式服务启动时一定会加载财务
 import { pageActor } from './actor-fixture.js';
-import '../server/finance/index.js';
 // 产品改了成品库存要跟着改（server/core/db.ts 的 registerProductStockSync），由采购库存模块登记，正式服务启动时一定会加载
 import '../server/operations/index.js';
 import { test } from 'node:test';

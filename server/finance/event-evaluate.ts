@@ -6,7 +6,7 @@ import { financeError } from './core.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
 import type { SourceRow } from './business-source.js';
 import type { DocumentMoney, EventSnapshot, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
-import { taxModes } from './stored-values.js';
+import { taxModes } from '../../shared/finance/index.js';
 
 type TaxTerms = { tax_rate: string | null; tax_mode: string | null };
 /** 查往来单位默认税率和含税口径的函数：kind 是客户还是供应商，id 是往来单位编号 */

@@ -2,7 +2,6 @@
 // 改挂的出库流水备注里的单号跟着换、修订记录留着原备注。
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { test } from 'node:test';
-import '../server/finance/index.js';
 import '../server/import/index.js';
 import assert from 'node:assert/strict';
 import { z } from 'zod';

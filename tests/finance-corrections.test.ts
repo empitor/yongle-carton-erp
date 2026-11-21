@@ -418,6 +418,9 @@ test('来源更正先撤销核销，全额红冲重做保留旧凭证，物理�
       admin,
       'fixture',
     );
+    // 删除只管业务：财务下次补扫时才发现来源没了
+    assert.equal(new FinanceEventViews(s).list(maker, { status: 'source_deleted' }).filteredRecords, 0);
+    events.sync(maker, { requestId: 'after-delete' });
     assert.equal(new FinanceEventViews(s).list(maker, { status: 'source_deleted' }).rows[0].id, diff.id);
     assert.equal(
       s.db.prepare('SELECT status FROM fin_vouchers WHERE id=?').get(voucher)?.status,

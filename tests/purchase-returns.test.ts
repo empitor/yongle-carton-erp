@@ -1,7 +1,5 @@
 // 采购退货（server/flow/returns.ts）：退货扣库存和已到货，撤销退货补回；挂账、编号、幂等、权限。内存库、虚构数据。
-// 删除业务记录时财务要登记配合规则（server/core/deletion-rules.ts），正式服务启动时一定会加载财务
 import { pageActor } from './actor-fixture.js';
-import '../server/finance/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
