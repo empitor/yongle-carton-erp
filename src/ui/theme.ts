@@ -25,9 +25,9 @@ function applyTheme(preference: ThemePreference) {
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.themePreference = preference;
   document.documentElement.style.colorScheme = resolved;
-  document
-    .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', resolved === 'dark' ? '#141c24' : '#f3f6f7');
+  // 手机浏览器地址栏的颜色跟页面底色走，颜色只在 tokens.css 定义一处
+  const pageBg = window.getComputedStyle(document.documentElement).getPropertyValue('--page-bg').trim();
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', pageBg);
   emit('erp-theme-changed');
 }
 /**

@@ -157,9 +157,9 @@
   padding: 0 var(--space-sm);
 }
 
-/* —— 输入框：浅灰填充，点进去变白并出现柔和光圈 —— */
+/* —— 输入框：填充色的格子（浅色是比纸白一档、一圈细线），鼠标停着变底色或加重线，点进去全白并出现柔和光圈 —— */
 :root[data-ui='refined'] :is(main, .management-dialog, .detail-panel) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea) {
-  border: 1px solid transparent;
+  border: 1px solid var(--rule-field);
   border-radius: var(--r-control);
   background-color: var(--field-bg);
   color: var(--ink);
@@ -169,11 +169,12 @@
     box-shadow 0.15s var(--ease);
 }
 :root[data-ui='refined'] :is(main, .management-dialog, .detail-panel) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea):hover:not(:disabled, :focus) {
-  background-color: var(--fill-1);
+  border-color: var(--rule-field-hover);
+  background-color: var(--field-hover-bg);
 }
 :root[data-ui='refined'] :is(main, .management-dialog, .detail-panel) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea):focus {
   border-color: color-mix(in srgb, var(--teal) 55%, transparent);
-  background-color: var(--surface);
+  background-color: var(--input-bg);
   box-shadow: var(--ring);
   outline: none;
 }

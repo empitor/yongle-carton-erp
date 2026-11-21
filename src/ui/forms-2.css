@@ -143,9 +143,8 @@ textarea:focus-visible {
   font-size: var(--text-xs);
   line-height: 16px;
 }
-.form-field.has-error input,
-.form-field.has-error select,
-.form-field.has-error textarea {
+/* 要压过 dialogs.css 精致版式给输入框定的边线（同特异性，排在它后面） */
+:root[data-ui='refined'] .form-field.has-error :is(input, select, textarea) {
   border-color: var(--danger);
 }
 .form-inline {

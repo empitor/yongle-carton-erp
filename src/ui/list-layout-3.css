@@ -78,7 +78,7 @@
   color: var(--info);
 }
 .status-chip.tone-success {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
+  background: var(--success-soft);
   color: var(--success);
 }
 .status-chip.tone-warning {

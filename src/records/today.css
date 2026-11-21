@@ -19,6 +19,7 @@
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--today-card-shadow);
 }
 .td-stats > a,
 .td-stats > div {
@@ -60,6 +61,7 @@
   overflow: hidden;
   border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--today-card-shadow);
 }
 .td-group > header {
   display: flex;
@@ -74,8 +76,17 @@
   align-items: center;
   gap: var(--space-sm);
   margin: 0;
+  font-family: var(--font-serif);
   font-size: var(--text-md);
   font-weight: 600;
+}
+/* 今日页的数：统计、条数、单号、交期和逾期，数字和字母用宋体（字体变量在 src/ui/tokens.css） */
+.td-stats strong,
+.td-count,
+.td-no,
+.td-note,
+.td-late {
+  font-family: var(--font-num);
 }
 .td-count {
   padding: 0 var(--space-sm);
@@ -162,6 +173,9 @@
 .td-status,
 .td-note {
   color: var(--text-secondary);
+}
+.td-note {
+  font-weight: var(--num-weight);
 }
 .td-late {
   color: var(--danger);

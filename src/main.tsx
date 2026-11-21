@@ -8,6 +8,9 @@ import { assembleSlots } from './slots';
 // 先后是按冲突排出来的：两条规则特异性相同、可能落在同一个元素上、改同一个属性时，后写的说了算，这个先后和整理前一样。
 // 没有这种关系的按模块从低到高排；名字带 -2、-3 的是同一主题里要压过前面别的文件的那几条（多是精致版式的按钮、表格、详情卡片），
 // 所以单独成一份排在后面。下面带“排在……之后”的就是这类，后面写的是它要压过的文件。
+// 网页字体（思源黑体、思源宋体）：按字切成小片，浏览器只下载页面上用到的那几片；在 ui/tokens.css 的字体变量里用
+import '@fontsource-variable/noto-sans-sc';
+import '@fontsource-variable/noto-serif-sc';
 import './ui/tokens.css';
 import './ui/buttons.css';
 import './ui/forms.css';

@@ -20,7 +20,7 @@
   padding: var(--space-2xs);
   overflow: auto;
   list-style: none;
-  background: var(--surface);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: var(--r-panel);
   box-shadow: var(--shadow-sm);
@@ -127,6 +127,6 @@
   padding: var(--space-2xs);
   border: 0;
   border-radius: var(--r-control);
-  background: var(--surface);
+  background: var(--input-bg);
   box-shadow: var(--pop-shadow);
 }
