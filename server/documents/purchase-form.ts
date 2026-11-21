@@ -12,6 +12,7 @@ import {
   type OrderBatchView,
   type PurchaseView,
   type ScheduleEntry,
+  UNPRICED_TEXT,
 } from '../../shared/business/index.js';
 import { displayAmount, quantityString, today } from '../../shared/core/index.js';
 import { joinSpecification, type RawForm } from './forms.js';
@@ -20,7 +21,6 @@ import { joinSpecification, type RawForm } from './forms.js';
 type Row = ReturnType<typeof batchRows>[number];
 /** 交货日期分几批时“预计交货日期”这一格写的话，这时另起一格写交货安排 */
 const SPLIT_DUE = '分批，见交货安排';
-const UNPRICED = '待核价';
 
 /** 已经在订货批次里的采购单按整个批次导出；不在同一份订货单里的不能合在一起 */
 function batchOf(batches: OrderBatchService, ids: number[]): OrderBatchView | null {
@@ -89,8 +89,8 @@ function purchaseRow(r: Row, i: number) {
     r.unit,
     quantityString(r.orderedUnits),
     // 单价和计价单位和界面同一个写法（priceText：2.7600 → “2.76 元/m²”）；没写计价方式的按数量计，照原来写“元/单位”
-    r.unitPrice == null ? UNPRICED : priceText(r.unitPrice, r.priceBasis === 'area' ? 'area' : 'quantity', r.unit),
-    r.amount == null ? UNPRICED : displayAmount(r.amount),
+    r.unitPrice == null ? UNPRICED_TEXT : priceText(r.unitPrice, r.priceBasis === 'area' ? 'area' : 'quantity', r.unit),
+    r.amount == null ? UNPRICED_TEXT : displayAmount(r.amount),
   ];
 }
 /** 模板可选的列：材质、楞型、尺寸，备注里写明细备注和这一行的到货安排 */

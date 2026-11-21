@@ -17,8 +17,6 @@ import {
   summarizeMovements,
   type MovementFilters,
   type OperationsApi,
-  type StockItemView,
-  type SupplierView,
 } from '../../shared/business/index.js';
 import { OrderBatchService } from './batches.js';
 import { stockIdsOfParty } from './party-links.js';
@@ -66,22 +64,19 @@ function routesFor(store: Store, auth: AuthManager | undefined, router: Router):
   };
 }
 
-/** 关键字：带统计的列表按名称、联系方式这些看得见的字段找，不带的（下拉、助手用）在整条记录里找 */
-const keywordFilter = (q: string | undefined, metrics: boolean) => (r: SupplierView | StockItemView) =>
-  !q || (metrics ? matchesOperationalRecord(r, q) : JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
 
 /**
- * 供应商列表：archived=1 只看已归档；withMetrics=1 时回 { rows, totalRecords, metrics: null }，否则回数组。
+ * 供应商列表：archived=1 只看已归档；withMetrics=1 时回 { rows, totalRecords, metrics: null }，否则回数组（下拉用）。
+ * 关键字两种形状都和供应商页同一套（matchesOperationalRecord）。
  * 和库存品同一套筛选参数，供应商上没有的那几项（种类、所属供应商、状态、数量）按“没有”比：带了就筛不出来。
  */
 function supplierList({ repo, include }: Routes, query: unknown, req: Request) {
   const q = operationsListQuerySchema.parse(query),
-    metrics = withMetrics(query),
-    keyword = keywordFilter(q.q, metrics);
+    metrics = withMetrics(query);
   const scoped = repo.suppliers(include(req, q.archived)).filter((r) => (q.archived !== '1' || r.archived) && !q.kind);
   const rows = scoped.filter(
     (r) =>
-      keyword(r) &&
+      matchesOperationalRecord(r, q.q) &&
       !q.supplierId &&
       !q.status &&
       q.zero !== '1' &&
@@ -91,19 +86,18 @@ function supplierList({ repo, include }: Routes, query: unknown, req: Request) {
 }
 
 /**
- * 库存品列表：archived=1 只看已归档；withMetrics=1 时带统计（原材料、成品分开）。
+ * 库存品列表：archived=1 只看已归档；withMetrics=1 时带统计（原材料、成品分开）。关键字和库存页同一套（matchesOperationalRecord）。
  * 库存品上没有的状态、采购历史按“没有”比：带了 status 筛不出来，带 history=with 一条也没有。
  */
 function stockList({ store, repo, include }: Routes, query: unknown, req: Request) {
   const q = operationsListQuerySchema.parse(query),
-    metrics = withMetrics(query),
-    keyword = keywordFilter(q.q, metrics);
+    metrics = withMetrics(query);
   const scoped = repo.items(include(req, q.archived)).filter((r) => (q.archived !== '1' || r.archived) && (!q.kind || r.kind === q.kind));
   // 库存品按供应商、客户筛：原材料看从这个供应商采购过的，成品看这个客户订过的产品
   const linked = stockIdsOfParty(store, q);
   const rows = scoped.filter(
     (r) =>
-      keyword(r) &&
+      matchesOperationalRecord(r, q.q) &&
       (!linked || linked.has(r.id)) &&
       !q.status &&
       (q.zero !== '1' || r.balanceUnits === 0) &&

@@ -84,9 +84,9 @@ function inspectionStatus(e: ReceiptEvent): ArrivalRecord['inspectionStatus'] {
   return e.lines.some((l) => l.rejectedQuantity != null && quantityUnits(l.rejectedQuantity) > 0) ? '含不合格品' : '全部合格';
 }
 
-/** 按查询条件取到货事件：给了 scope 只读这几张；按记录编号、采购单查也只读相关的 */
+/** 按查询条件取到货事件：给了 flowIds 只读这几张；按记录编号、采购单查也只读相关的 */
 function sourceEvents(flow: FlowCommands, v: z.output<typeof arrivalQuerySchema>, scope?: { flowIds?: readonly number[] }) {
-  if (scope) return receiptEvents(flow.store, undefined, { arrivalIds: scope.flowIds || [] });
+  if (scope?.flowIds) return receiptEvents(flow.store, undefined, { arrivalIds: scope.flowIds });
   if (v.receiptId) {
     const flowId = /^flow-(\d+)$/.exec(v.receiptId);
     return receiptEvents(flow.store, undefined, { arrivalIds: flowId ? [Number(flowId[1])] : [] });
@@ -95,7 +95,7 @@ function sourceEvents(flow: FlowCommands, v: z.output<typeof arrivalQuerySchema>
 }
 
 /**
- * scope：只组装这几张到货单（按主键），includeArchived 为真时已归档的也组装（点开一张已归档的详情）。按采购单或记录编号查询时也只读相关到货事件；
+ * scope.flowIds：只组装这几张到货单（按主键），不给是全部；includeArchived 为真时已归档的也组装（点开一张已归档的详情）。按采购单或记录编号查询时也只读相关到货事件；
  * 采购单、供应商名称和库存流水都按事件里出现的主键批量读取，不全量加载后再查找。
  */
 export function arrivalRecords(

@@ -27,7 +27,7 @@ export function specLine(v: SpecFields) {
   return [spec, size, [clean(v.material), clean(v.flute)].filter(Boolean).join(' / ')].filter(Boolean).join(' · ');
 }
 
-/** 还没定价（单价、金额、产品价格空着）：界面、修改历史、助手都这么说（订货单打印另有说法） */
+/** 还没定价（单价、金额、产品价格空着）：界面、修改历史、助手、订货单打印和预览都这么说 */
 export const UNPRICED_TEXT = '单价待定';
 
 /**

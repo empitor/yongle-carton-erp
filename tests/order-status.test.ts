@@ -171,6 +171,21 @@ test('一张任务挂两张单，各要 100 只做了 100：两张都不算做�
   }
 });
 
+test('一张任务挂的另一张单改回了待确认：它的数量不算进要做的数，做够有效的那张就待发货', () => {
+  const f = madeFixture();
+  try {
+    const a = f.order(100),
+      b = f.order(50);
+    f.make([a.id, b.id], '100');
+    assert.equal(orderOf(f.store, a.id).status, '生产中', '两张都有效时要做 150');
+    f.store.db.prepare("UPDATE orders SET status='待确认' WHERE id=?").run(b.id);
+    f.flow.recomputeAfterMaintenance([a.id, b.id]);
+    assert.deepEqual([orderOf(f.store, a.id).status, orderOf(f.store, b.id).status], ['待发货', '待确认']);
+  } finally {
+    f.store.close();
+  }
+});
+
 test('多产品订单只完工部分产品时仍是生产中；全部完工后才待发货', () => {
   const f = stackFixture();
   try {

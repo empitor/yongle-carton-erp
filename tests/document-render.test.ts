@@ -89,7 +89,7 @@ test('大写金额只写到分，分以下有数或负数时不出大写、不�
   assert.equal(uppercaseAmount('20000000.00'), '贰仟万元整');
   assert.equal(uppercaseAmount('1234.5678'), null);
   assert.equal(uppercaseAmount('-5'), null);
-  assert.equal(uppercaseAmount('待核价'), null);
+  assert.equal(uppercaseAmount('单价待定'), null);
 });
 
 test('信息格保持字段顺序，地址占两格，单号日期和条款不进信息格', () => {
@@ -146,7 +146,7 @@ test('送货单没选纸张按针式三等分出 Word，默认带联次竖排、
   );
 });
 
-test('采购单 A4 出大写合计；待核价不出大写；标题保留原文便于搜索', async () => {
+test('采购单 A4 出大写合计；单价待定时合计写“单价待定”、不出大写；标题保留原文便于搜索', async () => {
   const xml = await wordXml(await renderBusinessForm(sampleDocument(purchase), 'docx'));
   assert.deepEqual(pageSize(xml), [210, 297]);
   assert.match(xml, /采购订货单/);
@@ -157,7 +157,8 @@ test('采购单 A4 出大写合计；待核价不出大写；标题保留原文�
     await renderBusinessForm({ ...sampleDocument({ ...purchase, orientation: 'landscape' }), total: null }, 'docx'),
   );
   assert.deepEqual(pageSize(pending), [297, 210]);
-  assert.match(pending, /待核价/);
+  assert.match(pending, /单价待定/);
+  assert.doesNotMatch(pending, /待核价/);
   assert.doesNotMatch(pending, /大写/);
 });
 

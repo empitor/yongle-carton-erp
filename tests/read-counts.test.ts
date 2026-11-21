@@ -22,6 +22,9 @@ import { stackActor as editorActor, stackFixture } from './stack-fixture.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { ManualProductionCompletion } from '../server/flow/production-completion.js';
 import { ProductionCompletion } from '../server/flow/batch-completion.js';
+import { buildToday } from '../server/business/workbench.js';
+import { orderDashboard } from '../server/business/record-lists.js';
+import { changeLifecycle } from '../server/business/lifecycle.js';
 
 const actor: Actor = pageActor({ id: 'perf-operator', name: '虚构测试操作员', permissions: ['business:edit'] });
 
@@ -367,6 +370,54 @@ test('完工预览摘要只看这次完工会读到的记录：无关的单据�
     assert.equal(flow.get(first.id, 'task').completed, '3');
     assert.equal(done.results[0].goodQuantity, '3');
   } finally {
+    store.close();
+  }
+});
+
+// —— 今日页、经营概况算上已归档的：已归档的只按日期圈出这段时间的再按编号读 ——
+test('今日页、经营概况的月度统计只读这段时间里已归档的订单和采购单，不把全部历史（连已归档的）组装一遍', () => {
+  const store = new Store(':memory:'),
+    ops = new OperationsService(store);
+  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构归档客户' })),
+    product = store.saveProduct(productSchema.parse({ name: '虚构归档纸箱' })),
+    supplier = ops.saveSupplier({ name: '虚构归档供应商' }, actor);
+  const archived = (entity: 'orders' | 'purchases', record: { id: number; version: number }) => {
+    assert.ok(changeLifecycle(store, entity, { action: 'archive', items: [{ id: record.id, version: record.version }] }, actor).results[0].success);
+    return record.id;
+  };
+  const order = (orderDate: string) =>
+    store.saveOrder(orderSchema.parse({ customerId: customer.id, orderDate, deliveryDate: '2026-12-30', status: '待确认', lines: [{ productId: product.id, quantity: 10, unitPriceCents: 100 }] }));
+  const purchase = (orderDate: string) =>
+    ops.savePurchase({ supplierId: supplier.id, orderDate, status: '已取消', lines: [{ name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm', quantity: '5', priceBasis: 'quantity' }] }, actor);
+  archived('orders', order('2026-01-05'));
+  archived('purchases', purchase('2026-01-02'));
+  const recentOrder = archived('orders', order('2026-10-05')),
+    recentPurchase = archived('purchases', purchase('2026-10-02'));
+  const spies = {
+    orders: mock.method(store, 'orders'),
+    ordersByIds: mock.method(store, 'ordersByIds'),
+    purchases: mock.method(OperationsRepository.prototype, 'purchases'),
+  };
+  try {
+    buildToday(store, '2026-10-31');
+    orderDashboard(store, { start: '2026-10-01', end: '2026-10-31' });
+    assert.ok(spies.orders.mock.calls.every((c) => !c.arguments[0]), '整批读的订单不带已归档的');
+    assert.ok(spies.purchases.mock.calls.every((c) => !c.arguments[0] || c.arguments[1] !== undefined), '带已归档的采购单只按编号读');
+    // 带已归档读的（period-records.ts 发起的）只读到这段时间里的那一张
+    const fromPeriod = /period-records/;
+    assert.deepEqual(
+      [
+        ...directCalls(fromPeriod, 'orders', spies.ordersByIds.mock.calls, (a) => a[0]),
+        ...directCalls(fromPeriod, 'purchases', spies.purchases.mock.calls.filter((c) => c.arguments[0]), (a) => a[1]),
+      ].map((r) => [r.name, r.ids]),
+      [
+        ['orders', [recentOrder]],
+        ['orders', [recentOrder]],
+        ['purchases', [recentPurchase]],
+      ],
+    );
+  } finally {
+    for (const spy of Object.values(spies)) spy.mock.restore();
     store.close();
   }
 });

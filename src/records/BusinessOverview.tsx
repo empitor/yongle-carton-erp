@@ -23,6 +23,9 @@ const metric = (href: string, label: string, value: ReactNode, detail: string, t
   </a>
 );
 
+/** 张数里有几张已归档的：点进去的列表不列已归档的，数对不上时看得懂；0 张不写 */
+const archivedNote = (n: number) => (n > 0 ? '含已归档 ' + n + ' 张' : '');
+
 /** 按单位分开的数量（张和只不相加） */
 const units = (groups: UnitBalance[], empty = '暂无库存') =>
   groups.length ? (
@@ -57,7 +60,7 @@ function OrdersSection({ data, orders }: { data: Dashboard; orders: string }) {
         </a>
       </header>
       <div className="bo-metrics">
-        {metric(orders, '订单总数', v.orders.total, '包含待确认和已取消')}
+        {metric(orders, '订单总数', v.orders.total, ['包含待确认和已取消', archivedNote(v.orders.archived)].filter(Boolean).join('；'))}
         {metric(orders, '有效订单金额', '¥' + yuan(data.amountCents), '不含待确认、已取消', 'bo-accent')}
         {metric(
           '#orders?view=pending&range=all',
@@ -86,6 +89,7 @@ function OrdersSection({ data, orders }: { data: Dashboard; orders: string }) {
                 />
               </i>
               <strong>{s.count}</strong>
+              {s.archived > 0 && <small>{archivedNote(s.archived)}</small>}
             </a>
           ))}
         </div>
@@ -128,7 +132,12 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
         </a>
       </header>
       <div className="bo-metrics bo-purchase-metrics">
-        {metric(purchases, '期间采购单', v.purchases.total, `所选日期内 ${v.purchases.pending} 张还没到齐`)}
+        {metric(
+          purchases,
+          '期间采购单',
+          v.purchases.total,
+          [`所选日期内 ${v.purchases.pending} 张还没到齐`, archivedNote(v.purchases.archived)].filter(Boolean).join('；'),
+        )}
         {metric(
           purchases,
           '已定价采购金额',
@@ -352,7 +361,7 @@ export default function Overview({ data, rangeFilter }: { data: Dashboard; range
     <div className="business-overview td-overview">
       {rangeFilter}
       <p className="td-scope">
-        订单按下单日期、采购按采购日期、出入库按业务日期统计；标“实时”的数字、库存和产品不受日期影响，归档的记录不计入。
+        订单按下单日期、采购按采购日期、出入库按业务日期统计，已归档的也算；标“实时”的数字、库存和产品不受日期影响，实时的数字和最近的记录不算已归档的。
       </p>
       <OrdersSection data={data} orders={'#orders?' + range} />
       <PurchasesSection v={v} purchases={'#purchases?' + range} />

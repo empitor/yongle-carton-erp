@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { count, many, type Store } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { WarehouseDaily } from '../flow/index.js';
+import { periodOrders } from './period-records.js';
 import { OperationsRepository, OrderBatchService, purchaseOrderLinks } from '../operations/index.js';
 import { dueSegments, sumMoney, type FlowDocView } from '../../shared/business/index.js';
 import { DAY_MS, UNITS_PER_QUANTITY, deliverableOrder, effectiveOrder, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
@@ -266,7 +267,7 @@ function purchaseQueues(purchases: Purchase[], date: string) {
   };
 }
 
-/** 这个月的订单金额、已出库金额；历史送货可能没有价格快照，只累计有快照的部分，不猜测金额。 */
+/** 这个月的订单金额、已出库金额（含已归档的）；历史送货可能没有价格快照，只累计有快照的部分，不猜测金额。 */
 function monthSummary(orders: Order[], deliveryRecords: DeliveryRecord[], date: string) {
   const from = monthStart(date);
   return {
@@ -312,24 +313,29 @@ function daySchedule({ store, dueArrivals, tasks, deliveryRecords, date }: Sched
   };
 }
 
-/** 今日页：把各模块的真实记录整理成待办队列，只读。 */
+/**
+ * 今日页：把各模块的真实记录整理成待办队列，只读。本月接单、本月发货算上已归档的订单和送货单
+ * （归档只是把办完的收起来）；待办和今天的日程不带已归档的。
+ */
 export function buildToday(store: Store, date: string) {
   const flow = new FlowService(store),
     daily = new WarehouseDaily(store),
     repo = new OperationsRepository(store);
-  const orders = store.orders(),
+  // 本月接单算上这个月里已归档的订单（只按日期圈出来读），待办用没归档的
+  const orders = periodOrders(store, { start: monthStart(date) }),
     tasks = flow.list('task'),
     purchases = repo.purchases(),
     items = repo.items(),
-    deliveryRecords = daily.records('delivery', date),
+    allDeliveries = daily.records('delivery', date, { includeArchived: true }),
+    deliveryRecords = allDeliveries.filter((d) => !d.archived),
     // 今天要到的按订货单的到货安排：截止日是今天、还没到齐的段，逾期没到齐的排在前面
     dueArrivals = dueSegments(new OrderBatchService(store).open(), date);
-  const active = orders.filter(deliverableOrder),
+  const active = orders.current.filter(deliverableOrder),
     finished = items.filter((i) => i.kind === 'finished');
   const facts = orderFacts({ store, flow, active, tasks, purchases, finished });
   return {
     date,
-    summary: monthSummary(orders, deliveryRecords, date),
+    summary: monthSummary([...orders.current, ...orders.archived], allDeliveries, date),
     ...orderQueues(facts, active.filter((o) => o.deliveryDate < date), date),
     ...purchaseQueues(purchases, date),
     draftDeliveries: deliveryRecords

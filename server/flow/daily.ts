@@ -40,7 +40,10 @@ type DailyHead = {
   /** 对应的业务单据，按主键组装完整记录时用。 */
   flowId?: number;
 };
-/** 按主键只组装这几张单据（flowIds）；includeArchived：点开一张时连已归档的也读（列表不带） */
+/**
+ * flowIds：按主键只组装这几张单据，不给是全部（到货、送货同一个意思）；
+ * includeArchived：点开一张时、今日页算本月发货时连已归档的也读（列表不带）
+ */
 type DailySelection = { flowIds?: readonly number[]; includeArchived?: boolean };
 type MovementRow = z.output<typeof rows.stock_movements>;
 type ArrivalDaily = ArrivalDailyOf<MovementRow>;
@@ -50,19 +53,15 @@ type DailyResults = WarehouseDailyResult<MovementRow>;
 
 /** 台账里的到货单：到货记录加上台账的日期和状态（到货没有计划日，到货安排在订货单上） */
 function arrivalLedger(store: Store, selection?: DailySelection): ArrivalDaily[] {
-  return arrivalRecords(
-    new FlowService(store),
-    { includeInactive: true },
-    selection && { flowIds: selection.flowIds || [], includeArchived: selection.includeArchived },
-  ).map((r) => ({
-      ...r,
-      actualDate: r.status === 'confirmed' ? r.date : null,
-      plannedDate: null,
-      completed: r.effective,
-      cancelled: !r.effective && r.status !== 'draft',
-      pending: r.status === 'draft',
-      flowId: r.flowId,
-    }));
+  return arrivalRecords(new FlowService(store), { includeInactive: true }, selection).map((r) => ({
+    ...r,
+    actualDate: r.status === 'confirmed' ? r.date : null,
+    plannedDate: null,
+    completed: r.effective,
+    cancelled: !r.effective && r.status !== 'draft',
+    pending: r.status === 'draft',
+    flowId: r.flowId,
+  }));
 }
 
 /**
@@ -124,7 +123,7 @@ export class WarehouseDaily {
       case 'task':
         return new FlowService(this.store).list('task');
       case 'delivery':
-        return deliveryRecords(this.store, workbenchDate, selection && (selection.flowIds || []), selection?.includeArchived);
+        return deliveryRecords(this.store, workbenchDate, selection?.flowIds, selection?.includeArchived);
     }
   }
   /**

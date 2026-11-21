@@ -5,7 +5,7 @@ import { requirePermission } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { dateSchema, today } from '../../../shared/core/index.js';
 import { monthsBefore } from '../../../shared/core/index.js';
-import { buildDashboard } from '../../business/index.js';
+import { buildDashboard, periodOrders } from '../../business/index.js';
 import { navigationTargets, financePageTargets, pageLink } from '../../../shared/assistant/index.js';
 import { financeOnlyAccount, financeOnlyPageAllowed } from '../../../shared/core/index.js';
 import { MONTHS_MAX, positive, requireActor, type ToolContext, type ToolReader } from './context.js';
@@ -110,10 +110,11 @@ function overview(ctx: ToolContext, raw: unknown, who: Actor | null | undefined)
     f.end = today();
   }
   if (f.start && f.end && f.start > f.end) throw new AppError('开始日期不能晚于结束日期。');
-  const all = ctx.store.orders(),
-    rows = all.filter((r) => (!f.start || r.orderDate >= f.start) && (!f.end || r.orderDate <= f.end));
-  // AI 概览要工作台汇总，这里明确要求；全部订单已读过，直接传入，不再读一遍。
-  return { ...buildDashboard(ctx.store, rows, f, today(), { allOrders: all, workbench: true }), url: '#dashboard' };
+  // 和经营概况页同一个口径：这段时间的统计算上这段时间里已归档的订单，实时的待办用没归档的
+  const { current, archived } = periodOrders(ctx.store, f),
+    rows = [...current, ...archived].filter((r) => (!f.start || r.orderDate >= f.start) && (!f.end || r.orderDate <= f.end));
+  // AI 概览要工作台汇总，这里明确要求；没归档的订单已读过，直接传入，不再读一遍。
+  return { ...buildDashboard(ctx.store, rows, f, today(), { allOrders: current, workbench: true }), url: '#dashboard' };
 }
 
 export const overviewReaders: Record<string, ToolReader> = {

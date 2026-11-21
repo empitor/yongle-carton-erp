@@ -17,6 +17,8 @@ type BusinessOverview = {
   range: { start: string | null; end: string | null };
   orders: {
     total: number;
+    /** total 里已归档的张数（点进去的订单列表不列已归档的） */
+    archived: number;
     pendingInRange: number;
     pendingAll: number;
     overdueAll: number;
@@ -24,6 +26,8 @@ type BusinessOverview = {
   };
   purchases: {
     total: number;
+    /** total 里已归档的张数（点进去的采购单列表不列已归档的） */
+    archived: number;
     pending: number;
     pendingAll: number;
     unknownPrices: number;
@@ -78,6 +82,7 @@ export type Dashboard = {
   costedCount: number;
   uncostedCount: number;
   overdueCount: number;
-  byStatus: { status: string; count: number }[];
+  /** 所选日期的订单按状态分：count 含已归档的，archived 是其中已归档的张数 */
+  byStatus: { status: string; count: number; archived: number }[];
   recentOrders: Order[];
 };

@@ -27,6 +27,7 @@ import { actor as assistantActor, readAs } from './assistant-fixture.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { receiveLines } from './receive-fixture.js';
 import type { StockItemView } from '../shared/business/index.js';
+import { catalogItems } from '../src/palette-items.js';
 
 const actor = pageActor({ id: 'ui', name: '虚构操作员', permissions: ['business:edit'] });
 
@@ -361,6 +362,38 @@ test('产品、库存列表接口按客户和供应商筛', async () => {
     assert.deepEqual(await names('/warehouse/items?withMetrics=1&kind=finished&customerId=' + f.b.id), ['虚构乙箱']);
     assert.deepEqual(await names('/warehouse/items?withMetrics=1&kind=raw&supplierId=' + f.s2.id), ['虚构纸板二']);
     assert.equal((await names('/warehouse/items?withMetrics=1&kind=raw')).length, 2);
+  } finally {
+    await server.close();
+    f.store.close();
+  }
+});
+
+test('顶栏搜索的供应商和供应商页同一份文字：地址、备注也能搜到', (t) => {
+  const store = new Store(':memory:');
+  t.after(() => store.close());
+  const fields = { name: '虚构搜索供应商', contact: '虚构联系人', phone: '0574-0001', address: '虚构路二号', notes: '虚构备注词' };
+  new OperationsService(store).saveSupplier(fields, actor);
+  const suppliers = new OperationsRepository(store).suppliers();
+  const item = catalogItems({ orders: [], customers: [], products: [], purchases: [], suppliers }).find((i) => i.group === '供应商');
+  assert.ok(item);
+  for (const word of Object.values(fields)) assert.ok(item.keywords.includes(word.toLowerCase()), word);
+});
+
+test('客户、产品、供应商、库存品接口不带 withMetrics（下拉用）的搜索和页面同一套：看不见的编号、版本搜不到', async () => {
+  const f = fixture();
+  const server = await listen(createApp(f.store));
+  const named = z.array(z.object({ name: z.string() }));
+  const read = async (path: string) => {
+    const body: unknown = await (await fetch(server.origin + '/api' + path)).json();
+    return (Array.isArray(body) ? named.parse(body) : readAs(body, { rows: named }).rows).map((r) => r.name);
+  };
+  try {
+    for (const path of ['/customers', '/products', '/suppliers', '/warehouse/items'])
+      for (const q of ['虚构', '1']) {
+        const plain = await read(path + '?q=' + encodeURIComponent(q));
+        assert.deepEqual(plain, await read(path + '?withMetrics=1&q=' + encodeURIComponent(q)), path + ' 搜 ' + q);
+        assert.equal(plain.length > 0, q === '虚构', path + ' 搜 ' + q);
+      }
   } finally {
     await server.close();
     f.store.close();
