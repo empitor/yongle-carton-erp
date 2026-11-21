@@ -139,7 +139,20 @@ function stockChanges(store: Store, who: Actor) {
   };
 }
 
+/**
+ * 有人直接改了库：把单据或采购退货内容里的一项改成任意值（可以不合结构），版本号不动。
+ * 只能写 SQL：程序的任何写法都会先核对结构，存不出读不出来的内容；测“读不出来的单据”和“在库里原处改好”要它。
+ */
+function tamper(store: Store, table: 'flow_documents' | 'purchase_returns', id: number, path: string, value: unknown) {
+  store.db.prepare('UPDATE ' + table + ' SET document=json_set(document,?,json(?)) WHERE id=?').run(path, JSON.stringify(value), id);
+}
+
 /** 财务测试“假装业务变了”的全部写法；who 是经手人（不给是虚构管理员） */
 export function businessChanges(store: Store, who: Actor = defaultActor) {
-  return { ...documentChanges(store, who), ...stockChanges(store, who) };
+  return {
+    ...documentChanges(store, who),
+    ...stockChanges(store, who),
+    tamper: (table: 'flow_documents' | 'purchase_returns', id: number, path: string, value: unknown) =>
+      tamper(store, table, id, path, value),
+  };
 }

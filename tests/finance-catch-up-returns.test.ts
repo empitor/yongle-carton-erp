@@ -8,6 +8,7 @@ import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
 import { returnFixture } from './finance-costing-fixture.js';
 import { catchUpProblems, totalChanges, watchBegins } from './finance-catch-up-fixture.js';
 import { bill, maker, postDrafts } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 type Returns = ReturnType<typeof returnFixture>;
 /** 退 3 张这批到货 */
@@ -21,7 +22,7 @@ test('有一张采购退货单内容坏了：逐张跳过、记进出错记录�
   try {
     const bad = giveBack(f, 'return-bad');
     giveBack(f, 'return-good');
-    f.s.db.prepare("UPDATE purchase_returns SET document=json_set(document,'$.lines','虚构的坏明细') WHERE id=?").run(bad.id);
+    businessChanges(f.s).tamper('purchase_returns', bad.id, '$.lines', '虚构的坏明细');
     assert.equal(catchUp(f.s, maker, log).failed, false, '补扫照常，读请求照常回答');
     assert.equal(returnVouchers(f), 2, '好的那张红冲原暂估、另出一张');
     assert.deepEqual(catchUpProblems(log).map((m) => m.includes(bad.number)), [true], '坏的那张记一次，写明单号');

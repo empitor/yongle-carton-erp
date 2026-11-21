@@ -15,12 +15,13 @@ import { FinanceReports } from '../server/finance/reports.js';
 import { pageActor } from './actor-fixture.js';
 import { catchUpProblems, totalChanges, watchBegins } from './finance-catch-up-fixture.js';
 import { bill, deliveryDoc, event, eventsStep, maker, newSettings, obligation, physical, setDoc } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 
 /** 只能看财务的账号（只有财务查看权限） */
 const viewer = pageActor({ id: 'finance-viewer', name: '虚构只看财务', permissions: ['finance:view'] });
 const auditActors = z.object({ actor_id: z.string(), action: z.string() });
-const reversed = (s: Store, id: number) => s.db.prepare("UPDATE flow_documents SET status='reversed',version=version+1 WHERE id=?").run(id);
+const reversed = (s: Store, id: number) => businessChanges(s).reverse(id);
 
 test('有一张单据内容读不出来：别的照样同步，读取照常回答，结账拦下并写明是哪张；出错记录只记一次，修好后再补上', () => {
   const s = new Store(':memory:'),
@@ -29,7 +30,7 @@ test('有一张单据内容读不出来：别的照样同步，读取照常回�
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
     physical(s, 2, 'delivery', '2026-01-21', deliveryDoc('2'));
-    setDoc(s, 2, '$.lines', '虚构的坏明细');
+    businessChanges(s).tamper('flow_documents', 2, '$.lines', '虚构的坏明细');
     assert.equal(catchUp(s, maker, log).failed, false);
     assert.equal(event(s, 1).source_id, '1', '好的那张照样同步');
     assert.equal(unseenSources(s.db, '2026-01-31'), 1, '坏的那张一直算还没同步');
@@ -58,11 +59,10 @@ test('坏单据在库里原处改好、版本号没变：下次补扫照样补�
   try {
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
-    const good = s.db.prepare('SELECT document FROM flow_documents WHERE id=1').get()?.document;
-    s.db.prepare("UPDATE flow_documents SET document=json_set(document,'$.lines','虚构的坏明细') WHERE id=1").run();
+    businessChanges(s).tamper('flow_documents', 1, '$.lines', '虚构的坏明细');
     catchUp(s, maker, undefined);
     assert.equal(unseenSources(s.db, '2026-01-31'), 1);
-    s.db.prepare('UPDATE flow_documents SET document=? WHERE id=1').run(String(good));
+    businessChanges(s).tamper('flow_documents', 1, '$.lines', deliveryDoc('1').lines);
     catchUp(s, maker, undefined);
     assert.equal(unseenSources(s.db, '2026-01-31'), 0, '内容变了就再读');
     assert.equal(event(s, 1).source_id, '1');

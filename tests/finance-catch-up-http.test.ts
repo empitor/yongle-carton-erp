@@ -9,7 +9,8 @@ import { Store } from '../server/core/db.js';
 import { ProblemLog, many } from '../server/core/index.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { cookieOf, startHttp } from './http-fixture.js';
-import { deliveryDoc, maker, newSettings, physical, setDoc } from './finance-fixture.js';
+import { deliveryDoc, maker, newSettings, physical } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 
 const page = <T extends z.ZodType>(row: T) => z.object({ rows: z.array(row) });
@@ -48,7 +49,7 @@ test('有一张单据内容读不出来：财务读取照常回 200，出错记�
   newSettings(s);
   physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
   physical(s, 2, 'delivery', '2026-01-21', deliveryDoc('2'));
-  setDoc(s, 2, '$.lines', '虚构的坏明细');
+  businessChanges(s).tamper('flow_documents', 2, '$.lines', '虚构的坏明细');
   const h = await startHttp(s, { problems });
   try {
     assert.equal((await h.get('/finance/summary?date=2026-01-31')).status, 200);
