@@ -10,7 +10,7 @@
 
 ## 部署在哪
 
-- **正式环境：** 腾讯云 Ubuntu 24.04 LTS x64 服务器，同机 Caddy 负责 HTTPS；域名 ICP 备案通过前不对公网开放，管理员经 SSH 隧道维护。见[部署与运维](docs/部署与运维.md)。
+- **正式环境：** 腾讯云 Ubuntu 24.04 LTS x64 服务器，同机 Caddy 负责 HTTPS，域名已备案、已能从公网用 HTTPS 访问；管理员经 SSH 隧道维护。服务器上现在跑的版本、还没做完的开放步骤见[部署与运维](docs/部署与运维.md)“当前服务器”和[路线图](docs/路线图.md)。
 - **员工怎么打开：** 浏览器，或两个应用外壳：安卓 App（`apps/android`）、Windows 客户端（`apps/desktop`）。外壳只是打开 ERP 网址的窗口，没有服务端和数据，还没发布过。
 - **单机：** Windows x64 本机安装包也能单独用，数据存在本机。
 
@@ -22,7 +22,7 @@ TypeScript，Node.js 24（24.15 或更高的 24.x）。前端 React 19 + Vite；
 
 ## 安装使用
 
-到 [GitHub 发布页](https://github.com/empitor/yongle-carton-erp/releases) 下载 0.9.0 的完整安装包（Windows 用 `win-x64.zip`，Linux 用 `linux-x64.tar.gz`，各附 sha256）。从 0.8.x 升级不能用补丁，只能装这个完整包，业务数据从新库开始，步骤见[部署与运维](docs/部署与运维.md)“升级到 0.9.0”。
+到 [GitHub 发布页](https://github.com/empitor/yongle-carton-erp/releases) 下载 0.9.0 的完整安装包（Windows 用 `win-x64.zip`，Linux 用 `linux-x64.tar.gz`，各附 sha256）。从 0.8.x 升级不能用补丁，只能装这个完整包，业务数据从新库开始，见[部署与运维](docs/部署与运维.md)“0.9.0 以前的旧数据”。
 
 **Windows：**
 
