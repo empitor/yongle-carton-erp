@@ -15,8 +15,7 @@ const markdown = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? markdown(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name).split(sep).join('/')] : [],
   );
-// AGENTS.md 和 .claude/ 只在开发机上、不进仓库：有就一起查，没有（比如持续集成的机器上）就只查 docs/
-const docs = [...markdown('docs'), ...['AGENTS.md', '.claude/子智能体须知.md'].filter((file) => existsSync(file))];
+const docs = [...markdown('docs'), 'AGENTS.md', '.claude/子智能体须知.md'];
 const pathPattern = /`((?:server|shared|src|tests|scripts)\/[^`\s]*)`/g;
 
 test('文档里反引号写的项目路径都存在（行号、锚点不算；带 * < > { } 的是写法示意，不查）', () => {

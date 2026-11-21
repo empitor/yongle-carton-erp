@@ -1,4 +1,4 @@
-// npm run check：按顺序跑全部体检，哪一步不过就停下、把那一步的输出打出来。持续集成（.github/workflows/check.yml）跑的也是它。
+// npm run check：按顺序跑全部体检，哪一步不过就停下、把那一步的输出打出来。Windows 在开发机上跑；Linux 在服务器上打包前跑测试（docs/部署与运维.md“打包和 Linux 验证”）。
 // 每步一行结果；慢测试、低覆盖不达标也拦，那一行后面带上条数。界面流程要浏览器、要几分钟，单独 npm run test:ui。
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';

@@ -10,11 +10,11 @@
 
 ## 部署在哪
 
-- **正式环境：** 腾讯云 Ubuntu 24.04 LTS x64 服务器，同机 Caddy 负责 HTTPS，域名已备案、已能从公网用 HTTPS 访问。服务只监听本机：3001 给维护（管理员经 SSH 隧道 `ssh -L 13001:127.0.0.1:3001` 进来），3002 只给同机 Caddy。服务器上还是旧版 0.8.4，整包升级前不录真实数据；见[部署与运维](docs/部署与运维.md)“当前服务器”和[路线图](docs/路线图.md)。
-- **员工怎么打开：** 浏览器，或两个应用外壳：安卓 App（`apps/android`）、Windows 客户端（`apps/desktop`）。外壳只是打开 ERP 网址的窗口，没有服务端和数据；第一个正式版 0.1.0 已放在服务器的更新目录里（见[部署与运维](docs/部署与运维.md#客户端更新包)）。
+- **正式环境：** 腾讯云 Ubuntu 24.04 LTS x64 服务器，同机 Caddy 负责 HTTPS，域名已备案、已能从公网用 HTTPS 访问。服务只监听本机：3001 给维护（管理员经 SSH 隧道 `ssh -L 13001:127.0.0.1:3001` 进来），3002 只给同机 Caddy。服务器跑的是 0.9.5，现状见[部署与运维](docs/部署与运维.md)“当前服务器”。
+- **员工怎么打开：** 浏览器，或两个应用外壳：安卓 App（`apps/android`）、Windows 客户端（`apps/desktop`）。外壳只是打开 ERP 网址的窗口，没有服务端和数据；安装包放在服务器的更新目录里，装好以后有新版会自己提示（见[部署与运维](docs/部署与运维.md#客户端更新包)）。
 - **单机：** Windows x64 本机安装包也能单独用，数据存在本机。
 
-当前版本 **0.9.0**（`shared/core/version.ts`）。
+当前版本 **0.9.5**（`shared/core/version.ts`）：1.0 之前的第一个正式测试版，工厂从 2026-11-23 起在正式系统上用真实数据试用。
 
 ## 技术栈
 
@@ -22,7 +22,7 @@ TypeScript，Node.js 24（24.15 或更高的 24.x，用 `tsx` 运行）。前端
 
 ## 安装使用
 
-到 [GitHub 发布页](https://github.com/empitor/yongle-carton-erp/releases) 下载 0.9.0 的完整安装包（Windows 用 `win-x64.zip`，Linux 用 `linux-x64.tar.gz`，各附 sha256）。从 0.8.x 升级不能用补丁，只能装这个完整包，业务数据从新库开始，见[部署与运维](docs/部署与运维.md)“0.9.0 以前的旧数据”。
+到 [GitHub 发布页](https://github.com/empitor/yongle-carton-erp/releases) 下载 0.9.5 的完整安装包（Windows 用 `win-x64.zip`，Linux 用 `linux-x64.tar.gz`，各附 sha256）。从 0.8.x 升级不能用补丁，只能装这个完整包，业务数据从新库开始，见[部署与运维](docs/部署与运维.md)“0.9.0 以前的旧数据”。
 
 **Windows：**
 
@@ -33,7 +33,7 @@ TypeScript，Node.js 24（24.15 或更高的 24.x，用 `tsx` 运行）。前端
 
 启动不了时：提示“已保护你的电脑”点“更多信息 → 仍要运行”；缺 DLL 装微软 [VC++ 运行库](https://aka.ms/vs/17/release/vc_redist.x64.exe)；3001 端口被占用先关掉占用的程序。
 
-**Linux 服务器：** 安装、备份、恢复、升级（含 0.8.x 升 0.9.0 要先移走旧业务库）都在[部署与运维](docs/部署与运维.md)。
+**Linux 服务器：** 安装、备份、恢复、升级（含从 0.8.x 升上来要先移走旧业务库）都在[部署与运维](docs/部署与运维.md)。
 
 ## 从源码运行
 
@@ -63,16 +63,18 @@ node scripts/ui-check/preview.mjs
 | `npm.cmd run check:apps` | 两个应用外壳的检查，全部离线：安卓 Lint、Checkstyle、单元测试；Windows `cargo fmt`、`clippy`、`cargo test`、边界检查。只跑一个加 `-- android` 或 `-- desktop`；要先按两个外壳的“构建与测试”装好工具链，缺什么会列出来 |
 | `npm.cmd run package` | 生成安装包 |
 
-各项检查守什么、怎么跑见[检查和测试](docs/架构/检查和测试.md)。
+各项检查守什么、怎么跑见[检查和测试](docs/架构/检查和测试.md)。自己的检查不放在 GitHub 上跑：Windows 在开发机上跑，Linux 在服务器上打包之前跑。
 
 ## 从哪读起
 
 1. 本页。
 2. [文档目录](docs/README.md)：每份文档讲什么、按什么顺序读。
-3. `AGENTS.md`：改代码的硬规则和怎么验证（只在开发机上，不随仓库公开）。
+3. `AGENTS.md`：改代码的硬规则和怎么验证。用 Claude Code 干活的补充说明在 `CLAUDE.md` 和 `.claude/`（子智能体须知、审查员、技能、保护真实数据的钩子）。
 4. [架构说明](docs/架构说明.md)：总览、数据怎么走、模块、目录、一次请求怎么走；各机制在 `docs/架构/` 下各一份，从它末尾“别的在哪份”进。
 
-用软件看[使用手册](docs/使用手册.md)；部署运维看[部署与运维](docs/部署与运维.md)；现在做到哪、还剩什么看[路线图](docs/路线图.md)；还没发布的改动看[更新日志](docs/CHANGELOG.md)，以前的版本看 Git 标签和 GitHub 发布。
+根目录每个文件、文件夹是干什么的，看 GitHub 文件列表右边的备注（清单在 `scripts/root-notes.mjs`，每次发布重新标一遍）。
+
+用软件看[使用手册](docs/使用手册.md)；部署运维看[部署与运维](docs/部署与运维.md)；现在做到哪、还剩什么看[路线图](docs/路线图.md)；这一版改了什么看[更新日志](docs/CHANGELOG.md)，以前的版本看 Git 标签和 GitHub 发布。
 
 ## 许可
 

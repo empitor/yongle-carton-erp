@@ -1,7 +1,7 @@
 // 文档里“见 某文档‘某一节’”的指路要对得上：[文字](路径.md)“小节”、`路径.md`“小节”、AGENTS.md“小节”、
 // 光写名字的 架构说明“小节”（docs/ 根目录下的各份），指到的那份文档里要真有这个标题或加粗小标题。
 // 文档拆分、改标题以后指路最容易过期，doc-paths 只查路径不查小节，所以另查。连写的“甲”“乙”、“甲”的“乙”都要在那份里。
-// 查 docs/（含子目录）、AGENTS.md、.claude/子智能体须知.md；后两份只在开发机上，没有就跳过。
+// 查 docs/（含子目录）、AGENTS.md、.claude/子智能体须知.md。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -15,7 +15,7 @@ const markdown = (dir: string): string[] =>
     e.isDirectory() ? markdown(dir + '/' + e.name) : e.name.endsWith('.md') ? [dir + '/' + e.name] : [],
   );
 const ownDocs = (dir: string) => (existsSync(dir) ? markdown(dir) : []);
-const docs = [...markdown('docs'), ...['AGENTS.md', '.claude/子智能体须知.md'].filter((file) => existsSync(file))];
+const docs = [...markdown('docs'), 'AGENTS.md', '.claude/子智能体须知.md'];
 /** 光写文件名（`构建与测试.md`）时去这几处按文件名找；两个外壳各一份同名的，两份都要有这个小节 */
 const searchable = [...docs, ...ownDocs('apps/android/docs'), ...ownDocs('apps/desktop/docs')];
 /** 光写名字就算指一份文档的：docs/ 根目录下各份（README、CHANGELOG 不算） */
@@ -51,7 +51,7 @@ function sections(file: string) {
 function targets(doc: string, m: RegExpMatchArray): string[] | null {
   const [, link, quotedPath, agents, name] = m;
   const quoted = quotedPath ?? '';
-  if (agents) return existsSync('AGENTS.md') ? ['AGENTS.md'] : null;
+  if (agents) return ['AGENTS.md'];
   if (name) return ['docs/' + name + '.md'];
   if (link) return [posix.normalize(posix.join(posix.dirname(doc), decodeURI(link)))].filter((f) => existsSync(f));
   if (quoted.startsWith('.claude/')) return existsSync(quoted) ? [quoted] : null;

@@ -1,0 +1,31 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/ui-check/preview.mjs"
+      ],
+      "port": 3199
+    },
+    {
+      "name": "ui-preview-remote",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/ui-check/preview.mjs",
+        "--remote"
+      ],
+      "port": 3198
+    },
+    {
+      "name": "ui-preview-real-model",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/ui-check/preview.mjs",
+        "--real-model"
+      ],
+      "port": 3197
+    }
+  ]
+}

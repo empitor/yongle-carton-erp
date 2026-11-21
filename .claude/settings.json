@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git tag *)",
+      "Bash(npm run patch-server *)",
+      "Bash(npm run package *)",
+      "Bash(gh release create *)",
+      "Bash(gh release upload *)",
+      "Bash(gh release edit *)",
+      "Bash(gh release delete *)",
+      "PowerShell(git push *)",
+      "PowerShell(git tag *)",
+      "PowerShell(npm run patch-server *)",
+      "PowerShell(npm run package *)",
+      "PowerShell(gh release create *)",
+      "PowerShell(gh release upload *)",
+      "PowerShell(gh release edit *)",
+      "PowerShell(gh release delete *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-real-data.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-size-reminder.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -54,10 +54,9 @@ docs/**
 !docs/brand/
 !docs/brand/**
 
-# 给 AI 工具看的规则和配置只留在开发机上，不随仓库公开
-AGENTS.md
-CLAUDE.md
-.claude/
+# 给 AI 工具看的规则（AGENTS.md、CLAUDE.md、.claude/ 下的须知、审查员、技能、钩子）随仓库公开；
+# 只留在开发机上的：各人自己的设置（上面的 settings.local.json）、临时工作区、别的工具的目录。
+.claude/worktrees/
+.claude/scheduled_tasks.lock
 .agents/
 .codex/
-tests/claude-hooks.test.mjs

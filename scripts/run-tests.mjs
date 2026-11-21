@@ -118,8 +118,8 @@ async function slowFails(records, run, sandbox) {
   console.log(`查慢测试用了 ${Math.round((Date.now() - checkStarted) / 1000)} 秒`);
   // 登记了却找不到的和机器快慢无关，哪里都拦
   if (missingSlowExemptions(records, slowTests).length) return true;
-  // 1 秒这条线是按开发机定的；持续集成的机器慢好几倍，在那边只报不拦（CI 由 GitHub Actions 设）
-  if (slowCount && process.env.CI) console.log('持续集成的机器比开发机慢，慢测试在这里只报不拦；本机 npm test 照旧拦。');
+  // 1 秒这条线是按开发机定的；服务器比开发机慢，在那边跑时设 CI=1，只报不拦
+  if (slowCount && process.env.CI) console.log('这台机器比开发机慢（设了 CI），慢测试在这里只报不拦；开发机上 npm test 照旧拦。');
   return Boolean(slowCount && !process.env.CI);
 }
 

@@ -3,7 +3,7 @@
 // Windows：cargo fmt --check → cargo clippy --all-targets -D warnings → cargo test → 边界检查（它读 cargo metadata 和编译生成物，排在最后）。
 // 工具链在两个外壳 scripts/env.ps1 的默认位置（%LOCALAPPDATA%\YongleToolchains\android、rust）找，环境变量由这里设好再调，
 // 不用先 . .\scripts\env.ps1；缺什么就列出来、这个外壳不跑。只跑一个：npm run check:apps -- android（或 desktop）。
-// 每步一行结果；哪步不过就打出它的输出、这个外壳停下，另一个照跑；有没过的或缺工具的，退出码 1。持续集成另见 .github/workflows/apps.yml。
+// 每步一行结果；哪步不过就打出它的输出、这个外壳停下，另一个照跑；有没过的或缺工具的，退出码 1。只在开发机上跑。
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
