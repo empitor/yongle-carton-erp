@@ -41,9 +41,6 @@
 .business-records .unified-table-region tbody tr.record-row:hover > td {
   background: var(--surface-hover);
 }
-.business-records .unified-table-region tbody tr.record-row.selected > td {
-  background: var(--accent-soft);
-}
 .business-records .unified-table-region .num {
   text-align: right;
   font-variant-numeric: tabular-nums;

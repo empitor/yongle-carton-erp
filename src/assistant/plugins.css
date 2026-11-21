@@ -38,7 +38,7 @@
   font-weight: 600;
 }
 .adm-plugin h4 {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
 }
 .adm-plugin h3 small {

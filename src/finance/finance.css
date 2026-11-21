@@ -153,8 +153,9 @@
   color: var(--ink);
 }
 .fin-nav-track a.selected {
-  background: var(--fill-2);
+  background: var(--input-bg);
   color: var(--ink);
+  box-shadow: var(--segment-shadow);
 }
 .fin-nav-track a:focus-visible {
   outline: 2px solid var(--focus-ring);

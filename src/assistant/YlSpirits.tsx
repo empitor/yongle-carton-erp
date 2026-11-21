@@ -23,18 +23,18 @@ export function SpeakerAvatar({ speaker }: { speaker: AssistantSpeaker }) {
   return speaker === 'yong' ? (
     <svg className="yl-avatar" viewBox="0 8 70 66" aria-hidden="true" focusable="false">
       <path fill="var(--teal)" d="M4 14H25L35 31 45 14H66L46 50V74H24V50Z" />
-      <circle cx="29" cy="55" r="4.4" fill="#fff" />
-      <circle cx="41" cy="55" r="4.4" fill="#fff" />
-      <circle cx="29.9" cy="55.4" r="2.64" fill="#1b1a22" />
-      <circle cx="41.9" cy="55.4" r="2.64" fill="#1b1a22" />
+      <circle className="yl-white" cx="29" cy="55" r="4.4" />
+      <circle className="yl-white" cx="41" cy="55" r="4.4" />
+      <circle className="yl-pupil" cx="29.9" cy="55.4" r="2.64" />
+      <circle className="yl-pupil" cx="41.9" cy="55.4" r="2.64" />
     </svg>
   ) : (
     <svg className="yl-avatar" viewBox="30 16 66 66" aria-hidden="true" focusable="false">
       <path fill="var(--kraft)" d="M50 56 73 19V82H50Z" />
-      <circle cx="57.5" cy="56" r="4.4" fill="#fff" />
-      <circle cx="68.5" cy="56" r="4.4" fill="#fff" />
-      <circle cx="56.6" cy="56.4" r="2.64" fill="#1b1a22" />
-      <circle cx="67.6" cy="56.4" r="2.64" fill="#1b1a22" />
+      <circle className="yl-white" cx="57.5" cy="56" r="4.4" />
+      <circle className="yl-white" cx="68.5" cy="56" r="4.4" />
+      <circle className="yl-pupil" cx="56.6" cy="56.4" r="2.64" />
+      <circle className="yl-pupil" cx="67.6" cy="56.4" r="2.64" />
     </svg>
   );
 }

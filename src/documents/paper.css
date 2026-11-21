@@ -91,7 +91,7 @@
   gap: var(--space-sm);
 }
 .paper-company strong {
-  font-family: '黑体', 'Microsoft YaHei', sans-serif;
+  font-family: var(--paper-font);
   font-size: var(--paper-text-company);
   color: var(--paper-brand);
 }
@@ -107,7 +107,7 @@
   margin: 0;
   padding-bottom: var(--space-3xs);
   border-bottom: 3px double var(--paper-ink);
-  font-family: '黑体', 'Microsoft YaHei', sans-serif;
+  font-family: var(--paper-font);
   font-size: var(--paper-text-title);
   color: var(--paper-ink);
 }
@@ -145,6 +145,7 @@
   overflow-wrap: anywhere;
   padding: var(--space-2xs) var(--space-xs);
   border: 1px solid var(--paper-rule);
+  font-family: inherit;
   font-size: inherit;
   vertical-align: middle;
   line-height: 1.45;

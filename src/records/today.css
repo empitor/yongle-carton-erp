@@ -19,6 +19,7 @@
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--card-shadow);
 }
 .td-stats > a,
 .td-stats > div {
@@ -60,6 +61,7 @@
   overflow: hidden;
   border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--card-shadow);
 }
 .td-group > header {
   display: flex;
@@ -74,8 +76,20 @@
   align-items: center;
   gap: var(--space-sm);
   margin: 0;
+  font-family: var(--font-serif);
   font-size: var(--text-md);
   font-weight: 600;
+}
+/* 今日页的数：统计、条数、单号的数字和字母用宋体；“交期 11-13”“逾期 10 天”是一句短语，整句宋体，
+   不然汉字黑体、数字宋体，一句里忽粗忽细（字体变量在 src/ui/tokens.css） */
+.td-stats strong,
+.td-count,
+.td-no {
+  font-family: var(--font-num);
+}
+.td-note,
+.td-late {
+  font-family: var(--font-serif);
 }
 .td-count {
   padding: 0 var(--space-sm);
@@ -162,6 +176,10 @@
 .td-status,
 .td-note {
   color: var(--text-secondary);
+}
+/* 宋体数字加半档字重才站得住（和列表里的数字一样） */
+.td-note {
+  font-weight: 500;
 }
 .td-late {
   color: var(--danger);

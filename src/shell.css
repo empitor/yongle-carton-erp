@@ -72,8 +72,10 @@
   letter-spacing: 0;
   border-bottom: 1px solid var(--border);
 }
+/* 侧栏抬头“甬勒包装”用宋体，像单据的抬头 */
 .brand-name {
   white-space: nowrap;
+  font-family: var(--font-serif);
 }
 .brand span {
   margin: 0;
@@ -239,7 +241,7 @@
 }
 :root[data-ui='refined'] .erp-nav-item.selected {
   background: var(--sidebar-selected);
-  box-shadow: inset 3px 0 0 var(--kraft);
+  box-shadow: var(--sidebar-selected-shadow);
 }
 :root[data-ui='refined'] .nav-section-title {
   font-size: var(--text-xs);

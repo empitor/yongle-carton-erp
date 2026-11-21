@@ -13,6 +13,10 @@
   flex: 1;
   font-size: var(--text-sm);
 }
+/* 点进去和全站输入框一样是一条主色的细边（全站那条只管页面、窗口和详情，不管助手面板） */
+.ga-compose textarea:focus {
+  border-color: var(--rule-field-focus);
+}
 .ga-compose button {
   min-width: 42px;
   flex: 0 0 42px;
@@ -50,7 +54,7 @@
 .ga-compose .ga-mic-recording {
   color: var(--danger) !important;
   border-color: var(--danger) !important;
-  background: color-mix(in srgb, var(--danger) 9%, var(--surface)) !important;
+  background: var(--danger-soft) !important;
 }
 .ga-speech-status {
   display: flex;
@@ -75,25 +79,22 @@
 .ga-compose .ga-mic-unavailable {
   opacity: 0.45;
 }
-/* 思考档位（发送那一排）；紫色只用于 AI 的东西 */
+/* 思考档位（发送那一排）：“思考”两个字在左，下拉用全站的下拉样式（底色、边线、圆角和旁边的输入框一样），
+   和附件、语音、发送按钮一样高、底边对齐；“思考”是紫色，紫色只用于 AI 的东西 */
 .ga-compose .ga-thinking {
-  flex: 0 0 auto;
+  flex: none;
   align-self: flex-end;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3xs);
+  align-items: center;
+  gap: var(--space-2xs);
+  height: 40px;
   font-size: var(--text-xs);
-  line-height: 1.2;
   color: var(--purple);
+  white-space: nowrap;
 }
 .ga-compose .ga-thinking select {
-  width: 52px;
-  height: 26px;
-  min-width: 0;
-  padding: 0 var(--space-2xs);
-  border: 0;
-  border-radius: var(--r-control);
-  background: var(--purple-soft);
-  color: var(--purple);
-  font-size: var(--text-xs);
+  width: auto;
+  height: 40px;
+  padding: 0 var(--space-2xs) 0 var(--space-sm);
+  font-size: var(--text-sm);
 }

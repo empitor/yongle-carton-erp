@@ -20,6 +20,10 @@ function stubThemePage() {
   stub(
     'window',
     Object.assign(win, {
+      // 样式里的页面底色：跟着页面当前的深浅
+      getComputedStyle: () => ({
+        getPropertyValue: (name: string) => (name === '--page-bg' ? (dataset.theme === 'dark' ? ' #111113' : ' #eee7d6') : ''),
+      }),
       matchMedia: () => Object.assign(media, { get matches() { return dark; } }),
       localStorage: {
         getItem: (key: string) => (key === THEME_STORAGE_KEY ? stored : null),
@@ -84,7 +88,7 @@ test('别的标签页改了主题偏好（不打开本页菜单），页面马�
     assert.equal(page.root.dataset.theme, 'dark');
     assert.equal(page.root.dataset.themePreference, 'dark');
     assert.equal(page.root.style.colorScheme, 'dark');
-    assert.equal(page.meta.content, '#141c24');
+    assert.equal(page.meta.content, '#111113', '地址栏颜色取样式里深色的页面底色');
     page.setStorage('light', 'unrelated-key');
     assert.equal(page.root.dataset.theme, 'dark');
     page.setStorage(null, null);
@@ -156,7 +160,7 @@ test('首屏脚本在React加载前恢复偏好，与React主题解析保持一�
       assert.equal(root.dataset.themePreference, preference);
       assert.equal(root.dataset.theme, resolveTheme(preference, systemDark));
       assert.equal(root.style.colorScheme, root.dataset.theme);
-      assert.equal(meta.content, root.dataset.theme === 'dark' ? '#141c24' : '#f3f6f7');
+      assert.equal(meta.content, undefined, '地址栏颜色要读样式，等样式加载后由 theme.ts 设');
     }
   }
 });

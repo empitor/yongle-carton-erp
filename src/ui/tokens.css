@@ -1,4 +1,19 @@
-/* 全站变量（颜色、圆角、阴影，浅色和深色）、页面底色和最基本的元素样式 */
+/* 全站变量（颜色、圆角、阴影，浅色和深色）、字体、页面底色和最基本的元素样式 */
+/* 字体里的两个小件（用法见下面 --font-sans 那段）：只管列出的几个字，别的字照字体清单往后找 */
+@font-face {
+  font-family: 'ERP Marks';
+  src: local('Segoe UI'), local('Arial'), local('Helvetica'), local('Liberation Sans');
+  unicode-range: U+00B7, U+00D7;
+}
+@font-face {
+  font-family: 'ERP Data';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/noto-serif-sc/files/noto-serif-sc-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range: U+0020-007E, U+00A5, U+00B2;
+}
 * {
   box-sizing: border-box;
 }
@@ -19,34 +34,33 @@ html {
 /* ---- 设计系统 ---- */
 /* 语义化外观变量：同一组件在浅色和深色下保持一致的层级与操作含义。 */
 :root[data-theme='dark'] {
-  --focus-ring: #75c6d4;
-  --teal: #8fa8e8;
-  --accent-hover: #a8bcee;
-  --accent-soft: #232c42;
-  --accent-ink: #a8bcee;
-  --on-accent: #141822;
-  --kraft: #d2a468;
-  --kraft-deep: #b98a4e;
-  --danger: #f0938a;
-  --danger-fill: #b8453b;
-  --danger-hover: #c9554b;
-  --danger-soft: #3d2826;
-  --danger-border: #6d3d39;
-  --warning: #e9bd70;
-  --warning-soft: #3a3020;
-  --warning-border: #6b5a36;
-  --success: #6fcf9f;
-  --info: #84bdec;
-  --info-soft: #1f3040;
-  --purple: #b9a6ec;
-  --purple-soft: #2d2743;
+  --focus-ring: #7f9fdc;
+  --teal: #86a9ea;
+  --accent-hover: #a3bff0;
+  --accent-soft: #24334d;
+  --accent-ink: #9cbbef;
+  --on-accent: #0f1a2e;
+  --kraft: #cc9c5e;
+  --kraft-deep: #b4884c;
+  --danger: #f09a8e;
+  --danger-fill: #b9483c;
+  --danger-hover: #c8574a;
+  --danger-soft: #45261f;
+  --danger-border: #6e3b32;
+  --warning: #eac462;
+  --warning-soft: #3b3117;
+  --warning-border: #6b5a2e;
+  --success: #7fcb9d;
+  --info: #7fc9da;
+  --info-soft: #1b363c;
+  --purple: #cba9f7;
+  --purple-soft: #3a2952;
   --overlay: #000000a0;
   --shadow: 0 12px 32px rgb(0 0 0 / 0.5);
   --shadow-sm: 0 4px 12px rgb(0 0 0 / 0.35);
-  --sidebar-ink: #c8c5bd;
-  --sidebar-muted: #7d7a72;
-  --sidebar-selected: #3a2f20;
-  --sidebar-active-ink: #f0e6d6;
+  --sidebar-ink: #cfc8b9;
+  --sidebar-selected: #34302a;
+  --sidebar-active-ink: #f3eddf;
 }
 
 /* 基础 */
@@ -60,42 +74,40 @@ html {
   background: var(--page-bg);
   font-synthesis: none;
   font-weight: 400;
-  --teal: #27407a;
-  --accent-hover: #1e3363;
-  --accent-soft: #eaeef7;
-  --accent-ink: #27407a;
-  --on-accent: #ffffff;
-  --kraft: #b07d3c;
+  --teal: #243c76;
+  --accent-hover: #1b2f5f;
+  --accent-soft: #e1e4ea;
+  --accent-ink: #243c76;
+  --on-accent: #fffdf8;
+  --kraft: #a9742f;
   --kraft-deep: #8f6229;
-  --danger: #c0362c;
-  --danger-fill: #c0362c;
-  --danger-hover: #a32c23;
-  --danger-soft: #fcebe9;
-  --danger-border: #f0c8c4;
+  --danger: #ae2e26;
+  --danger-fill: #ae2e26;
+  --danger-hover: #982920;
+  --danger-soft: #f5ddd4;
+  --danger-border: #e6bfb2;
   --on-danger: #ffffff;
-  --warning: #9e5e00;
-  --warning-soft: #fff3dc;
-  --warning-border: #eed7a6;
-  --success: #1e7b4f;
-  --info: #1f6fb2;
-  --info-soft: #e7f1fa;
-  --purple: #6b4fbb;
-  --purple-soft: #f0ecfa;
-  --focus-ring: #7e95cc;
-  --overlay: #211f1b59;
-  --shadow: 0 12px 32px rgb(33 31 27 / 0.14);
-  --shadow-sm: 0 4px 12px rgb(33 31 27 / 0.08);
-  --sidebar-ink: #4a463f;
-  --sidebar-muted: #8a857b;
-  --sidebar-selected: #f5ede0;
-  --sidebar-active-ink: #211f1b;
+  --warning: #875100;
+  --warning-soft: #f5e2ba;
+  --warning-border: #e0c58c;
+  --success: #206440;
+  --info: #1f6291;
+  --info-soft: #dce8ee;
+  --purple: #6247b0;
+  --purple-soft: #eae3f2;
+  --focus-ring: #7a8dbd;
+  --overlay: #2a262159;
+  --shadow: 0 12px 32px rgb(72 52 16 / 0.16);
+  --shadow-sm: 0 4px 12px rgb(72 52 16 / 0.09);
+  --sidebar-ink: #453e31;
+  --sidebar-selected: #fbf8ef;
+  --sidebar-active-ink: #2a2621;
   --topbar-h: 48px;
   --sidebar-w: 200px;
   --row-h: 36px;
   font-size: var(--text-md);
   line-height: 1.5;
-  font-family:
-    'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'HarmonyOS Sans SC', sans-serif;
+  font-family: var(--font-sans);
   --assistant-w: 0px;
 }
 
@@ -138,62 +150,102 @@ html {
 
 /* ===================================================================
    精致版式：<html data-ui="refined">（index.html）全站启用。
-   底色分层：浅灰底上放白色圆角卡片，模块靠卡片分开、少用线；
-   控件有手感：实心主按钮、灰色填充的次要按钮、分段控件，
-   按下轻微缩小，弹窗和详情有过渡。
+   浅色是“米纸留白”：整个面是一张米色的纸，卡片是纸上用细线框出的一栏（不靠白底和阴影浮起来）；
+   白色只留给“正在用”的地方：要填的格子、选中的行、选中的页签和分段、侧栏当前页；墨水蓝只给主按钮和链接。
+   控件有手感：实心主按钮、填充色的次要按钮、分段控件，按下轻微缩小，弹窗和详情有过渡。
+   换主题只改这份文件：颜色、线、阴影都在下面两块（浅色、深色），页面里只引用变量。
    =================================================================== */
 :root[data-ui='refined'] {
-  --page-bg: #f4f4f6;
-  --surface: #ffffff;
-  --input-bg: #ffffff;
-  --surface-muted: #f4f4f6;
-  --surface-hover: rgb(118 118 128 / 0.08);
-  --ink: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --muted: #6e6e73;
-  --placeholder: #a1a1a6;
-  --border: rgb(0 0 0 / 0.08);
-  --border-strong: rgb(0 0 0 / 0.14);
-  --sidebar-bg: #ececef;
-  --sidebar-hover: rgb(118 118 128 / 0.12);
+  --page-bg: #eee7d6;
+  --surface: #f6f1e3;
+  --input-bg: #fffdf8;
+  --surface-muted: #eee7d6;
+  --surface-hover: rgb(104 82 40 / 0.06);
+  --ink: #2a2621;
+  --text-secondary: #615848;
+  --muted: #615848;
+  --placeholder: #6c6352;
+  --border: rgb(96 74 34 / 0.16);
+  --border-strong: rgb(96 74 34 / 0.3);
+  --sidebar-bg: #e7dfcb;
+  --sidebar-hover: rgb(104 82 40 / 0.09);
   --r-control: 8px;
   --r-panel: 12px;
   --r-pill: 999px;
   --r-inner: 6px;
-  --fill-1: rgb(118 118 128 / 0.12);
-  --fill-2: rgb(118 118 128 / 0.18);
-  --fill-3: rgb(118 118 128 / 0.26);
-  --field-bg: rgb(118 118 128 / 0.09);
-  --sep: rgb(0 0 0 / 0.07);
-  --card-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.04);
-  --pop-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 20px 56px rgb(0 0 0 / 0.18), 0 4px 12px rgb(0 0 0 / 0.06);
-  --btn-shadow: 0 0.5px 1px rgb(0 0 0 / 0.1);
+  --fill-1: rgb(104 82 40 / 0.1);
+  --fill-2: rgb(104 82 40 / 0.16);
+  --field-bg: #fdfaf2;
+  --sep: rgb(96 74 34 / 0.12);
+  --line-strong: #c9bda3; /* 产品附属关系的连接线 */
+  --card-shadow: 0 0 0 1px rgb(96 74 34 / 0.12);
+  --pop-shadow:
+    0 0 0 1px rgb(96 74 34 / 0.16), 0 18px 44px rgb(72 52 16 / 0.2), 0 3px 10px rgb(72 52 16 / 0.08);
+  --btn-shadow: 0 0.5px 1px rgb(40 30 10 / 0.18);
+  --primary-btn-highlight: inset 0 1px 0 rgb(255 250 235 / 0.14);
+  --overlay-dim: rgb(58 44 18 / 0.3);
+  --drawer-shadow: 20px 0 50px rgb(58 44 18 / 0.2);
+  --assistant-panel-shadow: 0 18px 65px rgb(58 44 18 / 0.34);
+  --review-bar-shadow: 0 -10px 18px -14px rgb(58 44 18 / 0.4);
+  --on-success: #fffdf8;
+  /* 选中：列表选中的行提亮成白（左边再加一条主色，list-layout-5.css）；分段、页签选中的一格用 --input-bg 加这圈影 */
+  --selected-bg: #fffdf8;
+  --segment-shadow: 0 0 0 1px rgb(96 74 34 / 0.14), 0 1px 2px rgb(72 52 16 / 0.1);
+  --sidebar-selected-shadow: inset 3px 0 0 var(--kraft), 0 0 0 1px rgb(96 74 34 / 0.1);
+  /* 表头下面的线（表头底色是 --surface-muted，压深一档） */
+  --rule-head: rgb(96 74 34 / 0.4);
+  /* 要填的格子的一圈线；鼠标停着时加重 */
+  --rule-field: rgb(96 74 34 / 0.24);
+  --rule-field-hover: rgb(96 74 34 / 0.42);
+  --rule-field-focus: color-mix(in srgb, var(--teal) 55%, transparent); /* 点进去：一条主色的细边，外面一圈 --ring */
+  /* 字体：正文思源黑体；标题思源宋体；金额、数量、单号、日期这些数据格里的数字和字母用思源宋体（汉字仍是黑体）。
+     网页字体来自 @fontsource-variable/noto-sans-sc、noto-serif-sc（src/main.tsx 引入），后面跟系统字体做后备。
+     “·”“×”在思源里是全角的，交给系统字体的半角（ERP Marks）；数据格只换拉丁字母和数字（ERP Data）。 */
+  --font-sans:
+    'ERP Marks', 'Noto Sans SC Variable', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
+    'HarmonyOS Sans SC', sans-serif;
+  --font-serif: 'ERP Marks', 'Noto Serif SC Variable', 'Songti SC', 'SimSun', serif;
+  --font-num: 'ERP Marks', 'ERP Data', var(--font-sans);
   --ring: 0 0 0 3px color-mix(in srgb, var(--teal) 24%, transparent);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --panel-w: min(480px, calc(100vw - var(--sidebar-w) - var(--assistant-w) - 600px));
 }
+/* 深色“墨纸留光”：同一张纸到了晚上。纸是带一点暖的墨色，字是米色；明暗次序和浅色一样
+   （侧栏 < 页面底 < 卡片 < 要填的格子 < 正在用的），浅色里“白的”在这里是“亮一档的”。没写的变量和浅色同一个写法。 */
 :root[data-ui='refined'][data-theme='dark'] {
-  --page-bg: #111113;
-  --surface: #1c1c1e;
-  --input-bg: #1c1c1e;
-  --surface-muted: #232326;
-  --surface-hover: rgb(118 118 128 / 0.16);
-  --ink: #f2f2f4;
-  --text-secondary: #a1a1a6;
-  --muted: #a1a1a6;
-  --placeholder: #77777c;
-  --border: rgb(255 255 255 / 0.09);
-  --border-strong: rgb(255 255 255 / 0.16);
-  --sidebar-bg: #18181a;
-  --sidebar-hover: rgb(118 118 128 / 0.22);
-  --fill-1: rgb(118 118 128 / 0.24);
-  --fill-2: rgb(118 118 128 / 0.32);
-  --fill-3: rgb(118 118 128 / 0.4);
-  --field-bg: rgb(118 118 128 / 0.18);
-  --sep: rgb(255 255 255 / 0.08);
-  --card-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.07);
-  --pop-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 24px 64px rgb(0 0 0 / 0.55);
+  --sidebar-bg: #191714;
+  --page-bg: #1f1d19;
+  --surface-muted: #1f1d19;
+  --surface: #282521;
+  --field-bg: #302c27;
+  --input-bg: #3a352e;
+  --surface-hover: rgb(237 230 215 / 0.04);
+  --sidebar-hover: rgb(237 230 215 / 0.07);
+  --ink: #ede6d7;
+  --text-secondary: #b2aa9a;
+  --muted: #b2aa9a;
+  --placeholder: #aba393;
+  --border: rgb(237 230 215 / 0.1);
+  --border-strong: rgb(237 230 215 / 0.2);
+  --fill-1: rgb(237 230 215 / 0.09);
+  --fill-2: rgb(237 230 215 / 0.14);
+  --sep: rgb(237 230 215 / 0.08);
+  --line-strong: #5a5449;
+  --card-shadow: 0 0 0 1px rgb(237 230 215 / 0.09);
+  --pop-shadow: 0 0 0 1px rgb(237 230 215 / 0.12), 0 22px 60px rgb(0 0 0 / 0.55), 0 4px 14px rgb(0 0 0 / 0.3);
   --btn-shadow: none;
+  --primary-btn-highlight: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  --overlay-dim: rgb(0 0 0 / 0.52);
+  --drawer-shadow: 20px 0 50px rgb(0 0 0 / 0.45);
+  --assistant-panel-shadow: 0 18px 65px rgb(0 0 0 / 0.6);
+  --review-bar-shadow: 0 -10px 18px -14px rgb(0 0 0 / 0.6);
+  --on-success: #10241a;
+  --selected-bg: #3a352e;
+  --segment-shadow: 0 0 0 1px rgb(237 230 215 / 0.14), 0 1px 3px rgb(0 0 0 / 0.4);
+  --sidebar-selected-shadow: inset 3px 0 0 var(--kraft), 0 0 0 1px rgb(237 230 215 / 0.08);
+  --rule-head: rgb(237 230 215 / 0.26);
+  --rule-field: rgb(237 230 215 / 0.16);
+  --rule-field-hover: rgb(237 230 215 / 0.32);
 }
 
 /* —— 外壳 —— */
@@ -201,6 +253,22 @@ html {
   background: var(--page-bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+}
+/* 字体用在哪：标题用宋体；表格格子、详情的字段值、详情标题下那一行、列表统计是数据，数字和字母用宋体、等宽对齐。
+   别的模块自己的标题和数据块（今日页、订单进度、侧栏抬头）在各自的样式里引同一组变量。
+   数据格这条特异性为 0：哪里自己定了字体（单据样张、等宽的密码）照它自己的。 */
+:root[data-ui='refined'] :is(.page-title h1, .modal-head h2, .detail-panel-titles h2, .panel > header h2) {
+  font-family: var(--font-serif);
+}
+:root[data-ui='refined'] :is(.record-section > header h3, .ed-section > header h3) {
+  font-family: var(--font-serif);
+}
+:where(td, dd, .detail-panel-subtitle, .list-summary) {
+  font-family: var(--font-num);
+}
+/* 宋体的横画细，列表里的数字加半档字重才站得住（特异性为 0，合计行这类自己定了字重的照它自己的） */
+:where(main .panel, main .unified-table-region) :where(td.num) {
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -254,22 +322,18 @@ html {
   --z-popover-menu: 1000; /* 打开的“更多”菜单（浏览器顶层） */
   --z-assistant-open: 1600; /* 展开的助手窗口 */
   --z-preview: 4000; /* 助手附件的大图预览 */
-  /* 只在一处用的阴影、遮罩、底色 */
-  --drawer-shadow: 20px 0 50px #142a3c33;
-  --assistant-panel-shadow: 0 18px 65px #0006;
-  --review-bar-shadow: 0 -10px 18px -14px #0006;
-  --primary-btn-highlight: inset 0 1px 0 rgb(255 255 255 / 0.12);
-  --segment-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.12);
-  --segment-selected-dark: #636366;
+  /* 助手附件大图预览背后的暗层（看图片，不跟主题变） */
   --preview-backdrop: #000a;
-  --overlay-dim: rgb(0 0 0 / 0.28);
-  --on-success: #fff;
-  --line-strong: #c7c7cc; /* 产品附属关系的连接线；深色下也是这个色，看不太清，待改 */
+  /* “成功”的浅底（跟着 --success 变） */
+  --success-soft: color-mix(in srgb, var(--success) 14%, transparent);
+  /* 等宽字体（临时密码、工具名） */
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   /* 打印：白底黑字 */
   --print-paper: #fff;
   --print-ink: #000;
   --print-rule: #999;
   /* 单据导出的样张：照纸面颜色，不跟主题变；字号相对样张正文 */
+  --paper-font: '黑体', 'Microsoft YaHei', sans-serif;
   --paper-bg: #fff;
   --paper-ink: #111;
   --paper-rule: #8c979c;

@@ -168,7 +168,7 @@
 }
 .ga-preview nav .selected {
   border-color: var(--teal);
-  background: var(--accent-soft);
+  background: var(--selected-bg);
 }
 .ga-preview-controls {
   display: flex;

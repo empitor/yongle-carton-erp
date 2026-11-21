@@ -49,9 +49,6 @@
 .accounts-section tbody tr.record-row:hover > td {
   background: var(--surface-hover);
 }
-.accounts-section tbody tr.record-row.selected > td {
-  background: var(--accent-soft);
-}
 .accounts-section .sub {
   display: inline;
   margin: 0 0 0 var(--space-sm);

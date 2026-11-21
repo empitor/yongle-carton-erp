@@ -70,13 +70,9 @@
   color: var(--ink);
 }
 :root[data-ui='refined'] .record-view-tabs button.selected {
-  background: var(--surface);
+  background: var(--input-bg);
   color: var(--ink);
-  box-shadow:
-    var(--segment-shadow);
-}
-:root[data-ui='refined'][data-theme='dark'] .record-view-tabs button.selected {
-  background: var(--segment-selected-dark);
+  box-shadow: var(--segment-shadow);
 }
 :root[data-ui='refined'] .detail-panel {
   background: var(--page-bg);
@@ -256,7 +252,7 @@
   flex: none;
   margin: 0;
   padding: var(--space-sm) var(--space-xl);
-  border-top: 1px solid var(--sep, var(--line));
+  border-top: 1px solid var(--sep);
   background: var(--danger-soft);
   color: var(--danger);
   font-size: var(--text-sm);

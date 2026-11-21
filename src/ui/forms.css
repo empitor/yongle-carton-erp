@@ -65,6 +65,8 @@ input,
 select,
 textarea {
   font: inherit;
+  /* 输入框在表格格子里也用正文字体，不跟数据格换宋体 */
+  font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
   border: 1px solid var(--border);
   background: var(--input-bg);
@@ -78,7 +80,7 @@ textarea {
 }
 input::placeholder,
 textarea::placeholder {
-  opacity: 0.82;
+  opacity: 1;
   color: var(--placeholder);
 }
 select:not([multiple]):not([size]) {

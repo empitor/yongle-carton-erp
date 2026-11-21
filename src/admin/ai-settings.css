@@ -95,7 +95,7 @@
   font-weight: 400;
 }
 .adm-ai-key.saved {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
+  background: var(--success-soft);
   color: var(--success);
 }
 .adm-ai-secret {
@@ -129,7 +129,7 @@
   font-size: var(--text-xs);
 }
 .adm-ai-conn.tone-success {
-  background: color-mix(in srgb, var(--success) 12%, transparent);
+  background: var(--success-soft);
 }
 .adm-ai-conn.tone-success strong {
   color: var(--success);

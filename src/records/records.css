@@ -92,6 +92,7 @@
 }
 .sales-section-sum {
   color: var(--text-secondary);
+  font-family: var(--font-num);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
@@ -175,7 +176,7 @@
   cursor: pointer;
 }
 .business-records th > button.th-sort svg {
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-secondary);
   opacity: 0.6;
 }
 .business-records th > button.th-sort.is-active,
@@ -190,7 +191,7 @@
 }
 .business-records th > button.th-sort:focus-visible {
   border-radius: var(--r-small);
-  outline: 2px solid var(--accent, var(--teal));
+  outline: 2px solid var(--teal);
   outline-offset: 2px;
 }
 
@@ -239,7 +240,7 @@
   margin: 0;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--r-control);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
+  background: var(--success-soft);
   color: var(--success);
   font-size: var(--text-sm);
 }

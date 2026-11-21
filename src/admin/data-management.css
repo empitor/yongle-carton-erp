@@ -97,7 +97,7 @@
   border-bottom: 0;
 }
 .adm-data-table tr.selected td {
-  background: var(--accent-soft);
+  background: var(--selected-bg);
 }
 .adm-data-table th:first-child,
 .adm-data-table td:first-child {

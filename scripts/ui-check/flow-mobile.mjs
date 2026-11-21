@@ -69,8 +69,23 @@ for (const [hash, label] of sitePages) {
   await check(label);
 }
 
-// 底部导航和仓库切换
+// 顶栏一排（菜单、搜索框、加号、账号）一样高、上下对齐；加号图标在按钮正中（藏起来的“新建”两个字挤偏过它）
 await go(page, '#dashboard');
+const bar = await page.evaluate(() => {
+  const box = (s) => document.querySelector('.topbar ' + s)?.getBoundingClientRect();
+  const items = ['.mobile-menu', '.top-search', '.top-new > button', '.oi-account'].map(box);
+  const plus = box('.top-new > button svg');
+  const center = (r) => [r.left + r.width / 2, r.top + r.height / 2];
+  return { rows: items.map((r) => (r ? [r.top, r.height] : null)), plus: plus && center(plus), button: items[2] && center(items[2]) };
+});
+if (bar.rows.some((r) => !r)) fail('顶栏少了菜单、搜索、加号或账号');
+else if (bar.rows.some(([top, h]) => Math.abs(top - bar.rows[0][0]) > 1 || Math.abs(h - bar.rows[0][1]) > 1))
+  fail('顶栏几样东西高矮不齐：' + JSON.stringify(bar.rows));
+else if (Math.abs(bar.plus[0] - bar.button[0]) > 1 || Math.abs(bar.plus[1] - bar.button[1]) > 1)
+  fail('顶栏加号不在按钮正中：图标中心 ' + bar.plus + '，按钮中心 ' + bar.button);
+else console.log('顶栏对齐 ok');
+
+// 底部导航和仓库切换
 if ((await page.locator('.mobile-tab-ai svg.yl-duo[data-still]').count()) !== 1) fail('底部“助手”没有用小甬和小勒的小图标');
 await page.getByRole('navigation', { name: '手机底部导航' }).getByRole('button', { name: '仓库' }).tap();
 await page.waitForTimeout(500);

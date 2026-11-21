@@ -78,7 +78,7 @@
   flex: 1;
   min-width: 0;
   padding: var(--space-sm) var(--space-md);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-xl);
   line-height: 28px;
   text-align: center;

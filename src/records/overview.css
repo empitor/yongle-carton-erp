@@ -1,4 +1,13 @@
 /* 经营概况 */
+/* 字体：卡片标题用宋体，这一页的数（strong、b）是数据，数字和字母用宋体（变量在 src/ui/tokens.css） */
+.bo-section > header h2,
+.bo-product-strip h2,
+.bo-stock h3 {
+  font-family: var(--font-serif);
+}
+.business-overview :is(strong, b) {
+  font-family: var(--font-num);
+}
 .bo-section {
   background: var(--surface);
   border: 1px solid var(--border);
