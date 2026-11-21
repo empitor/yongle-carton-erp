@@ -46,9 +46,11 @@ playwright-report/
 test-results/
 .eslintcache
 
-# docs 只放行根目录的文档和商标；放进子目录的本机报告可能含业务样例、用户路径和接口地址，不进仓库。
+# docs 只放行根目录的文档、架构说明拆出来的 docs/架构/ 和商标；放进子目录的本机报告可能含业务样例、用户路径和接口地址，不进仓库。
 docs/**
 !docs/*.md
+!docs/架构/
+!docs/架构/*.md
 !docs/brand/
 !docs/brand/**
 
