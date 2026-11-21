@@ -6,7 +6,7 @@
  * 到票时 invoice-blue.ts 只转回剩下的暂估，不用改。退货撤销时同样一红一出，把冲掉的加回来。
  *
  * 退了多少钱：按到货那一行的暂估不含税额 × 退货数量 / 实际入库数量（整数分，proportion 不用浮点）。
- * 这张退货冲了多少按凭证算（booked：挂在它上面的凭证在应付上的净借方），大于 0 是冲过、0 是没冲或已恢复，
+ * 这张退货冲了多少按凭证算（returnBooked：挂在它上面的凭证在应付上的净借方），大于 0 是冲过、0 是没冲或已恢复，
  * 不另记状态。成本计算按同一个算法给退货流水计价（returnValue）。
  *
  * 分界：只处理这批到货还没确认过发票的；已到票的退货仍走红字发票。到货凭证还没记账、当前暂估凭证还没记账、
@@ -16,9 +16,10 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { quantityUnits, today } from '../../shared/core/index.js';
 import { isSuperMode, many, one, rows, type Actor, type Store } from '../core/index.js';
+import { financeFacts } from '../flow/index.js';
 import { financeAudit } from './core.js';
 import { proportion } from './amounts.js';
-import { purchaseReturnLines, purchaseReturnsToBook, readReturnOrSkip } from './business-source.js';
+import { readOrSkip } from './unreadable.js';
 import { FinanceLedger } from './ledger.js';
 import { isReversed } from './reversal-pairs.js';
 import { entry, row } from './query.js';
@@ -28,10 +29,20 @@ import { bookedArrivalEvent } from './costing-source.js';
 import { readSnapshot, type EventSnapshot } from './source-snapshot.js';
 import type { VoucherRecord } from './voucher-read.js';
 
-/** 退货单 r 冲了多少暂估（SQL）：挂在它上面的凭证在应付（2202）上的净借方 */
-export const returnBooked = (r: string) => `coalesce((SELECT sum((e.debit-e.credit)*(CASE WHEN v.reversal_of IS NULL THEN 1 ELSE -1 END))
-  FROM fin_entries e JOIN fin_vouchers v ON v.id=e.voucher_id
-  WHERE v.module_source='purchase_return' AND v.module_id=${r}.id AND v.status<>'void' AND e.account_code LIKE '2202%'),0)`;
+const bookedRow = z.object({ id: z.number(), net: z.number() });
+/** 这几张退货各冲了多少暂估（分），一次查完：挂在它上面的没作废的凭证在应付（2202）上的净借方；没挂凭证的不在结果里（算 0） */
+function returnBooked(db: DatabaseSync, returnIds: readonly number[]) {
+  const booked = many(
+    db,
+    bookedRow,
+    `SELECT v.module_id AS id,sum((e.debit-e.credit)*(CASE WHEN v.reversal_of IS NULL THEN 1 ELSE -1 END)) AS net
+      FROM fin_vouchers v JOIN fin_entries e ON e.voucher_id=v.id
+      WHERE v.module_source='purchase_return' AND v.status<>'void' AND e.account_code LIKE '2202%'
+      AND v.module_id IN (SELECT value FROM json_each(?)) GROUP BY v.module_id`,
+    JSON.stringify(returnIds),
+  );
+  return new Map(booked.map((b) => [b.id, b.net]));
+}
 
 type ReturnLine = { lineIndex: number; quantity: string };
 /** 退货逐行退掉的暂估金额（分）：到货那一行的暂估不含税额 × 退货数量 / 实际入库数量，带上那一行的库存品 */
@@ -58,7 +69,7 @@ export function returnCosts(db: DatabaseSync, returnIds: string[]) {
   if (!returnIds.length) return result;
   const booked = many(
     db,
-    z.object({ id: z.number(), net: z.number() }),
+    bookedRow,
     `SELECT v.module_id AS id,sum((e.debit-e.credit)*(CASE WHEN v.reversal_of IS NULL THEN 1 ELSE -1 END)) AS net
       FROM fin_vouchers v JOIN fin_entries e ON e.voucher_id=v.id
       WHERE v.module_source='purchase_return' AND v.status='posted' AND e.account_code LIKE '2202%'
@@ -67,11 +78,11 @@ export function returnCosts(db: DatabaseSync, returnIds: string[]) {
   );
   if (!booked.length) return result;
   const net = new Map(booked.map((b) => [b.id, b.net]));
-  for (const r of purchaseReturnLines(db, [...net.keys()])) {
-    const event = bookedArrivalEvent(db, String(r.arrival_id));
+  for (const r of financeFacts.purchases.returnRows(db, [...net.keys()])) {
+    const event = bookedArrivalEvent(db, String(r.arrivalId));
     if (!event) continue;
     const perStock = new Map<number, { value: number; restored: boolean }>();
-    for (const l of returnLineValues(readSnapshot(event), r.lines)) {
+    for (const l of returnLineValues(readSnapshot(event), financeFacts.purchases.returnLines(r))) {
       const before = perStock.get(l.stockId)?.value ?? 0;
       perStock.set(l.stockId, { value: before + l.value, restored: net.get(r.id) === 0 });
     }
@@ -102,7 +113,8 @@ function arrivalPayable(db: DatabaseSync, arrivalId: number) {
   );
 }
 
-type ReturnToBook = NonNullable<ReturnType<typeof readReturnOrSkip>>;
+/** 一张要记的退货：窗口给的退货单（不带内容原文）和读出来的明细 */
+type ReturnToBook = Omit<ReturnType<typeof financeFacts.purchases.returnRows>[number], 'document'> & { lines: ReturnLine[] };
 /** 一张退货这次怎么记：凭证日期、摘要、子请求号的前缀，冲减前后的暂估和现在那张暂估凭证，退掉多少、是不是撤销后加回 */
 type Rebooking = {
   r: ReturnToBook;
@@ -153,7 +165,7 @@ function rebookEstimate(store: Store, ledger: FinanceLedger, user: Actor, b: Reb
  * 暂估凭证还没记账的，这次不做，返回 null。补扫前判断有没有要补的（returnEstimatesPending）和真去记（syncReturnEstimates）都按它。
  */
 function planReturn(db: DatabaseSync, ledger: FinanceLedger, user: Actor, r: ReturnToBook): Rebooking | null {
-  const o = arrivalPayable(db, r.arrival_id);
+  const o = arrivalPayable(db, r.arrivalId);
   if (!o) return null;
   const value = returnValue(readSnapshot({ id: o.event_id, snapshot: o.snapshot }), r.lines);
   const restore = r.status === 'reversed';
@@ -166,7 +178,7 @@ function planReturn(db: DatabaseSync, ledger: FinanceLedger, user: Actor, r: Ret
   // 冲减记在退货那天；恢复记在撤销退货那天（北京时间），不早于退货日
   // 也不早于现在那张暂估凭证（红冲日期不能早于原凭证），所以同步不会因为日期出错；
   // 那天所在月份已结账的，记到最早没结账月份的 1 号（bookingDate）
-  const reversedOn = today(new Date(r.updated_at));
+  const reversedOn = today(new Date(r.updatedAt));
   const wanted = [restore ? reversedOn : '', r.date, voucher?.header.date ?? ''].reduce((a, b) => (b > a ? b : a));
   const step = 'return-estimate:' + r.id + ':' + (restore ? 'restore' : 'reduce');
   const description = (restore ? '退货撤销恢复暂估 ' : '退货冲暂估 ') + r.number;
@@ -197,10 +209,28 @@ function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, plan: Rebo
 /** 采购退货暂估只由有财务编辑权限的人（或超级管理员模式）在补扫时记；只能看财务的人补扫时不记 */
 const booksReturns = (user: Actor) => isSuperMode(user) || user.permissions.includes('finance:edit');
 
-/** 这个人补扫时要看的采购退货：没有财务编辑权限的一张都不看，明细读不出来的跳过（unreadable.ts） */
-function returnsToBook(store: Store, user: Actor) {
+/**
+ * 要在财务记一笔的采购退货（按编号排）：已确认、还没冲过暂估的，和已撤销、冲过还没恢复的。
+ * 冲没冲过看财务自己记的凭证（returnBooked），挑出来的再向窗口要表头和内容原文。
+ */
+function returnRowsToBook(db: DatabaseSync) {
+  const heads = financeFacts.purchases.returnHeads(db);
+  const booked = returnBooked(db, heads.map((h) => h.id));
+  const wanted = heads.filter((h) => {
+    const value = booked.get(h.id) ?? 0;
+    return h.status === 'confirmed' ? value === 0 : value > 0;
+  });
+  return wanted.length ? financeFacts.purchases.returnRows(db, wanted.map((h) => h.id)) : [];
+}
+
+/** 这个人补扫时要看的采购退货：没有财务编辑权限的一张都不看，内容读不出来的逐张跳过（unreadable.ts，键是“purchase_return:编号”） */
+function returnsToBook(store: Store, user: Actor): ReturnToBook[] {
   if (!booksReturns(user)) return [];
-  return purchaseReturnsToBook(store.db, returnBooked('r')).flatMap((raw) => readReturnOrSkip(store.db, raw) ?? []);
+  return returnRowsToBook(store.db).flatMap(({ document, ...r }) => {
+    const record = { kind: 'purchase_return', id: String(r.id), number: r.number, content: document };
+    const lines = readOrSkip(store.db, record, () => financeFacts.purchases.returnLines({ ...r, document }));
+    return lines ? [{ ...r, lines }] : [];
+  });
 }
 
 /** 有没有这个人这次真能记的采购退货（只读，补扫前判断要不要开写事务，events.ts 的 pending；和记的时候同一个 planReturn） */

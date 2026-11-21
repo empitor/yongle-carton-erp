@@ -32,8 +32,6 @@ const narrowRefs: { from: string; to: string; allowed: () => string[]; how: stri
  */
 const narrowPending: { from: string; to: string; name: string; batch: string; why: string }[] = [
   { from: '财务', to: '共用-业务', name: 'flowDocumentSchema', batch: 'B1 来源', why: 'business-source.ts 的 readSource 按单据结构读单据内容，改由窗口的 sources.read 给财务口径' },
-  { from: '财务', to: '共用-业务', name: 'purchaseLineDocumentSchema', batch: 'B3 采购', why: 'business-source.ts 的 purchaseLineItem 读采购明细内容，改由窗口的 purchases.lines 给' },
-  { from: '财务', to: '共用-业务', name: 'purchaseLineAmount', batch: 'B3 采购', why: 'invoice-matching.ts 按采购明细算开票对比的金额，改由窗口的 purchases.lines 给' },
 ];
 
 /** 表里管着的模块的文件（只解析这些，别的模块不受这张表管） */

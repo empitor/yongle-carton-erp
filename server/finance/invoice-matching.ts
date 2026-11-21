@@ -1,17 +1,18 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { quantityString, quantityUnits } from '../../shared/core/index.js';
-import { purchaseLineAmount } from '../../shared/business/index.js';
+import { quantityUnits } from '../../shared/core/index.js';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { many, rows } from '../core/index.js';
+import { financeFacts } from '../flow/index.js';
 import { financeActor } from './core.js';
 import { theoreticalMoney } from './amounts.js';
-import { purchaseLineItem, purchaseLinesOf, sourceReversed } from './business-source.js';
+import { sourceReversed } from './business-source.js';
 import { allocationSum } from './obligation-sql.js';
 import { pageSql, type FinancePage } from './query.js';
 import { redReleasedByObligation } from './red-invoices.js';
 import { isReversed } from './reversal-pairs.js';
-import { readSnapshot } from './source-snapshot.js';
+import { readSnapshot, snapshotLines } from './source-snapshot.js';
 
 /** 发票匹配一行：往来一行，加上还欠多少、已开票（确认过的发票，没开过是空）、来源事件快照（JSON 文字）和它的理论金额 */
 const matchingRow = rows.fin_obligations.extend({
@@ -29,6 +30,28 @@ const linkedInvoice = rows.fin_invoice_links.extend({
   status: invoice.status,
 });
 type LinkedInvoice = z.output<typeof linkedInvoice>;
+
+/** 往来对应的一条采购明细：往来编号和事件快照里到货明细的 purchaseLineId */
+const obligationLine = z.object({ obligation_id: rows.fin_obligations.shape.id, line_id: z.number() });
+/**
+ * 往来（到货生成的）对应的采购明细：财务先从自己的事件快照取出到货明细的 purchaseLineId，再一次向窗口要这些采购明细，
+ * 在程序里合起来（明细已经删了的不列）。obligationIds 是 JSON 数组。
+ */
+function purchaseLinesOf(db: DatabaseSync, obligationIds: string) {
+  const pairs = many(
+    db,
+    obligationLine,
+    `SELECT o.id AS obligation_id,json_extract(l.value,'$.purchaseLineId') AS line_id
+      FROM fin_obligations o JOIN fin_events e ON e.id=o.event_id JOIN ${snapshotLines('e.snapshot')} l
+      WHERE o.id IN (SELECT value FROM json_each(?)) AND json_extract(l.value,'$.purchaseLineId') IS NOT NULL`,
+    obligationIds,
+  );
+  const lines = financeFacts.purchases.lines(db, pairs.map((p) => p.line_id));
+  return pairs.flatMap((p) => {
+    const line = lines.get(p.line_id);
+    return line ? [{ obligation_id: p.obligation_id, line_id: p.line_id, ...line }] : [];
+  });
+}
 type PurchaseLine = ReturnType<typeof purchaseLinesOf>[number];
 /** 应付的发票匹配一行：加上三单匹配 */
 type PayableMatchingRow = MatchingRow & { matching: ReturnType<typeof threeWay> };
@@ -46,12 +69,22 @@ const qtyDiff = (a: Map<string, number>, b: Map<string, number>) =>
     ? [...new Set([...a.keys(), ...b.keys()])].some((unit) => a.get(unit) !== b.get(unit))
     : null;
 
-/** 采购明细按单价算出的价税合计（没有计价方式的算不出，是空） */
+/**
+ * 三单匹配里的一条采购明细：采购单编号、单号、明细编号、数量、明细内容（JSON 文字）、单位，
+ * 和窗口按单价算好的金额换成的价税合计（分；没写单价的算不出，是空）
+ */
 function purchaseLineView(l: PurchaseLine) {
-  const item = purchaseLineItem(l);
-  const exact = item.priceBasis ? purchaseLineAmount({ ...item, quantity: quantityString(l.quantity_units) }) : null;
-  const amount = exact == null ? null : theoreticalMoney([{ exact }]).gross;
-  return { ...l, unit: item.unit, quantity_units: l.quantity_units, amount };
+  const amount = l.amount == null ? null : theoreticalMoney([{ exact: l.amount }]).gross;
+  return {
+    obligation_id: l.obligation_id,
+    id: l.purchaseId,
+    number: l.purchaseNumber,
+    line_id: l.line_id,
+    quantity_units: l.quantityUnits,
+    document: JSON.stringify(l.item),
+    unit: l.item.unit,
+    amount,
+  };
 }
 
 /** 应付一行的三单匹配：采购、到货（事件快照）、发票的数量和金额，各自对比；released 扣掉红票冲掉的部分 */
