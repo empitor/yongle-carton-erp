@@ -1,6 +1,6 @@
 import { sheetArea, purchaseLineAmount } from '../../shared/business/index';
 import { amountText, priceText, specLine } from '../../shared/business/index';
-import { finishedUnit, type SpecFields } from '../../shared/core/index';
+import { finishedUnit, type SpecFields, fieldShort } from '../../shared/core/index';
 import { Section } from '../ui/index';
 
 /**
@@ -130,7 +130,7 @@ export function ArrivalLines({
           <thead>
             <tr>
               <th>纸板</th>
-              <th className="num">实收</th>
+              <th className="num">{fieldShort('quantity', { record: 'arrival', parent: 'lines' })}</th>
               <th className="num">合格 / 拒收 / 入库</th>
               <th className="num">金额</th>
             </tr>

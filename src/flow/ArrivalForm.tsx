@@ -7,6 +7,7 @@ import ArrivalLineCard from './ArrivalLineCard';
 import type { ArrivalEditing, ArrivalEditLine } from './flow-prefill';
 import { dateInput as date, timeInput as time } from './form-inputs';
 import BatchChoice from './BatchChoice';
+import { fieldLabel } from '../../shared/core/index';
 
 /** 到货单表单要对照的档案：供应商、库存品；AI 识别的送货单另带还没到齐的订货单（batches） */
 export type ArrivalFormData = Pick<CatalogLists, 'items' | 'suppliers'> & { batches?: OrderBatchView[] };
@@ -35,10 +36,10 @@ function ArrivalHead({ v, change, data }: { v: ArrivalEditing; change: Change; d
       </FormField>
       {data.batches && <BatchChoice value={v} batches={data.batches} change={change} />}
       <FormField label="到货日期" required>
-        {date(v.date, (d) => change({ date: d }), '实际到货日期')}
+        {date(v.date, (d) => change({ date: d }), fieldLabel('date', { record: 'arrival' }))}
       </FormField>
       <FormField label="到货时间" hint="不知道可以留空">
-        {time(v.actualTime, (actualTime) => change({ actualTime }), '实际到货时间')}
+        {time(v.actualTime, (actualTime) => change({ actualTime }), fieldLabel('actualTime', { record: 'arrival' }))}
       </FormField>
     </FormSection>
   );

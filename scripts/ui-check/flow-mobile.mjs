@@ -202,7 +202,9 @@ for (const [hash, label] of [
 ]) {
   await go(page, hash);
   await page.waitForTimeout(600);
-  if (!(await page.locator('main .record-tree-branch').count())) fail(label + '：手机上看不到附属品的连接线');
+  const branch = page.locator('main .record-tree-branch').first();
+  // 只数元素不够：样式丢了时元素还在、宽是 0，连接线照样看不见
+  if (!(await branch.count()) || !((await branch.boundingBox())?.width > 0)) fail(label + '：手机上看不到附属品的连接线');
   await check(label);
 }
 const arrival = (await api('/api/flow?kind=arrival')).find((a) => a.status === 'confirmed');

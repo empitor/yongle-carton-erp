@@ -186,11 +186,15 @@ const outsideUi = () => {
   return files;
 };
 
+// 登录页（登录卡片、改密码表单）登录前就显示，用的是 login.css 自己那套版式里的 form-alert，有意保留
+const loginAlerts = new Set(['src/LoginCard.tsx', 'src/ChangePasswordForm.tsx']);
+
 // 出错提示只用 FormMessage、“正在读取”只用 Loading 或 loadingText：别处不再手写这两种样式和这句话
 test('出错和正在读取的提示只在 src/ui 写一份', () => {
   for (const file of outsideUi()) {
     const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /className="(error|form-error|operation-error)"|['"]form-message\b/, file + ' 手写了出错提示的样式，改用 FormMessage');
+    if (!loginAlerts.has(file)) assert.doesNotMatch(source, /['"]form-alert\b/, file + ' 手写了 form-alert 红条，改用 FormMessage');
     assert.doesNotMatch(source, /正在读取/, file + ' 手写了“正在读取”，改用 Loading 或 loadingText');
   }
 });
