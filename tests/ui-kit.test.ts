@@ -1,4 +1,4 @@
-// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、切回页面重新取数。
+// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、切回页面重新取数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -187,6 +187,53 @@ test('出错和正在读取的提示只在 src/ui 写一份', () => {
     const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /className="(error|form-error|operation-error)"|['"]form-message\b/, file + ' 手写了出错提示的样式，改用 FormMessage');
     assert.doesNotMatch(source, /正在读取/, file + ' 手写了“正在读取”，改用 Loading 或 loadingText');
+  }
+});
+
+test('列表表格：表头带列优先级和数字列、开着详情的那一行标出来、勾选列有全选、空着时说一句或不画', async () => {
+  const { DataTable } = await import('../src/ui/DataTable.js');
+  type Row = { id: number; name: string; amount: number };
+  const rows: Row[] = [
+    { id: 1, name: '虚构甲', amount: 12345 },
+    { id: 2, name: '虚构乙', amount: 0 },
+  ];
+  const html = renderToStaticMarkup(
+    h(DataTable<Row, number>, {
+      label: '虚构列表',
+      className: 'fin-table',
+      cols: [
+        { key: 'name', label: '名称', wrap: true, rowNo: true, priority: 'mid', cellClass: 'own', title: (r: Row) => r.name },
+        { key: 'amount', label: '金额', money: true },
+      ],
+      rows,
+      onRow: () => {},
+      selected: 2,
+      check: { key: (r) => r.id, selected: [1, 2], set: () => {}, all: rows, allLabel: '全选虚构', rowLabel: (r) => '选择 ' + r.name },
+    }),
+  );
+  assert.match(html, /role="region"[^>]*aria-label="虚构列表，可左右滚动"/);
+  assert.match(html, /<table class="fin-table">/);
+  assert.match(html, /<th class="col-mid">名称<\/th><th class="num">金额<\/th>/);
+  assert.match(html, /aria-label="全选虚构" title="全选虚构" checked=""/);
+  assert.match(html, /<td class="cell-wrap record-no col-mid own" title="虚构甲">虚构甲<\/td><td class="num">123.45<\/td>/);
+  assert.match(html, /<tr tabindex="0" class="record-row" aria-selected="false">/);
+  assert.match(html, /<tr tabindex="0" class="record-row selected" aria-selected="true">/);
+  const empty = (props: { empty?: string | null; emptyNote?: string }) =>
+    renderToStaticMarkup(h(DataTable<Row>, { label: '虚构列表', cols: [{ key: 'name', label: '名称' }], rows: [], ...props }));
+  assert.match(empty({}), /<strong>这里还没有记录<\/strong>/);
+  assert.match(empty({ empty: '没有虚构记录', emptyNote: '换个条件' }), /<strong>没有虚构记录<\/strong><span>换个条件<\/span>/);
+  assert.doesNotMatch(empty({ empty: null }), /<tbody><tr/, '页面自己在表格外说的不画空行');
+});
+
+// 列表行“点一下或按回车打开详情”和勾选框只在 src/ui/DataTable.tsx 写：别处用 DataTable、DataRow、SelectAll、SelectRow
+test('列表行点开详情只在 src/ui 写一份', () => {
+  const files = readdirSync('src', { recursive: true, encoding: 'utf8' })
+    .filter((f) => /\.tsx$/.test(f) && !f.replaceAll('\\', '/').startsWith('ui/'))
+    .map((f) => 'src/' + f.replaceAll('\\', '/'));
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /<tr\s[^<]*?\bon(Click|KeyDown)=/, file + ' 在行上手写了点击或按键，改用 DataTable 或 DataRow');
+    assert.doesNotMatch(source, /['"]record-row\b/, file + ' 手写了可点的行，改用 DataTable 或 DataRow');
   }
 });
 

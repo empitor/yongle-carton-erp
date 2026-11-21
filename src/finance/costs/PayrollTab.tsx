@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
-import { ManagementDialog, FormMessage, FormSection, useConfirm, Hint, yuan, notify, useAction, FormField, Loading } from '../../ui/index';
+import { ManagementDialog, FormMessage, FormSection, useConfirm, Hint, yuan, notify, useAction, FormField, Loading, col, mon, type Col } from '../../ui/index';
 import { EditorShell, Stats } from '../editor';
 import { today } from '../../../shared/core/index';
 import { PeriodInput, FinSection, type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import {
   accrualNotice,

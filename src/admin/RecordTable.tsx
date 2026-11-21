@@ -1,5 +1,4 @@
-import { MoreMenu } from '../ui/index';
-import { StatusChip } from '../ui/index';
+import { MoreMenu, SelectAll, SelectRow, StatusChip } from '../ui/index';
 import { isFlowKind } from '../../shared/business/index';
 import { recordLabel, recordStatus } from './record-refs';
 import { textOf, type DataAction, type ListedRecord } from './record-types';
@@ -8,6 +7,7 @@ import { textOf, type DataAction, type ListedRecord } from './record-types';
 /**
  * 数据管理的记录列表：每行勾选框、单号或名称（下面小字是客户或供应商）、状态，最常用的“编辑”放在外面，
  * 其余收进“更多”。AI 识别工作区的“编辑”是去识别页打开它，另有复制和删除。
+ * 行不能点开（操作都在行尾按钮上），是窗口里的方框小表，不套列表的 DataTable；勾选框用它同一套（SelectAll、SelectRow）。
  */
 export default function RecordTable({
   module,
@@ -29,9 +29,7 @@ export default function RecordTable({
   /** 按搜索筛过的那些 */
   rows: ListedRecord[];
   selected: (number | string)[];
-  setSelected: (
-    next: (number | string)[] | ((now: (number | string)[]) => (number | string)[]),
-  ) => void;
+  setSelected: (next: (number | string)[]) => void;
   busy: boolean;
   /** 直接办的动作（归档、恢复、确认单据、复制为新识别任务） */
   act: (action: DataAction, rows: ListedRecord[]) => void;
@@ -71,11 +69,11 @@ export default function RecordTable({
         <thead>
           <tr>
             <th>
-              <input
-                type="checkbox"
-                aria-label="全选数据管理筛选结果"
-                checked={!!rows.length && rows.every((x) => selected.includes(x.record.id))}
-                onChange={(e) => setSelected(e.target.checked ? rows.map((x) => x.record.id) : [])}
+              <SelectAll
+                keys={rows.map((x) => x.record.id)}
+                selected={selected}
+                set={setSelected}
+                label="全选数据管理筛选结果"
               />
             </th>
             <th>记录</th>
@@ -87,15 +85,11 @@ export default function RecordTable({
           {rows.map((r) => (
             <tr key={r.record.id} className={selected.includes(r.record.id) ? 'selected' : ''}>
               <td>
-                <input
-                  type="checkbox"
-                  aria-label={'选择 ' + recordLabel(r.record)}
-                  checked={selected.includes(r.record.id)}
-                  onChange={(e) =>
-                    setSelected((a) =>
-                      e.target.checked ? [...a, r.record.id] : a.filter((id) => id !== r.record.id),
-                    )
-                  }
+                <SelectRow
+                  value={r.record.id}
+                  selected={selected}
+                  set={setSelected}
+                  label={'选择 ' + recordLabel(r.record)}
                 />
               </td>
               <td>

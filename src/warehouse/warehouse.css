@@ -39,10 +39,6 @@
   font-style: normal;
   margin-left: var(--space-xs);
 }
-.numeric {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
 .text-button {
   border: 0;
   padding: 3px 0;

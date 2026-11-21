@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { FormMessage, ListSummary, yuan, loadingText } from '../../ui/index';
+import { FormMessage, ListSummary, yuan, loadingText, DataTable, col, mon, type Col } from '../../ui/index';
 import { percentOf } from '../percent';
 import { type Kind, kindWord } from './shared';
 import { MAX_PAGE_SIZE, today } from '../../../shared/core/index';
 import { FinSection, type HeadFn } from '../layout';
-import { FinList, FinTable, col, mon, type Col } from '../table';
+import { FinList, FIN_TABLE } from '../table';
 import { useFinRead, type FinData } from '../fin-api';
 import { listDiscountOpportunities } from './parties-api';
 
@@ -72,7 +72,8 @@ function SoonSection({ kind }: { kind: Kind }) {
       }
     >
       <FormMessage>{error}</FormMessage>
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="到期提醒"
         rows={rows}
         rowKey={(r, i) => r.id + ':' + r.installment_id + ':' + i}
@@ -186,7 +187,8 @@ function PlanSection({ kind }: { kind: Kind }) {
           })),
         ]}
       />
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="按月收付计划"
         rows={data?.forecast || []}
         rowKey={(r) => r.period}
@@ -202,7 +204,8 @@ function PlanSection({ kind }: { kind: Kind }) {
               ? '已逾期的' + kindWord(kind)
               : dueMonth + ' 到期的' + kindWord(kind)}
           </h3>
-          <FinTable
+          <DataTable
+            className={FIN_TABLE}
             label={dueMonth === 'overdue' ? '已逾期明细' : dueMonth + ' 到期明细'}
             rows={detail}
             rowKey={(r, i) => r.id + ':' + r.installment_id + ':' + i}

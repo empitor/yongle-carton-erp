@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { FormMessage, ListSummary, StatusChip, yuan } from '../../ui/index';
+import { FormMessage, ListSummary, StatusChip, yuan, DataTable, col, type Col } from '../../ui/index';
 import { partyKindOf, type Kind } from './shared';
 import { today } from '../../../shared/core/index';
 import { FinSection, type HeadFn } from '../layout';
-import { FinTable, col, type Col } from '../table';
+import { FIN_TABLE } from '../table';
 import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { statementRequest } from './statement-request';
 import { markStatement } from './parties-api';
@@ -93,7 +93,8 @@ export default function StatementTab({ kind, head }: { kind: Kind; head: HeadFn 
             </p>
           )}
           <section className="panel business-records">
-            <FinTable
+            <DataTable
+              className={FIN_TABLE}
               label="对账单"
               rows={data.items}
               rowKey={(_, i) => i}

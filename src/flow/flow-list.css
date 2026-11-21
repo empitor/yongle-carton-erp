@@ -116,15 +116,6 @@ table.wh-linked td {
     min-width: 0;
   }
 }
-.business-records .unified-table-region > table > tbody > tr > td.cell-wrap {
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.business-records .unified-table-region .record-no {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
 
 /* 列表样式同样用于单据表 */
 .flow-table {

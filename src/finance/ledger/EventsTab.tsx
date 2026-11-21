@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FormMessage, useConfirm, hashParams, notify, stepper, useAction } from '../../ui/index';
+import { FormMessage, useConfirm, hashParams, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
 import { useFinPerms, useSyncOnOpen } from '../fin-api';
 import { type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { Status } from '../status';
 import EventPanel, { canGenerate, problemOf, sourceName, statusOf, type EventRow } from './EventPanel';
 import { generateEventVoucher, listEvents } from './ledger-api';

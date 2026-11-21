@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { UNITS_PER_QUANTITY } from '../../../shared/core/index';
 import CostingDialog from './CostingDialog';
-import { FinList, col, mon, type Col } from '../table';
+import { col, mon, type Col } from '../../ui/index';
+import { FinList } from '../table';
 import { PeriodInput, FinSection, type HeadFn } from '../layout';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { usePeriod } from '../page-state';

@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Hint, yuan, notify, hashParams, stepper, useAction } from '../../ui/index';
+import { Hint, yuan, notify, hashParams, stepper, useAction, col, mon, type Col } from '../../ui/index';
 import { AccountDialog } from './AccountsTab';
 import CashPanel, { type CashDialog, type CashListRow, type RevokeRow } from './CashPanel';
 import { CashDocDialogs, RevokeAllocationDialog } from './CashDialogs';
 import { cashKinds, isPartyKind, kindName, monthEnd } from './shared';
 import { confirmCashDocument, listCashDocuments } from './cash-api';
 import { PeriodInput, type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { Status } from '../status';
 import { ALL_CASH_ACCOUNTS, useCashAccounts, useFinPerms, useFinRead } from '../fin-api';
 import { usePeriod } from '../page-state';

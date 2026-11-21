@@ -321,6 +321,7 @@ test('流水页：明细的类型用来源单据的叫法，按产品汇总的�
       item: null,
       onClearItem: () => {},
       onView: () => {},
+      onPickItem: () => {},
     };
     const details = renderToStaticMarkup(
       h(MovementRecords, { ...common, view: 'details' } satisfies ComponentProps<typeof MovementRecords>),
@@ -329,7 +330,7 @@ test('流水页：明细的类型用来源单据的叫法，按产品汇总的�
       assert.ok(details.includes('>' + label + '<'), label);
     assert.doesNotMatch(details, /库存品编号|#\d/);
     const summary = renderToStaticMarkup(
-      h(MovementRecords, { ...common, view: 'summary', onPickItem: () => {} } satisfies ComponentProps<typeof MovementRecords>),
+      h(MovementRecords, { ...common, view: 'summary' } satisfies ComponentProps<typeof MovementRecords>),
     );
     assert.match(summary, /aria-label="看 虚构汇总纸板 的流水"/);
     assert.doesNotMatch(summary, /987654|库存品编号/);
