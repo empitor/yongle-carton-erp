@@ -1,7 +1,7 @@
 import { ManagementDialog, beijingTime, useLoad } from '../ui/index';
 import { readRecordContext } from './record-api';
 import { dataManagementNames, flowKinds, type WorkbenchApi } from '../../shared/business/index';
-import { EditorFooter } from '../ui/index';
+import { EditorFooter, FormMessage } from '../ui/index';
 import { Facts, Hint, Section, StatusChip } from '../ui/index';
 import { historyActionName, historyView, type HistoryRefs } from '../../shared/business/index';
 import { businessStatusTone } from './record-meta';
@@ -144,11 +144,7 @@ export default function RecordContextDialog({
         </EditorFooter>
       }
     >
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      <FormMessage>{error}</FormMessage>
       {!data && !error && (
         <p className="sales-muted" role="status">
           正在查询关联关系…

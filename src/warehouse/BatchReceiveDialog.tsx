@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { UNITS_PER_QUANTITY, errorMessage, safeUnits } from '../../shared/core/index';
-import { ManagementDialog } from '../ui/index';
+import { ManagementDialog, loadingText } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { Hint, Section, StatusChip } from '../ui/index';
 import { quantityString } from '../../shared/core/index';
@@ -166,7 +166,7 @@ export default function BatchReceiveDialog({ batchId, purchaseId, close, done }:
       <FormMessage>{error}</FormMessage>
       {!batch ? (
         <p className="help-text" role="status">
-          {busy ? '正在读取订货单…' : ''}
+          {busy ? loadingText('订货单') : ''}
         </p>
       ) : !pending.length ? (
         <Hint tone="info">这份订货单已经全部到齐了。</Hint>

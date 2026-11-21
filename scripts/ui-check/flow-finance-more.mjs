@@ -10,7 +10,7 @@ const log = (...a) => console.log(...a);
 let n = 400;
 const shot = async (label) => {
   await page.waitForTimeout(500);
-  const errs = await page.locator('.fin-page .error,.detail-panel .error,main .error').allInnerTexts();
+  const errs = await page.locator('.fin-page .form-message.tone-danger,.detail-panel .form-message.tone-danger,main .form-message.tone-danger').allInnerTexts();
   await page.screenshot({ path: `${out}/${++n}-${label}.png` });
   log(`[${n}] ${label}`, errs.length ? 'ERR: ' + errs.join(' | ').slice(0, 260) : 'ok');
 };

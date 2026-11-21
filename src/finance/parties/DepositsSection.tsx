@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { yuan, stepper } from '../../ui/index';
+import { FormMessage, yuan, stepper, loadingText } from '../../ui/index';
 import type { Kind } from './shared';
 import { today } from '../../../shared/core/index';
 import { voucherStateNames } from '../labels';
-import { ErrorLine, FinSection } from '../layout';
+import { FinSection } from '../layout';
 import { FinTable, col, mon, type Col } from '../table';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms, useFinRead } from '../fin-api';
@@ -48,14 +48,14 @@ export default function DepositsSection({ kind }: { kind: Kind }) {
         )
       }
     >
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <FinTable
         label="保证金"
         rows={rows}
         onRow={setRow}
         selected={row?.id}
         empty={
-          data ? '还没有' + (kind === 'receivable' ? '客户' : '供应商') + '的保证金' : '正在读取…'
+          data ? '还没有' + (kind === 'receivable' ? '客户' : '供应商') + '的保证金' : loadingText()
         }
         cols={depositCols}
       />

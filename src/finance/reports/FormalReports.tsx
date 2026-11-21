@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ListSummary, Hint, yuan, Segmented } from '../../ui/index';
+import { FormMessage, ListSummary, Hint, yuan, Segmented } from '../../ui/index';
 import { snapshotKinds } from '../../../shared/finance/index';
-import { ErrorLine, FinSection, PeriodInput, type HeadFn } from '../layout';
+import { FinSection, PeriodInput, type HeadFn } from '../layout';
 import { FinTable, col, mon, type Col } from '../table';
 import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { readinessOf, reportOf } from './reports-api';
@@ -184,7 +184,7 @@ function FormalReport({ kind, period }: { kind: ReportKind; period: string }) {
   if (readiness.data && !ready) return null;
   return (
     <>
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       {data?.needsReview && <Hint>报表行项目和公式还没有经过懂账的人复核，先按内部参考使用。</Hint>}
       {data && 'assets' in data && <BalanceSheet data={data} />}
       {data && 'netProfit' in data && <ProfitSheet data={data} />}
@@ -229,7 +229,7 @@ export function ReportsTab({ head, period, setPeriod, initial }: TabProps & { in
           options={reportKinds}
         />
       </div>
-      <ErrorLine text={sync.error} close={sync.clear} />
+      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
       <Readiness period={period} syncError={sync.error} />
       <FormalReport key={kind} kind={kind} period={period} />
     </>

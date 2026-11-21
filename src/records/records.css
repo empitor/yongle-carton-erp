@@ -66,12 +66,6 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.operation-error {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border-left: 3px solid var(--danger-border);
-  padding: 10px 13px;
-}
 .operations-workspace.unified-business-page {
   display: block;
 }

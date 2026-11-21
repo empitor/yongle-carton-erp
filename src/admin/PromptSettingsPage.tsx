@@ -31,14 +31,19 @@ export default function PromptSettingsPage({
   const { state, current, busy, error, guard } = presets;
   return (
     <div className="adm-prompt">
-      {error && (
-        <div className="form-message tone-danger adm-prompt-error" role="alert">
-          <span>{error}</span>
-          <button className="secondary" disabled={busy} onClick={() => guard(() => window.location.reload())}>
+      <FormMessage
+        action={
+          <button
+            className="secondary adm-prompt-refresh"
+            disabled={busy}
+            onClick={() => guard(() => window.location.reload())}
+          >
             刷新
           </button>
-        </div>
-      )}
+        }
+      >
+        {error}
+      </FormMessage>
       {/* 超级管理员账号没进模式时给进入的入口；别的账号只能看 */}
       {!editable &&
         (admin ? (

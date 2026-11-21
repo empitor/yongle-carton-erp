@@ -5,12 +5,12 @@ import { FilterPopover, Segmented } from '../ui/index';
 type Scope = { value: string; label: string };
 
 /**
- * 档案、订单、采购、库存列表的工具栏，一行：搜索 + 一个分段（待处理 / 全部 / 已归档 这类）
- * + 最多一个关键下拉 + “筛选”（其余条件收进弹层，有条件时按钮上显示个数）。
- * 统计数只在页头出现，这里不写数字。
+ * 业务列表的工具栏（订单、档案、采购、库存、流水，单据页的生产任务、完工记录，到货、送货），一行：
+ * 搜索 + 一个分段（待处理 / 全部 / 已归档 这类）+ 最多一个关键下拉 + “筛选”（其余条件收进弹层，有条件时按钮上显示个数）。
+ * 不给 onSearch 就不放搜索框（排产板上只留分段）。统计数只在页头出现，这里不写数字。
  */
 export default function ListToolbar({
-  search,
+  search = '',
   onSearch,
   placeholder,
   searchLabel = '搜索',
@@ -25,9 +25,9 @@ export default function ListToolbar({
   busy = false,
   note,
 }: {
-  search: string;
-  onSearch: (value: string) => void;
-  placeholder: string;
+  search?: string;
+  onSearch?: (value: string) => void;
+  placeholder?: string;
   searchLabel?: string;
   scopes?: readonly Scope[];
   scope?: string;
@@ -46,18 +46,20 @@ export default function ListToolbar({
   return (
     <section className="list-filters list-toolbar" aria-label="列表筛选">
       <div className="list-filters-primary list-toolbar-row">
-        <label className="list-search">
-          <span className="sr-only">{searchLabel}</span>
-          <div>
-            <Search size={16} aria-hidden="true" />
-            <input
-              aria-label={searchLabel}
-              placeholder={placeholder}
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-            />
-          </div>
-        </label>
+        {onSearch && (
+          <label className="list-search">
+            <span className="sr-only">{searchLabel}</span>
+            <div>
+              <Search size={16} aria-hidden="true" />
+              <input
+                aria-label={searchLabel}
+                placeholder={placeholder}
+                value={search}
+                onChange={(e) => onSearch(e.target.value)}
+              />
+            </div>
+          </label>
+        )}
         {scopes && scopes.length > 1 && (
           <Segmented
             tabs

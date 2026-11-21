@@ -1,5 +1,6 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { dataManagementModules, dataManagementNames, dataManagementNoCreate } from '../../shared/business/index';
+import { loadingText } from '../ui/index';
 
 /** 不能新建的模块和原因，按模块名查（识别工作区查不到） */
 const noCreate: Partial<Record<string, string>> = dataManagementNoCreate;
@@ -43,7 +44,7 @@ export default function DataManagementToolbar({
         placeholder="搜索名称、单号、客户或供应商"
       />
       <span className="adm-data-count">
-        {count ? (q ? count.shown + ' / ' : '') + count.total + ' 条' : '正在读取…'}
+        {count ? (q ? count.shown + ' / ' : '') + count.total + ' 条' : loadingText()}
       </span>
       <button className="secondary" disabled={busy} onClick={reload} title="重新读取">
         <RefreshCw size={14} aria-hidden="true" />

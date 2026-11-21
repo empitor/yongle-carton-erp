@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { Facts, Hint, Section, yuan } from '../../ui/index';
-import { ErrorLine, FinSection } from '../layout';
+import { FormMessage, Facts, Hint, Section, yuan } from '../../ui/index';
+import { FinSection } from '../layout';
 import { FinList, col, mon, type Col } from '../table';
 import { useFinRead, type FinData } from '../fin-api';
 import { listInvoiceMatching } from './cash-api';
@@ -68,7 +68,7 @@ export function TaxSection({ period }: { period: string }) {
   const { data, error } = useFinRead(['GET /finance/tax', { query: { period } }]);
   return (
     <FinSection id="tax" title="税务底稿" note={period + ' 的增值税和附加税费'} collapsed>
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <Hint>只是内部底稿，申报请以税局系统为准。</Hint>
       {data && (
         <div className="fin-tax-card">

@@ -51,7 +51,7 @@ async function failHard(error) {
     i++;
     for (const page of context.pages()) {
       console.log('  出错时的地址：' + page.url());
-      const errors = await page.locator('.error, .form-error, [role=alert]').allInnerTexts().catch(() => []);
+      const errors = await page.locator('.form-message.tone-danger, [role=alert]').allInnerTexts().catch(() => []);
       if (errors.length) console.log('  页面上的报错：' + errors.join(' | ').slice(0, 300));
       await page.screenshot({ path: `${out}/FAIL-${flowName}-${i}.png`, timeout: 5000 }).catch(() => {});
     }

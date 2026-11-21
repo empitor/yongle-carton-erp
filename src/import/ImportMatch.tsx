@@ -1,6 +1,6 @@
 import { REPEAT_ORDER_REASON, blocksNewProduct, productCandidateDetails } from '../../shared/import/index';
 import type { ImportMapping, ImportMatchData } from '../../shared/import/index';
-import { StatusChip, type Tone } from '../ui/index';
+import { StatusChip, type Tone, loadingText } from '../ui/index';
 import type { useImportMatching } from './useImportMatching';
 
 export type Match = ReturnType<typeof useImportMatching>;
@@ -26,7 +26,7 @@ function productStatus(
   const { product, unavailable, loaded, list } = found;
   if (choice?.mode === 'existing') {
     if (unavailable) return { tone: 'danger', chip: '已失效', text: '原产品选择已失效，请重新选择' };
-    if (!product) return { tone: 'neutral', chip: '已匹配', text: '正在读取档案…' };
+    if (!product) return { tone: 'neutral', chip: '已匹配', text: loadingText('档案') };
     // 按本客户老产品关联的，先说是这个原因（说明一行放不下时后面会被截掉）
     const repeat = !!list.find((c) => c.id === product.id)?.reasons.includes(REPEAT_ORDER_REASON);
     const details = (repeat ? REPEAT_ORDER_REASON + ' · ' : '') + productCandidateDetails(product);
@@ -42,7 +42,7 @@ function productStatus(
       chip: '待确认',
       text: list.length > 1 ? '有多个候选，请按规格、料号及差异核对' : '找到候选，请确认',
     };
-  if (!loaded) return { tone: 'neutral', chip: '读取中', text: '正在读取产品候选…' };
+  if (!loaded) return { tone: 'neutral', chip: '读取中', text: loadingText('产品候选') };
   return {
     tone: 'neutral',
     chip: '导入时新建',

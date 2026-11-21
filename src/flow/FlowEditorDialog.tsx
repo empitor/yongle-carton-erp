@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { ManagementDialog } from '../ui/index';
+import { ManagementDialog, Loading } from '../ui/index';
 import { type FlowKind } from '../../shared/business/index';
 import { EditorFooter, FormMessage } from '../ui/index';
 import { FlowEditor } from './FlowEditor';
@@ -121,9 +121,7 @@ export default function FlowEditorDialog({
     >
       <FormMessage>{error}</FormMessage>
       {!ready ? (
-        <p className="help-text" role="status">
-          正在读取客户、产品、订单等档案…
-        </p>
+        <Loading what="客户、产品、订单等档案" />
       ) : (
         <EditingForm editor={editor} setEditor={setEditor} data={data} />
       )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download } from 'lucide-react';
-import { FormMessage, beijingTime, useLoad } from '../ui/index';
+import { FormMessage, beijingTime, useLoad, Loading } from '../ui/index';
 import { Facts } from '../ui/index';
 import { FAILURE_PAGE as PAGE } from '../../shared/import/index';
 import { failureDownloadUrl, readFailures } from './workspace-api';
@@ -34,9 +34,7 @@ export function FailureList({ selectedId }: { selectedId: string }) {
       </div>
       <FormMessage>{error}</FormMessage>
       {loading ? (
-        <p className="aii-muted" role="status">
-          正在读取…
-        </p>
+        <Loading />
       ) : data?.items.length ? (
         data.items.map((r) => (
           <article className="line-card" key={r.id}>

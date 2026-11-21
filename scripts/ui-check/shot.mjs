@@ -39,7 +39,7 @@ try {
     await page.waitForTimeout(1500);
     const file = join(out, `${n + 1}-${hash.replace(/[^\w一-龥]+/g, '_').replace(/^_|_$/g, '') || 'home'}.png`);
     await page.screenshot({ path: file, fullPage: full });
-    const errors = await page.locator('.error,[role=alert]').allInnerTexts();
+    const errors = await page.locator('.form-message.tone-danger,[role=alert]').allInnerTexts();
     console.log(file + (errors.length ? '\n  页面报错：' + errors.join(' | ').slice(0, 300) : ''));
   }
 } finally {

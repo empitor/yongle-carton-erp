@@ -1,9 +1,4 @@
-/* 单据列表和明细的共用写法：单据表、工具栏、搜索、空列表、明细里的数量和链接（到货、送货、生产、采购、库存页面都用） */
-.help-text {
-  font-size: var(--text-xs);
-  color: var(--muted);
-  margin: 0 0 18px;
-}
+/* 单据列表和明细的共用写法：单据表、空列表、明细里的数量和链接（到货、送货、生产、采购、库存页面都用） */
 .receipt-history .sub {
   display: block;
   margin-top: var(--space-2xs);
@@ -95,49 +90,6 @@ table.wh-linked td {
   margin-top: var(--space-2xs);
   font-size: var(--text-xs);
 }
-/* flow：生产任务、完工记录，以及到货、送货列表共用的工具栏。规范见 docs/界面规范.md。 */
-
-/* 列表工具栏：一行放分段、搜索和“筛选”，手机上自动换行 */
-.flow-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-  min-width: 0;
-}
-.flow-toolbar > .record-view-tabs {
-  flex: none;
-  margin: 0;
-}
-.flow-search {
-  display: flex;
-  flex: 1 1 220px;
-  align-items: center;
-  gap: var(--space-xs);
-  min-width: 0;
-  max-width: 360px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: var(--r-control);
-  background: var(--fill-1, var(--surface-muted));
-  color: var(--text-secondary);
-}
-.flow-search:focus-within {
-  background: var(--surface);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.flow-search > input,
-:root[data-ui='refined'] .flow-search > input {
-  flex: 1;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  height: 30px;
-  padding: 0;
-  color: var(--ink);
-  font-size: var(--text-sm);
-  outline: none;
-}
 /* 状态标签：状态 + 逾期 / 已归档并排，不换行挤成两行 */
 .flow-status {
   display: inline-flex;
@@ -159,29 +111,10 @@ table.wh-linked td {
 }
 
 @media (max-width: 700px) {
-  /* 手机：第一行分段 + 筛选，搜索框换到第二行 */
-  .flow-search {
-    order: 3;
-    flex: 1 1 100%;
-    max-width: none;
-  }
-  .flow-toolbar > .record-view-tabs {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .flow-toolbar > .record-view-tabs > button {
-    flex: 1;
-    min-width: 0;
-    padding-left: var(--space-xs);
-    padding-right: var(--space-xs);
-  }
   .pb-tasks .wh-qty > input {
     width: 100%;
     min-width: 0;
   }
-}
-.business-form-preview .help-text {
-  color: var(--paper-muted);
 }
 .business-records .unified-table-region > table > tbody > tr > td.cell-wrap {
   max-width: 280px;

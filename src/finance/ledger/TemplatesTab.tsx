@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DetailPanel, Facts, FormSection, ActionBar, Section, stepper, FormField } from '../../ui/index';
+import { FormMessage, DetailPanel, Facts, FormSection, ActionBar, Section, stepper, FormField } from '../../ui/index';
 import {
   templateFieldTitles,
   templatePartyAccounts,
@@ -7,7 +7,7 @@ import {
 } from '../../../shared/finance/index';
 import { AccountInput } from '../fields';
 import { EditorShell, useAccountNames } from '../editor';
-import { ErrorLine, FinSection, type HeadFn } from '../layout';
+import { FinSection, type HeadFn } from '../layout';
 import { FinTable, col } from '../table';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { saveTemplate } from './ledger-api';
@@ -33,7 +33,7 @@ export default function TemplatesTab({ head }: { head: HeadFn }) {
     <>
       {head({})}
       <FinSection title="记账模板" note="业务单据记账时用哪些科目，改之前先问懂账的人">
-        <ErrorLine text={error} />
+        <FormMessage>{error}</FormMessage>
         <FinTable
           label="记账模板"
           rows={rows}

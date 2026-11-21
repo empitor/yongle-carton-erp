@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { PurchaseView } from '../../shared/business/index';
-import { emit, FormMessage, ManagementDialog, notify, Segmented, useLoad } from '../ui/index';
+import { emit, FormMessage, ManagementDialog, notify, Segmented, useLoad, Loading } from '../ui/index';
 import { PurchaseEditor } from './PurchaseEditor';
 import { readManyLaunch, readSingleLaunch } from './purchase-launch-data';
 import { savePurchase, type PurchaseBody } from './purchase-api';
@@ -48,9 +48,7 @@ export default function PurchaseLaunch({
         {loaded.error ? (
           <FormMessage>{loaded.error}</FormMessage>
         ) : (
-          <p className="help-text" role="status">
-            正在读取订单、产品和供应商…
-          </p>
+          <Loading what="订单、产品和供应商" />
         )}
       </ManagementDialog>
     );

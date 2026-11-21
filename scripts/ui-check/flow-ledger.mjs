@@ -9,7 +9,7 @@ const log = (...a) => console.log(...a);
 let n = 100;
 const shot = async (label) => {
   await page.waitForTimeout(600);
-  const errs = await page.locator('.error,[role=alert]').allInnerTexts();
+  const errs = await page.locator('.form-message.tone-danger,[role=alert]').allInnerTexts();
   await page.screenshot({ path: `${out}/${++n}-${label}.png` });
   log(`[${n}] ${label}`, errs.length ? 'ERR: ' + errs.join(' | ').slice(0, 300) : 'ok');
 };
@@ -18,7 +18,7 @@ const field = (label) => dlg().locator('label.field', { hasText: label }).first(
 const close = async () => {
   await page.waitForTimeout(800);
   const c = await page.locator('[role="dialog"][aria-modal="true"]').count();
-  if (c) log('  still open:', (await dlg().locator('.form-error,.error').allInnerTexts()).join('|'));
+  if (c) log('  still open:', (await dlg().locator('.form-message.tone-danger').allInnerTexts()).join('|'));
   return !c;
 };
 const api = (path) =>

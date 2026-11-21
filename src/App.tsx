@@ -1,7 +1,7 @@
 import { Suspense, useState } from 'react';
 import { AlertCircle, Check, Info } from 'lucide-react';
 import { APP_VERSION, financeOnlyAccount } from '../shared/core/index';
-import { BrandLogo, canEditBusiness, canViewFinance, ErrorBoundary, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
+import { BrandLogo, canEditBusiness, canViewFinance, ErrorBoundary, FormMessage, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
 import { useAppHome } from './app-bridge';
 import LoginScreen from './LoginScreen';
 import ForcedPasswordChange from './ForcedPasswordChange';
@@ -177,9 +177,7 @@ function CurrentPage({
     return finance ? (
       <FinancePages page={page} />
     ) : (
-      <div className="error" role="alert">
-        当前账号没有财务权限。需要的话请找管理员在“账号管理”里调整。
-      </div>
+      <FormMessage>当前账号没有财务权限。需要的话请找管理员在“账号管理”里调整。</FormMessage>
     );
   if (page === 'suppliers' || page === 'purchases' || page === 'warehouse')
     return <OperationsPage key={page + routeKey} mode={page} />;

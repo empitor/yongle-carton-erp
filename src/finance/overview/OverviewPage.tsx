@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DetailPanel, Hint, yuan } from '../../ui/index';
+import { FormMessage, DetailPanel, Hint, yuan, loadingText } from '../../ui/index';
 import { SourceDetail, SourceActions, sourceHeader } from '../SourceDetail';
 import { useEnable } from '../enable';
 import { overviewTodos } from './todos';
@@ -7,7 +7,7 @@ import DrillSection, { type Drill, type DrillRow } from './DrillSection';
 import TrendSection from './TrendSection';
 import AccountingSection from './AccountingSection';
 import { financePageTitles } from '../page-titles';
-import { ErrorLine, FinHead, FinSection, PeriodInput } from '../layout';
+import { FinHead, FinSection, PeriodInput } from '../layout';
 import { FinTable, col, mon } from '../table';
 import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { metricNames, sourceMonthName } from '../labels';
@@ -136,7 +136,7 @@ function TodoSection(props: {
           ))}
         </ul>
       ) : (
-        <p className="fin-note">{ready ? '现在没有要处理的事。' : '正在读取…'}</p>
+        <p className="fin-note">{ready ? '现在没有要处理的事。' : loadingText()}</p>
       )}
       {accounts.length > 0 && (
         <>
@@ -239,8 +239,8 @@ export default function OverviewPage() {
       >
         <PeriodInput value={period} onChange={setPeriod} />
       </FinHead>
-      <ErrorLine text={sync.error} close={sync.clear} />
-      <ErrorLine text={report.error} />
+      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
+      <FormMessage>{report.error}</FormMessage>
       {enable.known && !enable.enabled && (
         <Hint>
           财务还没启用。下面的单据和收付数字已经能看；要记账、补税率、出正式报表，先启用

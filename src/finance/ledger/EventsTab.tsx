@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useConfirm, hashParams, notify, stepper, useAction } from '../../ui/index';
+import { FormMessage, useConfirm, hashParams, notify, stepper, useAction } from '../../ui/index';
 import { useFinPerms, useSyncOnOpen } from '../fin-api';
-import { ErrorLine, type HeadFn } from '../layout';
+import { type HeadFn } from '../layout';
 import { FinList, col, mon, type Col } from '../table';
 import { Status } from '../status';
 import EventPanel, { canGenerate, problemOf, sourceName, statusOf, type EventRow } from './EventPanel';
@@ -70,8 +70,8 @@ export default function EventsTab({ head }: { head: HeadFn }) {
         </select>
         <span className="fin-note">送货、到货确认后自动进来，这里是记账前的处理。缺税率的到月度台账补。</span>
       </div>
-      <ErrorLine text={sync.error} close={sync.clear} />
-      <ErrorLine text={action.error} close={action.clear} />
+      <FormMessage close={sync.clear}>{sync.error}</FormMessage>
+      <FormMessage close={action.clear}>{action.error}</FormMessage>
       <FinList
         list={listEvents}
         label="业务单据"

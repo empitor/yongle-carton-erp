@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Section, stepper } from '../../ui/index';
-import { ErrorLine, FinSection, type HeadFn } from '../layout';
+import { FormMessage, DetailPanel, ActionBar, Facts, Section, stepper } from '../../ui/index';
+import { FinSection, type HeadFn } from '../layout';
 import { FinTable, col, type Col } from '../table';
 import { useFinPerms, useFinRead } from '../fin-api';
 import { saveSubject } from './settings-api';
@@ -124,7 +124,7 @@ export default function SubjectsTab({ head }: { head: HeadFn }) {
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <ErrorLine text={error} />
+      <FormMessage>{error}</FormMessage>
       <FinSection title="科目表" note="已使用的科目不能改类别和方向">
         <FinTable
           label="科目表"

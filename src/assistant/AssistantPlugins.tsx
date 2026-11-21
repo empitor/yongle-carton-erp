@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FormMessage, StatusChip, SuperModeNotice, useAction, useAuthState, useLoad } from '../ui/index';
+import { FormMessage, StatusChip, SuperModeNotice, useAction, useAuthState, useLoad, Loading } from '../ui/index';
 import {
   readPlugins,
   setPluginEnabled,
@@ -127,7 +127,7 @@ export default function AssistantPlugins() {
       {!userId ? (
         <p className="adm-muted">请先登录管理账号。</p>
       ) : !state && !error ? (
-        <p className="adm-muted">正在读取插件与工具…</p>
+        <Loading what="插件与工具" />
       ) : null}
       {/* 开关要在超级管理员模式里改：超级管理员账号没进时给入口，别的账号只能看 */}
       {state &&

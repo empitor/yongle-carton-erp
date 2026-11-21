@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ManagementDialog } from '../ui/index';
+import { ManagementDialog, Loading } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { createFlow } from '../flow/flow-api';
 import { pendingByOrderLine } from '../../shared/business/index';
@@ -133,9 +133,7 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
     >
       <FormMessage>{error}</FormMessage>
       {!data ? (
-        <p className="help-text" role="status">
-          正在读取库存、订单和客户…
-        </p>
+        <Loading what="库存、订单和客户" />
       ) : (
         <>
           {chooseCustomer && (

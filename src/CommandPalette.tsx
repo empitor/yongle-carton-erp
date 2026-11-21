@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readCatalog } from './recordkit/index';
-import { useBackLayer } from './ui/index';
+import { useBackLayer, loadingText } from './ui/index';
 import { catalogItems, searched, type PaletteItem as Item } from './palette-items';
 /**
  * 顶栏“新建”菜单和这里的“操作”用同一份清单、同一套叫法。
@@ -110,7 +110,7 @@ export default function CommandPalette({ close, canEdit }: { close: () => void; 
           ))}
           {!results.length && (
             <div className="palette-empty">
-              {loading ? '正在读取…' : query.trim() ? '没有找到匹配的记录' : '输入单号、客户或产品名称搜索'}
+              {loading ? loadingText() : query.trim() ? '没有找到匹配的记录' : '输入单号、客户或产品名称搜索'}
             </div>
           )}
         </div>

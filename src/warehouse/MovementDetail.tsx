@@ -1,5 +1,5 @@
 import { flowNames, type MovementView } from '../../shared/business/index';
-import { DetailPanel, beijingTime, useLoad } from '../ui/index';
+import { DetailPanel, beijingTime, useLoad, Loading } from '../ui/index';
 import { ActionBar, Facts, Hint, Section, StatusChip, type Tone } from '../ui/index';
 import { movementTypeLabel, movementTypeOf } from '../../shared/business/index';
 import { quantityString } from '../../shared/core/index';
@@ -49,9 +49,7 @@ function MovementRevisions({ id, count }: { id: string; count: number }) {
   return (
     <Section title={'修订记录（' + count + ' 次）'}>
       {!list ? (
-        <p className="wh-muted" role="status">
-          正在读取…
-        </p>
+        <Loading />
       ) : (
         <div className="table-wrap">
           <table className="wh-linked">

@@ -1,7 +1,6 @@
-import { DetailPanel, ActionBar, Facts, Hint, Section, type RecordAction, yuan } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, type RecordAction, yuan } from '../../ui/index';
 import { MoneyProgress, VoucherLinks } from '../detail';
 import { useAccountNames } from '../editor';
-import { ErrorLine } from '../layout';
 import { FinStatusChip, Status } from '../status';
 import { useFinPerms, type FinData } from '../fin-api';
 import { isPartyKind, kindName, transferPartner } from './shared';
@@ -127,7 +126,7 @@ export default function CashPanel({
       previous={previous}
       next={next}
     >
-      <ErrorLine text={error} close={clearError} />
+      <FormMessage close={clearError}>{error}</FormMessage>
       {doc.status === 'cancelled' && <Hint tone="warning">已撤销，凭证已红冲，实际收支里已去掉。</Hint>}
       {party && confirmed && listRow && (
         <MoneyProgress label="已核销" done={listRow.allocated} total={doc.amount_cents} />

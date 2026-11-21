@@ -3,7 +3,7 @@ import StockBatches from '../operations/StockBatches';
 import ContactSection from '../recordkit/ContactSection';
 import { purchaseState, sizeText, type PurchaseView, type StockItemView, type SupplierView } from '../../shared/business/index';
 import RelatedBusiness from './RelatedBusiness';
-import { Facts, Hint, Section, StatusChip, useLoad } from '../ui/index';
+import { Facts, FormMessage, Hint, Loading, Section, StatusChip, useLoad } from '../ui/index';
 import { movementType } from '../warehouse/MovementDetail';
 import { quantityString } from '../../shared/core/index';
 import { businessStatusTone, useAgentRecord } from '../recordkit/record-meta';
@@ -58,7 +58,7 @@ function RecentMovements({ row }: { row: StockItemView }) {
   const loaded = useLoad([row.id, row.version, row.quantity].join('|'), () =>
     loadMovements({ kind: '', action: '', start: '', end: '', search: '', itemId: row.id, page: 1, pageSize: RECENT_MOVEMENTS }),
   );
-  // 库存品变了（换了一个、或刚出入库）：重读时先说“正在读取”，不显示上一份
+  // 库存品变了（换了一个、或刚出入库）：重读时先说在读，不显示上一份
   const shown = loaded.loading || loaded.error ? null : loaded.data,
     rows = shown ? shown.rows : null,
     total = shown ? shown.filteredRecords : 0;
@@ -74,13 +74,9 @@ function RecentMovements({ row }: { row: StockItemView }) {
       }
     >
       {loaded.error && !loaded.loading ? (
-        <p className="form-error" role="alert">
-          {loaded.error}
-        </p>
+        <FormMessage>{loaded.error}</FormMessage>
       ) : !rows ? (
-        <p className="pur-empty" role="status">
-          正在读取…
-        </p>
+        <Loading />
       ) : !rows.length ? (
         <p className="pur-empty">还没有出入库记录。</p>
       ) : (

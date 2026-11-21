@@ -1,5 +1,5 @@
 import { ShieldCheck } from 'lucide-react';
-import { FormMessage } from './Editor';
+import { FormMessage } from './Message';
 import { emit } from './events';
 import { useAuthState } from './auth-state';
 
