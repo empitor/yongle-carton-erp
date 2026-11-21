@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { quantityString } from '../../shared/core/index.js';
 import { many, one, rows } from '../core/index.js';
 import { financeError } from './core.js';
+import { assertSourcesCaughtUp } from './sync-health.js';
 import { lapsedStatuses, sourceIs } from './source-scan.js';
 import { sumOf } from './finance-rows.js';
 import { row } from './query.js';
@@ -46,6 +47,8 @@ export function invoiceDetail(db: DatabaseSync, key: number): InvoiceDetail {
  * 关联和确认时都要查。冲销按红字凭证没作废算（reversal-pairs.ts 的 isReversed），和来源更正认原往来的口径一致。
  */
 export function assertInvoiceableObligation(db: DatabaseSync, obligationId: number, voided: (arrival: string) => string) {
+  // 要看到货撤没撤销、往来被没被替代：补扫没成功时先拦下（sync-health.ts）
+  assertSourcesCaughtUp(db);
   // SQL 的真假是 1/0；凭证编号有值却联不到凭证时 v.status 是 NULL，整个条件可能是 NULL（按不算处理）
   const stale = one(
     db,

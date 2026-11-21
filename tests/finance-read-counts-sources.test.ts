@@ -12,6 +12,7 @@ import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceMonthly } from '../server/finance/monthly.js';
 import { scanSources } from '../server/finance/source-scan.js';
 import { deliveryDoc, maker, newSettings, physical } from './finance-fixture.js';
+import { quietLog } from './finance-catch-up-fixture.js';
 
 /** 财务从 2026-01 启用，n 张 2026-01 的已确认送货单（还没同步） */
 function books(n: number) {
@@ -89,7 +90,7 @@ test('对照结果共用：事务里算的不留下，事务回滚以后对照�
 });
 
 test('补扫没有要补的：语句条数不随单据多少变，也不读来源内容', () => {
-  const [few, many] = bothSizes(synced, (s) => catchUp(s, maker, undefined));
+  const [few, many] = bothSizes(synced, (s) => catchUp(s, maker, quietLog));
   assert.equal(few.length, many.length);
   assert.deepEqual(content(few), []);
   assert.deepEqual(content(many), []);

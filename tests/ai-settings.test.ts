@@ -10,7 +10,7 @@ import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { defaultAiSettingsPath } from '../server/ai/credential-store.js';
 import { defaultPromptSettingsPath } from '../server/ai/prompt-presets.js';
 import { createApp } from '../server/app.js';
-import { listen, startHttp } from './http-fixture.js';
+import { listen, startHttp, testProblems } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { testImports } from './order-import-fixture.js';
 import { promptTable } from './assistant-fixture.js';
@@ -152,7 +152,7 @@ test('HTTP 设置接口：要 CSRF、密钥不回显、删除要确认；业务�
   const fake = fakeDeepSeek(),
     m = settingsAt(undefined, fake),
     store = new Store(':memory:'),
-    server = await listen(createApp(store, { aiSettings: m }));
+    server = await listen(createApp(store, { aiSettings: m, problems: testProblems() }));
   const base = server.origin + '/api/ai/settings';
   const post = (path: string, body: unknown, token = m.csrfToken) =>
     fetch(base + path, {

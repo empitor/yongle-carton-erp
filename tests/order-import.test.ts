@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { detectFormat } from '../server/import/file-store.js';
 import { evaluateDraft } from '../shared/import/draft-evaluation.js';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { importRouter } from '../server/import/router.js';
 import express from 'express';
 import { Store } from '../server/core/db.js';
@@ -381,7 +381,7 @@ test('识别接口要页面凭证、跨站请求被拒；没开正式导入时�
     store = new Store(':memory:');
   store.saveCustomer({ name: '保留的ERP虚构客户', contact: '', phone: '', address: '', notes: '' });
   const before = JSON.stringify(store.customers());
-  const server = await listen(createApp(store, { aiSettings: f.settings, imports: f.manager }));
+  const server = await listen(createApp(store, { aiSettings: f.settings, imports: f.manager, problems: testProblems() }));
   const base = server.origin + '/api/ai/imports';
   const post = (path: string, body: unknown, token = f.settings.csrfToken) =>
     fetch(base + path, {

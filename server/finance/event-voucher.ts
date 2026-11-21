@@ -5,6 +5,7 @@ import { one, rows } from '../core/index.js';
 import { dateSchema } from '../../shared/core/index.js';
 import type { FinanceEntry } from '../../shared/finance/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
+import { assertSourcesCaughtUp } from './sync-health.js';
 import { partyOf, readEvent, redoMark, saveInstallments, assertSourceCurrent, type FinanceEvent } from './event-shared.js';
 import { expectRow } from './finance-rows.js';
 import { FinanceLedger } from './ledger.js';
@@ -28,6 +29,7 @@ export class FinanceEventVouchers {
   generate(actor: Actor | null, rawId: unknown, raw: unknown, correctedDate?: string) {
     const user = financeActor(actor, 'finance:edit'),
       id = recordId.parse(rawId);
+    assertSourcesCaughtUp(this.db);
     const input = edit.parse(raw);
     return financeWrite(this.store, user, { action: 'events.generate', input: { ...input, id }, result: rows.fin_events }, () => {
       const before = readEvent(this.db, id);

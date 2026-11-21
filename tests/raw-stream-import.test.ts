@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { docxFixture, xlsxFixture } from './import-fixtures.js';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { fakeKey, replyCutOff, replyNative } from './fake-deepseek.js';
 import { filledForm, importWorkspace } from './order-import-fixture.js';
@@ -59,7 +59,7 @@ test('本机识别地址推送进度和最终结果；出错推 error、不带�
   let fail = false;
   const f = importWorkspace(() => (fail ? { potential_secret: fakeKey } : filledForm())),
     store = new Store(':memory:'),
-    server = await listen(createApp(store, { aiSettings: f.settings, imports: f.manager }));
+    server = await listen(createApp(store, { aiSettings: f.settings, imports: f.manager, problems: testProblems() }));
   try {
     const url = server.origin + '/api/ai/imports';
     for (const [index, bytes] of [docxFixture(), xlsxFixture()].entries()) {

@@ -97,20 +97,25 @@ const payableRow = rows.fin_obligations.extend({
   voucher_id: z.number(),
   snapshot: rows.fin_events.shape.snapshot,
 });
-/** 这张到货单现在挂着暂估的应付（到货凭证已生成、没被替代、没被冲销） */
-function arrivalPayable(db: DatabaseSync, arrivalId: number) {
-  return one(
-    db,
-    payableRow,
-    `SELECT o.*,e.snapshot FROM fin_obligations o JOIN fin_events e ON e.id=o.event_id
+/**
+ * 挂着暂估的到货应付（FROM 和 WHERE，o 是往来、e 是到货事件）：到货凭证已生成并记账、没被替代、没被冲销、
+ * 还没确认过发票。哪张到货挂着暂估（estimateArrivals）和一张到货挂的那笔（arrivalPayable）同一个条件。
+ */
+const estimatePayables = `FROM fin_obligations o JOIN fin_events e ON e.id=o.event_id
       JOIN fin_vouchers v ON v.id=o.voucher_id
-      WHERE e.source_kind='arrival' AND e.source_id=? AND e.status='generated' AND o.kind='payable'
+      WHERE e.source_kind='arrival' AND e.status='generated' AND o.kind='payable'
       AND o.reversal_of IS NULL AND o.tax_status<>'superseded' AND v.status='posted' AND NOT ${isReversed('o')}
       AND NOT EXISTS(SELECT 1 FROM fin_invoice_links l JOIN fin_invoices i ON i.id=l.invoice_id
-        WHERE l.obligation_id=o.id AND i.status NOT IN ('draft','void'))
-      ORDER BY o.id DESC LIMIT 1`,
-    String(arrivalId),
-  );
+        WHERE l.obligation_id=o.id AND i.status NOT IN ('draft','void'))`;
+
+/** 这张到货单现在挂着暂估的应付 */
+function arrivalPayable(db: DatabaseSync, arrivalId: number) {
+  return one(db, payableRow, `SELECT o.*,e.snapshot ${estimatePayables} AND e.source_id=? ORDER BY o.id DESC LIMIT 1`, String(arrivalId));
+}
+
+/** 现在挂着暂估应付的到货单编号（退货冲暂估、撤销后加回都只能落在它们上面） */
+function estimateArrivals(db: DatabaseSync) {
+  return many(db, z.object({ id: z.string() }), `SELECT DISTINCT e.source_id AS id ${estimatePayables}`).map((a) => Number(a.id));
 }
 
 /** 一张要记的退货：窗口给的退货单（不带内容原文）和读出来的明细 */
@@ -162,7 +167,7 @@ function rebookEstimate(store: Store, ledger: FinanceLedger, user: Actor, b: Reb
 
 /**
  * 一张退货这次能不能记、怎么记（只读）：找不到挂着暂估的应付（已到票、启用前的到货）、金额为 0 或冲成负数、
- * 暂估凭证还没记账的，这次不做，返回 null。补扫前判断有没有要补的（returnEstimatesPending）和真去记（syncReturnEstimates）都按它。
+ * 暂估凭证还没记账的，这次不做，返回 null。补扫前判断有没有要补的和真去记（ReturnEstimates 的 pending、book）都按它。
  */
 function planReturn(db: DatabaseSync, ledger: FinanceLedger, user: Actor, r: ReturnToBook): Rebooking | null {
   const o = arrivalPayable(db, r.arrivalId);
@@ -210,17 +215,18 @@ function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, plan: Rebo
 const booksReturns = (user: Actor) => isSuperMode(user) || user.permissions.includes('finance:edit');
 
 /**
- * 要在财务记一笔的采购退货（按编号排）：已确认、还没冲过暂估的，和已撤销、冲过还没恢复的。
- * 冲没冲过看财务自己记的凭证（returnBooked），挑出来的再向窗口要表头和内容原文。
+ * 要在财务记一笔的采购退货（按编号排）：还挂着暂估应付的到货的退货里（向窗口按到货单圈，不读全部退货），
+ * 已确认、还没冲过暂估的，和已撤销、冲过还没恢复的。冲没冲过看财务自己记的凭证（returnBooked）。
+ * 已经到票、启用前的到货不挂暂估，它们的退货一张都不读。语句条数固定：挂暂估的到货、圈退货、冲过多少各一句。
  */
 function returnRowsToBook(db: DatabaseSync) {
-  const heads = financeFacts.purchases.returnHeads(db);
-  const booked = returnBooked(db, heads.map((h) => h.id));
-  const wanted = heads.filter((h) => {
-    const value = booked.get(h.id) ?? 0;
-    return h.status === 'confirmed' ? value === 0 : value > 0;
+  const arrivals = estimateArrivals(db);
+  const found = arrivals.length ? financeFacts.purchases.returnsOfArrivals(db, arrivals) : [];
+  const booked = found.length ? returnBooked(db, found.map((r) => r.id)) : new Map<number, number>();
+  return found.filter((r) => {
+    const value = booked.get(r.id) ?? 0;
+    return r.status === 'confirmed' ? value === 0 : value > 0;
   });
-  return wanted.length ? financeFacts.purchases.returnRows(db, wanted.map((h) => h.id)) : [];
 }
 
 /** 这个人补扫时要看的采购退货：没有财务编辑权限的一张都不看，内容读不出来的逐张跳过（unreadable.ts，键是“purchase_return:编号”） */
@@ -233,21 +239,37 @@ function returnsToBook(store: Store, user: Actor): ReturnToBook[] {
   });
 }
 
-/** 有没有这个人这次真能记的采购退货（只读，补扫前判断要不要开写事务，events.ts 的 pending；和记的时候同一个 planReturn） */
-export function returnEstimatesPending(store: Store, user: Actor) {
-  const ledger = new FinanceLedger(store);
-  return returnsToBook(store, user).some((r) => planReturn(store.db, ledger, user, r) !== null);
-}
-
-/** 同步时把采购退货记进暂估：一张一张算了就记（同一张到货的几张退货，后一张按前一张记完的暂估算），返回记了几张 */
-export function syncReturnEstimates(store: Store, user: Actor) {
-  const ledger = new FinanceLedger(store);
-  let done = 0;
-  for (const r of returnsToBook(store, user)) {
-    const plan = planReturn(store.db, ledger, user, r);
-    if (!plan) continue;
-    bookReturn(store, ledger, user, plan);
-    done++;
+/**
+ * 一次补扫里要看的采购退货：只读一次（第一次用到时），判断要不要补（pending）和真去记（book）共用；
+ * 记过的从名单里拿掉，同一次补扫的后几批不会再记。没有财务编辑权限的人一张都不看。
+ */
+export class ReturnEstimates {
+  private candidates: ReturnToBook[] | undefined;
+  private readonly ledger: FinanceLedger;
+  constructor(
+    private readonly store: Store,
+    private readonly user: Actor,
+  ) {
+    this.ledger = new FinanceLedger(store);
   }
-  return done;
+  private list() {
+    this.candidates ??= returnsToBook(this.store, this.user);
+    return this.candidates;
+  }
+  /** 有没有这次真能记的（只读，补扫前判断要不要开写事务，events.ts 的 pending；和记的时候同一个 planReturn） */
+  pending() {
+    return this.list().some((r) => planReturn(this.store.db, this.ledger, this.user, r) !== null);
+  }
+  /** 记进暂估：一张一张算了就记（同一张到货的几张退货，后一张按前一张记完的暂估算），返回记了几张 */
+  book() {
+    const left: ReturnToBook[] = [];
+    for (const r of this.list()) {
+      const plan = planReturn(this.store.db, this.ledger, this.user, r);
+      if (plan) bookReturn(this.store, this.ledger, this.user, plan);
+      else left.push(r);
+    }
+    const done = this.list().length - left.length;
+    this.candidates = left;
+    return done;
+  }
 }

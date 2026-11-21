@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { monthsBefore, presetRange, orderInView } from '../shared/core/date-ranges.js';
@@ -123,7 +123,7 @@ async function fixture() {
     dates = { date, boundary: monthsBefore(date, 2), old: monthsBefore(date, 3) };
   const orders = seedOrders(records, dates),
     purchases = seedPurchases(records, dates);
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   const base = server.origin + '/api';
   return {
     store,

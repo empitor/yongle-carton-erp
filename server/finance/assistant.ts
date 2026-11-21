@@ -107,14 +107,14 @@ export function readFinanceTool(
   actor: Actor | null | undefined,
   name: string,
   raw: unknown,
-  problems?: SkipLog,
+  problems: SkipLog,
 ) {
   return { 金额单位: '元', ...fieldsInYuan(readFinanceRaw(store, actor, { name, raw, problems })) };
 }
 function readFinanceRaw(
   store: Store,
   actor: Actor | null | undefined,
-  { name, raw, problems }: { name: string; raw: unknown; problems: SkipLog | undefined },
+  { name, raw, problems }: { name: string; raw: unknown; problems: SkipLog },
 ) {
   const user = financeActor(actor);
   const q = financeReadQuery.parse(raw),

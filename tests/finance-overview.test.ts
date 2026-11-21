@@ -1,5 +1,6 @@
 // 财务概览、业务单据列表、助手的应收应付读工具（全部是虚构数据，只用内存库）
 import { pageActor } from './actor-fixture.js';
+import { quietLog } from './finance-catch-up-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
@@ -77,7 +78,7 @@ test('助手应收应付读工具：带按单位汇总，预收和还欠和页�
     // 1 月 3 日先收 30 元，那天还没有欠款，记预收
     funds(s, cash, { kind: 'receipt', date: '2026-01-03', amount: 3000 });
     postDrafts(s);
-    const raw = readFinanceTool(s, maker, 'finance.receivables', { date: '2026-01-31', partyId: '1' });
+    const raw = readFinanceTool(s, maker, 'finance.receivables', { date: '2026-01-31', partyId: '1' }, quietLog);
     const out = receivablesOut.parse(raw);
     assert.equal(out.金额单位, '元');
     assert.ok(Array.isArray(out.rows) && out.rows.length > 0, '逐笔照旧在');
@@ -106,7 +107,7 @@ test('助手应收应付读工具：带按单位汇总，预收和还欠和页�
     assert.doesNotMatch(JSON.stringify(shown.按单位汇总), /"(held|due|no_terms|advance|net)"/);
     assert.equal(shownToModel.parse(financeForModel('finance.payables', raw)).按单位汇总.各单位[0].预付款, '30.00');
     // 只看一个单位时，别的单位不在汇总里
-    const other = receivablesOut.parse(readFinanceTool(s, maker, 'finance.receivables', { date: '2026-01-31', partyId: '999' }));
+    const other = receivablesOut.parse(readFinanceTool(s, maker, 'finance.receivables', { date: '2026-01-31', partyId: '999' }, quietLog));
     assert.deepEqual(other.byParty.rows, []);
   } finally {
     s.close();

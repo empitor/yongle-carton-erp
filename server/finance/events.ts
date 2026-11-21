@@ -31,7 +31,7 @@ import {
 } from './event-status.js';
 import { eventColumns, insertEvent, updateEventSnapshot } from './event-columns.js';
 import { expectRow } from './finance-rows.js';
-import { returnEstimatesPending, syncReturnEstimates } from './return-estimates.js';
+import { ReturnEstimates } from './return-estimates.js';
 import { readSnapshot, type EventSnapshot, type FinanceSourceDocument } from './source-snapshot.js';
 import {
   allocationsPending,
@@ -106,18 +106,19 @@ export class FinanceEvents {
    * 有没有要补扫的（只读）：财务启用了，而且有还没扫到的来源（跳过的不算）、被删还没记的来源、
    * 要自动收尾的已撤销送货（deliveryReversalsPending），或者这个人这次真能记的采购退货暂估。没有的话补扫不开写事务（catch-up.ts）。
    */
-  pending(user: Actor) {
+  pending(user: Actor, returns = new ReturnEstimates(this.store, user)) {
     if (!this.start()) return false;
     const { unseen, missing } = this.toSync();
-    return unseen.length > 0 || missing.length > 0 || deliveryReversalsPending(this.db) || returnEstimatesPending(this.store, user);
+    return unseen.length > 0 || missing.length > 0 || deliveryReversalsPending(this.db) || returns.pending();
   }
 
   /**
    * 补扫一批（一个写事务）：最多 BATCH_SIZE 条来源、BATCH_SIZE 条被删的来源；扫满了 remaining 是 true，再调一次接着扫。
    * 先对照（不读内容），挑出的来源再按批读原文；内容读不出来的来源跳过（unreadable.ts），读出来以后的步骤出错照常抛、整批回滚。
    * 审计记的是 actor（发起这次读取或补扫的人）；财务未启用时什么都不做。
+   * returns 是这次补扫要看的采购退货（catch-up.ts 和 pending 共用一次读取）；不给就现读。
    */
-  sync(actor: Actor | null) {
+  sync(actor: Actor | null, returns?: ReturnEstimates) {
     const user = financeActor(actor);
     return financeTransaction(this.db, () => {
       const start = this.start();
@@ -142,7 +143,7 @@ export class FinanceEvents {
       for (const before of deleted) markSourceDeleted(this.store, user, before);
       refreshPendingDeliveryReversals(this.store, user);
       // 未到票的采购退货按暂估单价冲减暂估（退货撤销时加回来），见 return-estimates.ts
-      processed += syncReturnEstimates(this.store, user);
+      processed += (returns ?? new ReturnEstimates(this.store, user)).book();
       return {
         processed: processed + deleted.length,
         remaining: sources.length === BATCH_SIZE || gone.length === BATCH_SIZE,

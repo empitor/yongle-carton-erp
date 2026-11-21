@@ -7,7 +7,7 @@ import { DatabaseSync, type PrepareOptions, type SQLInputValue } from 'node:sqli
 import { test } from 'node:test';
 import { format } from 'node:util';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { assistantMessageRoles, assistantRunStates } from '../server/assistant/conversation.js';
 import { markSourceKinds } from '../shared/business/index.js';
 import { Store } from '../server/core/db.js';
@@ -322,7 +322,7 @@ test('认得出数据库的约束错误：CHECK、NOT NULL、UNIQUE、外键、S
 
 test('接口上数据库约束拦下写入：返回一句中文，不带英文原文；原始错误进服务端日志；数据没有写进去', async (t) => {
   const store = new Store(':memory:');
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   const url = server.origin + '/api/customers';
   const post = (name: string) =>
     fetch(url, {
