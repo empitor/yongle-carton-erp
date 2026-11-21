@@ -2,13 +2,12 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { customerSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
 import { readSnapshot } from '../server/finance/source-snapshot.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
-import { OperationsService } from '../server/operations/service.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';
 import { FinanceEventViews } from '../server/finance/event-views.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
@@ -59,12 +58,10 @@ test('盘点调整的事件单号显示库存品名、规格和调整量，不�
   const s = new Store(':memory:');
   try {
     newSettings(s);
-    const ops = new OperationsService(s),
+    const base = businessBase(maker, s),
+      { ops } = base,
       events = new FinanceEvents(s);
-    const item = ops.saveItem(
-      { name: '虚构盘点纸板', kind: 'raw', unit: '张', specification: '1000*800' },
-      maker,
-    );
+    const item = base.raw({ name: '虚构盘点纸板', specification: '1000*800' });
     const move = (action: 'in' | 'adjust', quantity: string, date: string) =>
       ops.move(
         item.id,
@@ -222,7 +219,7 @@ test('暂估往来已被核销的送货单被撤销后，订单又换了客户�
     assert.equal(t.closingOk(), false);
     // 本机管理员改订单换客户，已撤销的送货单跟着换（财务看的内容变了）：就地刷新那一条，不新建、不变成要人红冲的“有差异”
     const before = t.count();
-    const other = t.f.store.saveCustomer(customerSchema.parse({ name: '虚构换后客户' }));
+    const other = businessBase(maker, t.f.store).customer({ name: '虚构换后客户' });
     const order = t.f.store.order(untaxed.id);
     assert.ok(order, '订单还在');
     createBusinessService(t.f.store).execute(

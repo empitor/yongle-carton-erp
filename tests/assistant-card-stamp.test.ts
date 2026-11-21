@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { updateDocumentInfo } from '../server/flow/index.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { customerSchema, orderSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { superActor } from './actor-fixture.js';
 
@@ -27,20 +28,20 @@ function setup() {
     f.manager.previews.save({ id, threadId: f.manager.create(who).id, actor: who, binding: 'card', expiresAt: Date.now() + CARD_LIFETIME_MS, plan, stamp: tools.stamp(plan, who) });
     return () => f.manager.execute(id, { acknowledged: true }, who, 'card');
   };
-  const rawItem = (name: string) => saved.parse(tools.ops.saveItem({ name, kind: 'raw', unit: '张' }, who));
-  const stockIn = (id: number, quantity: string) =>
-    tools.ops.move(id, { expectedVersion: tools.ops.repo.items(true, id)[0].version, requestId: randomUUID(), action: 'in', quantity, date: '2026-10-20', notes: '虚构入库', acknowledged: true }, who);
-  return { f, who, tools, card, rawItem, stockIn };
+  const base = businessBase(who, f.store);
+  const rawItem = (name: string) => saved.parse(base.raw({ name }));
+  const stockIn = (id: number, quantity: string) => base.stockIn({ id }, { quantity, date: '2026-10-20', notes: '虚构入库' });
+  return { f, who, tools, base, card, rawItem, stockIn };
 }
 /** 确认被拒：卡片过期，说出变了的那条 */
 const stale = (name: string) => (e: unknown) => e instanceof AppError && e.code === 'card-stale' && e.message.includes(name) && e.message.includes(' 变了');
 
 test('出卡片以后档案被改、被归档：旧卡片确认被拒，说清是哪位客户；没变的照常执行', () => {
-  const { f, who, tools, card } = setup();
+  const { f, who, tools, base, card } = setup();
   try {
-    const a = f.store.saveCustomer(customerSchema.parse({ name: '虚构改过的客户' })),
-      b = f.store.saveCustomer(customerSchema.parse({ name: '虚构归档的客户' })),
-      c = f.store.saveCustomer(customerSchema.parse({ name: '虚构没变的客户' }));
+    const a = base.customer({ name: '虚构改过的客户' }),
+      b = base.customer({ name: '虚构归档的客户' }),
+      c = base.customer({ name: '虚构没变的客户' });
     // 没人动过：照常执行
     card('records.propose_save', { module: 'customers', id: c.id, patch: { phone: '333' } })();
     assert.equal(f.store.customer(c.id)?.phone, '333');
@@ -57,9 +58,9 @@ test('出卡片以后档案被改、被归档：旧卡片确认被拒，说清�
 });
 
 test('出卡片以后单据被改：旧卡片确认被拒，说清是哪张单据', () => {
-  const { f, who, tools, card, rawItem } = setup();
+  const { f, who, tools, base, card, rawItem } = setup();
   try {
-    const supplier = saved.parse(tools.ops.saveSupplier({ name: '虚构供应商' }, who)),
+    const supplier = saved.parse(base.supplier({ name: '虚构供应商' })),
       raw = rawItem('虚构纸板');
     const arrival = tools.flow.save('arrival', { date: '2026-10-20', supplierId: supplier.id, reference: '虚构样品', lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity: '30' }] }, who);
     tools.commit(tools.prepare('flow.propose_confirmation', { id: arrival.id }, who, 'other'), who, 'other');
@@ -89,18 +90,18 @@ test('出卡片以后库存品的库存变了：出入库卡片、改库存品�
 });
 
 /** 一张订单：客户、产品、一行 100 只 */
-function orderSetup(f: ReturnType<typeof setup>['f']) {
-  const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构订单客户' })),
-    p = f.store.saveProduct(productSchema.parse({ name: '虚构订单纸箱' }));
+function orderSetup(base: ReturnType<typeof setup>['base']) {
+  const c = base.customer({ name: '虚构订单客户' }),
+    p = base.product({ name: '虚构订单纸箱' });
   const fields = { customerId: c.id, orderDate: '2026-10-01', deliveryDate: '2026-11-30', status: '已确认' };
-  const o = f.store.saveOrder(orderSchema.parse({ ...fields, lines: [{ productId: p.id, quantity: 100, unit: '只', unitPriceCents: 100 }] }));
+  const o = base.order(c, [base.line(p, 100)], fields);
   return { o, fields };
 }
 
 test('出卡片以后订单明细被页面改了：改这张订单的卡片确认被拒，说清单号', () => {
   const s = setup();
   try {
-    const { o, fields } = orderSetup(s.f);
+    const { o, fields } = orderSetup(s.base);
     const edit = s.card('records.propose_save', { module: 'orders', id: o.id, patch: { notes: '虚构卡片上改的备注' } });
     s.f.store.saveOrder(orderSchema.parse({ ...fields, lines: [{ ...o.lines[0], quantity: 120 }] }), o.id, o.version);
     assert.throws(edit, stale(o.number));
@@ -114,7 +115,7 @@ test('出卡片以后只是采购单由单据算出的进度变了（登记了�
   const s = setup();
   try {
     const { who, tools, card, rawItem } = s;
-    const supplier = saved.parse(tools.ops.saveSupplier({ name: '虚构采购供应商' }, who)),
+    const supplier = saved.parse(s.base.supplier({ name: '虚构采购供应商' })),
       raw = rawItem('虚构采购纸板');
     const purchase = purchaseSaved.parse(
       tools.ops.savePurchase({ supplierId: supplier.id, status: '已订货', orderDate: '2026-11-01', lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '2', priceBasis: 'quantity' }] }, who),
@@ -135,8 +136,8 @@ test('出卡片以后只是采购单由单据算出的进度变了（登记了�
 test('出卡片以后有人按这张生产任务登记了待入库的完工：把任务改少的卡片确认被拒，说清是哪张完工单', () => {
   const s = setup();
   try {
-    const { f, who, tools, card, rawItem, stockIn } = s;
-    const p = f.store.saveProduct(productSchema.parse({ name: '虚构任务纸箱' })),
+    const { who, tools, card, rawItem, stockIn } = s;
+    const p = s.base.product({ name: '虚构任务纸箱' }),
       raw = rawItem('虚构任务纸板');
     stockIn(raw.id, '100');
     const task = tools.flow.save('task', { date: '2026-10-20', productId: p.id, quantity: '1000', unit: '只', orderIds: [], notes: '' }, who);
@@ -153,8 +154,8 @@ test('出卡片以后有人按这张生产任务登记了待入库的完工：�
 test('卡片要把任务计划数改到已登记的完工数以下：出卡片时试执行就被服务拒绝；出卡片以后才登记的，卡片作废，绕过绑定直接执行也被服务拒绝', () => {
   const s = setup();
   try {
-    const { f, who, tools, card, rawItem, stockIn } = s;
-    const p = f.store.saveProduct(productSchema.parse({ name: '虚构计划纸箱' })),
+    const { who, tools, card, rawItem, stockIn } = s;
+    const p = s.base.product({ name: '虚构计划纸箱' }),
       raw = rawItem('虚构计划纸板');
     stockIn(raw.id, '100');
     const task = tools.flow.save('task', { date: '2026-10-20', productId: p.id, quantity: '1000', unit: '只', orderIds: [], notes: '' }, who);

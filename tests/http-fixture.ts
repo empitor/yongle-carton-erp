@@ -6,7 +6,7 @@ import { createServer, request, type IncomingHttpHeaders, type IncomingMessage, 
 import { createApp } from '../server/app.js';
 import { AuthManager } from '../server/core/auth.js';
 import type { Actor } from '../server/core/actor.js';
-import { userRoles } from '../shared/core/accounts.js';
+import { permissionNames, userRoles } from '../shared/core/accounts.js';
 import { pageActor } from './actor-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { readDeployment, type Deployment } from '../server/core/deployment.js';
@@ -121,7 +121,7 @@ export async function startHttp(store: Store, options: AppOptions & { admin?: Ac
 const stateActorSchema = z.object({
   id: z.string(),
   name: z.string(),
-  permissions: z.array(z.string()),
+  permissions: z.array(z.enum(permissionNames)),
   role: z.enum(userRoles).optional(),
   superAdminUntil: z.number().optional(),
   superAdminMode: z.boolean().optional(),

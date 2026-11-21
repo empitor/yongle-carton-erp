@@ -27,7 +27,7 @@ import { readAs, must } from './read-result.js';
 import { businessBase } from './business-base-fixture.js';
 
 const actor = pageActor({ id: 'fictional-status-user', name: '虚构状态操作员', permissions: ['business:edit'], role: 'admin' as const });
-const reader = pageActor({ id: 'fictional-reader', name: '虚构只读', permissions: [] as string[], role: 'admin' as const });
+const reader = pageActor({ id: 'fictional-reader', name: '虚构只读', permissions: [], role: 'admin' as const });
 
 function fixture() {
   const base = businessBase(actor),

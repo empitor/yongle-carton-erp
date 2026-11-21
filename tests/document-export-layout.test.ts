@@ -134,8 +134,7 @@ test('送货单的栏位：料号保留前导零、带订单号、规格里尺�
       { date: f.order.orderDate, customerId: f.customer.id, lines: [{ stockId: stock.id, orderId: f.order.id, orderLineId: f.order.lines[0].id, quantity: '40' }] },
       actor,
     );
-    const p = f.flow.preview(doc.id, actor);
-    f.flow.confirm(doc.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true, ...shipOnDocDate(f.flow, doc.id) }, actor);
+    f.base.check(doc, shipOnDocDate(f.flow, doc.id), actor);
     const form = new BusinessDocuments(f.store).form('delivery', doc.id).form,
       keys = form.columnKeys;
     assert.ok(keys);

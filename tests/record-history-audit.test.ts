@@ -7,15 +7,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { updateDocumentInfo } from '../server/flow/document-info.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { recordContext } from '../server/business/record-context.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { dataManagementCommandSchema } from '../shared/business/data-management-modules.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { movementSchema } from '../shared/business/operations.js';
@@ -205,26 +202,20 @@ test('服务端写修改历史的每个动作都有中文名，内容都能逐�
  * 送货单改备注、出库、送达、撤销后归档，另一张送货单取消。
  */
 function historyWorld() {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
+  const base = businessBase(actor),
+    { store, ops, flow } = base;
   try {
-    const customer = store.saveCustomer(customerSchema.parse({ name: '虚构历史客户' }));
-    const product = store.saveProduct(productSchema.parse({ name: '虚构历史产品', length: 300, width: 200, height: 100, dimensionUnit: 'mm' }));
-    const supplier = ops.saveSupplier({ name: '虚构历史供应商' }, actor);
+    const customer = base.customer({ name: '虚构历史客户' });
+    const product = base.product({ name: '虚构历史产品', length: 300, width: 200, height: 100, dimensionUnit: 'mm' });
+    const supplier = base.supplier({ name: '虚构历史供应商' });
     ops.saveSupplier({ name: '虚构历史供应商', phone: '0574-0000', version: supplier.version }, actor, supplier.id);
-    const raw = ops.saveItem({ name: '虚构历史纸板', kind: 'raw', unit: '张' }, actor);
-    const finished = ops.saveItem({ name: '虚构历史成品', kind: 'finished', unit: '只', productId: product.id }, actor);
-    const order = store.saveOrder(
-      orderSchema.parse({
-        number: '虚构历史单1',
-        customerId: customer.id,
-        orderDate: '2026-11-01',
-        deliveryDate: '2026-11-30',
-        status: '已确认',
-        lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 150 }],
-      }),
-    );
+    const raw = base.raw({ name: '虚构历史纸板' });
+    const finished = base.finished(product, { name: '虚构历史成品' });
+    const order = base.order(customer, [base.line(product, 100, { unitPriceCents: 150 })], {
+      number: '虚构历史单1',
+      orderDate: '2026-11-01',
+      deliveryDate: '2026-11-30',
+    });
     const purchase = ops.savePurchase(
       {
         supplierId: supplier.id,
@@ -235,13 +226,8 @@ function historyWorld() {
       },
       actor,
     );
-    ops.move(
-      raw.id,
-      { action: 'in', quantity: '500', date: '2026-11-02', notes: '期初', expectedVersion: ops.repo.items(true, raw.id)[0].version, requestId: randomUUID(), acknowledged: true },
-      actor,
-    );
-    const confirm = (id: number) =>
-      flow.confirm(id, { previewDigest: flow.preview(id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    base.stockIn(raw, { quantity: '500', date: '2026-11-02', notes: '期初' });
+    const confirm = (id: number) => base.check({ id });
     // 安排生产即下达，没有核对这一步
     const task = flow.save('task', { date: '2026-11-03', productId: product.id, quantity: '100', unit: '只', orderIds: [order.id] }, actor);
     flow.save('task', { date: '2026-11-03', productId: product.id, quantity: '100', unit: '只', orderIds: [order.id], notes: '加急', version: task.version }, actor, task.id);
@@ -341,23 +327,18 @@ test('真实业务操作留下的修改历史：批次备注、送货单状态�
  * run(动作, 选中的单据, 改的内容, 原因) 照数据管理窗口发的命令（带 entry 标记）执行。
  */
 function maintenanceWorld() {
-  const store = new Store(':memory:'),
-    flow = new FlowService(store),
-    service = new DataManagementService(store),
-    owner = localAdministratorActor(superActor());
+  const owner = localAdministratorActor(superActor()),
+    base = businessBase(owner),
+    { store, flow } = base,
+    service = new DataManagementService(store);
   try {
-    const customer = store.saveCustomer(customerSchema.parse({ name: '虚构维护客户' }));
-    const product = store.saveProduct(productSchema.parse({ name: '虚构维护纸箱' }));
-    const order = store.saveOrder(
-      orderSchema.parse({
-        number: '虚构维护单1',
-        customerId: customer.id,
-        orderDate: '2026-11-01',
-        deliveryDate: '2026-11-30',
-        status: '已确认',
-        lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 150 }],
-      }),
-    );
+    const customer = base.customer({ name: '虚构维护客户' });
+    const product = base.product({ name: '虚构维护纸箱' });
+    const order = base.order(customer, [base.line(product, 100, { unitPriceCents: 150 })], {
+      number: '虚构维护单1',
+      orderDate: '2026-11-01',
+      deliveryDate: '2026-11-30',
+    });
     // 数据管理窗口发的命令带 entry 标记（src/admin/data-api.ts 的 dataManagementCommand）
     const run = (action: string, items: { id: number; version: number }[], patch: Record<string, unknown> = {}, reason = '虚构维护验收') =>
       service.execute({ requestId: randomUUID(), module: 'task', action, items: items.map(({ id, version }) => ({ id, version })), patch, reason, entry: AUDIT_SOURCE.dataManagement }, owner, 's');

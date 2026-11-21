@@ -30,5 +30,5 @@ export function completionFixture(store = new Store(':memory:')) {
     materials: [{ stockId: raw.id, unit: '张', issued: '5', returned: '0' }],
     quantities: tasks.map((t) => ({ taskId: t.id, goodQuantity: t.quantity, scrapQuantity: '0' })),
   });
-  return { store, ops, flow, completion, raw, tasks, input };
+  return { store, ops, flow, base, completion, raw, tasks, input };
 }

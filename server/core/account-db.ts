@@ -48,7 +48,7 @@ export const levelGrant: Record<AccountLevel, { role: UserRole; permissions: Per
   cashier: { role: 'admin', permissions: ['finance:view', 'finance:cash'] },
 };
 /** 从库里存的角色和权限认回账号级别 */
-export function accountLevel(role: string, permissions: string[]): AccountLevel {
+export function accountLevel(role: string, permissions: readonly Permission[]): AccountLevel {
   if (role !== 'super_admin' && permissions.includes('finance:close')) return 'finance';
   if (role !== 'super_admin' && permissions.includes('finance:cash')) return 'cashier';
   return role === 'super_admin' ? 'admin' : permissions.includes('business:edit') ? 'staff' : 'viewer';
@@ -57,7 +57,7 @@ const storedPermissions = z.array(z.enum(permissionNames));
 /** 库里存的权限（JSON 文字的字符串数组）：只认权限名单里的，名单外的按库里数据不对报出来 */
 export const permissionList = (encoded: string) => parseStoredJson(storedPermissions, encoded, 'users.permissions');
 /** 库里存的权限（JSON 文字）转成账号实际有的权限：超级管理员另外带上全部财务权限 */
-export function accountPermissions(role: string, encoded: string): string[] {
+export function accountPermissions(role: string, encoded: string): Permission[] {
   const permissions = permissionList(encoded);
   return role === 'super_admin' ? [...new Set([...permissions, ...financePermissions])] : permissions;
 }

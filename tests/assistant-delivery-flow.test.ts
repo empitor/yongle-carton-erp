@@ -2,12 +2,11 @@ import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { customerSchema, orderSchema, productSchema, today } from '../shared/core/domain.js';
+import { today } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { assistantFixture, autoConfirmAssistant, lastCard } from './assistant-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { field } from '../server/assistant/chat/result-fields.js';
@@ -16,23 +15,17 @@ import { readAs } from './read-result.js';
 
 /** 一个虚构客户订了 300 只，成品库存 500 只，已经安排了一张待送货的送货单。 */
 function setup(store: Store) {
-  const ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构甲电器', address: '虚构路1号' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构外箱' }));
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-11-09',
-      deliveryDate: '2026-11-20',
-      status: '已确认',
-      notes: '',
-      costs: null,
-      lines: [{ productId: product.id, productName: product.name, quantity: 300, unit: '只', unitPriceCents: 100, notes: '' }],
-    }),
-  );
-  const stock = ops.saveItem({ name: '虚构外箱', kind: 'finished', unit: '只', productId: product.id }, actor);
-  ops.move(stock.id, { action: 'in', quantity: '500', date: '2026-11-09', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: stock.version }, actor);
+  const base = businessBase(actor, store),
+    { ops, flow } = base;
+  const customer = base.customer({ name: '虚构甲电器', address: '虚构路1号' });
+  const product = base.product({ name: '虚构外箱' });
+  const order = base.order(customer, [base.line(product, 300, { productName: product.name, notes: '' })], {
+    orderDate: '2026-11-09',
+    deliveryDate: '2026-11-20',
+    notes: '',
+    costs: null,
+  });
+  const stock = base.finished(product, { name: '虚构外箱' }, { quantity: '500', date: '2026-11-09' });
   const delivery = flow.save(
     'delivery',
     {

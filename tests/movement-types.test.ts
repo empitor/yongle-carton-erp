@@ -73,16 +73,13 @@ function worldBase() {
     },
     actor,
   );
-  return { store, ops, flow, returns, customer, product, supplier, rawInput, raw, finished, order, purchase };
+  return { store, ops, flow, check: base.check, returns, customer, product, supplier, rawInput, raw, finished, order, purchase };
 }
 
 function world() {
   const base = worldBase();
   const { store, ops, flow, returns, customer, product, supplier, rawInput, raw, finished, order, purchase } = base;
-  const confirm = (d: { id: number }) => {
-    const p = flow.preview(d.id, actor);
-    return flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
-  };
+  const confirm = (d: { id: number }) => base.check(d);
   const arrival = confirm(
     saveDoc(flow, 
       'arrival',

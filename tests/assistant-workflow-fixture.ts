@@ -22,10 +22,10 @@ import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { AiTransport } from '../server/ai/transport.js';
 import { customerSchema, productSchema, today } from '../shared/core/domain.js';
 import type { Actor } from '../server/core/auth.js';
-import { actor as baseActor } from './actor-fixture.js';
+import { actor as baseActor, grant } from './actor-fixture.js';
 
 /** 能识别导入的账号 */
-export const importer = { ...baseActor, permissions: ['business:edit', 'import:execute'] };
+export const importer = { ...baseActor, permissions: grant('business:edit', 'import:execute') };
 const actor = importer;
 /** 识别结果：两行、单价四位小数、写明的合计 */
 export const workflowAnalysis = () => ({

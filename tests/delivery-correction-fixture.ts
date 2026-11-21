@@ -65,5 +65,5 @@ export function deliveryCorrectionSetup(t: TestContext, stock = '1000') {
       .prepare('SELECT id,source_kind,source_id,delta_units,date,notes FROM stock_movements ORDER BY rowid')
       .all()
       .map((m) => ({ ...m }));
-  return { store, ops, flow, customer, product, order, second, item, ship, input, preview, correct, balance, shipped, moves };
+  return { store, ops, flow, base, customer, product, order, second, item, ship, input, preview, correct, balance, shipped, moves };
 }

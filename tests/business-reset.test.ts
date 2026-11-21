@@ -20,8 +20,7 @@ import { financePermissions } from '../shared/core/accounts.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { OperationsService } from '../server/operations/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { assistantFixture } from './assistant-fixture.js';
 import { InboxService } from '../server/inbox/service.js';
 import { BotSettings } from '../server/inbox/bots/settings.js';
@@ -169,7 +168,7 @@ test('助手清空业务数据时，财务已有记录就拒绝，不留孤儿�
       lastFour: '0001',
       requestId: 'bank',
     });
-    store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
+    businessBase(actor, store).customer({ name: '虚构客户' });
     const tools = new AssistantTools(store);
     assert.throws(
       () => tools.prepare('management.reset', { scope: 'business' }, actor, 'binding'),
@@ -196,8 +195,9 @@ test('业务删除保留独立收件及附件，业务初始化清理两张表�
     settings.save('wecom_bot', { appId: 'fictional-bot', secret: 'fictional-secret', enabled: true });
     const before = settings.view('wecom_bot');
     const engine = new DatabaseMaintenanceService(store);
-    const customer = store.saveCustomer(customerSchema.parse({ name: '待删除虚构客户' }));
-    const product = store.saveProduct(productSchema.parse({ name: '待删除虚构产品' }));
+    const base = businessBase(superActor(), store);
+    const customer = base.customer({ name: '待删除虚构客户' });
+    const product = base.product({ name: '待删除虚构产品' });
     for (const [module, record, who] of [
       ['customers', customer, localAdministratorActor(superActor())],
       ['products', product, superActor()],
@@ -233,18 +233,17 @@ test('业务删除保留独立收件及附件，业务初始化清理两张表�
 test('本机最高管理员可一次清空业务数据，普通账号被拒绝，清理写入审计', () => {
   const f = assistantFixture();
   try {
-    const previous = f.store.saveCustomer(customerSchema.parse({ name: '一键清空客户' }));
-    f.store.saveProduct(
-      productSchema.parse({
-        name: '一键清空产品',
-        length: 30,
-        width: 20,
-        height: 10,
-        dimensionUnit: 'cm',
-        material: 'BC',
-        flute: 'BC',
-      }),
-    );
+    const base = businessBase(assistantActor, f.store);
+    const previous = base.customer({ name: '一键清空客户' });
+    base.product({
+      name: '一键清空产品',
+      length: 30,
+      width: 20,
+      height: 10,
+      dimensionUnit: 'cm',
+      material: 'BC',
+      flute: 'BC',
+    });
     assert.throws(
       () => f.manager.tools.prepare('management.reset', { scope: 'business' }, assistantActor, 'binding'),
       /最高管理员/,
@@ -260,7 +259,7 @@ test('本机最高管理员可一次清空业务数据，普通账号被拒绝�
       0,
     );
     assert.equal(count(f.store.db, "SELECT count(*) FROM business_audit WHERE action = 'business-reset'"), 1);
-    const next = f.store.saveCustomer(customerSchema.parse({ name: '初始化后的虚构客户' }));
+    const next = base.customer({ name: '初始化后的虚构客户' });
     assert(next.id > previous.id, '保留的审计与旧任务不能指向复用ID的新记录');
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
@@ -272,22 +271,15 @@ test('初始化后编号接着往上走，不再逐行写墓碑；单号里的�
   const store = new Store(':memory:');
   try {
     const actor = who(),
-      ops = new OperationsService(store);
+      base = businessBase(actor, store),
+      { ops } = base;
     // 六类档案和单据各建一条，返回分到的编号和单号
     const seed = (tag: string) => {
-      const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' + tag })),
-        product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' + tag })),
-        supplier = ops.saveSupplier({ name: '虚构供应商' + tag }, actor),
-        item = ops.saveItem({ name: '虚构纸板' + tag, kind: 'raw', unit: '张' }, actor),
-        order = store.saveOrder(
-          orderSchema.parse({
-            customerId: customer.id,
-            orderDate: '2026-10-01',
-            deliveryDate: '2026-10-30',
-            status: '已确认',
-            lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 100 }],
-          }),
-        ),
+      const customer = base.customer({ name: '虚构客户' + tag }),
+        product = base.product({ name: '虚构纸箱' + tag }),
+        supplier = base.supplier({ name: '虚构供应商' + tag }),
+        item = base.raw({ name: '虚构纸板' + tag }),
+        order = base.order(customer, [base.line(product, 100)], { orderDate: '2026-10-01', deliveryDate: '2026-10-30' }),
         purchase = ops.savePurchase(
           {
             supplierId: supplier.id,

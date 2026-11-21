@@ -2,11 +2,9 @@
 // 两个标签页、改选的响应丢了、改选中途出错回滚。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { autoConfirmAssistant, lastCard } from './assistant-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { superActor } from './actor-fixture.js';
@@ -15,16 +13,16 @@ import { readAs } from './read-result.js';
 /** 一个虚构供应商、一张已入库 1000 张的到货单，助手提出删除这个供应商 */
 async function policyCard(f: ReturnType<typeof autoConfirmAssistant>) {
   const who = superActor();
-  const ops = new OperationsService(f.store),
-    flow = new FlowService(f.store);
-  const supplier = ops.saveSupplier({ name: '虚构选库存供应商' }, who);
-  const raw = ops.saveItem({ name: '虚构选库存纸板', kind: 'raw', unit: '张' }, who);
+  const base = businessBase(who, f.store),
+    { ops, flow } = base;
+  const supplier = base.supplier({ name: '虚构选库存供应商' });
+  const raw = base.raw({ name: '虚构选库存纸板' });
   const arrival = flow.save(
     'arrival',
     { date: '2026-11-07', supplierId: supplier.id, reference: 'FICT-POLICY-1', lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity: '1000', unitPrice: '1', priceBasis: 'quantity' }] },
     who,
   );
-  flow.confirm(arrival.id, { previewDigest: flow.preview(arrival.id, who).previewDigest, requestId: randomUUID(), acknowledged: true }, who);
+  base.check(arrival);
   const thread = f.manager.create(who);
   f.replies.push({ message: '', toolCalls: [{ name: 'records.delete', args: { module: 'suppliers', id: supplier.id } }] });
   const plan = lastCard(await f.say(thread.id, '把供应商 虚构选库存供应商 删掉', {}, who));

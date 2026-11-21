@@ -4,8 +4,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { AuthManager } from '../server/core/auth.js';
-import { OperationsService } from '../server/operations/service.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
@@ -120,7 +118,7 @@ test('服务器上从域名访问：草稿直接删；已确认的单据和档�
     assert.ok(!f.store.products(true).some((p) => p.id === product.id));
     // 退出超级管理员模式后，档案又删不了
     await post('/auth/super-admin/exit', {});
-    const other = f.store.saveProduct(productSchema.parse({ name: '虚构另一种纸箱' }));
+    const other = f.base.product({ name: '虚构另一种纸箱' });
     r = await post('/deletions/preview', { module: 'products', items: [{ id: other.id, version: other.version }] });
     assert.equal(r.status, 403);
   } finally {
@@ -136,19 +134,20 @@ test('删除的库存处理：没动过库存的单据不用选；动过库存�
   assert.equal(taskPlan.inventoryChoice, 0);
   assert.match(taskPlan.inventoryEffect, /没有动过库存/);
   // 一张已出库的送货单：入库 1000，送出 300
-  const ops = new OperationsService(f.store);
+  const { ops } = f.base;
   const product = f.store.products()[0];
-  const item = ops.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '只', productId: product.id }, actor);
-  ops.move(item.id, { action: 'in', quantity: '1000', date: '2026-11-09', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: item.version }, actor);
-  const ship = () => {
-    const d = saveDoc(f.flow, 'delivery', { date: '2026-11-10', plannedDate: '2026-11-10', customerId: customer.id, address: '', contact: '', phone: '', lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: item.id, quantity: '300', notes: '' }], notes: '' }, actor);
-    const check = f.flow.preview(d.id, actor);
-    return f.flow.confirm(d.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
-  };
-  const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
-  const order = f.store.saveOrder(
-    orderSchema.parse({ customerId: customer.id, orderDate: '2026-11-09', deliveryDate: '2026-11-20', status: '已确认', notes: '', costs: null, lines: [{ productId: product.id, productName: product.name, quantity: 1000, unit: '只', unitPriceCents: 100, notes: '' }] }),
-  );
+  const item = f.base.finished(product, { name: '虚构纸箱' }, { quantity: '1000', date: '2026-11-09' });
+  const ship = () =>
+    f.base.check(
+      saveDoc(f.flow, 'delivery', { date: '2026-11-10', plannedDate: '2026-11-10', customerId: customer.id, address: '', contact: '', phone: '', lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: item.id, quantity: '300', notes: '' }], notes: '' }, actor),
+    );
+  const customer = f.base.customer({ name: '虚构客户' });
+  const order = f.base.order(customer, [f.base.line(product, 1000, { productName: product.name, notes: '' })], {
+    orderDate: '2026-11-09',
+    deliveryDate: '2026-11-20',
+    notes: '',
+    costs: null,
+  });
   const balance = () => ops.repo.balance(item.id);
   const remove = (doc: { id: number; version: number }, inventoryPolicy?: 'preserve' | 'recalculate') => {
     const selection = { module: 'delivery', items: [{ id: doc.id, version: doc.version }], ...(inventoryPolicy ? { inventoryPolicy } : {}) };

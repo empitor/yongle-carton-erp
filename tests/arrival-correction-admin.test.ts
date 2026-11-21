@@ -155,7 +155,7 @@ test('本机管理员删一行、换挂同一订货单里的采购明细：撤�
       reference: '虚构两行到货',
       lines: [l0, l1].map((l) => ({ stockId: f.raw.id, purchaseLineId: l.id, item: { name: f.raw.name, unit: '张' }, quantity: '5', unitPrice: '2', priceBasis: 'quantity' })),
     }, clerk);
-    const a = f.flow.confirm(draft.id, { previewDigest: f.flow.preview(draft.id, clerk).previewDigest, requestId: randomUUID(), acknowledged: true }, clerk);
+    const a = f.base.check(draft, {}, clerk);
     const moves = (id: number) =>
       f.store.db.prepare("SELECT * FROM stock_movements WHERE source_kind='flow_arrival' AND source_id=? ORDER BY rowid").all(String(id));
     const received = () => p.current().lines.map((l) => l.receivedQuantity);

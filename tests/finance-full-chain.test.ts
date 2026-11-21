@@ -1,12 +1,9 @@
 // 虚构制造业全链路：计价、费用、工资、折旧、三张报表、按顺序结账（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
-import { orderSchema, productSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceReports } from '../server/finance/reports.js';
@@ -23,6 +20,7 @@ import { funds, bill as invoiceInput, maker, approver, newSettings, postDrafts, 
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
 import { saveDoc } from './receive-fixture.js';
+import { grant } from './actor-fixture.js';
 
 /** 1 月 5 日买一台 120 元的虚构设备（12 个月、无残值），银行付款 */
 const addAsset = (assets: FinanceAssets) =>
@@ -43,29 +41,18 @@ const addAsset = (assets: FinanceAssets) =>
 
 /** 业务底子：虚构纸箱产品、原材料纸板（1000×800mm）和成品纸箱；下单（每个 30 元、未税 0）、确认单据（按单据日送货）、送货 */
 function business(s: Store) {
-  const ops = new OperationsService(s),
-    flow = new FlowService(s);
-  const product = s.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
-  const raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' }, maker);
-  const finished = ops.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '个', productId: product.id }, maker);
+  const base = businessBase(maker, s),
+    { ops, flow } = base;
+  const product = base.product({ name: '虚构纸箱' });
+  const raw = base.raw({ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm' });
+  const finished = base.finished(product, { name: '虚构纸箱', unit: '个' });
   const addOrder = (orderDate: string, deliveryDate: string, quantity: number) =>
-    s.saveOrder(
-      orderSchema.parse({
-        customerId: 1,
-        orderDate,
-        deliveryDate,
-        status: '已确认',
-        taxRate: '0',
-        taxMode: '未税',
-        lines: [{ productId: product.id, productName: product.name, unit: '个', quantity, unitPriceCents: 3000, unitPriceExact: '30.0000' }],
-      }),
+    base.order(
+      { id: 1 },
+      [base.line(product, quantity, { productName: product.name, unit: '个', unitPriceCents: 3000, unitPriceExact: '30.0000' })],
+      { orderDate, deliveryDate, taxRate: '0', taxMode: '未税' },
     );
-  const confirm = (doc: { id: number }) =>
-    flow.confirm(
-      doc.id,
-      { previewDigest: flow.preview(doc.id, maker).previewDigest, requestId: randomUUID(), acknowledged: true, ...shipOnDocDate(flow, doc.id) },
-      maker,
-    );
+  const confirm = (doc: { id: number }) => base.check(doc, shipOnDocDate(flow, doc.id));
   const deliver = (order: ReturnType<typeof addOrder>, date: string, quantity: string) =>
     confirm(
       saveDoc(
@@ -175,7 +162,7 @@ function assertUnitFollowsKind(s: Store, raw: { id: number }, cost: FinanceCosti
   assert.throws(() => s.db.prepare("UPDATE stock_items SET unit='卷' WHERE id=?").run(raw.id), /CHECK constraint failed/);
   const before = one(s.db, rows.stock_items.pick({ raw_key: true }), 'SELECT raw_key FROM stock_items WHERE id=?', raw.id);
   if (!before) throw new Error('测试数据：没有库存品 ' + raw.id);
-  const spare = s.saveProduct(productSchema.parse({ name: '虚构改类别用的产品' }));
+  const spare = businessBase(maker, s).product({ name: '虚构改类别用的产品' });
   s.db.prepare("UPDATE stock_items SET kind='finished',unit='只',product_id=?,raw_key=NULL WHERE id=?").run(spare.id, raw.id);
   assert.throws(() => cost.run(maker, { period: '2026-02', requestId: 'wrong-unit' }), /单位/);
   s.db.prepare("UPDATE stock_items SET kind='raw',unit='张',product_id=NULL,raw_key=? WHERE id=?").run(before.raw_key, raw.id);
@@ -199,7 +186,7 @@ test('虚构制造业全链路的计价、费用、工资、折旧和三张报�
     const b = business(s);
     februaryBooks(s, cash, februaryDocuments(s, b));
     februaryExpenseAndWages(s, payroll);
-    const finance = { ...maker, role: undefined, permissions: ['finance:view', 'finance:edit'] };
+    const finance = { ...maker, role: undefined, permissions: grant('finance:view', 'finance:edit') };
     assert.throws(() => payroll.list(finance, { period: '2026-02', detail: '1' }), /权限/);
     assert.equal(payroll.list(finance, { period: '2026-02' }).rows[0].gross, 300);
     assertUnitFollowsKind(s, b.raw, cost);

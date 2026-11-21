@@ -2,10 +2,8 @@ import { z } from 'zod';
 import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { OperationsService } from '../server/operations/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
 import { assistantFixture } from './assistant-fixture.js';
 import type { Store as StoreType } from '../server/core/db.js';
@@ -23,30 +21,21 @@ const groups = z.array(z.looseObject({ lines: rows }));
  * 另一张甲的订单要 200 只另一种纸箱，没有库存。
  */
 function setup(store: StoreType) {
-  const ops = new OperationsService(store);
-  const a = store.saveCustomer(customerSchema.parse({ name: '虚构甲电器', address: '虚构路1号' })),
-    b = store.saveCustomer(customerSchema.parse({ name: '虚构乙食品', address: '虚构路2号' }));
-  const box = store.saveProduct(productSchema.parse({ name: '虚构外箱' })),
-    tray = store.saveProduct(productSchema.parse({ name: '虚构内托' }));
-  const order = (customerId: number, deliveryDate: string, productId: number, name: string, quantity: number) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId,
-        orderDate: '2026-11-01',
-        deliveryDate,
-        status: '已确认',
-        notes: '',
-        costs: null,
-        lines: [{ productId, productName: name, quantity, unit: '只', unitPriceCents: 100, notes: '' }],
-      }),
-    );
-  const oa = order(a.id, '2026-11-15', box.id, box.name, 300),
-    ob = order(b.id, '2026-11-20', box.id, box.name, 400),
-    oc = order(a.id, '2026-11-18', tray.id, tray.name, 200);
-  const stock = ops.saveItem({ name: '虚构外箱', kind: 'finished', unit: '只', productId: box.id }, actor);
-  ops.saveItem({ name: '虚构内托', kind: 'finished', unit: '只', productId: tray.id }, actor);
-  ops.move(stock.id, { action: 'in', quantity: '500', date: '2026-11-05', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: stock.version }, actor);
-  return { ops, a, b, box, tray, oa, ob, oc, stock };
+  const base = businessBase(actor, store),
+    { ops } = base;
+  const a = base.customer({ name: '虚构甲电器', address: '虚构路1号' }),
+    b = base.customer({ name: '虚构乙食品', address: '虚构路2号' });
+  const box = base.product({ name: '虚构外箱' }),
+    tray = base.product({ name: '虚构内托' });
+  const order = (c: { id: number }, deliveryDate: string, p: { id: number; name: string }, quantity: number) =>
+    base.order(c, [base.line(p, quantity, { productName: p.name, notes: '' })], { orderDate: '2026-11-01', deliveryDate, notes: '', costs: null });
+  const oa = order(a, '2026-11-15', box, 300),
+    ob = order(b, '2026-11-20', box, 400),
+    oc = order(a, '2026-11-18', tray, 200);
+  const stock = base.finished(box, { name: '虚构外箱' });
+  base.finished(tray, { name: '虚构内托' });
+  base.stockIn(stock, { quantity: '500', date: '2026-11-05' });
+  return { ops, base, a, b, box, tray, oa, ob, oc, stock };
 }
 
 test('按交期先后把成品排满：先给交期早的甲，剩下给乙；指定只给乙也行', () => {
@@ -106,8 +95,8 @@ test('delivery.plan 按主键批量读：不全量加载订单和库存品再筛
   try {
     const tools = new AssistantTools(fx.store);
     // 另一个不相干的客户、产品和库存：不该被读进来，也不影响结果
-    const other = fx.store.saveProduct(productSchema.parse({ name: '虚构无关纸箱' }));
-    const otherStock = f.ops.saveItem({ name: '虚构无关纸箱', kind: 'finished', unit: '只', productId: other.id }, actor);
+    const other = f.base.product({ name: '虚构无关纸箱' });
+    const otherStock = f.base.finished(other, { name: '虚构无关纸箱' });
     const expectedByOrders = tools.read('delivery.plan', { orderIds: [f.oa.id, f.ob.id, f.oc.id] }, actor);
     const expectedByStock = tools.read('delivery.plan', { stockIds: [f.stock.id] }, actor);
     const repo = tools.ops.repo,

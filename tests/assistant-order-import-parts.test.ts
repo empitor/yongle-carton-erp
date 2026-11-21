@@ -16,9 +16,9 @@ import { WORKFLOW_DIRECT } from '../server/assistant/chat/workflow-direct.js';
 import { orderImportTools } from '../server/assistant/tools/order-import.js';
 import { InboxService } from '../server/inbox/index.js';
 import { AppError } from '../server/core/errors.js';
-import { actor } from './actor-fixture.js';
+import { actor, grant } from './actor-fixture.js';
 
-const who = { ...actor, permissions: ['business:edit', 'import:execute'] };
+const who = { ...actor, permissions: grant('business:edit', 'import:execute') };
 
 async function setup() {
   const f = createOrderWorkflowFixture();

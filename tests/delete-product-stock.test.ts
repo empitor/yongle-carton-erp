@@ -8,15 +8,13 @@ import { Store } from '../server/core/db.js';
 import { AuthManager } from '../server/core/auth.js';
 import { count } from '../server/core/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { impactRowSchema } from '../shared/business/deletion-request.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import './delete-fixture.js';
 import { actor, superActor } from './actor-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 /** 删除预览的回答里测试要看的几项（影响清单按共用结构读） */
 const previewAnswer = z.looseObject({ digest: z.string(), inventoryChoice: z.number(), impact: z.array(impactRowSchema) });
@@ -36,8 +34,8 @@ async function deletionServer() {
     return data;
   };
   await post('/auth/super-admin/enter', { password });
-  const flow = new FlowService(store),
-    ops = new OperationsService(store);
+  const base = businessBase(actor, store),
+    { flow, ops } = base;
   const move = (item: { id: number }, action: string, quantity: string) =>
     ops.move(
       item.id,
@@ -46,7 +44,7 @@ async function deletionServer() {
     );
   const preview = async (selection: unknown) => previewAnswer.parse(await post('/deletions/preview', selection));
   const execute = (selection: object, digest: string) => post('/deletions/execute', { ...selection, requestId: randomUUID(), deletionDigest: digest, password });
-  return { store, flow, ops, move, preview, execute, close: () => h.close() };
+  return { store, flow, ops, base, move, preview, execute, close: () => h.close() };
 }
 type Server = Awaited<ReturnType<typeof deletionServer>>;
 
@@ -55,26 +53,27 @@ type Server = Awaited<ReturnType<typeof deletionServer>>;
  * 纸板期初 100 张。
  */
 function productStocks(s: Server) {
-  const { store, flow, ops, move } = s;
-  const confirm = (doc: { id: number }) =>
-    flow.confirm(doc.id, { previewDigest: flow.preview(doc.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
-  const board = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor);
-  move(board, 'in', '100');
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
-  const [busy, idle, fresh] = ['虚构成品甲', '虚构成品乙', '虚构成品丙'].map((name) => store.saveProduct(productSchema.parse({ name })));
-  const order = store.saveOrder(
-    orderSchema.parse({ customerId: customer.id, orderDate: '2026-11-09', deliveryDate: '2026-11-20', status: '已确认', notes: '', costs: null, lines: [{ productId: busy.id, productName: busy.name, quantity: 100, unit: '只', unitPriceCents: 100, notes: '' }] }),
-  );
+  const { flow, base, move } = s;
+  const confirm = (doc: { id: number }) => base.check(doc);
+  const board = base.raw({ name: '虚构纸板' }, { quantity: '100', date: '2026-11-09', notes: '虚构' });
+  const customer = base.customer({ name: '虚构客户' });
+  const [busy, idle, fresh] = ['虚构成品甲', '虚构成品乙', '虚构成品丙'].map((name) => base.product({ name }));
+  const order = base.order(customer, [base.line(busy, 100, { productName: busy.name, notes: '' })], {
+    orderDate: '2026-11-09',
+    deliveryDate: '2026-11-20',
+    notes: '',
+    costs: null,
+  });
   const task = saveDoc(flow, 'task', { date: '2026-11-09', plannedDate: '2026-11-10', productId: busy.id, quantity: '100', unit: '只', orderIds: [order.id], notes: '' }, actor);
   const made = confirm(
     saveDoc(flow, 'production', { date: '2026-11-10', taskId: task.id, productId: busy.id, goodQuantity: '100', operator: '虚构机长', materials: [{ stockId: board.id, issued: '10', returned: '0' }] }, actor),
   );
   const busyStock = Number(flow.get(made.id, 'production').finishedStockId);
   confirm(saveDoc(flow, 'delivery', { date: '2026-11-10', plannedDate: '2026-11-10', customerId: customer.id, address: '', contact: '', phone: '', lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: busyStock, quantity: '30', notes: '' }], notes: '' }, actor));
-  const idleStock = ops.saveItem({ name: '虚构成品乙', kind: 'finished', unit: '只', productId: idle.id }, actor);
+  const idleStock = base.finished(idle, { name: '虚构成品乙' });
   move(idleStock, 'in', '50');
   move(idleStock, 'out', '50');
-  const freshStock = ops.saveItem({ name: '虚构成品丙', kind: 'finished', unit: '只', productId: fresh.id }, actor);
+  const freshStock = base.finished(fresh, { name: '虚构成品丙' });
   return { board, busy, idle, fresh, busyStock, idleStock: idleStock.id, freshStock: freshStock.id };
 }
 
@@ -135,12 +134,15 @@ test('删客户不动成品库存和它关联的产品；初始化（清空业�
   try {
     productStocks(s);
     // 删客户：产品不挂客户，成品库存和它关联的产品都不动
-    const keep = store.saveProduct(productSchema.parse({ name: '虚构成品丁' })),
-      keepStock = ops.saveItem({ name: '虚构成品丁', kind: 'finished', unit: '只', productId: keep.id }, actor),
-      buyer = store.saveCustomer(customerSchema.parse({ name: '虚构要删的客户' }));
-    store.saveOrder(
-      orderSchema.parse({ customerId: buyer.id, orderDate: '2026-11-09', deliveryDate: '2026-11-20', status: '已确认', notes: '', costs: null, lines: [{ productId: keep.id, productName: keep.name, quantity: 10, unit: '只', unitPriceCents: 100, notes: '' }] }),
-    );
+    const keep = s.base.product({ name: '虚构成品丁' }),
+      keepStock = s.base.finished(keep, { name: '虚构成品丁' }),
+      buyer = s.base.customer({ name: '虚构要删的客户' });
+    s.base.order(buyer, [s.base.line(keep, 10, { productName: keep.name, notes: '' })], {
+      orderDate: '2026-11-09',
+      deliveryDate: '2026-11-20',
+      notes: '',
+      costs: null,
+    });
     const customerSelection = { module: 'customers', items: [{ id: buyer.id, version: buyer.version }] };
     const customerPlan = await s.preview(customerSelection);
     assert.ok(!customerPlan.impact.some((r) => ['products', 'stock_items'].includes(r.table)));

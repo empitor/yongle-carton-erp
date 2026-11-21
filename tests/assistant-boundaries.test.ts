@@ -22,7 +22,7 @@ import { count, type Actor } from '../server/core/index.js';
 import { InboxService } from '../server/inbox/service.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import { actor, superActor } from './actor-fixture.js';
+import { actor, grant, superActor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 
 const call = (name: string, args: unknown = {}, message = '') => ({ message, toolCalls: [{ name, args }] });
@@ -75,7 +75,7 @@ const audits = (f: ReturnType<typeof assistantFixture>) => count(f.store.db, 'SE
 test('界限 1 权限跟账号走：只读账号的清单里没有写入工具，模型硬调也不执行；只给超级管理员的工具别的账号拿不到', async () => {
   const f = assistantFixture();
   try {
-    const viewer = { ...actor, id: 'boundary-viewer', permissions: [] as string[] };
+    const viewer = { ...actor, id: 'boundary-viewer', permissions: grant() };
     f.replies.push(call('records.propose_save', { module: 'customers', patch: { name: '虚构越权客户' } }), { message: '这个账号改不了。' });
     const t = f.manager.create(viewer);
     const v = await say(f, t.id, '新建客户：虚构越权客户', viewer);

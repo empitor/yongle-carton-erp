@@ -1,13 +1,12 @@
 // 删除影响清单给人看的样子：每种表的叫法、顶部汇总、库存说明、确认窗口的标题和按钮、订货单怎么列。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { z } from 'zod';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { impactRowSchema } from '../shared/business/index.js';
 import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { deletionDoneMessage, deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { deletionHeadline, deletionInternalTables as internalTables } from '../shared/business/deletion-headline.js';
@@ -32,11 +31,10 @@ const byTable = (plan: Plan, table: string) => plan.impact.filter((r) => r.table
 
 // 一家供应商：两张采购单合成一张订货单、另一张自己一张订货单（单号就是采购单号），一张到货单收了第一张采购单的货
 function purchasing() {
-    const store = new Store(':memory:');
-    const ops = new OperationsService(store),
-      flow = new FlowService(store);
-    const supplier = ops.saveSupplier({ name: '虚构叫法供应商' }, actor);
-    const raw = ops.saveItem({ name: '虚构叫法纸板', kind: 'raw', unit: '张' }, actor);
+    const base = businessBase(actor),
+      { store, ops, flow } = base;
+    const supplier = base.supplier({ name: '虚构叫法供应商' });
+    const raw = base.raw({ name: '虚构叫法纸板' });
     const buy = () =>
       ops.savePurchase(
         {
@@ -70,7 +68,7 @@ function purchasing() {
       },
       actor,
     );
-    flow.confirm(saved.id, { previewDigest: flow.preview(saved.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    base.check(saved);
     const purchase = () => must(new OperationsRepository(store).purchases(true).find((p) => p.id === first.id), '采购单');
     return { store, ops, flow, supplier, raw, first, second, alone, arrival: flow.get(saved.id), purchase };
 }

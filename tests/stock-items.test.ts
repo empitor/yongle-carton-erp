@@ -408,7 +408,7 @@ test('库存可用量扣掉待送货占用的，送出后变成实际库存；�
     const draft = saveDoc(f.flow, 'delivery', { date: '2026-10-06', customerId: f.customer.id, lines: [{ orderId: f.order.id, orderLineId: f.order.lines[0].id, stockId: f.finished.id, quantity: '80' }] }, f.actor);
     const units = () => [f.item(f.finished.id).balanceUnits, f.item(f.finished.id).reservedUnits, f.item(f.finished.id).availableUnits];
     assert.deepEqual(units(), [100000, 80000, 20000]);
-    f.flow.confirm(draft.id, { previewDigest: f.flow.preview(draft.id, f.actor).previewDigest, requestId: randomUUID(), acknowledged: true }, f.actor);
+    f.base.check(draft, {}, f.actor);
     assert.deepEqual(units(), [20000, 0, 20000]);
     for (const status of ['待订货', '已订货'])
       f.ops.savePurchase({ supplierId: f.supplier.id, orderDate: '2026-10-01', status, lines: [{ name: f.raw.name, stockItemId: f.raw.id, unit: '张', quantity: '50', priceBasis: 'quantity' }] }, f.actor);

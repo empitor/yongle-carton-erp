@@ -38,7 +38,7 @@ function setup(t: TestContext, good = '1000') {
   });
   const ship = (quantity: string) => {
     const d = f.flow.save('delivery', { date: '2026-10-28', plannedDate: '2026-10-28', customerId: f.customer.id, lines: [{ orderId: f.order.id, orderLineId: f.order.lines[0].id, stockId: f.finished.id, quantity }] }, f.actor);
-    return f.flow.confirm(d.id, { previewDigest: f.flow.preview(d.id, f.actor).previewDigest, requestId: randomUUID(), acknowledged: true, shipDate: '2026-10-28' }, f.actor);
+    return f.base.check(d, { shipDate: '2026-10-28' }, f.actor);
   };
   const input = (id: number, extra: Record<string, unknown>) => ({ expectedVersion: f.flow.get(id).version, reason: '虚构：登记多了', ...extra });
   const preview = (id: number, extra: Record<string, unknown>, who: Actor = superUser()) => ofKind(planCorrection(f.store, id, input(id, extra), who), 'production');

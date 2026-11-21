@@ -1,7 +1,7 @@
 // 助手的第二批排查工具（diagnostics.errors、logs.read、accounts.events、source.search、source.read）：直接调用各工具；
 // 全部排查工具（连同第一批、系统状态、联网）的机密扫描。联网命令本身的测试在 assistant-web-search.test.ts。
 // 数据全是虚构的，库在内存或临时目录里。
-import { pageActor } from './actor-fixture.js';
+import { grant, pageActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -194,7 +194,7 @@ test('机密一律不返回：每个排查工具（和系统状态、联网）�
     };
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
     // 第一批工具要业务编辑权限
-    const chief = { ...boss, permissions: ['business:edit'] };
+    const chief = { ...boss, permissions: grant('business:edit') };
     const call = directReader(store, services);
     const results: Record<string, unknown> = {
       'history.records 按记录': call(historyReaders, 'history.records', { module: 'customers', id: c.id }, chief),

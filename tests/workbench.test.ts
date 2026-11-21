@@ -150,8 +150,7 @@ test('有客户料号的纸箱从整批完工到部分送货：成品规格按�
       { date, customerId: f.customer.id, lines: [{ stockId: stock.id, orderId: f.order.id, orderLineId: f.order.lines[0].id, quantity: '40' }] },
       actor,
     );
-    const p = f.flow.preview(doc.id, actor);
-    f.flow.confirm(doc.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true, ...shipOnDocDate(f.flow, doc.id) }, actor);
+    f.base.check(doc, shipOnDocDate(f.flow, doc.id), actor);
     assert.equal(f.ops.repo.balance(stock.id), 60000);
     assert.equal(f.store.orders()[0].shippingProgress, '部分发货');
     const work = buildWorkbench(f.store, date);

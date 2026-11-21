@@ -9,7 +9,6 @@ import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { stockBatches, type BatchMovement } from '../shared/business/stock-batches.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { createBusinessService } from '../server/business/service.js';
-import { customerSchema } from '../shared/core/domain.js';
 import type { Order } from '../shared/core/order-view.js';
 import type { Actor } from '../server/core/auth.js';
 // 删除引擎要用到各模块登记的删除规则（和 tests/delete-rules.test.ts 一样先加载）
@@ -304,7 +303,7 @@ test('先做的先发按完工日期：先登记 10-13、再补录 10-10，不�
 
 test('其他入库说清来由：头部是类型，带出流水备注（原因）和登记人；用料分开给名称、材质、楞型和张数', () => {
   const f = setup();
-  const board = f.ops.saveItem({ name: '虚构BC五层纸板 1250×1000', kind: 'raw', unit: '张', material: 'K=A', flute: 'BC' }, clerk);
+  const board = f.base.raw({ name: '虚构BC五层纸板 1250×1000', material: 'K=A', flute: 'BC' });
   f.stockIn('50', board.id);
   const t = f.task([f.orderA.id]);
   f.complete(t.id, '100', '2026-10-25', { materials: [{ stockId: board.id, issued: '30', returned: '0' }] });
@@ -378,7 +377,7 @@ test('拆分送货单（出库改挂到新单）以后撤销其中一张：只�
   });
   // 订单 A 换客户：送货单拆成两张，订单 A 那笔出库改挂到新单
   const who = localAdmin();
-  const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构换来的客户' }));
+  const other = f.base.customer({ name: '虚构换来的客户' });
   const current = f.store.order(f.orderA.id);
   assert.ok(current);
   createBusinessService(f.store).execute(

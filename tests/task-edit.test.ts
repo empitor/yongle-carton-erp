@@ -2,28 +2,22 @@
 // 计划数不能少于已登记的完工数（已入库加待核对入库，取消、撤销的不算）。内存库、虚构数据。
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import type { Actor } from '../server/core/auth.js';
 import { AppError } from '../server/core/errors.js';
 import { count } from '../server/core/index.js';
-import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
-import { productSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { localAdmin } from './flow-fixture.js';
 import { actor } from './actor-fixture.js';
 
 /** 一张已下达的生产任务（普通编辑账号，不是本机管理员），成品和原材料档案各一个；测试结束关库。 */
 function setup(t: TestContext) {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
+  const base = businessBase(actor),
+    { store, flow } = base;
   t.after(() => store.close());
-  const product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
-  const finished = ops.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '只', productId: product.id }, actor);
-  const raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor);
-  ops.move(raw.id, { action: 'in', quantity: '100', date: '2026-11-09', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: raw.version }, actor);
+  const product = base.product({ name: '虚构纸箱' });
+  const finished = base.finished(product, { name: '虚构纸箱' });
+  const raw = base.raw({ name: '虚构纸板' }, { quantity: '100', date: '2026-11-09' });
   const input = { date: '2026-11-09', plannedDate: '2026-11-10', productId: product.id, quantity: '100', unit: '只', orderIds: [], notes: '' };
   // 安排生产就是下达：保存出来就是已下达
   const task = flow.save('task', input, actor);
@@ -36,8 +30,8 @@ function setup(t: TestContext) {
       actor,
     );
   /** 待入库的完工单核对入库 */
-  const stockIn = (id: number) => flow.confirm(id, { previewDigest: flow.preview(id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
-  return { store, flow, product, task, input, edit, complete, stockIn };
+  const stockIn = (id: number) => base.check({ id });
+  return { store, flow, base, product, task, input, edit, complete, stockIn };
 }
 /** 计划数改得比已登记的完工数少：按业务校验不通过拒绝（422），说清已入库、待核对入库各多少 */
 const belowRegistered = (done: string, waiting: string) => (e: unknown) =>
@@ -68,7 +62,7 @@ test('开工以后只有本机管理员能改（和改没开工的同一个保�
   assert.throws(() => f.edit({ quantity: '120' }), /已经有完工单/);
   const after = f.edit({ quantity: '120', notes: '虚构：客户加量' }, admin);
   assert.deepEqual([after.status, after.quantity, after.productName, after.confirmedBy, after.confirmedAt], ['confirmed', '120', f.task.productName, f.task.confirmedBy, f.task.confirmedAt]);
-  const other = f.store.saveProduct(productSchema.parse({ name: '虚构另一款纸箱' }));
+  const other = f.base.product({ name: '虚构另一款纸箱' });
   assert.throws(() => f.edit({ productId: other.id }, admin), /已经有完工单，不能换产品/);
   // 做完了（已入库 ≥ 计划）不能改计划日
   f.edit({ quantity: '10' }, admin);

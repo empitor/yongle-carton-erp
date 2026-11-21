@@ -2,12 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { customerSchema, orderSchema, productSchema, today } from '../shared/core/domain.js';
+import { orderSchema, today } from '../shared/core/domain.js';
 import { selectedStockUnits } from '../shared/business/warehouse-delivery.js';
 import { flowStatusLabel } from '../shared/business/physical-flow.js';
 import { Store } from '../server/core/db.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
+import { businessBase } from './business-base-fixture.js';
 import { flowFixture, clerk, clerk as actor, localAdmin } from './flow-fixture.js';
 import { updateDocumentInfo } from '../server/flow/document-info.js';
 import { viewOfKind } from '../server/flow/read.js';
@@ -141,26 +140,15 @@ test('改已送达的送货单的说明（编辑只改备注）：出库、送�
 
 /** 两个客户、两种产品（各有成品 50 只），每个客户一张两行的订单 */
 function deliveryFixture() {
-  const store = new Store(':memory:'),
-    flow = new FlowService(store),
-    ops = new OperationsService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '送货甲客户' })),
-    other = store.saveCustomer(customerSchema.parse({ name: '送货乙客户' }));
-  const products = ['成品一', '成品二'].map((name) => store.saveProduct(productSchema.parse({ name })));
-  const stocks = products.map((p) => ops.saveItem({ name: p.name, kind: 'finished', productId: p.id, unit: '只' }, actor));
-  for (const stock of stocks)
-    ops.move(stock.id, { expectedVersion: stock.version, requestId: randomUUID(), action: 'in', quantity: '50', date: today(), notes: '虚构期初', acknowledged: true }, actor);
-  const createOrder = (customerId: number) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId,
-        orderDate: today(),
-        deliveryDate: today(),
-        status: '已确认',
-        lines: products.map((p, i) => ({ productId: p.id, quantity: (i + 1) * 10, unit: '只', unitPriceCents: 100 })),
-      }),
-    );
-  return { store, flow, ops, customer, other, products, stocks, order: createOrder(customer.id), otherOrder: createOrder(other.id) };
+  const base = businessBase(actor),
+    { store, flow, ops } = base;
+  const customer = base.customer({ name: '送货甲客户' }),
+    other = base.customer({ name: '送货乙客户' });
+  const products = ['成品一', '成品二'].map((name) => base.product({ name }));
+  const stocks = products.map((p) => base.finished(p, { name: p.name }, { quantity: '50', date: today() }));
+  const createOrder = (c: { id: number }) =>
+    base.order(c, products.map((p, i) => base.line(p, (i + 1) * 10)), { orderDate: today(), deliveryDate: today() });
+  return { store, flow, ops, check: base.check, customer, other, products, stocks, order: createOrder(customer), otherOrder: createOrder(other) };
 }
 
 test('多种产品的送货单：待送货不扣库存；保存、确认同一请求不重复；分两批送完订单才算已发货；别的客户的订单、没挂订单的行都拒', () => {
@@ -209,12 +197,7 @@ test('多种产品的送货单：待送货不扣库存；保存、确认同一�
       },
       actor,
     );
-    const p2 = f.flow.preview(second.id, actor);
-    f.flow.confirm(
-      second.id,
-      { previewDigest: p2.previewDigest, requestId: randomUUID(), acknowledged: true },
-      actor,
-    );
+    f.check(second);
     assert.equal(orderOf(f.store, f.order.id).status, '已发货');
     assert.equal(orderOf(f.store, f.order.id).lines[1].remainingQuantity, 0);
     assert.equal(orderOf(f.store, f.otherOrder.id).lines[0].shippedQuantity, 0);

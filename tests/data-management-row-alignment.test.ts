@@ -4,7 +4,6 @@
 // 已生效单据删行、对调这类动了明细的，说“请用更正”，不说成改了算出来的栏目。虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import type { ManagedModule } from '../server/admin/managed-records.js';
 import { orderSchema } from '../shared/core/domain.js';
 import { fixture } from './maintenance-fixture.js';
@@ -35,7 +34,7 @@ function twoLineDelivery(f: F, confirmed: boolean) {
   const order = twoLineOrder(f);
   const lines = order.lines.map((l, i) => ({ orderId: order.id, orderLineId: l.id, stockId: f.finished.id, quantity: String(10 * (i + 1)) }));
   const d = f.flow.save('delivery', { date: '2026-10-27', customerId: f.customer.id, lines }, f.who);
-  if (confirmed) f.flow.confirm(d.id, { previewDigest: f.flow.preview(d.id, f.who).previewDigest, requestId: randomUUID(), acknowledged: true }, f.who);
+  if (confirmed) f.base.check(d, {}, f.who);
   return d.id;
 }
 const CORRECT = /改数量请用“更正送货单”/;

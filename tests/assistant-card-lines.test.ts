@@ -9,7 +9,7 @@ import { cardChanges, dataManagementFieldName } from '../shared/business/index.j
 import type { HistoryRefs } from '../shared/business/index.js';
 import type { ToolPlan } from '../server/assistant/plan-rules.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { editableFields, UNLISTED } from '../server/assistant/tools/card-summary.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { superActor } from './actor-fixture.js';
@@ -31,20 +31,13 @@ function setup() {
   const f = autoConfirmAssistant(),
     who = owner(),
     tools = f.manager.tools,
-    prepare = (tool: string, args: Record<string, unknown>) => tools.prepare(tool, args, who, 'card');
-  const customer = (name: string) => f.store.saveCustomer(customerSchema.parse({ name, phone: '222' }));
-  const product = (name: string) => f.store.saveProduct(productSchema.parse({ name }));
+    prepare = (tool: string, args: Record<string, unknown>) => tools.prepare(tool, args, who, 'card'),
+    base = businessBase(who, f.store);
+  const customer = (name: string) => base.customer({ name, phone: '222' });
+  const product = (name: string) => base.product({ name });
   const order = (customerId: number, productId: number) =>
-    f.store.saveOrder(
-      orderSchema.parse({
-        customerId,
-        orderDate: '2026-10-01',
-        deliveryDate: '2026-11-30',
-        status: '已确认',
-        lines: [{ productId, quantity: 100, unit: '只', unitPriceCents: 100 }],
-      }),
-    );
-  return { f, who, tools, prepare, customer, product, order };
+    base.order({ id: customerId }, [base.line({ id: productId }, 100)], { orderDate: '2026-10-01', deliveryDate: '2026-11-30' });
+  return { f, who, tools, prepare, base, customer, product, order };
 }
 
 test('说甲动乙：改订单交期、改客户电话，卡片标题和第一行写着真正动的那条（单号、客户名）', () => {
@@ -114,10 +107,10 @@ test('产品的原文尺寸单位、附属于哪个产品改了也有一行', ()
 });
 
 test('入库、出库、盘点调整：卡片写明单据号、每行品名和数量、库存从多少变成多少', () => {
-  const { f, prepare, tools, who } = setup();
+  const { f, prepare, tools, who, base } = setup();
   try {
-    const supplier = tools.ops.saveSupplier({ name: '虚构供应商' }, who),
-      raw = tools.ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, who);
+    const supplier = base.supplier({ name: '虚构供应商' }),
+      raw = base.raw({ name: '虚构纸板' });
     const arrival = tools.flow.save('arrival', { date: '2026-10-20', supplierId: supplier.id, reference: '虚构样品', lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity: '30' }] }, who);
     const confirm = prepare('flow.propose_confirmation', { id: arrival.id });
     assert.match(confirm.label, new RegExp(arrival.number));
@@ -175,7 +168,7 @@ test('兜底：订单、明细、产品、客户、供应商、采购单、库�
 });
 
 test('其余写入命令：卡片标题或第一行里有目标记录的单号或名称', async () => {
-  const { f, prepare, tools, who, customer, product } = setup();
+  const { f, prepare, tools, who, base, customer, product } = setup();
   try {
     const titled = (plan: ToolPlan, name: string) => assert.ok(plan.label.includes(name) || summaryOf(plan)[0]?.value.includes(name), plan.tool + ' 看不出动的是 ' + name + '：\n' + text(plan));
     const c = customer('虚构客户丁');
@@ -184,8 +177,8 @@ test('其余写入命令：卡片标题或第一行里有目标记录的单号�
     const task = tools.flow.save('task', { date: '2026-10-20', productId: product('虚构纸箱丁').id, quantity: '10', unit: '只', orderIds: [], notes: '' }, who);
     titled(prepare('flow.schedule', { id: task.id, expectedVersion: task.version, plannedDate: '2026-11-02', requestId: randomUUID() }), task.number);
     titled(prepare('flow.propose_cancel', { id: task.id, reason: '虚构取消' }), task.number);
-    const supplier = tools.ops.saveSupplier({ name: '虚构供应商丁' }, who),
-      raw = tools.ops.saveItem({ name: '虚构纸板丁', kind: 'raw', unit: '张' }, who);
+    const supplier = base.supplier({ name: '虚构供应商丁' }),
+      raw = base.raw({ name: '虚构纸板丁' });
     const arrival = tools.flow.save('arrival', { date: '2026-10-20', supplierId: supplier.id, reference: '虚构丁', lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity: '8' }] }, who);
     tools.commit(prepare('flow.propose_confirmation', { id: arrival.id }), who, 'card');
     const reversal = prepare('flow.propose_reversal', { id: arrival.id, reason: '虚构登记重了' });
@@ -200,11 +193,10 @@ test('其余写入命令：卡片标题或第一行里有目标记录的单号�
 });
 
 test('说甲出库乙：两张待送货的送货单，卡片上写着真正出库的那张的单号、品名数量和库存前后', () => {
-  const { f, prepare, tools, who, customer, product, order } = setup();
+  const { f, prepare, tools, who, base, customer, product, order } = setup();
   try {
     const p = product('虚构纸箱乙'),
-      stock = tools.ops.saveItem({ name: '虚构纸箱乙成品', kind: 'finished', unit: '只', productId: p.id }, who);
-    tools.ops.move(stock.id, { expectedVersion: stock.version, requestId: randomUUID(), action: 'in', quantity: '500', date: '2026-10-20', notes: '虚构入库', acknowledged: true }, who);
+      stock = base.finished(p, { name: '虚构纸箱乙成品' }, { quantity: '500', date: '2026-10-20', notes: '虚构入库' });
     const draft = (name: string, quantity: string) => {
       const o = order(customer(name).id, p.id);
       return tools.flow.save('delivery', { date: '2026-11-08', customerId: o.customerId, lines: [{ orderId: o.id, orderLineId: o.lines[0].id, stockId: stock.id, quantity }] }, who);
@@ -225,10 +217,9 @@ test('说甲出库乙：两张待送货的送货单，卡片上写着真正出�
 
 /** 待送货的送货单，核对出库：甲订了 100 只，送 10 只，库存 500 → 490 */
 function shipped(s: ReturnType<typeof setup>) {
-  const { tools, who, customer, product, order, prepare } = s;
+  const { tools, who, base, customer, product, order, prepare } = s;
   const p = product('虚构纸箱甲'),
-    stock = tools.ops.saveItem({ name: '虚构纸箱甲成品', kind: 'finished', unit: '只', productId: p.id }, who);
-  tools.ops.move(stock.id, { expectedVersion: stock.version, requestId: randomUUID(), action: 'in', quantity: '500', date: '2026-10-20', notes: '虚构入库', acknowledged: true }, who);
+    stock = base.finished(p, { name: '虚构纸箱甲成品' }, { quantity: '500', date: '2026-10-20', notes: '虚构入库' });
   const o = order(customer('虚构客户甲').id, p.id);
   const d = tools.flow.save('delivery', { date: '2026-11-08', customerId: o.customerId, lines: [{ orderId: o.id, orderLineId: o.lines[0].id, stockId: stock.id, quantity: '10' }] }, who);
   tools.commit(prepare('flow.propose_confirmation', { id: d.id }), who, 'card');
@@ -290,9 +281,9 @@ test('连带改到的别的记录也列：订单换客户带着已出库的送�
     const b = s.customer('虚构客户乙');
     const plan = s.prepare('management.execute', mgmt('orders', 'update', [storedOrder(s, o.id)], { patch: { customerId: b.id } }));
     assert.ok(summaryOf(plan).some((l) => l.label.startsWith('连带：送货单 ' + d.number) && /虚构客户甲 → 虚构客户乙/.test(l.value)), text(plan));
-    const supplierA = s.tools.ops.saveSupplier({ name: '虚构纸板厂甲' }, s.who),
-      supplierB = s.tools.ops.saveSupplier({ name: '虚构纸板厂乙' }, s.who),
-      raw = s.tools.ops.saveItem({ name: '虚构纸板甲', kind: 'raw', unit: '张' }, s.who);
+    const supplierA = s.base.supplier({ name: '虚构纸板厂甲' }),
+      supplierB = s.base.supplier({ name: '虚构纸板厂乙' }),
+      raw = s.base.raw({ name: '虚构纸板甲' });
     const purchase = s.tools.ops.savePurchase({ supplierId: supplierA.id, status: '已订货', orderDate: '2026-11-01', lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '2', priceBasis: 'quantity' }] }, s.who);
     const change = s.prepare('records.propose_save', { module: 'purchases', id: purchase.id, patch: { supplierId: supplierB.id } });
     assert.match(text(change), /连带：删除：订货单 .*（虚构纸板厂甲）/);
@@ -306,8 +297,8 @@ test('连带改到的别的记录也列：订单换客户带着已出库的送�
 test('订货单的到货安排、登记到货：标题带供应商，列出新安排的数量日期、实到、不合格、到货日期、送货单号和已到前后', async () => {
   const s = setup();
   try {
-    const supplier = s.tools.ops.saveSupplier({ name: '虚构纸板厂乙' }, s.who),
-      raw = s.tools.ops.saveItem({ name: '虚构纸板乙', kind: 'raw', unit: '张' }, s.who);
+    const supplier = s.base.supplier({ name: '虚构纸板厂乙' }),
+      raw = s.base.raw({ name: '虚构纸板乙' });
     const purchase = s.tools.ops.savePurchase({ supplierId: supplier.id, status: '已订货', orderDate: '2026-11-01', lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '2', priceBasis: 'quantity' }] }, s.who);
     const { OrderBatchService } = await import('../server/operations/batches.js');
     const batchId = new OrderBatchService(s.f.store).batchIdOf(purchase.id);
@@ -377,10 +368,10 @@ test('兜底：试执行前后哪张业务表有变化，卡片上都有对应�
     await assertCovered(s, s.prepare('delivery.correct', { id: d.id, expectedVersion: d.version, reason: '虚构点错', lines: [{ index: 0, quantity: '30' }] }));
     await assertCovered(s, s.prepare('management.execute', mgmt('orders', 'update', [storedOrder(s, o.id)], { patch: { customerId: s.customer('虚构客户乙').id } })));
     await assertCovered(s, s.prepare('flow.propose_reversal', { id: d.id, reason: '虚构撤销' }));
-    const supplierA = s.tools.ops.saveSupplier({ name: '虚构纸板厂甲' }, s.who),
-      raw = s.tools.ops.saveItem({ name: '虚构纸板甲', kind: 'raw', unit: '张' }, s.who);
+    const supplierA = s.base.supplier({ name: '虚构纸板厂甲' }),
+      raw = s.base.raw({ name: '虚构纸板甲' });
     const purchase = s.tools.ops.savePurchase({ supplierId: supplierA.id, status: '已订货', orderDate: '2026-11-01', lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '2', priceBasis: 'quantity' }] }, s.who);
-    await assertCovered(s, s.prepare('records.propose_save', { module: 'purchases', id: purchase.id, patch: { supplierId: s.tools.ops.saveSupplier({ name: '虚构纸板厂乙' }, s.who).id } }));
+    await assertCovered(s, s.prepare('records.propose_save', { module: 'purchases', id: purchase.id, patch: { supplierId: s.base.supplier({ name: '虚构纸板厂乙' }).id } }));
     await assertCovered(s, s.prepare('management.execute', mgmt('customers', 'create', [], { patch: { name: '虚构新客户', contact: '', phone: '', address: '', notes: '' } })));
   } finally {
     s.f.close();
@@ -388,10 +379,10 @@ test('兜底：试执行前后哪张业务表有变化，卡片上都有对应�
 });
 
 test('待入库的到货单改明细的验收合格、拒收、入库数量，卡片上逐项列出', () => {
-  const { f, prepare, tools, who } = setup();
+  const { f, prepare, tools, who, base } = setup();
   try {
-    const supplier = tools.ops.saveSupplier({ name: '虚构纸板厂甲' }, who),
-      raw = tools.ops.saveItem({ name: '虚构纸板甲', kind: 'raw', unit: '张' }, who);
+    const supplier = base.supplier({ name: '虚构纸板厂甲' }),
+      raw = base.raw({ name: '虚构纸板甲' });
     const a = tools.flow.save('arrival', { date: '2026-10-20', supplierId: supplier.id, reference: '虚构验收', lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity: '50' }] }, who);
     const plan = prepare('records.propose_save', { module: 'arrivals', id: a.id, patch: { lines: [{ ...a.lines[0], acceptedQuantity: '40', rejectedQuantity: '10', stockedQuantity: '40' }] } });
     const t = text(plan);

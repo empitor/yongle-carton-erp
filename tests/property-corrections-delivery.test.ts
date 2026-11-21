@@ -5,14 +5,11 @@
 // 材质楞型，新加、换挂的行按产品现在的。改成别的样子再改回原样，一切回到第一次更正之前。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import fc from 'fast-check';
-import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import type { FlowDocView } from '../shared/business/index.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
+import { productSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { clerk, localAdmin } from './flow-fixture.js';
 import { ofKind } from './receive-fixture.js';
@@ -35,27 +32,21 @@ const units = (q: string | number | null | undefined) => quantityUnits(String(q 
 type Ship = [number, number][];
 
 function setup(ships: Ship[]) {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
+  const base = businessBase(clerk),
+    { store, ops, flow, check } = base;
+  const customer = base.customer({ name: '虚构客户' });
   const specs = [
     { name: '虚构外箱甲', material: 'K=A', flute: 'B' },
     { name: '虚构外箱乙', material: 'A=A', flute: 'C' },
   ];
-  const products = specs.map((p) => store.saveProduct(productSchema.parse(p)));
-  const stocks = products.map((p) => ops.saveItem({ name: p.name, kind: 'finished', unit: '只', productId: p.id }, clerk));
-  for (const s of stocks)
-    ops.move(s.id, { action: 'in', quantity: '3000', date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: s.version }, clerk);
+  const products = specs.map((p) => base.product(p));
+  const stocks = products.map((p) => base.finished(p, { name: p.name }));
+  for (const s of stocks) base.stockIn(s, { quantity: '3000', date: '2026-10-01' });
   const orders = [[0, 1], [0]].map((ps) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate: '2026-10-01',
-        deliveryDate: '2026-12-30',
-        status: '已确认',
-        lines: ps.map((k) => ({ productId: products[k].id, productName: products[k].name, quantity: 1000, unit: '只', unitPriceCents: 100 })),
-      }),
+    base.order(
+      customer,
+      ps.map((k) => base.line(products[k], 1000, { productName: products[k].name })),
+      { orderDate: '2026-10-01', deliveryDate: '2026-12-30' },
     ),
   );
   const slots = [
@@ -63,7 +54,7 @@ function setup(ships: Ship[]) {
     { order: orders[0], line: orders[0].lines[1], product: 1 },
     { order: orders[1], line: orders[1].lines[0], product: 0 },
   ].map((s) => ({ orderId: s.order.id, orderLineId: s.line.id ?? assert.fail('测试数据：订单明细没有编号'), product: s.product }));
-  const f = { store, ops, flow, customer, products, stocks, orders, slots, current: specs.map((s) => ({ ...s })), used: new Map<number, number>() };
+  const f = { store, ops, flow, check, customer, products, stocks, orders, slots, current: specs.map((s) => ({ ...s })), used: new Map<number, number>() };
   for (const ship of ships) deliver(f, ship);
   return f;
 }
@@ -72,10 +63,10 @@ type Delivery = FlowDocView<'delivery'>;
 type Line = { index?: number; quantity: string; orderLineId?: number };
 
 /** 安排并出库一张送货单 */
-function deliver(f: Pick<Setup, 'flow' | 'customer' | 'slots' | 'stocks'>, ship: Ship) {
+function deliver(f: Pick<Setup, 'flow' | 'check' | 'customer' | 'slots' | 'stocks'>, ship: Ship) {
   const lines = ship.map(([k, q]) => ({ orderId: f.slots[k].orderId, orderLineId: f.slots[k].orderLineId, stockId: f.stocks[f.slots[k].product].id, quantity: String(q) }));
   const d = f.flow.save('delivery', { date: '2026-11-02', plannedDate: '2026-11-02', customerId: f.customer.id, lines }, clerk);
-  f.flow.confirm(d.id, { previewDigest: f.flow.preview(d.id, clerk).previewDigest, requestId: randomUUID(), acknowledged: true, shipDate: '2026-11-02' }, clerk);
+  f.check(d, { shipDate: '2026-11-02' });
 }
 
 const opArb = fc.oneof(

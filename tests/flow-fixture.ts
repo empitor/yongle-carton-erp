@@ -53,7 +53,7 @@ export function flowFixture(who: Actor = clerk) {
       reference,
       lines: [{ stockId: raw.id, item: { name: raw.name, unit: '张' }, quantity }],
     });
-  return { store, ops, flow, customer, product, supplier, raw, finished, draft, task, confirm, confirmId, order, stockIn, arrive };
+  return { store, ops, flow, base, customer, product, supplier, raw, finished, draft, task, confirm, confirmId, order, stockIn, arrive };
 }
 
 /** businessFixture 的身份：本机最高管理员（超级管理员模式） */
@@ -108,7 +108,7 @@ export function businessFixture() {
       operator: '虚构员工',
       materials: [{ stockId: raw.id, issued: '10', returned: '0' }],
     });
-  return { store, actor, ops, flow, customer, product, supplier, raw, glue, finished, order, confirm, arrival, task, production };
+  return { store, actor, ops, flow, base, customer, product, supplier, raw, glue, finished, order, confirm, arrival, task, production };
 }
 
 /**
@@ -147,5 +147,5 @@ export function workbenchFixture(who: Actor) {
     { productId: product.id, quantity: '100', unit: '只', date, plannedDate: '2026-11-01', orderIds: [order.id] },
     who,
   );
-  return { store, ops, flow, order, raw, product, purchase, task, customer };
+  return { store, ops, flow, base, order, raw, product, purchase, task, customer };
 }

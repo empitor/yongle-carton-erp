@@ -1,10 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
-import { customerSchema, lineSpecification, orderSchema, productSchema, sameSpecification, specification, specificationDifference, today } from '../shared/core/domain.js';
+import { lineSpecification, orderSchema, productSchema, sameSpecification, specification, specificationDifference, today } from '../shared/core/domain.js';
 import { deliveryBlockers, deliveryCandidates, planOrderDelivery, planStockDelivery, specificationMismatch, stockByProduct } from '../shared/business/warehouse-delivery.js';
 import { orderNextSteps } from '../shared/business/order-next-step.js';
 import { productionHint, productionReasons } from '../src/records/order-production.js';
@@ -14,36 +10,28 @@ import { buildToday } from '../server/business/workbench.js';
 import { formatStockSize } from '../shared/business/operations.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { actor } from './actor-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 /**
  * 和用户本机遇到的一样：订单明细规格只写了产品名称、没写数量单位；成品库存按“只”，规格是尺寸+材质+楞型。
  */
 function setup(unit?: string, specification = '虚构纸箱A-300x200x150') {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构测试客户' }));
-  const product = store.saveProduct(
-    productSchema.parse({ name: '虚构纸箱A-300x200x150', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: '虚构三层瓦楞纸板', flute: 'B楞' }),
+  const base = businessBase(actor),
+    { store, ops, flow } = base;
+  const customer = base.customer({ name: '虚构测试客户' });
+  const product = base.product({ name: '虚构纸箱A-300x200x150', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: '虚构三层瓦楞纸板', flute: 'B楞' });
+  const order = base.order(
+    customer,
+    [{ productId: product.id, productName: product.name, specification, quantity: 1000, unitPriceCents: 350, notes: '', ...(unit ? { unit } : {}) }],
+    { orderDate: '2026-11-09', deliveryDate: '2026-11-20', notes: '', costs: null },
   );
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-11-09',
-      deliveryDate: '2026-11-20',
-      status: '已确认',
-      notes: '',
-      costs: null,
-      lines: [{ productId: product.id, productName: product.name, specification, quantity: 1000, unitPriceCents: 350, notes: '', ...(unit ? { unit } : {}) }],
-    }),
+  const stock = base.finished(
+    product,
+    { name: product.name, specification: '300 × 200 × 150 mm / 虚构三层瓦楞纸板 / B楞' },
+    { quantity: '1000', date: '2026-11-09' },
   );
-  const stock = ops.saveItem(
-    { name: product.name, kind: 'finished', unit: '只', productId: product.id, specification: '300 × 200 × 150 mm / 虚构三层瓦楞纸板 / B楞' },
-    actor,
-  );
-  ops.move(stock.id, { action: 'in', quantity: '1000', date: '2026-11-09', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: stock.version }, actor);
   const item = () => ops.repo.items(true, stock.id)[0];
-  return { store, ops, flow, customer, product, order, item };
+  return { store, ops, flow, check: base.check, customer, product, order, item };
 }
 
 test('订单规格只写了产品名称时不拿它和库存规格比对；写了别的规格仍要一致', () => {
@@ -66,8 +54,7 @@ test('订单没写单位就是“只”：读出来是只，直接能排送货�
   const [plan] = planStockDelivery([f.item()], f.store.orders(), f.customer.id);
   assert.deepEqual(plan.lines.map((l) => l.quantity), ['1000']);
   const draft = f.flow.save('delivery', { date: '2026-11-10', plannedDate: '2026-11-10', customerId: f.customer.id, address: '', contact: '', phone: '', lines: plan.lines, notes: '' }, actor);
-  const check = f.flow.preview(draft.id, actor);
-  const done = f.flow.confirm(draft.id, { previewDigest: check.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+  const done = f.check(draft);
   assert.equal(done.status, 'confirmed');
   assert.equal(f.item().balanceUnits, 0);
 });
@@ -137,13 +124,12 @@ test('只有长宽的产品（隔板、垫片）也比规格：订单写的长�
   for (const patch of [{ width: null }, { length: null }, { dimensionUnit: null }])
     assert.equal(specificationMismatch(stock(patch), line('500x400')), false, JSON.stringify(patch));
   // 服务端出库、页面排送货是同一个判断：成品库存的尺寸和规格说明跟着产品
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
+  const base = businessBase(actor),
+    { store, flow } = base;
   try {
-    const customer = store.saveCustomer(customerSchema.parse({ name: '虚构隔板客户' }));
-    const product = store.saveProduct(productSchema.parse({ name: '虚构隔板', length: 600, width: 400, dimensionUnit: 'mm' }));
-    const item = ops.saveItem({ name: product.name, kind: 'finished', unit: '只', productId: product.id }, actor);
+    const customer = base.customer({ name: '虚构隔板客户' });
+    const product = base.product({ name: '虚构隔板', length: 600, width: 400, dimensionUnit: 'mm' });
+    const item = base.finished(product, { name: product.name });
     assert.equal(item.specification, '600 × 400 mm', '没填的高不写占位');
     const orderFor = (specification: string) =>
       store.saveOrder(
@@ -310,26 +296,21 @@ test('库存品尺寸文字和 specification() 的尺寸段完全一样：没写
 });
 
 test('今日页“待排产”只排还要做的产品：只剩规格对不上那一行的订单不进待排产、进“要核对订单”；另一种产品还缺货时，待排产那一步是它，规格提示挂在行下', () => {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
+  const base = businessBase(actor),
+    { store, ops, flow } = base;
   try {
     const day = today();
-    const confirm = (doc: { id: number }) =>
-      flow.confirm(doc.id, { previewDigest: flow.preview(doc.id, actor).previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
-    const customer = store.saveCustomer(customerSchema.parse({ name: '虚构待排产客户' }));
+    const confirm = (doc: { id: number }) => base.check(doc);
+    const customer = base.customer({ name: '虚构待排产客户' });
     const [box, color] = (
       [
         ['虚构五金箱', 300, 200, 150],
         ['虚构彩箱', 260, 110, 240],
       ] as const
-    ).map(([name, length, width, height]) =>
-      store.saveProduct(productSchema.parse({ name, length, width, height, dimensionUnit: 'mm', material: 'A=A', flute: 'B' })),
-    );
+    ).map(([name, length, width, height]) => base.product({ name, length, width, height, dimensionUnit: 'mm', material: 'A=A', flute: 'B' }));
     for (const p of [box, color])
-      ops.saveItem({ name: p.name, kind: 'finished', unit: '只', length: p.length, width: p.width, height: p.height, dimensionUnit: 'mm', productId: p.id }, actor);
-    const raw = ops.saveItem({ name: '虚构待排产纸板', kind: 'raw', unit: '张' }, actor);
-    ops.move(raw.id, { action: 'in', quantity: '100', date: day, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: raw.version }, actor);
+      base.finished(p, { name: p.name, length: p.length, width: p.width, height: p.height, dimensionUnit: 'mm' });
+    const raw = base.raw({ name: '虚构待排产纸板' }, { quantity: '100', date: day });
     const order = (quantities: [number, number]) =>
       store.saveOrder(
         orderSchema.parse({
