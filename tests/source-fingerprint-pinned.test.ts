@@ -1,9 +1,7 @@
 // 财务来源指纹的底数不许变：库里每条财务事件都存着当时算的指纹（fin_events.source_hash），指纹的算法、算进去的栏目、
 // 栏目的财务口径名字、键的顺序变了，已有的事件就会全部被当成“来源改过”。这里用几张固定的虚构单据（tests/finance-source-fixture.ts）
 // 走正式的读法：把单据原文交给窗口的 sources.read（按库里的单据结构解析、补默认值，再按约定取出算进指纹的内容），
-// 财务按它算 sha256（sourceHash），和写死的比。纯函数、虚构数据。
-// 2026-11-21 有意换成按财务口径算（改名表取归“算”的栏目，不再按业务的栏目名去掉不算的），同时改成走正式读法：
-// 以前样张原样交给算指纹的函数，没补默认值，和库里真算的对不上。底数按正式读法重新写死。
+// 财务按它算 sha256（sourceHash），和写死的比。纯函数、虚构数据。走正式读法，底数和 0.9.0 的算法一致。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sourceHash } from '../server/finance/source-fingerprint.js';

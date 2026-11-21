@@ -54,7 +54,9 @@ const cases = [
   { kind: 'stock', path: ['deltaUnits'], renamed: 'delta', samples: [stockMinimal, stockFull] },
 ] as const;
 
-test('业务改了一个归“算”的栏目名（含外层栏目），改名表跟着改：同一张单据的指纹和改名前一样（四种来源）', () => {
+// 只守“按改名表换名”这个机制：在解析好的内容上手工换键、同时改改名表，不经过业务结构和正式读法。
+// 业务真改了栏目名时，守住指纹不变的是改名表的编译期键约束和 source-fingerprint-pinned 写死的底数。
+test('按改名表换名：内容里一个归“算”的栏目（含外层栏目）换了名、改名表跟着换，指纹和换名前一样（四种来源）', () => {
   for (const { kind, path, renamed, samples } of cases)
     for (const sample of samples) {
       const rules = fingerprintRules[kind],
