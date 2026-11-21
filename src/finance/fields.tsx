@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { Combobox, yuan } from '../ui/index';
-import { financeReportTemplates, taxModes } from '../../shared/finance/index';
+import { definiteTaxModes, financeReportTemplates } from '../../shared/finance/index';
 import { useAccounts, useCashAccounts, useFinRead, useParties } from './fin-api';
 import { partyObligations } from './parties/parties-api';
 
@@ -214,5 +214,5 @@ export function PartyPicker({
   );
 }
 
-/** 页面能选的税率口径：“不含税”和“未税”同义，页面只列未税 */
-export const taxModeOptions = taxModes.filter((m) => m !== '不含税').map((m) => [m, m] as const);
+/** 页面能选的税率口径：明确的两种（含税、未税），旧写法“不含税”不列 */
+export const taxModeOptions = definiteTaxModes.map((m) => [m, m] as const);

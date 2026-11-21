@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from '../core/index.js';
+import { dateSchema, orderTaxModes } from '../core/index.js';
 
 export const periodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 export const accountCodeSchema = z.string().regex(/^\d{4}(\d{2}){0,3}$/);
@@ -16,13 +16,28 @@ export const reportKinds = ['balance', 'profit', 'cashflow', 'trial'] as const;
 /** 结账时存快照、归档时打包的三张报表（试算平衡表不存） */
 export const snapshotKinds = ['balance', 'profit', 'cashflow'] as const;
 /**
- * 存进库、页面下拉也按这个顺序列的三组（建表 CHECK 由 tests/schema-constraints.test.ts 比对）：
- * 收付方式（fin_cash_documents.method）；账期方式（fin_party_terms.term_type）：没有账期、月结、按天；
- * 税率口径（fin_party_terms.tax_mode，也是单据明细的 taxMode）：“不含税”和“未税”同义，库里和单据里都认，页面只列前两个
+ * 存进库、页面下拉也按这个顺序列的两组（建表 CHECK 由 tests/schema-constraints.test.ts 比对）：
+ * 收付方式（fin_cash_documents.method）；账期方式（fin_party_terms.term_type）：没有账期、月结、按天
  */
 export const cashMethods = ['银行', '现金', '承兑汇票', '微信', '支付宝', '其他'] as const;
 export const termTypes = ['none', 'monthly', 'days'] as const;
-export const taxModes = ['含税', '未税', '不含税'] as const;
+
+/*
+ * 含税口径只定义一处：shared/core/domain.ts 的 orderTaxModes（含税、未税、未明确，按这个顺序）。财务从它取：
+ * 算金额只认明确了的两种，页面下拉也按这个顺序只列这两种；“未明确”等于没写，往下找往来单位的默认。
+ */
+const [taxed, untaxed, unspecified] = orderTaxModes;
+/** 财务认的明确口径：含税、未税 */
+export const definiteTaxModes = [taxed, untaxed] as const;
+/** 含税口径还没明确时存的值（订单、识别导入写的“未明确”），财务当没写 */
+export const UNSPECIFIED_TAX_MODE = unspecified;
+/**
+ * 旧写法：往来条款（fin_party_terms.tax_mode）和以前的单据明细、财务快照里存过“不含税”，意思就是未税。
+ * 库里已有的照认、照算（按未税），页面不列；订单录入不收它（domain.ts）。
+ */
+export const legacyTaxMode = { written: '不含税', means: untaxed } as const;
+/** 财务库和单据快照里能存的口径：明确的两种加旧写法（fin_party_terms 建表 CHECK 是同一份） */
+export const storedTaxModes = [...definiteTaxModes, legacyTaxMode.written] as const;
 export const centsSchema = z.number().int().nonnegative();
 export const versionSchema = z.number().int().positive();
 export const requestIdSchema = z.string().trim().min(1).max(100);
