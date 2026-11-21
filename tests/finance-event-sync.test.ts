@@ -31,8 +31,8 @@ test('同步幂等，缺价缺税待补，补齐后制单，来源删除保留�
       supplierName: '虚构供应商',
       lines: [{ item: { name: '虚构纸板', unit: '张' }, quantity: '1', unitPrice: '10', priceBasis: 'quantity' }],
     });
-    assert.deepEqual(events.sync(maker, { requestId: 'first' }), { processed: 4, remaining: false });
-    assert.deepEqual(events.sync(maker, { requestId: 'second' }), { processed: 0, remaining: false });
+    assert.deepEqual(events.sync(maker), { processed: 4, remaining: false });
+    assert.deepEqual(events.sync(maker), { processed: 0, remaining: false });
     const rows = new FinanceEventViews(store).list(maker, {}).rows;
     const bySource = (id: string) => {
       const row = rows.find((r) => r.source_id === id);
@@ -81,13 +81,13 @@ test('同步幂等，缺价缺税待补，补齐后制单，来源删除保留�
     const original = ledger.get(maker, voucherId);
     businessChanges(store).reverse(1);
     businessChanges(store).reverse(4);
-    assert.equal(events.sync(maker, { requestId: 'reversal' }).processed, 2);
+    assert.equal(events.sync(maker).processed, 2);
     assert.deepEqual(
       new Set(new FinanceEventViews(store).list(maker, { status: 'difference' }).rows.map((row) => row.event_type)),
       new Set(['delivery.reversed']),
     );
     businessChanges(store).remove(1);
-    assert.equal(events.sync(maker, { requestId: 'delete' }).processed, 1);
+    assert.equal(events.sync(maker).processed, 1);
     assert.equal(new FinanceEventViews(store).list(maker, { status: 'source_deleted' }).rows[0].source_id, '1');
     assert.deepEqual(ledger.get(maker, voucherId), original);
   } finally {
@@ -104,7 +104,7 @@ test('正式报表的资料检查和结账同一个口径：还没同步进财�
     const readiness = () => reports.readiness(maker, { period: '2026-01' });
     physical(store, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
     assert.deepEqual([readiness().ready, readiness().unsynced], [false, 1], '资料齐全、还没同步的也拦');
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     assert.deepEqual([readiness().ready, readiness().unsynced], [true, 0]);
     businessChanges(store).reverse(1);
     assert.deepEqual([readiness().ready, readiness().unsynced], [false, unseenSources(store.db, '2026-01-31')], '撤销了还没同步');
@@ -153,7 +153,7 @@ test('收入确认口径按财务设置的变更历史判，不读审计：审�
       [['1', 'ready'], ['2', 'waiting_invoice'], ['3', 'ready']],
       '还没同步的单据也按确认当时的口径估',
     );
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     assert.deepEqual(
       [1, 2, 3].map((id) => [event(s, id).revenue_recognition, event(s, id).status]),
       [['delivery', 'ready'], ['invoice', 'waiting_invoice'], ['delivery', 'ready']],
@@ -161,7 +161,7 @@ test('收入确认口径按财务设置的变更历史判，不读审计：审�
     // 历史一行都没有的库（从没改过设置）按送货确认
     s.db.exec('DELETE FROM fin_settings_history');
     physical(s, 4, 'delivery', '2026-01-17', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     assert.equal(event(s, 4).status, 'ready');
   } finally {
     s.close();
@@ -176,7 +176,7 @@ test('到货行没记入库数量：转资料待补，不拿实收数量顶替',
     const doc = arrivalDoc('10');
     delete (doc.lines[0] as { stockedQuantity?: string }).stockedQuantity;
     physical(s, 1, 'arrival', '2026-01-07', doc);
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const pending = event(s, 1);
     assert.equal(pending.status, 'info_pending');
     assert.match(String(pending.problem), /入库数量/);

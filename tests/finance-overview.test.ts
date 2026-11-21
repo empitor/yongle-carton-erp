@@ -29,7 +29,7 @@ test('财务概览：按送货单、按订单都能找到它的应收和收款�
     physical(s, 1, 'delivery', '2026-01-20', { ...ofOrder, lines: ofOrder.lines.map((l) => ({ ...l, orderId: 42 })) });
     physical(s, 2, 'delivery', '2026-01-20', deliveryDoc('1'));
     const events = new FinanceEvents(s);
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const source of [1, 2]) new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
     postDrafts(s);
     const o = obligation(s, 1);
@@ -72,7 +72,7 @@ test('助手应收应付读工具：带按单位汇总，预收和还欠和页�
     const cash = newSettings(s),
       events = new FinanceEvents(s);
     physical(s, 1, 'delivery', '2026-01-05', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan-1' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate-1' });
     // 1 月 3 日先收 30 元，那天还没有欠款，记预收
     funds(s, cash, { kind: 'receipt', date: '2026-01-03', amount: 3000 });

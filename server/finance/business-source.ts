@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { financeSourceSchemas, flowDocumentSchema, purchaseLineDocumentSchema, toFinanceSource } from '../../shared/business/index.js';
 import type { FinanceSource } from '../../shared/business/index.js';
 import { exists, many, parseStoredJson, rows } from '../core/index.js';
+import { readOrSkip } from './unreadable.js';
 import { sourceHash, withNumber } from './source-fingerprint.js';
 import type { FinanceSourceDocument } from './source-snapshot.js';
 import { snapshotLines } from './source-snapshot.js';
@@ -79,6 +80,16 @@ export function readSource(source: SourceRow): { doc: FinanceSourceDocument; has
   }
 }
 
+/**
+ * 同 readSource，内容读不出来的记下跳过、返回 null（unreadable.ts）：补扫（events.ts）和列“还没同步的单据”的地方
+ * （月度台账、报表检查）都用它，一张坏单据不让整批、整页出错。它照样算“还没同步”（unseenSources）。
+ */
+export function readSourceOrSkip(db: DatabaseSync, source: SourceRow) {
+  return readOrSkip(db, { kind: source.kind, id: source.id, number: source.number, content: source.document }, () =>
+    readSource(source),
+  );
+}
+
 /** 一段日期里已确认的送货、到货单（CTE 名字和列同 sourcesCte），参数 ?1、?2 是起止日期。月度台账、报表检查算还没同步的单据用。 */
 export const confirmedDocumentsCte = `WITH sources(kind,id,version,status,date,document,at,number) AS (
         SELECT kind,cast(id AS TEXT),version,status,date,document,updated_at,number FROM flow_documents
@@ -126,21 +137,28 @@ function withLines<R extends { id: number; lines: string }>(r: R) {
   const where = `purchase_returns.document 的明细（退货单 ${r.id}）`;
   return { ...r, lines: parseStoredJson(z.array(returnLine), r.lines, where) };
 }
+/** 读出一张要记的退货单的明细；读不出来的记下跳过、返回 null（和单据同一套，unreadable.ts） */
+export function readReturnOrSkip(db: DatabaseSync, r: z.output<typeof returnToBook>) {
+  return readOrSkip(db, { kind: 'purchase_return', id: String(r.id), number: r.number, content: r.lines }, () => withLines(r));
+}
 const returnToBook = rows.purchase_returns
   .pick({ id: true, number: true, arrival_id: true, status: true, date: true, updated_at: true })
   .extend(returnLines.shape);
 
 /**
- * 要在财务记一笔的采购退货：已确认、还没冲过暂估的，和已撤销、冲过还没恢复的。
+ * 要在财务记一笔的采购退货：已确认、还没冲过暂估的，和已撤销、冲过还没恢复的。明细还是原文，逐张用 readReturnOrSkip 读。
  * booked 是财务这边算“这张退货冲了多少”的 SQL 表达式（r 是退货单），由 return-estimates.ts 传进来。
  */
 export function purchaseReturnsToBook(db: DatabaseSync, booked: string) {
   return many(
     db,
     returnToBook,
-    `SELECT r.id,r.number,r.arrival_id,r.status,r.date,r.updated_at,json_extract(r.document,'$.lines') AS lines FROM purchase_returns r
+    // 明细取 JSON 原文（->）；document 不是 JSON、没有明细的记成空串：照样逐张读，读不出来跳过，不让整条查询出错
+    `SELECT r.id,r.number,r.arrival_id,r.status,r.date,r.updated_at,
+        CASE WHEN json_valid(r.document) THEN coalesce(r.document->'$.lines','') ELSE '' END AS lines
+      FROM purchase_returns r
       WHERE (r.status='confirmed' AND ${booked}=0) OR (r.status='reversed' AND ${booked}>0) ORDER BY r.id`,
-  ).map(withLines);
+  );
 }
 
 const returnOfArrival = rows.purchase_returns.pick({ id: true, arrival_id: true }).extend(returnLines.shape);

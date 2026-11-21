@@ -33,7 +33,7 @@ function exportWorld(store: Store) {
     const doc = { date, plannedDate: date, customerId: customer.id, customerName: customer.name, lines: [line] };
     businessChanges(store).confirmed('delivery', date, doc, { number: '虚构送货-' + index });
   }
-  new FinanceEvents(store).sync(maker, request());
+  new FinanceEvents(store).sync(maker);
   const cash = new FinanceSettlements(store);
   const bank = new FinanceCashAccounts(store).saveAccount(maker, { ...request(), kind: 'bank', name: '虚构银行', accountCode: '1002' });
   for (const partyId of [customer.id, other.id]) {

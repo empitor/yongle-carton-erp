@@ -103,7 +103,7 @@ function receiver({ s, ops, flow, events, confirm, postDrafts }: CostingBase) {
         maker,
       ),
     );
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     const e = event(s, received.id, 'arrival');
     new FinanceEventVouchers(s).generate(maker, e.id, { version: e.version, requestId: randomUUID() });
     postDrafts();
@@ -180,11 +180,11 @@ function arrivals({ s, flow, events, confirm, postDrafts }: CostingBase) {
   const arrive = (item: StockItemBaseView, date: string, { unitPrice, quantities = ['10'] }: { unitPrice?: string; quantities?: string[] } = {}) => {
     const lines = quantities.map((quantity) => ({ stockId: item.id, item, quantity, ...(unitPrice ? { unitPrice, priceBasis: 'quantity' } : {}) }));
     const confirmed = confirm(flow.save('arrival', { supplierId: 1, date, reference: '虚构登记到货-' + item.id + '-' + date, lines }, maker));
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     return confirmed;
   };
   const redReverse = (date: string) => {
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     const differing = many(
       s.db,
       rows.fin_events.pick({ id: true, version: true }),
@@ -291,7 +291,7 @@ export function returnFixture(start = '2026-02') {
     maker,
   );
   const received = base.check(saved);
-  events.sync(maker, { requestId: 'physical' });
+  events.sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, received.id).id, { version: 1, requestId: 'arrival-event' });
   postAll(s);
   const payable = Number(obligation(s, received.id).id);

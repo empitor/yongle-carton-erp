@@ -106,7 +106,7 @@ function februaryDocuments(s: Store, b: Business) {
 /** 到货、送货入账记账；采购票 100 元、销售票 60 元关联确认记账；2-16 收齐 60 元、2-17 付清 100 元 */
 function februaryBooks(s: Store, cash: FinanceSettlements, docs: { received: { id: number }; delivered: { id: number } }) {
   const { received, delivered } = docs;
-  new FinanceEvents(s).sync(maker, { requestId: 'physical' });
+  new FinanceEvents(s).sync(maker);
   for (const id of [received.id, delivered.id])
     new FinanceEventVouchers(s).generate(maker, event(s, id).id, { version: 1, requestId: 'event-' + id });
   postDrafts(s);
@@ -209,7 +209,7 @@ test('虚构制造业全链路的计价、费用、工资、折旧和三张报�
     assert.equal(reports.get(maker, 'balance', { period: '2026-02' }).balanced, true);
     assert.equal(reports.get(maker, 'profit', { period: '2026-02' }).netProfit, 2300);
     b.deliver(b.addOrder('2026-03-01', '2026-03-01', 1), '2026-03-01', '1');
-    new FinanceEvents(s).sync(maker, { requestId: 'next-physical' });
+    new FinanceEvents(s).sync(maker);
     const estimate = new FinanceMargin(s).get(maker, { period: '2026-03', group: 'order' }).rows[0];
     assert.equal(estimate.cost, 1000);
     assert.equal(estimate.margin, 2000);

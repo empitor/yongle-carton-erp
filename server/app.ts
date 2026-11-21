@@ -128,7 +128,7 @@ export function createApp(store: Store, options: AppOptions = {}) {
   // 送货单原件和 AI 识别属于识别导入，先挂，免得被单据的 /:id 路由接走
   app.use('/api/flow', receiptSourceRouter(options.auth, options.receiptAi));
   app.use('/api/flow', flowRouter(store, options.auth));
-  app.use('/api/finance', financeRouter(store, options.auth));
+  app.use('/api/finance', financeRouter(store, options.auth, options.problems));
   app.use('/api/documents', documentsRouter(store, options.auth));
   if (options.auth && options.promptModules) promptRoutes(app, options.auth, options.promptModules);
   /** 识别要花钱、工作区里是客户文件，写操作都要业务编辑权限；读取放开。 */

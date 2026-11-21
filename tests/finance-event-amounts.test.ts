@@ -21,13 +21,13 @@ test('启用前的单据启用后被改（补价格、编辑、冲销）：仍�
     const events = new FinanceEvents(s);
     physical(s, 1, 'delivery', '2026-02-10', deliveryDoc('1'));
     physical(s, 2, 'delivery', '2026-02-11', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan-1' });
+    events.sync(maker);
     assert.equal(event(s, 1).status, 'before_opening');
     // 改单据内容（版本加一）：setDoc 只改给的那一项
     const reprice = (price: string) => setDoc(s, 1, '$.lines[0].unitPriceExact', price);
     reprice('120.0000');
     businessChanges(s).reverse(2);
-    events.sync(maker, { requestId: 'scan-2' });
+    events.sync(maker);
     assert.equal(event(s, 1).status, 'before_opening', '改价后仍是启用前');
     assert.equal(event(s, 2).status, 'before_opening', '冲销后仍是启用前');
     assert.equal(
@@ -60,12 +60,12 @@ test('启用前的单据启用后被改（补价格、编辑、冲销）：仍�
     assert.deepEqual([event(s, 1).status, event(s, 1).problem], ['before_opening', null]);
     // 只改备注这类财务不看的内容：版本变了也不再提醒
     setDoc(s, 1, '$.notes', '虚构备注');
-    events.sync(maker, { requestId: 'scan-3' });
+    events.sync(maker);
     assert.equal(event(s, 1).problem, null);
     assert.deepEqual(openingStep().items?.map((r) => r.source_id), ['2']);
     // 再改价又提醒
     reprice('130.0000');
-    events.sync(maker, { requestId: 'scan-4' });
+    events.sync(maker);
     assert.deepEqual(openingStep().items?.map((r) => r.source_id), ['1', '2']);
   } finally {
     s.close();
@@ -93,7 +93,7 @@ test('金额算出来就是 0 的送货、到货：不要求补税率，月度�
       ...arrivalDoc('10'),
       lines: [{ ...arrivalDoc('10').lines[0], unitPrice: '0', taxMode: '', taxRate: '' }],
     });
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const id of [1, 2, 3]) {
       const e = event(s, id);
       assert.equal(e.status, 'no_amount', '单据 ' + id + ' 金额为 0，不算资料待补');
@@ -142,7 +142,7 @@ test('金额为 0 的边界：单价没填仍是缺价格；一张单子有 0 �
         { unit: '只', quantity: '2', unitPriceExact: '10.0000' },
       ],
     });
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const id of [1, 2]) {
       const e = event(s, id);
       assert.equal(e.status, 'info_pending', '单据 ' + id + ' 单价未知仍是资料待补');
@@ -210,7 +210,7 @@ test('资料待补缺的是数量还是价格：按出错的那一步记，不�
       customerName: '虚构客户',
       lines: [{ unit: '只', quantity: '2', unitPriceExact: '1.23456' }],
     });
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const missing = (id: number) => {
       const e = event(s, id);
       assert.equal(e.status, 'info_pending', '单据 ' + id + ' 资料待补');
@@ -234,12 +234,12 @@ test('有效的到货更正单直接入账（原单没入过账）：金额按�
     // 到货明细写 13% 税率（口径照旧未税）
     const taxed = (qty: string, extra: Record<string, unknown> = {}) => arrivalDoc(qty, { ...extra, line: { taxRate: '13' } });
     physical(s, 1, 'arrival', '2026-01-10', taxed('10'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     assert.equal(Number(event(s, 1).amount_cents), 10000, '普通到货按不含税');
     // 原单还没入账就冲销，按 8 张开更正单：更正单当成一张新单据直接入账
     businessChanges(s).reverse(1);
     physical(s, 2, 'arrival', '2026-01-12', taxed('8', { correctionOf: 1 }));
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const replacement = event(s, 2);
     assert.equal(replacement.event_type, 'arrival.corrected');
     assert.equal(Number(replacement.amount_cents), 8000, '不含税 80 元，不是含税 90.40 元');

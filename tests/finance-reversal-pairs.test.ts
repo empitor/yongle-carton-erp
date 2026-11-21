@@ -24,7 +24,7 @@ function reversedDelivery(s: Store) {
     parties = new FinanceParties(s);
   parties.saveTerms(maker, { kind: 'customer', partyId: 1, termDays: 10, requestId: 'terms' });
   physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
-  events.sync(maker, { requestId: 'scan' });
+  events.sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
   postDrafts(s);
   const original = obligation(s, 1);
@@ -153,7 +153,7 @@ test('红字冲销成对：另有一笔欠款时两笔都不能多付转抵过�
     const { events, parties, original, reversal } = reversedDelivery(s);
     postDrafts(s);
     physical(s, 2, 'delivery', '2026-02-04', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan-2' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 2).id, { version: 1, requestId: 'generate-2' });
     postDrafts(s);
     const other = obligation(s, 2);
@@ -188,7 +188,7 @@ test('红字冲销成对：红字凭证作废后冲销不成立，原来那笔�
     const cash = newSettings(s),
       events = new FinanceEvents(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     const original = obligation(s, 1);
@@ -234,7 +234,7 @@ test('红字冲销成对：冲销前已收的钱成了多付，只有这部分�
       ledger = new FinanceLedger(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
     physical(s, 2, 'delivery', '2026-01-11', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const source of [1, 2])
       new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
     postDrafts(s);
@@ -303,7 +303,7 @@ test('红字冲销成对：到货撤销后应付一侧同样成对，不算欠�
     const cash = newSettings(s),
       events = new FinanceEvents(s);
     physical(s, 1, 'arrival', '2026-01-10', arrivalDoc('10'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     const original = obligation(s, 1);

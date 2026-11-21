@@ -18,7 +18,7 @@ test('到货详情的财务一段：应付一侧也成对显示，不列被替�
     newSettings(s);
     const events = new FinanceEvents(s);
     physical(s, 1, 'arrival', '2026-01-10', arrivalDoc('10'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'g' });
     postDrafts(s);
     const overview = new FinanceOverview(s);
@@ -45,14 +45,14 @@ function advanceAndDeliveries(s: Store) {
   const cash = newSettings(s),
     events = new FinanceEvents(s);
   physical(s, 1, 'delivery', '2026-01-05', deliveryDoc('1'));
-  events.sync(maker, { requestId: 'scan-1' });
+  events.sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate-1' });
   // 1 月 3 日收款 50 元：那天还没有欠款，直接记预收
   funds(s, cash, { kind: 'receipt', date: '2026-01-03', amount: 5000 });
   postDrafts(s);
   // 1 月 15 日再送一次货，凭证还没记账：按单位、对账单都算
   physical(s, 2, 'delivery', '2026-01-15', deliveryDoc('2'));
-  events.sync(maker, { requestId: 'scan-2' });
+  events.sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, 2).id, { version: 1, requestId: 'generate-2' });
   return cash;
 }

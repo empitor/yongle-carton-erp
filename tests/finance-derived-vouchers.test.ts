@@ -26,7 +26,7 @@ function receivable(s: Store) {
     options: { deposits: true, interest: { rate: '36.5', unit: 'annual', basis: 'overdue', freeDays: 0 } },
   });
   physical(s, 1, 'delivery', '2026-01-01', deliveryDoc('1', { price: '100.00', taxed: false, line: { taxMode: '未税', taxRate: '0' } }));
-  new FinanceEvents(s).sync(maker, { requestId: 'scan' });
+  new FinanceEvents(s).sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
   postDrafts(s);
   return obligation(s, 1);

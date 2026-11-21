@@ -208,7 +208,7 @@ test('票据冲过的送货被冲销：更正不被票据核销挡住，票据�
   try {
     const events = new FinanceEvents(f.s);
     physical(f.s, 1, 'delivery', '2026-01-05', deliveryDoc('1', { price: '500.00', line: { unit: '只' } }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const source = () => {
       const row = one(
         f.s.db,
@@ -235,7 +235,7 @@ test('票据冲过的送货被冲销：更正不被票据核销挡住，票据�
     f.postDrafts();
     // 送货冲销后做来源更正：以前会报“请先撤销并记账该往来单的核销”，票据核销又没有撤销入口
     businessChanges(f.s).reverse(1);
-    events.sync(maker, { requestId: 'scan-reversed' });
+    events.sync(maker);
     const changed = source();
     assert.equal(changed.status, 'difference');
     new FinanceEventHandling(f.s).correct(maker, changed.id, {

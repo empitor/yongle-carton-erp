@@ -43,7 +43,7 @@ test('删除财务已经记过事件的送货单：财务的表一行都不变�
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
     const events = new FinanceEvents(s);
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const before = financeTables(s);
     assert.ok(before.fin_events.length > 0, '测试数据：送货单已经进了财务');
     const admin = localAdministratorActor(maker),
@@ -52,7 +52,7 @@ test('删除财务已经记过事件的送货单：财务的表一行都不变�
       plan = service.preview(selection, admin);
     service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, admin, 'test-binding');
     assert.deepEqual(financeTables(s), before);
-    events.sync(maker, { requestId: 'after-delete' });
+    events.sync(maker);
     const observed = many(s.db, z.object({ status: z.string() }), "SELECT status FROM fin_source_observations WHERE source_id='1'");
     assert.deepEqual(observed.map((r) => r.status), ['deleted']);
   } finally {

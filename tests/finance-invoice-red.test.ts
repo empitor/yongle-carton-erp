@@ -36,7 +36,7 @@ test('销售折让红票冲减应收往来，往来金额和总账应收一致�
       parties = new FinanceParties(s);
     physical(s, 1, 'delivery', '2026-02-05', deliveryDoc('1', { price: '100.0000' }));
     physical(s, 2, 'delivery', '2026-02-06', deliveryDoc('1', { price: '50.0000' }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const source of [1, 2])
       new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
     postDrafts(s);
@@ -73,7 +73,7 @@ test('开票确认收入：整张红冲后应收为 0，重开蓝票恢复应收
       invoices = new FinanceInvoices(s);
     // 确认时间晚于切换口径的时间，这张送货单按开票确认收入
     physical(s, 1, 'delivery', '2026-02-05', deliveryDoc('1', { price: '100.0000', confirmedAt: '2999-01-01T00:00:00.000Z' }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     assert.equal(event(s, 1).status, 'waiting_invoice');
     const key = obligationOf(s, 1);
     const blue = confirmBlue(s, { direction: 'sale', number: 'I-BLUE', date: '2026-02-10' }, [{ obligationId: key, amount: 10000 }]);
@@ -115,7 +115,7 @@ test('开票确认收入：折让红票冲减应收后，不能再开蓝票把�
     const events = new FinanceEvents(s),
       invoices = new FinanceInvoices(s);
     physical(s, 1, 'delivery', '2026-02-05', deliveryDoc('1', { price: '100.0000', confirmedAt: '2999-01-01T00:00:00.000Z' }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const key = obligationOf(s, 1);
     const blue = confirmBlue(s, { direction: 'sale', number: 'D-BLUE', date: '2026-02-10' }, [{ obligationId: key, amount: 10000 }]);
     confirmRed(s, { direction: 'sale', number: 'D-RED', date: '2026-02-11' }, blue.id, 2000, '5001');
