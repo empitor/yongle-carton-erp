@@ -131,6 +131,8 @@ import './warehouse/warehouse-2.css';
 // 排在 ui/dialogs.css 之后
 import './ui/list-toolbar-3.css';
 // 排在 ui/dialogs.css 之后
+import './recordkit/kit-2.css';
+// 排在 ui/dialogs.css 之后
 import './ui/list-layout-4.css';
 // 排在 ui/forms-2.css、warehouse/warehouse-2.css、ui/list-layout-4.css 之后
 import './ui/detail-3.css';

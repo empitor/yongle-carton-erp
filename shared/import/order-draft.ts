@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ImportMapping, MappingInvalidations } from './import-mapping.js';
 import type { PromptPresetUsage } from '../ai/index.js';
-import { fieldLabel, fieldTitle, unitLabel } from '../core/index.js';
+import { fieldLabel, unitLabel } from '../core/index.js';
 
 /** 原件的格式（按扩展名和文件头认出来的）；本机不解析文件内容 */
 export type ParsedFile = {
@@ -72,7 +72,8 @@ export const fieldLabels: Record<HeaderField | LineField, string> = {
   requirements: fieldLabel('requirements'),
   quantity: fieldLabel('quantity'),
   unit: fieldLabel('unit'),
-  unitPrice: fieldTitle('unitPrice') ?? fieldLabel('unitPrice'),
+  // 照原件抄，原件可能是外币（旁边有币种栏），不写“元”，免得模型先换算、人也看错
+  unitPrice: unitLabel(fieldLabel('unitPrice'), '原币'),
   statedAmount: '原文行金额',
 };
 /** 识别结果一格最多多少字（识别表交回、改格子都按它截或拦） */

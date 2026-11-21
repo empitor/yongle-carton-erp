@@ -8,6 +8,7 @@ import { SEND_NOTE } from './ImportDialog';
 import ReviewIssues from './ReviewIssues';
 import { useArrivalDraft } from './useArrivalDraft';
 import type { useOrderWorkspace } from './useOrderWorkspace';
+import { fieldShort } from '../../shared/core/index';
 
 const fieldset = { border: 0, padding: 0, margin: 0, minWidth: 0 };
 type Arrival = ReturnType<typeof useArrivalDraft>;
@@ -37,11 +38,11 @@ function ArrivalBody({ a, workspace }: { a: Arrival; workspace: Workspace | unde
   );
 }
 
-/** 底栏左边：实收、面积、没保存的提示、要补的项和提醒 */
+/** 底栏左边：实到、面积、没保存的提示、要补的项和提醒 */
 function ArrivalSummary({ a, confirmed }: { a: Arrival; confirmed: boolean }) {
   return (
     <>
-      <Figure label="实收">{(a.totals?.quantity || '待确认') + ' 张'}</Figure>
+      <Figure label={fieldShort('quantity', { record: 'arrival', parent: 'lines' })}>{(a.totals?.quantity || '待确认') + ' 张'}</Figure>
       <Figure label="面积">{a.totals?.area + ' m²'}</Figure>
       {!!a.totals?.unknownArea && <small>{a.totals.unknownArea} 行面积待确认，未计入</small>}
       {!confirmed && a.dirty && <small>{a.doc ? '有未保存的修改' : '还没登记成到货单'}</small>}

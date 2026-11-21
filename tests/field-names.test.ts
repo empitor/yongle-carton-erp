@@ -46,6 +46,8 @@ const retired: Record<string, string> = {
   已确认完工: '已入库',
   实际送货日期: '送货日期',
   预计送货日期: '计划送货日期',
+  实际到货日期: '到货日期',
+  实际到货时间: '到货时间',
 };
 /** 写法上的旧说法：金额单位写“（元）”，税率写“（%）”，标记已订货要说清是待到货 */
 const retiredPatterns: [RegExp, string][] = [
@@ -61,6 +63,8 @@ const retiredWhole: Record<string, string> = {
   货币: '币种',
   电话: '联系方式',
   实际发货: '送货日期',
+  实际到货: '到货日期',
+  计划送货: '计划送货日期（窄处“计划送货”，从登记表的简写取）',
 };
 /**
  * 旧说法照样留着的地方和原因。键是“文件:旧说法”。
@@ -75,7 +79,6 @@ const allowed: Record<string, string> = {
   'shared/business/flow-views.ts:不合格': '同上：验收结果的取值',
   'src/finance/parties/StatementTab.tsx:差异说明': '对账单上和客户账对不上的说明，是财务自己的栏目，不是到货的差异原因',
   'server/core/schema/tables/operations.ts:规格说明': '建表语句里的注释（表结构不在这一轮改，发布后要走升级步骤）',
-  'server/import/default-prompts/sales-order.ts:含税／未税': '识别提示词的原文，不随界面叫法改（改了会影响模型输出，识别结果靠核对提示要人改选）',
 };
 
 /** 一个文件里给人看的文字：字符串、模板字符串的各段、JSX 文字 */

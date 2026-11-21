@@ -11,7 +11,7 @@ import {
   type WarehouseKind,
   type WarehouseRow,
 } from './warehouse-list';
-import { fieldLabel } from '../../shared/core/index';
+import { fieldLabel, fieldShort } from '../../shared/core/index';
 
 type Props = {
   kind: WarehouseKind;
@@ -105,7 +105,7 @@ function warehouseCols(
       ? [
           {
             key: 'plan',
-            label: '计划送货',
+            label: fieldShort('plannedDate', { record: 'delivery' }),
             // 计划日：没写计划日的按单据日期，和详情、生产页同一个 planDate
             render: (r) => (
               <>
@@ -116,7 +116,7 @@ function warehouseCols(
           } satisfies Col<WarehouseRow>,
         ]
       : []),
-    { key: 'actual', label: kind === 'arrival' ? '实际到货' : fieldLabel('date', { record: 'delivery' }), render: (r) => actualOf(kind, r) || '—' },
+    { key: 'actual', label: fieldLabel('date', { record: kind === 'arrival' ? 'arrival' : 'delivery' }), render: (r) => actualOf(kind, r) || '—' },
     {
       key: 'status',
       label: '状态',

@@ -131,7 +131,7 @@ const byRecord: Partial<Record<FieldRecord, Partial<Record<FieldKey, Field>>>> =
   delivery: {
     date: { label: '送货日期' },
     actualTime: { label: '送货时间' },
-    plannedDate: { label: '计划送货日期' },
+    plannedDate: { label: '计划送货日期', short: '计划送货' },
     address: { label: '收货地址' },
     contact: { label: '收货联系人' },
   },
@@ -146,7 +146,7 @@ const byLine: Partial<Record<FieldRecord, Partial<Record<FieldKey, Field>>>> = {
     taxMode: { label: '本项含税口径' },
   },
   purchases: { quantity: { label: '订货数量', short: '订货' } },
-  arrival: { quantity: { label: '实到数量' } },
+  arrival: { quantity: { label: '实到数量', short: '实到' } },
 };
 
 /** 查叫法的位置：哪种记录、上一层是什么（明细是 lines） */
@@ -175,9 +175,9 @@ export function fieldTitle(key: string, place?: FieldPlace) {
   return f && unitLabel(f.label, f.unit);
 }
 /** 窄处的简写（“合格”“拒收”“预计到货”），没有简写的用全称 */
-export function fieldShort(key: string, place?: FieldPlace) {
-  const f = fieldAt(key, place);
-  return f && (f.short ?? f.label);
+export function fieldShort(key: FieldKey, place?: FieldPlace) {
+  const f: Field = fieldAt(key, place) ?? fields[key];
+  return f.short ?? f.label;
 }
 /** 常用的直接取：fieldLabel('material') → “材质 / 配纸” */
 export const fieldLabel = (key: FieldKey, place?: FieldPlace) => fieldAt(key, place)?.label ?? fields[key].label;
