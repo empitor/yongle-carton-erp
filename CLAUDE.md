@@ -9,3 +9,4 @@
 - 界面实测用 `ui-check` 技能（`scripts/ui-check/preview.mjs`、`shot.mjs`）。
 - 改完业务代码、收尾汇报前，用 `erp-rules-reviewer` 子智能体按项目规则查一遍。
 - 派子智能体时，派工说明里写“先读 `.claude/子智能体须知.md`”，项目特有的规矩和做法都在那里。
+

@@ -16,3 +16,4 @@ if not "%ERP_START_EXIT%"=="0" (
   pause
 )
 exit /b %ERP_START_EXIT%
+

@@ -60,3 +60,4 @@ docs/**
 .claude/scheduled_tasks.lock
 .agents/
 .codex/
+

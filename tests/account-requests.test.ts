@@ -462,3 +462,4 @@ test('这台设备用过的账号：只记用户名，最多 5 个，最近的�
   assert.equal(lastUsedLabel('不是日期', now), '');
 });
 
+
