@@ -18,6 +18,7 @@ export default function AssistantPanel({
   panel,
   parts,
   userId,
+  superAdmin,
   floatingLauncher,
   speaker,
   speakTick,
@@ -26,6 +27,7 @@ export default function AssistantPanel({
   panel: ReturnType<typeof useAssistantPanel>;
   parts: AssistantParts;
   userId: string | undefined;
+  superAdmin: boolean;
   floatingLauncher: boolean;
   speaker: AssistantSpeaker | undefined;
   speakTick: number;
@@ -76,6 +78,7 @@ export default function AssistantPanel({
         large={large}
         floatingLauncher={floatingLauncher}
         signedIn={!!userId}
+        superAdmin={superAdmin}
         busy={chat.busy}
         newDisabled={chat.busy || review.executing || uploads.working}
         sessionLocked={sessionLocked}

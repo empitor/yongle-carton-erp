@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import type { AuthManager } from '../core/index.js';
 import { AppError, route } from '../core/index.js';
-import { audit, canEnterSuperMode, requirePermission, requireSuperModeFor, superModeDenied } from '../core/index.js';
+import { audit, requirePermission, requireSuperAdminAccount, requireSuperModeFor } from '../core/index.js';
 import { INBOX_MAX_FILE, botChannels, inboxFilterSchema, inboxStatusSchema, inboxTextSchema, type InboxApi } from '../../shared/import/index.js';
 import { InboxService, type InboxImportTarget } from './service.js';
 import { inboxChannelList, type BotManager } from './bots/manager.js';
@@ -40,7 +40,7 @@ function botRoutes({ router, on, store, auth, bots, actor }: InboxRoutes) {
   const botAdmin = (req: Request, change = false) => {
     const who = auth?.actor(req);
     if (change) requireSuperModeFor(who, '设置机器人');
-    else if (!canEnterSuperMode(who)) throw superModeDenied(who, '设置机器人');
+    else requireSuperAdminAccount(who, '设置机器人');
     if (!bots) throw new AppError('机器人接入未启用。', 503);
     return bots;
   };

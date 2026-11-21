@@ -2,7 +2,7 @@ import { Plus, Check } from 'lucide-react';
 import PromptEditor from './PromptEditor';
 import { FormMessage } from '../ui/index';
 import { ConfirmDialog } from '../ui/index';
-import { SuperModeNotice, useAuthState } from '../ui/index';
+import { SuperModeNotice } from '../ui/index';
 import type { PromptModuleId } from '../../shared/ai/index';
 import { usePromptPresets, type PromptPresets } from './usePromptPresets';
 
@@ -25,8 +25,7 @@ export default function PromptSettingsPage({
   /** 能不能改：超级管理员模式里才能（判断在设置页 AiSettingsHub） */
   editable?: boolean;
 }) {
-  const assistant = purpose === 'assistant',
-    admin = useAuthState()?.actor?.role === 'super_admin';
+  const assistant = purpose === 'assistant';
   const presets = usePromptPresets(module, assistant);
   const { state, current, busy, error, guard } = presets;
   return (
@@ -44,15 +43,8 @@ export default function PromptSettingsPage({
       >
         {error}
       </FormMessage>
-      {/* 超级管理员账号没进模式时给进入的入口；别的账号只能看 */}
-      {!editable &&
-        (admin ? (
-          <SuperModeNotice what="改提示词" />
-        ) : (
-          <p className="adm-muted" role="note">
-            提示词由超级管理员维护，这里只能查看。
-          </p>
-        ))}
+      {/* 这一页只给超级管理员账号：没进模式时给进入的入口 */}
+      {!editable && <SuperModeNotice what="改提示词" />}
       <FormMessage tone="info">{presets.notice}</FormMessage>
       <div className="adm-prompt-layout">
         <PresetList presets={presets} assistant={assistant} editable={editable} />

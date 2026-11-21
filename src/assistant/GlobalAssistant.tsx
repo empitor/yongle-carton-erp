@@ -153,6 +153,7 @@ export default function GlobalAssistant() {
           panel={panel}
           parts={parts}
           userId={userId}
+          superAdmin={auth?.actor?.role === 'super_admin'}
           floatingLauncher={floatingLauncher}
           speaker={activeSpeaker}
           speakTick={cue.speak.tick}

@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import { requirePermission, route, type Actor } from '../core/index.js';
+import { requireSuperAdminAccount, route, type Actor } from '../core/index.js';
 import { promptActions, promptModules, type PromptApi, type PromptModuleId } from '../../shared/ai/index.js';
 import type { PromptPresetManager } from './prompt-presets.js';
 import { aiPageGuard } from './page-guard.js';
@@ -9,12 +9,12 @@ const MOUNT = '/ai/prompt-modules';
 
 /**
  * 列出提示词模块（接口表 shared/ai/prompt-api.ts）：app.ts 把它挂在 /api/ai/prompt-modules 下。
- * 要业务编辑权限；不经页面关卡（和各模块的地址不同，没有跨站拒绝和 no-store），只读模块身份和展示信息。
+ * 和各模块的地址一样只给超级管理员账号；不经页面关卡（和各模块的地址不同，没有跨站拒绝和 no-store），只读模块身份和展示信息。
  */
 export function promptModuleListRouter(actorOf: (req: Request) => Actor | null) {
   const router = Router();
   route<PromptApi>(router, MOUNT)('GET /ai/prompt-modules', ({ req }) => {
-    requirePermission(actorOf(req), 'business:edit');
+    requireSuperAdminAccount(actorOf(req), '查看提示词');
     return promptModules.map((module) => ({
       id: module.id,
       name: module.name,

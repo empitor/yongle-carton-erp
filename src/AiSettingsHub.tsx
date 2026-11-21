@@ -1,33 +1,11 @@
-import { aiSettingsTab } from '../shared/assistant/index';
+import { aiSettingsTab, businessSettingsTab } from '../shared/assistant/index';
 import { useEffect, useState } from 'react';
 import { AiSettingsPage, ChannelSettings, PromptSettingsPage } from './admin/index';
-import { canEditBusiness, useLoad, type AuthState, loadingText } from './ui/index';
-import { readAiStatus } from './shell-api';
-import { DEEPSEEK_NAME, promptModules } from '../shared/ai/index';
+import type { AuthState } from './ui/index';
+import { promptModules } from '../shared/ai/index';
 import { AssistantPlugins } from './assistant/index';
 import { DocumentTemplateSettings } from './documents/index';
-
-/** 不是管理员：看得到现在用的模型、管理员填没填密钥；密钥只有管理员能改。 */
-function AiUserPreferences() {
-  const status = useLoad('assistant', readAiStatus);
-  // null 正在读，false 读不到（没有助手权限）就不显示这一行
-  const ai = status.error ? false : status.data;
-  return (
-    <div className="adm-ai-user">
-      <p className="adm-muted" role="note">
-        API 配置只有管理员能改。聊天和识别用管理员填好的 DeepSeek 密钥，你不用设置。
-      </p>
-      {ai !== false && (
-        <p className="adm-ai-user-model">
-          <span>正在使用</span>
-          <strong>
-            {ai === null ? loadingText() : DEEPSEEK_NAME + '（' + ai.model + '）' + (ai.ready ? '' : '，管理员还没填密钥')}
-          </strong>
-        </p>
-      )}
-    </div>
-  );
-}
+import { settingsTabsOf } from './app-shell';
 
 /**
  * 设置：页签和财务各页用同一套样式（record-view-tabs fin-tabs）。
@@ -48,21 +26,13 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
-  const admin = actor.role === 'super_admin';
-  const prompts = canEditBusiness({ actor });
-  // 渠道页只有管理员有、提示词页只有可改业务的账号有，别人从链接点进来退回默认页签，不发越权请求、不留白屏。
-  const tab =
-    (hashTab === 'channels' && !admin) || (hashTab === 'prompts' && !prompts)
-      ? aiSettingsTab('#ai-settings')
-      : hashTab;
+  const tabs = settingsTabsOf(actor),
+    shown = (key: string) => tabs.some(([k]) => k === key);
+  // 页签谁看得到由 settingsTabsOf 定：链接指的页签这个账号看不到时落到单据模板，不发越权请求、不留白屏。
+  // 一个页签都没有的账号（只读、出纳）侧栏没有设置，从链接进来只说一句。
+  if (!tabs.length) return <p className="adm-muted" role="note">当前账号没有可改的设置。</p>;
+  const tab = shown(hashTab) ? hashTab : businessSettingsTab;
   const module = promptModules.find((item) => item.id === promptKind) ?? promptModules[0];
-  const tabs: [string, string][] = [
-    ['api', 'API 配置'],
-    ...(prompts ? ([['prompts', '提示词']] satisfies [string, string][]) : []),
-    ['templates', '单据模板'],
-    ...(admin ? ([['channels', '消息接入']] satisfies [string, string][]) : []),
-    ['tools', '高级'],
-  ];
   return (
     <div className="adm-settings">
       <nav
@@ -83,7 +53,7 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
           </button>
         ))}
       </nav>
-      {tab === 'channels' && admin && (
+      {tab === 'channels' && (
         <section role="tabpanel" aria-label="消息接入">
           <ChannelSettings />
         </section>
@@ -93,15 +63,17 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
           <DocumentTemplateSettings />
         </section>
       )}
-      <section role="tabpanel" aria-label="API 配置" hidden={tab !== 'api'}>
-        {admin ? <AiSettingsPage /> : <AiUserPreferences />}
-      </section>
+      {shown('api') && (
+        <section role="tabpanel" aria-label="API 配置" hidden={tab !== 'api'}>
+          <AiSettingsPage />
+        </section>
+      )}
       {tab === 'tools' && (
         <section role="tabpanel" aria-label="高级：插件与工具">
           <AssistantPlugins />
         </section>
       )}
-      {prompts && (
+      {shown('prompts') && (
         <section role="tabpanel" aria-label="提示词" hidden={tab !== 'prompts'}>
           <div className="adm-prompt-module">
             <label className="adm-prompt-module-pick">
@@ -122,7 +94,7 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
               {module.description} {module.usage.replace(/（[^）]*接入[^）]*）$/, '')}
             </p>
           </div>
-          {/* 提示词要在超级管理员模式里才能改（本机管理员一直算在模式里），别的时候只读 */}
+          {/* 提示词要在超级管理员模式里才能改（本机管理员一直算在模式里），没进时只读 */}
           <PromptSettingsPage
             key={module.id}
             purpose={module.purpose}
