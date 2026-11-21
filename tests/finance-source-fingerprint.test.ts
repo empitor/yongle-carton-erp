@@ -11,6 +11,7 @@ import { flowFinance } from './finance-flow-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { sourceHash, withNumber } from '../server/finance/source-fingerprint.js';
 import { flowDocumentContent, flowDocumentSchema } from '../shared/business/flow-document.js';
+import { financeFingerprint } from '../shared/business/finance-source.js';
 import { count } from '../server/core/index.js';
 
 /**
@@ -317,14 +318,15 @@ test('单据在原处被程序改了（本机管理员改订单换客户，送�
 });
 
 test('来源指纹直接算：财务不读的字段、键的先后不影响指纹，数量、日期、状态变了指纹就变；单号补进快照不进指纹', () => {
-  const source = { kind: 'delivery', status: 'confirmed', date: '2026-01-20' };
+  const source = { status: 'confirmed', date: '2026-01-20' };
+  const hash = (at: typeof source, content: unknown) => sourceHash(at, financeFingerprint('delivery', content));
   const doc = { customerId: 1, notes: '虚构备注', lines: [{ quantity: '2', unitPriceExact: '10.0000', notes: '行备注' }] };
-  const base = sourceHash(source, doc);
-  assert.equal(sourceHash(source, { ...doc, notes: '改了备注', address: '虚构地址' }), base);
-  assert.equal(sourceHash(source, { lines: doc.lines, notes: doc.notes, customerId: 1 }), base, '键的先后不算');
-  assert.notEqual(sourceHash(source, { ...doc, lines: [{ ...doc.lines[0], quantity: '3' }] }), base);
-  assert.notEqual(sourceHash({ ...source, date: '2026-01-21' }, doc), base);
-  assert.notEqual(sourceHash({ ...source, status: 'reversed' }, doc), base);
+  const base = hash(source, doc);
+  assert.equal(hash(source, { ...doc, notes: '改了备注', address: '虚构地址' }), base);
+  assert.equal(hash(source, { lines: doc.lines, notes: doc.notes, customerId: 1 }), base, '键的先后不算');
+  assert.notEqual(hash(source, { ...doc, lines: [{ ...doc.lines[0], quantity: '3' }] }), base);
+  assert.notEqual(hash({ ...source, date: '2026-01-21' }, doc), base);
+  assert.notEqual(hash({ ...source, status: 'reversed' }, doc), base);
   assert.deepEqual(withNumber({ a: 1 }, 'FICT-1'), { a: 1, number: 'FICT-1' });
   assert.deepEqual(withNumber({ a: 1 }, null), { a: 1 });
 });
@@ -343,11 +345,11 @@ test('库里的单据按写入时核对过的内容存：财务按单据结构�
       businessChanges(s).rewrite(id, content);
     }
     new FinanceEvents(s).sync(maker);
-    for (const id of [1, 2]) {
-      const row = s.db.prepare('SELECT kind,status,date,document FROM flow_documents WHERE id=?').get(id);
+    for (const [id, kind] of [[1, 'delivery'], [2, 'arrival']] as const) {
+      const row = s.db.prepare('SELECT status,date,document FROM flow_documents WHERE id=?').get(id);
       assert.ok(row);
-      const source = { kind: String(row.kind), status: String(row.status), date: String(row.date) };
-      assert.equal(event(s, id).source_hash, sourceHash(source, JSON.parse(String(row.document))));
+      const source = { status: String(row.status), date: String(row.date) };
+      assert.equal(event(s, id).source_hash, sourceHash(source, financeFingerprint(kind, JSON.parse(String(row.document)))));
     }
   } finally {
     s.close();
