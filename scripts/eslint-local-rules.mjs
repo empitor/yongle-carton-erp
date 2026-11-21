@@ -7,8 +7,8 @@
 // no-direct-db-read：服务端不直接 prepare(…).get/all/iterate 读库。按类型认 node:sqlite 的语句对象，
 //   所以先存进变量再 .get() 的写法也拦得住（选择器只认得出连着写的）。
 // no-flow-literals：SQL 字符串里写死的单据状态、种类和 flow_ 记录种类（no-restricted-syntax 的选择器只能整串比，
-//   认不出 SQL 中间的一段，也分不出模板字符串里由常量拼的部分）。还没在 eslint.config.js 打开：单据流转以外还有没换完的
-//   （见 docs/路线图.md），换完再打开，范围是 server/ 下除单据流转（只读窗口 finance-facts 要查）、建表、财务（财务表的状态同名）。
+//   认不出 SQL 中间的一段，也分不出模板字符串里由常量拼的部分）。范围在 eslint.config.js：server/ 下除单据流转
+//   （只读窗口 finance-facts 要查）、建表、财务（财务表的状态同名）。
 import tseslint from 'typescript-eslint';
 
 const base = tseslint.plugin.rules['no-magic-numbers'];

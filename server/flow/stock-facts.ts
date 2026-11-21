@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Store } from '../core/index.js';
-import { sumMoney, type PurchaseRowView, type PurchaseView, type ReceiptEvent } from '../../shared/business/index.js';
+import { flowEntity, flowStatus, sumMoney, type PurchaseRowView, type PurchaseView, type ReceiptEvent } from '../../shared/business/index.js';
 import { exists, many, rows } from '../core/index.js';
 import { storedContent } from './read.js';
 import { quantityText, quantityUnits } from '../../shared/core/index.js';
@@ -63,9 +63,11 @@ export function purchaseArrivals(store: Store, purchaseIds: number[]) {
   return { receivedUnits, apply };
 }
 
-/** 待核对的、没归档的单据（已安排数只算这些） */
-const pendingDocuments =
-  "flow_documents.status='draft' AND flow_documents.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity IN ('flow_delivery','flow_production'))";
+/** 待核对的、没归档的单据（已安排数只算这些）；参数是 pendingArchived 给的归档编号 */
+const pendingDocuments = `flow_documents.status='${flowStatus.draft}' AND flow_documents.id NOT IN (SELECT value FROM json_each(?))`;
+/** 送货单、完工单里归档了的编号（JSON 数组，给 pendingDocuments 的参数） */
+const pendingArchived = (store: Store) =>
+  JSON.stringify([...store.archivedIds(flowEntity('delivery')), ...store.archivedIds(flowEntity('production'))]);
 /** 只看用到这些库存品的单据（按单据 JSON 里的 lines[].stockId、materials[].stockId 圈）；圈中的单据整张都算 */
 const usingStocks = ` AND (EXISTS(SELECT 1 FROM json_each(flow_documents.document,'$.lines') x
     WHERE json_extract(x.value,'$.stockId') IN (SELECT value FROM json_each(?)))
@@ -80,7 +82,7 @@ const reservedLine = z.object({ stockId: z.number().int().positive(), used: quan
  */
 export function reservedUnits(store: Store, ids?: readonly number[]) {
   const scope = pendingDocuments + (ids === undefined ? '' : usingStocks),
-    params = ids === undefined ? [] : [JSON.stringify(ids), JSON.stringify(ids)];
+    params = [pendingArchived(store), ...(ids === undefined ? [] : [JSON.stringify(ids), JSON.stringify(ids)])];
   const units = new Map<number, number>();
   for (const l of many(
     store.db,

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import { many, one, partyView, rows } from '../../core/index.js';
 import { stockKinds, type MovementFilters } from '../../../shared/business/index.js';
-import type { PurchaseRowView, StockItemBaseView, SupplierView } from '../../../shared/business/index.js';
+import type { PurchaseRowView, StockItemBaseView, SupplierView, purchaseBusinessStatuses } from '../../../shared/business/index.js';
 import { quantityString } from '../../../shared/core/index.js';
 import { MovementQueries } from './movements.js';
 import { assemblePurchases, purchaseHeads, purchaseScope } from './purchase-rows.js';
@@ -11,6 +11,8 @@ import { readStockDocument } from './stock-document.js';
 
 const totalRow = z.object({ n: z.number() });
 const stockTotalRow = z.object({ id: z.number(), n: z.number() });
+/** 采购单的“已订货”（SQL 里由它拼，不写字面值） */
+const ORDERED: (typeof purchaseBusinessStatuses)[number] = '已订货';
 const stockRow = rows.stock_items.extend({ kind: z.enum(stockKinds) });
 
 /** 一个库存品的基本视图：库里的一行加上结余、在途（千分整数），archived 是否已归档；已安排、可用由单据流转补 */
@@ -110,8 +112,9 @@ export class OperationsRepository {
       many(
         this.store.db,
         stockTotalRow,
-        "SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='已订货' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases')" +
+        `SELECT l.stock_item_id AS id,SUM(MAX(0,l.quantity_units-l.received_units)) AS n FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE p.status='${ORDERED}' AND l.stock_item_id IS NOT NULL AND p.id NOT IN (SELECT value FROM json_each(?))` +
           (predicate ? ' AND l.stock_item_id ' + predicate : '') + ' GROUP BY l.stock_item_id',
+        JSON.stringify([...this.store.archivedIds('purchases')]),
         ...params,
       ).map((r) => [r.id, r.n]),
     );

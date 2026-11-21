@@ -8,6 +8,7 @@ import type { Store } from '../../core/index.js';
 import { AppError, many, rehearse } from '../../core/index.js';
 import { type ToolContext } from './context.js';
 import { isRecord } from '../../../shared/core/index.js';
+import { flowEntityPrefix } from '../../../shared/business/index.js';
 
 /** 一条被动到的业务记录：module 和卡片、修改历史用的模块名一致（单据用 kind） */
 export type Touched = { module: string; id: number };
@@ -32,7 +33,10 @@ const tables: Record<string, (row: Row) => Owner | null> = {
   order_batch_purchases: (r) => ({ module: 'order_batch', id: r.batch_id }),
   inbox_items: (r) => ({ module: 'inbox', id: r.id }),
   product_marks: (r) => ({ module: 'products', id: r.product_id }),
-  record_lifecycle: (r) => ({ module: String(r.entity).replace(/^flow_/, ''), id: r.record_id }),
+  record_lifecycle: (r) => {
+    const entity = String(r.entity);
+    return { module: entity.startsWith(flowEntityPrefix) ? entity.slice(flowEntityPrefix.length) : entity, id: r.record_id };
+  },
   stock_movements: () => null,
 };
 

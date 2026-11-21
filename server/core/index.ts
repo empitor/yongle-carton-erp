@@ -15,7 +15,7 @@ export { snapshotBeforeDestructive } from './snapshots.js';
 export { assertNewProductAllowed, describeProduct, duplicateCustomers } from './duplicate-records.js';
 export type { DuplicateRecord } from './duplicate-records.js';
 export { backupDirectory, configDirectory, masterKeyName } from './config-paths.js';
-export { Store, defaultDbPath, partyView, registerProductStockSync } from './db.js';
+export { Store, archivedAmongIn, archivedIdsIn, defaultDbPath, partyView, registerProductStockSync } from './db.js';
 export { forwardedClient, hasProxyHeaders, proxyIngress, readDeployment } from './deployment.js';
 export type { Deployment } from './deployment.js';
 export { isLocalAdministrator, requireLocalAdministrator } from './local-administrator.js';

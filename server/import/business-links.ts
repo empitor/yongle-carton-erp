@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { many, one, rows, type Store } from '../core/index.js';
+import { many, type Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
+import { arrivalHeads } from '../flow/index.js';
 import type { ImportMapping } from '../../shared/import/index.js';
+import { ARRIVAL_SOURCE_KIND } from './receipt-ai.js';
 import { jsonTruthy } from './repository.js';
 
 /**
@@ -32,32 +34,23 @@ export function validateMapping(store: Store, m: ImportMapping) {
     }
 }
 
-const documentRow = rows.flow_documents.pick({ id: true, number: true, status: true });
 const sourceStateRow = z.object({ id: z.string(), errorState: z.string().nullable(), recognized: z.number() });
-/** 按编号批量取到货单（含归档）的单号与状态，只取列表要用的列。 */
-export function arrivalDocuments(store: Store, ids: unknown[]) {
-  const wanted = [...new Set(ids.filter((id): id is number => typeof id === 'number'))];
-  const found = wanted.length
-    ? many(
-        store.db,
-        documentRow,
-        "SELECT id,number,status FROM flow_documents WHERE kind='arrival' AND id IN (SELECT value FROM json_each(?))",
-        JSON.stringify(wanted),
-      )
-    : [];
-  return new Map(found.map((r) => [r.id, { number: r.number, status: r.status }]));
+/** 按编号批量取到货单（含归档）的单号与状态，只取列表要用的列（单据流转的 arrivalHeads）。 */
+function arrivalDocuments(store: Store, ids: unknown[]) {
+  return arrivalHeads(store, [...new Set(ids.filter((id): id is number => typeof id === 'number'))]);
 }
 
-/** 按编号批量取到货原件的识别状态；唛头原件也存在 flow_sources，按 kind 列只取到货原件。 */
-export function arrivalSources(store: Store, ids: unknown[]) {
+/** 按编号批量取到货原件的识别状态；按 kind 列只取到货原件。 */
+function arrivalSources(store: Store, ids: unknown[]) {
   const wanted = [...new Set(ids.filter((id): id is string => typeof id === 'string'))];
   const found = wanted.length
     ? many(
         store.db,
         sourceStateRow,
         `SELECT id,json_extract(document,'$.lastError.state') AS errorState,${jsonTruthy('$.result')} AS recognized
-          FROM flow_sources WHERE id IN (SELECT value FROM json_each(?)) AND kind='arrival'`,
+          FROM flow_sources WHERE id IN (SELECT value FROM json_each(?)) AND kind=?`,
         JSON.stringify(wanted),
+        ARRIVAL_SOURCE_KIND,
       )
     : [];
   return new Map(
@@ -68,10 +61,7 @@ export function arrivalSources(store: Store, ids: unknown[]) {
 export function arrivalLinks(store: Store, abort: (sourceId: string) => void): ArrivalLinks {
   return {
     exists: (ids) => new Set(arrivalDocuments(store, ids).keys()),
-    locked(id) {
-      const row = one(store.db, documentRow.pick({ status: true }), "SELECT status FROM flow_documents WHERE id=? AND kind='arrival'", id);
-      return !!row && row.status !== 'draft';
-    },
+    locked: (id) => arrivalHeads(store, [id]).get(id)?.locked ?? false,
     abort,
   };
 }

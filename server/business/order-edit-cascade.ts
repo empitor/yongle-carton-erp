@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, exists, many, requireLocalAdministrator, rows } from '../core/index.js';
 import { quantityUnits, type Order } from '../../shared/core/index.js';
-import { lifecycleFields, type FlowDocView } from '../../shared/business/index.js';
+import { flowEntity, lifecycleFields, movementSource, type FlowDocView } from '../../shared/business/index.js';
 import { FlowService, carryOverFlowDocument, replaceFlowDocument } from '../flow/index.js';
 import { stockLedger } from '../operations/index.js';
 import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from '../lifecycle/index.js';
@@ -60,7 +60,7 @@ const ownMovements = (store: Store, d: Delivery) =>
   many(
     store.db,
     rows.stock_movements,
-    "SELECT * FROM stock_movements WHERE source_kind='flow_delivery' AND source_id=? ORDER BY seq",
+    `SELECT * FROM stock_movements WHERE source_kind='${movementSource.delivery}' AND source_id=? ORDER BY seq`,
     String(d.id),
   );
 
@@ -92,7 +92,7 @@ function retainDeliveryLines(store: Store, d: Delivery, lines: DeliveryLine[], a
   // 单据少了行、换了流水号：记一条单据级的审计，带改之前和改之后
   audit(store, actor, {
     action: 'remove-delivery-lines',
-    entity: 'flow_delivery',
+    entity: flowEntity('delivery'),
     id: d.id,
     document: {
       before: d,
@@ -109,7 +109,7 @@ function detachMovements(store: Store, job: { d: Delivery; lines: DeliveryLine[]
   const { d, moveTo } = job;
   const leaving = leavingMovements(d, job.lines, ownMovements(store, d));
   const reason = (moveTo ? '拆分送货单 ' : '调整送货单 ') + d.number,
-    sourceKind = moveTo ? 'flow_delivery' : 'database-maintenance',
+    sourceKind = moveTo ? movementSource.delivery : movementSource.maintenance,
     sourceId = moveTo ? String(moveTo.id) : null;
   // 出库流水的备注是“单号 · 说明”（出库确认、更正都这么写）
   const prefix = d.number + ' · ';
@@ -230,7 +230,7 @@ function changeCustomer(store: Store, { flow, after, actor, d }: CustomerChange 
   flow.maintenanceReferences(d.id);
   audit(store, actor, {
     action: 'change-delivery-customer',
-    entity: 'flow_delivery',
+    entity: flowEntity('delivery'),
     id: d.id,
     document: { before: d, after: flow.get(d.id) },
   });
@@ -284,7 +284,7 @@ function splitDelivery(store: Store, job: CustomerChange & { d: Delivery; other:
   // 新单最后是什么状态、带着哪几笔流水，在这里记准：保存时那条“新建待核对单据”的审计不记（save 的 moved）
   audit(store, actor, {
     action: 'split-delivery',
-    entity: 'flow_delivery',
+    entity: flowEntity('delivery'),
     id: created.id,
     document: { from: { id: d.id, number: d.number }, after: flow.get(created.id), movements: detached },
   });

@@ -59,6 +59,20 @@ function productView(r: z.output<typeof productRow>): Product {
   };
 }
 const archivedRow = rows.record_lifecycle.pick({ record_id: true });
+/** 某类记录的归档编号：Store.archivedIds 用它；只拿到库连接的（财务的只读窗口）直接调 */
+export const archivedIdsIn = (db: DatabaseSync, entity: string) =>
+  new Set(many(db, archivedRow, 'SELECT record_id FROM record_lifecycle WHERE entity=?', entity).map((r) => r.record_id));
+/** 一组编号（json_each 用的 JSON 数组文字）里归档了的，按主键查：Store.archivedAmong 用它；只拿到库连接的直接调 */
+export const archivedAmongIn = (db: DatabaseSync, entity: string, idsJson: string) =>
+  new Set(
+    many(
+      db,
+      archivedRow,
+      'SELECT record_id FROM record_lifecycle WHERE entity=? AND record_id IN (SELECT value FROM json_each(?)) ORDER BY record_id',
+      entity,
+      idsJson,
+    ).map((r) => r.record_id),
+  );
 /** 按编号筛（ids 给了才筛）：编号作为 JSON 数组绑定 */
 const idFilter = (ids: readonly number[] | undefined) => (ids ? ' WHERE id IN (SELECT value FROM json_each(?))' : '');
 const idParams = (ids: readonly number[] | undefined) => (ids ? [JSON.stringify(ids)] : []);
@@ -104,9 +118,11 @@ export class Store {
   }
   /** 一次取回某类记录的归档编号，避免列表逐行查询。 */
   archivedIds(entity: string) {
-    return new Set(
-      many(this.db, archivedRow, 'SELECT record_id FROM record_lifecycle WHERE entity=?', entity).map((r) => r.record_id),
-    );
+    return archivedIdsIn(this.db, entity);
+  }
+  /** 这些编号里归档了的（按主键查，只读给的这几条） */
+  archivedAmong(entity: string, ids: readonly number[]) {
+    return ids.length ? archivedAmongIn(this.db, entity, JSON.stringify(ids)) : new Set<number>();
   }
   customers(includeArchived = false, ids?: readonly number[]): Customer[] {
     const archived = includeArchived ? null : this.archivedIds('customers');
