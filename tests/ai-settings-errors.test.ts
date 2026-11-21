@@ -5,13 +5,13 @@ import { z } from 'zod';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { createApp } from '../server/app.js';
 import { Store } from '../server/core/db.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { fakeDeepSeek, testProtector } from './fake-deepseek.js';
 
 test('AI 设置提交不合格：回 400，按设置页的叫法说哪一栏不对，不带英文字段名', async () => {
   const m = new AiSettingsManager({ transport: fakeDeepSeek().transport, protector: testProtector }),
     store = new Store(':memory:'),
-    server = await listen(createApp(store, { aiSettings: m }));
+    server = await listen(createApp(store, { aiSettings: m, problems: testProblems() }));
   const post = async (path: string, body: unknown) => {
     const res = await fetch(server.origin + '/api/ai/settings' + path, {
       method: 'POST',

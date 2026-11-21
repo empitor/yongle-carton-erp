@@ -9,7 +9,7 @@ import { Store } from '../server/core/db.js';
 import { ProblemLog, many } from '../server/core/index.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { cookieOf, startHttp } from './http-fixture.js';
-import { deliveryDoc, maker, newSettings, physical } from './finance-fixture.js';
+import { deliveryDoc, event, maker, newSettings, physical } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 
@@ -66,20 +66,23 @@ test('有一张单据内容读不出来：财务读取照常回 200，出错记�
   }
 });
 
-test('补扫没成功（财务自己的数据坏了）：财务的读请求照常回 200，写请求拦下', async () => {
+test('补扫没成功（财务自己的数据坏了）：财务的读请求照常回 200，和来源单据无关的写入照常，要核对来源单据的写入拦下', async () => {
   const s = new Store(':memory:');
   newSettings(s);
   physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
   const h = await startHttp(s);
   try {
     assert.equal((await h.get('/finance/summary?date=2026-01-31')).status, 200);
+    const e = event(s, 1);
     s.db.prepare(`UPDATE fin_events SET snapshot='{"doc":5}'`).run();
     s.db.prepare("UPDATE flow_documents SET status='reversed',version=version+1 WHERE id=1").run();
     assert.equal((await h.get('/finance/summary?date=2026-01-31')).status, 200, '读照常');
     const ready = z.object({ syncFailed: z.boolean() }).parse(await (await h.get('/finance/reports/readiness?period=2026-01')).json());
     assert.equal(ready.syncFailed, true, '正式报表、结账照拦');
     const budget = { requestId: 'budget', period: '2026-01', accountCode: '5603', amount: 100 };
-    assert.equal((await h.send('/finance/budgets', budget, h.cookie, { method: 'PUT' })).status, 503, '写请求先拦下');
+    assert.equal((await h.send('/finance/budgets', budget, h.cookie, { method: 'PUT' })).status, 200, '和来源单据无关的写入照常');
+    const generate = { requestId: 'generate', version: e.version };
+    assert.equal((await h.send(`/finance/events/${e.id}/generate`, generate, h.cookie)).status, 503, '生成凭证要核对来源单据，拦下');
   } finally {
     await h.close();
     s.close();

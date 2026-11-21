@@ -12,7 +12,7 @@ import { FlowService } from '../server/flow/service.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import type { MovementFilters } from '../shared/business/index.js';
 import { pageActor } from './actor-fixture.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { receiveLines } from './receive-fixture.js';
 
 const actor = pageActor({ id: 'movement-search', name: '虚构仓管', permissions: ['business:edit'] });
@@ -99,7 +99,7 @@ const listing = z.object({
 
 test('流水接口：统计只算筛出来的流水，总数是全部流水；关键词带上有匹配流水（不限日期）的库存品；页码超出落到最后一页，排序参数不起作用', async () => {
   const w = world();
-  const server = await listen(createApp(w.store));
+  const server = await listen(createApp(w.store, { problems: testProblems() }));
   const get = async (query: Record<string, string>) => {
     const r = await fetch(server.origin + '/api/warehouse/movements?' + new URLSearchParams(query));
     assert.equal(r.status, 200);

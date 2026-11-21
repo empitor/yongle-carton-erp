@@ -13,7 +13,7 @@ import { FinanceInvoices } from '../server/finance/invoices.js';
 import { FinanceMonthly } from '../server/finance/monthly.js';
 import { FinanceReports } from '../server/finance/reports.js';
 import { pageActor } from './actor-fixture.js';
-import { catchUpProblems, totalChanges, watchBegins } from './finance-catch-up-fixture.js';
+import { catchUpProblems, quietLog, totalChanges, watchBegins } from './finance-catch-up-fixture.js';
 import { bill, deliveryDoc, event, eventsStep, maker, newSettings, obligation, physical, setDoc } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
@@ -60,10 +60,10 @@ test('坏单据在库里原处改好、版本号没变：下次补扫照样补�
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
     businessChanges(s).tamper('flow_documents', 1, '$.lines', '虚构的坏明细');
-    catchUp(s, maker, undefined);
+    catchUp(s, maker, quietLog);
     assert.equal(unseenSources(s.db, '2026-01-31'), 1);
     businessChanges(s).tamper('flow_documents', 1, '$.lines', deliveryDoc('1').lines);
-    catchUp(s, maker, undefined);
+    catchUp(s, maker, quietLog);
     assert.equal(unseenSources(s.db, '2026-01-31'), 0, '内容变了就再读');
     assert.equal(event(s, 1).source_id, '1');
   } finally {
@@ -104,13 +104,13 @@ test('没有要补的：补扫只读，不开写事务；财务没启用时什�
   try {
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
     const before = totalChanges(s);
-    assert.deepEqual(catchUp(s, maker, undefined), { processed: 0, remaining: false, failed: false });
+    assert.deepEqual(catchUp(s, maker, quietLog), { processed: 0, remaining: false, failed: false });
     assert.deepEqual([begun.length, totalChanges(s)], [0, before], '财务没启用');
     newSettings(s);
-    assert.equal(catchUp(s, maker, undefined).processed, 1);
+    assert.equal(catchUp(s, maker, quietLog).processed, 1);
     begun.length = 0;
     const synced = totalChanges(s);
-    assert.deepEqual(catchUp(s, maker, undefined), { processed: 0, remaining: false, failed: false });
+    assert.deepEqual(catchUp(s, maker, quietLog), { processed: 0, remaining: false, failed: false });
     assert.deepEqual([begun.length, totalChanges(s)], [0, synced], '都同步过了');
   } finally {
     s.close();
@@ -123,9 +123,9 @@ test('一次补扫最多扫几批，剩下的留给后面的请求接着扫（�
     newSettings(s);
     const batches = CATCH_UP_BATCHES * 100 + 1;
     for (let id = 1; id <= batches; id++) physical(s, id, 'delivery', '2025-12-20', deliveryDoc('1'));
-    assert.deepEqual(catchUp(s, maker, undefined), { processed: 0, remaining: true, failed: false });
+    assert.deepEqual(catchUp(s, maker, quietLog), { processed: 0, remaining: true, failed: false });
     assert.equal(unseenSources(s.db, '2025-12-31'), 1, '这次只扫了几批');
-    assert.equal(catchUp(s, maker, undefined).remaining, false);
+    assert.equal(catchUp(s, maker, quietLog).remaining, false);
     assert.equal(unseenSources(s.db, '2025-12-31'), 0, '下一次接着扫完');
   } finally {
     s.close();
@@ -138,15 +138,15 @@ test('已撤销送货原来挂的发票关联改掉以后：不用别的单据�
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1', { taxed: false }));
     physical(s, 2, 'delivery', '2026-01-21', deliveryDoc('1', { taxed: false }));
-    catchUp(s, maker, undefined);
+    catchUp(s, maker, quietLog);
     const invoices = new FinanceInvoices(s);
     const draft = invoices.create(maker, bill('sale', 'SALE-DRAFT'));
     invoices.link(maker, draft.id, { version: 1, requestId: 'link', links: [{ obligationId: obligation(s, 1).id, amount: 10000 }] });
     reversed(s, 1);
-    catchUp(s, maker, undefined);
+    catchUp(s, maker, quietLog);
     assert.equal(event(s, 1).status, 'difference', '挂着发票关联，不自动收尾');
     invoices.link(maker, draft.id, { version: 2, requestId: 'relink', links: [{ obligationId: obligation(s, 2).id, amount: 10000 }] });
-    catchUp(s, maker, undefined);
+    catchUp(s, maker, quietLog);
     assert.equal(event(s, 1).status, 'corrected');
   } finally {
     s.close();
@@ -161,9 +161,9 @@ test('只能看财务的账号发起读取：补扫照样做，审计记发起�
     const vouchers = count(s.db, 'SELECT count(*) FROM fin_vouchers');
     const before = totalChanges(s);
     const outsider = pageActor({ id: 'outsider', name: '虚构业务员', permissions: ['business:edit'] });
-    assert.throws(() => catchUp(s, outsider, undefined), /权限/);
+    assert.throws(() => catchUp(s, outsider, quietLog), /权限/);
     assert.equal(totalChanges(s), before, '没有财务权限的不补扫');
-    catchUp(s, viewer, undefined);
+    catchUp(s, viewer, quietLog);
     const e = event(s, 1);
     const audits = many(s.db, auditActors, "SELECT actor_id,action FROM business_audit WHERE entity='fin_events' AND record_id=?", e.id);
     assert.deepEqual(audits, [{ actor_id: viewer.id, action: 'sync' }]);
@@ -180,7 +180,7 @@ test('业务撤销以后不手动补扫，助手查月度经营就先补扫：�
     t.sync();
     assert.equal(t.current(shipped.id).event_type, 'delivery.confirmed');
     t.reverse(shipped.id);
-    readFinanceTool(t.f.store, viewer, 'finance.monthly', { period: '2026-10' });
+    readFinanceTool(t.f.store, viewer, 'finance.monthly', { period: '2026-10' }, quietLog);
     assert.equal(t.current(shipped.id).event_type, 'delivery.reversed', '查之前已同步了撤销');
   } finally {
     t.f.store.close();

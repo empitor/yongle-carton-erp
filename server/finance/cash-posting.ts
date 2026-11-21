@@ -11,6 +11,7 @@ import type { Store } from '../core/index.js';
 import { exists, many, one, rows } from '../core/index.js';
 import { checkVersion, financeAudit, financeError } from './core.js';
 import { lapsedStatuses, sourceIs } from './source-scan.js';
+import { assertSourcesCaughtUp } from './sync-health.js';
 import type { FinanceLedger } from './ledger.js';
 import { allocationReversalMessage, allocationSum, obligationBaseDate } from './obligation-sql.js';
 import { entry, id, label, money, row } from './query.js';
@@ -185,6 +186,8 @@ function allocationEntries(store: Store, { c, v, initial }: Allocation, rule: Ro
  */
 export function addAllocation(store: Store, ledger: FinanceLedger, user: Actor, allocation: Allocation) {
   const db = store.db;
+  // 核销要看来源送货单撤没撤销：补扫没成功时先拦下（sync-health.ts）；不核销的登记收付款照常
+  assertSourcesCaughtUp(db);
   const { c, v, date, requestId, initial } = allocation;
   const before = row(db, 'fin_obligations', v.obligationId);
   const rule = allocationRule(allocation, before);

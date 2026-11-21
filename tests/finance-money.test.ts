@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { quietLog } from './finance-catch-up-fixture.js';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { centsInput, toCents, yuan } from '../src/ui/money.js';
@@ -127,7 +128,7 @@ test('助手财务查询：科目余额、本年累计、利润表本年数、�
     });
     post(s, voucher.header.id);
     const read = (name: string, extra: Record<string, unknown> = {}) =>
-      readFinanceTool(s, maker, name, { period: '2026-03', ...extra });
+      readFinanceTool(s, maker, name, { period: '2026-03', ...extra }, quietLog);
     const trial = withRows.parse(read('finance.reports', { kind: 'trial' }));
     const cash = trial.rows.find((r) => r.account_code === '1002');
     assert.equal(cash?.ending, '10500.00', '科目期末余额');

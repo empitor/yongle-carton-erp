@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import {
   orderMetrics,
@@ -247,7 +247,7 @@ const tableDump = (store: Store) =>
 
 /** 在 store 上起接口；get 读 200 的回答 */
 async function served(store: Store) {
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   const get = async (path: string) => {
     const r = await fetch(server.origin + '/api' + path);
     assert.equal(r.status, 200, path);

@@ -9,6 +9,7 @@ import { exists, many, one, rows } from '../core/index.js';
 import { dateSchema } from '../../shared/core/index.js';
 import { periodSchema, versionSchema } from '../../shared/finance/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
+import { assertSourcesCaughtUp } from './sync-health.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
 import type { SourceText } from '../flow/index.js';
 import { readSource } from './source-scan.js';
@@ -74,6 +75,7 @@ export class FinanceEventHandling {
   resolve(actor: Actor | null, rawId: unknown, raw: unknown, taxSource?: { rate: string; mode: string }[]) {
     const user = financeActor(actor, 'finance:edit'),
       id = recordId.parse(rawId);
+    assertSourcesCaughtUp(this.db);
     const input = resolveInput.parse(raw);
     return financeWrite(this.store, user, { action: 'events.resolve', input: { ...input, id }, result: rows.fin_events }, () => {
       const before = readEvent(this.db, id);
@@ -118,6 +120,7 @@ export class FinanceEventHandling {
 
   resolveBatch(actor: Actor | null, raw: unknown) {
     const user = financeActor(actor, 'finance:edit');
+    assertSourcesCaughtUp(this.db);
     const v = batchInput.parse(raw);
     const scope = batchScope(v);
     return financeWrite(this.store, user, { action: 'events.batch', input: { ...v }, result: z.array(rows.fin_events) }, () => {
@@ -176,6 +179,7 @@ export class FinanceEventHandling {
   correct(actor: Actor | null, rawId: unknown, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
       id = recordId.parse(rawId);
+    assertSourcesCaughtUp(this.db);
     const input = edit.extend({ date: dateSchema, reason: label }).parse(raw);
     return financeWrite(this.store, user, { action: 'events.correct', input: { ...input, id }, result: correctedEvent }, () => {
       const event = readEvent(this.db, id);
@@ -242,6 +246,7 @@ export class FinanceEventHandling {
   acknowledgeStatisticalCorrection(actor: Actor | null, rawId: unknown, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
       id = recordId.parse(rawId);
+    assertSourcesCaughtUp(this.db);
     const v = edit.extend({ reason: label }).parse(raw);
     return financeWrite(this.store, user, { action: 'events.acknowledge', input: { ...v, id }, result: rows.fin_events }, () => {
       const before = readEvent(this.db, id);

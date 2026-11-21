@@ -10,8 +10,18 @@ import { permissionNames, userRoles } from '../shared/core/accounts.js';
 import { pageActor } from './actor-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { readDeployment, type Deployment } from '../server/core/deployment.js';
+import { ProblemLog } from '../server/core/index.js';
 
-export type AppOptions = NonNullable<Parameters<typeof createApp>[1]>;
+/** createApp 的选项；出错记录不给时夹具给一个内存库（testProblems），服务关掉时一起关 */
+export type AppOptions = Omit<Parameters<typeof createApp>[1], 'problems'> & { problems?: ProblemLog };
+/** 测试用的出错记录：内存库，和正式的同一个类（createApp 必传，测试不看出错记录的给它） */
+export const testProblems = () => new ProblemLog();
+/** 选项里没给出错记录就给一个内存库；owned 是夹具自己建的（关服务时关掉） */
+function withProblems<T extends { problems?: ProblemLog }>({ problems, ...rest }: T) {
+  if (problems) return { options: { ...rest, problems }, owned: null };
+  const own = testProblems();
+  return { options: { ...rest, problems: own }, owned: own };
+}
 export type Account = { name: string; password: string };
 export const testAdmin: Account = { name: '虚构管理员', password: 'Fictional-admin-123' };
 /** 有响应头的回答：fetch 的 Response，或 startProxied 的 call() 回答 */
@@ -54,7 +64,8 @@ type SendOptions = { csrf?: string | null; method?: string; headers?: Record<str
 export async function startHttp(store: Store, options: AppOptions & { admin?: Account | false } = {}) {
   const { admin = testAdmin, ...appOptions } = options;
   const auth = appOptions.auth ?? new AuthManager(':memory:');
-  const served = await listen(createApp(store, { ...appOptions, auth }));
+  const app = withProblems({ ...appOptions, auth });
+  const served = await listen(createApp(store, app.options));
   /** path 从 /api 后面写。没有 body 是 GET；默认不带 cookie、带页面凭证（csrf: null 不带）。读完响应才返回，不能用于 SSE。 */
   const send = async (path: string, body?: unknown, cookie = '', o: SendOptions = {}) => {
     const csrf = o.csrf === undefined ? auth.csrf : o.csrf;
@@ -112,6 +123,7 @@ export async function startHttp(store: Store, options: AppOptions & { admin?: Ac
     async close() {
       await served.close();
       auth.close();
+      app.owned?.close();
     },
   };
   if (admin) await http.setup(admin);
@@ -163,7 +175,8 @@ export async function startProxied(
   );
   if (!deployment) throw new Error('部署模式的环境变量没有读成部署配置');
   let auth = makeAuth(deployment);
-  handle = createApp(store, { ...options, auth, deployment });
+  const app = withProblems(options);
+  handle = createApp(store, { ...app.options, auth, deployment });
   const call = (port: number, path: string, o: CallOptions = {}) => {
     const data = o.raw ?? (o.body === undefined ? '' : JSON.stringify(o.body));
     return new Promise<Answer>((done, reject) => {
@@ -208,11 +221,12 @@ export async function startProxied(
     restart() {
       auth.close();
       auth = makeAuth(deployment);
-      handle = createApp(store, { ...options, auth, deployment });
+      handle = createApp(store, { ...app.options, auth, deployment });
     },
     async close() {
       await Promise.all([local.close(), proxy.close()]);
       auth.close();
+      app.owned?.close();
     },
   };
 }

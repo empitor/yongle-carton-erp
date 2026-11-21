@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { parseStoredJson } from '../core/index.js';
 import { financeSourceSchemas } from '../../shared/business/index.js';
-import { taxModes } from '../../shared/finance/index.js';
+import { storedTaxModes } from '../../shared/finance/index.js';
 
 /*
  * 财务事件存的来源单据快照（fin_events.snapshot）：同步时（events.ts）写，补财务资料、红字冲销并重做时
@@ -60,7 +60,7 @@ export type DocumentMoney = z.output<typeof documentMoney>;
 /** 补财务资料时人填的一行：精确金额、含税口径、税率（event-handling.ts 收的，也是快照里 financialLines 的样子） */
 export const evidenceLine = z.strictObject({
   exact: z.string().regex(/^\d{1,24}(\.\d{1,24})?$/),
-  mode: z.enum(taxModes),
+  mode: z.enum(storedTaxModes),
   rate: z
     .string()
     .trim()

@@ -1,5 +1,5 @@
 import { CENTS_PER_YUAN, roundedQuotient } from '../../shared/core/index.js';
-import { taxModes } from '../../shared/finance/index.js';
+import { storedTaxModes } from '../../shared/finance/index.js';
 import { financeError } from './core.js';
 
 type Rational = { numerator: bigint; denominator: bigint };
@@ -33,7 +33,7 @@ function cents(value: Rational) {
 
 export function documentMoney(lines: { exact: string; mode: string; rate: string }[]) {
   const amounts = lines.map(({ exact, mode, rate }) => {
-    if (!taxModes.some((m) => m === mode)) financeError('含税口径未明确。');
+    if (!storedTaxModes.some((m) => m === mode)) financeError('含税口径未明确。');
     if (!rate) financeError('缺少税率。');
     const r = decimal(rate.replace(/%$/, ''));
     if (r.numerator > PERCENT * r.denominator) financeError('税率超出范围。');

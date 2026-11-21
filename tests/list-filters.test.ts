@@ -12,7 +12,7 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { today, orderSchema } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';
@@ -204,7 +204,7 @@ const tablesOf = (store: Store) => ({
 test('流水接口组合筛选、日期边界、历史查询；查询不改余额、审计和归档标记', async () => {
   const { store, actor, date, start, old, raw, p } = movementHistory();
   const before = tablesOf(store);
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   const base = server.origin + '/api/warehouse/movements';
   const get = async (q = '') => {
     const r = await fetch(base + q);
@@ -301,7 +301,7 @@ test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿
       { action: 'in', quantity: '1', date: '2026-10-01', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: version },
       actor,
     );
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   const get = async (path: string) => {
     const r = await fetch(server.origin + '/api' + path);
     const body: unknown = await r.json();
@@ -350,7 +350,7 @@ test('客户订过的产品、从供应商采购过的原材料、客户产品�
 
 test('产品、库存列表接口按客户和供应商筛', async () => {
   const f = fixture();
-  const server = await listen(createApp(f.store));
+  const server = await listen(createApp(f.store, { problems: testProblems() }));
   const base = server.origin + '/api';
   const names = async (path: string) => {
     const body: unknown = await (await fetch(base + path)).json();
@@ -382,7 +382,7 @@ test('顶栏搜索的供应商和供应商页同一份文字：地址、备注�
 
 test('客户、产品、供应商、库存品接口不带 withMetrics（下拉用）的搜索和页面同一套：看不见的编号、版本搜不到', async () => {
   const f = fixture();
-  const server = await listen(createApp(f.store));
+  const server = await listen(createApp(f.store, { problems: testProblems() }));
   const named = z.array(z.object({ name: z.string() }));
   const read = async (path: string) => {
     const body: unknown = await (await fetch(server.origin + '/api' + path)).json();
