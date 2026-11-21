@@ -10,8 +10,10 @@ import { documentInfoSchema } from './flow-requests.js';
  * - 财务口径（financeSourceSchemas）：送货、到货、完工单和盘点流水里财务点名读的几项，每项的结构从业务的严格结构里取。
  *   财务事件快照的 doc 只存它（加上单号），读快照、生成凭证、“改了什么”、成本和发票都只读这几项。
  * - 栏目归类（financeFieldClasses）：单据每一层（表头、明细、到货明细的纸板资料、完工领料）的每个栏目都归一类，
- *   业务多一个栏目缺键、改名多键，都编译不过。来源指纹只算归“算”的（financialContent）；归“说明”的是“编辑”
- *   能改的说明和备注（documentInfoFields 从这里取），改了不动财务。
+ *   业务多一个栏目缺键、改名多键，都编译不过。归“说明”的是“编辑”能改的说明和备注（documentInfoFields 从这里取），改了不动财务。
+ * - 算进来源指纹的内容（fingerprintRules、financeFingerprint）：归“算”的栏目，按财务口径的名字取出来。
+ *   改名表的键是业务的栏目名、值是财务口径的名字，键必须正好是归类表里归“算”的那些（多了、少了都编译不过）；
+ *   业务改栏目名只改这张表的键，财务口径的名字不变，库里存的来源指纹也不变。
  */
 
 const delivery = flowContentSchema('delivery').shape;
@@ -123,12 +125,7 @@ type Line<K extends 'delivery' | 'arrival'> = FlowDocuments[K]['lines'][number];
  *   按实收算的面积金额、抄的采购单和供应商名（财务按采购明细认、往来单位按表头）。纸板资料只算品名、单位和长宽。
  * 完工单的产品、成品库存、良品和报废数量、领料都算：它们决定库存流水，月末成本按流水算。
  */
-export const financeFieldClasses: {
-  delivery: { doc: DocClasses<FlowDocuments['delivery']>; lines: Classes<Line<'delivery'>> };
-  arrival: { doc: DocClasses<FlowDocuments['arrival']>; lines: Classes<Line<'arrival'>>; item: Classes<Line<'arrival'>['item']> };
-  production: { doc: DocClasses<FlowDocuments['production']>; materials: Classes<FlowDocuments['production']['materials'][number]> };
-  stock: { doc: Classes<FinanceSource<'stock'>> };
-} = {
+export const financeFieldClasses = {
   delivery: {
     doc: {
       notes: 'info', address: 'info', contact: 'info', phone: 'info', actualTime: 'info',
@@ -174,11 +171,15 @@ export const financeFieldClasses: {
     materials: { stockId: 'count', issued: 'count', returned: 'count' },
   },
   stock: { doc: { stockId: 'count', deltaUnits: 'count', createdAt: 'count', reason: 'info' } },
+} as const satisfies {
+  delivery: { doc: DocClasses<FlowDocuments['delivery']>; lines: Classes<Line<'delivery'>> };
+  arrival: { doc: DocClasses<FlowDocuments['arrival']>; lines: Classes<Line<'arrival'>>; item: Classes<Line<'arrival'>['item']> };
+  production: { doc: DocClasses<FlowDocuments['production']>; materials: Classes<FlowDocuments['production']['materials'][number]> };
+  stock: { doc: Classes<FinanceSource<'stock'>> };
 };
 
 type Layer = Readonly<Record<string, FieldClass>>;
 const keysWhere = (layer: Layer, keep: (c: FieldClass) => boolean) => Object.keys(layer).filter((key) => keep(layer[key]));
-const notCounted = (layer: Layer) => keysWhere(layer, (c) => c !== 'count');
 
 const isInfoField = (key: string): key is InfoField => key !== 'expectedVersion' && Object.hasOwn(documentInfoSchema.shape, key);
 const infoFieldsOf = (layer: Layer) => keysWhere(layer, (c) => c === 'info').filter(isInfoField);
@@ -189,55 +190,110 @@ export const documentInfoFields = {
   production: infoFieldsOf(financeFieldClasses.production.doc),
 };
 
-/** 指纹去掉的栏目：表头、明细不算的；到货明细的纸板资料只留算的 */
-const outsideFinance: Record<string, { top: string[]; line: string[]; itemKeeps?: string[] }> = {
-  delivery: { top: notCounted(financeFieldClasses.delivery.doc), line: notCounted(financeFieldClasses.delivery.lines) },
-  arrival: {
-    top: notCounted(financeFieldClasses.arrival.doc),
-    line: notCounted(financeFieldClasses.arrival.lines),
-    itemKeeps: keysWhere(financeFieldClasses.arrival.item, (c) => c === 'count'),
+/** 一层归“算”的栏目的改名表：键是业务的栏目名（正好是归类表这一层归“算”的那些，多了少了都编译不过），值是财务口径的名字 */
+type Counted<C> = { readonly [K in keyof C as C[K] extends 'count' ? K : never]: string };
+/** 算进指纹的一层：改名表，和这一层里还要往下取一层的栏目（一组明细、纸板资料、领料；键是业务的栏目名） */
+type FingerprintLayer = { names: Readonly<Record<string, string>>; nested?: Readonly<Record<string, FingerprintLayer>> };
+const classes = financeFieldClasses;
+/** 各层的改名表（直接列键，不用展开：展开进来的键多了少了编译时查不出） */
+const names = {
+  deliveryDoc: {
+    customerId: 'customerId', customerName: 'customerName', lines: 'lines',
+    confirmedAt: 'confirmedAt', correctionOf: 'correctionOf', replacedBy: 'replacedBy',
   },
-  production: { top: notCounted(financeFieldClasses.production.doc), line: [] },
-  stock: { top: notCounted(financeFieldClasses.stock.doc), line: [] },
-};
-
-/** 去掉这些键的副本 */
-const without = (value: Record<string, unknown>, keys: string[]) =>
-  Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
-/** 只留这些键（有的才留）的副本 */
-const only = (value: Record<string, unknown>, keys: string[]) =>
-  Object.fromEntries(Object.entries(value).filter(([key]) => keys.includes(key)));
-
-/**
- * 按键名排好序的副本。单据确认时和管理员编辑时整份重写 document，键的先后不一样（内容完全相同），
- * 直接 JSON.stringify 算出来的指纹就不同；排好序再算，只看内容。
- */
-const sortedKeys = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map((item: unknown) => sortedKeys(item));
-  if (!isRecord(value)) return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, sortedKeys(value[key])]),
-  );
-};
-
-/** 一行明细去掉不算的字段；到货明细的纸板资料只留算的那几项 */
-const lineContent = (line: unknown, rule: { line: string[]; itemKeeps?: string[] }) => {
-  if (!isRecord(line)) return line;
-  const copy = without(line, rule.line);
-  if (rule.itemKeeps && isRecord(copy.item)) copy.item = only(copy.item, rule.itemKeeps);
-  return copy;
+  deliveryLine: {
+    orderId: 'orderId', orderLineId: 'orderLineId', stockId: 'stockId', quantity: 'quantity', productId: 'productId',
+    productName: 'productName', unit: 'unit', unitPriceExact: 'unitPriceExact', taxRate: 'taxRate', taxMode: 'taxMode',
+  },
+  arrivalDoc: {
+    supplierId: 'supplierId', supplierName: 'supplierName', lines: 'lines', correctionOfReceiptId: 'correctionOfReceiptId',
+    confirmedAt: 'confirmedAt', correctionOf: 'correctionOf', replacedBy: 'replacedBy',
+  },
+  arrivalLine: {
+    stockId: 'stockId', purchaseLineId: 'purchaseLineId', item: 'item', quantity: 'quantity', acceptedQuantity: 'acceptedQuantity',
+    stockedQuantity: 'stockedQuantity', unitPrice: 'unitPrice', priceBasis: 'priceBasis',
+  },
+  arrivalItem: { name: 'name', unit: 'unit', length: 'length', width: 'width', dimensionUnit: 'dimensionUnit' },
+  productionDoc: {
+    productId: 'productId', finishedStockId: 'finishedStockId', goodQuantity: 'goodQuantity', scrapQuantity: 'scrapQuantity',
+    materials: 'materials', confirmedAt: 'confirmedAt', correctionOf: 'correctionOf', replacedBy: 'replacedBy',
+  },
+  material: { stockId: 'stockId', issued: 'issued', returned: 'returned' },
+  stock: { stockId: 'stockId', deltaUnits: 'deltaUnits', createdAt: 'createdAt' },
+} satisfies {
+  deliveryDoc: Counted<typeof classes.delivery.doc>;
+  deliveryLine: Counted<typeof classes.delivery.lines>;
+  arrivalDoc: Counted<typeof classes.arrival.doc>;
+  arrivalLine: Counted<typeof classes.arrival.lines>;
+  arrivalItem: Counted<typeof classes.arrival.item>;
+  productionDoc: Counted<typeof classes.production.doc>;
+  material: Counted<typeof classes.production.materials>;
+  stock: Counted<typeof classes.stock.doc>;
 };
 
 /**
- * 来源指纹用的内容：业务的完整内容（单据不带种类）去掉不算的栏目，键按名字排好。
- * 财务按它算 sha256（server/finance/source-fingerprint.ts 的 sourceHash），库里存着，算法和栏目变了已有的指纹就全对不上。
+ * 一层里要往下取一层的栏目（一组明细、纸板资料、领料）：归“算”、业务结构里的值是一组对象或一个对象的那些，
+ * 键是业务的栏目名。必须正好写这几个：业务改了外层栏目名、新加了这种栏目，少写、多写都编译不过；没有的层写 {}。
  */
-export const financialContent = (kind: string, doc: unknown) => {
-  const rule = Object.hasOwn(outsideFinance, kind) ? outsideFinance[kind] : undefined;
-  if (!rule || !isRecord(doc)) return doc;
-  const out = without(doc, rule.top);
-  if (Array.isArray(out.lines)) out.lines = out.lines.map((line: unknown) => lineContent(line, rule));
-  return sortedKeys(out);
-};
+type Nested<T, C> = OnlyKeys<{
+  readonly [K in keyof C & keyof T as C[K] extends 'count' ? (NonNullable<T[K]> extends object ? K : never) : never]: FingerprintLayer;
+}>;
+/** 一个键都没有的层写成 Record<string, never>：空对象类型 {} 什么键都收，多写了查不出 */
+type OnlyKeys<N> = keyof N extends never ? Readonly<Record<string, never>> : N;
+type Delivery = FlowDocuments['delivery'];
+type Arrival = FlowDocuments['arrival'];
+type Production = FlowDocuments['production'];
+
+/**
+ * 算进来源指纹的内容怎么从业务内容里取：每种来源一层层的改名表（names）和往下的层（nested）。层的位置只在这里写
+ * （tests/finance-source-contract.test.ts 按它找归类表的每一层）。现在财务口径的名字和业务一样；业务改了栏目名
+ * （含 lines 这种外层栏目），归类表、改名表、往下的层的键跟着改（不改编译不过），值（财务口径的名字）不动，库里的指纹就不变。
+ */
+export const fingerprintRules = {
+  delivery: {
+    names: names.deliveryDoc,
+    nested: {
+      lines: { names: names.deliveryLine, nested: {} satisfies Nested<Line<'delivery'>, typeof classes.delivery.lines> },
+    } satisfies Nested<Delivery, typeof classes.delivery.doc>,
+  },
+  arrival: {
+    names: names.arrivalDoc,
+    nested: {
+      lines: {
+        names: names.arrivalLine,
+        nested: {
+          item: { names: names.arrivalItem, nested: {} satisfies Nested<Line<'arrival'>['item'], typeof classes.arrival.item> },
+        } satisfies Nested<Line<'arrival'>, typeof classes.arrival.lines>,
+      },
+    } satisfies Nested<Arrival, typeof classes.arrival.doc>,
+  },
+  production: {
+    names: names.productionDoc,
+    nested: {
+      materials: { names: names.material, nested: {} satisfies Nested<Production['materials'][number], typeof classes.production.materials> },
+    } satisfies Nested<Production, typeof classes.production.doc>,
+  },
+  stock: { names: names.stock, nested: {} satisfies Nested<FinanceSource<'stock'>, typeof classes.stock.doc> },
+} satisfies Record<FinanceSourceKind, FingerprintLayer>;
+
+/**
+ * 按一层改名表取内容：只留表里的栏目（没有的、undefined 的不留），换成财务口径的名字，往下一层的照样取；
+ * 键按名字排好（单据整份重写时键的先后会变，内容一样指纹就该一样）。
+ */
+export function fingerprintOf(layer: FingerprintLayer, content: unknown): unknown {
+  if (!isRecord(content)) return content;
+  const out: [string, unknown][] = [];
+  for (const [key, name] of Object.entries(layer.names)) {
+    const value = content[key],
+      inner = layer.nested?.[key];
+    if (value === undefined) continue;
+    out.push([name, !inner ? value : Array.isArray(value) ? value.map((v: unknown) => fingerprintOf(inner, v)) : fingerprintOf(inner, value)]);
+  }
+  return Object.fromEntries(out.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
+/**
+ * 算进来源指纹的内容：业务的完整内容（单据不带种类，盘点流水是拼出来的那几项）里归“算”的栏目，按财务口径的名字取。
+ * 窗口（server/flow/finance-facts/sources.ts 的 read）交给财务，财务按它算 sha256（server/finance/source-fingerprint.ts）。
+ */
+export const financeFingerprint = (kind: FinanceSourceKind, content: unknown) => fingerprintOf(fingerprintRules[kind], content);

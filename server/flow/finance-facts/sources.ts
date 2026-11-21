@@ -6,7 +6,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { financeSourceSchemas, financialContent, flowDocumentSchema, movementSource, toFinanceSource } from '../../../shared/business/index.js';
+import { financeFingerprint, financeSourceSchemas, flowDocumentSchema, movementSource, toFinanceSource } from '../../../shared/business/index.js';
 import type { FinanceSource } from '../../../shared/business/index.js';
 import { many, parseStoredJson } from '../../core/index.js';
 
@@ -78,7 +78,7 @@ function texts(db: DatabaseSync, refs: readonly { kind: string; id: string }[]):
 
 /**
  * 解析一条来源的原文（不碰库）：doc 是财务口径（shared/business 的 toFinanceSource，不带单号），
- * counted 是算进来源指纹的内容（financialContent；财务按它算 sha256，算法和库里存的指纹一样）。
+ * counted 是算进来源指纹的内容（financeFingerprint：归“算”的栏目、财务口径的名字；财务按它算 sha256）。
  * 单据按库里的单据结构读（种类在行上，不在内容里，读出来去掉）；读不出来抛 StoredDataError。
  */
 function read(source: SourceText): { doc: FinanceSource; counted: unknown } {
@@ -86,19 +86,19 @@ function read(source: SourceText): { doc: FinanceSource; counted: unknown } {
   switch (source.kind) {
     case 'delivery': {
       const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema('delivery'), source.text, where);
-      return { doc: toFinanceSource('delivery', content), counted: financialContent('delivery', content) };
+      return { doc: toFinanceSource('delivery', content), counted: financeFingerprint('delivery', content) };
     }
     case 'arrival': {
       const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema('arrival'), source.text, where);
-      return { doc: toFinanceSource('arrival', content), counted: financialContent('arrival', content) };
+      return { doc: toFinanceSource('arrival', content), counted: financeFingerprint('arrival', content) };
     }
     case 'production': {
       const { kind: _kind, ...content } = parseStoredJson(flowDocumentSchema('production'), source.text, where);
-      return { doc: toFinanceSource('production', content), counted: financialContent('production', content) };
+      return { doc: toFinanceSource('production', content), counted: financeFingerprint('production', content) };
     }
     case 'stock': {
       const content = parseStoredJson(financeSourceSchemas.stock, source.text, `盘点流水 ${source.id} 拼出的来源内容`);
-      return { doc: content, counted: financialContent('stock', content) };
+      return { doc: content, counted: financeFingerprint('stock', content) };
     }
   }
 }
