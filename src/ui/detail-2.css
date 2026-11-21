@@ -240,7 +240,7 @@
   background: var(--danger-soft);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .record-facts {
     grid-template-columns: minmax(0, 1fr);
   }

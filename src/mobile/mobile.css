@@ -17,7 +17,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .business-records table.m-cards tr.record-row {
     display: flex;
     flex-wrap: wrap;

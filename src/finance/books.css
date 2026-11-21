@@ -222,7 +222,7 @@
   padding: var(--space-2xs) var(--space-lg);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .fb-stats {
     grid-template-columns: minmax(0, 1fr);
   }

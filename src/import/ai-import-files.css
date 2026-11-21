@@ -164,7 +164,7 @@
   margin-right: auto;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .aii-dropzone {
     min-height: 240px;
   }
