@@ -1,4 +1,5 @@
 import { uppercaseAmount } from '../core/index.js';
+import { UNPRICED_TEXT } from '../business/index.js';
 /** Word、Excel 和页面预览共用的单据版式规则。只重排字段位置，不改字段内容。 */
 type LayoutForm = {
   number: string;
@@ -90,7 +91,7 @@ export const draftText = (form: LayoutForm) =>
 /** 合计行文字：有确定金额才写大写；分以下有数时只写小写，不四舍五入。 */
 export function totalParts(form: LayoutForm) {
   if (form.total === undefined) return null;
-  if (form.total === null) return { label: '合计金额', amount: '待核价' };
+  if (form.total === null) return { label: '合计金额', amount: UNPRICED_TEXT };
   const upper = uppercaseAmount(form.total);
   return { label: upper ? '合计金额（大写）：' + upper : '合计金额', amount: form.total };
 }

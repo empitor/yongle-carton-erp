@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { operationalSearchText, purchaseState } from '../shared/business/index';
 import { readCatalog } from './recordkit/index';
-import { orderDisplayStatus } from '../shared/core/index';
 import { useBackLayer } from './ui/index';
-
-type Item = { group: string; label: string; hint?: string; target: string; keywords: string };
+import { catalogItems, searched, type PaletteItem as Item } from './palette-items';
 /**
  * 顶栏“新建”菜单和这里的“操作”用同一份清单、同一套叫法。
  * financeOnly：纯财务账号不显示。都要业务编辑权限，只读账号不显示。
@@ -24,57 +21,6 @@ const MAX_PER_GROUP = 8;
 
 /** 当前账号能用的“操作”：新建、安排、登记都要业务编辑权限，只读账号一个都不给。 */
 export const paletteActions = (canEdit: boolean): Item[] => (canEdit ? actions : []);
-
-/** 搜索面板要读的几份档案 */
-const searched = ['orders', 'customers', 'products', 'purchases', 'suppliers'] as const;
-type Searched = Awaited<ReturnType<typeof readCatalog<(typeof searched)[number]>>>;
-
-/** 档案变成搜索条目：单号、名称是标题，客户、状态、联系人这些写在后面，关键词里带上能搜的字 */
-function catalogItems({ orders, customers, products, purchases, suppliers }: Searched): Item[] {
-  return [
-    ...orders.map((o) => ({
-      group: '订单',
-      label: o.number,
-      hint: o.customerName + ' · ' + orderDisplayStatus(o),
-      target: 'orders?order=' + o.id,
-      keywords: [
-        o.number,
-        o.customerName,
-        o.externalPurchaseOrder,
-        ...o.lines.map((l) => l.productName + ' ' + (l.customerProductCode || '')),
-      ].join(' '),
-    })),
-    ...purchases.map((p) => ({
-      group: '采购单',
-      label: p.number,
-      hint: p.supplierName + ' · ' + purchaseState(p),
-      target: 'purchases?record=' + p.id,
-      keywords: [p.number, p.supplierName, ...p.lines.map((l) => l.name)].join(' '),
-    })),
-    ...customers.map((c) => ({
-      group: '客户',
-      label: c.name,
-      hint: c.contact || c.phone,
-      target: 'customers?q=' + encodeURIComponent(c.name),
-      // 客户按什么搜和客户页同一份（名称、联系人、电话、地址、备注）
-      keywords: operationalSearchText(c),
-    })),
-    ...products.map((p) => ({
-      group: '产品',
-      label: p.name,
-      hint: [p.material, p.flute].filter(Boolean).join(' / '),
-      target: 'products?q=' + encodeURIComponent(p.name),
-      keywords: [p.name, p.material, p.flute, p.customerProductCode].join(' '),
-    })),
-    ...suppliers.map((s) => ({
-      group: '供应商',
-      label: s.name,
-      hint: s.contact || s.phone,
-      target: 'suppliers?q=' + encodeURIComponent(s.name),
-      keywords: [s.name, s.contact, s.phone].join(' '),
-    })),
-  ];
-}
 
 /** Ctrl+K：跨模块搜索单号、客户、产品和常用操作。打开时才读取数据。 */
 export default function CommandPalette({ close, canEdit }: { close: () => void; canEdit: boolean }) {

@@ -236,6 +236,9 @@ test('面积计价精确处理 mm、cm 和小数张数，单位不明的不算�
     }),
     '339.744',
   );
+  // 没写计价方式算不出金额，不当成按张或按平方米
+  for (const priceBasis of [undefined, null])
+    assert.equal(purchaseLineAmount({ unit: '张', quantity: '200', unitPrice: '2.1234', priceBasis }), null, String(priceBasis));
   assert.equal(quantityUnits('0.125'), 125);
   assert.equal(quantityString(1000000), '1000');
   assert.throws(() => quantityUnits('1.2345'));

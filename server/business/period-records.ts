@@ -1,0 +1,40 @@
+import { z } from 'zod';
+import { many, type Store } from '../core/index.js';
+import { OperationsRepository } from '../operations/index.js';
+
+/*
+ * 按日期统计时要算上的已归档记录（今日页“本月接单”、经营概况、助手的经营概况）：归档只是把办完的收起来，
+ * 这段时间的统计照算；已归档的会越积越多，所以先按下单（采购）日期在 SQL 里圈出这段时间的编号，再按编号批量组装，
+ * 不把全部历史读出来再筛。没归档的照旧整批读（实时的待办、待到货要用全部没归档的）。
+ */
+
+/** 日期范围（YYYY-MM-DD，两头都含；不写是不限） */
+export type DateRange = { start?: string; end?: string };
+
+const idRow = z.object({ id: z.number() });
+
+/** 这段时间里已归档的订单或采购单编号（两张表的日期列都叫 order_date，归档登记的种类名和表名一样） */
+function archivedInRange(store: Store, table: 'orders' | 'purchases', range: DateRange) {
+  return many(
+    store.db,
+    idRow,
+    `SELECT id FROM ${table} WHERE id IN (SELECT record_id FROM record_lifecycle WHERE entity=?)
+      AND (? IS NULL OR order_date>=?) AND (? IS NULL OR order_date<=?)`,
+    table,
+    range.start ?? null,
+    range.start ?? null,
+    range.end ?? null,
+    range.end ?? null,
+  ).map((r) => r.id);
+}
+
+/** 订单：current 是全部没归档的，archived 是这段时间里已归档的 */
+export function periodOrders(store: Store, range: DateRange) {
+  return { current: store.orders(), archived: store.ordersByIds(archivedInRange(store, 'orders', range), true) };
+}
+
+/** 采购单：current 是全部没归档的，archived 是这段时间里已归档的 */
+export function periodPurchases(store: Store, range: DateRange) {
+  const repo = new OperationsRepository(store);
+  return { current: repo.purchases(), archived: repo.purchases(true, archivedInRange(store, 'purchases', range)) };
+}

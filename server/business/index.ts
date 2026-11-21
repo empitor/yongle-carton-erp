@@ -1,4 +1,5 @@
 export { buildDashboard } from './dashboard.js';
+export { periodOrders } from './period-records.js';
 export { DatabaseMaintenanceService } from './database-maintenance.js';
 export { deletionRouter } from './deletion-router.js';
 export { archivedOrConflict, changeLifecycle } from './lifecycle.js';

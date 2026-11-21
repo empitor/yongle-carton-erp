@@ -196,10 +196,10 @@ export function sheetArea(item: SheetItem, quantity: string): string | null {
     return null;
   return multiplyDecimal([String(item.length), String(item.width), quantity], SQUARE_METRE_SHIFT[unit]);
 }
-/** 采购、到货一行的金额：数量、单价和计价方式（按面积时还要纸板资料） */
+/** 采购、到货一行的金额：数量、单价和计价方式（按面积时还要纸板资料）；没写单价或计价方式算不出 */
 type PricedLine = SheetItem & { quantity: string; unitPrice?: string | null; priceBasis?: string | null };
 export function purchaseLineAmount(line: PricedLine): string | null {
-  if (line.unitPrice == null || line.priceBasis === null) return null;
+  if (line.unitPrice == null || !line.priceBasis) return null;
   const basis = line.priceBasis === 'area' ? sheetArea(line, line.quantity) : line.quantity;
   return basis == null ? null : multiplyDecimal([basis, line.unitPrice]);
 }

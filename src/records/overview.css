@@ -129,6 +129,16 @@
   min-width: 20px;
   text-align: right;
 }
+/* 含已归档几张：另起一行靠右写在数字下面，不挤短这一行的条 */
+.bo-status-chart > a {
+  flex-wrap: wrap;
+  row-gap: var(--space-2xs);
+}
+.bo-status-chart small {
+  flex-basis: 100%;
+  text-align: right;
+  color: var(--text-secondary);
+}
 .bo-financial {
   border-left: 1px solid var(--border);
   padding: 21px var(--space-2xl);

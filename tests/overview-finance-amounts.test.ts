@@ -8,6 +8,13 @@ import { PurchaseReturns } from '../server/flow/returns.js';
 import { maker, physical, deliveryDoc } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
+import { clerk, orderOf } from './flow-fixture.js';
+import { archiveDoc } from './receive-fixture.js';
+import { buildToday } from '../server/business/workbench.js';
+import { orderDashboard } from '../server/business/record-lists.js';
+import { changeLifecycle } from '../server/business/lifecycle.js';
+import { readSnapshot } from '../server/finance/source-snapshot.js';
+import { quantityUnits } from '../shared/core/index.js';
 
 test('同一批单据（部分送货、上个月的送货、撤销的送货、更正过的到货、退货）：经营概况的送货金额、到货金额等于财务同月的理论收入、理论支出', async () => {
   const t = await flowFinance();
@@ -51,6 +58,32 @@ test('同一批单据（部分送货、上个月的送货、撤销的送货、�
   }
 });
 
+test('到货明细没写计价方式：照常核对入库，计价方式留空、不按平方米算钱；经营概况和财务都按缺价格等人补', async () => {
+  const t = await flowFinance();
+  try {
+    const { f } = t;
+    const size = { length: 1000, width: 800, dimensionUnit: 'mm' };
+    const board = f.ops.saveItem({ name: '虚构定尺纸板', kind: 'raw', unit: '张', ...size }, clerk);
+    const arrival = f.confirm('arrival', {
+      supplierId: f.supplier.id,
+      reference: '虚构送货单-没写计价方式',
+      lines: [
+        { stockId: board.id, item: { name: board.name, unit: '张', ...size }, quantity: '10', unitPrice: '2', differenceReason: '虚构无采购单' },
+      ],
+    });
+    assert.equal(arrival.status, 'confirmed', '缺计价方式不拦到货');
+    assert.deepEqual([arrival.lines[0].priceBasis, arrival.lines[0].amount], [null, null], '没写就是没写，不默认按平方米');
+    assert.equal(f.ops.repo.items(true, board.id)[0].balanceUnits, quantityUnits('10'), '照常入库');
+    const dashboard = buildDashboard(f.store, [], { start: '2026-10-01', end: '2026-10-31' }, '2026-10-31', { workbench: false });
+    assert.deepEqual([dashboard.overview.purchases.arrivedCents, dashboard.overview.purchases.arrivalUncomputed], [0, 1]);
+    t.sync();
+    const e = t.current(arrival.id);
+    assert.deepEqual([e.status, readSnapshot(e).missing], ['info_pending', ['price']], '财务按缺价格等人补');
+  } finally {
+    t.f.store.close();
+  }
+});
+
 test('本月接单：财务月度台账和经营概况同一个口径，待确认、已取消的订单都不算', async () => {
   const t = await flowFinance();
   try {
@@ -62,6 +95,41 @@ test('本月接单：财务月度台账和经营概况同一个口径，待确�
     const dashboard = buildDashboard(f.store, october, { start: '2026-10-01', end: '2026-10-31' }, '2026-10-31', { workbench: false });
     assert.equal(month.ordered, dashboard.amountCents);
     assert.equal(month.ordered, 10000, '只算已确认的那张：100 只 × 1 元');
+  } finally {
+    t.f.store.close();
+  }
+});
+
+test('月度统计算上已归档的：发完货归档的订单、送货单和取消后归档的采购单照算，今日页、经营概况和财务的接单同一个数；列表不带已归档的', async () => {
+  const t = await flowFinance();
+  try {
+    const { f, order } = t;
+    const delivery = t.deliver('100');
+    const cancelled = f.ops.savePurchase(
+      { supplierId: f.supplier.id, orderDate: '2026-10-02', status: '已取消', lines: [{ stockItemId: f.raw.id, name: f.raw.name, unit: '张', quantity: '5', priceBasis: 'quantity' }] },
+      clerk,
+    );
+    const shippedBefore = buildToday(f.store, '2026-10-31').summary.monthShippedAmount;
+    archiveDoc(f.flow, delivery.id, false, clerk, f.flow.get(delivery.id).version);
+    const archive = (entity: 'orders' | 'purchases', id: number, version: number) =>
+      assert.ok(changeLifecycle(f.store, entity, { action: 'archive', items: [{ id, version }] }, clerk).results[0].success, entity);
+    archive('orders', order.id, orderOf(f.store, order.id).version);
+    archive('purchases', cancelled.id, cancelled.version);
+    // 已归档的待确认、已取消订单照样不算接单
+    for (const status of ['待确认', '已取消']) {
+      const extra = f.order(30, { orderDate: '2026-10-05', status });
+      archive('orders', extra.id, extra.version);
+    }
+    const today = buildToday(f.store, '2026-10-31');
+    assert.deepEqual([today.summary.monthOrderCents, today.summary.monthShippedAmount], [10000, shippedBefore]);
+    const overview = orderDashboard(f.store, { start: '2026-10-01', end: '2026-10-31' });
+    assert.deepEqual([overview.count, overview.amountCents], [1, 10000], '有效订单只有发完货的那张');
+    assert.deepEqual([overview.overview.orders.total, overview.overview.orders.archived], [3, 3], '订单总数含已归档 3 张');
+    const archivedByStatus = Object.fromEntries(overview.byStatus.map((s) => [s.status, [s.count, s.archived]]));
+    assert.deepEqual([archivedByStatus['已发货'], archivedByStatus['待确认'], archivedByStatus['已取消']], [[1, 1], [1, 1], [1, 1]]);
+    assert.deepEqual([overview.overview.purchases.total, overview.overview.purchases.archived], [2, 1], '期间采购单含取消后归档的那张');
+    assert.equal(new FinanceMonthly(f.store).get(maker, { period: '2026-10' }).ordered, overview.amountCents);
+    assert.deepEqual([overview.recentOrders.length, overview.overview.purchases.recent.map((p) => p.id).includes(cancelled.id)], [0, false]);
   } finally {
     t.f.store.close();
   }

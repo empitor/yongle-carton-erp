@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { matchesOperationalRecord, orderMetrics, productIncomplete, productMetrics, type Listed, type RecordEntity } from '../../shared/business/index';
+import { matchesOperationalRecord, matchesProduct, orderMetrics, productIncomplete, productMetrics, type Listed, type RecordEntity } from '../../shared/business/index';
 import { errorMessage, type Customer, type Order, type Product, type RecordSort } from '../../shared/core/index';
 import { useResettingPage, useBusinessRevision, LIST_PAGE_SIZE } from '../ui/index';
 import { isRecordPage, recordListQueries } from './record-filters';
@@ -133,7 +133,7 @@ export function useRecordLists(props: Props) {
     (p) =>
       visibleRecord(p) &&
       (!productAttention || productIncomplete(p)) &&
-      [p.name, p.material, p.flute, p.requirements].join(' ').toLowerCase().includes(words),
+      matchesProduct(p, words),
   );
   return { ...data, customerRows, productRows, ...filters, orderSort, setOrderSort, setOrderPage };
 }

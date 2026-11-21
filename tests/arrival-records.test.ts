@@ -106,6 +106,18 @@ test('没有采购单的到货行采购单号留空（页面写“无采购单�
   }
 });
 
+test('到货行没写计价方式：挂了采购明细的跟采购明细走，写了的照写的，没挂的留空等人补', () => {
+  const f = fixture();
+  try {
+    const other = orderedPurchase(f, clerk, ['500']);
+    const written = f.linked('5', { purchaseLineId: other.purchase.lines[0].id, priceBasis: 'area' });
+    const d = f.confirm(f.draft([f.linked('10'), written, f.loose('5')]));
+    assert.deepEqual(f.flow.get(d.id, 'arrival').lines.map((l) => l.priceBasis), ['quantity', 'area', null], '采购明细是按张');
+  } finally {
+    f.store.close();
+  }
+});
+
 test('采购库存要看的到货数据：已到货和到货记录、单据引用、订货单的到货、待送货占用的成品', () => {
   const f = fixture();
   try {

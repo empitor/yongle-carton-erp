@@ -128,7 +128,9 @@ function producedEnough(flow: FlowCommands, orderId: number, productId: number, 
   let need = 0;
   for (const oid of orders) {
     const o = flow.store.order(oid, true);
-    if (!o || o.status === '已取消') continue;
+    // 同挂的别的订单是待确认、已取消的不算数，不算进要做的数；正在重算的这张照算
+    // （走到这里的已经要按单据重算，比如本机管理员把出过库的订单改成待确认）
+    if (!o || (oid !== orderId && !effectiveOrder(o))) continue;
     for (const l of o.lines)
       if (l.productId === productId) need += quantityUnits(String(l.quantity));
   }
