@@ -66,8 +66,6 @@ type EventListRow = {
 };
 
 export type EventsApi = {
-  /** 补扫一批业务单据（照 server/finance/events.ts 的 sync）：这次处理了几张、还有没扫完的 */
-  'POST /finance/events/sync': { body: Body; response: { processed: number; remaining: boolean } };
   /** 记账前要处理的业务单据，可按状态筛；同一张单据的几条排在一起 */
   'GET /finance/events': { query?: { status?: string } & z.input<typeof pagingSchema>; response: Page<EventListRow> };
   'GET /finance/events/:id': { response: FinanceEventDetail };

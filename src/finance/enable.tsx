@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { FormMessage, FormSection, Hint, notify, toCents, yuan, RowDelete, FormField, type RecordAction } from '../ui/index';
+import { FormMessage, FormSection, Hint, toCents, yuan, RowDelete, FormField, type RecordAction } from '../ui/index';
 import { today } from '../../shared/core/index';
 import { EditorShell } from './editor';
 import { PartyField } from './fields';
-import { syncEvents, syncFailure, useAccounts, useFinPerms, useFinRead, type FinData } from './fin-api';
+import { useAccounts, useFinPerms, useFinRead, type FinData } from './fin-api';
 import { enableFinance } from './settings/settings-api';
 
 /*
@@ -213,16 +213,8 @@ function EnableDialog({ settings, close }: { settings: FinData<'GET /finance/set
             };
           }),
         });
-        // 启用后马上把启用月以来的单据登记进来，台账里待补税率的单子就能直接补
-        const done = '财务已启用，从 ' + period + ' 开始记账。';
-        const failed = await syncEvents().then(
-          () => null,
-          (e: unknown) => syncFailure(e),
-        );
-        if (failed === null) return done;
-        // 同步没成功也已经启用了：不夹在成功提示里，整句用红色的出错提示说（停得久些），返回空就不再报成功
-        notify(done + failed + '重新打开概览或月度台账时会再同步。', 'error');
-        return '';
+        // 启用月以来的单据由服务端在接下来的财务读取前补扫进来（启用后财务页面会重读），页面不另发
+        return '财务已启用，从 ' + period + ' 开始记账。';
       }}
     >
       <FormMessage tone="warning">
