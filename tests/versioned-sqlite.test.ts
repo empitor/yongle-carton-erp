@@ -1,5 +1,6 @@
-// 配置库（账号、AI 设置、提示词、助手工具设置、机器人设置、AI 识别工作区）的统一规则：
-// 当前版本原样打开、新文件按当前结构建、旧库（比当前旧或没记版本却有表）删掉重建、比程序新的拒绝、坏文件不删。
+// 配置库（账号、出错记录、AI 设置、提示词、助手工具设置、机器人设置、AI 识别工作区）的统一规则：
+// 当前版本原样打开、新文件按当前结构建、比基线旧的（含没记版本却有表的）删掉重建、比程序新的拒绝、坏文件不删。
+// 基线到当前之间的升级见 versioned-sqlite-upgrade.test.ts，升级前备份和换回见 versioned-sqlite-backup.test.ts。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -7,19 +8,21 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { defaultAccountPath } from '../server/core/account-db.js';
+import { checkVersionedSqlite, openVersionedSqlite } from '../server/core/versioned-sqlite.js';
 import {
-  checkVersionedSqlite,
-  openVersionedSqlite,
-  registerVersionedSqlite,
+  resolveHomes,
   VersionedSqliteError,
   type VersionedSqliteSpec,
-} from '../server/core/versioned-sqlite.js';
+  type VersionedSqliteState,
+} from '../server/core/versioned-sqlite-spec.js';
 
-/** 一个虚构的配置库：当前是第 3 版，notes 带 pinned 列，另有 tags 表。 */
+/** 一个虚构的配置库：基线和当前都是第 3 版，notes 带 pinned 列，另有 tags 表。 */
 const notesOld = 'CREATE TABLE notes(id INTEGER PRIMARY KEY,body TEXT NOT NULL)';
 const spec = (override: Partial<VersionedSqliteSpec> = {}): VersionedSqliteSpec => ({
   label: '便签库',
-  latest: 3,
+  baseline: 3,
+  steps: [],
   create(db) {
     db.exec(`CREATE TABLE notes(id INTEGER PRIMARY KEY,body TEXT NOT NULL,pinned INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE tags(note_id INTEGER NOT NULL REFERENCES notes(id),tag TEXT NOT NULL);`);
@@ -65,7 +68,7 @@ test('配置库：新文件按当前结构建，记成当前版本；再打开�
     db = openVersionedSqlite(f.file, spec({ create: () => assert.fail('当前版本不重建') }));
     assert.equal(db.prepare('SELECT body FROM notes WHERE id=1').get()?.body, '虚构便签');
     db.close();
-    assert.deepEqual(readdirSync(f.dir).filter((n) => n.endsWith('.bak')), [], '不留备份');
+    assert.deepEqual(readdirSync(f.dir), ['notes.sqlite'], '当前版本原样打开，不做升级前备份（没有 snapshots 目录）');
   } finally {
     f.done();
   }
@@ -78,7 +81,7 @@ test('配置库：:memory: 能用，每次都是按当前结构新建', () => {
   db.close();
 });
 
-test('配置库：比当前版本旧的、没记版本却有表的（0.9.0 以前留下的），整个删掉按当前结构重建，不迁移、不留备份', () => {
+test('配置库：比基线旧的、没记版本却有表的（0.9.0 以前留下的），整个删掉按当前结构重建，不迁移、不留备份', () => {
   for (const [why, sql] of [
     ['第 1 版', `${notesOld}; INSERT INTO notes VALUES(1,'旧便签'); PRAGMA user_version=1;`],
     ['第 2 版', `${notesOld}; INSERT INTO notes VALUES(1,'旧便签'); PRAGMA user_version=2;`],
@@ -196,17 +199,31 @@ test('配置库登记表：打开过的位置、主人模块登记的默认位�
     };
     make(notesOld + '; PRAGMA user_version=1');
     assert.equal(checkVersionedSqlite(candidate, f.file), null, '这个位置还没登记：不知道是哪个库');
-    openVersionedSqlite(f.file, spec()).close();
-    const cases: [sql: string, version: number, problem: 'newer' | 'older' | null, why: string][] = [
-      ['PRAGMA user_version=0', 0, null, '空文件：打开时会直接建'],
-      [notesOld, 0, 'older', '没记版本却有表：打开时删掉重建'],
-      [notesOld + '; PRAGMA user_version=1', 1, 'older', '比程序旧：打开时删掉重建'],
-      [notesOld + '; PRAGMA user_version=3', 3, null, '和程序同版本'],
+    // 基线第 2 版、当前第 3 版：第 3 步给 notes 加 pinned、建 tags
+    const upgradable = spec({
+      baseline: 2,
+      steps: [
+        {
+          version: 3,
+          name: '虚构：便签加置顶和标签',
+          up: (db) =>
+            db.exec(`ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+              CREATE TABLE tags(note_id INTEGER NOT NULL REFERENCES notes(id),tag TEXT NOT NULL);`),
+        },
+      ],
+    });
+    openVersionedSqlite(f.file, upgradable).close();
+    const cases: [sql: string, version: number, state: VersionedSqliteState, why: string][] = [
+      ['PRAGMA user_version=0', 0, 'empty', '空文件：打开时会直接建'],
+      [notesOld, 0, 'legacy', '没记版本却有表：打开时删掉重建'],
+      [notesOld + '; PRAGMA user_version=1', 1, 'legacy', '比基线旧：打开时删掉重建'],
+      [notesOld + '; PRAGMA user_version=2', 2, 'upgrade', '基线到当前之间：打开时留备份后升级，数据留着'],
+      [notesOld + '; PRAGMA user_version=3', 3, 'current', '和程序同版本'],
       [notesOld + '; PRAGMA user_version=4', 4, 'newer', '比程序新'],
     ];
-    for (const [sql, seen, problem, why] of cases) {
+    for (const [sql, seen, state, why] of cases) {
       const before = make(sql);
-      assert.deepEqual(checkVersionedSqlite(candidate, f.file), { label: '便签库', version: seen, latest: 3, problem }, why);
+      assert.deepEqual(checkVersionedSqlite(candidate, f.file), { label: '便签库', version: seen, baseline: 2, latest: 3, state }, why);
       assert.equal(sha(candidate), before, '只读，文件不变：' + why);
     }
     // 打开时被拒绝的位置也登记了：知道那里放的是哪个库
@@ -214,23 +231,42 @@ test('配置库登记表：打开过的位置、主人模块登记的默认位�
     make(notesOld + '; PRAGMA user_version=9', rejected);
     assert.match(refused(rejected, spec()), /便签库比当前程序新/);
     assert.equal(checkVersionedSqlite(candidate, rejected)?.label, '便签库');
-    // 主人模块登记的默认位置：登记时不去算，用到时才算；算不出来的当它没登记；只登记，不建文件
-    const home = join(f.dir, 'default', 'notes.sqlite');
-    let calls = 0;
-    registerVersionedSqlite(spec({ label: '位置算不出来的库' }), () => {
-      throw new Error('虚构的配置目录错误');
-    });
-    registerVersionedSqlite(spec({ label: '默认位置的便签库', latest: 1 }), () => {
-      calls++;
-      return home;
-    });
-    assert.equal(calls, 0);
+    // 主人模块加载时登记的默认位置（账号库：业务库目录下的 security/users.sqlite）也认得；只看，不建文件。
+    // 登记表是全进程共用的，测试不往里加条目（算位置的规则见下一条测试）
     make('PRAGMA user_version=0');
-    assert.deepEqual(checkVersionedSqlite(candidate, home), { label: '默认位置的便签库', version: 0, latest: 1, problem: null });
+    const home = defaultAccountPath();
+    const existed = existsSync(home);
+    assert.deepEqual(checkVersionedSqlite(candidate, home), { label: '账号库', version: 0, baseline: 1, latest: 1, state: 'empty' });
+    assert.equal(existsSync(home), existed, '认库不建文件');
     assert.equal(checkVersionedSqlite(candidate, join(f.dir, 'nobody.sqlite')), null);
-    assert.equal(existsSync(home), false);
     assert.equal(existsSync(join(f.dir, 'nobody.sqlite')), false);
   } finally {
     f.done();
   }
+});
+
+test('登记的默认位置：算不出来的单独列出、带上原因，同一个位置登记两次只算第一次', () => {
+  const shared = join(tmpdir(), '虚构配置目录', 'notes.sqlite');
+  let calls = 0;
+  const entries = [
+    {
+      spec: spec({ label: '位置算不出来的库' }),
+      home: () => {
+        throw new Error('虚构的配置目录错误');
+      },
+    },
+    {
+      spec: spec({ label: '默认位置的便签库' }),
+      home: () => {
+        calls++;
+        return shared;
+      },
+    },
+    // Windows 上路径不分大小写，也算同一个位置
+    { spec: spec({ label: '同一位置的另一个库' }), home: () => (process.platform === 'win32' ? shared.toUpperCase() : shared) },
+  ];
+  const resolved = resolveHomes(entries);
+  assert.equal(calls, 1, '每个位置算一次');
+  assert.deepEqual(resolved.found.map((entry) => [entry.spec.label, entry.file]), [['默认位置的便签库', shared]]);
+  assert.deepEqual(resolved.unresolved.map((entry) => [entry.spec.label, entry.reason]), [['位置算不出来的库', '虚构的配置目录错误']]);
 });

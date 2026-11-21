@@ -12,7 +12,16 @@ import { restoreFullBackup } from '../server/core/backup.js';
 import { readBackupManifest } from '../server/core/backup-manifest.js';
 import { supportedDatabaseVersions, validateBusinessDatabase } from '../server/core/backup-check.js';
 import { AuthManager } from '../server/core/auth.js';
-import { alterBackupDatabase, configFixture, files, fictionalNotes, noteMarker, run, versionOf } from './backup-fixture.js';
+import {
+  alterBackupDatabase,
+  configFixture,
+  files,
+  fictionalNotes,
+  fictionalNotesV3,
+  noteMarker,
+  run,
+  versionOf,
+} from './backup-fixture.js';
 
 function assertTargetUntouched(f: { root: string; target: string }, before: Record<string, string>) {
   assert.deepEqual(files(f.target), before);
@@ -174,17 +183,17 @@ test('备份里的配置库损坏、比程序新、是 0.9.0 以前的旧格式�
   const cases: [name: string, change: (path: string) => void, expected: string | ((message: string) => boolean)][] = [
     ['security/users.sqlite', run('PRAGMA user_version=2'), newer('security/users.sqlite', '账号库', 2, 1)],
     ['notes/notes.sqlite', run('PRAGMA user_version=3'), newer('notes/notes.sqlite', '虚构便签库', 3, 2)],
-    ['_extra/local.sqlite', run('PRAGMA user_version=9'), newer('_extra/local.sqlite', '虚构便签库', 9, 2)],
     [
       // 没记版本却有内容（0.9.0 以前的程序留下的）：恢复以后打开时会被清空重建，所以拒绝
       'ai-imports/workspaces.sqlite',
       run('PRAGMA user_version=0'),
-      `备份里的 ai-imports/workspaces.sqlite（AI 识别工作区）是旧版本的库（没有记版本，当前是第 3 版），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。${untouched}`,
+      `备份里的 ai-imports/workspaces.sqlite（AI 识别工作区）是旧版本的库（没有记版本，比第 3 版旧），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。${untouched}`,
     ],
     [
+      // 比基线（第 2 版）旧：恢复以后打开时会被清空重建，所以拒绝
       'notes/notes.sqlite',
       run('PRAGMA user_version=1'),
-      `备份里的 notes/notes.sqlite（虚构便签库）是旧版本的库（第 1 版，当前是第 2 版），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。${untouched}`,
+      `备份里的 notes/notes.sqlite（虚构便签库）是旧版本的库（第 1 版，比第 2 版旧），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。${untouched}`,
     ],
     ['notes/notes.sqlite', breakIndex, `备份里的 notes/notes.sqlite 没有通过完整性检查，文件已经损坏，不能恢复。请换一份备份。${untouched}`],
     ['security/users.sqlite', garbage, notDatabase('security/users.sqlite')],
@@ -198,7 +207,7 @@ test('备份里的配置库损坏、比程序新、是 0.9.0 以前的旧格式�
       alterBackupDatabase(f.backup.dir, change, name);
       const before = files(f.target), local = readFileSync(f.local);
       assert.throws(
-        () => restoreFullBackup(f.backup.dir, f.target, { extraFiles: f.extraFiles }),
+        () => restoreFullBackup(f.backup.dir, f.target),
         (error: Error) => {
           if (typeof expected === 'string') assert.equal(error.message, expected);
           else assert.ok(expected(error.message), error.message);
@@ -218,13 +227,33 @@ test('备份里的配置库损坏、比程序新、是 0.9.0 以前的旧格式�
   }
 });
 
+test('备份里的配置库在基线和当前之间：照常恢复，打开时升级到当前版本，数据还在', async () => {
+  const f = await configFixture();
+  try {
+    const notesFile = join(f.target, 'notes', 'notes.sqlite');
+    // 程序已经是第 3 版（这个位置按第 3 版的规格打开过），备份里的便签库还是第 2 版
+    openVersionedSqlite(notesFile, fictionalNotesV3).close();
+    assert.equal(versionOf(join(f.backup.dir, 'notes', 'notes.sqlite')), 2);
+    restoreFullBackup(f.backup.dir, f.target);
+    assert.equal(versionOf(notesFile), 2, '恢复只换文件，不升级');
+    const notes = openVersionedSqlite(notesFile, fictionalNotesV3);
+    try {
+      assert.deepEqual({ ...notes.prepare('SELECT body,pinned FROM notes').get() }, { body: noteMarker, pinned: 0 });
+    } finally {
+      notes.close();
+    }
+    assert.equal(versionOf(notesFile), 3);
+  } finally { f.close(); }
+});
+
 test('正常的备份照常恢复：换成备份里的文件（运行标记留着），恢复前的数据留副本，配置库和没人登记的数据库文件都能打开', async () => {
   const f = await configFixture();
   try {
     const manifest = readBackupManifest(f.backup.dir);
     const before = files(f.target), local = readFileSync(f.local);
-    const restored = restoreFullBackup(f.backup.dir, f.target, { extraFiles: f.extraFiles });
+    const restored = restoreFullBackup(f.backup.dir, f.target);
     assert.equal(restored.files, manifest.files.length);
+    assert.deepEqual(restored.integrityOnly.sort(), ['_extra/local.sqlite', 'misc/scraps.sqlite'], '认不出的和 _extra 里的只查完整性');
     assert.deepEqual(files(restored.previous), before, '恢复前的数据留了副本');
     const inData = manifest.files.map((file) => file.path).filter((path) => !path.startsWith('_extra/'));
     assert.deepEqual(
@@ -274,7 +303,7 @@ test('数据库副本还是 WAL 模式的备份（不是当前程序做的）：
       }, name);
       const backupBefore = files(copy), targetBefore = files(f.target), siblings = readdirSync(f.root).sort();
       assert.throws(
-        () => restoreFullBackup(copy, f.target, { extraFiles: f.extraFiles }),
+        () => restoreFullBackup(copy, f.target),
         (error: Error) => {
           assert.equal(
             error.message,

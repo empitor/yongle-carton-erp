@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { backupDirectory, configDirectory } from '../config-paths.js';
 import { defaultDbPath } from '../db.js';
-import { registerVersionedSqlite } from '../versioned-sqlite.js';
+import { registerVersionedSqlite } from '../versioned-sqlite-spec.js';
 import { problemLogDatabase } from './problem-log.js';
 import { programRoot, type SourceScope } from './source-paths.js';
 

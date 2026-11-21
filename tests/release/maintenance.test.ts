@@ -13,7 +13,7 @@ import '../../server/flow/index.js';
 import { SCHEMA_LATEST } from '../../server/core/schema/index.js';
 import { snapshotForUpgrade } from '../../server/core/schema/upgrade.js';
 import { readBackupManifest } from '../../server/core/backup-manifest.js';
-import { alterBackupDatabase } from '../backup-fixture.js';
+import { alterBackupDatabase, versionOf } from '../backup-fixture.js';
 
 /** 在临时目录里起命令行维护脚本（server/maintenance.ts）；env 把业务库、备份目录这些指进临时目录 */
 const runner =
@@ -162,18 +162,22 @@ test('命令行备份和恢复整份备份：清单记着各配置库的版本�
     };
     const newer = (name: string, label: string) =>
       refused(name, latest[name] + 1, `备份里的 ${name}（${label}）是第 ${latest[name] + 1} 版，比当前程序新（当前程序最多支持第 ${latest[name]} 版），不能恢复。请用更新的程序恢复这份备份。`);
-    // 每个库的位置有没有登记，tests/backup-recovery.test.ts 逐个查过；这里只走命令行特有的几条路：
-    // 助手工具设置库、AI 识别工作区的主人模块是恢复时才加载的，_extra 里的要靠命令行传进去的位置对上
+    // 每个库的位置有没有登记，tests/backup-recovery.test.ts 逐个查过；这里只走命令行特有的路：
+    // 助手工具设置库、AI 识别工作区的主人模块是恢复时才加载的
     newer('ai-tools/tools.sqlite', '助手工具设置库');
-    newer('_extra/bots.sqlite', '机器人设置库');
     refused(
       'ai-imports/workspaces.sqlite',
       0,
-      '备份里的 ai-imports/workspaces.sqlite（AI 识别工作区）是旧版本的库（没有记版本，当前是第 3 版），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。',
+      '备份里的 ai-imports/workspaces.sqlite（AI 识别工作区）是旧版本的库（没有记版本，比第 3 版旧），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。',
     );
-    // 都改回去以后照常恢复
+    // 都改回去以后照常恢复；_extra 里的本机配置不恢复，比程序新也不拒绝，只查完整性并列出来
+    setVersion('_extra/bots.sqlite', latest['_extra/bots.sqlite'] + 1);
     const restored = run('restore', backupDir);
     assert.equal(restored.status, 0, restored.stderr + restored.stdout);
+    assert.ok(
+      restored.stdout.includes('只查了完整性的文件（认不出是哪个配置库，或是 _extra 里不恢复的本机配置）：\n  _extra/ai-settings.sqlite\n  _extra/bots.sqlite'),
+      restored.stdout,
+    );
     assert.ok(readdirSync(dir).some((entry) => entry.includes('before-restore')));
     const back = new Store(dbPath);
     try {
@@ -181,6 +185,56 @@ test('命令行备份和恢复整份备份：清单记着各配置库的版本�
     } finally {
       back.close();
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('命令行换回配置库：比程序新的换回补丁开始以后的升级前备份并列出留下的文件；换不回的写明原因、退出码非零', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'carton-erp-revert-config-')),
+    dataDir = join(dir, 'data');
+  const run = runner(dir, { DB_PATH: join(dataDir, 'erp.sqlite'), LOCALAPPDATA: dir, ERP_CONFIG_DIR: join(dir, 'config') });
+  const users = join(dataDir, 'security', 'users.sqlite'),
+    tools = join(dataDir, 'ai-tools', 'tools.sqlite');
+  try {
+    // 新程序把账号库升到了第 2 版（当前程序是第 1 版），升级前备份在 snapshots/ 里；补丁开始在备份之前
+    fakeConfigDatabase(users, 2);
+    const backup = join(dataDir, 'security', 'snapshots', 'users-upgrade-v1-to-v2-2026-11-21T10-00-00-000Z-a1b2c3.sqlite');
+    fakeConfigDatabase(backup, 1);
+    const nothing = run('revert-config-upgrades', '2026-11-21T11:00:00.000Z');
+    assert.equal(nothing.status, 1, '补丁开始以后没有升级前备份：换不回');
+    assert.match(nothing.stderr, /账号库没有换回/);
+    assert.equal(versionOf(users), 2, '换不回时库不动');
+    assert.match(run('revert-config-upgrades', '不是时间').stderr, /时间写法不对/);
+
+    const done = run('revert-config-upgrades', '2026-11-21T09:00:00.000Z');
+    assert.equal(done.status, 0, done.stderr + done.stdout);
+    assert.match(done.stdout, /账号库已从第 2 版换回第 1 版/);
+    assert.match(done.stdout, /所有人要重新登录/);
+    assert.equal(versionOf(users), 1);
+    const kept = readdirSync(join(dataDir, 'security', 'snapshots')).filter((name) => name.includes('-before-revert-'));
+    assert.equal(kept.length, 1, '换下来的库留着');
+    assert.equal(versionOf(join(dataDir, 'security', 'snapshots', kept[0])), 2);
+    const again = run('revert-config-upgrades');
+    assert.equal(again.status, 0, again.stderr + again.stdout);
+    assert.match(again.stdout, /没有比当前程序新的配置库/);
+
+    // 助手工具设置库比程序新、没有升级前备份：列进失败，退出码非零
+    fakeConfigDatabase(tools, 3);
+    const failed = run('revert-config-upgrades');
+    assert.equal(failed.status, 1, failed.stderr + failed.stdout);
+    assert.match(failed.stderr, /助手工具设置库没有换回/);
+    assert.equal(versionOf(tools), 3);
+
+    // 配置目录设错了：AI 设置库、机器人设置库的默认位置算不出来，写明原因、退出码非零，不悄悄跳过
+    rmSync(tools);
+    const unresolved = runner(dir, { DB_PATH: join(dataDir, 'erp.sqlite'), LOCALAPPDATA: dir, ERP_CONFIG_DIR: 'config' })('revert-config-upgrades');
+    assert.equal(unresolved.status, 1, unresolved.stderr + unresolved.stdout);
+    for (const label of ['AI 设置库', '机器人设置库'])
+      assert.ok(unresolved.stderr.includes(`${label}没有换回：默认位置算不出来`), unresolved.stderr);
+    assert.equal(unresolved.stderr.split('默认位置算不出来').length - 1, 2, '每个库只说一遍：' + unresolved.stderr);
+    assert.match(unresolved.stderr, /ERP_CONFIG_DIR 必须是绝对路径/);
+    assert.equal(unresolved.stderr.includes('null'), false, unresolved.stderr);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

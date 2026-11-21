@@ -107,10 +107,12 @@ export function userVersionOf(file: string) {
 /**
  * 校验备份里业务库以外的数据库文件（账号、提示词、助手工具设置、AI 识别工作区，还有 _extra 里的本机配置），只读。
  * - 每个都要通过完整性检查；
- * - home 是恢复以后它所在的位置：这个位置登记过是哪个配置库（server/core/versioned-sqlite.ts 的登记表）的，
- *   还要是当前程序打得开的——不能比程序新，也不能是没记版本、当前程序不认的旧格式（比如 0.9.0 以前的 AI 识别工作区）。
- *   没登记过的位置不知道是哪个库，只查完整性。
+ * - home 是恢复以后它所在的位置：这个位置登记过是哪个配置库（server/core/versioned-sqlite-spec.ts 的登记表）的，
+ *   比程序新的拒绝；比基线旧的也拒绝（恢复以后打开时会被清空重建）；当前的、空的、在基线和当前之间的放行
+ *   （恢复以后打开时升级，数据留着）。
+ * - home 是 null（_extra 里不恢复的本机配置）或没登记过的位置，不知道是哪个库，只查完整性。
  * name 是它在备份里的路径，写进提示里：每句提示都写明是哪个文件，认得出是哪个库的再带上库名。
+ * 返回 true 表示只查了完整性。
  */
 export function validateConfigDatabase(path: string, name: string, home: string | null) {
   const untouched = '现有数据没有改动。';
@@ -131,12 +133,13 @@ export function validateConfigDatabase(path: string, name: string, home: string 
   }
   if (!intact)
     throw new Error(`备份里的 ${name} 没有通过完整性检查，文件已经损坏，不能恢复。请换一份备份。${untouched}`);
-  if (known?.problem === 'newer')
+  if (known?.state === 'newer')
     throw new Error(
       `备份里的 ${name}（${known.label}）是第 ${known.version} 版，比当前程序新（当前程序最多支持第 ${known.latest} 版），不能恢复。请用更新的程序恢复这份备份。${untouched}`,
     );
-  if (known?.problem === 'older')
+  if (known?.state === 'legacy')
     throw new Error(
-      `备份里的 ${name}（${known.label}）是旧版本的库（${known.version ? '第 ' + known.version + ' 版' : '没有记版本'}，当前是第 ${known.latest} 版），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。${untouched}`,
+      `备份里的 ${name}（${known.label}）是旧版本的库（${known.version ? '第 ' + known.version + ' 版' : '没有记版本'}，比第 ${known.baseline} 版旧），恢复以后程序打开时会把它清空重建，所以不能恢复。请换一份备份。${untouched}`,
     );
+  return known === null;
 }

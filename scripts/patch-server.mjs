@@ -7,7 +7,7 @@
 //   --hotfix "原因" 紧急临时修复：跳过发布检查直接打上去，服务器标记为“临时修复，未发布”，事后必须补发正式版本。
 // 生成发布用补丁（例如 0.8.2 → 0.8.3，附到 GitHub Release）：
 //   npm run patch-server -- --base 服务器上解压好的旧版安装目录 --out 本机输出目录
-//   只和 --base 目录比对、生成补丁文件和 apply-patch.mjs，不上传、不改服务器。
+//   只和 --base 目录比对、生成补丁文件和 apply-patch.mjs、patch-logic.mjs、patch-rollback.mjs（三个放在同一目录运行），不上传、不改服务器。
 // 流程：本机检查程序文件 → 类型检查并构建页面 → 和服务器逐个文件比对 sha256 → 打补丁上传 →
 // 服务器上备份数据、留回滚副本、替换文件、重启、检查健康，失败自动回滚 → 再比对一次，确认一致。
 // 本机程序文件只取 git 里跟踪的文件（git ls-files），不会把 .gitignore 忽略的客户文件、密钥带上去；
@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { releaseFiles } from './release-files.mjs';
@@ -347,7 +347,10 @@ function checkDependencies({ ssh, appRoot, pkg }, d, local) {
   }
 }
 
-/** 生成补丁文件和要一起上传的 apply-patch.mjs，放进临时目录 */
+/** 服务器上应用补丁的脚本：apply-patch.mjs 引同目录的另外两个，三个一起上传、一起放进发布补丁 */
+export const applyScripts = ['apply-patch.mjs', 'patch-logic.mjs', 'patch-rollback.mjs'];
+
+/** 生成补丁文件和要一起上传的应用脚本，放进临时目录 */
 function writePatch({ root, pkg, hotfix }, { serverMarker, state, problems, d, local, remote }) {
   const files = [...d.changed, ...d.added].map((path) => {
     const bytes = local.get(path);
@@ -370,18 +373,21 @@ function writePatch({ root, pkg, hotfix }, { serverMarker, state, problems, d, l
   body.id = id;
   const work = mkdtempSync(join(tmpdir(), 'erp-patch-'));
   const patchFile = join(work, id + '.json.gz');
-  const applyFile = join(work, 'apply-patch.mjs');
   writeFileSync(patchFile, gzipSync(JSON.stringify(body)));
-  writeFileSync(applyFile, normalized('apply-patch.mjs', readFileSync(join(root, 'scripts/linux/apply-patch.mjs'))));
+  const applyFiles = applyScripts.map((name) => {
+    const file = join(work, name);
+    writeFileSync(file, normalized(name, readFileSync(join(root, 'scripts/linux', name))));
+    return file;
+  });
   console.log(`补丁 ${id}：${(statSync(patchFile).size / 1024).toFixed(0)} KB`);
-  return { body, id, work, patchFile, applyFile };
+  return { body, id, work, patchFile, applyFiles };
 }
 
 /** 发布补丁：只输出文件，不上传、不改服务器。 */
-function writeReleasePatch({ outDir, pkg }, { body, work, patchFile, applyFile }) {
+function writeReleasePatch({ outDir, pkg }, { body, work, patchFile, applyFiles }) {
   mkdirSync(outDir, { recursive: true });
   const name = `yongle-carton-erp-v${body.fromVersion}-to-v${pkg.version}-linux-x64.patch.json.gz`;
-  const outputs = [[patchFile, name], [applyFile, 'apply-patch.mjs']];
+  const outputs = [[patchFile, name], ...applyFiles.map((file) => [file, basename(file)])];
   for (const [from, to] of outputs) {
     const bytes = readFileSync(from);
     writeFileSync(join(outDir, to), bytes);
@@ -393,10 +399,10 @@ function writeReleasePatch({ outDir, pkg }, { body, work, patchFile, applyFile }
   process.exit(0);
 }
 
-function uploadAndApply({ ssh, host }, { id, work, patchFile, applyFile }) {
+function uploadAndApply({ ssh, host }, { id, work, patchFile, applyFiles }) {
   try {
     ssh(`mkdir -p ${remoteDir} && chmod 700 ${remoteDir}`);
-    for (const f of [patchFile, applyFile]) {
+    for (const f of [patchFile, ...applyFiles]) {
       const r = spawnSync('scp', ['-q', f, `${host}:${remoteDir}/`], { stdio: 'inherit' });
       if (r.status !== 0) throw new Error('上传失败：' + relative(work, f));
     }

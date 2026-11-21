@@ -17,7 +17,8 @@ import {
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { APP_VERSION } from '../../shared/core/index.js';
 import { SCHEMA_LATEST, SNAPSHOT_DIRECTORY, stamp } from './schema/index.js';
-import { exists, one } from './sql.js';
+import { one } from './sql.js';
+import { clearSessions } from './account-db.js';
 import { isDatabaseFile, refuseWalBackup, userVersionOf, validateBusinessDatabase, validateConfigDatabase } from './backup-check.js';
 import { readBackupManifest, writeBackupManifest, type BackupFile } from './backup-manifest.js';
 
@@ -90,8 +91,7 @@ export async function createFullBackup(options: {
           // 备份恢复应重新登录，已撤销的历史会话不会因恢复而重新生效。
           const auth = new DatabaseSync(to);
           try {
-            if (exists(auth, "SELECT 1 FROM sqlite_schema WHERE name='auth_sessions' AND type='table'"))
-              auth.exec('PRAGMA secure_delete=ON; DELETE FROM auth_sessions;');
+            clearSessions(auth);
           } finally { auth.close(); }
         }
       }
@@ -143,17 +143,13 @@ export async function createFullBackup(options: {
  * 校验都在复制和切换之前：清单和哈希、每个数据库副本的文件头（WAL 模式的不是当前程序做的备份，在打开之前拒绝）、
  * 业务库（validateBusinessDatabase）、其余每个数据库文件（validateConfigDatabase）。
  * 任何一项不过就抛错，这时目标目录还没有动过。
- * extraFiles 和备份时传的一样（_extra 里的名字 → 这台机器上它本来的位置），只用来认出 _extra 里的是哪个配置库；
- * 恢复不会去覆盖这些位置。
+ * _extra 里的本机配置不恢复（不覆盖本机），只查完整性。返回的 integrityOnly 是只查了完整性的数据库文件
+ * （_extra 里的，和认不出是哪个配置库的），按备份里的路径列出。
  */
-export function restoreFullBackup(
-  source: string,
-  dataDir: string,
-  options: { extraFiles?: Record<string, string> } = {},
-) {
+export function restoreFullBackup(source: string, dataDir: string) {
   const manifest = readBackupManifest(source);
   checkManifestFiles(source, manifest.files);
-  validateBackupDatabases(source, dataDir, manifest.files, options.extraFiles);
+  const integrityOnly = validateBackupDatabases(source, dataDir, manifest.files);
   const previous = switchDataDirectory(dataDir, (staged) => {
     for (const file of manifest.files)
       if (!file.path.startsWith('_extra/')) {
@@ -162,7 +158,7 @@ export function restoreFullBackup(
         copyFileSync(join(source, file.path), to);
       }
   });
-  return { previous, files: manifest.files.length };
+  return { previous, files: manifest.files.length, integrityOnly };
 }
 
 /** 清单里每个文件：路径合法、不重复、不指到备份目录之外，哈希对得上；业务库必须在 */
@@ -185,26 +181,21 @@ function checkManifestFiles(source: string, files: BackupFile[]) {
   if (!paths.has('erp.sqlite')) throw new Error('备份清单缺少业务库。');
 }
 
-/** 复制任何文件之前校验全部数据库副本：文件头、业务库、其余配置库 */
-function validateBackupDatabases(
-  source: string,
-  dataDir: string,
-  files: BackupFile[],
-  extraFiles: Record<string, string> | undefined,
-) {
+/** 复制任何文件之前校验全部数据库副本：文件头、业务库、其余配置库；返回只查了完整性的文件 */
+function validateBackupDatabases(source: string, dataDir: string, files: BackupFile[]) {
   // 用 SQLite 打开任何一个之前，先看全部数据库副本的文件头：还有 WAL 模式的就不是当前程序做的备份，直接拒绝
   for (const file of files)
     if (isDatabaseFile(file.path)) refuseWalBackup(join(source, file.path), file.path);
   // 0.9.0 以前的备份、比程序新的备份在这里就拒绝：还没有复制任何文件，目标目录不动
   validateBusinessDatabase(join(source, 'erp.sqlite'));
-  // 其余的数据库文件：损坏的、比程序新的配置库、当前程序不认的旧格式，同样在动任何文件之前拒绝
+  // 其余的数据库文件：损坏的、比程序新的配置库、恢复后会被清空重建的旧库，同样在动任何文件之前拒绝
+  const integrityOnly: string[] = [];
   for (const file of files) {
     if (file.path === 'erp.sqlite' || !isDatabaseFile(file.path)) continue;
-    const home = file.path.startsWith('_extra/')
-      ? (extraFiles?.[file.path.slice('_extra/'.length)] ?? null)
-      : join(dataDir, file.path);
-    validateConfigDatabase(join(source, file.path), file.path, home);
+    const home = file.path.startsWith('_extra/') ? null : join(dataDir, file.path);
+    if (validateConfigDatabase(join(source, file.path), file.path, home)) integrityOnly.push(file.path);
   }
+  return integrityOnly;
 }
 
 /** 先把备份复制进暂存目录（fill），完整了才清空数据目录、换进去；换的时候出错就退回原样 */

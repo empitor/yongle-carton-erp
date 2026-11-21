@@ -7,12 +7,14 @@
 // - 顺序：建表、索引、触发器、视图按 sqlite_schema 里的先后（就是建库时的先后）；数据的表也按这个先后，行按 rowid。
 // - 当前建表已经不是第 20 版（steps.ts 里有了升级步骤）就拒绝导出：0.9.0 发布后这份快照不许再改。
 // 守它的测试在 tests/schema-evolution.test.ts（“第 20 版结构快照”几条）。
-// 同一个命令还按建表生成每张表的行结构（server/core/schema/rows.ts，见 scripts/schema-rows.ts）。
+// 同一个命令还按建表生成每张表的行结构（server/core/schema/rows.ts，见 scripts/schema-rows.ts），
+// 并导出还没有升级步骤的配置库的基线快照（tests/fixtures/config-db/，见 scripts/config-db-dump.ts）。
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store } from '../server/core/index.js';
+import { writeConfigBaselines } from './config-db-dump.js';
 import { writeRowSchemas } from './schema-rows.js';
 
 /** 快照固定的结构版本 */
@@ -116,6 +118,8 @@ function isMain() {
 if (isMain()) {
   // 同一个命令先按建表生成行结构（scripts/schema-rows.ts）：0.9.0 发布后快照不再导出（下面会报错），行结构照样跟着建表走
   console.log('已生成行结构：' + writeRowSchemas());
+  // 配置库的基线快照（scripts/config-db-dump.ts）：只给还没有升级步骤的库导出
+  for (const file of writeConfigBaselines()) console.log('已导出配置库基线快照：' + file);
   const target = resolve(process.argv[2] ?? SNAPSHOT_FILE);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, dumpSchemaSnapshot());

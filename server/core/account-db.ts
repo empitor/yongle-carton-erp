@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -11,8 +12,8 @@ import {
 } from '../../shared/core/index.js';
 import { defaultDbPath } from './db.js';
 import { rows } from './schema/rows.js';
-import { parseStoredJson } from './sql.js';
-import { registerVersionedSqlite, type VersionedSqliteSpec } from './versioned-sqlite.js';
+import { exists, parseStoredJson } from './sql.js';
+import { registerVersionedSqlite, type VersionedSqliteSpec } from './versioned-sqlite-spec.js';
 
 /**
  * 账号库（security/users.sqlite）：表结构、默认位置，以及账号级别和权限的对应关系（级别、角色的取值在 shared/core/accounts.ts）。
@@ -62,13 +63,24 @@ export function accountPermissions(role: string, encoded: string): string[] {
 }
 
 /**
- * 账号库的结构，第 1 版从 0.9.0 算起。旧版本的账号库（含 0.8.4 留下的）打开时删掉重建，
- * 程序回到“首次使用、建立管理员”（server/core/versioned-sqlite.ts 的统一规则）。
+ * 删掉登录会话（会话是能冒用的凭证）：完整备份的账号库副本、升级前备份、补丁回滚时换下来留存的账号库都不带它，
+ * 恢复或换回以后所有人重新登录。副本可能是别的版本，没有这张表就不做。
+ */
+export function clearSessions(db: DatabaseSync) {
+  if (exists(db, "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='auth_sessions'"))
+    db.exec('PRAGMA secure_delete=ON; DELETE FROM auth_sessions;');
+}
+
+/**
+ * 账号库的结构，基线是 0.9.0 的第 1 版。0.8.4 留下的（没记版本）打开时删掉重建，程序回到“首次使用、建立管理员”；
+ * 以后改结构在 steps 加一步，账号留着（规矩见 server/core/versioned-sqlite-spec.ts 开头）。
  * auth_sessions 是部署模式的登录会话（本机模式不用，表照样建）。
  */
 export const accountDatabase: VersionedSqliteSpec = {
   label: '账号库',
-  latest: 1,
+  baseline: 1,
+  steps: [],
+  scrubBackup: clearSessions,
   create(db) {
     // account_requests：申请账号和忘记密码。处理后立即删除，结果记在 auth_events。
     db.exec(`CREATE TABLE users(

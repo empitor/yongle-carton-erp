@@ -16,6 +16,7 @@
     "backup": "tsx server/maintenance.ts backup",
     "restore": "tsx server/maintenance.ts restore",
     "reset-password": "tsx server/maintenance.ts reset-password",
+    "revert-config-upgrades": "tsx server/maintenance.ts revert-config-upgrades",
     "test": "node scripts/run-tests.mjs",
     "test:isolated": "node scripts/run-tests.mjs --isolated",
     "test:related": "node scripts/test-related.mjs",

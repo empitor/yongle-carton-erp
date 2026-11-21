@@ -1,9 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { Store } from './db.js';
 import { AppError } from './errors.js';
 import { SNAPSHOT_DIRECTORY, stamp } from './schema/index.js';
+import { PARTIAL_SUFFIX, consistentCopy } from './sqlite-copy.js';
 import { DAY_MS, MINUTE_MS, errorMessage } from '../../shared/core/index.js';
 import { count, integrityPassed, pragmaInteger } from './sql.js';
 
@@ -19,8 +20,11 @@ const SNAPSHOT_REUSE_MINUTES = 5;
 const SNAPSHOT_THROTTLE_MS = SNAPSHOT_REUSE_MINUTES * MINUTE_MS;
 
 /** 本程序生成的快照名：erp-时间-随机-原因.sqlite。别的文件既不复用也不清理。 */
-const SNAPSHOT_NAME =
-  /^erp-(\d{4}-\d\d-\d\d)T(\d\d)-(\d\d)-(\d\d)-(\d{3})Z-[\da-f]{6}(?:-[\w-]*)?\.sqlite(\.partial)?$/;
+const SNAPSHOT_NAME = new RegExp(
+  String.raw`^erp-(\d{4}-\d\d-\d\d)T(\d\d)-(\d\d)-(\d\d)-(\d{3})Z-[\da-f]{6}(?:-[\w-]*)?\.sqlite(` +
+    PARTIAL_SUFFIX.replace('.', String.raw`\.`) +
+    ')?$',
+);
 
 /** 从快照文件名读出生成时间；partial 为 true 时只认中断留下的 .partial 文件。不是本程序命名的返回 null。 */
 export function snapshotTime(name: string, partial = false): number | null {
@@ -106,9 +110,9 @@ function reusableSnapshot(store: Store, dir: string) {
 
 /**
  * 破坏性操作前的业务库快照：用它代替重复确认，让误删可以恢复。
- * 用单独的只读连接 VACUUM INTO：业务库是 WAL 模式，另一个连接只看得到已提交的数据，
- * 所以调用方已经开了事务或 SAVEPOINT 也能拍，得到的是这次操作之前已提交的状态。
- * 先写 .partial 再改名，半截文件不会被当成快照。5 分钟内、且之后没有任何写入时复用上一份。
+ * 用 consistentCopy（sqlite-copy.ts，单独的只读连接 VACUUM INTO，先写 .partial 再改名）：业务库是 WAL 模式，
+ * 另一个连接只看得到已提交的数据，所以调用方已经开了事务或 SAVEPOINT 也能拍，得到的是这次操作之前已提交的状态。
+ * 5 分钟内、且之后没有任何写入时复用上一份。
  * 拍不成（库忙、磁盘满、目录不可写）就抛错，由调用方中止破坏性操作；只有内存库返回 null。
  */
 export function snapshotBeforeDestructive(store: Store, reason: string): string | null {
@@ -117,24 +121,11 @@ export function snapshotBeforeDestructive(store: Store, reason: string): string 
   const reused = reusableSnapshot(store, dir);
   if (reused) return reused;
   lastSnapshot.delete(store.db);
-  const file = join(dir, 'erp-' + stamp() + '-' + reason.replace(/[^\w-]/g, '') + '.sqlite'),
-    staged = file + '.partial';
+  const file = join(dir, 'erp-' + stamp() + '-' + reason.replace(/[^\w-]/g, '') + '.sqlite');
   try {
     mkdirSync(dir, { recursive: true });
-    const reader = new DatabaseSync(store.path, { readOnly: true });
-    try {
-      reader.exec('PRAGMA busy_timeout=5000');
-      reader.prepare('VACUUM INTO ?').run(staged);
-    } finally {
-      reader.close();
-    }
-    renameSync(staged, file);
+    consistentCopy(store.path, file);
   } catch (error) {
-    try {
-      rmSync(staged, { force: true });
-    } catch {
-      /* 保留原始错误 */
-    }
     const message = errorMessage(error);
     throw new AppError(
       (/busy|locked/i.test(message) ? '数据库正忙，' : '') +

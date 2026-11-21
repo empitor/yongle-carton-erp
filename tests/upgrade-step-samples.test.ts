@@ -12,14 +12,22 @@
 // - 只用虚构数据。值只能是文字、数字或 null。
 // 测试从第 20 版快照（tests/fixtures/schema-v20.sql）建一个内存库，先跑完前面的步骤，写进 before，只跑这一步，再逐表比 after。
 // 步骤没有样例、样例对应的步骤不存在、样例写法不对，都会失败。
+//
+// 配置库（规格里的 steps，规矩见 server/core/versioned-sqlite-spec.ts 开头）一样，样例放在按短名分的子目录里：
+// tests/fixtures/upgrade-samples/<短名>/v<版本号>.json（短名见 scripts/config-db-dump.ts 的 configDbKeys），写法同上；
+// 从这个库的基线快照（tests/fixtures/config-db/）建临时文件开始跑。不认识的短名目录也会失败。
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { upgradeSchema, upgradeSteps, type UpgradeStep } from '../server/core/schema/index.js';
+import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
+import type { VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';
+import { CONFIG_BASELINE_DIRECTORY, configDatabases, configDbKeys } from '../scripts/config-db-dump.js';
+import { configWorkspace, notesBaseline, notesSpec, quietLog, runSql } from './config-db-fixture.js';
 
 const SAMPLE_DIR = 'tests/fixtures/upgrade-samples';
 const SNAPSHOT_FILE = 'tests/fixtures/schema-v20.sql';
@@ -57,11 +65,12 @@ function readSample(path: string): Sample | string {
     : `${path}：${parsed.error.issues.map((i) => i.path.join('.') + ' ' + i.message).join('；')}，${HOW_TO}`;
 }
 
-/** 读样例目录（还没有就是没有样例）：版本号 → 样例；文件名、写法不对的记进 problems */
+/** 读样例目录（还没有就是没有样例）：版本号 → 样例；文件名、写法不对的记进 problems。子目录是配置库的样例，另外读 */
 function loadSamples(dir = SAMPLE_DIR) {
   const samples = new Map<number, Sample>(),
     problems: string[] = [];
-  for (const file of existsSync(dir) ? readdirSync(dir) : []) {
+  const files = existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((entry) => !entry.isDirectory()) : [];
+  for (const file of files.map((entry) => entry.name)) {
     const match = SAMPLE_NAME.exec(file);
     if (!match) {
       problems.push(`${dir}/${file}：文件名要写成 v<版本号>.json，版本号不带前面的 0（第 21 步是 v21.json）`);
@@ -92,6 +101,14 @@ function actualRows(db: DatabaseSync, table: string, expected: readonly Record<s
 /** 行数一样，每行样例写到的列都和库里一样（列的先后不管） */
 const rowsMatch = (actual: readonly Record<string, unknown>[], expected: readonly Record<string, Cell>[]) =>
   actual.length === expected.length && expected.every((row, i) => Object.keys(row).every((c) => actual[i][c] === row[c]));
+/** 逐表比 after：对不上的每张表一句 */
+const afterMismatches = (db: DatabaseSync, label: string, after: Sample['after']) =>
+  Object.entries(after).flatMap(([table, expected]) => {
+    const actual = actualRows(db, table, expected);
+    return rowsMatch(actual, expected)
+      ? []
+      : [`${label}跑完 ${table} 和样例不一样：\n  样例：${JSON.stringify(expected)}\n  实际：${JSON.stringify(actual)}`];
+  });
 
 /**
  * 跑一步的样例：第 20 版快照建内存库 → 跑完这一步之前的步骤 → 写进 before → 只跑这一步 → 逐表比 after。
@@ -109,12 +126,7 @@ function runSample(steps: readonly UpgradeStep[], version: number, sample: Sampl
     db.exec('PRAGMA foreign_keys=ON');
     for (const [table, rows] of Object.entries(sample.before)) insertRows(db, table, rows);
     upgradeSchema(db, { appVersion: 'test-9.9.9', steps: steps.slice(0, index + 1) });
-    return Object.entries(sample.after).flatMap(([table, expected]) => {
-      const actual = actualRows(db, table, expected);
-      return rowsMatch(actual, expected)
-        ? []
-        : [`${label}跑完 ${table} 和样例不一样：\n  样例：${JSON.stringify(expected)}\n  实际：${JSON.stringify(actual)}`];
-    });
+    return afterMismatches(db, label, sample.after);
   } catch (error) {
     return [`${label}的样例跑不通：${reasonOf(error)}`];
   } finally {
@@ -194,6 +206,98 @@ test('升级样例的写法不对会报出来：文件名、缺 after、值不�
     assert.match(text, /v022\.json：文件名要写成 v<版本号>\.json，版本号不带前面的 0/);
     assert.match(text, /v21\.json：after.*写法见 tests\/upgrade-step-samples\.test\.ts 开头/);
     assert.match(text, /v23\.json：不是合法的 JSON（[^）]+），写法见/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------- 配置库的升级步骤 ----------
+
+/** 配置库的样例：按短名分的子目录，短名 → 版本号 → 样例；不认识的短名目录和写法不对的记进 problems */
+function loadConfigSamples(dir = SAMPLE_DIR) {
+  const known = new Set(Object.values(configDbKeys));
+  const byKey = new Map<string, Map<number, Sample>>(),
+    problems: string[] = [];
+  const dirs = existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : [];
+  for (const { name } of dirs) {
+    if (!known.has(name)) {
+      problems.push(`${dir}/${name}：不认识的配置库短名（短名见 scripts/config-db-dump.ts 的 configDbKeys）`);
+      continue;
+    }
+    const loaded = loadSamples(`${dir}/${name}`);
+    byKey.set(name, loaded.samples);
+    problems.push(...loaded.problems);
+  }
+  return { byKey, problems };
+}
+
+/** 跑配置库一步的样例：基线快照写进临时文件 → 跑完这一步之前的步骤 → 写进 before → 只跑这一步 → 逐表比 after */
+function runConfigSample(spec: VersionedSqliteSpec, baseline: string, version: number, sample: Sample): string[] {
+  const index = spec.steps.findIndex((s) => s.version === version);
+  if (index < 0) return [`${spec.label}第 ${version} 版没有升级步骤`];
+  const label = `${spec.label}第 ${version} 步（${spec.steps[index].name}）`,
+    w = configWorkspace();
+  try {
+    runSql(w.file, baseline);
+    openVersionedSqlite(w.file, { ...spec, steps: spec.steps.slice(0, index) }).close();
+    const before = new DatabaseSync(w.file);
+    try {
+      before.exec('PRAGMA foreign_keys=ON');
+      for (const [table, rows] of Object.entries(sample.before)) insertRows(before, table, rows);
+    } finally {
+      before.close();
+    }
+    const db = openVersionedSqlite(w.file, { ...spec, steps: spec.steps.slice(0, index + 1) });
+    try {
+      return afterMismatches(db, label, sample.after);
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    return [`${label}的样例跑不通：${reasonOf(error)}`];
+  } finally {
+    w.done();
+  }
+}
+
+test('每个配置库的升级步骤也都登记了数据样例，样例真的跑过、结果和登记的一样', (t) => {
+  quietLog(t);
+  const { byKey, problems } = loadConfigSamples();
+  assert.deepEqual(problems, [], `${SAMPLE_DIR} 下配置库的样例写法不对（写法见本测试文件开头）`);
+  for (const { spec, key, file } of configDatabases()) {
+    const samples = byKey.get(key) ?? new Map<number, Sample>();
+    const { missing, orphan } = sampleCoverage(spec.steps.map((s) => s.version), [...samples.keys()]);
+    assert.deepEqual(missing.map((v) => `${spec.label}第 ${v} 步没有数据样例：在 ${SAMPLE_DIR}/${key}/v${v}.json 写一份`), []);
+    assert.deepEqual(orphan.map((v) => `${SAMPLE_DIR}/${key}/v${v}.json 对应的第 ${v} 步不存在`), []);
+    const baseline = readFileSync(join(CONFIG_BASELINE_DIRECTORY, file), 'utf8');
+    assert.deepEqual([...samples].flatMap(([version, sample]) => runConfigSample(spec, baseline, version, sample)), []);
+  }
+});
+
+test('配置库的样例检查真的会拦：真跑并比对结果；前面的步骤没跑就写不进去；不认识的短名目录报出来', (t) => {
+  quietLog(t);
+  const spec = notesSpec();
+  const sample2: Sample = {
+    before: { notes: [{ id: 1, body: '置顶：虚构便签' }, { id: 2, body: '虚构普通便签' }] },
+    after: { notes: [{ id: 1, pinned: 1 }, { id: 2, pinned: 0 }] },
+  };
+  assert.deepEqual(runConfigSample(spec, notesBaseline, 2, sample2), []);
+  const wrong = { ...sample2, after: { notes: [{ id: 1, pinned: 1 }, { id: 2, pinned: 1 }] } };
+  assert.match(runConfigSample(spec, notesBaseline, 2, wrong).join('\n'), /虚构便签库第 2 步（虚构：便签加置顶）跑完 notes 和样例不一样/);
+  // 第 3 步的 before 用到第 2 步加的列
+  const sample3: Sample = { before: { notes: [{ id: 5, body: '虚构', pinned: 1 }] }, after: { tags: [] } };
+  assert.deepEqual(runConfigSample(spec, notesBaseline, 3, sample3), []);
+  assert.match(runConfigSample(spec, notesBaseline, 2, sample3).join('\n'), /样例跑不通.*pinned/);
+  assert.deepEqual(runConfigSample(spec, notesBaseline, 4, sample3), ['虚构便签库第 4 版没有升级步骤']);
+  const dir = mkdtempSync(join(tmpdir(), 'erp-config-samples-'));
+  try {
+    mkdirSync(join(dir, 'accounts'));
+    writeFileSync(join(dir, 'accounts', 'v2.json'), JSON.stringify(sample2));
+    mkdirSync(join(dir, '虚构库'));
+    const { byKey, problems } = loadConfigSamples(dir);
+    assert.deepEqual([...(byKey.get('accounts')?.keys() ?? [])], [2]);
+    assert.deepEqual(problems, [`${dir}/虚构库：不认识的配置库短名（短名见 scripts/config-db-dump.ts 的 configDbKeys）`]);
+    assert.deepEqual(loadSamples(dir), { samples: new Map(), problems: [] }, '业务库的样例不把配置库的子目录当样例');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
