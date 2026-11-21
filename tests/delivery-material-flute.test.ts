@@ -1,6 +1,6 @@
 // 送货明细的材质、楞型（server/flow/validate-delivery.ts 补，server/documents/delivery-form.ts 印）：出库核对时按产品补进明细存下，
 // 产品没填的为空；导出送货单的“材质 / 配纸”“楞型”两列按明细印，待送货的（明细出库时才补）按产品现在的印；
-// 更正送货单时原样留下的行沿用出库时的（和单价一样），新加的行按产品现在的补。内存库、虚构数据。
+// 更正送货单时同一条订单明细的行沿用出库时的（和单价一样），原单没有的订单明细新加的行按产品现在的补。内存库、虚构数据。
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -130,13 +130,35 @@ test('更正送货单：原样留下的行沿用出库时的材质、楞型，�
   ]);
 });
 
-test('更正送货单新加的行：按产品现在的材质、楞型补（本机管理员删掉一行、按同一条订单明细新加一行）', (t) => {
+test('更正送货单新加的行（原单没有的订单明细）：按产品现在的材质、楞型补（本机管理员加行）', (t) => {
+  const f = setup(t);
+  const d = f.draft();
+  f.ship(d.id);
+  const third = f.store.saveOrder(
+    orderSchema.parse({
+      customerId: f.customer.id,
+      orderDate: f.order.orderDate,
+      deliveryDate: f.order.deliveryDate,
+      status: '已确认',
+      lines: [{ productId: f.plain.id, quantity: 50, unit: '只', unitPriceCents: 200 }],
+    }),
+  );
+  remake(f.store, f.plain.id, { material: '虚构补填的材质', flute: 'E' });
+  const lines = [{ index: 0, quantity: '40' }, { index: 1, quantity: '20' }, { orderLineId: third.lines[0].id, quantity: '10' }];
+  assert.deepEqual(correctLines(f, d.id, lines, localAdmin()), [
+    ['40', 'K=A', 'BC'],
+    ['20', '', ''],
+    ['10', '虚构补填的材质', 'E'],
+  ]);
+});
+
+test('更正送货单删掉一行、按同一条订单明细新加回来：引用没变，仍是出库时的材质、楞型', (t) => {
   const f = setup(t);
   const d = f.draft();
   f.ship(d.id);
   remake(f.store, f.plain.id, { material: '虚构补填的材质', flute: 'E' });
   assert.deepEqual(correctLines(f, d.id, [{ index: 0, quantity: '40' }, { orderLineId: f.second.lines[0].id, quantity: '20' }], localAdmin()), [
     ['40', 'K=A', 'BC'],
-    ['20', '虚构补填的材质', 'E'],
+    ['20', '', ''],
   ]);
 });

@@ -2,7 +2,6 @@ import type { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import { one, rows } from '../core/index.js';
 import type { deliveryCorrectionPreviewSchema, FlowDocument } from '../../shared/business/index.js';
-import { lineMoney } from '../../shared/business/index.js';
 import type { Order } from '../../shared/core/index.js';
 import { quantityString, quantityUnits } from '../../shared/core/index.js';
 import { fail, type DeliveryLine, type FlowCommands } from './base.js';
@@ -10,7 +9,7 @@ import { shippedByLine, shippedUnits } from './shipped.js';
 import { checkOverdelivery } from './validate-delivery.js';
 
 /*
- * 更正送货单的逐行部分（方案在 delivery-correction-plan.ts）：更正后的每一行从哪来、沿用出库时的单价、
+ * 更正送货单的逐行部分（方案在 delivery-correction-plan.ts）：更正后的每一行从哪来、订单现价变了的提示、
  * 只查数量变多的行超没超订单、每条订单明细的已发前后、预览里逐行的前后。
  */
 export type DeliveryInput = z.infer<typeof deliveryCorrectionPreviewSchema>;
@@ -61,10 +60,7 @@ function nextLine(flow: FlowCommands, l: InputLine, base: DeliveryLine | null): 
   return { line: { ...lineTarget(flow, l.orderLineId), orderLineId: l.orderLineId, quantity: l.quantity, notes: base?.notes ?? '' }, kept: null };
 }
 
-/**
- * 更正后的每一行：带 index 的沿用原单那一行（给了不同的 orderLineId 是换挂），不带的是新加的行。
- * bases[i] 是第 i 行沿用的原单那一行（换挂、新加的是 null）：它的单价、税率照原单出库时的，不换成订单现在的
- */
+/** 更正后的每一行：带 index 的沿用原单那一行（给了不同的 orderLineId 是换挂），不带的是新加的行 */
 export function replacementLines(flow: FlowCommands, stored: Stored, input: DeliveryInput) {
   const used = new Set<number>(),
     picked = input.lines.map((l) => nextLine(flow, l, baseOf(stored, l, used)));
@@ -74,38 +70,21 @@ export function replacementLines(flow: FlowCommands, stored: Stored, input: Deli
   return {
     lines: picked.map((p) => p.line),
     used,
-    bases: picked.map((p) => p.kept),
     structural: picked.some((p) => !p.kept),
     changed,
   };
 }
 
 /**
- * 沿用原单的行照原单出库时的单价、税率、含税口径，金额按新数量 × 原单价重算（更正只改人改的东西）；
- * 材质、楞型也是出库那一刻定下来的，同样沿用原单那一行的。
- * 换挂、新加的行已经按那条订单明细、产品现在的取（checkDelivery）。订单现价和原单不一样时返回提示，说清这张单仍按出库时的价。
- * 直接改 lines 里的行（核对结果的单据和它是同一份明细）。这几项不在 nextLine 里带：那里的行还要过一遍单据输入
- * （documentInput），只留录入的几项
+ * 沿用的行留着出库时的单价（keepSnapshot），订单现价不一样时提示一句，说清这张单仍按出库时的价。
+ * current 是按订单现在的明细补全的行（核对结果），kept 是替代单上的同一行
  */
-export function keepShippedPrices(lines: DeliveryLine[], bases: readonly (DeliveryLine | null)[]) {
-  const warnings: string[] = [];
-  lines.forEach((l, i) => {
-    const base = bases[i];
-    if (!base) return;
-    if (l.unitPriceExact !== base.unitPriceExact)
-      warnings.push(
-        '订单 ' + l.orderNumber + ' 的“' + l.productName + '”单价现在是 ' + l.unitPriceExact + '，这张单仍按出库时的 ' + base.unitPriceExact + '。',
-      );
-    Object.assign(l, {
-      unitPriceExact: base.unitPriceExact,
-      amountExact: lineMoney(l.quantity, base.unitPriceExact ?? null),
-      taxRate: base.taxRate,
-      taxMode: base.taxMode,
-      material: base.material,
-      flute: base.flute,
-    });
-  });
-  return warnings;
+export function shippedPriceWarnings(current: readonly DeliveryLine[], kept: readonly DeliveryLine[]) {
+  return kept.flatMap((l, i) =>
+    l.unitPriceExact === current[i].unitPriceExact
+      ? []
+      : ['订单 ' + l.orderNumber + ' 的“' + l.productName + '”单价现在是 ' + current[i].unitPriceExact + '，这张单仍按出库时的 ' + l.unitPriceExact + '。'],
+  );
 }
 
 /** 订单明细和它所在的订单：方案按更正前后各行的订单都取过，核对过的行一定在；取不到是数据刚被改了 */

@@ -10,6 +10,7 @@ import {
   flowScheduledSchema,
   flowScheduleSchema,
   flowViewSchema,
+  keepSnapshot,
   rawStockKey,
   type FlowDocument,
   type FlowDocView,
@@ -128,13 +129,14 @@ export class FlowService implements FlowCommands {
     if (task && !untouched && v.kind === 'task') checkStartedTask(task, v);
     return task;
   }
-  /** 整份写回改过的单据；改已下达的任务：保留下达人和下达时间，产品名跟着新产品走 */
+  /**
+   * 整份写回改过的单据；改已下达的任务：保留下达人和下达时间，产品名快照没换产品的留着原来的、换了按新产品取（keepSnapshot）。
+   * 待核对的单据还没有快照（确认时才抄），整份换成新内容
+   */
   private rewrite(id: number, v: FlowDocument, task: FlowDocView<'task'> | null) {
-    const stored: FlowDocument =
-      task && v.kind === 'task'
-        ? { ...storedDocument(this.store, task.id, 'task'), ...v, productName: this.store.product(v.productId, true)?.name }
-        : v;
-    writeFlowDocument(this.store, id, stored, { date: v.date, at: new Date().toISOString() });
+    const stored = storedDocument(this.store, id),
+      next: FlowDocument = task && v.kind === 'task' && stored.kind === 'task' ? { ...stored, ...v, productName: this.store.product(v.productId, true)?.name } : v;
+    writeFlowDocument(this.store, id, keepSnapshot(stored, next), { date: v.date, at: new Date().toISOString() });
     return id;
   }
   /** 新建一张单据，返回编号；生产任务新建就是下达：和确认后的单据一样带上产品名、下达人和下达时间 */

@@ -71,7 +71,7 @@ export const modules: Rule[] = [
         name: '单据流转',
         paths: business([
           'physical-flow', 'arrival', 'flow-api', 'flow-requests', 'flow-results', 'flow-views', 'flow-correction', 'flow-correction-views',
-          'flow-document', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery', 'delivery-plan',
+          'flow-document', 'flow-snapshot', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery', 'delivery-plan',
           'document-value', 'arrival-draft', 'production-plan', 'labels', 'finance-source', 'stock-flow-views', 'stock-flow-api',
         ]),
       },

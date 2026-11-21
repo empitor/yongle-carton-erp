@@ -3,6 +3,7 @@ import type { Actor } from '../core/index.js';
 import { AppError, isLocalAdministrator, one, rows } from '../core/index.js';
 import {
   arrivalCorrectionPreviewSchema,
+  keepSnapshot,
   sumMoney,
   type arrivalCorrectionViewSchema,
   type CorrectionDetail,
@@ -239,8 +240,9 @@ export function arrivalCorrectionPlan(flow: FlowCommands, doc: FlowDocView<'arri
     header = headerOf(original, stored, input, next, actor);
   // 替代单的内容按到货单的格式归一，再按核对入库时的规则校验（供应商、原件、采购明细、规格、验收数、日期）。
   // 采购剩余数量这里不让它查（原单的数量还算在已到货里），下面按净变化查；沿用的档案后来归档了也照样能更正
-  const checked = validateFlow(flow, documentInput('arrival', { ...stored, ...header, lines: next.lines }, true), actor, true, { skipRemaining: true, maintenance: true }),
-    document = checked.document;
+  const checked = validateFlow(flow, documentInput('arrival', { ...stored, ...header, lines: next.lines }, true), actor, true, { skipRemaining: true, maintenance: true });
+  // 抄下来的快照（供应商名，明细的采购单号、供应商名、面积金额）引用没变的留着原单的，换了供应商、采购明细、数量的按新的取
+  const document = keepSnapshot(stored, { ...checked.document, supplierName: flow.ops.supplierName(checked.document.supplierId, true) });
   checkNewLinks(flow, stored, document, arrivalId);
   const purchaseImpact = purchaseImpactOf(flow, original, checked),
     corrections = correctionsOf(stored, input, document);
@@ -248,11 +250,11 @@ export function arrivalCorrectionPlan(flow: FlowCommands, doc: FlowDocView<'arri
     arrivalId,
     receiptId: original.id,
     original,
-    lines: checked.lines.map(viewLine),
+    lines: document.lines.map(viewLine),
     purchaseImpact,
     beforeAmount: sumMoney(original.lines.map((l) => l.amount)),
     // 核对补全的明细都带金额（validate-arrival.ts），没有金额的按“待定”算
-    afterAmount: sumMoney(checked.lines.map((l) => l.amount ?? null)),
+    afterAmount: sumMoney(document.lines.map((l) => l.amount ?? null)),
   };
   return {
     document,

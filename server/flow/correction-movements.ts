@@ -37,7 +37,10 @@ export function commitInput<T extends { requestId: string; previewDigest: string
 
 /** 一种单据的更正方案（只读）：替代单内容、它的库存变化、预览里种类自己的内容 */
 export type KindPlan<K extends CorrectableKind, V extends object, D> = {
-  /** 替代单内容：按单据格式规整、明细补全；更正关系和沿用的系统字段由核心加 */
+  /**
+   * 替代单内容：按单据格式规整、明细补全，抄下来的快照引用没变的换回原单的（shared/business/flow-snapshot.ts 的 keepSnapshot）；
+   * 更正关系和沿用的生命周期记录由核心加
+   */
   document: FlowDocument<K>;
   /** 替代单的单据日期 */
   date: string;
@@ -89,8 +92,8 @@ export type CorrectionKind<K extends CorrectableKind, I extends CorrectionHead, 
   plan(flow: FlowCommands, original: FlowDocView<K>, stored: FlowDocument<K>, input: I, actor: Actor): KindPlan<K, V, D>;
   /** 替代单写库之前（到货：新加的行没选库存品的，对上已有的或新建） */
   prepare?(flow: FlowCommands, plan: KindPlan<K, V, D>, actor: Actor, number: string): void;
-  /** 替代单沿用原单的系统字段（确认人、出库送达记录这些） */
-  inherit(flow: FlowCommands, stored: FlowDocument<K>, plan: KindPlan<K, V, D>, actor: Actor, at: string): Partial<FlowDocuments[K]>;
+  /** 替代单沿用原单的生命周期记录（确认人、出库送达记录这些）；快照字段方案里已按 keepSnapshot 定好 */
+  inherit(stored: FlowDocument<K>, plan: KindPlan<K, V, D>): Partial<FlowDocuments[K]>;
   /** 写完单据和流水以后：种类自己的收尾和读回核验（对不上就抛错，整笔回滚），返回摘要、结果里多带的内容、审计的前后 */
   finish(ctx: CorrectionContext<K, V, D>): { summary: string; result: R; audit?: { before: unknown; after: unknown } };
 };

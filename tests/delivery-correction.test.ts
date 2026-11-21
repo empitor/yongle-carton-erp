@@ -1,6 +1,8 @@
 // 更正送货单（server/flow/correction.ts + delivery-correction-plan.ts）：业务账号改每行数量、删行，撤销原单、另出替代单，流水只追加。
 // 本机管理员改出库日期、换挂、加行，超订单发货，成品批次和成本配对，老样子的数据在 delivery-correction-admin.test.ts。内存库、虚构数据。
 import { test } from 'node:test';
+// 归档原单要单据流转登记的记录种类（server/flow/deletion.ts，经入口加载）；只引内部文件时单独跑这个文件会缺登记
+import '../server/flow/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';

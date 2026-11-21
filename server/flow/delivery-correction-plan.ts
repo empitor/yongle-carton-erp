@@ -7,6 +7,7 @@ import {
   deliveryCorrectionPreviewSchema,
   type deliveryCorrectionViewSchema,
   flowDocNames,
+  keepSnapshot,
   sumMoney,
   type CorrectionDetail,
   type FlowDocument,
@@ -17,10 +18,10 @@ import { fail, type DeliveryLine, type FlowCommands } from './base.js';
 import { commitInput, type CorrectionContext, type CorrectionKind } from './correction-movements.js';
 import { shippedAtOf } from './confirm.js';
 import {
-  keepShippedPrices,
   orderImpactOf,
   overdeliveryWarnings,
   replacementLines,
+  shippedPriceWarnings,
   viewLines,
   type DeliveryInput,
   type Orders,
@@ -33,7 +34,7 @@ import { documentInput, validateFlow } from './validate.js';
  * 更正送货单（更正的核心在 correction.ts，逐行的部分在 delivery-correction-lines.ts）：已出库（送货中、已送达）的
  * 送货单数量登记错了、某一行其实没发。业务账号（和“撤销这次送货”同一级）改每行数量、删掉没发的行；数量变多超出订单剩余的
  * 要超级管理员模式并写原因，数量变少不卡历史超发。本机管理员另能改出库日期、把一行换挂到同一客户的另一条订单明细、加行。
- * 不支持换客户。更正只改人改的东西：沿用的行照原单出库时的单价、税率；替代单沿用原单的确认时间（财务按它定收入确认口径）、
+ * 不支持换客户。更正只改人改的东西：沿用的行照原单出库时抄下的品名、单价、税率这些（keepSnapshot）；替代单沿用原单的确认时间（财务按它定收入确认口径）、
  * 出库和送达记录；改了出库日期的，出库时间按新日期北京时间中午。
  */
 
@@ -89,29 +90,32 @@ function plan(flow: FlowCommands, original: FlowDocView<'delivery'>, stored: Flo
   // 替代单按送货单的格式规整，再按出库的规则校验（客户、订单明细、成品、规格）；沿用的客户、订单、成品后来归档了也照样能更正。
   // 订单剩余这里不让它查（原单的数量还算在已发里），下面只查数量变多的行
   const checked = validateFlow(flow, documentInput('delivery', { ...stored, date: head.date, ...allow, lines: next.lines }), actor, false, {
-      excludingId: original.id,
-      skipRemaining: true,
-      maintenance: true,
-    }),
-    document = checked.document;
+    excludingId: original.id,
+    skipRemaining: true,
+    maintenance: true,
+  });
+  // 抄下来的快照引用没变的留着原单出库时的（品名、规格、单价、税率、材质楞型、尺寸，金额按新数量乘出库时的单价重算）；
+  // 换挂、新加的行按那条订单明细、产品现在的取
+  const document = keepSnapshot(stored, { ...checked.document, customerName: flow.store.customer(checked.document.customerId, true)?.name }),
+    lines = document.lines;
   const orders = new Map(
-    flow.store.ordersByIds([...new Set([...stored.lines, ...checked.lines].map((l) => l.orderId))], true).map((o) => [o.id, o]),
+    flow.store.ordersByIds([...new Set([...stored.lines, ...lines].map((l) => l.orderId))], true).map((o) => [o.id, o]),
   );
-  checkLinkedOrders(flow, stored, checked.lines, orders, head);
+  checkLinkedOrders(flow, stored, lines, orders, head);
   const warnings = [
     ...checked.warnings,
-    ...keepShippedPrices(checked.lines, next.bases),
-    ...overdeliveryWarnings(flow, actor, { lines: checked.lines, stored, orders, originalId: original.id, allow }),
+    ...shippedPriceWarnings(checked.lines, lines),
+    ...overdeliveryWarnings(flow, actor, { lines, stored, orders, originalId: original.id, allow }),
   ];
-  const orderImpact = orderImpactOf(flow, stored, checked.lines, orders);
+  const orderImpact = orderImpactOf(flow, stored, lines, orders);
   const view: View = {
     original,
-    customerName: stored.customerName ?? flow.store.customer(document.customerId, true)?.name ?? '',
+    customerName: document.customerName ?? '',
     date: { before: original.date, after: head.date },
-    lines: viewLines(checked.lines, stored, input, next.used),
+    lines: viewLines(lines, stored, input, next.used),
     orderImpact,
     beforeAmount: sumMoney(stored.lines.map((l) => l.amountExact ?? null)),
-    afterAmount: sumMoney(checked.lines.map((l) => l.amountExact ?? null)),
+    afterAmount: sumMoney(lines.map((l) => l.amountExact ?? null)),
   };
   return {
     document,
@@ -119,7 +123,7 @@ function plan(flow: FlowCommands, original: FlowDocView<'delivery'>, stored: Flo
     changes: checked.changes,
     warnings: [...new Set(warnings)],
     view,
-    digest: { lines: checked.lines, orderImpact },
+    digest: { lines, orderImpact },
     data: { dateChanged: head.dateChanged, orderIds: [...orders.keys()], orderImpact },
   };
 }
@@ -164,8 +168,7 @@ export const deliveryCorrection: CorrectionKind<'delivery', DeliveryInput, Deliv
   stocked,
   plan,
   // 确认人、确认时间（财务的收入确认口径看它）、出库人、出库时间、送达记录沿用原单；改了出库日期的，出库时间按新日期北京时间中午
-  inherit: (flow, stored, plan) => ({
-    customerName: flow.store.customer(plan.document.customerId, true)?.name,
+  inherit: (stored, plan) => ({
     confirmedBy: stored.confirmedBy,
     confirmedAt: stored.confirmedAt,
     shippedBy: stored.shippedBy,
