@@ -2,10 +2,10 @@
 // 写入走表主人自己的写法：单据经 server/flow/document-store.ts，流水修订经 server/operations/ledger.ts，
 // 删除走删除规则登记的语句（server/core/deletion-rules.ts）。没有现成写法、只能写 SQL 的几处都在这个文件里，各自写明为什么。
 // 业务改了表，只改这一个文件。
-// 删除规则（单据、采购退货；库存流水、库存品）在单据流转、采购库存各自的 deletion.ts 里登记：只加载这两份，不加载整个模块
+// 删除规则（单据、采购退货；库存流水、库存品）在单据流转、采购库存各自的 deletion.ts 里登记：
+// 单据流转只加载它那一份；采购库存的测试只许走入口（tests/module-test-entries.test.ts），入口加载时就登记了
 import '../server/flow/deletion.js';
-import '../server/operations/deletion.js';
-import { recordMovementRevision } from '../server/operations/ledger.js';
+import { stockLedger } from '../server/operations/index.js';
 import type { SQLOutputValue } from 'node:sqlite';
 import type { Actor, DeletionContext, Store } from '../server/core/index.js';
 import { deletionRemove, deletionUpdate, nextAutoId, one, rows } from '../server/core/index.js';
@@ -100,7 +100,7 @@ function stockChanges(store: Store, who: Actor) {
      */
     reviseMovement(id: string, patch: { delta_units?: number; notes?: string }) {
       const before = tableRow(store, 'stock_movements', id);
-      recordMovementRevision(store, who, '虚构修订', before, { ...before, ...patch });
+      stockLedger.recordMovementRevision(store, who, '虚构修订', before, { ...before, ...patch });
       if (patch.delta_units != null) store.db.prepare('UPDATE stock_movements SET delta_units=? WHERE id=?').run(patch.delta_units, id);
       if (patch.notes != null) store.db.prepare('UPDATE stock_movements SET notes=? WHERE id=?').run(patch.notes, id);
     },
