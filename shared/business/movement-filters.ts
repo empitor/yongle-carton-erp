@@ -77,17 +77,17 @@ export function movementTypeOf(row: {
 }): MovementType {
   const out = row.delta_units != null ? Number(row.delta_units) < 0 : row.direction === '-';
   switch (row.source_kind) {
-    case 'flow_arrival':
+    case movementSource.arrival:
       return 'purchase';
-    case 'flow_production':
+    case movementSource.production:
       return row.kind === 'finished' ? 'production_output' : out ? 'production_issue' : 'production_return';
-    case 'flow_delivery':
+    case movementSource.delivery:
       return 'delivery';
-    case 'purchase_return':
+    case movementSource.purchaseReturn:
       return out ? 'purchase_return' : 'reversal';
-    case 'flow_reversal':
+    case movementSource.reversal:
       return 'reversal';
-    case 'database-maintenance':
+    case movementSource.maintenance:
       return 'maintenance';
   }
   return row.action === 'adjust' || row.action === 'purchase' || row.action === 'in' || row.action === 'out'

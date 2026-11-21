@@ -5,11 +5,13 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { movementSource, movementSourceKinds, stockKinds } from '../../../shared/business/index.js';
+import { flowEntityPrefix, flowStatus, movementSource, movementSourceKinds, stockKinds, type FlowKind } from '../../../shared/business/index.js';
 import { count, many, rows } from '../../core/index.js';
 
 /** SQL 里写的流水来源（stock_movements.source_kind）：只收 movementSourceKinds 里有的 */
 const source = (kind: (typeof movementSourceKinds)[number]) => `'${kind}'`;
+/** SQL 里比的单据种类（flow_documents.kind）：只收单据种类 */
+const doc = (kind: FlowKind) => `'${kind}'`;
 
 /** 一个登记时间点（财务记下的某次成本计算）：那时的时间和库存流水的最大行号 */
 type Recorded = { ranAt: string; maxRowid: number };
@@ -176,7 +178,7 @@ const reversalOriginal = z.object({
 });
 /**
  * 冲销送货、完工或到货单（flow_reversal）对应的原单据流水，一批一次查完：同一张单据、同一个库存品，
- * 送货、完工找出库，到货找入库（原单据的流水来源是 'flow_' 加单据种类）。第 i 个是 keys[i] 的，按日期、行号排。
+ * 送货、完工找出库，到货找入库（原单据的流水来源是 flow_ 加单据种类，同 flowEntity）。第 i 个是 keys[i] 的，按日期、行号排。
  */
 function reversalOriginals(db: DatabaseSync, keys: readonly ReversalKey[]) {
   const found = many(
@@ -184,8 +186,8 @@ function reversalOriginals(db: DatabaseSync, keys: readonly ReversalKey[]) {
     reversalOriginal,
     `SELECT j.key AS i,m.id,m.delta_units,m.date,m.source_kind,m.customer_order_id,f.kind AS document_kind,s.kind,s.product_id,o.customer_id
         FROM json_each(?) j JOIN flow_documents f ON f.id=cast(${keyOn('sourceId')} AS INTEGER)
-        JOIN stock_movements m ON m.source_kind='flow_'||f.kind AND m.source_id=${keyOn('sourceId')} AND m.item_id=${keyOn('itemId')}
-          AND ((f.kind IN ('delivery','production') AND m.delta_units<0) OR (f.kind='arrival' AND m.delta_units>0))
+        JOIN stock_movements m ON m.source_kind='${flowEntityPrefix}'||f.kind AND m.source_id=${keyOn('sourceId')} AND m.item_id=${keyOn('itemId')}
+          AND ((f.kind IN (${doc('delivery')},${doc('production')}) AND m.delta_units<0) OR (f.kind=${doc('arrival')} AND m.delta_units>0))
         JOIN stock_items s ON s.id=m.item_id LEFT JOIN orders o ON o.id=m.customer_order_id
         ORDER BY j.key,m.date,m.rowid`,
     JSON.stringify(keys),
@@ -200,7 +202,7 @@ function completionOriginals(db: DatabaseSync, keys: readonly ReversalKey[]) {
     db,
     completionOriginal,
     `SELECT j.key AS i,m.id,m.delta_units,m.date FROM json_each(?) j
-        JOIN flow_documents f ON f.id=cast(${keyOn('sourceId')} AS INTEGER) AND f.kind='production'
+        JOIN flow_documents f ON f.id=cast(${keyOn('sourceId')} AS INTEGER) AND f.kind=${doc('production')}
         JOIN stock_movements m ON m.source_kind=${source(movementSource.production)} AND m.source_id=${keyOn('sourceId')}
           AND m.item_id=${keyOn('itemId')} AND m.delta_units>0
         ORDER BY j.key,m.rowid`,
@@ -225,7 +227,7 @@ function undoneArrivals(
     `SELECT DISTINCT m.source_id,m.item_id FROM stock_movements m
       WHERE m.source_kind=${source(movementSource.reversal)} AND m.source_id IS NOT NULL AND m.date<=?
       AND m.item_id IN (SELECT value FROM json_each(?)) AND ${existed.sql}
-      AND EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(m.source_id AS INTEGER) AND f.kind='arrival' AND f.status='reversed')
+      AND EXISTS(SELECT 1 FROM flow_documents f WHERE f.id=cast(m.source_id AS INTEGER) AND f.kind=${doc('arrival')} AND f.status='${flowStatus.reversed}')
       AND NOT ${excluded('m')}`,
     q.end,
     JSON.stringify(q.stockIds),
@@ -237,7 +239,7 @@ function undoneArrivals(
 const idRow = z.object({ id: z.string() });
 /** 已撤销的到货单编号（被更正替代的原单也是已撤销），编号是文字，和流水的来源编号同一个写法 */
 function reversedArrivals(db: DatabaseSync) {
-  return many(db, idRow, "SELECT cast(id AS TEXT) AS id FROM flow_documents WHERE kind='arrival' AND status='reversed'").map(
+  return many(db, idRow, `SELECT cast(id AS TEXT) AS id FROM flow_documents WHERE kind=${doc('arrival')} AND status='${flowStatus.reversed}'`).map(
     (r) => r.id,
   );
 }
@@ -269,7 +271,7 @@ function deliveryOutflows(db: DatabaseSync, period: string) {
     `SELECT m.customer_order_id AS orderId,o.customer_id AS customerId,s.product_id AS productId,m.item_id AS itemId,s.unit,
         sum(-m.delta_units) AS quantity
       FROM stock_movements m JOIN stock_items s ON s.id=m.item_id LEFT JOIN orders o ON o.id=m.customer_order_id
-      JOIN flow_documents f ON f.id=cast(m.source_id AS INTEGER) AND f.kind='delivery' AND f.status='confirmed'
+      JOIN flow_documents f ON f.id=cast(m.source_id AS INTEGER) AND f.kind=${doc('delivery')} AND f.status='${flowStatus.confirmed}'
       WHERE m.source_kind=${source(movementSource.delivery)} AND m.delta_units<0 AND substr(m.date,1,7)=?
       GROUP BY m.customer_order_id,o.customer_id,s.product_id,m.item_id`,
     period,

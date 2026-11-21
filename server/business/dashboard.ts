@@ -1,5 +1,5 @@
 import { many, parseStoredJson, rows as tables, type Store } from '../core/index.js';
-import { flowDocumentSchema, purchaseState } from '../../shared/business/index.js';
+import { flowDocumentSchema, flowStatus, purchaseState } from '../../shared/business/index.js';
 import { buildWorkbench } from './workbench.js';
 import { displayOrderStatuses, orderDisplayStatus, today, type Order } from '../../shared/core/index.js';
 import type { Dashboard } from '../../shared/business/index.js';
@@ -31,9 +31,10 @@ function documentAmounts(store: Store, kind: 'delivery' | 'arrival', range: Date
   const found = many(
     store.db,
     documentRow,
-    `SELECT id,number,document FROM flow_documents WHERE kind=? AND status='confirmed'
+    `SELECT id,number,document FROM flow_documents WHERE kind=? AND status=?
       AND (? IS NULL OR date>=?) AND (? IS NULL OR date<=?)`,
     kind,
+    flowStatus.confirmed,
     range.start || null,
     range.start || null,
     range.end || null,

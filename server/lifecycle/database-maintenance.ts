@@ -12,7 +12,7 @@ import { businessTables, planDeletion, quote } from './deletion-plan.js';
 import { recomputeAfterFlowDeletion } from '../flow/index.js';
 import { snapshotBeforeDestructive } from '../core/index.js';
 import { onceByRequest, operationRequest, replayRequest, requestDone } from '../core/index.js';
-import { deletionRequestSchema, deletionResultSchema, deletionSelection, flowKinds } from '../../shared/business/index.js';
+import { deletionRequestSchema, deletionResultSchema, deletionSelection, flowEntity, flowKinds, flowStatus } from '../../shared/business/index.js';
 
 const DELETE_REQUEST = 'database-delete';
 /** 删之前按 rowid 取整行记进审计：哪张表都有可能，按“列名 → 值”读 */
@@ -46,7 +46,7 @@ export class DatabaseMaintenanceService {
       flowModule &&
       chosen.items.every((i) => {
         const r = one(this.store.db, draftState, 'SELECT kind,status FROM flow_documents WHERE id=?', i.id);
-        return !!r && r.kind === chosen.module && r.status === 'draft';
+        return !!r && r.kind === chosen.module && r.status === flowStatus.draft;
       });
     if (who && (isLocalAdministrator(who) || isSuperMode(who))) return { actor: who, draftsOnly };
     if (draftsOnly && who?.permissions.includes('business:edit')) return { actor: who, draftsOnly };
@@ -195,7 +195,7 @@ function applyDeletion(store: Store, v: DeletionRequest, actor: Actor): z.output
 function removeRow(store: Store, ctx: DeletionContext, v: DeletionRequest, { table, row }: { table: string; row: DeletionRow }) {
   const { actor } = ctx;
   if (businessTables.has(table)) {
-    const entity = table === 'flow_documents' ? 'flow_' + String(row.kind) : table;
+    const entity = table === 'flow_documents' ? flowEntity(z.enum(flowKinds).parse(row.kind)) : table;
     // 影响范围只取了关联要用的列，审计要整行：按 rowid 再取一次（业务表没有大文件列）
     const full = one(store.db, wholeRow, 'SELECT rowid AS __rowid,* FROM ' + quote(table) + ' WHERE rowid=?', row.__rowid);
     audit(store, actor, {

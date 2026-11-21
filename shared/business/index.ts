@@ -33,6 +33,7 @@ export type { FinanceSource } from './finance-source.js';
 export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusText, matchesFlowSaying, isFlowKind, pendingLabels, storedFlowStatusName, productionSchema, taskSchema } from './physical-flow.js';
 export type { FlowKind } from './physical-flow.js';
 export { activeDoc, flowStatusChoices, matchesFlowStatus } from './physical-flow.js';
+export { flowEntity, flowEntityPrefix, flowStatus } from './physical-flow.js';
 export { descendantIds, nestByFamily } from './product-family.js';
 export type { FamilyProduct, NestedRow } from './product-family.js';
 export { assistantProductionCompletionSchema, productionCompletionSchema } from './production-completion.js';

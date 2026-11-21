@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 import type { DeletionGraph, DeletionRow as Row } from '../core/index.js';
 import { deletionLabel } from '../core/index.js';
-import { flowKinds, flowNames, type impactRowSchema } from '../../shared/business/index.js';
+import { flowEntity, flowEntityPrefix, flowKinds, flowNames, movementSource, type impactRowSchema } from '../../shared/business/index.js';
 import { quantityString } from '../../shared/core/index.js';
 import type { InventoryEffectInput } from './deletion-summary.js';
 
@@ -61,7 +61,7 @@ export function impactList(
     const own = deletions.filter(
       (d) =>
         d.table === 'stock_movements' &&
-        String(d.row.source_kind).startsWith('flow_') &&
+        String(d.row.source_kind).startsWith(flowEntityPrefix) &&
         Number(d.row.source_id) === Number(r.id),
     );
     if (!own.length) return undefined;
@@ -138,10 +138,11 @@ export function inventoryFigures(
   for (const m of choice) {
     const kind = String(m.source_kind),
       id = Number(m.source_id);
-    if (kind === 'purchase_return') add('采购退货', '笔', id);
+    if (kind === movementSource.purchaseReturn) add('采购退货', '笔', id);
     else if (selected.has(id)) selectedHit = true;
     else {
-      const docKind: unknown = kind === 'flow_reversal' ? byId('flow_documents').get(id)?.kind : kind.replace(/^flow_/, '');
+      const docKind: unknown =
+        kind === movementSource.reversal ? byId('flow_documents').get(id)?.kind : flowKinds.find((k) => flowEntity(k) === kind);
       add(flowName(docKind), '张', id);
     }
   }

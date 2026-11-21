@@ -4,7 +4,7 @@ import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, inSavepoint, requirePermission } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { OrderBatchService } from '../operations/index.js';
-import { toScheduleEntries } from '../../shared/business/index.js';
+import { flowEntity, toScheduleEntries } from '../../shared/business/index.js';
 import { today } from '../../shared/core/index.js';
 import {
   batchPreviewSchema,
@@ -49,7 +49,7 @@ const rawForms: { [K in DocumentKind]: (store: Store, id: number) => RawForm<K> 
 };
 /** 排好版、要存成导出记录的这一份 */
 type Rendered = { digest: string; actor: Actor; built: Built; bytes: Buffer; shipDate: string | undefined };
-const auditEntity = (kind: DocumentKind) => (kind === 'purchase' ? 'purchases' : 'flow_delivery');
+const auditEntity = (kind: DocumentKind) => (kind === 'purchase' ? 'purchases' : flowEntity('delivery'));
 
 export class BusinessDocuments {
   constructor(

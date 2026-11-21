@@ -2,9 +2,10 @@ import { z } from 'zod';
 import { count, many, type Store } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { WarehouseDaily } from '../flow/index.js';
-import { periodOrders } from './period-records.js';
+import { archivedIdsJson, periodOrders } from './period-records.js';
 import { OperationsService, purchaseOrderLinks } from '../operations/index.js';
 import { dueSegments, sumMoney, type FlowDocView, type PurchaseView, type StockItemView } from '../../shared/business/index.js';
+import { flowEntity, flowStatus, movementSource, type FlowKind, type purchaseBusinessStatuses } from '../../shared/business/index.js';
 import { DAY_MS, UNITS_PER_QUANTITY, deliverableOrder, effectiveOrder, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
 import { orderNextSteps, type NextStep } from '../../shared/business/index.js';
 import { pendingByOrderLine, specificationMismatch } from '../../shared/business/index.js';
@@ -24,18 +25,22 @@ export function buildWorkbench(store: Store, date: string) {
   );
   const arrivalRecords = daily.heads('arrival'),
     deliveryRecords = daily.heads('delivery');
+  const toOrderStatus: (typeof purchaseBusinessStatuses)[number] = '待订货',
+    production: FlowKind = 'production';
   return {
     date,
     toOrder: count(
       store.db,
-      "SELECT COUNT(*) n FROM purchases WHERE status='待订货' AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='purchases')",
+      'SELECT COUNT(*) n FROM purchases WHERE status=? AND id NOT IN (SELECT value FROM json_each(?))',
+      toOrderStatus,
+      archivedIdsJson(store, 'purchases'),
     ),
     pendingArrivals: arrivalRecords.filter((r) => r.pending && !r.cancelled).length,
     arrivalsToday: daily.daySummary(arrivalRecords, date).completed,
     // 当天原材料的采购入库流水（数量为 0 的也按“+”方向计）。
     stockedToday: ops.movementCount({ start: date, end: date, kind: 'raw' }, {
       inbound: true,
-      sourceKinds: ['purchase', 'flow_arrival'],
+      sourceKinds: [movementSource.arrival],
     }),
     activeTasks: activeTasks.length,
     tasksToday: tasks.filter(
@@ -46,8 +51,11 @@ export function buildWorkbench(store: Store, date: string) {
     ).length,
     productionToday: count(
       store.db,
-      "SELECT COUNT(*) n FROM flow_documents WHERE kind='production' AND status='confirmed' AND date=? AND id NOT IN (SELECT record_id FROM record_lifecycle WHERE entity='flow_production')",
+      'SELECT COUNT(*) n FROM flow_documents WHERE kind=? AND status=? AND date=? AND id NOT IN (SELECT value FROM json_each(?))',
+      production,
+      flowStatus.confirmed,
       date,
+      archivedIdsJson(store, flowEntity(production)),
     ),
     deliveriesToday: daily.daySummary(deliveryRecords, date).completed,
     pendingDeliveries: deliveryRecords.filter((r) => r.pending && !r.cancelled).length,

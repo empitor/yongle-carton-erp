@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { AppError, changeArchive, exists, many, recordArchiveTarget } from '../core/index.js';
-import type { RecordEntity } from '../../shared/business/index.js';
+import type { FlowKind, RecordEntity, purchaseBusinessStatuses } from '../../shared/business/index.js';
+import { flowStatus } from '../../shared/business/index.js';
 import { deliverableOrder, type ArchiveResult } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import { businessRecord, type BusinessRecordOf } from './records.js';
@@ -20,27 +21,32 @@ function stockItemBlocked(store: Store, id: number, row: BusinessRecordOf['stock
   // 还有库存先把库存处理掉，不提删除：删库存品会连流水一起删，账就对不上了
   if (row.balanceUnits !== 0) return '库存还不是零，不能归档；先出库或盘点清零，再归档。';
   // 只组装这个产品已下达的任务，不读全部任务
+  const task = 'task' satisfies FlowKind,
+    cancelled: (typeof purchaseBusinessStatuses)[number] = '已取消';
   const taskIds =
     row.kind === 'finished' && row.productId
       ? many(
           store.db,
           documentId,
-          "SELECT DISTINCT d.id FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.product_id=? AND d.kind='task' AND d.status='confirmed'",
+          'SELECT DISTINCT d.id FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.product_id=? AND d.kind=? AND d.status=?',
           row.productId,
+          task,
+          flowStatus.confirmed,
         ).map((r) => r.id)
       : [];
   if (
     taskIds.length &&
     new FlowService(store)
-      .list('task', true, undefined, taskIds)
-      .some((t) => t.productId === row.productId && t.status === 'confirmed' && Number(t.completed || 0) < Number(t.quantity))
+      .list(task, true, undefined, taskIds)
+      .some((t) => t.productId === row.productId && t.status === flowStatus.confirmed && Number(t.completed || 0) < Number(t.quantity))
   )
     return '这个成品还有未完成的生产任务，不能归档';
   if (
     exists(
       store.db,
-      "SELECT 1 FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE l.stock_item_id=? AND l.received_units<l.quantity_units AND p.status!='已取消' LIMIT 1",
+      'SELECT 1 FROM purchase_lines l JOIN purchases p ON p.id=l.purchase_id WHERE l.stock_item_id=? AND l.received_units<l.quantity_units AND p.status!=? LIMIT 1',
       id,
+      cancelled,
     )
   )
     return '这个库存品还有没到齐的采购，不能归档';
@@ -66,8 +72,9 @@ function blocked<E extends RecordEntity>(store: Store, entity: E, id: number, ro
     reference &&
     exists(
       store.db,
-      'SELECT 1 FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.' + reference + "=? AND d.status='draft' LIMIT 1",
+      'SELECT 1 FROM flow_refs r JOIN flow_documents d ON d.id=r.document_id WHERE r.' + reference + '=? AND d.status=? LIMIT 1',
       id,
+      flowStatus.draft,
     )
   )
     return '还有没核对的关联单据，不能归档';
