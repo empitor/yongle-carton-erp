@@ -124,7 +124,7 @@ type MovementFilters = Pick<RecordFilters, 'kind' | 'stockId' | 'productId' | 'q
 /** 流水按库存品汇总；库存品按同样的筛选条件挑（按名称规格找的，流水里出现过的也算） */
 function movementSummary(ctx: ToolContext, rows: ModuleRows['movements'], f: MovementFilters, page: { offset: number; limit: number }) {
   const ids = new Set(rows.map((r) => Number(r.item_id)));
-  const items = ctx.ops.repo.items(true).filter(
+  const items = ctx.flow.views.items(true).filter(
     (i) =>
       (!f.kind || i.kind === f.kind) &&
       (!f.stockId || i.id === f.stockId) &&

@@ -2,15 +2,15 @@
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OrderBatchService } from '../server/operations/index.js';
 import { registerArrival } from '../server/flow/register-arrival.js';
 import { archiveFlowDocuments } from '../server/flow/archive.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { receiptEvents } from '../server/flow/receipt-events.js';
-import type { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/service.js';
 import type { FlowKind } from '../shared/business/physical-flow.js';
-import { arrivalCorrectionPreviewSchema, type FlowDocView, type StockItemView } from '../shared/business/index.js';
-import type { OperationsService } from '../server/operations/service.js';
+import { arrivalCorrectionPreviewSchema, type FlowDocView, type StockItemBaseView } from '../shared/business/index.js';
+import type { OperationsService } from '../server/operations/index.js';
 import { z } from 'zod';
 import { batchRowKey } from '../shared/business/order-batch.js';
 import { quantityString, quantityUnits } from '../shared/core/quantity.js';
@@ -38,7 +38,7 @@ export function receiveLines(
 ) {
   const batches = new OrderBatchService(store),
     batchId = batches.batchIdOf(purchaseId),
-    source = batches.sourceLines(batches.repo.purchases(false, purchaseId));
+    source = batches.sourceLines(new FlowService(store).views.purchases(false, purchaseId));
   const rows = new Map<string, { quantity: number; rejected: number; stocked: number | null }>();
   for (const item of input.items) {
     const line = source.find((l) => l.id === item.lineId);
@@ -126,7 +126,7 @@ function batchOwner(batches: OrderBatchService, purchaseId: number, who: Actor |
 
 type Rows = string | { quantity: string; rejectedQuantity?: string; stockedQuantity?: string }[];
 /** orderedPurchase、correctionFixture 要的那几样（flowFixture 的返回都有） */
-type PurchaseBase = { store: Store; ops: OperationsService; supplier: { id: number }; raw: StockItemView };
+type PurchaseBase = { store: Store; ops: OperationsService; flow: FlowService; supplier: { id: number }; raw: StockItemBaseView };
 /** 到货更正的一行（arrivalCorrectionPreviewSchema 收的样子） */
 type CorrectionLine = z.input<typeof arrivalCorrectionPreviewSchema>['lines'][number];
 /**
@@ -134,7 +134,7 @@ type CorrectionLine = z.input<typeof arrivalCorrectionPreviewSchema>['lines'][nu
  * lines 每项是数量（买 f.raw），或 [库存品, 数量]（几行要不同的纸板，订货单才分成几行）。
  * receive(数量或每行的数, 送货单号, 别的字段) 按订货单登记到货（日期默认 2026-10-10，当场入库；pending 存待入库）。
  */
-export function orderedPurchase(f: PurchaseBase, who: Actor, lines: (string | [StockItemView, string])[] = ['1000']) {
+export function orderedPurchase(f: PurchaseBase, who: Actor, lines: (string | [StockItemBaseView, string])[] = ['1000']) {
   const purchase = f.ops.savePurchase(
     {
       supplierId: f.supplier.id,
@@ -147,7 +147,7 @@ export function orderedPurchase(f: PurchaseBase, who: Actor, lines: (string | [S
     },
     who,
   );
-  const current = () => f.ops.repo.purchases(true, purchase.id)[0];
+  const current = () => f.flow.views.purchases(true, purchase.id)[0];
   const batch = () => {
     const batches = new OrderBatchService(f.store),
       id = batches.batchIdOf(purchase.id);
@@ -175,10 +175,10 @@ export function orderedPurchase(f: PurchaseBase, who: Actor, lines: (string | [S
  * 更正到货的底子：f 是 flowFixture，按 orderedPurchase（1000 张、2 元/张）登记一张到货（默认到 1000 张，2026-10-05）。
  * correct(到货单, 更正后的行, 谁, 单头) 先出方案再按摘要更正；use(数量) 领用纸板，模拟后面的业务用掉了库存。
  */
-export function correctionFixture(f: PurchaseBase & { flow: FlowService }, who: Actor, received = '1000') {
+export function correctionFixture(f: PurchaseBase, who: Actor, received = '1000') {
   const p = orderedPurchase(f, who);
   const first = p.receive(received, '虚构送货单-01', { date: '2026-10-05' });
-  const balance = () => f.ops.repo.balance(f.raw.id);
+  const balance = () => f.ops.balance(f.raw.id);
   const moves = () =>
     f.store.db
       .prepare('SELECT id,source_kind,source_id,delta_units,date,purchase_line_id FROM stock_movements ORDER BY rowid')
@@ -202,8 +202,8 @@ export function correctionFixture(f: PurchaseBase & { flow: FlowService }, who: 
     return ofKind(correctDocument(f.store, id, { ...v, previewDigest: plan.previewDigest, requestId: randomUUID() }, by), 'arrival');
   };
   const use = (quantity: string) => {
-    const it = f.ops.repo.items(true, f.raw.id)[0];
-    f.ops.move(
+    const it = f.ops.items(true, f.raw.id)[0];
+    f.flow.stock.move(
       f.raw.id,
       { expectedVersion: it.version, requestId: randomUUID(), action: 'out', quantity, date: '2026-10-06', notes: '虚构领料', acknowledged: true },
       who,

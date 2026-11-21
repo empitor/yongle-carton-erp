@@ -4,6 +4,7 @@ import { arrivalQuantities, purchaseLineAmount, sameRawSpec, sheetArea, stockIte
 import { lineOrderId } from '../operations/index.js';
 import { exists, many, one, rows, type Store } from '../core/index.js';
 import { fail, type ArrivalLine, type LineCheck } from './base.js';
+import { StockViews } from './stock-views.js';
 /*
  * 到货单的校验（validate.ts 的 validateFlow 按种类分派过来）：供应商、订货单、AI 识别原件、采购明细、规格、验收数量。
  */
@@ -65,7 +66,7 @@ function checkHead(ctx: ArrivalCheck, v: Arrival) {
   const { flow, maintenance, confirm } = ctx;
   // 实收、完工、出库这些实际发生的日期不能填未来；计划日期不受限
   if (confirm && v.date > today()) fail('到货日期不能晚于今天。');
-  if (flow.ops.repo.supplierName(v.supplierId, maintenance) === undefined) fail('供应商不存在或已归档。');
+  if (flow.ops.supplierName(v.supplierId, maintenance) === undefined) fail('供应商不存在或已归档。');
   // 订货单（order_batches）是外键：订货单不在了先说清楚，不等数据库报外键错误
   if (v.orderBatchId != null && !exists(flow.store.db, 'SELECT 1 FROM order_batches WHERE id=?', v.orderBatchId))
     fail('订货单不存在或已删除，请刷新后重新登记到货。', 409);
@@ -180,13 +181,13 @@ function checkLine(ctx: ArrivalCheck, v: Arrival, l: ArrivalLine, purchases: Pur
     amount,
     purchaseId: purchase?.id || null,
     purchaseNumber: purchase?.number || '',
-    supplierName: flow.ops.repo.supplierName(v.supplierId, false),
+    supplierName: flow.ops.supplierName(v.supplierId, false),
   });
 }
 
 /** 到货单：供应商、订货单、原件、采购明细（剩余数量、规格）、验收数量，入库变化按验收后实际入库数 */
 export function checkArrival(ctx: ArrivalCheck, v: Arrival) {
   checkHead(ctx, v);
-  const purchases = ctx.flow.ops.repo.purchases(true, checkPurchaseLinks(ctx, v));
+  const purchases = new StockViews(ctx.flow.store).purchases(true, checkPurchaseLinks(ctx, v));
   for (const l of v.lines) checkLine(ctx, v, l, purchases);
 }

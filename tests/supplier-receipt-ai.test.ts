@@ -17,8 +17,7 @@ import { testImports } from './order-import-fixture.js';
 import { promptTable } from './assistant-fixture.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { OperationsService } from '../server/operations/index.js';
 import { recognizedArrivalDraft, arrivalTotals } from '../shared/business/arrival-draft.js';
 import { SseParser } from '../shared/core/sse.js';
 import { receiptResultSchema } from '../shared/import/index.js';
@@ -121,7 +120,7 @@ test('供应商图片发原图、DOCX/XLSX/PDF原样上传后按文件编号引�
         );
         assert.equal(result.result?.lines[0].quantity, '100');
         assert.equal(f.store.orders().length, 0);
-        assert.equal(new OperationsRepository(f.store).items().length, 0);
+        assert.equal(new OperationsService(f.store).items().length, 0);
         assert.equal(count(f.store.db, 'SELECT COUNT(*) FROM stock_movements'), 0);
         const req = f.fake.chatCalls().at(-1);
         assert.ok(req);
@@ -238,7 +237,7 @@ test('同一份识别原件只能入库一次，预览绑定原件哈希', async
         ),
       /已经确认入库/,
     );
-    assert.equal(ops.repo.items()[0].quantity, '100');
+    assert.equal(ops.items()[0].quantity, '100');
   } finally {
     f.close();
   }
@@ -353,8 +352,8 @@ test('识别结果关联到货单：要登录、换别的原件被拒；核对�
     flow.confirm(doc.id, input, actor);
     flow.confirm(doc.id, input, actor);
     assert.equal((await f.post(path + '/mode', { mode: 'order', expectedRevision: f.imports.get(w.id).revision })).status, 409);
-    const items = ops.repo.items();
-    assert.deepEqual([items.length, items[0].kind, items[0].quantity, ops.repo.movements().length, f.store.orders().length], [1, 'raw', '100', 1, 0]);
+    const items = ops.items();
+    assert.deepEqual([items.length, items[0].kind, items[0].quantity, ops.movements().length, f.store.orders().length], [1, 'raw', '100', 1, 0]);
     const other = f.ai.upload(docxFixture(), '其他.docx', actor);
     assert.equal((await link(other.id)).status, 409);
     const importer = new ImportExecutionService(f.store, f.imports);

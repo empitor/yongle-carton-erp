@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
-import { OperationsRepository } from '../operations/index.js';
+import { FlowService } from '../flow/index.js';
 
 /*
  * 按日期统计时要算上的已归档记录（今日页“本月接单”、经营概况、助手的经营概况）：归档只是把办完的收起来，
@@ -35,6 +35,6 @@ export function periodOrders(store: Store, range: DateRange) {
 
 /** 采购单：current 是全部没归档的，archived 是这段时间里已归档的 */
 export function periodPurchases(store: Store, range: DateRange) {
-  const repo = new OperationsRepository(store);
-  return { current: repo.purchases(), archived: repo.purchases(true, archivedInRange(store, 'purchases', range)) };
+  const views = new FlowService(store).views;
+  return { current: views.purchases(), archived: views.purchases(true, archivedInRange(store, 'purchases', range)) };
 }

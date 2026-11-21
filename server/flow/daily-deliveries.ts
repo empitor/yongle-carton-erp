@@ -94,7 +94,7 @@ export function deliveryRecords(
   const flow = new FlowService(store);
   const deliveries = flow.list('delivery', includeArchived, workbenchDate, flowIds);
   const orders = new Map(store.ordersByIds(deliveries.flatMap((d) => d.lines.map((l) => l.orderId)), true).map((o) => [o.id, o]));
-  const stocks = new Map(flow.ops.repo.items(true, deliveries.flatMap((d) => d.lines.map((l) => l.stockId))).map((s) => [s.id, s]));
+  const stocks = new Map(flow.ops.items(true, deliveries.flatMap((d) => d.lines.map((l) => l.stockId))).map((s) => [s.id, s]));
   const customers = new Map(
     many(
       store.db,

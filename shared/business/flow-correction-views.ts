@@ -3,7 +3,7 @@ import type { arrivalLineStatus } from '../core/index.js';
 import { flowContentSchema, flowViewSchema } from './flow-document.js';
 import { receiptEventSchema } from './flow-views.js';
 import { arrivalProgresses, purchaseBusinessStatuses } from './operations.js';
-import { purchaseViewSchema, receiptLineSchema, stockItemViewSchema } from './operations-views.js';
+import { purchaseViewSchema, receiptLineSchema, stockItemViewSchema } from './stock-flow-views.js';
 import { arrivalLineSchema, type FlowKind } from './physical-flow.js';
 
 /*
@@ -180,7 +180,7 @@ export function correctionResultSchema<K extends Correctable, R extends object>(
 
 /**
  * 提交结果里到货多带的：原到货记录和替代单的记录键、编号，到货金额前后（缺单价算不出时是 null），
- * 更正后读回的采购单、库存品（采购库存的完整视图，operations-views.ts），每行原登记和更正后的数量
+ * 更正后读回的采购单、库存品（完整视图，stock-flow-views.ts），每行原登记和更正后的数量
  */
 export const arrivalCorrectionExtraSchema = z.object({
   originalReceiptId: z.string(),

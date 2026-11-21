@@ -73,7 +73,7 @@ test('不挂采购单的到货也能更正；本机管理员加一行、删一�
     const doc = f.flow.get(added.replacementFlowId, 'arrival');
     assert.equal(doc.lines.length, 2);
     assert.ok(doc.lines[1].stockId, '新行入了库存品');
-    assert.equal(f.ops.repo.balance(Number(doc.lines[1].stockId)), 7000);
+    assert.equal(f.ops.balance(Number(doc.lines[1].stockId)), 7000);
     // 再把第一行删掉
     const removed = f.correct(doc.id, [{ index: 1, quantity: '7' }], admin);
     assert.equal(f.flow.get(removed.replacementFlowId, 'arrival').lines.length, 1);
@@ -121,8 +121,8 @@ test('本机管理员更正时新挂上的采购明细照样查状态：同一�
     // 两张采购单并在同一份订货单里，再把后一张取消
     f.store.db.prepare('DELETE FROM order_batch_purchases WHERE purchase_id=?').run(other.id);
     f.store.db.prepare('INSERT INTO order_batch_purchases(batch_id,purchase_id) VALUES(?,?)').run(batchId, other.id);
-    const current = f.ops.repo.purchases(true, other.id)[0];
-    f.ops.savePurchase({ ...current, status: '已取消', version: current.version }, clerk, other.id);
+    const current = f.flow.views.purchases(true, other.id)[0];
+    f.flow.stock.savePurchase({ ...current, status: '已取消', version: current.version }, clerk, other.id);
     assert.throws(
       () => f.correct(f.arrivalId, [{ index: 0, quantity: '600', purchaseLineId: other.lines[0].id }], admin),
       /正常已订货的?采购单/,
@@ -181,7 +181,7 @@ test('本机管理员删一行、换挂同一订货单里的采购明细：撤�
       '已到货缓存按有效单据重算',
     );
     assert.equal(count(f.store.db, 'SELECT count(*) n FROM stock_movement_revisions'), 0);
-    assert.equal(f.ops.repo.balance(f.raw.id), 5000);
+    assert.equal(f.ops.balance(f.raw.id), 5000);
     assert.equal(f.flow.get(Number(second.replacementFlowId)).correctionOf, replacement);
   } finally {
     f.store.close();

@@ -90,7 +90,7 @@ test('本机管理员更正时给已出库送货单加行：替代单的出库�
   f.confirmId(d.id, { shipDate: '2026-10-28' });
   const added = correct(f, d.id, [{ index: 0, quantity: '20' }, { quantity: '10', orderLineId: o2.lines[0].id }], admin);
   assert.equal(added.lines.length, 2);
-  assert.equal(f.ops.repo.balance(f.finished.id), 70_000);
+  assert.equal(f.ops.balance(f.finished.id), 70_000);
   f.flow.markDelivered(added.id, { version: added.version, date: '2026-10-29' }, admin);
   const keep = [{ index: 0, quantity: '20' }, { index: 1, quantity: '10' }];
   assert.throws(() => correct(f, added.id, keep, admin, { date: '2026-11-05' }), /不能晚于已确认的送达日期 2026-10-29/);

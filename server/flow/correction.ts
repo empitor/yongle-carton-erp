@@ -178,7 +178,7 @@ function commit<K extends CorrectableKind, I extends CorrectionHead, V extends o
   const done = kind.finish({ flow, actor, at, requestId, reason, original, replacementId, replacementNumber, plan: { ...plan, stockImpact }, movements });
   // 读回核验：库存结余要和预览说的一样，不一样整笔撤回
   const stockIds = stockImpact.flatMap((s) => (s.stockId ? [s.stockId] : [])),
-    stock = flow.ops.repo.items(true, stockIds);
+    stock = flow.ops.items(true, stockIds);
   if (stockImpact.some((s) => s.stockId && stock.find((it) => it.id === s.stockId)?.quantity !== s.after))
     throw new AppError('更正后库存核验不一致，事务已回滚。', 409);
   const result = {

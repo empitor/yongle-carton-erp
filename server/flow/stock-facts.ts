@@ -4,12 +4,12 @@ import { sumMoney, type PurchaseRowView, type PurchaseView, type ReceiptEvent } 
 import { exists, many, rows } from '../core/index.js';
 import { storedContent } from './read.js';
 import { quantityText, quantityUnits } from '../../shared/core/index.js';
-import type { ArrivalSource } from '../operations/index.js';
 import { effectiveReceiptUnits, receiptEvents, subtractReturnedUnits } from './receipt-events.js';
 
 /*
- * 采购库存要看的单据流转数据，按采购库存定的接口（server/operations/hooks.ts 的 ArrivalSource）提供，
- * 加载单据流转时登记（server/flow/service.ts 末尾）。采购库存自己不读单据流转的表。
+ * 采购单、库存品、订货单、流水上属于单据的事实：按到货单现算的已到货和到货记录、已安排、被单据引用、
+ * 订货单登记过的到货单、流水来源单据的单号。完整视图（stock-views.ts）和保存入口（stock-entries.ts）用，
+ * 采购库存自己不读单据流转的表，要的事实由这两处算好交给它。
  */
 
 /** 采购单的一条到货记录：到货事件加上原件、原因、是否撤销，挂在这张采购单上的行和整张的行、金额 */
@@ -29,8 +29,8 @@ function receiptOf(purchaseId: number, { document, lines, ...e }: ReceiptEvent) 
 /**
  * 采购单上和到货单有关的部分：已到货（按有效到货单现算，扣掉没撤销的退货）、到货记录（receipts）、
  * 有效到货金额（receivedAmount，按到货单上的单价算）。
- * 采购单本身（单头、明细、到货进度）由采购库存的 purchaseRows 组装；这里按同一批采购单一次读齐相关到货单，不逐张查。
- * 返回的 receivedUnits 交给 purchaseRows，apply 把到货单信息补进它组装好的采购单。
+ * 采购单本身（单头、明细、到货进度）由采购库存的 purchases 组装；这里按同一批采购单一次读齐相关到货单，不逐张查。
+ * 返回的 receivedUnits 交给采购库存组装，apply 把到货单信息补进它组装好的采购单。
  */
 export function purchaseArrivals(store: Store, purchaseIds: number[]) {
   const events = receiptEvents(store, purchaseIds),
@@ -96,25 +96,31 @@ export function reservedUnits(store: Store, ids?: readonly number[]) {
   return units;
 }
 
+/** 这张采购单有没有被单据关联（到货单的明细挂在它上面） */
+export const purchaseReferenced = (store: Store, purchaseId: number) =>
+  exists(store.db, 'SELECT 1 FROM flow_refs WHERE purchase_id=? LIMIT 1', purchaseId);
+
+/** 按这份订货单登记过的到货单（订货单详情列出来） */
+export const batchArrivals = (store: Store, batchId: number) =>
+  many(store.db, rows.flow_documents.pick({ id: true, number: true, date: true, status: true, document: true }), 'SELECT id,number,date,status,document FROM flow_documents WHERE order_batch_id=? ORDER BY date,id', batchId)
+    .map((a) => ({ id: a.id, number: a.number, date: a.date, status: a.status, reference: storedContent('arrival', a).reference || '' }));
+
+/** 这份订货单有没有登记过到货（有的话订货单空了也留着） */
+export const batchHasArrivals = (store: Store, batchId: number) =>
+  exists(store.db, 'SELECT 1 FROM flow_documents WHERE order_batch_id=? LIMIT 1', batchId);
+
+/** 流水来源单据的种类（flow_documents.kind）和单号，按单据编号（文字）取 */
+export const documentNumbers = (store: Store, ids: number[]) =>
+  new Map(
+    many(store.db, rows.flow_documents.pick({ id: true, kind: true, number: true }), 'SELECT id,kind,number FROM flow_documents WHERE id IN (SELECT value FROM json_each(?))', JSON.stringify(ids))
+      .map((f) => [String(f.id), { kind: f.kind, number: f.number }]),
+  );
+
 /** 被引用的库存品（按 IN 圈出来的不会是空） */
 const stockRef = z.object({ stock_id: z.number() });
-
-export const arrivalSource: ArrivalSource = {
-  purchases: purchaseArrivals,
-  purchaseReferenced: (store, purchaseId) => exists(store.db, 'SELECT 1 FROM flow_refs WHERE purchase_id=? LIMIT 1', purchaseId),
-  batchArrivals: (store, batchId) =>
-    many(store.db, rows.flow_documents.pick({ id: true, number: true, date: true, status: true, document: true }), 'SELECT id,number,date,status,document FROM flow_documents WHERE order_batch_id=? ORDER BY date,id', batchId)
-      .map((a) => ({ id: a.id, number: a.number, date: a.date, status: a.status, reference: storedContent('arrival', a).reference || '' })),
-  batchHasArrivals: (store, batchId) => exists(store.db, 'SELECT 1 FROM flow_documents WHERE order_batch_id=? LIMIT 1', batchId),
-  reservedUnits,
-  documentNumbers: (store, ids) =>
-    new Map(
-      many(store.db, rows.flow_documents.pick({ id: true, kind: true, number: true }), 'SELECT id,kind,number FROM flow_documents WHERE id IN (SELECT value FROM json_each(?))', JSON.stringify(ids))
-        .map((f) => [String(f.id), { kind: f.kind, number: f.number }]),
-    ),
-  referencedStock: (store, stockIds) =>
-    new Set(
-      many(store.db, stockRef, 'SELECT DISTINCT stock_id FROM flow_refs WHERE stock_id IN (SELECT value FROM json_each(?))', JSON.stringify(stockIds))
-        .map((r) => r.stock_id),
-    ),
-};
+/** 这几个库存品里被单据引用过的 */
+export const referencedStock = (store: Store, stockIds: readonly number[]) =>
+  new Set(
+    many(store.db, stockRef, 'SELECT DISTINCT stock_id FROM flow_refs WHERE stock_id IN (SELECT value FROM json_each(?))', JSON.stringify(stockIds))
+      .map((r) => r.stock_id),
+  );

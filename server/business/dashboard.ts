@@ -6,15 +6,11 @@ import type { Dashboard } from '../../shared/business/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, monthsBefore } from '../../shared/core/index.js';
 import { documentValueCents, sumMoney } from '../../shared/business/index.js';
 import { quantityString } from '../../shared/core/index.js';
-import { OperationsRepository } from '../operations/index.js';
-import type { UnitBalance } from '../../shared/business/index.js';
+import { FlowService } from '../flow/index.js';
+import type { MovementView, PurchaseView, StockItemView, UnitBalance } from '../../shared/business/index.js';
 import { orderMetrics, productMetrics, pendingPurchase } from '../../shared/business/index.js';
 import { periodPurchases, type DateRange } from './period-records.js';
 
-/** 采购单、库存品、库存流水的视图（采购库存模块给的样子） */
-type PurchaseView = ReturnType<OperationsRepository['purchases']>[number];
-type StockItemView = ReturnType<OperationsRepository['items']>[number];
-type MovementView = ReturnType<OperationsRepository['movements']>[number];
 type Overview = Dashboard['overview'];
 
 /** 首页“最近”几栏各列几条：订单、采购单、库存流水，合起来的动态最多几条 */
@@ -202,13 +198,13 @@ export function buildDashboard(
   const allOrders = options.allOrders ?? store.orders(),
     currentIds = new Set(allOrders.map((o) => o.id)),
     archived = (o: Order) => !currentIds.has(o.id);
-  const repo = new OperationsRepository(store),
+  const views = new FlowService(store).views,
     periodPurchase = periodPurchases(store, range);
   const inRange = (value: string) => (!range.start || value >= range.start) && (!range.end || value <= range.end);
   const currentPurchases = periodPurchase.current.filter((p) => inRange(p.orderDate)),
     purchases = [...currentPurchases, ...periodPurchase.archived];
   const deliveries = documentAmounts(store, 'delivery', range);
-  const movements = repo.movements({ start: range.start, end: range.end }, { limit: RECENT_MOVEMENTS });
+  const movements = views.movements({ start: range.start, end: range.end }, { limit: RECENT_MOVEMENTS });
   const recentOrders = newestFirst(rows.filter((o) => !archived(o)), RECENT_ORDERS),
     recentPurchases = newestFirst(currentPurchases, RECENT_PURCHASES);
   const products = store.products();
@@ -226,7 +222,7 @@ export function buildDashboard(
         documentAmounts(store, 'arrival', range),
         periodPurchase.archived.length,
       ),
-      inventory: inventoryOverview(repo.items()),
+      inventory: inventoryOverview(views.items()),
       products: { total: products.length, incomplete: productMetrics(products).incomplete },
       movements,
       activity: recentActivity(recentOrders, recentPurchases, movements),

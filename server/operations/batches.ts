@@ -6,9 +6,8 @@ import { peekSequence, takeSequence } from '../core/index.js';
 import { quantityString } from '../../shared/core/index.js';
 import { today } from '../../shared/core/index.js';
 import { batchProgress, batchRowKey, batchRows, batchScheduleSchema, defaultSchedule, purchaseLinesOf, toScheduleEntries, type BatchSourceLine, type ScheduleEntry } from '../../shared/business/index.js';
-import type { OrderBatchDraft, OrderBatchView, PurchaseView } from '../../shared/business/index.js';
+import type { OrderBatchBaseView, OrderBatchDraft, PurchaseRowView } from '../../shared/business/index.js';
 import { OperationsRepository } from './repository.js';
-import { arrivalSource } from './hooks.js';
 import { batchScheduleText, readBatchSchedule } from './batch-schedule.js';
 import { readPurchaseLineDocument } from './ledger.js';
 
@@ -48,14 +47,15 @@ function batchRowView({ lines, ...r }: ReturnType<typeof batchRows>[number]) {
 }
 
 /** 采购单按下单日期、编号排 */
-const byOrderDate = (a: PurchaseView, b: PurchaseView) => a.orderDate.localeCompare(b.orderDate) || a.id - b.id;
+const byOrderDate = (a: PurchaseRowView, b: PurchaseRowView) => a.orderDate.localeCompare(b.orderDate) || a.id - b.id;
 
 /**
  * 订货批次：发给供应商的一份订货单。批次里是同一家供应商的一张或几张采购单；
- * 还差多少由采购明细的有效到货数量派生，批次本身只存采购单清单和到货安排。
+ * 还差多少由采购明细的已到货缓存派生，批次本身只存采购单清单和到货安排。
+ * 读出来的是基本视图，按它登记的到货单由单据流转补（server/flow/stock-views.ts 的 batch）。
  */
 export class OrderBatchService {
-  readonly repo: OperationsRepository;
+  private readonly repo: OperationsRepository;
   constructor(readonly store: Store) {
     this.repo = new OperationsRepository(store);
   }
@@ -69,9 +69,9 @@ export class OrderBatchService {
   }
   /**
    * 采购单换了供应商：移出原来的订货单，不能留在别家的订货单里（批次按自己的供应商建到货单）。
-   * 订货单空了、也没有按它登记过的到货，就一起删掉。
+   * 订货单空了、也没有按它登记过的到货（hasArrivals，调用方从单据流转算好），就一起删掉。
    */
-  detach(purchaseId: number, actor: Actor) {
+  detach(purchaseId: number, actor: Actor, hasArrivals: boolean) {
     const batchId = this.batchIdOf(purchaseId);
     if (batchId === null) return;
     // 改之前的订货单（号、版本、到货安排），审计按它记前后，和删除采购单时那条（deletion.ts 的 auditBatchDetach）同一种写法
@@ -81,7 +81,7 @@ export class OrderBatchService {
     const purchaseNumber = one(this.store.db, rows.purchases.pick({ number: true }), 'SELECT number FROM purchases WHERE id=?', purchaseId)?.number ?? '',
       scheduleBefore = readBatchSchedule(old.schedule, batchId);
     this.store.db.prepare('DELETE FROM order_batch_purchases WHERE purchase_id=?').run(purchaseId);
-    const empty = !this.memberIds(batchId).length && !arrivalSource().batchHasArrivals(this.store, batchId);
+    const empty = !this.memberIds(batchId).length && !hasArrivals;
     const scheduleAfter = empty ? [] : this.dropDetachedRows(batchId, scheduleBefore);
     if (empty) this.store.db.prepare('DELETE FROM order_batches WHERE id=?').run(batchId);
     const removed = scheduleBefore.length - scheduleAfter.length;
@@ -179,8 +179,8 @@ export class OrderBatchService {
       batch: batch && { id: batch.id, number: batch.number, version: batch.version },
     };
   }
-  /** 批次详情：采购单、合并后的行（含到货安排和每段还差多少）、到货单。 */
-  view(id: number): OrderBatchView {
+  /** 批次详情：采购单、合并后的行（含到货安排和每段还差多少）；到货单由单据流转补 */
+  view(id: number): OrderBatchBaseView {
     const row = this.head(id) ?? fail('订货单不存在或已删除。', 404);
     const purchases = this.repo.purchases(true, this.memberIds(id)),
       schedule = readBatchSchedule(row.schedule, id),
@@ -198,8 +198,6 @@ export class OrderBatchService {
         .sort(byOrderDate)
         .map((p) => ({ id: p.id, number: p.number, status: p.status, customerOrderNumber: p.customerOrderNumber })),
       rows: rows.map(batchRowView),
-      // 按这份订货单登记的到货单在单据流转，经 ArrivalSource 读
-      arrivals: arrivalSource().batchArrivals(this.store, id),
       progress: batchProgress(rows),
     };
   }
@@ -279,7 +277,7 @@ export class OrderBatchService {
     });
   }
   /** 写一份新订货单和它的采购单清单，记审计，返回编号 */
-  private insertBatch(ids: number[], purchases: PurchaseView[], actor: Actor, options: { number?: string; exportId?: string; schedule?: ScheduleEntry[] }) {
+  private insertBatch(ids: number[], purchases: PurchaseRowView[], actor: Actor, options: { number?: string; exportId?: string; schedule?: ScheduleEntry[] }) {
     // 给了号的（导出交付）不再占：号在生成导出记录时已经占过；几张一起手工建的这里直接占一个。
     // 一张采购单的订货单用采购单号；这个号已经被它原来的订货单占着（换了供应商，原订货单上有到货留着）就另占一个
     const own = ids.length === 1 && !exists(this.store.db, 'SELECT 1 FROM order_batches WHERE number=?', purchases[0].number);

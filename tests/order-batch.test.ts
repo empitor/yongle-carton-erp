@@ -7,8 +7,8 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { AppError, count, one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
 import { storedScheduleEntrySchema } from '../shared/business/index.js';
-import { OperationsService } from '../server/operations/service.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OperationsService, OrderBatchService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
@@ -32,6 +32,7 @@ const detachAudit = z.object({
 function setup() {
   const store = new Store(':memory:'),
     ops = new OperationsService(store),
+    flow = new FlowService(store),
     docs = new BusinessDocuments(store, async () => Buffer.from('虚构订货单文件')),
     batches = new OrderBatchService(store);
   const supplier = ops.saveSupplier({ name: '虚构春芳纸板厂', contact: '虚构联系人', phone: '000', address: '' }, actor);
@@ -48,12 +49,12 @@ function setup() {
   /** 把采购单改成已订货；skipBatch 时不自动建订货单（测试自己合并建） */
   const ordered = (ids: number[], options: { skipBatch?: boolean } = {}) => {
     for (const id of ids) {
-      const cur = ops.repo.purchases(true, id)[0];
-      ops.savePurchase({ ...cur, status: '已订货', version: cur.version }, actor, id, options);
+      const cur = flow.views.purchases(true, id)[0];
+      flow.stock.savePurchase({ ...cur, status: '已订货', version: cur.version }, actor, id, options);
     }
   };
-  const stock = () => quantityUnits(ops.repo.items(true, item.id)[0].quantity);
-  return { store, ops, docs, batches, supplier, other, item, purchase, ordered, stock };
+  const stock = () => quantityUnits(ops.items(true, item.id)[0].quantity);
+  return { store, ops, flow, docs, batches, supplier, other, item, purchase, ordered, stock };
 }
 
 /** 两张采购单（1000 张、500 张）合并导出一份订货单并交付完成：订货批次建好了 */
@@ -92,7 +93,7 @@ test('几张采购单合并导出一份订货单：同种纸板合一行，交�
   assert.equal(f.draft.rows.length, 1, '同种纸板合成一行');
   assert.equal(f.draft.rows[0].orderedUnits, 1500_000);
   assert.match(f.file.filename, /^DG-\d{8}-01-采购订货单/);
-  const purchases = f.ops.repo.purchases(true, [f.a.id, f.b.id]).sort((x, y) => x.id - y.id);
+  const purchases = f.flow.views.purchases(true, [f.a.id, f.b.id]).sort((x, y) => x.id - y.id);
   assert.deepEqual(purchases.map((p) => p.businessStatus), ['已订货', '已订货']);
   assert.equal(f.batches.batchIdOf(f.b.id), f.batchId);
   const batch = f.batches.view(f.batchId);
@@ -123,7 +124,7 @@ test('合并订货单的到货可以分几次登记：先分给早下单的采�
   );
   assert.equal(first.arrival.status, 'confirmed');
   assert.equal(f.stock(), 1100_000, '合格的直接入库');
-  const after = f.ops.repo.purchases(true, [a.id, b.id]).sort((x, y) => x.id - y.id);
+  const after = f.flow.views.purchases(true, [a.id, b.id]).sort((x, y) => x.id - y.id);
   assert.deepEqual(after.map((p) => p.lines[0].receivedUnits), [1000_000, 200_000], '先分给早下单的采购单');
   assert.equal(first.batch.progress.state, '部分到货');
   assert.deepEqual(first.batch.rows[0].schedule.map((s) => [s.dueDate, s.remainingUnits]), [
@@ -159,7 +160,7 @@ test('合并订货单的到货可以分几次登记：先分给早下单的采�
 test('手工改成已订货也自动进待到货；不同供应商、已在别的订货单里的不能合并', () => {
   const f = setup();
   const a = f.purchase('100', '2026-11-01');
-  const current = f.ops.repo.purchases(true, a.id)[0];
+  const current = f.flow.views.purchases(true, a.id)[0];
   f.ordered([a.id]);
   const batchId = f.batches.batchIdOf(a.id);
   assert.ok(batchId);
@@ -204,8 +205,8 @@ test('一次登记到货里同规格同名的新纸板只建一个库存品', as
   const p1 = f.ops.savePurchase({ supplierId: f.supplier.id, orderDate: '2026-10-01', status: '待订货', lines: [sheet] }, clerk);
   const p2 = f.ops.savePurchase({ supplierId: f.supplier.id, orderDate: '2026-10-02', status: '待订货', lines: [sheet] }, clerk);
   for (const p of [p1, p2]) {
-    const cur = f.ops.repo.purchases(true, p.id)[0];
-    f.ops.savePurchase({ ...cur, status: '已订货', version: cur.version }, clerk, p.id, { skipBatch: true });
+    const cur = f.flow.views.purchases(true, p.id)[0];
+    f.flow.stock.savePurchase({ ...cur, status: '已订货', version: cur.version }, clerk, p.id, { skipBatch: true });
   }
   const batches = new OrderBatchService(f.store);
   const b = batches.create([p1.id, p2.id], clerk);
@@ -224,8 +225,8 @@ test('采购单换供应商：移出原来那家的合并订货单、按新供�
   const pa = buy('虚构移出纸板A', '2026-10-01'),
     pb = buy('虚构移出纸板B', '2026-10-02');
   for (const p of [pa, pb]) {
-    const cur = f.ops.repo.purchases(true, p.id)[0];
-    f.ops.savePurchase({ ...cur, status: '已订货', version: cur.version }, clerk, p.id, { skipBatch: true });
+    const cur = f.flow.views.purchases(true, p.id)[0];
+    f.flow.stock.savePurchase({ ...cur, status: '已订货', version: cur.version }, clerk, p.id, { skipBatch: true });
   }
   const batches = new OrderBatchService(f.store);
   let b = batches.create([pa.id, pb.id], clerk);
@@ -248,8 +249,8 @@ test('采购单换供应商：移出原来那家的合并订货单、按新供�
     clerk,
   );
   const opened = b;
-  const cur = f.ops.repo.purchases(true, pb.id)[0];
-  f.ops.savePurchase({ ...cur, supplierId: other.id, version: cur.version }, clerk, pb.id);
+  const cur = f.flow.views.purchases(true, pb.id)[0];
+  f.flow.stock.savePurchase({ ...cur, supplierId: other.id, version: cur.version }, clerk, pb.id);
   const after = batches.view(b.id);
   assert.notEqual(batches.batchIdOf(pb.id), b.id);
   const moved = batches.batchIdOf(pb.id);
@@ -309,7 +310,7 @@ function orderedWithArrival() {
 }
 /** 删除时选中的那张采购单：编号和现在的版本号 */
 const currentPurchase = (f: ReturnType<typeof setup>, id: number) => {
-  const p = f.ops.repo.purchases(true, id)[0];
+  const p = f.flow.views.purchases(true, id)[0];
   return { id: p.id, version: p.version };
 };
 
@@ -360,11 +361,11 @@ test('删除采购单（本机维护）：从订货批次里去掉，批次空�
   );
   assert.deepEqual(f.batches.open(), []);
   // 供应商名下没有采购单也没有批次了，能删
-  const supplier = f.ops.repo.suppliers(true, f.supplier.id)[0],
+  const supplier = f.ops.suppliers(true, f.supplier.id)[0],
     selection = { module: 'suppliers', items: [{ id: supplier.id, version: supplier.version }] },
     plan = service.preview(selection, owner);
   service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, owner, 'test-binding');
-  assert.equal(f.ops.repo.suppliers(true, f.supplier.id).length, 0);
+  assert.equal(f.ops.suppliers(true, f.supplier.id).length, 0);
   assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
@@ -391,13 +392,13 @@ test('删除采购单（不在本机的超级管理员模式）：和本机同�
   assert.ok(second.impact.some((r) => r.table === 'order_batches' && r.action === 'delete' && r.name === batch.number));
   assert.equal(f.store.db.prepare('SELECT 1 FROM order_batches').get(), undefined);
   // 名下留着空批次的供应商：删供应商时空批次一起删，不被它拦下
-  const other = f.ops.repo.suppliers(true, f.other.id)[0];
+  const other = f.ops.suppliers(true, f.other.id)[0];
   f.store.db
     .prepare("INSERT INTO order_batches(number,supplier_id,order_date,actor_id,actor_name,created_at,updated_at) VALUES('虚构空批次',?,'2026-11-01','x','x','t','t')")
     .run(other.id);
   const supplierPlan = del('suppliers', { id: other.id, version: other.version });
   assert.ok(supplierPlan.impact.some((r) => r.table === 'order_batches' && r.name === '虚构空批次'));
-  assert.equal(f.ops.repo.suppliers(true, other.id).length, 0);
+  assert.equal(f.ops.suppliers(true, other.id).length, 0);
   assert.equal(f.store.db.prepare('SELECT 1 FROM order_batches').get(), undefined);
   assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
 });

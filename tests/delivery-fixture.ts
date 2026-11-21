@@ -36,6 +36,6 @@ export function deliverySetup(t: TestContext, stock = '1000') {
   const ship = (id: number, extra: Record<string, unknown> = {}, who: Actor = actor) =>
     viewOfKind(base.check({ id }, extra, who), 'delivery');
   const delivery = arrange('2026-11-10', '600');
-  const balance = () => ops.repo.items(true, item.id)[0].balanceUnits;
+  const balance = () => ops.items(true, item.id)[0].balanceUnits;
   return { store, ops, flow, docs, order, item, delivery, arrange, ship, balance };
 }

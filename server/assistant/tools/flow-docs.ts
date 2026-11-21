@@ -218,7 +218,7 @@ function buildProductionCompletion(ctx: ToolContext, tool: string, raw: unknown,
     ...given,
     requestId: given.requestId || randomUUID(),
   });
-  const before = { tasks: ctx.flow.list('task'), stock: ctx.ops.repo.items() };
+  const before = { tasks: ctx.flow.list('task'), stock: ctx.flow.views.items() };
   const after = rehearse(ctx.store.db, () =>
     new ProductionCompletion(ctx.store, { requireFacts: true }).execute(input, actor),
   );
@@ -278,7 +278,7 @@ function buildConfirmation(ctx: ToolContext, tool: string, raw: unknown, actor: 
 
 function buildMovement(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
   const v = splitId(raw),
-    before = ctx.ops.repo.items(false, v.id)[0];
+    before = ctx.flow.views.items(false, v.id)[0];
   if (!before) throw new AppError('库存品不存在。');
   const input = movementSchema.parse({
       ...v.rest,
@@ -286,7 +286,7 @@ function buildMovement(ctx: ToolContext, tool: string, raw: unknown, actor: Acto
       requestId: randomUUID(),
       acknowledged: true,
     }),
-    after = rehearse(ctx.store.db, () => ctx.ops.move(v.id, input, actor));
+    after = rehearse(ctx.store.db, () => ctx.flow.stock.move(v.id, input, actor));
   return {
     tool,
     args: { id: v.id, input },
@@ -341,7 +341,7 @@ export const flowDocWriters: Record<string, ToolWriter> = {
       return {
         tasks: ctx.flow.list('task'),
         productions: ctx.flow.list('production'),
-        items: ctx.ops.repo.items(),
+        items: ctx.flow.views.items(),
         products: ctx.store.products(),
       };
     },
@@ -350,7 +350,7 @@ export const flowDocWriters: Record<string, ToolWriter> = {
     build: buildMovement,
     commit: (ctx, plan, actor) => {
       const { id, input } = idAndInput.parse(plan.args);
-      return ctx.ops.move(id, input, actor);
+      return ctx.flow.stock.move(id, input, actor);
     },
   },
   'flow.propose_cancel': {

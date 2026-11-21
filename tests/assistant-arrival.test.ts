@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
 import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { arrivalReaders, arrivalWriters } from '../server/assistant/tools/arrivals.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
@@ -21,7 +21,7 @@ test('助手按订货单登记到货：查采购、登记入库、核对到货�
       flow = new FlowService(a.store);
     const supplier = ops.saveSupplier({ name: '虚构春芳纸板厂' }, actor),
       raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor);
-    const p = orderedPurchase({ store: a.store, ops, supplier, raw }, actor, ['10000']);
+    const p = orderedPurchase({ store: a.store, ops, flow, supplier, raw }, actor, ['10000']);
     const batch = p.batch(),
       input = {
         id: batch.id,
@@ -48,7 +48,7 @@ test('助手按订货单登记到货：查采购、登记入库、核对到货�
     );
     assert.match(result.messages.at(-1)?.facts?.executed[0].label ?? '', /按订货单 .+ 登记到货并入库/);
     assert.deepEqual(flow.arrivalRecords().map((r) => r.actualTime), ['14:00']);
-    assert.equal(ops.repo.balance(raw.id), 5000000);
+    assert.equal(ops.balance(raw.id), 5000000);
     assert.equal(a.calls(), 4, '没有多出的模型调用');
     const registry = new AssistantToolRegistry();
     try {

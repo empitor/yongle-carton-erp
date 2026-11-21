@@ -18,7 +18,7 @@ import { promptModules, type PromptModuleId } from '../shared/ai/index.js';
 import type { ImportExecutionService } from './import/index.js';
 import { marksRouter } from './business/index.js';
 import { inboxRouter, type BotManager } from './inbox/index.js';
-import { receivingRouter } from './flow/index.js';
+import { stockFlowRouter } from './flow/index.js';
 import { flowRouter } from './flow/index.js';
 import { financeRouter } from './finance/index.js';
 import { documentsRouter } from './documents/index.js';
@@ -122,8 +122,8 @@ export function createApp(store: Store, options: AppOptions = {}) {
   }
   app.use('/api', marksRouter(store, options.auth));
   app.use('/api/inbox', inboxRouter(store, options.auth, options.imports, options.bots));
-  // 登记到货属于单据流转，地址沿用 /api/order-batches/:id/receive、/api/purchases/:id/receive
-  app.use('/api', receivingRouter(store, options.auth));
+  // 采购单、库存品和流水、订货单（含登记到货）回答带单据的内容，归单据流转；供应商在采购库存
+  app.use('/api', stockFlowRouter(store, options.auth));
   app.use('/api', operationsRouter(store, options.auth));
   // 送货单原件和 AI 识别属于识别导入，先挂，免得被单据的 /:id 路由接走
   app.use('/api/flow', receiptSourceRouter(options.auth, options.receiptAi));

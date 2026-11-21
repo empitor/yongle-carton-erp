@@ -19,7 +19,7 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import '../server/import/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { FlowService } from '../server/flow/service.js';
 import { actor } from './actor-fixture.js';
 
 const [purchase, delivery] = defaultDocumentTemplates().templates;
@@ -106,7 +106,7 @@ test('模板维护：没权限不能改、版本冲突被拒；人工和助手�
     assert.match(sheetText, /虚构模板工厂/);
     assert.match(sheetText, /材料采购订货单/);
     assert.equal(file.templateRevision, 1);
-    assert.equal(new OperationsRepository(f.store).purchases()[0].businessStatus, '待订货');
+    assert.equal(new FlowService(f.store).views.purchases()[0].businessStatus, '待订货');
     await assert.rejects(
       () =>
         docs.generate(
@@ -194,7 +194,7 @@ test('多模板选择、默认切换、字段排序及隐藏对人工和AI共用
     const book = new ExcelJS.Workbook();
     await book.xlsx.read(Readable.from([original]));
     assert.equal(book.worksheets[0].pageSetup.orientation, 'portrait');
-    assert.equal(new OperationsRepository(f.store).purchases()[0].businessStatus, '待订货');
+    assert.equal(new FlowService(f.store).views.purchases()[0].businessStatus, '待订货');
     assert.throws(() => docs.form('delivery', 1, custom.id));
   } finally {
     f.store.close();
@@ -252,7 +252,7 @@ test('虚构样张按当前未保存配置生成，Excel保留前导零编码，
     assert.equal(countRows(f.store.db, 'SELECT COUNT(*) n FROM operation_requests'), before);
     assert.equal(countRows(f.store.db, 'SELECT COUNT(*) n FROM document_exports'), exportsBefore, '样张不留导出记录');
     assert.equal(f.store.orders().length, 1);
-    assert.equal(new OperationsRepository(f.store).purchases().length, 1);
+    assert.equal(new FlowService(f.store).views.purchases().length, 1);
   } finally {
     f.store.close();
   }
@@ -337,7 +337,7 @@ test('初始化（清空业务数据）清掉导出记录；单据模板设置�
     assert.equal(settings.get().templates[0].companyName, '虚构初始化前工厂');
     assert.equal(settings.get().revision, 1);
     assert.equal(count('number_sequences'), 1);
-    const { OrderBatchService } = await import('../server/operations/batches.js');
+    const { OrderBatchService } = await import('../server/operations/index.js');
     assert.match(new OrderBatchService(f.store).nextNumber(), /^DG-\d{8}-02$/, '初始化后订货单号接着往后排');
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {

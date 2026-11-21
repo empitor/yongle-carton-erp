@@ -5,7 +5,7 @@ import { AUDIT_SOURCE, auditSourceNames, financeOnlyAccount } from '../../shared
 import { FlowService } from '../flow/index.js';
 import { AppError, count, many, parseStoredJson, rows } from '../core/index.js';
 import { dataManagementModules, flowKinds, isFlowKind, recordEntities } from '../../shared/business/index.js';
-import { OperationsRepository, purchaseOrderLinks } from '../operations/index.js';
+import { purchaseOrderLinks } from '../operations/index.js';
 import { businessRecord, businessRecords } from './records.js';
 import { historyRefs } from './history-refs.js';
 
@@ -147,7 +147,7 @@ function relatedPurchases(store: Store, module: string, id: number, orderIds: Se
     params.push(id);
   }
   const ids = many(store.db, idRow, 'SELECT id FROM purchases WHERE ' + conditions.join(' OR '), ...params).map((row) => row.id);
-  return new OperationsRepository(store).purchases(true, ids);
+  return new FlowService(store).views.purchases(true, ids);
 }
 
 /** flow_refs 里哪一列记着这类记录 */
@@ -258,7 +258,7 @@ export function recordContext(store: Store, module: string, id: number, who: Act
       if (order) add('orders', order);
     }
   if (module === 'products')
-    for (const s of new OperationsRepository(store).items(true, many(store.db, idRow, 'SELECT id FROM stock_items WHERE product_id=?', id).map((row) => row.id)))
+    for (const s of flow.views.items(true, many(store.db, idRow, 'SELECT id FROM stock_items WHERE product_id=?', id).map((row) => row.id)))
       add('stock_items', s);
   // 单据的审计记在 flow_<模块> 上，别的记录记在表名上（走 (entity,record_id) 索引）
   const history = many(

@@ -263,7 +263,7 @@ test('批量安排送货、安排生产扣掉已经排在待送货单上的数�
     const ord = f.store.order(o.id);
     assert.ok(ord);
     // 生产：订单 100、待送货 60、可用 0 → 还要做 40
-    assert.deepEqual(planProductionForOrders([ord], [rel], f.ops.repo.items()).groups.map((g) => g.suggested), ['40']);
+    assert.deepEqual(planProductionForOrders([ord], [rel], f.ops.items()).groups.map((g) => g.suggested), ['40']);
     const scheduled = orderNextSteps(ord, rel).steps.filter((s) => s.kind === 'schedule');
     assert.deepEqual(scheduled.map((s) => {
       assert.ok(s.params);
@@ -271,7 +271,7 @@ test('批量安排送货、安排生产扣掉已经排在待送货单上的数�
     }), ['40']);
     // 送货：再入库 200，只再排剩下的 40，不会排到 160
     f.stockIn('200');
-    const finished = f.ops.repo.items().filter((i) => i.kind === 'finished');
+    const finished = f.flow.views.items().filter((i) => i.kind === 'finished');
     const current = f.store.order(o.id);
     assert.ok(current);
     const plan = planOrderDelivery([current], finished, pendingByOrderLine(rel?.deliveries || []));

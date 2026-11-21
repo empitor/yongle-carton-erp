@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
 import { AppError, count, isLocalAdministrator, one, rows, type Actor } from '../server/core/index.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/service.js';
 import { recordStatus } from '../src/admin/record-refs.js';
 import { basics, command, firstResult } from './data-management-fixture.js';
@@ -115,15 +115,15 @@ test('数据管理改库存品：原材料单位只有张，本机管理员也�
       () => f.service.execute(command('stock_items', 'move', [item], { action: 'adjust', quantity: '1', date: '2026-10-27', notes: '虚构' }), f.who, 's'),
       (e: unknown) => e instanceof ZodError && e.issues.some((i) => i.path.join('.') === 'action'),
     );
-    assert.equal(ops.repo.movements().length, 0);
+    assert.equal(ops.movements().length, 0);
   } finally {
     f.store.close();
   }
 });
 
 /** 登记一笔盘点（和库存页“出入库 / 盘点”同一个服务） */
-const adjust = (ops: OperationsService, item: { id: number; version: number }, who: Actor) =>
-  ops.move(item.id, { action: 'adjust', quantity: '5', date: '2026-11-13', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: item.version }, who);
+const adjust = (flow: FlowService, item: { id: number; version: number }, who: Actor) =>
+  flow.stock.move(item.id, { action: 'adjust', quantity: '5', date: '2026-11-13', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: item.version }, who);
 
 test('数据管理里的库存品：读的时候带上用没用过（只补显示用的 record），用过的改种类、改关联产品在编辑窗里是只读的', () => {
   const f = basics();
@@ -131,7 +131,7 @@ test('数据管理里的库存品：读的时候带上用没用过（只补显�
     const ops = new OperationsService(f.store);
     const unused = ops.saveItem({ name: '虚构没用过的纸板', kind: 'raw', unit: '张' }, actor);
     const moved = ops.saveItem({ name: '虚构用过的纸板', kind: 'raw', unit: '张' }, actor);
-    adjust(ops, moved, f.who);
+    adjust(new FlowService(f.store), moved, f.who);
     const rows = f.service.list('stock_items', f.who).records;
     const row = (id: number) => must(rows.find((r) => r.record.id === id), '库存品 ' + id);
     assert.equal(row(unused.id).record.usage, null);
@@ -151,7 +151,7 @@ test('数据管理里的库存品：读的时候带上用没用过（只补显�
     f.store.close();
   }
 });
-test('库存品用没用过：数据管理列表、OperationsService.usage 和“被单据关联”（flow_refs.stock_id）是同一个判断，批量版一次查齐', () => {
+test('库存品用没用过：数据管理列表、单据流转的 usage（StockViews）和“被单据关联”（flow_refs.stock_id）是同一个判断，批量版一次查齐', () => {
   const f = basics();
   try {
     const ops = new OperationsService(f.store),
@@ -163,7 +163,7 @@ test('库存品用没用过：数据管理列表、OperationsService.usage 和�
       purchased = raw('虚构被采购引用'),
       referenced = raw('虚构被单据引用'),
       finished = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: f.product.id }, actor);
-    adjust(ops, moved, f.who);
+    adjust(flow, moved, f.who);
     ops.savePurchase(
       {
         supplierId: supplier.id,
@@ -186,7 +186,7 @@ test('库存品用没用过：数据管理列表、OperationsService.usage 和�
     );
     const ids = [unused, moved, purchased, referenced, finished].map((i) => i.id);
     assert.deepEqual(
-      ids.map((id) => ops.usage(id)),
+      ids.map((id) => flow.views.usage(id)),
       [null, 'moved', 'referenced', 'referenced', null],
       '有流水优先算 moved；只被采购明细或单据引用算 referenced',
     );
@@ -203,15 +203,15 @@ test('库存品用没用过：数据管理列表、OperationsService.usage 和�
       statements++;
       return prepare(sql);
     };
-    const batch = ops.usages([...ids, ids[1], 999999]);
+    const batch = flow.views.usages([...ids, ids[1], 999999]);
     db.prepare = prepare;
     assert.equal(statements, 2, '不逐条查');
-    for (const id of [...ids, 999999]) assert.equal(batch.get(id) ?? null, ops.usage(id), '库存品 ' + id);
+    for (const id of [...ids, 999999]) assert.equal(batch.get(id) ?? null, flow.views.usage(id), '库存品 ' + id);
     assert.deepEqual([...batch.keys()].sort((a, b) => a - b), [moved.id, purchased.id, referenced.id].sort((a, b) => a - b));
-    assert.equal(ops.usages([]).size, 0);
+    assert.equal(flow.views.usages([]).size, 0);
     // 数据管理列表给编辑窗的 usage 用的就是它，结论一样
     const listed = new Map(f.service.list('stock_items', f.who).records.map((r) => [r.record.id, r.record.usage]));
-    for (const id of ids) assert.equal(listed.get(id), ops.usage(id), '数据管理列表里库存品 ' + id);
+    for (const id of ids) assert.equal(listed.get(id), flow.views.usage(id), '数据管理列表里库存品 ' + id);
   } finally {
     f.store.close();
   }

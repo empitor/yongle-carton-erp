@@ -19,7 +19,7 @@ test('采购Word和Excel完整多行、可容纳中文规格、原单位尺寸�
   const f = setup();
   try {
     const long = '虚构规格说明',
-      p = f.ops.savePurchase(
+      p = f.flow.stock.savePurchase(
         {
           ...f.current(),
           status: '待订货',
@@ -92,7 +92,7 @@ test('正式送货单按本批数量导出，待送货的标非正式；导出�
     f.confirm(draft);
     const second = f.saveDelivery('6000');
     f.confirm(second);
-    const before = f.ops.repo.balance(f.stock.id),
+    const before = f.ops.balance(f.stock.id),
       moves = count(f.store.db, 'SELECT COUNT(*) n FROM stock_movements');
     for (const [id, q] of [
       [draft.id, '4000'],
@@ -117,7 +117,7 @@ test('正式送货单按本批数量导出，待送货的标非正式；导出�
         }
       }
     }
-    assert.equal(f.ops.repo.balance(f.stock.id), before);
+    assert.equal(f.ops.balance(f.stock.id), before);
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM stock_movements'), moves);
   } finally {
     f.store.close();
@@ -128,7 +128,7 @@ test('送货单的栏位：料号保留前导零、带订单号、规格里尺�
   const f = workbenchFixture(actor);
   try {
     const stock = f.ops.saveItem({ name: '虚构有料号成品', kind: 'finished', unit: '只', productId: f.product.id, specification: specification(f.product) }, actor);
-    f.ops.move(stock.id, { expectedVersion: stock.version, requestId: randomUUID(), action: 'in', quantity: '100', date: f.order.orderDate, notes: '虚构期初', acknowledged: true }, actor);
+    f.flow.stock.move(stock.id, { expectedVersion: stock.version, requestId: randomUUID(), action: 'in', quantity: '100', date: f.order.orderDate, notes: '虚构期初', acknowledged: true }, actor);
     const doc = f.flow.save(
       'delivery',
       { date: f.order.orderDate, customerId: f.customer.id, lines: [{ stockId: stock.id, orderId: f.order.id, orderLineId: f.order.lines[0].id, quantity: '40' }] },

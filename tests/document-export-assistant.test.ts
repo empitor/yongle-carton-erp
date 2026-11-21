@@ -68,7 +68,7 @@ test('助手导出遇到超长规格保留具体中文原因，不生成文件�
   const a = autoConfirmAssistant(),
     f = setup(a.store);
   try {
-    const p = f.ops.savePurchase(
+    const p = f.flow.stock.savePurchase(
       {
         ...f.current(),
         version: f.current().version,
@@ -117,7 +117,7 @@ test('助手安排送货、改期、核对出库和导出本批 Excel 走同一�
   try {
     const tools = toolsOf(f.store);
     const draft = proposeDelivery(tools, f);
-    assert.equal(f.ops.repo.balance(f.stock.id), 10000000);
+    assert.equal(f.ops.balance(f.stock.id), 10000000);
     tools.commit(
       tools.prepare(
         'flow.schedule',
@@ -143,7 +143,7 @@ test('助手安排送货、改期、核对出库和导出本批 Excel 走同一�
       actor,
       'test',
     );
-    const before = f.ops.repo.balance(f.stock.id),
+    const before = f.ops.balance(f.stock.id),
       t = a.manager.create(actor);
     a.replies.push(
       {
@@ -174,7 +174,7 @@ test('助手安排送货、改期、核对出库和导出本批 Excel 走同一�
       },
       () => actor,
     );
-    assert.equal(f.ops.repo.balance(f.stock.id), before);
+    assert.equal(f.ops.balance(f.stock.id), before);
     assert.equal(f.docs.form('delivery', draft.id).form.rows[0][4], '4000');
   } finally {
     a.close();

@@ -33,18 +33,15 @@ import type {
 } from './flow-requests.js';
 import type { CompletionPreview, ReturnableLine, completionResultSchema, flowScheduledSchema, purchaseReturnViewSchema } from './flow-results.js';
 import type { ArrivalRecord, FlowPreview, WarehouseDailyResult } from './flow-views.js';
-import type { OrderBatchView } from './operations-views.js';
-import type { batchReceiveSchema } from './order-batch.js';
 import type { arrivalSchema, deliverySchema, flowScheduleSchema, FlowKind, productionSchema, taskSchema } from './physical-flow.js';
 import type { productionCompletionSchema } from './production-completion.js';
 import type { purchaseReturnSchema } from './purchase-return.js';
 import type { StockBatchesResponse } from './stock-batches.js';
 
 /*
- * 单据流转的接口表（服务端 server/flow/router.ts 挂在 /api/flow 下，登记到货 server/flow/receiving.ts 挂在 /api 下）。
+ * 单据流转的接口表（服务端 server/flow/router.ts 挂在 /api/flow 下）。采购单、库存品、订货单和登记到货的地址在 stock-flow-api.ts。
  * 表的写法见 shared/core/api-table.ts。查询参数和正文照服务端的 zod 规则的输入写（flow-requests.ts 等），服务端照样先校验。
  * 不在表里、照旧用 express 注册的一条：看送货单原件（GET /flow/sources/:sourceId/file）回的是文件。
- * 登记到货结果里的订货单详情是采购库存的视图（operations-views.ts 的 OrderBatchView）。
  */
 
 type ReturnView = z.output<typeof purchaseReturnViewSchema>;
@@ -123,9 +120,4 @@ export type FlowApi = UndoActions &
     'POST /flow/batch': { body: z.input<typeof recordArchiveInputSchema>; response: ArchiveResult<number> };
     'POST /flow/:kind': { body: NewFlowBody; response: FlowDocView };
     'PUT /flow/:id': { body: FlowBody; response: FlowDocView };
-    /** 登记到货（挂在订货单下面） */
-    'POST /order-batches/:id/receive': {
-      body: z.input<typeof batchReceiveSchema>;
-      response: { arrival: FlowDocView<'arrival'>; batch: OrderBatchView; verified: true; summary: string };
-    };
   };

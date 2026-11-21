@@ -37,7 +37,7 @@ export function recordTitle(module: string, row: Obj | undefined) {
   return title ? title(row) : (namedRecords.includes(module) ? recordNames[module] : '记录') + ' ' + (row.name || row.number || row.id);
 }
 
-const stockOf = (ctx: ToolContext, id: unknown) => (typeof id === 'number' ? ctx.ops.repo.items(true, id)[0] : undefined);
+const stockOf = (ctx: ToolContext, id: unknown) => (typeof id === 'number' ? ctx.ops.items(true, id)[0] : undefined);
 /** 一行明细的品名：产品名、实物名、行上的名称，都没有就按库存品 */
 const lineName = (ctx: ToolContext, l: unknown) =>
   field(l, 'productName') || field(field(l, 'item'), 'name') || field(l, 'name') || stockOf(ctx, field(l, 'stockId'))?.name || '';
@@ -61,8 +61,8 @@ export function stockLines(ctx: ToolContext, moves: { item: number; delta: numbe
   return moves
     .filter((m) => m.delta)
     .map((m) => {
-      const item = ctx.ops.repo.items(true, m.item)[0] || { name: '库存品', unit: '' },
-        before = ctx.ops.repo.balance(m.item),
+      const item = ctx.ops.items(true, m.item)[0] || { name: '库存品', unit: '' },
+        before = ctx.ops.balance(m.item),
         unit = item.unit ? ' ' + item.unit : '';
       return {
         label: '库存',

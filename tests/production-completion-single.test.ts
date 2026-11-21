@@ -29,7 +29,7 @@ test('单张完工不用选成品库存：保存时按产品对应（没有就�
         actor,
       );
     const draft = save(first);
-    const stock = f.ops.repo.items().find((s) => s.kind === 'finished' && s.productId === first.productId);
+    const stock = f.ops.items().find((s) => s.kind === 'finished' && s.productId === first.productId);
     assert.ok(stock);
     assert.deepEqual([stock.name, draft.finishedStockId, draft.notes], ['虚构纸箱甲', stock.id, '虚构批次备注']);
     // 核对入库的预览：成品库存在保存时已经按产品建好，预览里就是它，写清现在多少、核对后多少（不说“新建”）
@@ -44,7 +44,7 @@ test('单张完工不用选成品库存：保存时按产品对应（没有就�
     assert.equal(save(first, { finishedStockId: stock.id }).finishedStockId, stock.id, '传了就是这个产品的那一个，照常');
     assert.equal(save(first).finishedStockId, stock.id, '第二张用同一个，不另建');
     assert.throws(() => save(first, { finishedStockId: other.id }), /入库的成品库存不是产品“虚构纸箱甲”的成品库存/);
-    assert.equal(f.ops.repo.items(true).filter((s) => s.kind === 'finished').length, 2);
+    assert.equal(f.ops.items(true).filter((s) => s.kind === 'finished').length, 2);
   } finally {
     f.store.close();
   }

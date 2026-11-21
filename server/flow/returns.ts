@@ -3,7 +3,7 @@ import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, inSavepoint, many, nextAutoId, one, onceByRequest, operationRequest, requirePermission, requireSuperModeFor, rows } from '../core/index.js';
 import { purchaseReturnSchema, purchaseReturnViewSchema, returnReversalSchema, type ReturnableLine } from '../../shared/business/index.js';
 import { MAX_STOCK_UNITS, UNITS_PER_QUANTITY, quantityString, quantityUnits, today } from '../../shared/core/index.js';
-import { OperationsRepository, insertMovement, readPurchaseLineDocument, touchStockItems } from '../operations/index.js';
+import { OperationsService, stockLedger } from '../operations/index.js';
 import {
   arrivalPurchaseIds,
   effectiveReceiptUnits,
@@ -13,6 +13,8 @@ import {
 } from './receipt-events.js';
 import { storedContent } from './read.js';
 import { readReturnDocument, returnDocumentText, returnRow, returnViewOf, type ReturnDocument } from './return-document.js';
+
+const { insertMovement, readPurchaseLineDocument, touchStockItems } = stockLedger;
 
 /** 采购退货的业务校验不通过：默认 400，库存、版本这类冲突传 409 */
 function fail(message: string, status = 400): never {
@@ -30,9 +32,9 @@ type ReturnMovement = { stockId: number; delta: number; sourceId: number; date: 
  * 从采购明细的有效到货里扣除；金额以供应商到票或红字发票为准，退货单本身不记金额。
  */
 export class PurchaseReturns {
-  private repo: OperationsRepository;
+  private ops: OperationsService;
   constructor(private store: Store) {
-    this.repo = new OperationsRepository(store);
+    this.ops = new OperationsService(store);
   }
 
   /** 按主键读一张退货单的行；没有是 undefined */
@@ -120,7 +122,7 @@ export class PurchaseReturns {
   }
 
   private movement(m: ReturnMovement, actor: Actor) {
-    const before = this.repo.balance(m.stockId),
+    const before = this.ops.balance(m.stockId),
       after = before + m.delta;
     if (after < 0) fail('库存不足，不能退这么多：退货会让库存变成负数。', 409);
     if (!Number.isSafeInteger(after) || after > MAX_STOCK_UNITS) fail('库存数量超出可保存范围。', 409);

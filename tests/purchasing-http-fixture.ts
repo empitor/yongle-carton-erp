@@ -5,7 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { OperationsService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import {
   batchRowKey,
   flowViewSchema,
@@ -199,7 +200,8 @@ export async function purchasingFixture() {
     base = await seed(good);
   return {
     store,
-    repo: new OperationsRepository(store),
+    ops: new OperationsService(store),
+    views: new FlowService(store).views,
     h,
     req,
     good,

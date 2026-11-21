@@ -7,7 +7,6 @@ import { DatabaseMaintenanceService } from '../server/business/database-maintena
 import { impactRowSchema } from '../shared/business/index.js';
 import { FlowService } from '../server/flow/service.js';
 import { businessBase } from './business-base-fixture.js';
-import { OperationsRepository } from '../server/operations/repository.js';
 import { deletionDoneMessage, deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { deletionHeadline, deletionInternalTables as internalTables } from '../shared/business/deletion-headline.js';
 // 解除的字段的叫法表只给这里核对登记全不全，不在接口里列
@@ -69,7 +68,7 @@ function purchasing() {
       actor,
     );
     base.check(saved);
-    const purchase = () => must(new OperationsRepository(store).purchases(true).find((p) => p.id === first.id), '采购单');
+    const purchase = () => must(new FlowService(store).views.purchases(true).find((p) => p.id === first.id), '采购单');
     return { store, ops, flow, supplier, raw, first, second, alone, arrival: flow.get(saved.id), purchase };
 }
 
@@ -175,7 +174,7 @@ test('删除影响清单（采购单、供应商）：顶部按类别汇总、�
   // 订货单（单号就是采购单号）、到货记录不另列
   let f = listingFixture();
   try {
-    const p = f.ops.repo.purchases(true, f.purchase.id)[0];
+    const p = f.flow.views.purchases(true, f.purchase.id)[0];
     const plan = preview(f, 'purchases', p);
     const view = deletionImpactView(plan);
     assert.equal(view.summary, '将删除 1 张采购单、1 条采购明细；到货单 1 张、入库流水 1 笔保留，只解除和删掉记录的关联（见下）。');
@@ -203,7 +202,7 @@ test('删除影响清单（采购单、供应商）：顶部按类别汇总、�
       third = f.buy();
     mergeIntoBatch(f.store, f.supplier.id, 'DG-20261101-01', [second, third]);
     for (const policy of ['recalculate', 'preserve'] as const) {
-      const plan = preview(f, 'suppliers', f.ops.repo.suppliers(true, f.supplier.id)[0], policy);
+      const plan = preview(f, 'suppliers', f.ops.suppliers(true, f.supplier.id)[0], policy);
       const view = deletionImpactView(plan);
       assert.deepEqual(
         view.deleted.filter((r) => r.kind === '订货单'),
@@ -228,7 +227,7 @@ test('删除影响清单（库存品、产品、待送货的送货单）：库�
   // 删库存品：它自己的流水随它删，连带删掉的完工记录在别的库存品上的流水另说；两个数加起来就是清单里删掉的流水笔数
   let f = listingFixture();
   try {
-    const plan = preview(f, 'stock_items', f.ops.repo.items(true, [f.raw.id])[0]);
+    const plan = preview(f, 'stock_items', f.ops.items(true, [f.raw.id])[0]);
     const view = deletionImpactView(plan);
     assert.equal(
       plan.inventoryEffect,
@@ -243,7 +242,7 @@ test('删除影响清单（库存品、产品、待送货的送货单）：库�
     assert.equal(view.kept.find((r) => r.kind === '到货单')?.note, '保留，不再对应这个原材料库存，去掉已删的入库流水');
     assert.doesNotMatch(JSON.stringify([view, plan.inventoryEffect]), /这个库存品|已删的出入库流水/);
     assert.equal(
-      deletionDoneMessage('stock_items', [f.ops.repo.items(true, [f.raw.id])[0]], plan.impact),
+      deletionDoneMessage('stock_items', [f.ops.items(true, [f.raw.id])[0]], plan.impact),
       '已删除原材料库存“虚构清单纸板”，连带 ' + (view.deleted.length - 1) + ' 条记录一起删除',
     );
   } finally {
@@ -287,7 +286,7 @@ test('删除确认的标题和按钮：写明连带删掉几张什么单据，�
   try {
     // 供应商：连带的采购单、到货单按类别说，采购明细、到货记录是主单据的一部分不另说
     f.buy();
-    const supplier = f.ops.repo.suppliers(true, f.supplier.id)[0];
+    const supplier = f.ops.suppliers(true, f.supplier.id)[0];
     const plan = preview(f, 'suppliers', supplier);
     const view = deletionImpactView(plan);
     const headline = deletionHeadline('suppliers', [supplier], plan.impact);
@@ -302,7 +301,7 @@ test('删除确认的标题和按钮：写明连带删掉几张什么单据，�
     assert.equal(card.label, deletionHeadline('suppliers', [supplier], z.object({ impact: z.array(impactRowSchema) }).parse(card.after).impact, supplier.name).title);
     assert.match(card.label, new RegExp('^删除供应商 ' + supplier.name + '和它的 ' + purchases + ' 张采购单、' + arrivals + ' 张到货单'));
     // 采购单：明细和到货记录跟着删、到货单保留，标题只说删什么；没删到单据和流水，不用警示样式
-    const p = f.ops.repo.purchases(true, f.purchase.id)[0];
+    const p = f.flow.views.purchases(true, f.purchase.id)[0];
     assert.deepEqual(deletionHeadline('purchases', [p], preview(f, 'purchases', p).impact), { title: '删除采购单', alarming: false });
     // 待送货的送货单只删它自己；已核对的单据用警示样式
     const draft = deletionHeadline('delivery', [f.draft], preview(f, 'delivery', f.draft, 'recalculate', actor).impact);
@@ -320,7 +319,7 @@ test('删除影响清单里的订货单：合并订货单删其中一张时订�
     const a = f.buy(),
       b = f.buy();
     mergeIntoBatch(f.store, f.supplier.id, 'DG-20261101-01', [a, b]);
-    const row = (p: { id: number }) => f.ops.repo.purchases(true, p.id)[0];
+    const row = (p: { id: number }) => f.flow.views.purchases(true, p.id)[0];
     const preview = (rows: { id: number; version: number }[]) =>
       f.service.preview({ module: 'purchases', items: rows.map((r) => ({ id: r.id, version: r.version })), inventoryPolicy: 'recalculate' }, owner());
 

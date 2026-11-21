@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 import type { MovementFilters } from '../shared/business/index.js';
 import { pageActor } from './actor-fixture.js';
@@ -22,7 +23,8 @@ const actor = pageActor({ id: 'movement-search', name: '虚构仓管', permissio
  */
 function world() {
   const store = new Store(':memory:'),
-    ops = new OperationsService(store);
+    ops = new OperationsService(store),
+    flow = new FlowService(store);
   const board = (name: string, width: number, material: string) =>
     ops.saveItem({ name, kind: 'raw', unit: '张', length: 100, width, dimensionUnit: 'cm', material, flute: 'BC' }, actor);
   const a = board('虚构五层纸板', 80, 'K=A'),
@@ -34,8 +36,8 @@ function world() {
   );
   const arrival = receiveLines(store, purchase.id, { date: '2026-10-05', items: [{ lineId: purchase.lines[0].id, quantity: '10' }] }, actor).arrival;
   const move = (id: number, action: 'in' | 'out', quantity: string, date: string, notes: string) => {
-    const item = ops.repo.items(true, id)[0];
-    return ops.move(id, { expectedVersion: item.version, requestId: randomUUID(), action, quantity, date, notes, acknowledged: true }, actor).movementId;
+    const item = ops.items(true, id)[0];
+    return flow.stock.move(id, { expectedVersion: item.version, requestId: randomUUID(), action, quantity, date, notes, acknowledged: true }, actor).movementId;
   };
   const gain = move(b.id, 'in', '7', '2026-10-06', '虚构盘盈 Ａ');
   move(a.id, 'out', '3', '2026-10-07', '虚构领用');
@@ -43,13 +45,13 @@ function world() {
   store.db
     .prepare('INSERT INTO stock_movement_revisions(movement_id,item_id,at,actor_id,actor_name,reason,before_document,after_document) VALUES(?,?,?,?,?,?,?,?)')
     .run(gain, b.id, new Date().toISOString(), actor.id, actor.name, '虚构修订', '{}', null);
-  return { store, ops, a, b, purchase, arrival, move };
+  return { store, ops, flow, a, b, purchase, arrival, move };
 }
 
 test('流水关键词查名称、算出来的规格、材质、备注（不分大小写）、采购单号；日期范围、分页、计数、汇总、库存品都按同一筛选', () => {
   const w = world();
   try {
-    const repo = w.ops.repo;
+    const repo = w.ops;
     const signed = (q: MovementFilters, page?: { offset: number; limit: number }) => repo.movements(q, page).map((m) => [m.itemName, m.direction + m.delta]);
     const A = '虚构五层纸板',
       B = '虚构三层纸板';
@@ -63,7 +65,7 @@ test('流水关键词查名称、算出来的规格、材质、备注（不分�
     assert.deepEqual(signed({ kind: 'raw', start: '2026-10-07' }), [[B, '+2'], [A, '-3']]);
     assert.deepEqual(signed({ q: '纸板' }, { offset: 1, limit: 2 }), [[A, '-3'], [B, '+7']], '有关键词的分页');
     assert.equal(repo.movementCount({ q: '纸板', start: '2026-10-06' }), 3);
-    assert.deepEqual(repo.movementTotals({ itemId: w.b.id }).map((r) => [r.item_id, r.delta_units]).sort(), [[w.b.id, 2000], [w.b.id, 7000]]);
+    assert.deepEqual(repo.movementPage({ itemId: w.b.id }, 1, 1).totals.map((r) => [r.item_id, r.delta_units]).sort(), [[w.b.id, 2000], [w.b.id, 7000]]);
     assert.deepEqual([...repo.movementItemIds({ q: '盘盈' })], [w.b.id]);
     assert.deepEqual([...repo.movementItemIds({ start: '2026-10-07' })].sort(), [w.a.id, w.b.id].sort());
   } finally {
@@ -74,7 +76,7 @@ test('流水关键词查名称、算出来的规格、材质、备注（不分�
 test('流水带上来源单据的单号和种类、采购单号、改写次数；手工流水没有来源单据', () => {
   const w = world();
   try {
-    const rows = w.ops.repo.movements().map((m) => [m.notes, m.flowKind, m.flowNumber, m.purchaseNumber, m.revisionCount]);
+    const rows = w.flow.views.movements().map((m) => [m.notes, m.flowKind, m.flowNumber, m.purchaseNumber, m.revisionCount]);
     assert.deepEqual(rows.slice(0, 3), [
       ['虚构补录', undefined, undefined, null, 0],
       ['虚构领用', undefined, undefined, null, 0],

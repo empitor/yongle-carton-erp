@@ -76,15 +76,15 @@ test('助手删除卡片上改“库存怎么处理”：服务器按新选项�
     );
     // 没带摘要（旧页面）也一样
     assert.throws(() => f.manager.execute(plan.id, { acknowledged: true }, who, 's', { passwordVerified: true }), /重新核算/);
-    assert.equal(ops.repo.suppliers(true, supplier.id).length, 1);
-    assert.equal(ops.repo.balance(raw.id), 1000_000);
+    assert.equal(ops.suppliers(true, supplier.id).length, 1);
+    assert.equal(ops.balance(raw.id), 1000_000);
 
     // 执行仍要核验密码（聊天接口），并按人选的“库存数量不动”删
     const seen = { acknowledged: true, deletionDigest: field(next.args, 'deletionDigest') };
     assert.throws(() => f.manager.execute(plan.id, seen, who, 's'), /密码/);
     const result = f.manager.execute(plan.id, seen, who, 's', { passwordVerified: true });
-    assert.equal(ops.repo.suppliers(true, supplier.id).length, 0);
-    assert.equal(ops.repo.balance(raw.id), 1000_000, '库存数量不动');
+    assert.equal(ops.suppliers(true, supplier.id).length, 0);
+    assert.equal(ops.balance(raw.id), 1000_000, '库存数量不动');
     // 同一版卡片再点一次（网络重试）原样返回；旧卡片再点：已经执行过了，不把别的选项执行的结果当成它的
     assert.deepEqual(
       f.manager.execute(plan.id, seen, who, 's', { passwordVerified: true }),
@@ -113,8 +113,8 @@ test('两个标签页：B 页把库存处理改成“库存数量不动”，A �
       () => f.manager.execute(cardA.id, { acknowledged: true, deletionDigest: field(cardA.args, 'deletionDigest') }, who, 's', { passwordVerified: true }),
       (e: unknown) => e instanceof AppError && e.status === 409 && e.message === '方案已按新的库存处理方式重新核算，请看过再确认。',
     );
-    assert.equal(ops.repo.suppliers(true, supplier.id).length, 1);
-    assert.equal(ops.repo.balance(raw.id), 1000_000);
+    assert.equal(ops.suppliers(true, supplier.id).length, 1);
+    assert.equal(ops.balance(raw.id), 1000_000);
     // A 页重新载入聊天，看到的就是 B 页改过的这一版；按它确认，库存数量不动
     const reloaded = f.manager
       .view(thread.id, who)
@@ -124,8 +124,8 @@ test('两个标签页：B 页把库存处理改成“库存数量不动”，A �
     assert.equal(field(field(reloaded.after, 'selection'), 'inventoryPolicy'), 'preserve');
     assert.equal(field(reloaded.args, 'deletionDigest'), field(cardB.args, 'deletionDigest'));
     f.manager.execute(cardA.id, { acknowledged: true, deletionDigest: field(reloaded.args, 'deletionDigest') }, who, 's', { passwordVerified: true });
-    assert.equal(ops.repo.suppliers(true, supplier.id).length, 0);
-    assert.equal(ops.repo.balance(raw.id), 1000_000, '按看过的“库存数量不动”删');
+    assert.equal(ops.suppliers(true, supplier.id).length, 0);
+    assert.equal(ops.balance(raw.id), 1000_000, '按看过的“库存数量不动”删');
   } finally {
     f.close();
   }
@@ -140,13 +140,13 @@ test('改选的响应丢了：服务器已经换成“库存数量不动”，�
       () => f.manager.execute(shown.id, { acknowledged: true, deletionDigest: field(shown.args, 'deletionDigest') }, who, 's', { passwordVerified: true }),
       (e: unknown) => e instanceof AppError && e.status === 409 && /重新核算/.test(e.message),
     );
-    assert.equal(ops.repo.balance(raw.id), 1000_000);
+    assert.equal(ops.balance(raw.id), 1000_000);
     // 再改回“库存一起改回”：内容和页面上那张一样，摘要也一样，按它确认就是按看到的删
     const back = f.manager.changeDeletionPolicy(shown.id, { inventoryPolicy: 'recalculate' }, who, 's');
     assert.equal(field(back.args, 'deletionDigest'), field(shown.args, 'deletionDigest'));
     f.manager.execute(shown.id, { acknowledged: true, deletionDigest: field(shown.args, 'deletionDigest') }, who, 's', { passwordVerified: true });
-    assert.equal(ops.repo.suppliers(true, supplier.id).length, 0);
-    assert.equal(ops.repo.balance(raw.id), 0, '库存一起改回');
+    assert.equal(ops.suppliers(true, supplier.id).length, 0);
+    assert.equal(ops.balance(raw.id), 0, '库存一起改回');
   } finally {
     f.close();
   }

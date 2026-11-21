@@ -127,9 +127,9 @@ function world() {
   );
   flow.reverse(delivery.id, { version: flow.get(delivery.id).version, reason: '虚构撤销', acknowledged: true }, superActor());
   const move = (id: number, action: 'in' | 'out' | 'adjust', quantity: string, date: string, notes: string) => {
-    const item = ops.repo.items(true, id)[0];
+    const item = ops.items(true, id)[0];
     assert.ok(item);
-    return ops.move(
+    return flow.stock.move(
       id,
       { expectedVersion: item.version, requestId: randomUUID(), action, quantity, date, notes, acknowledged: true },
       actor,
@@ -141,7 +141,7 @@ function world() {
   // 系统维护留下的流水（没有对应的界面入口，直接写入内存库）
   const insert = store.db.prepare('INSERT INTO stock_movements(id,item_id,action,delta_units,before_units,after_units,source_kind,source_id,purchase_line_id,customer_order_id,date,notes,actor_id,actor_name,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   const direct = (action: string, delta: number, sourceKind: string, sourceId: string | null, notes: string) => {
-    const before = ops.repo.balance(raw.id);
+    const before = ops.balance(raw.id);
     insert.run(randomUUID(), raw.id, action, delta, before, before + delta, sourceKind, sourceId, null, null, '2026-10-19', notes, actor.id, actor.name, new Date().toISOString());
   };
   direct('in', 1000, 'database-maintenance', null, '虚构系统维护');
@@ -165,7 +165,7 @@ const expected: Record<MovementType, number> = {
 test('流水类型按来源单据分：生产领料、退料、完工入库、客户发货、撤销各归各类，手动出库只算没有来源单据的', () => {
   const w = world();
   try {
-    const all = w.ops.repo.movements();
+    const all = w.ops.movements();
     const counts = Object.fromEntries(movementTypes.map((t) => [t, all.filter((m) => movementTypeOf(m) === t).length]));
     assert.deepEqual(counts, expected);
     // 每条流水只有一种类型，全部类型加起来就是全部流水
@@ -194,7 +194,7 @@ test('按类型筛选：SQL 筛出的和按 movementTypeOf 判断的完全一致
   const server = await listen(createApp(w.store));
   const base = server.origin + '/api/warehouse/movements';
   try {
-    const repo = w.ops.repo,
+    const repo = w.ops,
       all = repo.movements();
     for (const action of movementTypes) {
       const want = all.filter((m) => movementTypeOf(m) === action);
@@ -271,10 +271,10 @@ test('流水按业务日期倒序，同一天按记录时间、写入顺序倒�
           b.created_at.localeCompare(a.created_at) ||
           rowidOf(b.id) - rowidOf(a.id),
       );
-    const all = ops.repo.movements();
+    const all = ops.movements();
     assert.deepEqual(all.map((m) => m.id), sorted(all).map((m) => m.id));
     assert.deepEqual(
-      ops.repo.movements({ q: '排序' }).map((m) => m.notes),
+      ops.movements({ q: '排序' }).map((m) => m.notes),
       ['排序-晚', '排序-同日后登记', '排序-中', '排序-早'],
     );
     // 不是按登记先后：后登记的 10-30 排在先登记的盘点（10-24）前面，最早登记的到货（10-20）排在它们后面
@@ -284,10 +284,10 @@ test('流水按业务日期倒序，同一天按记录时间、写入顺序倒�
     assert.ok(at((m) => m.source_kind === 'flow_arrival') < at((m) => m.notes === '排序-早'));
     // 分页、关键词分页、按库存品、按类型都保持同一顺序
     for (const q of [{}, { q: '虚构' }, { itemId: raw.id }, { itemId: finished.id }, { kind: 'finished' as const }, { action: 'in' as const }]) {
-      const rows = ops.repo.movements(q);
+      const rows = ops.movements(q);
       assert.deepEqual(rows.map((m) => m.id), sorted(rows).map((m) => m.id), JSON.stringify(q));
-      assert.deepEqual(ops.repo.movements(q, { offset: 2, limit: 3 }), rows.slice(2, 5), JSON.stringify(q));
-      assert.deepEqual(ops.repo.movementPage(q, 2, 3).rows, rows.slice(3, 6), JSON.stringify(q));
+      assert.deepEqual(ops.movements(q, { offset: 2, limit: 3 }), rows.slice(2, 5), JSON.stringify(q));
+      assert.deepEqual(ops.movementPage(q, 2, 3).rows, rows.slice(3, 6), JSON.stringify(q));
     }
   } finally {
     w.store.close();
@@ -297,7 +297,7 @@ test('流水按业务日期倒序，同一天按记录时间、写入顺序倒�
 test('流水页：明细的类型用来源单据的叫法，按产品汇总的行能点进这个库存品，不露内部编号', () => {
   const w = world();
   try {
-    const rows = w.ops.repo.movements();
+    const rows = w.ops.movements();
     const common = {
       rows,
       summary: [

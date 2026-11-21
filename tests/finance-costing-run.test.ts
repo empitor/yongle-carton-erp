@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceCosting } from '../server/finance/costing.js';
@@ -39,13 +40,14 @@ const hasCompute = (o: object): o is { compute: () => unknown } => 'compute' in 
 test('算成本前列出要人填的期初和手工入库，填完才能算，算完不再要求', () => {
   const s = new Store(':memory:');
   try {
-    const ops = new OperationsService(s);
+    const ops = new OperationsService(s),
+      flow = new FlowService(s);
     const item = ops.saveItem(
       { name: '虚构纸板', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' },
       maker,
     );
     const move = (date: string, quantity: string, version: number) =>
-      ops.move(
+      flow.stock.move(
         item.id,
         { action: 'in', quantity, date, notes: '虚构手工入库', expectedVersion: version, acknowledged: true, requestId: randomUUID() },
         maker,
@@ -93,13 +95,13 @@ test('算成本前列出要人填的期初和手工入库，填完才能算，�
 test('已算成本的月份：完工单冲销、管理员改盘点流水，事件等下次成本计算或核对后放行；改了数量提示先重做上月', () => {
   const f = fixture();
   try {
-    const ops = new OperationsService(f.s),
+    const flow = new FlowService(f.s),
       events = new FinanceEvents(f.s);
     const item = f.raw();
     f.receive(item);
     const made = f.produce(item, '2026-02-08', '5');
     const version = Number(f.s.db.prepare('SELECT version FROM stock_items WHERE id=?').get(item.id)?.version);
-    const counted = ops.move(
+    const counted = flow.stock.move(
       item.id,
       { action: 'adjust', quantity: '4', date: '2026-02-20', notes: '虚构盘点', expectedVersion: version, acknowledged: true, requestId: randomUUID() },
       maker,
@@ -168,12 +170,12 @@ test('已算成本的月份：完工单冲销、管理员改盘点流水，事�
 test('补登日期在已算成本月份的流水：计入第一个还没算成本的月份，成本窗口列出跨期补登；上月成本不算要重做', () => {
   const f = fixture();
   try {
-    const ops = new OperationsService(f.s);
+    const flow = new FlowService(f.s);
     const item = f.raw();
     f.receive(item);
     f.cost('2026-02');
     const version = Number(f.s.db.prepare('SELECT version FROM stock_items WHERE id=?').get(item.id)?.version);
-    const late = ops.move(
+    const late = flow.stock.move(
       item.id,
       { action: 'in', quantity: '5', date: '2026-02-20', notes: '虚构补登', expectedVersion: version, acknowledged: true, requestId: randomUUID() },
       maker,

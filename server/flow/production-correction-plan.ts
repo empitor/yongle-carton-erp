@@ -87,7 +87,7 @@ function headerOf(original: FlowDocView<'production'>, stored: Stored, input: In
 function checkNewLinks(flow: FlowCommands, stored: Stored, document: Stored, taskId: number | null) {
   const keptStock = new Set(stored.materials.map((m) => m.stockId)),
     newStock = [...new Set(document.materials.map((m) => m.stockId).filter((id) => !keptStock.has(id)))];
-  if (flow.ops.repo.items(false, newStock).length !== newStock.length) fail('换上的纸板库存品已归档或不存在，请选正常的原材料库存品。');
+  if (flow.ops.items(false, newStock).length !== newStock.length) fail('换上的纸板库存品已归档或不存在，请选正常的原材料库存品。');
   if (!taskId || taskId === stored.taskId) return;
   const task = flow.get(taskId);
   if (task.kind !== 'task' || task.status !== 'confirmed' || task.archived) fail('换挂的生产任务要是已下达、没归档的。');
@@ -106,7 +106,7 @@ function taskImpactOf(flow: FlowCommands, stored: Stored, taskId: number | null,
 /** 预览里每种纸板领用、退料的前后；删掉的原单领料行更正后是 0 */
 function materialView(flow: FlowCommands, stored: Stored, materials: ReturnType<typeof replacementMaterials>) {
   const items = new Map(
-    flow.ops.repo.items(true, [...new Set([...stored.materials, ...materials.rows].map((m) => m.stockId))]).map((i) => [i.id, i]),
+    flow.ops.items(true, [...new Set([...stored.materials, ...materials.rows].map((m) => m.stockId))]).map((i) => [i.id, i]),
   );
   const row = (index: number | null, stockId: number, before: Issue | undefined, after: Issue) => ({
     index,

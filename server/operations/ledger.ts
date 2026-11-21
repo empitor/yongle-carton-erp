@@ -251,3 +251,23 @@ export function recordMovementRevision(
       after ? JSON.stringify(after) : null,
     );
 }
+
+/**
+ * 别的模块（单据流转写到货、送货、生产、退货、更正和管理员连带，业务汇总改订单连带）要改流水、库存品和采购单版本号、
+ * 采购明细时用的写函数，收成一个对象从入口给出去；采购库存自己的文件直接引上面的函数。
+ */
+export const stockLedger = {
+  insertMovement,
+  rebalanceMovements,
+  recordMovementRevision,
+  relinkMovement,
+  unlinkPurchaseLineMovements,
+  touchStockItems,
+  touchPurchases,
+  touchOrderBatch,
+  setPurchaseLineStock,
+  setPurchaseLineReceived,
+  resetPurchaseLineReceived,
+  readPurchaseLineDocument,
+  updatePurchaseLineDocument,
+};

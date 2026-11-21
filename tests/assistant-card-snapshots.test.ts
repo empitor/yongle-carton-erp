@@ -9,7 +9,7 @@ import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { editableFields } from '../server/assistant/tools/card-summary.js';
 import { InboxService } from '../server/inbox/service.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OrderBatchService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
 import { superActor } from './actor-fixture.js';

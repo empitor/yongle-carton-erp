@@ -44,15 +44,15 @@ test('整批完工：预览不动库存、不建单据，执行后按共用纸�
     const input = f.input(),
       preview = f.completion.preview(input, actor);
     assert.equal(preview.verified, false);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     assert.equal(f.flow.list('production').length, 0);
-    assert.equal(f.ops.repo.items().filter((s) => s.kind === 'finished').length, 0);
+    assert.equal(f.ops.items().filter((s) => s.kind === 'finished').length, 0);
     f.completion.execute({ input, previewDigest: preview.previewDigest }, actor);
-    assert.equal(f.ops.repo.balance(f.raw.id), 95000);
+    assert.equal(f.ops.balance(f.raw.id), 95000);
     assert.equal(f.flow.list('production').length, 2);
     f.completion.execute({ input, previewDigest: preview.previewDigest }, actor);
     assert.equal(f.flow.list('production').length, 2);
-    assert.equal(f.ops.repo.balance(f.raw.id), 95000);
+    assert.equal(f.ops.balance(f.raw.id), 95000);
   } finally {
     f.store.close();
   }
@@ -70,7 +70,7 @@ test('整批完工版本变化、错误领料分配、缺少真实产量及库�
       /库存不足/,
     );
     assert.equal(f.flow.list('production').length, 0);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     assert.throws(() => f.completion.preview({ ...f.input(), quantities: undefined, goodRatePct: 90 }, actor), /须提供实际良品/);
     assert.throws(() => f.completion.preview(f.input(), { ...actor, permissions: [] }), /权限/);
   } finally {
@@ -86,10 +86,10 @@ test('登记完工的接口：预览不扣库存、执行才扣；单独 POST /f
     let r = await h.post('/flow/production-completion/preview', input);
     assert.equal(r.status, 200);
     const preview = readAs(await r.json(), { previewDigest: z.string() });
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     r = await h.post('/flow/production-completion/execute', { input, previewDigest: preview.previewDigest });
     assert.equal(r.status, 200);
-    assert.equal(f.ops.repo.balance(f.raw.id), 95000);
+    assert.equal(f.ops.balance(f.raw.id), 95000);
     r = await h.post('/flow/production', { date: today(), productId: f.tasks[0].productId, goodQuantity: '1', operator: '虚构', materials: [{ stockId: f.raw.id, issued: '1' }] });
     assert.equal(r.status, 409);
     assert.match(readAs(await r.json(), { message: z.string() }).message, /登记完工请用“登记完工”/);
@@ -119,7 +119,7 @@ test('批量完工入哪个成品库存由产品决定：没有就按产品新�
     assert.equal(docs.length, 2);
     for (const d of docs) assert.equal(d.notes, '这批用的B楞纸板，边上有点潮');
     // 第一个产品新建了成品库存（名称、尺寸、材质、楞型按产品），第二个产品用恢复的那个
-    const finished = f.ops.repo.items(true).filter((s) => s.kind === 'finished');
+    const finished = f.ops.items(true).filter((s) => s.kind === 'finished');
     assert.equal(finished.length, 2);
     const made = finished.find((s) => s.productId === first.productId);
     assert.ok(made);
@@ -127,7 +127,7 @@ test('批量完工入哪个成品库存由产品决定：没有就按产品新�
     assert.deepEqual(result.results.map((r) => r.finishedStockId), [made.id, parked.id]);
     assert.equal(result.count, 6, '新建一个成品库存、恢复一个、两张完工各登记和确认（任务安排时已下达）');
     assert.equal(f.store.archived('stock_items', parked.id), false);
-    assert.equal(f.ops.repo.balance(parked.id), 2000);
+    assert.equal(f.ops.balance(parked.id), 2000);
     // 审计看得出是登记哪张任务的完工时自动恢复、自动新建的，和人手动新建分得开
     const auditOf = (id: number, action: string) => {
       const row = one(
@@ -173,8 +173,8 @@ test('只登记、稍后核对入库：同一组输入和直接入库拆得一�
     assert.equal(result.count, 4, '两个产品各新建成品库存、两张待入库完工单（任务安排时已下达）');
     // 不动库存：流水一条没多，原料没扣，成品库存（保存时按产品新建）余额是 0
     assert.equal(movementCount(a.store), movements);
-    assert.equal(a.ops.repo.balance(a.raw.id), 100000);
-    for (const r of result.results) assert.equal(a.ops.repo.balance(r.finishedStockId), 0);
+    assert.equal(a.ops.balance(a.raw.id), 100000);
+    for (const r of result.results) assert.equal(a.ops.balance(r.finishedStockId), 0);
     const pending = a.flow.list('production');
     assert.ok(pending.length === 2 && pending.every((d) => d.status === 'draft'));
     // 存待入库走的是单张完工的保存服务，每张都有“新建待核对单据”的审计
@@ -197,14 +197,14 @@ test('只登记、稍后核对入库：同一组输入和直接入库拆得一�
     for (const d of pending) {
       a.base.check(d, {}, actor);
     }
-    assert.equal(a.ops.repo.balance(a.raw.id), 95000);
-    assert.equal(b.ops.repo.balance(b.raw.id), 95000);
+    assert.equal(a.ops.balance(a.raw.id), 95000);
+    assert.equal(b.ops.balance(b.raw.id), 95000);
     assert.equal(movementCount(a.store), movementCount(b.store));
     const finished = (f: typeof a) =>
-      f.ops.repo
+      f.ops
         .items()
         .filter((s) => s.kind === 'finished')
-        .map((s) => [s.productId, f.ops.repo.balance(s.id)])
+        .map((s) => [s.productId, f.ops.balance(s.id)])
         .sort();
     assert.deepEqual(finished(a), finished(b));
     assert.deepEqual(split(a.flow.list('production')), split(stocked));
@@ -225,12 +225,12 @@ test('只登记：库存够不够照单张待入库的规则（登记不拦、�
     assert.equal(f.flow.list('production').length, 0);
     // 只登记：和单张完工存成待入库一样不拦，核对入库时才拦
     assert.equal(new ProductionCompletion(f.store).execute({ ...short, pending: true }, actor).results.length, 2);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     const first = f.flow.list('production')[0];
     assert.throws(() => {
       f.base.check(first, {}, actor);
     }, /库存不足/);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     assert.throws(() => new ProductionCompletion(f.store).execute({ ...f.input(), pending: true }, { ...actor, permissions: [] }), /权限/);
   } finally {
     f.store.close();
@@ -247,7 +247,7 @@ test('只登记中途一张出错（产品归档了）：整批不写，失败�
     assert.throws(() => new ProductionCompletion(f.store).execute({ ...f.input(), pending: true }, actor), /关联产品不可用/);
     assert.equal(f.flow.list('production').length, 0);
     assert.ok(f.flow.list('task').every((t) => t.status === 'confirmed'));
-    assert.equal(f.ops.repo.items(true).filter((s) => s.kind === 'finished').length, 0);
+    assert.equal(f.ops.items(true).filter((s) => s.kind === 'finished').length, 0);
     assert.equal(auditCount(f.store, 'create-draft'), 0);
     assert.equal(movementCount(f.store), movements);
     assert.ok(f.store.db.prepare("SELECT 1 FROM business_audit WHERE action='failed-completion'").get());

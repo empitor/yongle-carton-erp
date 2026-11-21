@@ -1,4 +1,4 @@
-import { movementTypes, purchaseStatuses, stockKinds, type OperationsApi, type RecordsApi, type WorkbenchApi } from '../../shared/business/index';
+import { movementTypes, purchaseStatuses, stockKinds, type OperationsApi, type RecordsApi, type StockFlowApi, type WorkbenchApi } from '../../shared/business/index';
 import { statuses, type RecordSort } from '../../shared/core/index';
 import { call } from '../ui/index';
 
@@ -10,6 +10,7 @@ import { call } from '../ui/index';
 const records = call<RecordsApi>();
 const workbench = call<WorkbenchApi>();
 const operations = call<OperationsApi>();
+const stock = call<StockFlowApi>();
 
 /** 订单状态词表的第一项：新订单的“待确认” */
 const [PENDING_CONFIRM] = statuses;
@@ -62,7 +63,7 @@ export function loadPurchaseLookups(superMode: boolean) {
   const query = { archived: superMode ? ('all' as const) : undefined };
   return Promise.all([
     operations('GET /suppliers?withMetrics=1', { query }),
-    operations('GET /warehouse/items?withMetrics=1', { query }),
+    stock('GET /warehouse/items?withMetrics=1', { query }),
   ]);
 }
 
@@ -80,7 +81,7 @@ export function loadPurchases(o: {
   pageSize: number;
   sort: RecordSort;
 }) {
-  return operations('GET /purchases?withMetrics=1', {
+  return stock('GET /purchases?withMetrics=1', {
     query: {
       archived: archivedOf(o.range),
       supplierId: o.supplierFilter || undefined,
@@ -99,7 +100,7 @@ export function loadPurchases(o: {
 /** 库存页：原材料或成品；只看零库存时两种一起；按往来单位筛（原材料是供应商，成品是客户） */
 export function loadStockItems(o: { range: string; kind: string; zeroOnly: boolean; party?: string; search?: string }) {
   const party = !o.zeroOnly && o.party ? o.party : undefined;
-  return operations('GET /warehouse/items?withMetrics=1', {
+  return stock('GET /warehouse/items?withMetrics=1', {
     query: {
       archived: archivedOf(o.range),
       kind: o.zeroOnly ? undefined : oneOf(stockKinds, o.kind),
@@ -122,7 +123,7 @@ export function loadMovements(o: {
   page: number;
   pageSize: number;
 }) {
-  return operations('GET /warehouse/movements?withMetrics=1', {
+  return stock('GET /warehouse/movements?withMetrics=1', {
     query: {
       kind: oneOf(stockKinds, o.kind),
       action: oneOf(movementTypes, o.action),

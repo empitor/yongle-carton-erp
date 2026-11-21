@@ -15,11 +15,11 @@ import {
   type FlowDocView,
   type FlowKind,
 } from '../../shared/business/index.js';
-import { OperationsService, registerAdminCascade, registerArrivalSource } from '../operations/index.js';
+import { OperationsService } from '../operations/index.js';
 import { fail, type FinishedStockInput, type FlowCommands, type NewRawItem } from './base.js';
 import { insertFlowDocument, writeFlowDocument } from './document-store.js';
-import { alignStock, detachPurchaseLines } from './maintenance-cascade.js';
-import { arrivalSource } from './arrival-source.js';
+import { StockFlowService } from './stock-entries.js';
+import { StockViews } from './stock-views.js';
 import { rewriteRefs } from './refs.js';
 import { documentInput, validateFlow } from './validate.js';
 import { arrivalRecords } from './arrivals.js';
@@ -33,11 +33,16 @@ import { cancel, reverse } from './undo.js';
  * 单据流转的服务：保存、排期、送达、归档写在这里，读单据、核对预览、确认、取消撤销、到货
  * 分在同目录各自的文件里（更正在 correction.ts、说明编辑在 document-info.ts，不经过这个类），这里按原来的方法名转调（别的模块和路由都通过 FlowService 用）。
  * 拆出去的文件只认 base.ts 的 FlowCommands，不引用这个文件。
+ * views 是采购单、库存品、订货单、流水的完整视图，stock 是采购单、库存品的保存入口（别的模块经这两个用）。
  */
 export class FlowService implements FlowCommands {
   readonly ops: OperationsService;
+  readonly views: StockViews;
+  readonly stock: StockFlowService;
   constructor(readonly store: Store) {
     this.ops = new OperationsService(store);
+    this.views = new StockViews(store);
+    this.stock = new StockFlowService(this, this.views);
   }
   // 读单据在 read.ts；核对预览、确认、取消和撤销在 preview.ts、confirm.ts、undo.ts，这里保留原来的调用方式
   waitingGood(taskIds?: readonly number[], excludeId?: number) {
@@ -282,12 +287,3 @@ function shippedAt(doc: FlowDocView<'delivery'>) {
   if (!doc.shippedAt) return fail('送货单 ' + doc.number + ' 没有出库时间记录，不能确认送达，请先核对这张送货单。', 409);
   return doc.shippedAt;
 }
-
-// 采购库存的管理员连带处理（见 operations/hooks.ts）：加载单据流转时登记
-registerAdminCascade({
-  alignStock: (store, before, after, actor) => alignStock(new FlowService(store), before, after, actor),
-  detachPurchaseLines: (store, purchaseId, lineIds, actor) =>
-    detachPurchaseLines(new FlowService(store), purchaseId, lineIds, actor),
-});
-// 采购库存要看的到货、单据数据（见 operations/hooks.ts 的 ArrivalSource）：加载单据流转时登记
-registerArrivalSource(arrivalSource);

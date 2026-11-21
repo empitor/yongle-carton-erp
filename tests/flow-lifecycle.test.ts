@@ -21,7 +21,7 @@ test('已核对的单据不能再按普通保存改；没有业务权限不能�
     assert.throws(() => f.flow.save('arrival', { ...a, version: a.version }, clerk, a.id), /只能修改还没核对的单据/);
     assert.throws(() => f.flow.save('task', { date: '2026-10-20', productId: f.product.id, quantity: '10', unit: '只' }, { ...clerk, permissions: [] }), /没有.*权限/);
     assert.equal(archiveDoc(f.flow, a.id, false, clerk, f.flow.get(a.id).version).archived, true);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     archiveDoc(f.flow, a.id, true, clerk, f.flow.get(a.id).version);
     assert.equal(f.flow.get(a.id).archived, false);
     const order = f.order(10);
@@ -97,12 +97,12 @@ test('单据写接口要登录和页面凭证；同一核对请求并发只入�
       pa = await preview(a.id),
       requestId = randomUUID();
     assert.deepEqual((await Promise.all([confirm(a.id, pa, requestId), confirm(a.id, pa, requestId)])).map((r) => r.status), [200, 200]);
-    assert.equal(f.ops.repo.balance(f.raw.id), 100000);
+    assert.equal(f.ops.balance(f.raw.id), 100000);
     const b = draft('HTTP-CONCURRENT-2', '50'),
       c = draft('HTTP-CONCURRENT-3', '50');
     const [pb, pc] = [await preview(b.id), await preview(c.id)];
     assert.deepEqual((await Promise.all([confirm(b.id, pb), confirm(c.id, pc)])).map((r) => r.status).sort(), [200, 409]);
-    assert.equal(f.ops.repo.balance(f.raw.id), 150000);
+    assert.equal(f.ops.balance(f.raw.id), 150000);
     const waiting = draft('VERSION-LIFECYCLE', '10'),
       edited = f.flow.save('arrival', { ...waiting, notes: '另一用户已改内容' }, clerk, waiting.id);
     const batch = async (action: string, version?: number) => {

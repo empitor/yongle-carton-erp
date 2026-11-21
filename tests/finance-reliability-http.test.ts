@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { cookieOf, startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { customerSchema } from '../shared/core/domain.js';
 
 const date = '2026-01-10',

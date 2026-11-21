@@ -1,4 +1,4 @@
-// 库存品的已安排数（OperationsRepository.items 的 reservedUnits、availableUnits，单据那边由 server/flow/arrival-source.ts 的 reservedUnits 算）：
+// 库存品的已安排数（单据流转的完整视图 StockViews.items 的 reservedUnits、availableUnits，由 server/flow/stock-facts.ts 的 reservedUnits 算）：
 // 只算没归档的待送货送货单、待入库完工单的领料净数；已出库、已入库、已取消、已撤销、已归档的不算。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,7 +50,7 @@ test('已安排只算没归档的待送货、待入库单据；已出库、已�
 
     // 每个库存品：[编号, 结余, 已安排, 已安排（文字）, 可用]，列表按编号从大到小
     const facts = (ids?: number | number[]) =>
-      f.ops.repo.items(true, ids).map((i) => [i.id, i.balanceUnits, i.reservedUnits, i.reserved, i.availableUnits]);
+      f.flow.views.items(true, ids).map((i) => [i.id, i.balanceUnits, i.reservedUnits, i.reserved, i.availableUnits]);
     const finished = [f.finished.id, 970000, 30000, '30', 940000],
       glue = [f.glue.id, 100000, 4000, '4', 96000],
       raw = [f.raw.id, 492000, 7000, '7', 485000];

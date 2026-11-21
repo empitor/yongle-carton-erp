@@ -6,7 +6,7 @@ import type { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
 import { AppError } from '../server/core/errors.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import type { OperationsService } from '../server/operations/service.js';
+import type { OperationsService } from '../server/operations/index.js';
 import type { FlowService } from '../server/flow/service.js';
 import { quantityString, quantityUnits } from '../shared/core/quantity.js';
 import { clerk } from './flow-fixture.js';
@@ -39,9 +39,9 @@ export function assertLedger(store: Store, ops: OperationsService) {
       .map((r) => [Number(r.item_id), Number(r.s)]),
   );
   const balances = new Map<number, number>();
-  for (const it of ops.repo.items(true)) {
+  for (const it of ops.items(true)) {
     assert.equal(it.balanceUnits, sums.get(it.id) ?? 0, it.name + '的余额等于流水之和');
-    assert.equal(ops.repo.balance(it.id), it.balanceUnits);
+    assert.equal(ops.balance(it.id), it.balanceUnits);
     assert.ok(it.balanceUnits >= 0, it.name + '的余额不为负');
     balances.set(it.id, it.balanceUnits);
   }
@@ -138,12 +138,12 @@ function previewOrRefusal(store: Store, a: Attempt) {
 }
 
 /** 手工领用（出库）q 张或只，最多领到余额为止；领了多少记进 used（库存品 → 千分整数） */
-export function useStock(ops: OperationsService, stockId: number, q: number, used: Map<number, number>) {
-  const item = ops.repo.items(true, stockId)[0],
+export function useStock(flow: FlowService, stockId: number, q: number, used: Map<number, number>) {
+  const item = flow.ops.items(true, stockId)[0],
     take = Math.min(q * 1000, item.balanceUnits);
   if (!take) return;
   const input = { expectedVersion: item.version, requestId: randomUUID(), action: 'out', quantity: quantityString(take), date: '2026-10-20', notes: '虚构领用', acknowledged: true };
-  ops.move(stockId, input, clerk);
+  flow.stock.move(stockId, input, clerk);
   addTo(used, stockId, take);
 }
 

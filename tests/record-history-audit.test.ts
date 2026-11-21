@@ -252,7 +252,7 @@ function historyWorld() {
     );
     flow.cancel(second.id, { version: second.version, reason: '客户改期', acknowledged: true }, actor);
     archiveDoc(flow, delivery.id, false, superActor(), flow.get(delivery.id).version);
-    changeLifecycle(store, 'suppliers', { action: 'archive', acknowledged: true, items: [{ id: supplier.id, version: ops.repo.suppliers(true, supplier.id)[0].version }] }, actor);
+    changeLifecycle(store, 'suppliers', { action: 'archive', acknowledged: true, items: [{ id: supplier.id, version: ops.suppliers(true, supplier.id)[0].version }] }, actor);
     return { store, customer, product, supplier, raw, finished, order, purchase, task, done, delivery, second };
   } catch (error) {
     store.close(); // 造数据失败也关库，错误照样抛给测试

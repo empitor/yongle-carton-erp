@@ -124,5 +124,5 @@ export function listingFixture() {
     { date: '2026-11-08', plannedDate: '2026-11-08', customerId: customer.id, address: '', contact: '', phone: '', lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: finished.id, quantity: '10', notes: '' }], notes: '' },
     actor,
   );
-  return { store, ops, service, supplier, raw, purchase, buy, draft, product };
+  return { store, ops, flow, service, supplier, raw, purchase, buy, draft, product };
 }

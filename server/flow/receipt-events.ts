@@ -4,7 +4,9 @@ import { quantityUnits } from '../../shared/core/index.js';
 import { purchaseLineAmount, type ReceiptEvent } from '../../shared/business/index.js';
 import { many, rows } from '../core/index.js';
 import { storedContent, storedDocuments } from './read.js';
-import { setPurchaseLineReceived, touchPurchases } from '../operations/index.js';
+import { stockLedger } from '../operations/index.js';
+
+const { setPurchaseLineReceived, touchPurchases } = stockLedger;
 
 /**
  * 到货事件：到货单（arrival）读成采购单能用的样子（结构在 shared/business/flow-views.ts），

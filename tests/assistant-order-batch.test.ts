@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { OperationsService } from '../server/operations/service.js';
-import { OrderBatchService } from '../server/operations/batches.js';
+import { OperationsService, OrderBatchService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { quantityUnits } from '../shared/core/quantity.js';
@@ -21,6 +21,7 @@ const scheduled = z.looseObject({ rows: z.array(z.looseObject({ schedule: z.arra
 function setup(store: Store) {
   const ops = new OperationsService(store),
     batches = new OrderBatchService(store),
+    flow = new FlowService(store),
     docs = new BusinessDocuments(store);
   const supplier = ops.saveSupplier({ name: '虚构春芳纸板厂', contact: '', phone: '', address: '' }, actor);
   const item = ops.saveItem(
@@ -41,8 +42,8 @@ function setup(store: Store) {
     );
   const a = purchase('1000', '2026-11-01'),
     b = purchase('500', '2026-11-02');
-  const stock = () => quantityUnits(ops.repo.items(true, item.id)[0].quantity);
-  return { ops, batches, docs, supplier, item, a, b, stock };
+  const stock = () => quantityUnits(ops.items(true, item.id)[0].quantity);
+  return { ops, flow, batches, docs, supplier, item, a, b, stock };
 }
 
 test('助手合并导出订货单：先看合并后的行，再按行号写到货安排导出，交付完成后两张都已订货、进待到货', async () => {
@@ -95,7 +96,7 @@ test('助手合并导出订货单：先看合并后的行，再按行号写到�
       },
       () => actor,
     );
-    const purchases = f.ops.repo.purchases(true, [f.a.id, f.b.id]);
+    const purchases = f.flow.views.purchases(true, [f.a.id, f.b.id]);
     assert.deepEqual(purchases.map((p) => p.businessStatus), ['已订货', '已订货']);
     const batchId = f.batches.batchIdOf(f.a.id);
     assert.ok(batchId !== null, '两张采购单进了订货单');
@@ -121,8 +122,8 @@ test('助手按订货单登记到货：和人工同一个服务入库，分到�
   try {
     const tools = toolsOf(fx.store);
     for (const p of [f.a, f.b]) {
-      const current = f.ops.repo.purchases(true, p.id)[0];
-      f.ops.savePurchase({ ...current, status: '已订货', version: current.version }, actor, p.id);
+      const current = f.flow.views.purchases(true, p.id)[0];
+      f.flow.stock.savePurchase({ ...current, status: '已订货', version: current.version }, actor, p.id);
     }
     // 两张是分别改成已订货的，各自一个订货单；用第一张那份
     const batch = readAs(tools.read('order_batch.get', { purchaseId: f.a.id }, actor), {});
@@ -202,8 +203,8 @@ test('以前订的采购单按 purchaseId 登记到货：生成方案（生成�
     f = setup(fx.store);
   try {
     // 模拟功能上线前订的采购单：已订货，但没有订货批次
-    const current = f.ops.repo.purchases(true, f.a.id)[0];
-    f.ops.savePurchase({ ...current, status: '已订货', version: current.version }, actor, f.a.id);
+    const current = f.flow.views.purchases(true, f.a.id)[0];
+    f.flow.stock.savePurchase({ ...current, status: '已订货', version: current.version }, actor, f.a.id);
     fx.store.db.exec('DELETE FROM order_batch_purchases; DELETE FROM order_batches;');
     const batches = () => count(fx.store.db, 'SELECT COUNT(*) n FROM order_batches');
     const audits = () =>
@@ -251,8 +252,8 @@ test('order_batch.list 先按供应商、采购单筛再组装，结果和全部
     f = setup(fx.store);
   try {
     const order = (p: { id: number }) => {
-      const current = f.ops.repo.purchases(true, p.id)[0];
-      f.ops.savePurchase({ ...current, status: '已订货', version: current.version }, actor, p.id);
+      const current = f.flow.views.purchases(true, p.id)[0];
+      f.flow.stock.savePurchase({ ...current, status: '已订货', version: current.version }, actor, p.id);
     };
     order(f.a);
     order(f.b);

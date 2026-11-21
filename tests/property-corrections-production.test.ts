@@ -30,8 +30,8 @@ function setup(done: Done[]) {
   const other = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱乙' }));
   const otherStock = f.ops.saveItem({ name: '虚构成品乙', kind: 'finished', unit: '只', productId: other.id }, actor);
   const opening = (id: number) => {
-    const it = f.ops.repo.items(true, id)[0];
-    f.ops.move(id, { action: 'in', quantity: '500', date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: it.version }, actor);
+    const it = f.ops.items(true, id)[0];
+    f.flow.stock.move(id, { action: 'in', quantity: '500', date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: it.version }, actor);
   };
   opening(f.raw.id);
   opening(f.glue.id);
@@ -181,7 +181,7 @@ function correctOnce(f: Setup, d: Production, input: Input) {
 }
 
 function step(f: Setup, op: Op) {
-  if (op.t === 'use') return useStock(f.ops, f.stocks[op.stock].id, op.q, f.used);
+  if (op.t === 'use') return useStock(f.flow, f.stocks[op.stock].id, op.q, f.used);
   const ids = effectiveIds(f.store, 'production');
   if (!ids.length) return;
   const d = f.flow.get(ids[op.doc % ids.length], 'production');
@@ -213,7 +213,7 @@ test('完工：成品用掉一部分以后再改少、或多领纸板，会出�
     fc.property(doneArb, fc.nat(3), fc.integer({ min: 1, max: 600 }), fc.oneof(opArb.filter((op) => op.t === 'good' || op.t === 'issue')), (done, stock, q, op) => {
       const f = setup(done);
       try {
-        useStock(f.ops, f.stocks[stock].id, q, f.used);
+        useStock(f.flow, f.stocks[stock].id, q, f.used);
         step(f, op);
         assertDerived(f);
       } finally {

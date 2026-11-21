@@ -8,7 +8,7 @@ import { readPurchaseLineDocument } from './ledger.js';
 import { recordScope, type RecordIds } from './record-scope.js';
 
 /*
- * 读采购单本身：单头、明细、已到货和到货进度，不读单据流转的表（OperationsRepository 的 purchaseRows、purchases 用）。
+ * 读采购单本身：单头、明细、已到货和到货进度，不读单据流转的表（OperationsRepository 的 purchases 用）。
  * 单头、明细、关联订单的单号都按同一范围批量读，不逐张查。
  */
 

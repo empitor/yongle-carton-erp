@@ -64,7 +64,7 @@ test('完工核对：预览以后库存变了确认被拒；领料超过库存�
     f.confirmId(f.production('20', { materials: [{ stockId: f.raw.id, issued: '10', returned: '0' }] }).id);
     assert.throws(() => f.flow.confirm(stale.id, { previewDigest: preview.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), /已变化/);
     assert.throws(() => f.confirmId(f.production('5', { materials: [{ stockId: f.raw.id, issued: '2000', returned: '0' }] }).id), /库存不足/);
-    assert.equal(f.ops.repo.balance(f.finished.id), 20000);
+    assert.equal(f.ops.balance(f.finished.id), 20000);
     assert.throws(() => f.confirm('production', { ...f.flow.get(stale.id), date: '2099-01-01', id: undefined, version: undefined }), /完工日期不能晚于今天/);
   } finally {
     f.store.close();
@@ -100,7 +100,7 @@ test('撤销完工要超级管理员模式；成品已经送出去、不够扣�
     assert.ok(shipped);
     assert.equal(shipped.lines[0].shippedQuantity, 0);
     reverse(prod.id, localAdmin());
-    assert.deepEqual([f.ops.repo.balance(f.raw.id), f.ops.repo.balance(f.finished.id)], [1000000, 0]);
+    assert.deepEqual([f.ops.balance(f.raw.id), f.ops.balance(f.finished.id)], [1000000, 0]);
   } finally {
     f.store.close();
   }
@@ -125,7 +125,7 @@ test('撤销完工拒绝旧版本；第二笔流水写失败时整单回滚；�
     const reversed = f.flow.reverse(doc.id, input, localAdmin());
     assert.equal(reversed.status, 'reversed');
     assert.equal(f.flow.get(task.id, 'task').completed, '0');
-    assert.deepEqual([f.ops.repo.balance(f.raw.id), f.ops.repo.balance(f.finished.id)], [1000000, 0]);
+    assert.deepEqual([f.ops.balance(f.raw.id), f.ops.balance(f.finished.id)], [1000000, 0]);
     assert.equal(reversed.reversal?.movements.length, 2);
     const after = f.snapshot();
     assert.deepEqual(f.flow.reverse(doc.id, input, localAdmin()), reversed);
@@ -146,7 +146,7 @@ test('取消剩余任务：还有待入库的完工单时不能取消，先入�
     assert.throws(cancel, /待入库的完工单/);
     f.confirmId(pending.id);
     assert.equal(cancel().status, 'cancelled');
-    assert.deepEqual([f.flow.get(t.id, 'task').completed, f.ops.repo.balance(f.finished.id)], ['140', 140000]);
+    assert.deepEqual([f.flow.get(t.id, 'task').completed, f.ops.balance(f.finished.id)], ['140', 140000]);
     assert.throws(() => f.confirmId(f.production('1', { taskId: t.id }).id), /任务/);
   } finally {
     f.store.close();
@@ -169,7 +169,7 @@ test('同一种纸板做两种产品：各入各的成品库存，一张送货�
         { orderId: order2.id, orderLineId: order2.lines[0].id, stockId: stock2.id, quantity: '10' },
       ],
     });
-    assert.deepEqual([f.ops.repo.balance(f.finished.id), f.ops.repo.balance(stock2.id)], [80000, 0]);
+    assert.deepEqual([f.ops.balance(f.finished.id), f.ops.balance(stock2.id)], [80000, 0]);
     assert.equal(f.store.order(order2.id)?.status, '已发货');
     assert.equal(f.store.order(order.id)?.lines[0].remainingQuantity, 80);
   } finally {

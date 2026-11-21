@@ -2,9 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OrderBatchService } from '../server/operations/batches.js';
-import { purchaseOrderLinks } from '../server/operations/purchase-rows.js';
-import { updatePurchaseLineDocument } from '../server/operations/ledger.js';
+import { OrderBatchService, purchaseOrderLinks, stockLedger } from '../server/operations/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { relatedBusiness } from '../server/business/related-business.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
@@ -19,7 +17,7 @@ import { businessBase } from './business-base-fixture.js';
 /** 两张虚构订单、一种纸板；采购单不挂单头订单，两行各给一张订单订料。 */
 function setup() {
   const base = businessBase(actor),
-    { store, ops } = base;
+    { store, ops, flow } = base;
   const customer = base.customer({ name: '虚构东海电器有限公司' });
   const product = base.product({ name: '虚构电饭煲外箱', material: 'K=A', flute: 'BC' });
   const order = (deliveryDate: string) =>
@@ -48,7 +46,7 @@ function setup() {
     },
     actor,
   );
-  return { store, ops, a, b, supplier, item, purchase };
+  return { store, ops, flow, a, b, supplier, item, purchase };
 }
 
 /** 库里存的样子：每行的订单外键列，和 JSON 里有没有 customerOrderId 这个键（应该一直没有） */
@@ -103,9 +101,9 @@ test('采购明细关联的订单是真外键列：JSON 里再存一份、指向
   const stored = one(db, rows.purchase_lines.pick({ document: true }), 'SELECT document FROM purchase_lines WHERE id=?', line.id);
   assert.ok(stored, '采购明细在库里');
   const document = parseStoredJson(purchaseLineDocumentSchema, stored.document, 'purchase_lines.document 第 ' + line.id + ' 行');
-  updatePurchaseLineDocument(f.store, line.id, { ...document, customerOrderId: f.b.id, notes: '虚构对齐' });
+  stockLedger.updatePurchaseLineDocument(f.store, line.id, { ...document, customerOrderId: f.b.id, notes: '虚构对齐' });
   assert.deepEqual(storedLinks(f.store, f.purchase.id), [[f.a.id, null], [f.b.id, null]]);
-  assert.equal(f.ops.repo.purchases(true, f.purchase.id)[0].lines[0].notes, '虚构对齐');
+  assert.equal(f.flow.views.purchases(true, f.purchase.id)[0].lines[0].notes, '虚构对齐');
   const plan = db
     .prepare('EXPLAIN QUERY PLAN SELECT purchase_id FROM (' + purchaseOrderLinks + ') WHERE order_id=?')
     .all(f.a.id)
@@ -119,7 +117,7 @@ test('不在本机的超级管理员模式删订单：采购明细按行的关�
   const f = setup();
   const service = new DatabaseMaintenanceService(f.store),
     who = superActor(),
-    before = f.ops.repo.purchases(true, f.purchase.id)[0],
+    before = f.flow.views.purchases(true, f.purchase.id)[0],
     selection = { module: 'orders', items: [{ id: f.a.id, version: f.a.version }] },
     plan = service.preview(selection, who);
   assert.ok(
@@ -129,7 +127,7 @@ test('不在本机的超级管理员模式删订单：采购明细按行的关�
   service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, who, 'session');
   assert.equal(f.store.order(f.a.id, true), undefined, '订单删了');
   assert.deepEqual(storedLinks(f.store, f.purchase.id), [[null, null], [f.b.id, null]]);
-  const after = f.ops.repo.purchases(true, f.purchase.id)[0];
+  const after = f.flow.views.purchases(true, f.purchase.id)[0];
   assert.deepEqual(after.lines.map((l) => l.quantity), before.lines.map((l) => l.quantity), '采购明细留着');
   assert.ok(after.version > before.version, '采购单版本加一，删除前打开的编辑窗保存时提示刷新');
   assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
@@ -138,9 +136,9 @@ test('不在本机的超级管理员模式删订单：采购明细按行的关�
 test('本机管理员改采购单（明细编号保留）：换关联的订单、清空、加一行，列跟着变', () => {
   const f = setup();
   const admin = localAdministratorActor({ ...actor, role: 'super_admin', superAdminMode: true, superAdminUntil: Date.now() + 3600000 });
-  const current = f.ops.repo.purchases(true, f.purchase.id)[0];
+  const current = f.flow.views.purchases(true, f.purchase.id)[0];
   const { id: _itemId, ...spec } = f.item;
-  const saved = f.ops.savePurchase(
+  const saved = f.flow.stock.savePurchase(
     {
       ...current,
       status: current.baseStatus,
@@ -161,10 +159,10 @@ test('本机管理员改采购单（明细编号保留）：换关联的订单�
 
 test('明细关联的订单不存在就拒绝保存', () => {
   const f = setup();
-  const current = f.ops.repo.purchases(true, f.purchase.id)[0];
+  const current = f.flow.views.purchases(true, f.purchase.id)[0];
   assert.throws(
     () =>
-      f.ops.savePurchase(
+      f.flow.stock.savePurchase(
         {
           ...current,
           status: current.baseStatus,
@@ -179,8 +177,8 @@ test('明细关联的订单不存在就拒绝保存', () => {
 
 test('合并导出订货单时同种纸板合成一行；到货入库流水记在每行自己的订单上', () => {
   const f = setup();
-  const current = f.ops.repo.purchases(true, f.purchase.id)[0];
-  f.ops.savePurchase({ ...current, status: '已订货' }, actor, f.purchase.id);
+  const current = f.flow.views.purchases(true, f.purchase.id)[0];
+  f.flow.stock.savePurchase({ ...current, status: '已订货' }, actor, f.purchase.id);
   const batches = new OrderBatchService(f.store);
   const batchId = batches.batchIdOf(f.purchase.id) ?? assert.fail('改成已订货后应该有订货单');
   const batch = batches.view(batchId);
@@ -210,8 +208,8 @@ test('合并导出订货单时同种纸板合成一行；到货入库流水记�
 
 test('已有到货后仍可改每行关联的订单，其他内容不动', () => {
   const f = setup();
-  let current = f.ops.repo.purchases(true, f.purchase.id)[0];
-  f.ops.savePurchase({ ...current, status: '已订货' }, actor, f.purchase.id);
+  let current = f.flow.views.purchases(true, f.purchase.id)[0];
+  f.flow.stock.savePurchase({ ...current, status: '已订货' }, actor, f.purchase.id);
   const batches = new OrderBatchService(f.store);
   const batchId = batches.batchIdOf(f.purchase.id) ?? assert.fail('改成已订货后应该有订货单');
   const batch = batches.view(batchId);
@@ -220,8 +218,8 @@ test('已有到货后仍可改每行关联的订单，其他内容不动', () =>
     { expectedVersion: batch.version, requestId: randomUUID(), date: '2026-11-05', reference: '虚构送货单-002', rows: [{ key: batch.rows[0].key, quantity: '100' }] },
     actor,
   );
-  current = f.ops.repo.purchases(true, f.purchase.id)[0];
-  const saved = f.ops.savePurchase(
+  current = f.flow.views.purchases(true, f.purchase.id)[0];
+  const saved = f.flow.stock.savePurchase(
     {
       ...current,
       status: current.baseStatus,

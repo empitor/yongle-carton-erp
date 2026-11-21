@@ -147,7 +147,7 @@ test('生产与送货排程：未来计划独立于实际、部分生产可改�
     assert.equal(done.plannedDate, '2026-11-07');
     assert.equal(done.actualDate, '2026-10-31');
     assert.equal(shippedQuantity(f, order.id), 50);
-    assert.equal(f.ops.repo.items().find((s) => s.id === finished.id)?.quantity, '50');
+    assert.equal(f.ops.items().find((s) => s.id === finished.id)?.quantity, '50');
     assert.throws(
       () =>
         f.flow.schedule(

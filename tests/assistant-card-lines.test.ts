@@ -117,7 +117,7 @@ test('入库、出库、盘点调整：卡片写明单据号、每行品名和�
     assert.match(text(confirm), /虚构纸板 30 张/);
     assert.match(text(confirm), /虚构纸板：0 张 → 30 张/);
     tools.commit(confirm, who, 'card');
-    const item = tools.ops.repo.items(true, raw.id)[0];
+    const item = tools.ops.items(true, raw.id)[0];
     const move = prepare('inventory.propose_movement', { id: raw.id, action: 'adjust', quantity: '24', date: '2026-10-21', notes: '虚构盘点' });
     assert.match(move.label, /^盘点调整：原材料 虚构纸板/);
     assert.match(text(move), /虚构纸板：30 张 → 24 张/);
@@ -300,7 +300,7 @@ test('订货单的到货安排、登记到货：标题带供应商，列出新�
     const supplier = s.base.supplier({ name: '虚构纸板厂乙' }),
       raw = s.base.raw({ name: '虚构纸板乙' });
     const purchase = s.tools.ops.savePurchase({ supplierId: supplier.id, status: '已订货', orderDate: '2026-11-01', lines: [{ ...raw, stockItemId: raw.id, quantity: '1000', unitPrice: '2', priceBasis: 'quantity' }] }, s.who);
-    const { OrderBatchService } = await import('../server/operations/batches.js');
+    const { OrderBatchService } = await import('../server/operations/index.js');
     const batchId = new OrderBatchService(s.f.store).batchIdOf(purchase.id);
     assert.ok(batchId !== null, '采购单进了订货单');
     const version = new OrderBatchService(s.f.store).view(batchId).version;

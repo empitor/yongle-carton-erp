@@ -53,7 +53,7 @@ export function deliveryCorrectionSetup(t: TestContext, stock = '1000') {
       plan = planCorrection(store, id, v, who);
     return ofKind(correctDocument(store, id, { ...v, previewDigest: plan.previewDigest, requestId: randomUUID() }, who), 'delivery');
   };
-  const balance = () => ops.repo.balance(item.id);
+  const balance = () => ops.balance(item.id);
   /** 某条订单明细的已发（只） */
   const shipped = (o: { id: number }, i: number) => {
     const current = store.order(o.id, true);

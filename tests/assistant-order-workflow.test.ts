@@ -14,7 +14,7 @@ import { imageFixture, docxFixture, xlsxFixture, pdfFixture } from './import-fix
 import { createOrderWorkflowFixture, importer as actor } from './assistant-workflow-fixture.js';
 import { startHttp } from './http-fixture.js';
 import { SseParser } from '../shared/core/sse.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { FlowService } from '../server/flow/service.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { readAs } from './read-result.js';
 /** 工作流 call() 交回的结果（各命令不同）按路径取一项 */
@@ -77,7 +77,7 @@ test('聊天附件识别→跨轮改同一份→确认导入；用量计入这�
     assert.equal(order.customerName, '聊天验收客户');
     assert.equal(order.currency, 'CNY');
     assert.match(view.messages.at(-1)?.facts?.executed[0].label ?? '', /^正式导入订单：/);
-    assert.equal(new OperationsRepository(f.store).purchases().length, 0);
+    assert.equal(new FlowService(f.store).views.purchases().length, 0);
     await f.send('没问题，确认导入', [], nonce);
     await f.send('没问题，确认导入');
     assert.equal(f.store.orders().length, 1);

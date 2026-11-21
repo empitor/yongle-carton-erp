@@ -72,9 +72,9 @@ const products = productDefs.map(([name, length, width, height, material, flute]
 store.saveProduct(productSchema.parse({ name: '资料不全的临时箱' }));
 const suppliers = ['虚构鼎盛纸业', '虚构宏泰纸板厂', '虚构华美瓦楞', '虚构永信纸业'].map((name, i) => ops.saveSupplier({ name, contact: '供应联系人' + i, phone: '0574-1000-00' + i, address: '虚构工业区' + i }, actor));
 const raws = [['BC五层纸板 1250×1000', 1250, 1000, 'K=A', 'BC'], ['BE五层纸板 1400×1100', 1400, 1100, 'B=B', 'BE'], ['B三层纸板 900×700', 900, 700, 'A=A', 'B'], ['E三层纸板 800×600', 800, 600, 'W=A', 'E']] as const;
-const rawItems = raws.map(([name, length, width, material, flute]) => ops.saveItem({ name, kind: 'raw', unit: '张', length, width, height: null, dimensionUnit: 'mm', material, flute, specification: '', notes: '', productId: null }, actor));
-rawItems.forEach((r, i) => [3200, 900, 0, 450][i] && ops.move(r.id, { action: 'in', quantity: String([3200, 900, 0, 450][i]), date: shift(-30), notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: r.version }, actor));
-const finished = products.map((p) => ops.saveItem({ name: p.name, kind: 'finished', unit: '只', length: p.length, width: p.width, height: p.height, dimensionUnit: 'mm', material: p.material, flute: p.flute, specification: '', notes: '', productId: p.id }, actor));
+const rawItems = raws.map(([name, length, width, material, flute]) => flow.stock.saveItem({ name, kind: 'raw', unit: '张', length, width, height: null, dimensionUnit: 'mm', material, flute, specification: '', notes: '', productId: null }, actor));
+rawItems.forEach((r, i) => [3200, 900, 0, 450][i] && flow.stock.move(r.id, { action: 'in', quantity: String([3200, 900, 0, 450][i]), date: shift(-30), notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: r.version }, actor));
+const finished = products.map((p) => flow.stock.saveItem({ name: p.name, kind: 'finished', unit: '只', length: p.length, width: p.width, height: p.height, dimensionUnit: 'mm', material: p.material, flute: p.flute, specification: '', notes: '', productId: p.id }, actor));
 const statusCycle = ['已确认', '已确认', '已确认', '已确认', '待确认', '已确认', '已确认', '已确认', '已取消', '已确认'];
 const finishedOf = (productId: number | null) => {
   const item = finished.find((x) => x.productId === productId);
@@ -96,12 +96,12 @@ const confirmedOrders = orders.filter((o) => o.status === '已确认');
   const p = products[0], quantity = 500;
   const o = store.saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
   const l = o.lines[0], fin = finishedOf(l.productId);
-  ops.move(fin.id, { action: 'in', quantity: String(quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
+  flow.stock.move(fin.id, { action: 'in', quantity: String(quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
   confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
 }
 for (let i = 0; i < 11; i++) {
   const o = confirmedOrders[i], s = suppliers[i % suppliers.length], r = raws[i % raws.length], item = rawItems[i % rawItems.length];
-  const p = ops.savePurchase({ supplierId: s.id, customerOrderId: i % 2 ? o.id : null, orderDate: shift(-12 + i), expectedDate: shift(-5 + i), status: i % 4 === 3 || i >= 9 ? '待订货' : '已订货', notes: '', lines: [{ name: r[0], stockItemId: item.id, length: r[1], width: r[2], height: null, dimensionUnit: 'mm', material: r[3], flute: r[4], specification: '', notes: '', unit: '张', quantity: String(800 + i * 150), unitPrice: (2.5 + i * 0.13).toFixed(4), priceBasis: 'area' }] }, actor);
+  const p = flow.stock.savePurchase({ supplierId: s.id, customerOrderId: i % 2 ? o.id : null, orderDate: shift(-12 + i), expectedDate: shift(-5 + i), status: i % 4 === 3 || i >= 9 ? '待订货' : '已订货', notes: '', lines: [{ name: r[0], stockItemId: item.id, length: r[1], width: r[2], height: null, dimensionUnit: 'mm', material: r[3], flute: r[4], specification: '', notes: '', unit: '张', quantity: String(800 + i * 150), unitPrice: (2.5 + i * 0.13).toFixed(4), priceBasis: 'area' }] }, actor);
   // 前三张按订货单登记到货（已订货的采购单自动建好订货单），全部合格入库
   if (i < 3) {
     const batches = new OrderBatchService(store), batchId = batches.batchIdOf(p.id);

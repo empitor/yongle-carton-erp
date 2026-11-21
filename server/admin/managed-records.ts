@@ -56,7 +56,7 @@ type RecordOf<M extends ManagedModule> = M extends RecordEntity
     : never;
 /** 选中的一条：按编号读的 record，和编辑窗用的 input */
 export type Selected<M extends ManagedModule = ManagedModule> = { record: RecordOf<M>; input: InputOf<M> };
-type Usage = NonNullable<ReturnType<ReturnType<OperationsService['usages']>['get']>>;
+type Usage = NonNullable<ReturnType<FlowService['views']['usage']>>;
 /** 列表显示另补在 record 上的：库存品用没用过；到货单的订货单号和原件文件名（供应商名、客户名补在单据自己的字段上） */
 type Shown = { stock_items: { usage: Usage | null }; arrival: { orderBatchNumber?: string; sourceFileName?: string } };
 /** 列表的一条：显示用的 record（补了 Shown 里的几项），和编辑窗用的 input */
@@ -103,12 +103,12 @@ export class ManagedRecords {
   }
   /**
    * 库存品补 usage：有出入库流水是 moved，被采购明细或单据引用是 referenced，没用过是 null。
-   * 直接用 OperationsService.usages（saveItem 拦截用的同一个判断）；用过的库存品服务端不让改种类、不让改成品关联的产品，
+   * 直接用单据流转的 views.usages（保存库存品时拦截用的同一个判断）；用过的库存品服务端不让改种类、不让改成品关联的产品，
    * 编辑窗据此做成只读并写明原因。只补在显示用的 record 上，input 和库里都不改。
    */
   private businessListed<E extends RecordEntity>(entity: E) {
     const records = businessList(this.store, entity, true);
-    const usage = entity === 'stock_items' && records.length ? this.ops.usages(records.map((r) => r.id)) : undefined;
+    const usage = entity === 'stock_items' && records.length ? this.flow.views.usages(records.map((r) => r.id)) : undefined;
     return records.map((record) => ({
       record: usage ? { ...record, usage: usage.get(record.id) ?? null } : record,
       input: businessInputs[entity](record),
@@ -127,7 +127,7 @@ export class ManagedRecords {
   private supplierNames(docs: FlowDocView<'arrival'>[]) {
     const ids = unnamedIds(docs.map((d) => ({ name: d.supplierName, id: d.supplierId })));
     if (!ids.length) return docs;
-    const names = new Map(this.ops.repo.suppliers(true, ids).map((p) => [p.id, p.name] as const));
+    const names = new Map(this.ops.suppliers(true, ids).map((p) => [p.id, p.name] as const));
     return docs.map((d) => {
       const name = names.get(d.supplierId);
       return !d.supplierName && name !== undefined ? { ...d, supplierName: name } : d;

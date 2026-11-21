@@ -1,12 +1,15 @@
 import type { z } from 'zod';
 import { AppError, audit } from '../core/index.js';
 import { arrivalCorrectionExtraSchema, arrivalCorrectionPreviewSchema, correctionCommit, flowDocNames, type PurchaseView } from '../../shared/business/index.js';
-import { setPurchaseLineStock, touchOrderBatch, touchPurchases } from '../operations/index.js';
+import { stockLedger } from '../operations/index.js';
+import { StockViews } from './stock-views.js';
 import { arrivalCorrectionPlan, arrivalStocked, type ArrivalPlan, type CorrectionInput } from './arrival-correction-plan.js';
 import { commitInput, type CorrectionContext, type CorrectionKind } from './correction-movements.js';
 import { newItemOf } from './base.js';
 import { arrivalPurchaseIds, receiptEvents, syncReceivedUnits } from './receipt-events.js';
 import { saveReceiptKey } from './refs.js';
+
+const { setPurchaseLineStock, touchOrderBatch, touchPurchases } = stockLedger;
 
 /*
  * 更正到货单（更正的核心在 correction.ts，方案在 arrival-correction-plan.ts）：这里是到货自己的部分。
@@ -44,7 +47,7 @@ function syncPurchases(ctx: Context) {
 /** 读回核验：采购单的已到货要和预览说的一样，不一样整笔撤回；返回读回的采购单 */
 function verifiedPurchases(ctx: Context) {
   const { purchaseImpact } = ctx.plan.data,
-    purchases = ctx.flow.ops.repo.purchases(true, purchaseImpact.map((p) => p.id));
+    purchases = new StockViews(ctx.flow.store).purchases(true, purchaseImpact.map((p) => p.id));
   for (const p of purchaseImpact) {
     const saved = purchases.find((row) => row.id === p.id);
     if (!saved || saved.arrivalProgress !== p.arrivalProgress || p.lines.some((l) => saved.lines.find((sl) => sl.id === l.lineId)?.receivedQuantity !== l.after))
@@ -73,7 +76,7 @@ function finish(ctx: Context) {
   const purchases = verifiedPurchases(ctx);
   const stockImpact = plan.stockImpact,
     stockIds = [...plan.changes, ...stockImpact].flatMap((s) => (s.stockId ? [s.stockId] : [])),
-    stock = flow.ops.repo.items(true, stockIds);
+    stock = new StockViews(flow.store).items(true, stockIds);
   const summary =
     (corrections.length ? corrections.map((l) => correctionText(l, purchases)).join('；') : '到货数量没有变，已按更正后的内容另出一张到货单') +
     '。' +
@@ -137,7 +140,7 @@ export const arrivalCorrection: CorrectionKind<'arrival', CorrectionInput, Arriv
   },
   // 确认人、确认时间沿用原单（和送货、完工同一个规矩）；谁、什么时候更正的看 correctedAt 和修改历史
   inherit: (flow, stored, plan) => ({
-    supplierName: flow.ops.repo.supplierName(plan.document.supplierId, true),
+    supplierName: flow.ops.supplierName(plan.document.supplierId, true),
     correctionOfReceiptId: plan.data.receipt.id,
     confirmedBy: stored.confirmedBy,
     confirmedAt: stored.confirmedAt,

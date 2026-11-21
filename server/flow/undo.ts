@@ -3,7 +3,7 @@ import type { Actor } from '../core/index.js';
 import { audit, exists, inSavepoint, requirePermission, requireSuperModeFor } from '../core/index.js';
 import { today } from '../../shared/core/index.js';
 import { flowUndoSchema, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
-import { touchOrderBatch, touchPurchases } from '../operations/index.js';
+import { stockLedger } from '../operations/index.js';
 import { fail, taskOf, type FlowCommands } from './base.js';
 import { sourceTotals, stockShortage } from './correction-movements.js';
 import { touchFlowDocument, writeFlowDocument } from './document-store.js';
@@ -11,6 +11,8 @@ import { storedDocument } from './read.js';
 import { arrivalPurchaseIds, syncReceivedUnits } from './receipt-events.js';
 import { updateOrders } from './order-progress.js';
 import { movement } from './confirm.js';
+
+const { touchOrderBatch, touchPurchases } = stockLedger;
 
 /*
  * 取消（还没核对的单据作废，不动库存）和撤销（已核对的单据撤回：反向流水，原单保留标已撤销）。
@@ -96,7 +98,7 @@ const shortageHint = (kind: FlowKind) =>
 function reverseMovements(flow: FlowCommands, doc: FlowDocView, actor: Actor, reason: string) {
   const totals = new Map([...sourceTotals(flow, doc.kind, doc.id)].map(([stockId, total]) => [stockId, -total]));
   for (const [stockId, delta] of totals)
-    if (flow.ops.repo.balance(stockId) + delta < 0) stockShortage(flow, stockId, -delta, '撤销要扣回', shortageHint(doc.kind));
+    if (flow.ops.balance(stockId) + delta < 0) stockShortage(flow, stockId, -delta, '撤销要扣回', shortageHint(doc.kind));
   const source = { kind: doc.kind, id: doc.id, number: doc.number, date: today() },
     movements: string[] = [];
   for (const [stockId, delta] of totals)

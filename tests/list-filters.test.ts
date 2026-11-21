@@ -22,10 +22,10 @@ import { Pagination, TableRegion } from '../src/ui/ListLayout.js';
 import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
 import { pageRows } from '../server/core/paging.js';
 import { toolsOf } from './assistant-fixture.js';
-import { productIdsOfCustomer, stockIdsOfParty } from '../server/operations/party-links.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { productIdsOfCustomer, stockIdsOfParty } from '../server/operations/index.js';
+import { OperationsService } from '../server/operations/index.js';
 import { receiveLines } from './receive-fixture.js';
-import type { StockItemView } from '../shared/business/index.js';
+import type { StockItemBaseView } from '../shared/business/index.js';
 import { readAs } from './read-result.js';
 import { catalogItems } from '../src/palette-items.js';
 
@@ -63,7 +63,7 @@ function fixture() {
     s2 = base.supplier({ name: '虚构二号纸板厂' });
   const board1 = base.raw({ name: '虚构纸板一' }),
     board2 = base.raw({ name: '虚构纸板二' });
-  const purchase = (supplierId: number, item: StockItemView) =>
+  const purchase = (supplierId: number, item: StockItemBaseView) =>
     ops.savePurchase(
       {
         supplierId,
@@ -146,9 +146,9 @@ function movementHistory() {
     boxed = base.product({ name: '测试成品纸箱' }),
     finished = base.finished(boxed, { name: '测试成品纸箱' });
   const move = (id: number, action: string, quantity: string, date: string, notes: string) => {
-    const item = new OperationsRepository(store).items().find((r) => r.id === id);
+    const item = new OperationsService(store).items().find((r) => r.id === id);
     assert.ok(item);
-    return service.move(
+    return base.flow.stock.move(
       id,
       {
         expectedVersion: item.version,
@@ -198,7 +198,7 @@ const tablesOf = (store: Store) => ({
   movements: store.db.prepare('SELECT * FROM stock_movements ORDER BY rowid').all(),
   audit: store.db.prepare('SELECT * FROM business_audit ORDER BY rowid').all(),
   life: store.db.prepare('SELECT * FROM record_lifecycle ORDER BY rowid').all(),
-  items: new OperationsRepository(store).items(),
+  items: new OperationsService(store).items(),
 });
 
 test('流水接口组合筛选、日期边界、历史查询；查询不改余额、审计和归档标记', async () => {
@@ -242,7 +242,7 @@ test('流水接口组合筛选、日期边界、历史查询；查询不改余�
     ])
       assert.equal((await fetch(base + q)).status, 400);
     assert.deepEqual(tablesOf(store), before);
-    assert.equal(new OperationsRepository(store).items().find((r) => r.id === raw.id)?.quantity, '69');
+    assert.equal(new OperationsService(store).items().find((r) => r.id === raw.id)?.quantity, '69');
   } finally {
     await server.close();
     store.close();
@@ -267,7 +267,7 @@ test('列表分页：不带页码保持全量，页码超出落到最后一页�
 
 test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿到全量，采购可按主键读取', async () => {
   const base = businessBase(actor),
-    { store, ops } = base,
+    { store, ops, flow } = base,
     customer = base.customer({ name: '虚构客户' }),
     product = base.product({ name: '虚构箱' }),
     supplier = base.supplier({ name: '虚构供应商' }),
@@ -296,7 +296,7 @@ test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿
     ),
   );
   for (let n = 0, version = stock.version; n < 3; n++, version++)
-    ops.move(
+    flow.stock.move(
       stock.id,
       { action: 'in', quantity: '1', date: '2026-10-01', notes: '虚构', acknowledged: true, requestId: randomUUID(), expectedVersion: version },
       actor,
@@ -374,7 +374,7 @@ test('顶栏搜索的供应商和供应商页同一份文字：地址、备注�
   t.after(() => store.close());
   const fields = { name: '虚构搜索供应商', contact: '虚构联系人', phone: '0574-0001', address: '虚构路二号', notes: '虚构备注词' };
   base.supplier(fields);
-  const suppliers = new OperationsRepository(store).suppliers();
+  const suppliers = new OperationsService(store).suppliers();
   const item = catalogItems({ orders: [], customers: [], products: [], purchases: [], suppliers }).find((i) => i.group === '供应商');
   assert.ok(item);
   for (const word of Object.values(fields)) assert.ok(item.keywords.includes(word.toLowerCase()), word);

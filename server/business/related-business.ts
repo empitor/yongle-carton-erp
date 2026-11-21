@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
 import { FlowService, WarehouseDaily } from '../flow/index.js';
-import { OperationsRepository, purchaseOrderLinks } from '../operations/index.js';
+import { purchaseOrderLinks } from '../operations/index.js';
 import { MarkService } from './product-marks.js';
 
 const idRow = z.object({ id: z.number() });
@@ -28,8 +28,8 @@ export function referencingDocuments(
 
 /** 采购单详情里的关联业务：到货记录、订的库存品、给哪几张订单订的料 */
 function purchaseRelated(store: Store, id: number) {
-  const repo = new OperationsRepository(store);
-  const purchase = repo.purchases(true, id).at(0);
+  const views = new FlowService(store).views;
+  const purchase = views.purchases(true, id).at(0);
   if (!purchase) return null;
   const lineIds = purchase.lines.map((l) => l.id);
   /** 到货记录的一行是不是这张采购单的：记着这张采购单，或挂在它的某条明细上（到货记录的行用 lineId 指采购明细） */
@@ -47,7 +47,7 @@ function purchaseRelated(store: Store, id: number) {
     .filter((r) => r.lines.some(ofPurchase));
   return {
     arrivals,
-    stocks: repo.items(true, purchase.lines.flatMap((l) => (l.stockItemId ? [l.stockItemId] : []))),
+    stocks: views.items(true, purchase.lines.flatMap((l) => (l.stockItemId ? [l.stockItemId] : []))),
     orders: store.ordersByIds(purchase.orderIds, true),
   };
 }
@@ -56,8 +56,7 @@ function purchaseRelated(store: Store, id: number) {
 function orderRelated(store: Store, id: number) {
   const order = store.order(id, true);
   if (!order) return null;
-  const flow = new FlowService(store),
-    repo = new OperationsRepository(store);
+  const flow = new FlowService(store);
   const tasks = flow.list('task', true, undefined, referencingDocuments(store, 'task', 'order_id', [id])).filter((t) => t.orderIds.includes(id));
   const productions = flow
     .list('production', true, undefined, referencingDocuments(store, 'production', 'task_id', tasks.map((t) => t.id)))
@@ -80,8 +79,8 @@ function orderRelated(store: Store, id: number) {
     deliveries: flow
       .list('delivery', true, undefined, referencingDocuments(store, 'delivery', 'order_id', [id]))
       .filter((d) => d.lines.some((l) => l.orderId === id)),
-    purchases: repo.purchases(true, purchaseIds),
-    stocks: repo.items(false, stockIds).filter((s) => s.kind === 'finished' && order.lines.some((l) => l.productId === s.productId)),
+    purchases: flow.views.purchases(true, purchaseIds),
+    stocks: flow.views.items(false, stockIds).filter((s) => s.kind === 'finished' && order.lines.some((l) => l.productId === s.productId)),
     production: tasks
       .filter((t) => !t.archived && ['draft', 'confirmed'].includes(t.status))
       .map((t) => ({

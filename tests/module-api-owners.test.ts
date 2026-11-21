@@ -18,11 +18,10 @@ const apiOwners: [prefix: string, module: string][] = [
   ['/guide', '系统资料'],
   ['/business', '业务汇总'], ['/dashboard', '业务汇总'], ['/customers', '业务汇总'], ['/products', '业务汇总'],
   ['/orders', '业务汇总'], ['/deletions', '业务汇总'], ['/marks', '业务汇总'],
-  ['/suppliers', '采购库存'], ['/purchases', '采购库存'], ['/warehouse', '采购库存'], ['/order-batches', '采购库存'],
-  ['/stock_items', '采购库存'],
+  ['/suppliers', '采购库存'], ['/stock_items', '采购库存'],
+  // 采购单、库存品和流水、订货单（含登记到货）回答带单据的内容，在单据流转（server/flow/stock-router.ts）
+  ['/purchases', '单据流转'], ['/warehouse', '单据流转'], ['/order-batches', '单据流转'],
   ['/flow', '单据流转'],
-  // 登记到货在单据流转（server/flow/receiving.ts），地址挂在订货批次下面
-  ['/order-batches/:id/receive', '单据流转'],
   // 归档、恢复（server/business/records-router.ts 调业务汇总的 lifecycle）；客户、产品、订单的 /batch 按根前缀就归业务汇总
   ['/suppliers/batch', '业务汇总'], ['/purchases/batch', '业务汇总'], ['/stock_items/batch', '业务汇总'],
   // 送货单原件的上传、列表、读识别结果、AI 识别在识别导入；看原件文件在单据流转（原件表归单据流转）

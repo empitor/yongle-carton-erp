@@ -1,14 +1,17 @@
 // 关联记录与修改历史（server/business/record-context.ts）：每类业务和单据列出哪些上下游、按顺序，归档的带标记；只按编号读。内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { OperationsService } from '../server/operations/index.js';
+import { FlowService } from '../server/flow/service.js';
 import { recordContext } from '../server/business/record-context.js';
 import { flowStatusText } from '../shared/business/index.js';
 import { saveDoc } from './receive-fixture.js';
 import type { FlowKind } from '../shared/business/index.js';
-import type { RecordIds } from '../server/operations/record-scope.js';
 import { actor } from './actor-fixture.js';
 import { businessBase } from './business-base-fixture.js';
+
+/** 按编号读的参数：一个编号或一组编号，不给就是全部（照采购库存读库存品的参数） */
+type RecordIds = Parameters<OperationsService['items']>[1];
 
 function fixture() {
   const base = businessBase(actor), { store, ops, flow } = base;
@@ -105,28 +108,30 @@ test('关联记录只按编号读，不装配全表；单条采购单、供应�
     const want = related(f, 'orders', f.orders[0].id);
     t.mock.method(f.store, 'orders', () => assert.fail('不应装配全表：orders'));
     // 采购、库存按编号读可以，不带编号就是读全表
-    const { purchases, items } = OperationsRepository.prototype;
-    t.mock.method(OperationsRepository.prototype, 'purchases', function (this: OperationsRepository, include?: boolean, ids?: RecordIds, suppliers?: RecordIds) {
-      // 按供应商读采购（第三个参数）也是定向读取
+    const { purchases, items } = OperationsService.prototype;
+    t.mock.method(OperationsService.prototype, 'purchases', function (this: OperationsService, ...args: Parameters<OperationsService['purchases']>) {
+      const [include, ids, suppliers, receivedOf] = args;
+      // 按供应商读采购（第三个参数）也是定向读取；第四个参数是完整视图现算的已到货，原样转交
       if (ids === undefined && suppliers === undefined) assert.fail('不应装配全表：purchases');
-      return purchases.call(this, include, ids, suppliers);
+      return purchases.call(this, include, ids, suppliers, receivedOf);
     });
-    t.mock.method(OperationsRepository.prototype, 'items', function (this: OperationsRepository, include?: boolean, ids?: RecordIds) {
+    t.mock.method(OperationsService.prototype, 'items', function (this: OperationsService, include?: boolean, ids?: RecordIds) {
       if (ids === undefined) assert.fail('不应装配全表：items');
       return items.call(this, include, ids);
     });
     assert.deepEqual(related(f, 'orders', f.orders[0].id), want);
-    const repo = new OperationsRepository(f.store);
-    const purchase = repo.purchases(true, f.purchases[0].id)[0];
-    const supplier = repo.suppliers(true, f.supplier.id)[0];
+    const ops = new OperationsService(f.store),
+      views = new FlowService(f.store).views;
+    const purchase = views.purchases(true, f.purchases[0].id)[0];
+    const supplier = ops.suppliers(true, f.supplier.id)[0];
     // 模拟与本次读取无关的坏明细：定向读取不得解析它。库里有约束不让写坏内容，这里临时关掉约束检查来造。
     f.store.db.exec('PRAGMA ignore_check_constraints=ON');
     f.store.db.prepare('UPDATE purchase_lines SET document=? WHERE purchase_id=?').run('not-json', f.purchases[2].id);
     f.store.db.exec('PRAGMA ignore_check_constraints=OFF');
-    assert.deepEqual(repo.purchases(true, f.purchases[0].id), [purchase]);
-    assert.deepEqual(repo.suppliers(true, f.supplier.id), [supplier]);
-    assert.deepEqual(repo.purchases(true, []), []);
-    assert.deepEqual(repo.suppliers(true, []), []);
+    assert.deepEqual(views.purchases(true, f.purchases[0].id), [purchase]);
+    assert.deepEqual(ops.suppliers(true, f.supplier.id), [supplier]);
+    assert.deepEqual(views.purchases(true, []), []);
+    assert.deepEqual(ops.suppliers(true, []), []);
   } finally { f.store.close(); }
 });
 

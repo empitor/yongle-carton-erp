@@ -152,7 +152,7 @@ export function splitDeliveryFixture() {
     return { out: sum('flow_delivery'), back: sum('flow_reversal') };
   };
   const revisions = () => count(f.store.db, 'SELECT count(*) FROM stock_movement_revisions');
-  const balance = () => f.ops.repo.balance(f.finished.id);
+  const balance = () => f.ops.balance(f.finished.id);
   const remove = (id: number, inventoryPolicy = 'recalculate') => f.del('delivery', f.flow.get(id), inventoryPolicy);
   const deliveries = () => f.flow.list('delivery', true);
   const foreignKeys = () => f.store.db.prepare('PRAGMA foreign_key_check').all();

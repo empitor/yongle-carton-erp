@@ -96,12 +96,12 @@ export function validateFlow(flow: FlowCommands, v: FlowDocument, actor: Actor, 
       : v.kind === 'task'
         ? []
         : v.lines.flatMap((l) => (l.stockId ? [l.stockId] : []));
-  const items = new Map(flow.ops.repo.items(true, stockIds).map((i) => [i.id, i])),
+  const items = new Map(flow.ops.items(true, stockIds).map((i) => [i.id, i])),
     changes: StockChange[] = [],
     warnings: string[] = [];
   const item = (id: number | null, k: string) => {
     // 到货行没选库存品、按采购明细关联的补上时，开头没读到它，这里补读
-    if (id !== null && !items.has(id)) for (const found of flow.ops.repo.items(true, [id])) items.set(found.id, found);
+    if (id !== null && !items.has(id)) for (const found of flow.ops.items(true, [id])) items.set(found.id, found);
     const it = id === null ? undefined : items.get(id);
     if (!it || it.kind !== k || (it.archived && !maintenance))
       fail('请选择正常的' + (k === 'raw' ? '原材料' : '成品') + '库存品。');

@@ -57,14 +57,14 @@ function businessRows<E extends BusinessModule>(ctx: ToolContext, entity: E, arc
 }
 const inventoryKind = (module: 'raw_inventory' | 'finished_inventory') => (module === 'raw_inventory' ? 'raw' : 'finished');
 function inventoryRows(ctx: ToolContext, module: 'raw_inventory' | 'finished_inventory', archived: boolean, id?: number): StockItemView[] {
-  return ctx.ops.repo.items(archived, id).filter((i) => i.kind === inventoryKind(module));
+  return ctx.flow.views.items(archived, id).filter((i) => i.kind === inventoryKind(module));
 }
 /** 流水：补上产品、客户、供应商编号（筛选用）；来源单据只读流水用到的那几张 */
 function movementRows(ctx: ToolContext) {
-  const movements = ctx.ops.repo.movements();
-  const items = new Map(ctx.ops.repo.items(true).map((i) => [i.id, i]));
+  const movements = ctx.flow.views.movements();
+  const items = new Map(ctx.flow.views.items(true).map((i) => [i.id, i]));
   const orders = new Map(ctx.store.orders(true).map((o) => [o.id, o]));
-  const purchases = new Map(ctx.ops.repo.purchases(true).flatMap((p) => p.lines.map((l) => [l.id, p] as const)));
+  const purchases = new Map(ctx.flow.views.purchases(true).flatMap((p) => p.lines.map((l) => [l.id, p] as const)));
   const fromFlowDocument = (r: (typeof movements)[number]) => String(r.source_kind).startsWith(FLOW_SOURCE);
   const documentIds = [...new Set(movements.filter(fromFlowDocument).map((r) => Number(r.source_id)))];
   const documents = new Map(

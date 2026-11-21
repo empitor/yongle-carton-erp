@@ -73,7 +73,7 @@ test('到货明细没写计价方式：照常核对入库，计价方式留空�
     });
     assert.equal(arrival.status, 'confirmed', '缺计价方式不拦到货');
     assert.deepEqual([arrival.lines[0].priceBasis, arrival.lines[0].amount], [null, null], '没写就是没写，不默认按平方米');
-    assert.equal(f.ops.repo.items(true, board.id)[0].balanceUnits, quantityUnits('10'), '照常入库');
+    assert.equal(f.ops.items(true, board.id)[0].balanceUnits, quantityUnits('10'), '照常入库');
     const dashboard = buildDashboard(f.store, [], { start: '2026-10-01', end: '2026-10-31' }, '2026-10-31', { workbench: false });
     assert.deepEqual([dashboard.overview.purchases.arrivedCents, dashboard.overview.purchases.arrivalUncomputed], [0, 1]);
     t.sync();

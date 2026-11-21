@@ -5,8 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
+import { OperationsService } from '../server/operations/index.js';
 import { PurchaseWriter } from '../server/operations/purchase-save.js';
+import { OperationsRepository } from '../server/operations/repository.js';
 import { requiredPurchaseSize } from '../shared/business/index.js';
 import { businessFixture, flowFixture, clerk } from './flow-fixture.js';
 import { receiveLines } from './receive-fixture.js';
@@ -66,7 +67,7 @@ test('采购明细没写计价方式时不让建，提示选按平方米还是�
 test('保存采购单：纸板只收“张”；改成已订货时自动建订货单；已登记到货的不能改数量', () => {
   const f = flowFixture();
   try {
-    const writer = new PurchaseWriter(f.store);
+    const writer = new PurchaseWriter(f.store, new OperationsRepository(f.store));
     const line = { ...f.raw, stockItemId: f.raw.id, quantity: '100', unitPrice: '1', priceBasis: 'quantity' };
     assert.throws(() => writer.savePurchase({ supplierId: f.supplier.id, status: '待订货', orderDate: '2026-10-01', lines: [{ ...line, unit: '公斤' }] }, clerk), /张/);
     const p = writer.savePurchase({ supplierId: f.supplier.id, status: '已订货', orderDate: '2026-10-01', lines: [line] }, clerk);
@@ -77,9 +78,9 @@ test('保存采购单：纸板只收“张”；改成已订货时自动建订�
       { requestId: randomUUID(), reference: '虚构送货单-锁定', date: '2026-10-10', items: [{ lineId: p.lines[0].id, quantity: '10' }] },
       clerk,
     );
-    const current = f.ops.repo.purchases(true, p.id)[0];
+    const current = f.flow.views.purchases(true, p.id)[0];
     assert.throws(
-      () => writer.savePurchase({ supplierId: f.supplier.id, status: '已订货', orderDate: '2026-10-01', version: current.version, lines: [{ ...current.lines[0], quantity: '200' }] }, clerk, p.id),
+      () => f.flow.stock.savePurchase({ supplierId: f.supplier.id, status: '已订货', orderDate: '2026-10-01', version: current.version, lines: [{ ...current.lines[0], quantity: '200' }] }, clerk, p.id),
       /已登记到货的采购单不能修改.*可改订货单的到货安排/,
     );
   } finally {
@@ -135,7 +136,7 @@ test('已登记到货的采购单：普通业务账号、不在本机的超级�
       },
       f.actor,
     );
-    const current = () => f.ops.repo.purchases(true, purchase.id)[0];
+    const current = () => f.flow.views.purchases(true, purchase.id)[0];
     const receive = (quantity: string) => {
       const p = current();
       receiveLines(
@@ -159,23 +160,23 @@ test('已登记到货的采购单：普通业务账号、不在本机的超级�
         [{}, { unitPrice: '1.5000' }],
         [{ orderDate: '2026-09-30' }, {}],
       ] as const) {
-        assert.throws(() => f.ops.savePurchase(edit(patch, line), who, purchase.id), locked, who.name + JSON.stringify([patch, line]));
+        assert.throws(() => f.flow.stock.savePurchase(edit(patch, line), who, purchase.id), locked, who.name + JSON.stringify([patch, line]));
         assert.equal(JSON.stringify(current()), before, '被拒绝后采购单一点没变');
       }
-      assert.throws(() => f.ops.savePurchase(edit({ status: '待订货' }), who, purchase.id), /已有到货，不能退回待订货状态。/);
+      assert.throws(() => f.flow.stock.savePurchase(edit({ status: '待订货' }), who, purchase.id), /已有到货，不能退回待订货状态。/);
       assert.equal(JSON.stringify(current()), before);
     }
     // 备注照常能改
-    assert.equal(f.ops.savePurchase(edit({ notes: '虚构备注' }), clerk, purchase.id).notes, '虚构备注');
+    assert.equal(f.flow.stock.savePurchase(edit({ notes: '虚构备注' }), clerk, purchase.id).notes, '虚构备注');
     // 本机管理员能改价格
-    const changed = f.ops.savePurchase(edit({}, { unitPrice: '1.5000' }), f.actor, purchase.id);
+    const changed = f.flow.stock.savePurchase(edit({}, { unitPrice: '1.5000' }), f.actor, purchase.id);
     assert.equal(Number(changed.lines[0].unitPrice), 1.5);
     // 全部到货以后不能取消
     receive('60');
     assert.equal(current().status, '全部到货');
     for (const who of [clerk, remote])
       assert.throws(
-        () => f.ops.savePurchase(edit({ status: '已取消' }), who, purchase.id),
+        () => f.flow.stock.savePurchase(edit({ status: '已取消' }), who, purchase.id),
         /已经全部到货，不能取消；库存不会因取消而回退。/,
       );
     assert.equal(current().status, '全部到货');

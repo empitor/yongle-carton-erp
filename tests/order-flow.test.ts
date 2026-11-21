@@ -14,9 +14,9 @@ test('一整条：采购分两批到货 → 领料退料、分批完工 → 分�
     const order = f.order(100);
     const p = orderedPurchase(f, clerk, ['200']);
     p.receive('100', 'DH-001');
-    assert.equal(f.ops.repo.purchases(true, p.purchase.id)[0].status, '部分到货');
+    assert.equal(f.flow.views.purchases(true, p.purchase.id)[0].status, '部分到货');
     p.receive('100', 'DH-002');
-    assert.equal(f.ops.repo.purchases(true, p.purchase.id)[0].status, '全部到货');
+    assert.equal(f.flow.views.purchases(true, p.purchase.id)[0].status, '全部到货');
     const task = f.task({ productId: f.product.id, quantity: '100', unit: '只', orderIds: [order.id] });
     const production = (good: string, issued: string, returned: string) =>
       f.confirm('production', {
@@ -31,7 +31,7 @@ test('一整条：采购分两批到货 → 领料退料、分批完工 → 分�
     const deliver = (quantity: string) =>
       f.confirm('delivery', { customerId: f.customer.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: f.finished.id, quantity }] });
     production('60', '80', '10');
-    assert.deepEqual([f.ops.repo.balance(f.raw.id), f.ops.repo.balance(f.finished.id)], [130000, 60000]);
+    assert.deepEqual([f.ops.balance(f.raw.id), f.ops.balance(f.finished.id)], [130000, 60000]);
     assert.deepEqual([f.flow.get(task.id, 'task').completed, f.flow.get(task.id, 'task').progress], ['60', 60]);
     deliver('40');
     let o = f.store.order(order.id);
@@ -43,7 +43,7 @@ test('一整条：采购分两批到货 → 领料退料、分批完工 → 分�
     o = f.store.order(order.id);
     assert.ok(o);
     assert.deepEqual([o.status, o.lines[0].remainingQuantity], ['已发货', 0]);
-    assert.deepEqual([f.ops.repo.balance(f.raw.id), f.ops.repo.balance(f.finished.id)], [90000, 0]);
+    assert.deepEqual([f.ops.balance(f.raw.id), f.ops.balance(f.finished.id)], [90000, 0]);
     assert.equal(count(f.store.db, "SELECT COUNT(*) FROM stock_movements WHERE source_kind='flow_production'"), 6);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {

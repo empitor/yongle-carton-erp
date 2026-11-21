@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { localAdministratorActor, isLocalAdministrator } from '../server/core/local-administrator.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { FlowService } from '../server/flow/service.js';
 import { assistantFixture, autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
@@ -57,7 +57,7 @@ test('助手按本机管理员的权限改订单、更正已入库的完工、�
       reason: '实际850只',
       goodQuantity: '850',
     });
-    assert.equal(f.ops.repo.balance(f.finished.id), 850000);
+    assert.equal(f.ops.balance(f.finished.id), 850000);
     const purchase = f.ops.savePurchase(
       {
         supplierId: f.supplier.id,
@@ -70,7 +70,7 @@ test('助手按本机管理员的权限改订单、更正已入库的完工、�
     a.replies.push({ message: '', toolCalls: [{ name: 'records.delete', args: { module: 'purchases', id: purchase.id } }] });
     const input = a.input('删除刚建的采购单' + purchase.number, randomUUID());
     const proposed = await a.manager.chat(thread.id, input, f.who, 's', () => {}, () => f.who);
-    const exists = () => new OperationsRepository(f.store).purchases(true).some((x) => x.id === purchase.id);
+    const exists = () => new FlowService(f.store).views.purchases(true).some((x) => x.id === purchase.id);
     assert.ok(exists(), '没确认不删');
     const card = proposed.messages.at(-1)?.plans?.[0];
     assert.ok(card);
@@ -78,7 +78,7 @@ test('助手按本机管理员的权限改订单、更正已入库的完工、�
     assert.equal(exists(), false);
     // 同一条消息重发（网络重试）：不再出新的动作，库存不变
     await a.manager.chat(thread.id, input, f.who, 's', () => {}, () => f.who);
-    assert.equal(f.ops.repo.balance(f.finished.id), 850000);
+    assert.equal(f.ops.balance(f.finished.id), 850000);
     assert.ok(f.store.db.prepare('SELECT 1 FROM assistant_previews WHERE result IS NOT NULL').get(), '回执记下了执行结果');
     assert.ok(effects.some((e) => field(e, 'type') === 'business'), '页面收到刷新');
     assert.ok(JSON.stringify(a.requests.at(-1)?.body).includes('management.execute'), '本机管理员的命令目录里有数据管理命令');

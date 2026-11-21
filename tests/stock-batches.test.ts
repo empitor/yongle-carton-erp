@@ -49,7 +49,7 @@ function setup() {
     return f.flow.get(correctDocument(f.store, doc.id, { ...v, previewDigest: plan.previewDigest, requestId: randomUUID() }, localAdmin()).replacementId);
   };
   const batches = (all = false) => stockItemBatches(f.store, f.finished.id, { allDepleted: all });
-  const balance = () => f.ops.repo.balance(f.finished.id);
+  const balance = () => f.ops.balance(f.finished.id);
   return { ...f, orderA, orderB, orderC, task, complete, ship, reverse, correct, batches, balance };
 }
 /** 每块的“入库/剩余”：先列还有货的、再列已发完的，各自新的在前；顺带核对各批剩余之和等于实际库存 */
@@ -62,8 +62,8 @@ function shape(f: ReturnType<typeof setup>) {
   return all.map((b) => (b.kind === 'other' ? b.label + ' ' : '') + b.inQuantity + '/' + b.remaining);
 }
 const move = (f: ReturnType<typeof setup>, action: 'in' | 'out' | 'adjust', quantity: string) => {
-  const it = f.ops.repo.items(true, f.finished.id)[0];
-  f.ops.move(
+  const it = f.ops.items(true, f.finished.id)[0];
+  f.flow.stock.move(
     f.finished.id,
     { expectedVersion: it.version, requestId: randomUUID(), action, quantity, date: '2026-10-28', notes: '虚构手工', acknowledged: true },
     clerk,

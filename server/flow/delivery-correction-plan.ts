@@ -73,7 +73,7 @@ function checkLinkedOrders(flow: FlowCommands, stored: FlowDocument<'delivery'>,
   )
     fail('换挂、新加的行要选同一客户正常待完成订单的明细。');
   const addedStock = [...new Set(added.map((l) => l.stockId))];
-  if (flow.ops.repo.items(false, addedStock).length !== addedStock.length) fail('这条订单明细的成品库存已归档，请先恢复。');
+  if (flow.ops.items(false, addedStock).length !== addedStock.length) fail('这条订单明细的成品库存已归档，请先恢复。');
   if (!head.dateChanged && !added.length) return;
   const late = [...orders.values()].find((o) => lines.some((l) => l.orderId === o.id) && o.orderDate > head.date);
   if (late) fail('出库日期不能早于订单 ' + late.number + ' 的下单日期 ' + late.orderDate + '。');

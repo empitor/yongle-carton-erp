@@ -122,7 +122,7 @@ export function sameTotals(a: Map<number, number>, b: Map<number, number>) {
  * stockId 来自流水或核对过的库存变化，库存品一定在。
  */
 export function stockShortage(flow: FlowCommands, stockId: number, needUnits: number, action: string, hint = ''): never {
-  const stock = flow.ops.repo.items(true, stockId)[0];
+  const stock = flow.ops.items(true, stockId)[0];
   const recent = many(
     flow.store.db,
     rows.stock_movements.pick({ notes: true }),
@@ -145,7 +145,7 @@ export function netStockImpact(flow: FlowCommands, totals: Map<number, number>, 
   const wanted = new Map<number, number>();
   for (const c of changes) if (c.stockId) wanted.set(c.stockId, (wanted.get(c.stockId) || 0) + c.deltaUnits);
   const ids = [...new Set([...totals.keys(), ...wanted.keys()])],
-    items = new Map(flow.ops.repo.items(true, ids).map((i) => [i.id, i]));
+    items = new Map(flow.ops.items(true, ids).map((i) => [i.id, i]));
   const impact: StockImpact[] = ids.map((id) => {
     const it = items.get(id);
     if (!it) return fail('原单关联的库存品已不存在，请先核对关联记录。', 409);

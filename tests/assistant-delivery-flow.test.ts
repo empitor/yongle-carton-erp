@@ -39,7 +39,7 @@ function setup(store: Store) {
     },
     actor,
   );
-  const balance = () => ops.repo.items(true, stock.id)[0].balanceUnits;
+  const balance = () => ops.items(true, stock.id)[0].balanceUnits;
   return { ops, flow, customer, product, order, stock, delivery, balance };
 }
 

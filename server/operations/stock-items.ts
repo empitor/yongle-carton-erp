@@ -3,16 +3,25 @@ import { FINISHED_UNIT, RAW_UNIT, finishedUnitMessage, rawUnitMessage, stockUnit
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, audit, exists, inSavepoint, isLocalAdministrator, isSuperMode, many, one, rows } from '../core/index.js';
-import { stockItemSchema, rawStockKey, type ArrivalItem, type StockItemView } from '../../shared/business/index.js';
+import { stockItemSchema, rawStockKey, type ArrivalItem, type StockItemBaseView } from '../../shared/business/index.js';
 import { normalizedDimensions, normalizeDimensionUnit, specification, type Product } from '../../shared/core/index.js';
-import { OperationsRepository } from './repository.js';
-import { adminCascade, arrivalSource } from './hooks.js';
+import type { OperationsRepository } from './repository.js';
 import { stockDocumentText } from './stock-document.js';
 import { businessActor, priorRecord } from './write-base.js';
 
 /** 库存品用过没有：有出入库记录是 moved，没有流水但被单据或采购明细引用是 referenced */
 const stockUsages = ['moved', 'referenced'] as const;
 type StockUsage = (typeof stockUsages)[number];
+/**
+ * 改已有库存品时调用方（单据流转的保存入口 server/flow/stock-entries.ts）给的单据事实和连带：
+ * referenced 这个库存品被单据引用过（有流水、被采购明细引用的采购库存自己查）；
+ * alignStock 本机管理员改了以后，在同一保存点里让已有单据跟着对齐（采购库存在写完、记审计前调）。
+ */
+export type ItemEdit = {
+  id: number;
+  referenced: boolean;
+  alignStock(before: StockItemBaseView, after: StockItemBaseView, actor: Actor): void;
+};
 /** 要保存的库存品：录入规则核对过、单位按种类定好的 */
 type ItemValues = z.output<typeof stockItemSchema>;
 /** 原材料的内容（到货明细的 item）：到货没选库存品时按它对上已有的原材料，没有就按它新建 */
@@ -62,21 +71,22 @@ const fixedOnceUsed = ['kind', 'unit', 'material', 'flute', 'productId', 'specif
  * 登记完工和到货时自动对应（没有就建、归档了就恢复）。
  */
 export class StockItems {
-  readonly repo: OperationsRepository;
-  constructor(readonly store: Store) {
-    this.repo = new OperationsRepository(store);
-  }
+  constructor(
+    readonly store: Store,
+    private readonly repo: OperationsRepository,
+  ) {}
   /**
    * 保存库存品档案。同一种货只有一个库存品（归档的也算）：
    * - 成品一定关联产品，一个产品只有一个成品库存；名称、尺寸、材质、楞型、规格说明一律按产品填（不信传进来的值），
    *   只有备注是库存品自己的；
    * - 原材料不关联产品；名称、规格说明、尺寸、材质、楞型规范化后（rawStockKey）一样的只能有一个。
    * 撞上已有的抛 StockConflictError，带着已有那个的编号，页面给“打开它”的入口。数据库上另有约束和唯一索引兜底。
+   * 改已有的（edit）要调用方给单据事实和连带（ItemEdit）；新建不用。
    */
   saveItem(
     raw: unknown,
     who: Actor | null | undefined,
-    id?: number,
+    edit?: ItemEdit,
     /** 不是人在库存页保存，而是登记完工、到货时自动建的：审计里写明原因和单据，和人手动新建分得开 */
     origin?: { reason: string; document?: string },
   ) {
@@ -85,15 +95,14 @@ export class StockItems {
       // 成品存“只”（“个”、没写都算），原材料存“张”
       input = { ...parsed, unit: stockUnit(parsed.kind, parsed.unit) };
     return inSavepoint(this.store.db, () => {
-      const before = priorRecord(this.repo, 'stock_items', id, raw, actor);
-      if (before) this.assertKindAndProductKept(before, input);
+      const before = edit ? priorRecord((all) => this.repo.items(all, edit.id)[0], raw, actor) : null;
+      if (before && edit) this.assertKindAndProductKept(before, input, edit.referenced);
       const v = this.checkedValues(input, before, actor);
-      this.assertNoTwin(v, id);
+      this.assertNoTwin(v, edit?.id);
       if (before) this.assertSpecKept(before, v, actor);
-      const savedId = this.writeItem(v, id);
+      const savedId = this.writeItem(v, edit?.id);
       const after = this.repo.items(true, savedId)[0];
-      if (before && isLocalAdministrator(actor))
-        adminCascade().alignStock(this.store, before, after, actor);
+      if (before && edit && isLocalAdministrator(actor)) edit.alignStock(before, after, actor);
       audit(this.store, actor, {
         action: before ? 'update' : 'create',
         entity: 'stock_items',
@@ -111,9 +120,9 @@ export class StockItems {
    * - 成品关联的产品：以前的完工、出库都记在原来的产品上，换了产品，完工单、送货单明细和订单行就对不上，
    *   成本也会算到别的产品名下。
    */
-  private assertKindAndProductKept(before: StockItemView, v: ItemValues) {
+  private assertKindAndProductKept(before: StockItemBaseView, v: ItemValues, referenced: boolean) {
     if (before.kind === v.kind && (before.productId == null || before.productId === v.productId)) return;
-    const usage = this.usage(before.id);
+    const usage = this.localUsages([before.id]).get(before.id) ?? (referenced ? 'referenced' : null);
     if (!usage) return;
     const used = usage === 'moved' ? '已有出入库记录' : '已被单据或采购明细引用';
     throw new AppError(
@@ -123,7 +132,7 @@ export class StockItems {
     );
   }
   /** 单位、种类和产品关联的规则；成品的名称、尺寸、材质、楞型、规格说明换成产品的 */
-  private checkedValues(v: ItemValues, before: StockItemView | null, actor: Actor): ItemValues {
+  private checkedValues(v: ItemValues, before: StockItemBaseView | null, actor: Actor): ItemValues {
     // 成品只有“只”、原材料只有“张”，别的单位拒收
     if (v.unit !== (v.kind === 'raw' ? RAW_UNIT : FINISHED_UNIT))
       throw new AppError(v.kind === 'raw' ? rawUnitMessage : finishedUnitMessage);
@@ -138,7 +147,7 @@ export class StockItems {
     return { ...v, ...finishedFromProduct(product) };
   }
   /** 有流水或采购引用的库存品：除了本机管理员，数量单位、实际规格、类别和产品关联都不能改（等值的 mm/cm 换算不算改） */
-  private assertSpecKept(before: StockItemView, v: ItemValues, actor: Actor) {
+  private assertSpecKept(before: StockItemBaseView, v: ItemValues, actor: Actor) {
     if (isLocalAdministrator(actor)) return;
     const changed =
       dimensionsKey(before) !== dimensionsKey(v) || fixedOnceUsed.some((k) => JSON.stringify(before[k]) !== JSON.stringify(v[k]));
@@ -174,21 +183,13 @@ export class StockItems {
     );
   }
   /**
-   * 这个库存品用过没有：有出入库记录是 moved，没有流水但被单据、采购明细引用是 referenced，没用过是 null。
-   * 用过的不能改种类、成品不能换产品（saveItem 拦）；编辑窗读一个库存品时带上 used，用过的成品把产品显示成只读。
+   * 采购库存自己看得到的“用过”：有出入库记录是 moved，没有流水但被采购明细引用是 referenced；一次查齐，只返回用过的。
+   * 被单据引用的由单据流转补（server/flow/stock-views.ts 的 usages：编辑窗的只读判断、数据管理的列表都用它），
+   * saveItem 的拦截用这里的加上调用方给的 referenced，两边是同一个判断。
    */
-  usage(id: number): StockUsage | null {
-    return this.usages([id]).get(id) ?? null;
-  }
-  /**
-   * usage 的批量版：一次查齐，只返回用过的（没用过的不在 Map 里）。数据管理的库存品列表也用它，
-   * 编辑窗的只读判断和 saveItem 的拦截是同一个判断，不会一边改了另一边跑偏。
-   * 被单据引用由单据流转判断（hooks.ts 的 ArrivalSource.referencedStock）。
-   */
-  usages(ids: readonly number[]): Map<number, StockUsage> {
+  localUsages(ids: readonly number[]): Map<number, StockUsage> {
     if (!ids.length) return new Map();
-    const unique = [...new Set(ids)];
-    const usage = new Map<number, StockUsage>(
+    return new Map(
       many(
         this.store.db,
         usageRow,
@@ -196,17 +197,8 @@ export class StockItems {
            CASE WHEN EXISTS(SELECT 1 FROM stock_movements m WHERE m.item_id=j.value) THEN 'moved'
                 WHEN EXISTS(SELECT 1 FROM purchase_lines l WHERE l.stock_item_id=j.value) THEN 'referenced' END AS usage
          FROM json_each(?) j`,
-        JSON.stringify(unique),
+        JSON.stringify([...new Set(ids)]),
       ).flatMap((r) => (r.usage === null ? [] : [[r.id, r.usage] as const])),
-    );
-    // 被单据引用（单据在单据流转，经 ArrivalSource 读）
-    const rest = unique.filter((id) => !usage.has(id));
-    if (rest.length) for (const id of arrivalSource().referencedStock(this.store, rest)) usage.set(id, 'referenced');
-    return new Map(
-      unique.flatMap((id) => {
-        const u = usage.get(id);
-        return u ? [[id, u] as const] : [];
-      }),
     );
   }
   /**
