@@ -33,3 +33,5 @@ export const rawUnitMessage = '原材料的数量单位只有“张”；别的�
  */
 export const priceBases = ['area', 'quantity'] as const;
 export type PriceBasis = (typeof priceBases)[number];
+/** 计价方式的叫法（下拉、修改历史、数据管理都用这一份） */
+export const priceBasisNames: Record<PriceBasis, string> = { area: '按平方米', quantity: '按张' };

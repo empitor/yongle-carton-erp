@@ -58,7 +58,7 @@ function OpeningTable({
             <tr>
               <th>库存品</th>
               <th className="num">数量</th>
-              <th className="num">期初金额 / 元</th>
+              <th className="num">期初金额（元）</th>
             </tr>
           </thead>
           <tbody>
@@ -103,7 +103,7 @@ function ValuationTable({
               <th>日期</th>
               <th>库存品</th>
               <th className="num">数量</th>
-              <th className="num">入库金额 / 元</th>
+              <th className="num">入库金额（元）</th>
               <th>对方科目</th>
             </tr>
           </thead>

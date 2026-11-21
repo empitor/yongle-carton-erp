@@ -14,7 +14,7 @@ const expenseCols: Col<ExpenseRow>[] = [
   col('department', '部门'),
   col('description', '说明', { wrap: true }),
   col('status', '状态', { render: (r) => <Status value={r.status} /> }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
 ];
 
 /**

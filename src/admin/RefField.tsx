@@ -1,5 +1,5 @@
 import { Combobox, loadingText } from '../ui/index';
-import { refKinds, refOptions, refPlaceholders, type FieldContext } from './field-rules';
+import { refKind, refOptions, refPlaceholders, type FieldContext } from './field-rules';
 import { textOf, type JsonObject } from './record-types';
 /** 关联字段：可搜索选择器，显示名称或单号，名称后面小字带能认出来的信息 */
 export default function RefField({
@@ -22,7 +22,7 @@ export default function RefField({
   /** 编辑窗的上下文（正在改的那条、关联候选） */
   ctx: FieldContext;
 }) {
-  const kind = refKinds[field];
+  const kind = refKind(field);
   if (kind === 'batch')
     // 按订货单登记到货时记下的批次：只显示单号
     return (
@@ -53,7 +53,7 @@ export default function RefField({
       value={value == null ? '' : String(value)}
       options={options}
       disabled={disabled}
-      placeholder={ctx.refs ? refPlaceholders[kind] || '输入名称搜索' : loadingText()}
+      placeholder={ctx.refs ? (kind && refPlaceholders[kind]) || '输入名称搜索' : loadingText()}
       onChange={(v) => update(v === '' ? null : Number(v))}
     />
   );

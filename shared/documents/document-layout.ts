@@ -1,4 +1,4 @@
-import { uppercaseAmount } from '../core/index.js';
+import { fieldLabel, uppercaseAmount } from '../core/index.js';
 import { UNPRICED_TEXT } from '../business/index.js';
 /** Word、Excel 和页面预览共用的单据版式规则。只重排字段位置，不改字段内容。 */
 type LayoutForm = {
@@ -9,8 +9,14 @@ type LayoutForm = {
   sample?: boolean;
 };
 /** 单号、日期放右上角，我方资料放抬头下方，条款放明细之后，其余进客户/供应商信息格。 */
+/** 送货单抬头的日期：出库了印送货日期，待送货的印计划送货日期（栏目登记表的叫法） */
+export const deliveryDateLabels = {
+  shipped: fieldLabel('date', { record: 'delivery' }),
+  planned: fieldLabel('plannedDate', { record: 'delivery' }),
+};
 const numberKeys = ['采购单号', '送货单号'],
-  dateKeys = ['下单日期', '实际送货日期', '预计送货日期'],
+  // 订货单是给供应商看的，日期照旧写“下单日期”
+  dateKeys = ['下单日期', deliveryDateLabels.shipped, deliveryDateLabels.planned],
   ownKeys = ['我方联系人', '我方地址'],
   // 交货安排、对应采购单是合并订货单才有的，内容长短不定，放在明细后面的条款区（高度跟着内容走）
   termKeys = ['交货安排', '对应采购单', '交货要求', '验收要求', '付款条件', '税费说明'],
@@ -28,6 +34,13 @@ export function splitFields(form: LayoutForm) {
   return { number, date, own, terms, info };
 }
 type InfoItem = { k: string; v: string; slots: number };
+/**
+ * 信息格的键就是模板“隐藏字段”里存的字（document_template_settings 里存着，不能改），和印出来的字不一样的
+ * 在这里换成栏目登记表的叫法：送货单上的客户采购单号和明细列同一个叫法。
+ */
+const printedNames: Readonly<Record<string, string>> = { 客户采购订单号: fieldLabel('externalPurchaseOrder') };
+/** 信息格（和模板设置里勾选隐藏的那一项）印出来的名字 */
+export const printedInfoName = (key: string) => (Object.hasOwn(printedNames, key) ? printedNames[key] : key);
 /** 标准信息格由模板决定；缺少值仍保留位置，不随业务内容增减。 */
 export function templateInfoFields(
   kind: 'purchase' | 'delivery',
@@ -78,7 +91,7 @@ export function packInfo(info: [string, string][], perRow: number): InfoItem[][]
     }
   };
   for (const [k, v] of info) {
-    const item = { k, v, slots: Math.min(perRow, wideKeys.includes(k) ? 2 : 1) };
+    const item = { k: printedInfoName(k), v, slots: Math.min(perRow, wideKeys.includes(k) ? 2 : 1) };
     if (used > 0 && used + item.slots > perRow) deferred.push(item);
     else place(item);
   }

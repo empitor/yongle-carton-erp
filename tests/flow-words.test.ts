@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { flowStatusTone } from '../src/flow/FlowDetails.js';
-import { activeDoc, flowStatusChoices, flowStatusText, matchesFlowStatus } from '../shared/business/index.js';
+import { activeDoc, flowStatusChoices, flowStatusText, matchesFlowSaying, matchesFlowStatus } from '../shared/business/index.js';
 import { flowOverdue, shipDate } from '../src/flow/flow-dates.js';
 import { businessStatusTone as warehouseTone } from '../src/recordkit/record-meta.js';
 import { sumByUnit } from '../src/ui/quantity-sum.js';
@@ -46,6 +46,19 @@ test('单据状态筛选（matchesFlowStatus）：按界面叫法比，不认存
   assert.equal(matchesFlowStatus({ status: 'confirmed', deliveredAt: '2026-11-04' }, 'delivery', '已送达'), true);
   // 每个选项都有对得上的单据叫法，不出现“草稿”“冲销”
   for (const choices of Object.values(flowStatusChoices)) assert.ok(choices.every((s) => !/草稿|冲销/.test(s)));
+});
+
+test('人说的旧叫法（助手查记录）按存的状态认：已确认收货只算确认了的到货单，不算被更正掉的原单和完工单', () => {
+  assert.equal(matchesFlowSaying({ status: 'confirmed' }, 'arrival', '已确认收货'), true);
+  assert.equal(matchesFlowSaying({ status: 'reversed', replacedBy: 9 }, 'arrival', '已确认收货'), false);
+  assert.equal(matchesFlowSaying({ status: 'confirmed' }, 'production', '已确认收货'), false);
+  assert.equal(matchesFlowSaying({ status: 'confirmed' }, 'production', '已确认完工'), true);
+  assert.equal(matchesFlowSaying({ status: 'reversed', replacedBy: 9 }, 'production', '已确认完工'), false);
+  // 已冲销：撤销的和被更正替代的原单都算（以前就是这样）
+  assert.equal(matchesFlowSaying({ status: 'reversed', replacedBy: 9 }, 'arrival', '已冲销'), true);
+  assert.equal(matchesFlowSaying({ status: 'reversed' }, 'delivery', '已冲销'), true);
+  // 不是旧说法的交给界面叫法去比
+  assert.equal(matchesFlowSaying({ status: 'confirmed' }, 'arrival', '已入库'), undefined);
 });
 
 test('单据有效（activeDoc）：没归档、没取消、没撤销；没写状态的算有效', () => {

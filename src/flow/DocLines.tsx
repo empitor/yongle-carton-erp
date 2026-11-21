@@ -131,7 +131,7 @@ export function ArrivalLines({
             <tr>
               <th>纸板</th>
               <th className="num">实收</th>
-              <th className="num">合格 / 不合格 / 入库</th>
+              <th className="num">合格 / 拒收 / 入库</th>
               <th className="num">金额</th>
             </tr>
           </thead>

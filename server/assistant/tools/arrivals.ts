@@ -24,7 +24,7 @@ export const arrivalTools = [
   {
     name: 'arrival.records',
     risk: 'read',
-    description: '查到货记录（已登记的正式到货单）：采购逐行累计和剩余、合格/不合格/实际入库、库存流水、更正链和待核对差异。',
+    description: '查到货记录（已登记的正式到货单）：采购逐行累计和剩余、合格/拒收/入库、库存流水、更正链和待核对差异。',
     arguments: { purchaseId: '真实采购ID可省略', date: '业务日期可省略', receiptId: '真实到货记录键可省略' },
     schema: arrivalQuerySchema,
   },

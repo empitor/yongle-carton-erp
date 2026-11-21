@@ -37,7 +37,7 @@ const ledgerColumns: Col<SourceRow>[] = [
   col('status', '状态', { render: (r) => <FlowStatus row={r} /> }),
   col('due_date', '到期日', { render: (r) => r.due_date || '—', priority: 'low' }),
   // 没算进理论金额的照明细写缺的是什么：缺数量或单位、缺价格
-  col('amount', '金额 / 元', {
+  col('amount', '金额（元）', {
     money: true,
     render: (r) => (r.amount === null ? missingAmountName(r.detail) : yuan(r.amount)),
   }),

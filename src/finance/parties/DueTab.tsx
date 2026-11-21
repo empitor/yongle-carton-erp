@@ -45,7 +45,7 @@ const soonCols: Col<SoonRow>[] = [
   }),
   col('party_name', '往来单位', { wrap: true }),
   col('date', '单据日期'),
-  mon('balance', '金额 / 元'),
+  mon('balance', '金额（元）'),
 ];
 
 /** 到期提醒：接口不分应收应付，一次读够再按页签上的切换筛；已逾期的也列在这里。 */
@@ -143,7 +143,7 @@ const dueItemCols: Col<DueItem>[] = [
   col('party_name', '往来单位', { wrap: true }),
   col('date', '单据日期'),
   col('due_date', '到期日'),
-  mon('balance', '金额 / 元'),
+  mon('balance', '金额（元）'),
 ];
 
 /** 收付计划：资金预测本身要把收和付放在一起算；点一个月看到期明细，明细按应收 / 应付筛。 */

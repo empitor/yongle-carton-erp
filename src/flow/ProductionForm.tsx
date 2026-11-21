@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { FlowDocView } from '../../shared/business/index';
-import { FINISHED_UNIT, today } from '../../shared/core/index';
+import { FINISHED_UNIT, today, fieldLabel } from '../../shared/core/index';
 import { FormField, FormMessage, FormSection } from '../ui/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { AddRow } from './CorrectionParts';
@@ -110,13 +110,13 @@ export default function ProductionForm({
       </FormSection>
       <FormSection title="完成多少" columns={4}>
         <FormField label={'合格数量（' + FINISHED_UNIT + '）'} required>
-          <input aria-label="实际合格数量" inputMode="decimal" value={v.goodQuantity} onChange={(e) => change({ goodQuantity: e.currentTarget.value })} />
+          <input aria-label={fieldLabel('goodQuantity')} inputMode="decimal" value={v.goodQuantity} onChange={(e) => change({ goodQuantity: e.currentTarget.value })} />
         </FormField>
         <FormField label="报废数量" hint="和合格数量同一单位">
           <input aria-label="损耗报废数量" inputMode="decimal" value={v.scrapQuantity} onChange={(e) => change({ scrapQuantity: e.currentTarget.value })} />
         </FormField>
         <FormField label="机台操作" required>
-          <input aria-label="实际操作人员" value={v.operator} onChange={(e) => change({ operator: e.currentTarget.value })} />
+          <input aria-label={fieldLabel('operator')} value={v.operator} onChange={(e) => change({ operator: e.currentTarget.value })} />
         </FormField>
         <FormField label="完工日期" required>
           <input

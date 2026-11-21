@@ -71,14 +71,14 @@ test('数量改少：撤销原单、另出替代单，库存按净变化少 100�
   }
 });
 
-test('数量改多：不超订购数量可以，超了拦下；用掉一部分以后按净变化查库存', () => {
+test('数量改多：不超订货数量可以，超了拦下；用掉一部分以后按净变化查库存', () => {
   const f = fixture('800');
   try {
     f.correct(f.arrivalId, [{ index: 0, quantity: '950' }]);
     assert.equal(f.balance(), 950000);
     assert.equal(f.current().lines[0].receivedQuantity, '950');
     const second = f.effective();
-    assert.throws(() => f.correct(second.id, [{ index: 0, quantity: '1001' }]), /更正后累计到货超过采购订购数量。/);
+    assert.throws(() => f.correct(second.id, [{ index: 0, quantity: '1001' }]), /更正后累计到货超过采购的订货数量。/);
     // 后面的业务用掉 900 张，库里只剩 50 张
     f.use('900');
     assert.equal(f.balance(), 50000);
@@ -245,7 +245,7 @@ test('原来有不合格或没全入库的行：改数量要把合格、不合�
       const plan = planCorrection(f.store, id, v, clerk);
       return correctDocument(f.store, id, { ...v, previewDigest: plan.previewDigest, requestId: randomUUID() }, clerk);
     };
-    assert.throws(() => correct(arrival.id, { quantity: '4000' }), /同时明确/);
+    assert.throws(() => correct(arrival.id, { quantity: '4000' }), /请同时写清正确的验收合格数量、拒收数量和入库数量/);
     const result = correct(arrival.id, { quantity: '4000', acceptedQuantity: '3500', rejectedQuantity: '500', stockedQuantity: '3000' });
     assert.equal(result.stockImpact.find((s) => s.stockId === f.raw.id)?.delta, '-1000');
     assert.deepEqual(balances(), [3000000, 0]);

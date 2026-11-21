@@ -2,7 +2,7 @@ import { taxText } from '../../shared/business/index';
 import { canEditBusiness, useAuthState } from '../ui/index';
 import RelatedBusiness from './RelatedBusiness';
 import { Facts, Hint, Section } from '../ui/index';
-import { centsText, displayAmount } from '../../shared/core/index';
+import { centsText, displayAmount, fieldLabel } from '../../shared/core/index';
 import OrderLinesView, { ORDER_LINES_TITLE } from '../recordkit/OrderLinesView';
 import { useProductFamily } from '../recordkit/useProductFamily';
 import { useRecordContext } from '../recordkit/record-meta';
@@ -58,7 +58,7 @@ export default function OrderDetail({ row, related }: { row: OrderRow; related?:
             items={[
               { label: '客户', value: row.customerName },
               { label: '客户采购单号', value: row.externalPurchaseOrder },
-              { label: '订单日期', value: row.orderDate },
+              { label: fieldLabel('orderDate'), value: row.orderDate },
               { label: '交货日期', value: row.deliveryDate },
               {
                 label: '金额',

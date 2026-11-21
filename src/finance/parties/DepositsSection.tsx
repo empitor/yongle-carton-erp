@@ -16,7 +16,7 @@ const depositCols: Col<DepositRow>[] = [
   col('party_name', '往来单位', { wrap: true }),
   // 右侧详情打开时收说明，详情里有全文
   col('description', '说明', { wrap: true, priority: 'low' }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
   col('balance', '余额 / 元', {
     money: true,
     render: (r) => (r.voucher_state ? voucherStateNames[r.voucher_state] : yuan(r.balance)),
@@ -107,7 +107,7 @@ export default function DepositsSection({ kind }: { kind: Kind }) {
             },
             {
               name: 'amount',
-              label: '金额 / 元',
+              label: '金额（元）',
               type: 'money',
               required: true,
               section: '多少钱、走哪个账户',

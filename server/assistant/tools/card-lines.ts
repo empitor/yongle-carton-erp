@@ -1,7 +1,7 @@
 // 确认卡片上一行行字怎么写（card-summary.ts 用）：动的是哪条（叫法加单号或名称）、单据每行品名数量、
 // 库存从多少变成多少、订货单的到货安排和登记到货、新建记录的标题和一行摘要。
 import { flowDocNames, flowKinds, recordNames } from '../../../shared/business/index.js';
-import { quantityString } from '../../../shared/core/index.js';
+import { fieldLabel, fieldShort, quantityString } from '../../../shared/core/index.js';
 import { type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
 import { assistantModules, type Module } from './modules.js';
@@ -77,7 +77,7 @@ const scheduleText = (s: unknown) => {
 };
 /** 到货安排比前后用：每段的日期和数量 */
 const schedulePlan = (s: unknown) => JSON.stringify((asList(s) ?? []).map((e) => [field(e, 'dueDate'), field(e, 'quantity')]));
-/** 订货单两张卡片：每行的到货安排、已到多少前后；登记到货另写这次实到、不合格、入库、日期和送货单号 */
+/** 订货单两张卡片：每行的到货安排、已到多少前后；登记到货另写这次实到、拒收、入库、日期和供应商送货单号 */
 export function batchLines(plan: ToolPlan, before: Obj | undefined, after: Obj | undefined): Line[] {
   const out: Line[] = [];
   const oldRows = (asList(before?.rows) ?? []);
@@ -93,7 +93,7 @@ export function batchLines(plan: ToolPlan, before: Obj | undefined, after: Obj |
   if (input) out.push(...receivedLines(input, oldRows));
   return out;
 }
-/** 登记到货这一次：每行实到、不合格、入库（按行键或行号对回订货单的行），到货日期和送货单号 */
+/** 登记到货这一次：每行实到、拒收、入库（按行键或行号对回订货单的行），到货日期和供应商送货单号 */
 function receivedLines(input: unknown, oldRows: unknown[]): Line[] {
   const out: Line[] = [];
   for (const r of (asList(field(input, 'rows')) ?? [])) {
@@ -103,15 +103,18 @@ function receivedLines(input: unknown, oldRows: unknown[]): Line[] {
     const stocked = field(r, 'stockedQuantity');
     out.push({
       label: '本次到货' + (row ? '（' + field(row, 'name') + '）' : ''),
-      value: '实到 ' + field(r, 'quantity') + unit + '，不合格 ' + (field(r, 'rejectedQuantity') ?? '0') + unit + (stocked != null ? '，入库 ' + stocked + unit : ''),
+      value:
+        '实到 ' + field(r, 'quantity') + unit +
+        '，' + fieldShort('rejectedQuantity') + ' ' + (field(r, 'rejectedQuantity') ?? '0') + unit +
+        (stocked != null ? '，' + fieldShort('stockedQuantity') + ' ' + stocked + unit : ''),
     });
   }
-  if (field(input, 'date')) out.push({ label: '到货日期', value: String(field(input, 'date')) });
-  if (field(input, 'reference')) out.push({ label: '送货单号', value: String(field(input, 'reference')) });
+  if (field(input, 'date')) out.push({ label: fieldLabel('date', { record: 'arrival' }), value: String(field(input, 'date')) });
+  if (field(input, 'reference')) out.push({ label: fieldLabel('reference'), value: String(field(input, 'reference')) });
   return out;
 }
 
-/** 连带新建的单据一行里每行的摘要：品名、数量，到货另写不合格、入库 */
+/** 连带新建的单据一行里每行的摘要：品名、数量，到货另写拒收、入库 */
 function lineBrief(ctx: ToolContext, l: unknown, docUnit: unknown) {
   const unit = lineUnit(ctx, l, docUnit),
     u = unit ? ' ' + unit : '';
@@ -120,12 +123,12 @@ function lineBrief(ctx: ToolContext, l: unknown, docUnit: unknown) {
     rejected = field(l, 'rejectedQuantity'),
     stocked = field(l, 'stockedQuantity');
   const extra = [
-    rejected != null && Number(rejected) ? '不合格 ' + rejected + u : '',
+    rejected != null && Number(rejected) ? fieldShort('rejectedQuantity') + ' ' + rejected + u : '',
     stocked != null && stocked !== quantity ? '入库 ' + stocked + u : '',
   ].filter(Boolean);
   return name + ' ' + (quantity ?? field(l, 'goodQuantity') ?? '') + u + (extra.length ? '（' + extra.join('，') + '）' : '');
 }
-/** 连带新建的记录一行摘要：单据写每行品名和数量（到货另写不合格、入库），订货单写每行订了多少；档案只写名称 */
+/** 连带新建的记录一行摘要：单据写每行品名和数量（到货另写拒收、入库），订货单写每行订了多少；档案只写名称 */
 export function briefOf(ctx: ToolContext, module: string, row: Obj) {
   if (module === 'order_batch')
     return (asList(row.rows) ?? [])

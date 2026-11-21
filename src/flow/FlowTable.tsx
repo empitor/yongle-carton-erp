@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { planDate, type FlowDocView, type FlowKind } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, finishedUnit } from '../../shared/core/index';
+import { FINISHED_UNIT, RAW_UNIT, finishedUnit, fieldLabel } from '../../shared/core/index';
 import { DataTable, type Col } from '../ui/index';
 import { FlowStatus } from './FlowDetails';
 import { shipDate } from './flow-dates';
@@ -86,7 +86,7 @@ function flowCols(
       ? [
           {
             key: 'actual',
-            label: kind === 'task' ? '实际完工' : '实际发货',
+            label: kind === 'task' ? '实际完工' : fieldLabel('date', { record: 'delivery' }),
             priority: 'low',
             render: (r) => (kind === 'task' ? r.kind === 'task' && r.actualCompletionDate : shipDate(r)) || '—',
           } satisfies Col<FlowDocView>,

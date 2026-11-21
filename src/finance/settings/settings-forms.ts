@@ -42,11 +42,11 @@ export const auxiliaries: readonly Option<'customer' | 'supplier' | 'department'
 ];
 /** 小税种税率的几个字段：键和标签 */
 export const rateFields = [
-  ['smallVat', '小规模征收率 %'],
-  ['urban', '城建税率 %'],
-  ['education', '教育费附加率 %'],
-  ['localEducation', '地方教育附加率 %'],
-  ['income', '所得税率 %'],
+  ['smallVat', '小规模征收率（%）'],
+  ['urban', '城建税率（%）'],
+  ['education', '教育费附加率（%）'],
+  ['localEducation', '地方教育附加率（%）'],
+  ['income', '所得税率（%）'],
 ] as const;
 type RateKey = (typeof rateFields)[number][0];
 

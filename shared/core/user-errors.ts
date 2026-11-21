@@ -1,85 +1,9 @@
-const fieldNames: Record<string, string> = {
-  customerId: '客户',
-  supplierId: '供应商',
-  productId: '产品',
-  stockId: '库存品',
-  stockItemId: '库存品',
-  purchaseLineId: '采购明细',
-  orderLineId: '订单明细',
-  orderId: '订单',
-  orderIds: '关联订单',
-  id: '明细编号',
-  customerOrderId: '关联客户订单',
-  parentProductId: '附属于产品',
-  orderBatchId: '订货单',
-  sourceId: '来源文件',
-  productName: '产品名称',
-  specification: '规格',
-  requirements: '加工要求',
-  reference: '送货单号 / 批次',
-  supplierName: '供应方名称',
-  externalPurchaseOrder: '外部采购单号',
-  item: '纸板',
-  kind: '种类',
-  status: '状态',
-  date: '日期',
-  priceBasis: '计价方式',
-  acceptedQuantity: '验收合格数量',
-  rejectedQuantity: '拒收数量',
-  stockedQuantity: '入库数量',
-  allowOverdelivery: '允许超订单发货',
-  dimensionUnitRaw: '原文尺寸单位',
-  currency: '货币',
-  terms: '合同条件',
-  roundingPolicy: '金额结算',
-  costs: '预估成本',
-  processing: '加工成本',
-  waste: '损耗成本',
-  other: '其他成本',
-  basis: '估算依据',
-  lines: '明细',
-  materials: '领料',
-  taskId: '生产任务',
-  finishedStockId: '入库成品',
-  address: '收货地址',
-  contact: '联系人',
-  phone: '联系电话',
-  differenceReason: '差异原因',
-  overdeliveryReason: '超发原因',
-  statedQuantity: '单据数量',
-  statedArea: '单据面积',
-  orderDate: '下单日期',
-  deliveryDate: '交货日期',
-  expectedDate: '预计到货日期',
-  plannedDate: '计划日期',
-  plannedTime: '计划时间',
-  actualTime: '实际时间',
-  quantity: '数量',
-  issued: '领用数量',
-  returned: '退料数量',
-  // 和完工登记窗的叫法一致
-  goodQuantity: '合格数量',
-  scrapQuantity: '报废数量',
-  unit: '数量单位',
-  unitPriceExact: '单价',
-  unitPriceCents: '单价',
-  unitPrice: '单价',
-  priceExact: '参考单价',
-  priceCents: '参考单价',
-  dimensionUnit: '尺寸单位',
-  length: '长度',
-  width: '宽度',
-  height: '高度',
-  material: '材质配纸',
-  flute: '楞型',
-  name: '名称',
-  notes: '备注',
-  operator: '实际操作人员',
+import { fieldName } from './field-names.js';
+
+/** 不是业务栏目、只在报错里说的几个（业务栏目的叫法查栏目登记表 field-names.ts） */
+const systemFieldNames: Record<string, string> = {
   expectedVersion: '记录版本',
   version: '记录版本',
-  taxRate: '税率',
-  taxMode: '含税口径',
-  customerProductCode: '客户料号',
   requestId: '提交编号',
   acknowledged: '操作确认',
   // 登录、改密码、验证本人密码
@@ -91,13 +15,9 @@ const fieldNames: Record<string, string> = {
   expectedRevision: '版本',
   confirmed: '删除确认',
 };
-const costNames: Record<string, string> = {
-  material: '材料成本',
-  processing: '加工成本',
-  waste: '损耗成本',
-  other: '其他成本',
-  basis: '估算依据',
-};
+/** 预估成本里的几项：单独出现时（路径里没写上一层）也认 */
+const costKeys = new Set(['material', 'processing', 'waste', 'other', 'basis']);
+const costName = (key: string) => (costKeys.has(key) ? fieldName(key, { parent: 'costs' }) : undefined);
 /**
  * 校验路径里一段字段名的界面叫法。alone 为真时这个名字自己就说清了是哪一项（预估成本里的“加工成本”），
  * 不再带上一层的名字。数据管理按自己编辑窗的叫法另传一个（server/admin/data-management-service.ts）。
@@ -105,10 +25,23 @@ const costNames: Record<string, string> = {
 export type FieldNamer = (key: string, parent: string) => { label: string; alone?: boolean };
 /** 查叫法表：只认表里自己写的名字（toString、constructor 这类对象自带的不算，免得把函数源码拼进提示） */
 const nameIn = (table: Record<string, string>, key: string) => (Object.hasOwn(table, key) ? table[key] : undefined);
-const defaultNamer: FieldNamer = (key, parent) => {
-  const cost = parent === 'costs' ? nameIn(costNames, key) : undefined;
-  return cost ? { label: cost, alone: true } : { label: nameIn(fieldNames, key) || key };
-};
+/** 字段代码的叫法：业务栏目按登记表的基本叫法，再查系统字段 */
+const plainName = (key: string) => fieldName(key) ?? nameIn(systemFieldNames, key);
+/**
+ * 按栏目登记表说字段：知道是哪种记录（采购单、送货单……）时按那种记录的叫法（采购日期、收货地址），
+ * 明细一层按明细的叫法（本单名称、订货数量），不知道的按基本叫法。
+ */
+export const fieldNamer =
+  (record?: string): FieldNamer =>
+  (key, parent) => {
+    const cost = parent === 'costs' ? costName(key) : undefined;
+    if (cost) return { label: cost, alone: true };
+    // 上一层下面另起了名字的（纸板资料里的“纸板名称”），名字自己就说清了，不再接上一层的“纸板”
+    const nested = parent ? fieldName(key, { parent }) : undefined;
+    if (nested && nested !== fieldName(key)) return { label: fieldName(key, { record, parent }) ?? nested, alone: true };
+    return { label: fieldName(key, { record, parent }) ?? plainName(key) ?? costName(key) ?? key };
+  };
+const defaultNamer = fieldNamer();
 const isIndex = (segment: string) => /^\d+$/.test(segment);
 /**
  * 校验路径（lines.0.productId）→ 界面上的说法（明细第1项的产品）：
@@ -171,9 +104,9 @@ function plainText(message: string) {
       /\b(?:lines|items|materials|quantities)\.(\d+)\./g,
       (_, i) => '第' + (Number(i) + 1) + '项 ',
     )
-    // 预估成本里的几项按整条路径换名：material 单独出现时指“材质配纸”，在预估成本里是“材料成本”
-    .replace(/\bcosts\.(material|processing|waste|other|basis)\b/g, (_, key: string) => costNames[key])
-    .replace(/\b[A-Za-z][A-Za-z0-9_]*\b/g, (s) => nameIn(fieldNames, s) || s)
+    // 预估成本里的几项按整条路径换名：material 单独出现时指“材质 / 配纸”，在预估成本里是“材料成本”
+    .replace(/\bcosts\.(material|processing|waste|other|basis)\b/g, (s, key: string) => costName(key) || s)
+    .replace(/\b[A-Za-z][A-Za-z0-9_]*\b/g, (s) => plainName(s) || costName(s) || s)
     // 选择项（客户、订单明细、库存品……）没选时值是 null
     .replace(/Invalid input: expected number, received null/g, '还没选')
     .replace(

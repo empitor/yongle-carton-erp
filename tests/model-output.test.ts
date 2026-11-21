@@ -51,7 +51,7 @@ test('识别的表就是工具参数：栏目用界面上的中文叫法，表�
       }),
     })
     .parse(tool.parameters).properties.lines.items.properties;
-  assert.match(line.unitPrice.description, /^单价（原币）/);
+  assert.match(line.unitPrice.description, /^单价（元）/);
   assert.match(line.quantity.description, /^数量/);
   assert.equal(JSON.stringify(tool).includes('certainty'), false);
   assert.equal(JSON.stringify(receiptFormTool()).includes('certainty'), false);

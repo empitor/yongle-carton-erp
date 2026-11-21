@@ -1,4 +1,5 @@
-import { RAW_UNIT, convertDimension, type DimensionUnit } from '../../shared/core/index';
+import { RAW_UNIT, convertDimension, dimensionUnitNames, fieldLabel, fieldShort, fieldTitle, priceBases, priceBasisNames } from '../../shared/core/index';
+import type { DimensionUnit, FieldKey } from '../../shared/core/index';
 import { specLine } from '../../shared/business/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { FormField, RowDelete } from '../ui/index';
@@ -11,10 +12,13 @@ import type { ArrivalEditLine } from './flow-prefill';
 type StockItem = CatalogLists['items'][number];
 type Item = ArrivalEditLine['item'];
 
+/** 到货明细一层、纸板资料一层的栏目叫法（实到数量、纸板名称、纸板备注……，栏目登记表） */
+const arrivalLine = { record: 'arrival', parent: 'lines' };
+const sheet = (key: FieldKey) => fieldLabel(key, { parent: 'item' });
 /** 尺寸单位下拉的取值：未确认是空串 */
 const dimensionUnitOf = (value: string): DimensionUnit | null => (value === 'mm' || value === 'cm' ? value : null);
 
-/** 一行纸板的资料：入哪个库存、名称、材质、楞型、长宽和尺寸单位（换单位时长宽跟着换算）、规格说明 */
+/** 一行纸板的资料：入哪个库存、名称、材质、楞型、长宽和尺寸单位（换单位时长宽跟着换算）、规格 */
 function BoardFields({
   l,
   raw,
@@ -44,14 +48,14 @@ function BoardFields({
           patch({ stockId, ...(s ? { item: { ...s, unit: RAW_UNIT } } : {}) });
         }}
       />
-      <FormField label="纸板名称" required span={2}>
-        <input aria-label="纸板名称" value={l.item.name} onChange={(e) => item({ name: e.target.value })} />
+      <FormField label={sheet('name')} required span={2}>
+        <input aria-label={sheet('name')} value={l.item.name} onChange={(e) => item({ name: e.target.value })} />
       </FormField>
-      <FormField label="材质 / 配纸">
-        <input aria-label="材质 / 配纸" value={l.item.material} onChange={(e) => item({ material: e.target.value })} />
+      <FormField label={fieldLabel('material')}>
+        <input aria-label={fieldLabel('material')} value={l.item.material} onChange={(e) => item({ material: e.target.value })} />
       </FormField>
-      <FormField label="楞型">
-        <input aria-label="楞型" value={l.item.flute} onChange={(e) => item({ flute: e.target.value })} />
+      <FormField label={fieldLabel('flute')}>
+        <input aria-label={fieldLabel('flute')} value={l.item.flute} onChange={(e) => item({ flute: e.target.value })} />
       </FormField>
       <FormField label={'长' + unitText}>
         <input
@@ -90,13 +94,13 @@ function BoardFields({
           }}
         >
           <option value="">未确认</option>
-          <option value="mm">毫米</option>
-          <option value="cm">厘米</option>
+          <option value="mm">{dimensionUnitNames.mm}</option>
+          <option value="cm">{dimensionUnitNames.cm}</option>
         </select>
       </FormField>
-      <FormField label="规格说明">
+      <FormField label={fieldLabel('specification')}>
         <input
-          aria-label="规格说明"
+          aria-label={fieldLabel('specification')}
           value={l.item.specification || ''}
           onChange={(e) => item({ specification: e.target.value })}
         />
@@ -105,11 +109,11 @@ function BoardFields({
   );
 }
 
-/** 一行纸板的数量和金额：实到（合格、入库还是默认时跟着改）、合格、不合格、入库、计价方式、单价、差异原因 */
+/** 一行纸板的数量和金额：实到（合格、入库还是默认时跟着改）、合格、拒收、入库、计价方式、单价、差异原因 */
 function CountFields({ l, patch }: { l: ArrivalEditLine; patch: (p: Partial<ArrivalEditLine>) => void }) {
   return (
     <>
-      <FormField label="实到数量（张）" required>
+      <FormField label={fieldLabel('quantity', arrivalLine) + '（' + RAW_UNIT + '）'} required>
         <input
           aria-label="本批实际到货数量"
           inputMode="numeric"
@@ -124,39 +128,42 @@ function CountFields({ l, patch }: { l: ArrivalEditLine; patch: (p: Partial<Arri
           }
         />
       </FormField>
-      <FormField label="合格" hint="空着就是全部合格">
+      <FormField label={fieldShort('acceptedQuantity')} hint="空着就是全部合格">
         <input
-          aria-label="验收合格数量"
+          aria-label={fieldLabel('acceptedQuantity')}
           inputMode="decimal"
           value={l.acceptedQuantity ?? ''}
           onChange={(e) => patch({ acceptedQuantity: e.target.value || null })}
         />
       </FormField>
-      <FormField label="不合格" hint="空着按实到减合格">
+      <FormField label={fieldShort('rejectedQuantity')} hint="空着按实到减合格">
         <input
-          aria-label="不合格数量"
+          aria-label={fieldLabel('rejectedQuantity')}
           inputMode="decimal"
           value={l.rejectedQuantity ?? ''}
           onChange={(e) => patch({ rejectedQuantity: e.target.value || null })}
         />
       </FormField>
-      <FormField label="入库" hint="空着就是合格数">
+      <FormField label={fieldShort('stockedQuantity')} hint="空着就是合格数">
         <input
-          aria-label="实际入库数量"
+          aria-label={fieldLabel('stockedQuantity')}
           inputMode="decimal"
           value={l.stockedQuantity ?? ''}
           onChange={(e) => patch({ stockedQuantity: e.target.value || null })}
         />
       </FormField>
-      <FormField label="计价方式">
+      <FormField label={fieldLabel('priceBasis')}>
         <select
-          aria-label="计价方式"
+          aria-label={fieldLabel('priceBasis')}
           value={l.priceBasis || ''}
           onChange={(e) => patch({ priceBasis: e.target.value || null })}
         >
           <option value="">待确认</option>
-          <option value="area">按平方米</option>
-          <option value="quantity">按张</option>
+          {priceBases.map((b) => (
+            <option key={b} value={b}>
+              {priceBasisNames[b]}
+            </option>
+          ))}
         </select>
       </FormField>
       <FormField label={'单价' + (l.priceBasis ? '（元/' + (l.priceBasis === 'area' ? 'm²' : '张') + '）' : '')}>
@@ -215,22 +222,22 @@ export default function ArrivalLineCard({
       <details className="line-card-more">
         <summary>送货单上的标注和纸板备注</summary>
         <div className="ed-grid cols-4">
-          <FormField label="标注张数">
+          <FormField label={fieldLabel('statedQuantity')}>
             <input
               aria-label="送货单标注张数"
               value={l.statedQuantity ?? ''}
               onChange={(e) => patch({ statedQuantity: e.target.value || null })}
             />
           </FormField>
-          <FormField label="标注面积（m²）">
+          <FormField label={fieldTitle('statedArea')}>
             <input
               aria-label="送货单标注面积"
               value={l.statedArea ?? ''}
               onChange={(e) => patch({ statedArea: e.target.value || null })}
             />
           </FormField>
-          <FormField label="纸板备注" span={2}>
-            <input aria-label="纸板备注" value={l.item.notes || ''} onChange={(e) => item({ notes: e.target.value })} />
+          <FormField label={sheet('notes')} span={2}>
+            <input aria-label={sheet('notes')} value={l.item.notes || ''} onChange={(e) => item({ notes: e.target.value })} />
           </FormField>
         </div>
       </details>

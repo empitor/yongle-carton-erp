@@ -2,7 +2,7 @@ import { useRef, type RefObject } from 'react';
 import { ManagementDialog } from '../ui/index';
 import { MenuItem, MoreMenu } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
-import { today } from '../../shared/core/index';
+import { today, fieldLabel } from '../../shared/core/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { finishedStockByProduct } from '../recordkit/stock-lookup';
 import {
@@ -182,7 +182,7 @@ function WhenWho({ b }: { b: ProductionBatch }) {
       <FormField label="机台操作" required>
         <input
           required
-          aria-label="实际操作人员"
+          aria-label={fieldLabel('operator')}
           maxLength={100}
           value={b.operator}
           onChange={(e) => {

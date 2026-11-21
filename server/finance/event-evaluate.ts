@@ -132,7 +132,7 @@ function lineValue(context: LineContext, line: FinanceSourceLine, index: number)
   if (context.kind === 'arrival' && line.stockedQuantity != null) {
     const stockedUnits = quantityUnits(line.stockedQuantity);
     if ([line.quantity, line.acceptedQuantity].some((v) => v != null && quantityUnits(v) !== stockedUnits))
-      context.warnings.push('第 ' + (index + 1) + ' 行实收、合格或入库数量不一致，已按实际入库计价。');
+      context.warnings.push('第 ' + (index + 1) + ' 行实到、合格或入库数量不一致，已按入库数量计价。');
     if (stockedUnits === 0) return { exact: '0', mode: '未税', rate: '0' };
   }
   // 逐行金额和经营概况同一处算（shared/business 的 document-value.ts）

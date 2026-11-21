@@ -29,7 +29,7 @@ export type OrderSaveContext = OrderContext & {
   order(id: number, includeArchived?: boolean): Order | undefined;
 };
 
-/** 订单头的一行：状态、金额规则、币种按订单录入规则的同一个取值校验（建表也有同样的 CHECK） */
+/** 订单头的一行：状态、金额结算、币种按订单录入规则的同一个取值校验（建表也有同样的 CHECK） */
 const orderRow = rows.orders.extend({
   status: z.enum(statuses),
   rounding_policy: orderSchema.shape.roundingPolicy.unwrap().nullable(),

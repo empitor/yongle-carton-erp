@@ -1,5 +1,8 @@
 import { z } from 'zod';
+import { fieldLabel } from './field-names.js';
 export type DimensionUnit = 'mm' | 'cm';
+/** 尺寸单位的叫法：选择、说单位本身时写全“毫米（mm）”；跟在尺寸数值后面照旧写 mm、cm */
+export const dimensionUnitNames: Record<DimensionUnit, string> = { mm: '毫米（mm）', cm: '厘米（cm）' };
 /** 规格字段：规格说明、长宽高和尺寸单位、材质、楞型（都可以没写）。产品、纸板、订货单行、查重都用这一组。 */
 export type SpecFields = {
   specification?: string | null;
@@ -113,14 +116,8 @@ export function productNotices(
   for (const p of products) {
     const name = p.name?.trim() || '未命名产品',
       g = groups.get(name) || { missing: new Set<string>(), unknown: false };
-    for (const [k, label] of [
-      ['length', '长'],
-      ['width', '宽'],
-      ['height', '高'],
-      ['material', '材质'],
-      ['flute', '楞型'],
-    ] as const)
-      if (p[k] === null || p[k] === undefined || p[k] === '') g.missing.add(label);
+    for (const k of ['length', 'width', 'height', 'material', 'flute'] as const)
+      if (p[k] === null || p[k] === undefined || p[k] === '') g.missing.add(fieldLabel(k));
     if (!normalizeDimensionUnit(p.dimensionUnit)) g.unknown = true;
     groups.set(name, g);
   }

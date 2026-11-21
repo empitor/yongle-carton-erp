@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z, ZodError } from 'zod';
-import { KIB, MIB, userError } from '../shared/core/index.js';
+import { KIB, MIB, fieldNamer, isRecordKind, userError } from '../shared/core/index.js';
 import { AppError, ConflictError, InputError, constraintFailure } from './core/index.js';
 import { BusinessAccessError } from './business/index.js';
 
@@ -15,6 +15,17 @@ const appErrorExtras = (error: AppError) => ({
 });
 
 /**
+ * 校验没过的是哪种记录：路由记下的（办一张单据时按它的种类，登记到货是到货单：res.locals.fieldRecord），
+ * 再看地址里写着的（/purchases、/flow/delivery）；报错按那种记录的栏目叫法说（采购单的日期叫“采购日期”）。
+ * 说不出的按栏目的基本叫法。
+ */
+function recordOf(req: Request, res: Response) {
+  const noted: unknown = res.locals.fieldRecord;
+  if (typeof noted === 'string' && isRecordKind(noted)) return noted;
+  return req.path.split('/').find(isRecordKind);
+}
+
+/**
  * 全站的出错回答（原来写在 server/app.ts）：校验没过、版本冲突、没有权限、不存在、业务上可预期的失败（AppError，
  * 带 details 的一并回给页面，比如撞上已有库存品时的编号、财务报表还缺的信息）、JSON 格式、太大、数据库约束；
  * 别的错误只回一句中文，原文写进服务端日志。
@@ -22,7 +33,8 @@ const appErrorExtras = (error: AppError) => ({
 export function apiErrorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
   // 留给最近出错的记录（server/core/diagnostics/request-recorder.ts）：5xx 时取堆栈前 5 行和原因摘要
   res.locals.failure = error;
-  if (error instanceof ZodError)
+  if (error instanceof ZodError) {
+    const namer = fieldNamer(recordOf(req, res));
     return res
       .status(400)
       // 全站一个写法：按界面叫法的中文整句（“明细第1项的产品：请选择产品”），见 shared/core/user-errors.ts；同一句只说一次
@@ -31,11 +43,12 @@ export function apiErrorHandler(error: unknown, req: Request, res: Response, _ne
         message: [
           ...new Set(
             error.issues.map((i) =>
-              i.code === 'unrecognized_keys' ? '提交的内容里有不认识的字段' : userError(i.path.join('.') + ': ' + i.message),
+              i.code === 'unrecognized_keys' ? '提交的内容里有不认识的字段' : userError(i.path.join('.') + ': ' + i.message, namer),
             ),
           ),
         ].join('；'),
       });
+  }
   if (error instanceof ConflictError) return res.status(409).json({ message: error.message });
   if (error instanceof BusinessAccessError) return res.status(403).json({ message: error.message });
   if (error instanceof InputError) return res.status(400).json({ message: error.message });

@@ -28,7 +28,7 @@ const readinessCols: Col<ReadinessRow>[] = [
   }),
   col('number', '单号', { render: (r) => r.number || r.source_id }),
   col('problem', '说明', { wrap: true }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
 ];
 
 /**
@@ -152,7 +152,7 @@ const cashflowCols: Col<CashflowLine>[] = [
   }),
   col('item', '项目', { render: (r) => r.item || '未填' }),
   col('account_code', '科目'),
-  mon('amount', '金额 / 元'),
+  mon('amount', '金额（元）'),
 ];
 
 function CashflowSheet({ data }: { data: CashflowReport }) {

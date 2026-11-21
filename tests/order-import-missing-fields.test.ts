@@ -206,7 +206,7 @@ test('新建和已有档案都在预览前汇总所有缺项和错误，不重�
       const check = standardOrderDraft(f.store, w);
       assert.ok(check, '有标准订单的核对结果');
       const issues = check.issues;
-      for (const label of ['币种', '订单日期', '交货日期', '数量', '单价', '数量单位'])
+      for (const label of ['币种', '下单日期', '交货日期', '数量', '单价', '数量单位'])
         assert.ok(issues.join('；').includes(label), label + ':' + issues.join('；'));
       assert.equal(new Set(issues).size, issues.length);
     }

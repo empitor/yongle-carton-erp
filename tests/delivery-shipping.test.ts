@@ -72,13 +72,13 @@ test('确认送达：不填日期按北京时间记今天，不能晚于今天�
   assert.throws(() => f.flow.markDelivered(other.id, { version: f.flow.get(other.id).version }, actor), /只有已出库的送货单能确认送达/);
 });
 
-test('送货发错发重了：普通业务账号（不进超级管理员模式）也能撤销，库存加回、订单已发减回，单据保留为已冲销', (t) => {
+test('送货发错发重了：普通业务账号（不进超级管理员模式）也能撤销，库存加回、订单已发减回，单据保留为已撤销', (t) => {
   const f = deliverySetup(t);
   const shipped = f.ship(f.delivery.id);
   assert.equal(f.store.order(f.order.id)?.lines[0].remainingQuantity, 400);
   assert.throws(() => f.flow.reverse(f.delivery.id, { version: shipped.version, reason: '', acknowledged: true }, actor), '要写原因');
   const undone = f.flow.reverse(f.delivery.id, { version: shipped.version, reason: '虚构：同一批货发了两次', acknowledged: true }, actor);
-  assert.deepEqual([undone.status, undone.reversal?.reason, flowStatusLabel(undone)], ['reversed', '虚构：同一批货发了两次', '已冲销']);
+  assert.deepEqual([undone.status, undone.reversal?.reason, flowStatusLabel(undone)], ['reversed', '虚构：同一批货发了两次', '已撤销']);
   assert.equal(f.balance(), 1000_000, '库存加回');
   assert.equal(f.store.order(f.order.id)?.lines[0].remainingQuantity, 1000, '订单已发减回');
   const trail = oneRow(f.store.db, rows.business_audit.pick({ source: true }), "SELECT source FROM business_audit WHERE action='reverse'");

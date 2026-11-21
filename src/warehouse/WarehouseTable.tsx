@@ -11,6 +11,7 @@ import {
   type WarehouseKind,
   type WarehouseRow,
 } from './warehouse-list';
+import { fieldLabel } from '../../shared/core/index';
 
 type Props = {
   kind: WarehouseKind;
@@ -115,7 +116,7 @@ function warehouseCols(
           } satisfies Col<WarehouseRow>,
         ]
       : []),
-    { key: 'actual', label: kind === 'arrival' ? '实际到货' : '实际发货', render: (r) => actualOf(kind, r) || '—' },
+    { key: 'actual', label: kind === 'arrival' ? '实际到货' : fieldLabel('date', { record: 'delivery' }), render: (r) => actualOf(kind, r) || '—' },
     {
       key: 'status',
       label: '状态',

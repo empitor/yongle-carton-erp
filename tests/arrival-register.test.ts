@@ -90,7 +90,7 @@ test('不重复登记：同一请求原样返回、换内容被拒；旧版本�
       { quantity: '100', rejectedQuantity: '120' },
       { quantity: '100', rejectedQuantity: '10', stockedQuantity: '100' },
     ]) {
-      assert.throws(() => f.receive([row], '虚构验收错'), /不合格数量不能超过本次实到数量|实际入库数量不能超过合格数量/);
+      assert.throws(() => f.receive([row], '虚构验收错'), /拒收数量不能超过本次实到数量|入库数量不能超过验收合格数量/);
       assert.deepEqual([f.arrivals().length, f.moves().length], [0, 0]);
     }
     const input = f.input('5000', 'dh-唯一批次'),
@@ -277,7 +277,7 @@ test('纸板按整张：到货填小数张、验收数带小数张、合格加�
     );
     assert.throws(
       () => looseArrival(f, line({ quantity: '10', acceptedQuantity: '6', rejectedQuantity: '3' })),
-      /验收合格与不合格数量之和必须等于本批实际到货数量。/,
+      /验收合格数量与拒收数量之和必须等于实到数量。/,
     );
     assert.deepEqual([f.arrivals().length, f.balance()], [0, 0]);
   } finally {

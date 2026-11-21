@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { PRICE_DECIMALS, RAW_UNIT, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
-import { chosenId, dateSchema, exactPriceSchema, customerSchema } from '../core/index.js';
+import { chosenId, dateSchema, exactPriceSchema, customerSchema, fieldLabel } from '../core/index.js';
 import { cmLimitIssue, dimensionUnitSchema, priceBases, dimensionValueSchema, specification, withinCmLimit } from '../core/index.js';
 import { MONEY_DECIMALS, NOTE_MAX_LENGTH, SQUARE_METRE_SHIFT, UNIT_MAX_LENGTH } from './limits.js';
 /** 楞型最多多少字 */
@@ -20,6 +20,8 @@ export const purchaseStatuses = ['待订货', '已订货', '部分到货', '全�
 export const purchaseBusinessStatuses = ['待订货', '已订货', '已取消'] as const;
 export const arrivalProgresses = ['未到货', '部分到货', '全部到货'] as const;
 export const stockKinds = ['raw', 'finished'] as const;
+/** 库存品种类的叫法（下拉、修改历史、选择器小字都用这一份；仓库和页面另叫“原材料库存”“成品库存”） */
+export const stockKindNames: Record<(typeof stockKinds)[number], string> = { raw: '原材料', finished: '成品' };
 export function lineMoney(quantity: string, price: string | null) {
   if (price === null) return null;
   const [a, b = ''] = price.split('.');
@@ -102,7 +104,7 @@ export const purchaseLineSchema = z
     id: z.number().int().positive().optional(),
     stockItemId: optionalId('库存品'),
     /** 这一行是给哪张客户订单订的料；不填就跟单头的关联订单走。一张采购单可以给几张订单订料。 */
-    customerOrderId: optionalId('客户订单'),
+    customerOrderId: optionalId(fieldLabel('customerOrderId')),
     quantity: positiveQuantity,
     // 计价方式不默认（用户定的）：没说就不让建，按张、按平方米算出来的钱差得多，留给人选
     // 提示前面会带上栏目名（“明细第1项的计价方式：请选择按平方米还是按张”），这里不再写“计价方式”
@@ -130,7 +132,7 @@ export const purchaseLineDocumentSchema = z
 export const purchaseSchema = z
   .object({
     supplierId: chosenId('供应商'),
-    customerOrderId: optionalId('客户订单'),
+    customerOrderId: optionalId(fieldLabel('customerOrderId')),
     orderDate: dateSchema,
     expectedDate: nullableDate,
     status: z.enum(purchaseBusinessStatuses, { error: '请选择采购单状态' }),
@@ -148,7 +150,7 @@ export const movementSchema = z.strictObject({
   quantity: quantityText,
   date: dateSchema,
   notes: z.string().trim().min(1, '请填写出入库用途或盘点原因').max(1000),
-  customerOrderId: optionalId('客户订单'),
+  customerOrderId: optionalId(fieldLabel('customerOrderId')),
   acknowledged: z.literal(true),
 });
 export function formatStockSize(v: {

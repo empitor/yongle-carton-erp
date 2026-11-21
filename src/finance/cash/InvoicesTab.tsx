@@ -71,7 +71,7 @@ function InvoiceDialog({
         },
         { name: 'taxId', label: '税号', section: '哪张发票' },
         { name: 'net', label: '不含税 / 元', type: 'money', required: true, section: '票面金额' },
-        { name: 'rate', label: '税率 %', required: true, section: '票面金额' },
+        { name: 'rate', label: '税率（%）', required: true, section: '票面金额' },
         { name: 'tax', label: '税额 / 元', type: 'money', required: true, section: '票面金额' },
         { name: 'gross', label: '价税合计 / 元', type: 'money', required: true, section: '票面金额' },
         {

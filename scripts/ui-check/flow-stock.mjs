@@ -58,9 +58,9 @@ await step('按采购单登记到货', async () => {
   await page.goto(BASE + '#purchases?record=' + purchase.id);
   await panel().getByRole('button', { name: '登记到货', exact: true }).click();
   await dialog().waitFor();
-  // 到了 580 张、其中 10 张不合格：合格的 570 张入库，还差 20 张继续待到货
+  // 到了 580 张、其中拒收 10 张：合格的 570 张入库，还差 20 张继续待到货
   await dialog().getByLabel(/本次实到$/).first().fill('580');
-  await dialog().getByLabel(/不合格$/).first().fill('10');
+  await dialog().getByLabel(/拒收$/).first().fill('10');
   await dialog().getByLabel('供应商送货单号').fill('GYS-虚构-' + Date.now());
   await shot('登记到货');
   await dialog().getByRole('button', { name: '登记到货', exact: true }).click();

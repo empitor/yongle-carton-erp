@@ -8,6 +8,7 @@ import { toScheduleEntries } from '../../shared/business/index.js';
 import { today } from '../../shared/core/index.js';
 import {
   batchPreviewSchema,
+  deliveryDateLabels,
   documentExportSchema,
   previewFileSchema,
   type BusinessForm,
@@ -57,7 +58,7 @@ export class BusinessDocuments {
   ) {}
   /**
    * shipping：待送货的送货单按“导出并出库”来印（预览和正式导出都用）：
-   * 导出就是出库，纸上印今天出库的实际送货日期，和出库后系统里记的一样，不是当初安排的日子。
+   * 导出就是出库，纸上印今天出库的送货日期，和出库后系统里记的一样，不是当初安排的日子。
    * shipDate：正式导出时定下印在纸上的那一天，记进导出记录，交付完成出库时就按这一天出库。
    */
   form<K extends DocumentKind>(
@@ -69,7 +70,7 @@ export class BusinessDocuments {
     const result = templated(this.store, kind, rawForms[kind](this.store, id), templateId);
     if (options.shipping && kind === 'delivery' && result.record.status === 'draft')
       result.form.fields = result.form.fields.map(([label, value]) =>
-        label === '预计送货日期' ? ['实际送货日期', options.shipDate ?? today()] : [label, value],
+        label === deliveryDateLabels.planned ? [deliveryDateLabels.shipped, options.shipDate ?? today()] : [label, value],
       );
     return result;
   }
@@ -111,7 +112,7 @@ export class BusinessDocuments {
       digest = hash(JSON.stringify({ v, actor: actor.id }));
     const prior = this.replayed(v.requestId, digest, actor);
     if (prior) return prior;
-    // 导出并出库：纸上的“实际送货日期”这里定下来，记进导出记录，交付完成时按这一天出库
+    // 导出并出库：纸上的“送货日期”这里定下来，记进导出记录，交付完成时按这一天出库
     const shipDate = v.markShipped ? today() : undefined;
     const built = this.build(v, shipDate);
     checkBeforeRender(this.store, v, built, actor);
@@ -160,7 +161,7 @@ export class BusinessDocuments {
         templateId: form.templateId,
         templateRevision: form.templateRevision,
         batchNumber,
-        // 纸上印的实际送货日期（待送货的导出出库时才有）；交付完成出库就按这一天
+        // 纸上印的送货日期（待送货的导出出库时才有）；交付完成出库就按这一天
         shipDate: v.markShipped && record.status === 'draft' ? (done.shipDate ?? null) : null,
         options: exportOptions(v, built),
         templateSnapshot: form.templateSnapshot,

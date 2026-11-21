@@ -1,5 +1,5 @@
 import { formatStockSize, specLine } from '../../shared/business/index';
-import { priceBases, quantityString, RAW_UNIT } from '../../shared/core/index';
+import { priceBases, priceBasisNames, quantityString, RAW_UNIT } from '../../shared/core/index';
 import { FormField, FormSection, RowDelete } from '../ui/index';
 import type { readCatalog } from '../recordkit/catalog-api';
 import { AddRow } from './CorrectionParts';
@@ -9,9 +9,8 @@ import { newCorrectionRow, type CorrectionHead, type CorrectionRow, type PriceBa
 
 /** 管理员这一栏要对照的档案：供应商、原材料库存品、采购单 */
 export type AdminCatalog = Awaited<ReturnType<typeof readCatalog<'suppliers' | 'items' | 'purchases'>>>;
-/** 计价方式下拉：和到货明细的计价方式同一组取值 */
-const priceBasisLabels: Record<PriceBasis, string> = { area: '按平方米', quantity: '按张' };
-const priceBasisOptions = priceBases.map((b) => [b, priceBasisLabels[b]] as const);
+/** 计价方式下拉：和到货明细的计价方式同一组取值、同一套叫法 */
+const priceBasisOptions = priceBases.map((b): readonly [PriceBasis, string] => [b, priceBasisNames[b]]);
 const priceBasisOf = (value: string) => priceBasisOptions.find(([v]) => v === value)?.[0] ?? null;
 
 /**

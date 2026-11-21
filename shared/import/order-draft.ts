@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ImportMapping, MappingInvalidations } from './import-mapping.js';
 import type { PromptPresetUsage } from '../ai/index.js';
+import { fieldLabel, fieldTitle, unitLabel } from '../core/index.js';
 
 /** 原件的格式（按扩展名和文件头认出来的）；本机不解析文件内容 */
 export type ParsedFile = {
@@ -42,32 +43,36 @@ export const lineFields = [
 ] as const;
 export type HeaderField = (typeof headerFields)[number];
 export type LineField = (typeof lineFields)[number];
+/**
+ * 识别结果表的栏目名：和订单同一栏目的用栏目登记表的叫法（shared/core/field-names.ts），
+ * 只有识别表才有的几栏（采购方、原文合计、原文行金额）写在这里。
+ */
 export const fieldLabels: Record<HeaderField | LineField, string> = {
   buyerName: '采购方／客户',
-  supplierName: '供应方',
-  purchaseOrderNumber: '客户采购订单号',
-  orderDate: '订单日期',
-  deliveryDate: '交货日期',
-  currency: '币种',
-  taxRate: '税率（%）',
-  taxMode: '含税／未税',
-  notes: '备注',
-  terms: '合同条件',
+  supplierName: fieldLabel('supplierName'),
+  purchaseOrderNumber: fieldLabel('externalPurchaseOrder'),
+  orderDate: fieldLabel('orderDate'),
+  deliveryDate: fieldLabel('deliveryDate'),
+  currency: fieldLabel('currency'),
+  taxRate: unitLabel(fieldLabel('taxRate'), '%'),
+  taxMode: fieldLabel('taxMode'),
+  notes: fieldLabel('notes'),
+  terms: fieldLabel('terms'),
   statedTotalQuantity: '原文数量合计',
   statedTotalAmount: '原文金额合计',
-  productName: '产品名称',
-  productCode: '客户物料编码',
-  specification: '规格型号',
-  length: '长',
-  width: '宽',
-  height: '高',
-  dimensionUnit: '尺寸单位',
-  material: '材质／配纸',
-  flute: '楞型',
-  requirements: '加工要求',
-  quantity: '数量',
-  unit: '数量单位',
-  unitPrice: '单价（原币）',
+  productName: fieldLabel('productName'),
+  productCode: fieldLabel('customerProductCode'),
+  specification: fieldLabel('specification'),
+  length: fieldLabel('length'),
+  width: fieldLabel('width'),
+  height: fieldLabel('height'),
+  dimensionUnit: fieldLabel('dimensionUnit'),
+  material: fieldLabel('material'),
+  flute: fieldLabel('flute'),
+  requirements: fieldLabel('requirements'),
+  quantity: fieldLabel('quantity'),
+  unit: fieldLabel('unit'),
+  unitPrice: fieldTitle('unitPrice') ?? fieldLabel('unitPrice'),
   statedAmount: '原文行金额',
 };
 /** 识别结果一格最多多少字（识别表交回、改格子都按它截或拦） */

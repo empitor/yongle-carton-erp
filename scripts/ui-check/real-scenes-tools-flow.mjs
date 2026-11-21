@@ -32,7 +32,7 @@ export const scenes = [
   S({ id: 'W6', title: '合并订货单先看样子', look: '合并后的行、到货安排', turns: [(ctx) => `采购单 ${ctx.vars.p.number} 要发给供应商，先看看订货单合并后是什么样子`], expect: { tools: ['order_batch.draft'], writes: false },
     setup: async (ctx) => ({ p: await purchase(ctx, (p) => p.baseStatus === '待订货') }) }),
   S({ id: 'W7', title: '没到齐的订货单', look: '列出待到货、逾期的', turns: ['现在有哪些订货单还没到齐？哪些已经逾期了？'], expect: { tools: ['order_batch.list'], writes: false } }),
-  S({ id: 'W8', title: '一份订货单到了多少', look: '订购、已到、还差', turns: [(ctx) => `采购单 ${ctx.vars.p.number} 那份订货单现在到了多少、还差多少？`], expect: { tools: ['order_batch.get'], writes: false }, setup: async (ctx) => ({ p: await purchase(ctx, openPurchase) }) }),
+  S({ id: 'W8', title: '一份订货单到了多少', look: '订货、已到、还差', turns: [(ctx) => `采购单 ${ctx.vars.p.number} 那份订货单现在到了多少、还差多少？`], expect: { tools: ['order_batch.get'], writes: false }, setup: async (ctx) => ({ p: await purchase(ctx, openPurchase) }) }),
   S({ id: 'W9a', title: '改到货安排（说清了）', look: '到货安排改成那天前全到', turns: [{ say: (ctx) => `采购单 ${ctx.vars.p.number} 那份订货单的到货安排改成全部在 ${day(10)} 之前到`, confirm: true }],
     expect: { tools: ['order_batch.schedule'], rows: { order_batches: { changed: 1 } } },
     setup: async (ctx) => ({ p: (await list(ctx, '/api/purchases')).filter(openPurchase)[1] }),

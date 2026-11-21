@@ -15,7 +15,7 @@ import { addTo, assertLedger, attemptCorrection, effectiveIds, freeChoice, rever
 /** 每条采购明细订了多少（千分整数，1000 张） */
 const ORDERED = 1000000;
 /** 到货更正允许的拒绝：库存不足、超订购、全改成 0、没改、同一采购明细出现两次 */
-const REFUSABLE = /库存不足|超过采购订购数量|每一行都是 0|无需提交|同一采购明细不能重复出现/;
+const REFUSABLE = /库存不足|超过采购的订货数量|每一行都是 0|无需提交|同一采购明细不能重复出现/;
 const units = (q: string | null | undefined) => quantityUnits(q ?? '0');
 
 /** 采购单三条明细各挂一种纸板，按 arrivals 登记几张到货（每张前两条明细各一行，数量是张；第三条留给加行、换挂） */
@@ -109,7 +109,7 @@ function expectedRefusals(f: Setup, d: Arrival, lines: Line[], balances: Map<num
     lines.every((l, i) => l.index === i && units(l.quantity) === units(d.lines[i].quantity) && (l.purchaseLineId ?? d.lines[i].purchaseLineId) === d.lines[i].purchaseLineId);
   return {
     库存不足: keys(was.stock, now.stock).some((k) => delta(balances, k, was.stock, now.stock) < 0),
-    超过采购订购数量: keys(was.received, now.received).some(
+    超过采购的订货数量: keys(was.received, now.received).some(
       (k) => (now.received.get(k) ?? 0) > (was.received.get(k) ?? 0) && delta(received, k, was.received, now.received) > ORDERED,
     ),
     每一行都是: lines.every((l) => units(l.quantity) === 0),
@@ -137,7 +137,7 @@ function correctOnce(f: Setup, d: Arrival, c: { lines: Line[]; who: Actor }) {
     assert.ok(reason?.[1], '被拒的原因要成立：' + outcome.refused + ' ' + JSON.stringify(expected));
     return;
   }
-  assert.deepEqual(expected, { 库存不足: false, 超过采购订购数量: false, 每一行都是: false, 无需提交: false, 同一采购明细不能重复出现: false }, '该拒的没拒');
+  assert.deepEqual(expected, { 库存不足: false, 超过采购的订货数量: false, 每一行都是: false, 无需提交: false, 同一采购明细不能重复出现: false }, '该拒的没拒');
   const after = new Map(f.p.current().lines.map((l) => [l.id, l.receivedQuantity]));
   for (const p of ofKind(outcome.plan, 'arrival').purchaseImpact)
     for (const l of p.lines) assert.deepEqual([units(l.before), units(l.after)], [units(before.get(l.lineId)), units(after.get(l.lineId))], '预览的已到货前后');

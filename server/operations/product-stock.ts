@@ -28,7 +28,7 @@ export const syncFinishedStock: Parameters<typeof registerProductStockSync>[0] =
       entity: 'stock_items',
       id: row.id,
       document: {
-        reason: '产品资料改了，成品库存的名称、尺寸、材质、楞型、规格说明跟着改',
+        reason: '产品资料改了，成品库存的名称、尺寸、材质、楞型、规格跟着改',
         productId: product.id,
         before,
         after: repo.items(true, row.id)[0],

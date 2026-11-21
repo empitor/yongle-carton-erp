@@ -39,7 +39,7 @@ export const cashFields: Field[] = [
     hint: '房租、水电这类不是付给供应商货款的，选“其他支出”。',
   },
   { name: 'date', label: '日期', type: 'date', required: true, section: '收付什么' },
-  { name: 'amount', label: '金额 / 元', type: 'money', required: true, section: '收付什么' },
+  { name: 'amount', label: '金额（元）', type: 'money', required: true, section: '收付什么' },
   { name: 'method', label: '方式', type: 'select', required: true, options: methods, section: '收付什么' },
   {
     name: 'partyId',

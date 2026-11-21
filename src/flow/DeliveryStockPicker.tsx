@@ -5,6 +5,7 @@ import DeliveryBlockers from './DeliveryBlockers';
 import DeliveryLineRows from './DeliveryLineRows';
 import { BlockedStock, DeliveryStockChoices } from './DeliveryStockChoices';
 import { describeStock, seedLine, type DeliveryEditing, type DeliveryFormData, type DeliveryPick, type StockItem } from './delivery-stock';
+import { fieldLabel } from '../../shared/core/index';
 
 /** 超订单数量发货的两项：勾没勾、原因 */
 type OverdeliveryFields = Pick<DeliveryEditing, 'allowOverdelivery' | 'overdeliveryReason'>;
@@ -113,7 +114,7 @@ export function Overdelivery({ value, change }: { value: OverdeliveryFields; cha
         {value.allowOverdelivery && (
           <FormField label="超订单原因" required>
             <textarea
-              aria-label="超订单发货原因"
+              aria-label={fieldLabel('overdeliveryReason')}
               value={value.overdeliveryReason}
               onChange={(e) => change({ overdeliveryReason: e.currentTarget.value })}
             />

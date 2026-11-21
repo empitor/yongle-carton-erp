@@ -48,9 +48,9 @@ test('生产进度到实际计划量才算完工：99.9% 还是生产中，状�
     const full = f.flow.get(task.id, 'task');
     assert.deepEqual([full.progress, flowStatusLabel(full)], [100, '已完工']);
     assert(matchesFlowStatus(full, 'task', '已完工'));
-    assert.equal(flowStatusLabel({ kind: 'arrival', status: 'confirmed' }), '已确认收货');
+    assert.equal(flowStatusLabel({ kind: 'arrival', status: 'confirmed' }), '已入库');
     assert.equal(flowStatusLabel({ kind: 'delivery', status: 'confirmed' }), '送货中');
-    assert.equal(flowStatusLabel({ kind: 'production', status: 'reversed' }), '已冲销');
+    assert.equal(flowStatusLabel({ kind: 'production', status: 'reversed' }), '已撤销');
   } finally {
     f.store.close();
   }

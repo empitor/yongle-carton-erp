@@ -1,4 +1,4 @@
-import type { DocumentTemplate } from '../../shared/documents/index.js';
+import { deliveryDateLabels, type DocumentTemplate } from '../../shared/documents/index.js';
 import { displayAmount } from '../../shared/core/index.js';
 import { applyDocumentTemplate } from './apply-template.js';
 import type { BusinessForm } from '../../shared/documents/index.js';
@@ -24,7 +24,7 @@ export function sampleDocument(template: DocumentTemplate): BusinessForm {
             ['客户', '虚构示例客户'],
             ['收货地址', '虚构工业园示例仓库'],
             ['客户联系信息', '示例联系人 / 000-0000'],
-            ['实际送货日期', '2026-10-29'],
+            [deliveryDateLabels.shipped, '2026-10-29'],
             ['关联销售订单', 'TEST-SO-001'],
             ['客户采购订单号', 'TEST-CPO-001'],
           ],

@@ -20,7 +20,7 @@ const noteColumns: Col<NoteRow>[] = [
   col('date', '出票日', { priority: 'low' }),
   col('due_date', '到期日'),
   col('status', '状态', { render: (r) => noteStatusName(r.status) }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
 ];
 
 /** 新建票据：保存后按到期先后冲这个单位的欠款 */
@@ -78,7 +78,7 @@ function NoteDialog({ close }: { close: () => void }) {
         },
         {
           name: 'amount',
-          label: '金额 / 元',
+          label: '金额（元）',
           type: 'money',
           required: true,
           section: '金额和日期',

@@ -3,6 +3,7 @@ import { AppError } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { formatStockSize, type FlowDocView } from '../../shared/business/index.js';
 import { displayAmount, plainPrice, type Customer, type Order, type Product } from '../../shared/core/index.js';
+import { deliveryDateLabels } from '../../shared/documents/index.js';
 import { joinSpecification, type RawForm } from './forms.js';
 // 送货单要印的内容（只读，不写库）：单据视图加上客户、关联订单补全的字段。
 
@@ -33,12 +34,13 @@ function deliveryFields(record: Delivery, customer: Customer | undefined, orders
     ['客户联系信息', [record.contact, record.phone].filter(Boolean).join(' · ') || UNRECORDED],
     ['关联销售订单', joinedUnique(record.lines.map((l) => l.orderNumber || orders.get(l.orderId)?.number))],
     [
-      confirmed ? '实际送货日期' : '预计送货日期',
+      confirmed ? deliveryDateLabels.shipped : deliveryDateLabels.planned,
       confirmed
         ? [record.date, record.actualTime].filter(Boolean).join(' ')
         : [record.plannedDate || record.date, record.plannedTime].filter(Boolean).join(' '),
     ],
     [
+      // 信息格的键（模板“隐藏字段”里存的就是它），印出来是“客户采购单号”（shared/documents/document-layout.ts 的 printedInfoName）
       '客户采购订单号',
       joinedUnique(
         record.lines.map((l) => l.externalPurchaseOrder ?? orders.get(l.orderId)?.externalPurchaseOrder).filter(Boolean),

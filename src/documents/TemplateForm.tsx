@@ -60,7 +60,7 @@ function CompanySection({ kind, template, edit }: SectionProps) {
       <TextInput {...text} field="title" label="单据标题" max={30} />
       <TextInput {...text} field="companyName" label="我方工厂名称" max={100} span="full" />
       <TextInput {...text} field="companyContact" label="我方联系人" max={100} />
-      <TextInput {...text} field="companyPhone" label="我方联系电话" max={50} />
+      <TextInput {...text} field="companyPhone" label="我方联系方式" max={50} />
       <TextInput
         {...text}
         field="companyAddress"

@@ -49,7 +49,7 @@ export function RecordHead({
           {sortHead('采购单', 'first')}
           <th>供应商</th>
           <th className="col-mid">纸板</th>
-          <th className="num col-low">已到 / 订购</th>
+          <th className="num col-low">已到 / 订货</th>
           <th className="num">金额</th>
           {sortHead('预计到货', 'due')}
           <th>状态</th>

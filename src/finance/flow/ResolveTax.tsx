@@ -49,8 +49,8 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
           <thead>
             <tr>
               <th>行</th>
-              <th className="num">金额 / 元</th>
-              <th className="num">税率 %</th>
+              <th className="num">金额（元）</th>
+              <th className="num">税率（%）</th>
               <th>口径</th>
             </tr>
           </thead>

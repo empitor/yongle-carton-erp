@@ -157,7 +157,7 @@ test('多模板选择、默认切换、字段排序及隐藏对人工和AI共用
     assert.equal(current.templateId, custom.id);
     assert.deepEqual(current.headers, [
       '产品名称',
-      '订购数量',
+      '订货数量',
       '数量单位',
       '尺寸及单位',
       '金额（元）',
@@ -245,7 +245,7 @@ test('虚构样张按当前未保存配置生成，Excel保留前导零编码，
     const sheet = book.worksheets[0],
       rows = sheet.getRows(1, sheet.rowCount);
     assert.ok(rows);
-    const header = rows.find((r) => r.getCell(2).value === '产品编码 / 客户料号');
+    const header = rows.find((r) => r.getCell(2).value === '客户料号');
     assert.ok(header);
     assert.equal(sheet.getRow(header.number + 1).getCell(2).value, '000123');
     assert.match(String(sheet.headerFooter.oddHeader), /测试样张 · 非正式/);

@@ -5,7 +5,7 @@ import { UNPRICED_TEXT, priceText, sizeText } from './display-text.js';
 import { purchaseState } from './labels.js';
 import { flowStatusText, isFlowKind } from './physical-flow.js';
 import {
-  historyCodeLabels,
+  codeNames,
   historyFieldLabel,
   quantityFields,
   refTables,
@@ -149,7 +149,7 @@ function refValueText(ctx: Ctx, key: string, value: unknown, row: Row | undefine
 }
 /** 存代码的字段、税率和普通的文字、数、是否 */
 function plainValueText(key: string, value: unknown) {
-  if (historyCodeLabels[key]) return historyCodeLabels[key][String(value)] ?? null;
+  if (Object.hasOwn(codeNames, key)) return codeNames[key][String(value)] ?? null;
   if (key === 'taxRate') return /^\d+(\.\d+)?$/.test(String(value)) ? String(value) + '%' : String(value);
   if (typeof value === 'boolean') return value ? '是' : '否';
   if (typeof value === 'number') return String(value);

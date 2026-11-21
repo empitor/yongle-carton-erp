@@ -52,7 +52,7 @@ export const HISTORY_NO_CHANGE = '没有需要列出的内容变化。';
 function generateItems(d: Row): HistoryItem[] {
   const items: HistoryItem[] = [];
   if (typeof d.filename === 'string') items.push({ label: '导出文件', value: d.filename });
-  if (d.markOrdered) items.push({ label: '导出后', value: '采购单标记为已订货' });
+  if (d.markOrdered) items.push({ label: '导出后', value: '采购单标记为已订货（待到货）' });
   if (d.markShipped) items.push({ label: '导出后', value: '送货单出库' });
   return items;
 }

@@ -8,7 +8,7 @@ export const inspectionFields = {
   rejectedQuantity: quantityText.nullable().optional(),
   stockedQuantity: quantityText.nullable().optional(),
 };
-/** 到货一行里验收要用的数量：实到必填，合格、不合格、入库可以没写；纸板（单位“张”）只收整张 */
+/** 到货一行里验收要用的数量：实到必填，合格、拒收、入库可以没写；纸板（单位“张”）只收整张 */
 type InspectedLine = {
   quantity: string;
   acceptedQuantity?: string | null;
@@ -30,8 +30,8 @@ export function arrivalQuantities(line: InspectedLine) {
     line.rejectedQuantity == null ? quantity - accepted : quantityUnits(line.rejectedQuantity);
   const stocked = line.stockedQuantity == null ? accepted : quantityUnits(line.stockedQuantity);
   if (accepted < 0 || rejected < 0 || accepted + rejected !== quantity)
-    throw new Error('验收合格与不合格数量之和必须等于本批实际到货数量。');
-  if (stocked < 0 || stocked > accepted) throw new Error('实际入库数量不能超过验收合格数量。');
+    throw new Error('验收合格数量与拒收数量之和必须等于实到数量。');
+  if (stocked < 0 || stocked > accepted) throw new Error('入库数量不能超过验收合格数量。');
   if (line.item?.unit === RAW_UNIT && [quantity, accepted, rejected, stocked].some((q) => q % UNITS_PER_QUANTITY))
     throw new Error('纸板到货、验收及入库均使用整张数量。');
   return {

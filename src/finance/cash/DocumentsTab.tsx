@@ -31,7 +31,7 @@ const cashColumns: Col<CashListRow>[] = [
   // 右侧详情打开时：1440 宽收说明，1280 宽再收未核销
   col('description', '说明', { wrap: true, priority: 'low' }),
   col('status', '状态', { render: (r) => <Status value={r.status} /> }),
-  mon('amount_cents', '金额 / 元'),
+  mon('amount_cents', '金额（元）'),
   // 未核销标 mid：1280 宽打开详情时表格区域约 600px，日期、类型、往来单位、状态、金额、未核销估算约 610px 放不下；
   // 详情里“已核销”进度条写着核销了多少、一共多少
   col('unallocated', '未核销', {

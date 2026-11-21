@@ -6,6 +6,7 @@ import {
   type DocumentTemplate,
 } from '../../shared/documents/index.js';
 import type { BusinessForm, TemplatedForm } from '../../shared/documents/index.js';
+import { fieldLabel } from '../../shared/core/index.js';
 import { documentRowsPerPage } from './layout.js';
 /** 把拼好的单据内容套上模板：列和顺序、隐藏的字段、我方资料和条款、纸张字号，再算出每张放几行。 */
 export function applyDocumentTemplate(
@@ -40,7 +41,7 @@ export function applyDocumentTemplate(
     headers: keys.map((k) =>
       k === 'quantity'
         ? template.kind === 'purchase'
-          ? '订购数量'
+          ? fieldLabel('quantity', { record: 'purchases', parent: 'lines' })
           : '本批送货数量'
         : documentColumns[k],
     ),

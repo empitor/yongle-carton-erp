@@ -60,6 +60,18 @@ const text = (max = 200) => z.string().trim().max(max);
 // 可选说明的null表示原件未提供；数字、对象等错误类型仍拒绝。
 const blankText = (max: number) => z.preprocess((v) => (v === null ? '' : v), text(max));
 const optionalText = (max: number) => blankText(max).optional();
+/** 订单和订单明细的含税口径：下拉固定三项，存的值就是叫法（识别导入原件没写时存“未明确”） */
+export const orderTaxModes = ['含税', '未税', '未明确'] as const;
+/**
+ * 含税口径的录入：空着（明细空着跟整单走）照旧收；填了只能是三项之一。库里已有的别的写法（如“不含税”）
+ * 不猜着归并，原样报出来要人改选。只管录入，不加数据库约束（表结构不动）。
+ */
+const taxModeSchema = blankText(TEXT_MAX.taxMode)
+  .superRefine((v, ctx) => {
+    if (v && !orderTaxModes.some((m) => m === v))
+      ctx.addIssue({ code: 'custom', message: '只能选' + orderTaxModes.join('、') + '（现在写的是“' + v + '”），请改选' });
+  })
+  .optional();
 /**
  * 要选的编号（客户、产品、订单、库存品……）：没选（null）、填了 0 或负数都报“请选择××”，
  * 不用 zod 默认的英文（Too small: expected number to be >0）。只换提示，校验和原来一样是正整数。
@@ -138,7 +150,7 @@ export const costSchema = z.object({
 export const lineSchema = z.object({
   id: z.number().int().positive().optional(),
   productId: chosenId('产品'),
-  productName: text(TEXT_MAX.lineText).min(1, '请填写产品名称').optional(),
+  productName: text(TEXT_MAX.lineText).min(1, '请填写本单名称').optional(),
   specification: blankText(TEXT_MAX.lineText).default(''),
   notes: optionalText(TEXT_MAX.lineText),
   quantity: z
@@ -157,7 +169,7 @@ export const lineSchema = z.object({
   // 产品数量单位只有“只”（“个”、没写都按“只”）；新建或改成别的单位由订单保存拦，见 shared/core/units.ts
   unit: optionalText(TEXT_MAX.unit),
   taxRate: optionalText(TEXT_MAX.taxRate),
-  taxMode: optionalText(TEXT_MAX.taxMode),
+  taxMode: taxModeSchema,
   deliveryDate: optionalDate,
 });
 function checkedTotal(lines: Parameters<typeof precisionTotal>[0]) {
@@ -188,13 +200,13 @@ const orderFields = z.object({
       .default('CNY')
       .optional(),
     taxRate: optionalText(TEXT_MAX.taxRate),
-    taxMode: optionalText(TEXT_MAX.taxMode),
+    taxMode: taxModeSchema,
     terms: optionalText(TEXT_MAX.terms),
     roundingPolicy: z.enum(roundingPolicies, { error: '请选择金额结算' }).optional(),
   });
 export const orderSchema = orderFields
   .refine((v) => v.deliveryDate >= v.orderDate, {
-    message: '交货日期不能早于订单日期',
+    message: '交货日期不能早于下单日期',
     path: ['deliveryDate'],
   })
   .superRefine((v, ctx) => {
@@ -203,7 +215,7 @@ export const orderSchema = orderFields
         ctx.addIssue({
           code: 'custom',
           path: ['lines', i, 'deliveryDate'],
-          message: '明细交期不能早于订单日期',
+          message: '分项交期不能早于下单日期',
         });
     });
   })
@@ -220,6 +232,20 @@ export const orderSchema = orderFields
       path: ['roundingPolicy'],
     },
   );
+
+/**
+ * 库里已存的订单整理成录入内容（数据管理的编辑窗、改订单状态时整张再存一次）：含税口径不在这里核。
+ * 库里可能有改成下拉以前的别的写法，原样带回（编辑窗照原样显示、状态动作照原样存）；
+ * 只有人编辑订单交上来时才由 orderSchema 拦下、要人改选。
+ */
+export function storedOrderInput<T extends { taxMode?: string; lines: readonly { taxMode?: string }[] }>(stored: T) {
+  const parsed = orderSchema.parse({ ...stored, taxMode: undefined, lines: stored.lines.map((l) => ({ ...l, taxMode: undefined })) });
+  return {
+    ...parsed,
+    taxMode: stored.taxMode,
+    lines: parsed.lines.map((l, i) => ({ ...l, taxMode: stored.lines[i]?.taxMode })),
+  };
+}
 
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type ProductInput = z.infer<typeof productSchema>;

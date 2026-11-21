@@ -1,4 +1,4 @@
-import { FINISHED_UNIT, RAW_UNIT, specification, type Product } from '../../shared/core/index';
+import { FINISHED_UNIT, RAW_UNIT, specification, type Product, fieldLabel } from '../../shared/core/index';
 import { sizeText, type StockItemView } from '../../shared/business/index';
 import { Combobox, FormField, FormSection } from '../ui/index';
 import { DimensionFields } from './fields';
@@ -54,7 +54,7 @@ export function ProductPicker(o: {
         hint={
           o.used
             ? '这个成品已有出入库记录或被单据用过，不能换产品；另一种产品的成品请新建'
-            : '名称、尺寸、材质、楞型、规格说明都按这个产品'
+            : '名称、尺寸、材质、楞型、规格都按这个产品'
         }
       >
         {o.used ? (
@@ -107,8 +107,8 @@ export function FinishedSpec({ form, product, productId }: { form: StockForm; pr
           {shownProduct ? shown(shownProduct.flute) : '—'}
         </output>
       </FormField>
-      <FormField label="规格说明" span="full">
-        <output className="unit-fixed" aria-label="规格说明">
+      <FormField label={fieldLabel('specification')} span="full">
+        <output className="unit-fixed" aria-label={fieldLabel('specification')}>
           {product ? shown(specification(product)) : productId ? shown(form.specification) : '—'}
         </output>
       </FormField>
@@ -149,9 +149,9 @@ export function RawFields({ form, patch, saved }: { form: StockForm; patch: Patc
         <FormField label="楞型">
           <input aria-label="楞型" maxLength={50} value={form.flute} onChange={(e) => patch({ flute: e.target.value })} />
         </FormField>
-        <FormField label="规格说明" span={2}>
+        <FormField label={fieldLabel('specification')} span={2}>
           <input
-            aria-label="规格说明"
+            aria-label={fieldLabel('specification')}
             maxLength={2000}
             value={form.specification}
             onChange={(e) => patch({ specification: e.target.value })}

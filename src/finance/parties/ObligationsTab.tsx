@@ -49,7 +49,7 @@ const obligationCols: Col<ObligationRow>[] = [
     priority: 'low',
     render: (r) => (r.reversal_state ? '—' : r.due_date || '没有账期'),
   }),
-  col('amount_cents', '金额 / 元', {
+  col('amount_cents', '金额（元）', {
     money: true,
     render: (r) =>
       Number(r.amount_cents) < 0 ? (

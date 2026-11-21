@@ -457,7 +457,7 @@ test('套模板直接调用：按模板的列和顺序重排明细，隐藏的�
   );
   assert.deepEqual(form.rows, [['虚构纸板', '100', '张']]);
   assert.equal(form.headers.length, 3);
-  assert.equal(form.headers[1], '订购数量');
+  assert.equal(form.headers[1], '订货数量');
   assert.equal(form.fields.some(([k]) => k === '供应商联系信息'), false);
   assert.ok(form.fields.some(([k, v]) => k === '我方联系人' && v === '虚构联系人'));
   assert.ok(form.fields.some(([k, v]) => k === '付款条件' && v === '虚构月结'));

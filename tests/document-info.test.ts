@@ -111,7 +111,7 @@ test('完工单：改批次备注、操作人，批次里读到新备注；改�
     sync();
     assert.deepEqual(snapshot(), first, '财务事件原样');
     assert.equal(f.edit(f.production.id, { notes: '' }).notes, '', '能清空');
-    assert.throws(() => f.edit(f.production.id, { operator: '' }), /请填写实际操作人员/);
+    assert.throws(() => f.edit(f.production.id, { operator: '' }), /请填写机台操作/);
     assert.throws(() => f.edit(f.production.id, { address: '虚构' }), /完工单没有“地址”这一项可改/);
   } finally {
     f.store.close();

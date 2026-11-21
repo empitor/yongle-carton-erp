@@ -1,5 +1,5 @@
 import { useId, useState, type SubmitEvent } from 'react';
-import { type Customer } from '../../shared/core/index';
+import { type Customer, fieldLabel } from '../../shared/core/index';
 import { ManagementDialog, notify, useAction } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { saveCustomer, saveSupplier, type SavedSupplier } from './editor-api';
@@ -107,7 +107,7 @@ export default function CustomerEditor(
           </FormField>
         </FormSection>
         <FormSection title="怎么联系">
-          <FormField label="联系人">
+          <FormField label={fieldLabel('contact')}>
             <input
               aria-label="联系人"
               maxLength={60}
@@ -123,7 +123,7 @@ export default function CustomerEditor(
               onChange={(e) => change('phone', e.target.value)}
             />
           </FormField>
-          <FormField label="地址" span="full">
+          <FormField label={fieldLabel('address')} span="full">
             <input
               aria-label={noun + '地址'}
               maxLength={300}

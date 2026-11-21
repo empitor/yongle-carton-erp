@@ -1,4 +1,4 @@
-import { DimensionUnitSelect } from '../editors/index';
+import { DimensionUnitSelect, TaxModeSelect } from '../editors/index';
 import { dimensionKeys, parseDimension, convertDimension, normalizeDimensionUnit } from '../../shared/core/index';
 import { fieldLabels, type DraftField, type LineField, type OrderDraft, type headerFields } from '../../shared/import/index';
 import { DraftText as WrappedText } from './DraftUI';
@@ -92,6 +92,15 @@ export function DraftInput({
     >
       {line && ['productName', 'specification', 'notes'].includes(k) ? (
         <WrappedText label={label} field={field} locked={locked} change={(v) => change(k, v, lineId)} />
+      ) : k === 'taxMode' ? (
+        // 含税口径只收三项；原件写的别的说法照原样列出，要人改选（核对提示会说清楚）
+        <TaxModeSelect
+          label={label}
+          blank="待确认"
+          value={field.value || ''}
+          disabled={locked}
+          onChange={(v) => change(k, v, lineId)}
+        />
       ) : (
         <input
           aria-label={label}

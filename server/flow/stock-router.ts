@@ -189,6 +189,11 @@ export function stockFlowRouter(store: Store, auth?: AuthManager) {
     include: (req, archived) => includeArchivedFor(auth?.actor(req), archived),
   };
   // 登记到货（地址挂在订货单下面，唯一入口 registerArrival）；页面凭证由装配层对所有写接口统一检查
+  // 登记的是到货单：校验没过时报错按到货单的栏目叫法说（实到数量、供应商送货单号，server/http-errors.ts）
+  router.all('/order-batches/:id/receive', (_req, res, next) => {
+    res.locals.fieldRecord = 'arrival';
+    next();
+  });
   routes.on('POST /order-batches/:id/receive', ({ param, body, req }) => {
     if (!auth) throw new AppError('此业务需要登录身份验证。', 403);
     return registerArrival(store, { batchId: recordId(param('id')) }, body, requirePermission(auth.actor(req), 'business:edit'));

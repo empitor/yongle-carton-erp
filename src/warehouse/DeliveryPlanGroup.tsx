@@ -1,4 +1,5 @@
 import { FormField, FormSection, RowDelete } from '../ui/index';
+import { fieldLabel } from '../../shared/core/index';
 
 export type PlanLine = { orderId: number; orderLineId: number; stockId: number; quantity: string; notes: string };
 /** 一张送货单（一个客户）在窗口里改的：计划送货日期、收货信息、超订单的原因 */
@@ -108,7 +109,7 @@ export default function DeliveryPlanGroup({
       {over.length > 0 && (
         <FormField label="超订单原因" required span="full" hint="超过订单数量发货要超级管理员，仍不能超过库存">
           <textarea
-            aria-label={title + ' 超订单发货原因'}
+            aria-label={title + ' ' + fieldLabel('overdeliveryReason')}
             value={input.reason}
             disabled={locked}
             onChange={(e) => change({ reason: e.target.value })}

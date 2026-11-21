@@ -160,7 +160,7 @@ log('开票对象', bill.party_name, bill.source_number, bill.amount_cents);
 await text('票号', 'FICT-INV-1');
 await combo('往来单位', bill.party_name);
 await text('不含税', (bill.amount_cents / 100).toFixed(2));
-await text('税率 %', '0');
+await text('税率（%）', '0');
 await text('税额', '0');
 await text('价税合计', (bill.amount_cents / 100).toFixed(2));
 await save('保存发票');
@@ -291,7 +291,7 @@ await checkEventsLink(closing0);
 // 先填税率，这是真实用户结账前要做的
 await go(page, '#finance-settings');
 await page.getByRole('button', { name: '编辑设置', exact: true }).click();
-for (const label of ['城建税率 %', '教育费附加率 %', '地方教育附加率 %', '所得税率 %']) await text(label, '0');
+for (const label of ['城建税率（%）', '教育费附加率（%）', '地方教育附加率（%）', '所得税率（%）']) await text(label, '0');
 await save('保存设置');
 const clickJobs = async () => {
   await go(page, '#finance-reports?tab=closing');

@@ -55,7 +55,7 @@ export default function DrillSection({
           }),
           col('status', '状态', { render: (r: DrillRow) => <FlowStatus row={r} /> }),
           // 没算进理论金额的照明细写缺的是什么：缺数量或单位、缺价格
-          col('amount', '金额 / 元', {
+          col('amount', '金额（元）', {
             money: true,
             render: (r: DrillRow) => (r.amount === null ? missingAmountName(r.detail) : yuan(r.amount)),
           }),

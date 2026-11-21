@@ -5,7 +5,7 @@ import { purchaseState, sizeText, type PurchaseView, type StockItemView, type Su
 import RelatedBusiness from './RelatedBusiness';
 import { Facts, FormMessage, Hint, Loading, Section, StatusChip, useLoad } from '../ui/index';
 import { movementType } from '../warehouse/MovementDetail';
-import { quantityString } from '../../shared/core/index';
+import { quantityString, fieldLabel } from '../../shared/core/index';
 import { businessStatusTone, useAgentRecord } from '../recordkit/record-meta';
 import { loadMovements } from './list-api';
 import { PurchaseDetails, type PurchaseReceipt } from './PurchaseDetails';
@@ -126,7 +126,7 @@ function StockItemDetails({ row }: { row: StockItemView }) {
         <Facts
           items={[
             { label: '尺寸', value: sizeText(row) },
-            { label: '规格说明', value: row.specification },
+            { label: fieldLabel('specification'), value: row.specification },
             { label: '材质 / 配纸', value: row.material },
             { label: '楞型', value: row.flute },
             { label: '备注', value: row.notes, wide: true },

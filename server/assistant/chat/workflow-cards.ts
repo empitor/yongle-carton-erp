@@ -112,7 +112,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
         label: (delivery ? '导出送货单并出库：' : '导出订货单并标记已订货：') + titles.join('、'),
         summary: [
           { label: delivery ? '送货单' : '采购单', value: titles.join('、') },
-          { label: '文件下载完成后', value: delivery ? '送货单出库，扣成品库存' : '采购单标记为已订货' },
+          { label: '文件下载完成后', value: delivery ? '送货单出库，扣成品库存' : '采购单标记为已订货（待到货）' },
           ...cards.flatMap((c) => c.lines.map((l) => (cards.length > 1 ? { label: c.title + ' ' + l.label, value: l.value } : l))),
           ...(a.schedule ?? []).map((s) => ({
             label: '到货安排 第 ' + s.row + ' 行',

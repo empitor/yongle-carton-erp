@@ -225,11 +225,11 @@ export function allocateReceipt(
           quantityString(row.remainingUnits) + ' ' + row.unit + ' 多。多送的部分请单独登记无采购单到货并写明原因。',
       );
     if (item.rejectedUnits < 0 || item.rejectedUnits > item.quantityUnits)
-      throw new Error(row.name + ' 的不合格数量不能超过本次实到数量。');
+      throw new Error(row.name + ' 的拒收数量不能超过本次实到数量。');
     const acceptedUnits = item.quantityUnits - item.rejectedUnits,
       stockedUnits = item.stockedUnits ?? acceptedUnits;
     if (stockedUnits < 0 || stockedUnits > acceptedUnits)
-      throw new Error(row.name + ' 的实际入库数量不能超过合格数量。');
+      throw new Error(row.name + ' 的入库数量不能超过验收合格数量。');
     let left = item.quantityUnits,
       rejected = item.rejectedUnits,
       short = acceptedUnits - stockedUnits;
