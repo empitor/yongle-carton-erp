@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
+import { errorMessage } from '../../../shared/core/index.js';
+import { consistentCopy } from '../sqlite-copy.js';
 import { exists, integrityPassed, many, one } from '../sql.js';
 import { SchemaError } from './errors.js';
 import { readOnlyDatabase } from './pragmas.js';
@@ -11,7 +13,10 @@ import { SCHEMA_BASELINE } from './version.js';
 
 export type { UpgradeStep } from './steps.js';
 
-/** 快照目录：和业务库放在一起，破坏性操作前的快照（backup.ts）也在这里。完整备份不带它。 */
+/**
+ * 快照目录：和业务库放在一起，破坏性操作前的快照（backup.ts）也在这里；配置库的升级前备份放在各自库文件旁边的同名目录里。
+ * 完整备份不带叫这个名字的目录。
+ */
 export const SNAPSHOT_DIRECTORY = 'snapshots';
 /** 升级前快照保留最近几份 */
 const UPGRADE_SNAPSHOT_KEEP = 3;
@@ -20,9 +25,11 @@ const STAMP_RANDOM_LENGTH = 6;
 /** 文件名里的时间戳加 6 位随机：升级前快照、删除前快照、完整备份、恢复时留的原文件都用它，按名字排序就是先后顺序 */
 export const stamp = () =>
   new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-') + '-' + randomUUID().slice(0, STAMP_RANDOM_LENGTH);
-const UPGRADE_SNAPSHOT_NAME = /^upgrade-v\d+-to-v\d+-(\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}Z)-[\da-f]{6}\.sqlite$/;
-
-const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+/** 认 stamp() 的正则片段：第 1 组是时间部分（stampTime 能读） */
+export const STAMP_PATTERN = String.raw`(\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}Z)-[\da-f]{6}`;
+/** stamp() 的时间部分读回毫秒时间 */
+export const stampTime = (at: string) => Date.parse(at.replace(/T(\d\d)-(\d\d)-(\d\d)-(\d{3})Z$/, 'T$1:$2:$3.$4Z'));
+const UPGRADE_SNAPSHOT_NAME = new RegExp(String.raw`^upgrade-v\d+-to-v\d+-${STAMP_PATTERN}\.sqlite$`);
 
 /** 步骤必须正好是第 21 版起一版一步；返回按版本排好的步骤。写错是程序问题，直接报错。 */
 export function orderedSteps(steps: readonly UpgradeStep[] = upgradeSteps) {
@@ -109,7 +116,7 @@ export function upgradeSchema(
     } catch (error) {
       if (db.isTransaction) db.exec('ROLLBACK');
       throw new SchemaError(
-        `数据库从第 ${from} 版升级到第 ${to} 版失败，已整体退回，数据没有改动：${reasonOf(error)}`,
+        `数据库从第 ${from} 版升级到第 ${to} 版失败，已整体退回，数据没有改动：${errorMessage(error)}`,
       );
     }
   } finally {
@@ -125,23 +132,17 @@ export function upgradeSchema(
  */
 export function snapshotForUpgrade(path: string, from: number, to: number): string {
   const dir = join(dirname(path), SNAPSHOT_DIRECTORY);
-  const file = join(dir, `upgrade-v${from}-to-v${to}-${stamp()}.sqlite`),
-    staged = file + '.partial';
+  const file = join(dir, `upgrade-v${from}-to-v${to}-${stamp()}.sqlite`);
   try {
     mkdirSync(dir, { recursive: true });
-    readOnlyDatabase(path, (db) => db.prepare('VACUUM INTO ?').run(staged));
-    readOnlyDatabase(staged, (db) => {
-      if (!integrityPassed(db, 'quick_check')) throw new Error('快照没有通过完整性检查');
-      if (currentVersion(db) !== from) throw new Error(`快照里的版本不是第 ${from} 版`);
-    });
-    renameSync(staged, file);
+    consistentCopy(path, file, (staged) =>
+      readOnlyDatabase(staged, (db) => {
+        if (!integrityPassed(db, 'quick_check')) throw new Error('快照没有通过完整性检查');
+        if (currentVersion(db) !== from) throw new Error(`快照里的版本不是第 ${from} 版`);
+      }),
+    );
   } catch (error) {
-    try {
-      rmSync(staged, { force: true });
-    } catch {
-      /* 保留原始错误 */
-    }
-    throw new SchemaError('升级前业务库快照失败，没有开始升级，数据没有改动：' + reasonOf(error));
+    throw new SchemaError('升级前业务库快照失败，没有开始升级，数据没有改动：' + errorMessage(error));
   }
   try {
     const old = readdirSync(dir)

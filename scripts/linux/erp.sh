@@ -10,7 +10,7 @@ if [ "$#" -gt 0 ]; then shift; fi
 case "$action" in
   start) entry=server/index.ts ;;
   stop) entry=server/stop.ts ;;
-  backup|restore|reset-password) entry=server/maintenance.ts; set -- "$action" "$@" ;;
-  *) echo '用法：erp.sh start|stop|backup|restore 备份目录|reset-password 用户名' >&2; exit 2 ;;
+  backup|restore|reset-password|revert-config-upgrades) entry=server/maintenance.ts; set -- "$action" "$@" ;;
+  *) echo '用法：erp.sh start|stop|backup|restore 备份目录|reset-password 用户名|revert-config-upgrades [补丁开始时间]' >&2; exit 2 ;;
 esac
 exec "$NODE" --env-file-if-exists="$ENV_FILE" --import "$APP_ROOT/node_modules/tsx/dist/loader.mjs" "$APP_ROOT/$entry" "$@"

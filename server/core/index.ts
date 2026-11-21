@@ -43,7 +43,10 @@ export { assertPreviewCurrent, previewDigest } from './preview-digest.js';
 export { peekSequence, takeSequence } from './sequences.js';
 export { scheduleDailyCleanup } from './cleanup.js';
 export { openEventStream, pipeBytes, watchDisconnect } from './stream.js';
-export { VersionedSqliteError, openVersionedSqlite, registerVersionedSqlite } from './versioned-sqlite.js';
+export { openVersionedSqlite } from './versioned-sqlite.js';
+export { VersionedSqliteError, registerVersionedSqlite } from './versioned-sqlite-spec.js';
+// 补丁回滚、换回旧程序以后把配置库换回升级前的备份（维护命令行 revert-config-upgrades 用）
+export { revertConfigUpgrades } from './versioned-sqlite-backup.js';
 export { nextAutoId } from './ids.js';
 // 排查用的只读诊断（server/core/diagnostics/）：最近出错、页面上报、登录记录、运行日志、读程序代码
 export { ProblemLog, readRecentProblems } from './diagnostics/problem-log.js';
@@ -64,5 +67,5 @@ export { count, exists, many, one } from './sql.js';
 export { parseStoredJson } from './sql.js';
 // 生成行结构用（scripts/schema-rows.ts）：业务库的建表分组、登记过的配置库规格
 export { schemaTableGroups } from './schema/index.js';
-export { registeredVersionedSqlite } from './versioned-sqlite.js';
+export { registeredVersionedSqlite } from './versioned-sqlite-spec.js';
 export { notFound, route } from './route.js';

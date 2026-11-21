@@ -18,10 +18,9 @@ function serverFiles(dir = join(projectRoot, 'server'), found: string[] = []) {
 }
 
 test('建表、改表、删表语句只出现在 server/core/schema/ 和各配置库自己的建表文件里', () => {
-  // 配置库各是单独的 SQLite 文件，建表语句留在主人模块里，用 server/core/versioned-sqlite.ts 各管各的版本
+  // 配置库各是单独的 SQLite 文件，建表语句和升级步骤留在主人模块的规格文件里，用 server/core/versioned-sqlite.ts 各管各的版本
   const configDatabases: Record<string, string> = {
     'server/core/account-db.ts': '账号库 security/users.sqlite',
-    'server/core/versioned-sqlite.ts': '配置库共用的建库、认版本、升级工具',
     'server/core/diagnostics/problem-log.ts': '出错记录库 logs/problems.sqlite',
     'server/ai/prompt-presets.ts': '提示词库 ai-prompts/*.sqlite',
     'server/ai/settings-repository.ts': 'AI 设置库 settings.sqlite',

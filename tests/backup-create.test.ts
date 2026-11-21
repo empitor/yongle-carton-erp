@@ -86,7 +86,7 @@ test('各配置库的主人模块加载时登记了默认位置：恢复备份�
     assert.ok(promptModules.length > 0, '每个提示词模块一个文件，都要认得');
     for (const [home, label] of homes) {
       const seen = checkVersionedSqlite(candidate, home);
-      assert.deepEqual(seen && { label: seen.label, version: seen.version, problem: seen.problem }, { label, version: 99, problem: 'newer' }, home);
+      assert.deepEqual(seen && { label: seen.label, version: seen.version, state: seen.state }, { label, version: 99, state: 'newer' }, home);
     }
     // Windows 上路径不分大小写
     if (process.platform === 'win32') assert.equal(checkVersionedSqlite(candidate, homes[0][0].toUpperCase())?.label, '账号库');

@@ -1,52 +1,23 @@
-// 发布前检查：补丁和整包的文件清单、补丁锁和回滚、命令行备份。改业务代码用不着每次跑，发布时跑 npm run test:release。
+// 发布前检查：补丁和整包的文件清单、补丁脚本能单独运行、版本探针、命令行备份（只调纯函数的回滚判断和补丁锁在 tests/patch-rollback.test.ts）。改业务代码用不着每次跑，发布时跑 npm run test:release。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { z } from 'zod';
 import { Store } from '../../server/core/db.js';
 import { createFullBackup, restoreFullBackup } from '../../server/core/backup.js';
 import { supportedDatabaseVersions } from '../../server/core/backup-check.js';
 import { readBackupManifest } from '../../server/core/backup-manifest.js';
 import { customerSchema } from '../../shared/core/domain.js';
 import { errorMessage } from '../../shared/core/error-message.js';
+import { load, patchLogic, patchRollback, projectRoot } from '../patch-scripts-fixture.js';
 
-const projectRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)));
-
-// 脚本是 .mjs，没有类型声明；用变量路径动态导入，类型检查不去解析它们。
-// 导入后按下面写明的形状核对点名的导出都在、种类对得上；函数的类型照脚本里的写法写。
-type ExportKind = 'function' | 'string' | 'array';
-const kindOf = (value: unknown) => (Array.isArray(value) ? 'array' : typeof value);
-function hasExports<T>(mod: unknown, shape: Record<string, ExportKind>): mod is T {
-  if (typeof mod !== 'object' || mod === null) return false;
-  return Object.entries(shape).every(([name, kind]) => kindOf(Reflect.get(mod, name)) === kind);
-}
-async function load<T>(path: string, shape: Record<keyof T, ExportKind>): Promise<T> {
-  const mod: unknown = await import(pathToFileURL(join(projectRoot, path)).href);
-  if (!hasExports<T>(mod, shape)) throw new Error(path + ' 的导出和测试里写明的不一致');
-  return mod;
-}
-
-type SchemaState = { exists: boolean; versions: number[] };
 type Stray = { untracked: string[]; ignored: string[] };
-type ApplyPatch = {
-  rollbackPlan: (o: { before: SchemaState | null; after: SchemaState | null; backupDir: string | null }) => {
-    action: 'files-only' | 'restore-db' | 'manual';
-    reason: string;
-  };
-  manualSteps: (o: { backupDir: string | null; backupRoot: string; port: string }) => string[];
-  parseBackupDir: (output: string) => string | null;
-  parseEnv: (text: string) => Record<string, string>;
-  patchTarget: (path: string) => string | null;
-  schemaProbe: string;
-  parseSchema: (stdout: string) => SchemaState | null;
-  acquireLock: (path: string, info: Record<string, unknown>, isAlive: (pid: number) => boolean) => () => void;
-};
 type PatchServer = {
+  applyScripts: string[];
   resultCheckHint: (host: string, id: string) => string[];
   localManifest: (root: string, scope: string[]) => Map<string, Buffer>;
   strayFiles: (root: string, scope: string[]) => Stray;
@@ -56,19 +27,9 @@ type PatchServer = {
   trackedFiles: (root: string, scope: readonly string[]) => { mode: string; stage: string; path: string }[];
 };
 type ReleaseScan = { scanTree: (root: string) => string[]; scanFileList: (entries: Map<string, Buffer>) => string[] };
-const applyPatch = () =>
-  load<ApplyPatch>('scripts/linux/apply-patch.mjs', {
-    rollbackPlan: 'function',
-    manualSteps: 'function',
-    parseBackupDir: 'function',
-    parseEnv: 'function',
-    patchTarget: 'function',
-    schemaProbe: 'string',
-    parseSchema: 'function',
-    acquireLock: 'function',
-  });
 const patchServer = () =>
   load<PatchServer>('scripts/patch-server.mjs', {
+    applyScripts: 'array',
     resultCheckHint: 'function',
     localManifest: 'function',
     strayFiles: 'function',
@@ -77,9 +38,6 @@ const patchServer = () =>
     distManifest: 'function',
     trackedFiles: 'function',
   });
-/** 补丁锁文件的内容 */
-const lockHolder = (file: string) =>
-  z.looseObject({ pid: z.number(), patch: z.string().optional() }).parse(JSON.parse(readFileSync(file, 'utf8')));
 
 const customerNames = (file: string) => {
   const db = new DatabaseSync(file, { readOnly: true });
@@ -112,7 +70,7 @@ function tempRepo() {
   return { root, git, put, close: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-// ---------- 完整备份不拒绝更新的库；补丁回滚判断 ----------
+// ---------- 完整备份不拒绝更新的库；版本探针 ----------
 
 test('完整备份接受比程序新的数据库版本并写进清单；恢复仍然拒绝', async () => {
   const root = mkdtempSync(join(tmpdir(), 'erp-audit-newer-'));
@@ -175,102 +133,56 @@ test('命令行 backup 遇到更新的库照样备份并提示；restore 仍然�
   }
 });
 
-test('补丁回滚：结构版本变了才恢复数据库，判断不了就要求手动处理', async () => {
-  const { rollbackPlan, manualSteps, parseBackupDir, parseEnv, patchTarget } = await applyPatch();
-  const v18 = { exists: true, versions: Array.from({ length: 18 }, (_, i) => i + 1) };
-  const v19 = { exists: true, versions: [...v18.versions, 19] };
-  const backupDir = '/var/lib/yongle-carton-erp/backups/full-2026-11-08T00-00-00-000Z-abcdef';
-  assert.equal(rollbackPlan({ before: v18, after: { ...v18, versions: [...v18.versions] }, backupDir }).action, 'files-only');
-  assert.equal(rollbackPlan({ before: v18, after: v18, backupDir: null }).action, 'files-only', '没升级时不需要备份');
-  const restore = rollbackPlan({ before: v18, after: v19, backupDir });
-  assert.equal(restore.action, 'restore-db');
-  assert.match(restore.reason, /第 18 版变成第 19 版/);
-  assert.equal(rollbackPlan({ before: v18, after: v19, backupDir: null }).action, 'manual');
-  assert.equal(rollbackPlan({ before: v18, after: null, backupDir }).action, 'manual');
-  assert.equal(rollbackPlan({ before: null, after: v19, backupDir }).action, 'manual');
-  assert.equal(rollbackPlan({ before: v18, after: { exists: false, versions: [] }, backupDir }).action, 'manual');
-  const steps = manualSteps({ backupDir, backupRoot: '/var/lib/yongle-carton-erp/backups', port: '3001' }).join('\n');
-  assert.match(steps, /systemctl stop yongle-carton-erp/);
-  assert.match(steps, new RegExp('erp\\.sh restore ' + backupDir));
-  assert.match(steps, /不要直接启动旧程序/);
-  assert.match(manualSteps({ backupDir: null, backupRoot: '/b', port: '3001' }).join('\n'), /ls -dt \/b\/full-\*/);
-  assert.equal(
-    parseBackupDir('完整备份已生成：/var/lib/yongle-carton-erp/backups/full-x\n共9个文件，含业务库。\n请另存一份到其他磁盘。'),
-    '/var/lib/yongle-carton-erp/backups/full-x',
-  );
-  assert.equal(parseBackupDir('别的输出'), null);
-  assert.deepEqual(parseEnv('PORT=3101\n# 注释\nDB_PATH="/srv/x/erp.sqlite"\r\nERP_BACKUP_DIR=/srv/b\n'), {
-    PORT: '3101',
-    DB_PATH: '/srv/x/erp.sqlite',
-    ERP_BACKUP_DIR: '/srv/b',
-  });
-  for (const bad of ['data/erp.sqlite', 'backups/x', '../etc/passwd', '/etc/passwd', 'runtime/node/bin/node', 'node_modules/x', '.release-package', 'server/../../x'])
-    assert.equal(patchTarget(bad), null, bad);
-  assert.equal(patchTarget('server/index.ts'), '/opt/yongle-carton-erp/server/index.ts');
-});
-
-test('服务账号读取结构版本的探针脚本：读得出版本，库不存在时如实说明', async () => {
-  const { schemaProbe, parseSchema } = await applyPatch();
+test('服务账号读取版本的探针脚本：业务库的结构版本、配置库的 user_version 读得出，库不存在时如实说明、不新建', async () => {
+  const { schemaProbe, parseSchema } = await patchLogic();
+  const { versionProbe, parseVersion } = await patchRollback();
   const dir = mkdtempSync(join(tmpdir(), 'erp-audit-probe-'));
   try {
     const file = join(dir, 'erp.sqlite');
     new Store(file).close();
-    const read = (path: string) => spawnSync(process.execPath, ['--no-warnings', '-e', schemaProbe, path], { encoding: 'utf8' });
-    const found = parseSchema(read(file).stdout);
-    assert.deepEqual(found, { exists: true, versions: supportedDatabaseVersions });
-    assert.deepEqual(parseSchema(read(join(dir, 'missing.sqlite')).stdout), { exists: false, versions: [] });
-    assert.equal(existsSync(join(dir, 'missing.sqlite')), false, '探针不新建数据库');
+    const read = (probe: string, path: string) => spawnSync(process.execPath, ['--no-warnings', '-e', probe, path], { encoding: 'utf8' }).stdout;
+    const missing = join(dir, 'missing.sqlite');
+    assert.deepEqual(parseSchema(read(schemaProbe, file)), { exists: true, versions: supportedDatabaseVersions });
+    assert.deepEqual(parseSchema(read(schemaProbe, missing)), { exists: false, versions: [] });
     assert.equal(parseSchema('不是 JSON'), null);
     assert.equal(parseSchema('{"exists":true,"versions":["x"]}'), null);
+    const config = join(dir, 'config.sqlite');
+    const db = new DatabaseSync(config);
+    db.exec('CREATE TABLE fictional(id INTEGER PRIMARY KEY); PRAGMA user_version=3');
+    db.close();
+    assert.equal(parseVersion(read(versionProbe, config)), 3);
+    assert.equal(parseVersion(read(versionProbe, missing)), null);
+    assert.equal(parseVersion('不是 JSON'), null);
+    assert.equal(existsSync(missing), false, '探针不新建数据库');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-// ---------- 断线不中断、锁、日志 ----------
+// ---------- 断线不中断、日志 ----------
 
-test('补丁锁：同时只能一个；持有进程不在了视为遗留锁；只释放自己的锁', async () => {
-  const { acquireLock } = await applyPatch();
-  const dir = mkdtempSync(join(tmpdir(), 'erp-audit-lock-'));
-  try {
-    const lock = join(dir, 'patch.lock');
-    const release = acquireLock(lock, { patch: '20261108T000000-aaaaaaaa' }, () => true);
-    assert.equal(lockHolder(lock).pid, process.pid);
-    assert.throws(() => acquireLock(lock, { patch: 'b' }, () => true), /另一个补丁正在应用.*20261108T000000-aaaaaaaa/);
-    release();
-    assert.equal(existsSync(lock), false);
-    writeFileSync(lock, JSON.stringify({ pid: 999999, patch: 'old' }));
-    const takeover = acquireLock(lock, { patch: 'new' }, () => false);
-    assert.equal(lockHolder(lock).patch, 'new');
-    writeFileSync(lock, JSON.stringify({ pid: process.pid + 1, patch: 'someone-else' }));
-    takeover();
-    assert.ok(existsSync(lock), '别人的锁不删');
-    writeFileSync(lock, '');
-    assert.throws(() => acquireLock(lock, {}, () => false), /另一个补丁正在应用/, '刚建还没写内容的锁也算有人持有');
-    const old = new Date(Date.now() - 120_000);
-    utimesSync(lock, old, old);
-    acquireLock(lock, {}, () => false)();
-    assert.equal(existsSync(lock), false);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('应用补丁脚本：导入不执行；直接运行时先检查 root；忽略挂断信号、输出出错不退出、写日志', async () => {
-  const mod = await applyPatch();
-  assert.equal(typeof mod.rollbackPlan, 'function');
+test('应用补丁脚本：导入不执行；只拿上传的那几个文件放一个目录也能运行，先检查 root；忽略挂断信号、输出出错不退出、写日志', async () => {
+  // 导入时要是执行了主流程，没有 root 会直接退出进程，这条测试就跑不完
+  await import(pathToFileURL(join(projectRoot, 'scripts/linux/apply-patch.mjs')).href);
+  const { applyScripts, resultCheckHint } = await patchServer();
   const script = join(projectRoot, 'scripts/linux/apply-patch.mjs');
   if (process.platform === 'win32' || process.getuid?.() !== 0) {
-    const r = spawnSync(process.execPath, [script, join(tmpdir(), 'no-such-patch.json.gz')], { encoding: 'utf8' });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /补丁未应用：需要 root/);
+    // 和服务器上一样：只有 patch-server 上传的那几个文件在同一个目录里，拆出去的文件漏传就会加载失败
+    const uploaded = mkdtempSync(join(tmpdir(), 'erp-audit-upload-'));
+    try {
+      for (const name of applyScripts) writeFileSync(join(uploaded, name), readFileSync(join(projectRoot, 'scripts/linux', name)));
+      const r = spawnSync(process.execPath, [join(uploaded, 'apply-patch.mjs'), join(tmpdir(), 'no-such-patch.json.gz')], { encoding: 'utf8' });
+      assert.equal(r.status, 1, r.stderr);
+      assert.match(r.stderr, /补丁未应用：需要 root/);
+    } finally {
+      rmSync(uploaded, { recursive: true, force: true });
+    }
   }
   const source = readFileSync(script, 'utf8');
   assert.match(source, /process\.on\('SIGHUP'/);
   assert.match(source, /stream\.on\('error'/);
   assert.match(source, /apply\.log/);
   assert.match(source, /\/usr\/bin\/setsid/);
-  const { resultCheckHint } = await patchServer();
   const hint = resultCheckHint('yongle-erp', '20261108T000000-aaaaaaaa').join('\n');
   assert.match(hint, /ssh yongle-erp sudo tail -n 40 \/var\/backups\/yongle-carton-erp-patches\/20261108T000000-aaaaaaaa\/apply\.log/);
   assert.match(hint, /patch-server -- --check/);

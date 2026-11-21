@@ -4,7 +4,8 @@ import type { Actor } from '../actor.js';
 import { rows } from '../schema/rows.js';
 import { DAY_MS, MINUTE_MS, PROBLEM_TEXT, errorMessage } from '../../../shared/core/index.js';
 import { count, many } from '../sql.js';
-import { openVersionedSqlite, type VersionedSqliteSpec } from '../versioned-sqlite.js';
+import { openVersionedSqlite } from '../versioned-sqlite.js';
+import type { VersionedSqliteSpec } from '../versioned-sqlite-spec.js';
 import { isSuperAdmin, isoTime, pageWindow, RECORD_PAGE, requireSignedIn } from './reading.js';
 import { safeText } from './redact.js';
 import type { ProblemCategory } from './problem-kinds.js';
@@ -13,10 +14,12 @@ import type { ProblemCategory } from './problem-kinds.js';
  * 最近出错（logs/problems.sqlite）：服务端的出错、被拒的请求，和页面上报的失败请求、报错、出错提示。
  * 单独一个小库，不进业务库；留 30 天，总共最多 5000 条，分三份各算各的上限（见 pools），互相挤不掉；
  * 每记一条顺手清掉过期的和这一份超出的。请求体一律不存。
+ * 基线是 0.9.0 的第 1 版；以后改结构在 steps 加一步（规矩见 server/core/versioned-sqlite-spec.ts 开头）。
  */
 export const problemLogDatabase: VersionedSqliteSpec = {
   label: '出错记录库',
-  latest: 1,
+  baseline: 1,
+  steps: [],
   create(db) {
     db.exec(`CREATE TABLE recent_problems(
         id INTEGER PRIMARY KEY,

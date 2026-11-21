@@ -17,12 +17,13 @@ export function defaultBotSettingsPath() {
 }
 
 /**
- * 机器人设置库：每家一行。旧版本的库打开时删掉重建（server/core/versioned-sqlite.ts）；
- * 建表约束列着 botChannels，发布后再加一家要把 latest 加一。
+ * 机器人设置库：每家一行。基线是 0.9.0 的第 1 版，以后改结构在 steps 加一步（规矩见 server/core/versioned-sqlite-spec.ts 开头）；
+ * 建表约束列着 botChannels，再加一家要加一步重建 bots 表（CHECK 不能单独改）。
  */
 const botDatabase = {
   label: '机器人设置库',
-  latest: 1,
+  baseline: 1,
+  steps: [],
   create(db: DatabaseSync) {
     db.exec(
       `CREATE TABLE bots(channel TEXT PRIMARY KEY CHECK(channel IN (${botChannels.map((c) => `'${c}'`).join(',')})),app_id TEXT NOT NULL,secret TEXT NOT NULL,enabled INTEGER NOT NULL,updated_at TEXT NOT NULL)`,

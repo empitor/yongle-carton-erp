@@ -64,12 +64,23 @@ export function alterBackupDatabase(dir: string, change: (path: string) => void,
 /** 一个虚构的配置库（现在是第 2 版）：恢复前的校验对登记过的配置库都一样，不只认真实的那几个 */
 export const fictionalNotes = {
   label: '虚构便签库',
-  latest: 2,
+  baseline: 2,
+  steps: [],
   create(db: DatabaseSync) {
     db.exec('CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT NOT NULL, tag TEXT); CREATE INDEX notes_body ON notes(body)');
   },
 };
 export const noteMarker = 'fictional-marker-note';
+/** 同一个虚构便签库，程序加了一步升到第 3 版（加一列）：备份里第 2 版的库就在基线和当前之间 */
+const addPinned = (db: DatabaseSync) => db.exec('ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
+export const fictionalNotesV3 = {
+  ...fictionalNotes,
+  steps: [{ version: 3, name: '虚构便签加置顶', up: addPinned }],
+  create(db: DatabaseSync) {
+    fictionalNotes.create(db);
+    addPinned(db);
+  },
+};
 
 /**
  * 带配置库的虚构数据目录和它的完整备份。账号库、AI 识别工作区用真的类建，另有一个虚构的配置库
@@ -101,7 +112,7 @@ after(async () => {
   if (template) rmSync(await template, { recursive: true, force: true });
 });
 
-/** 这份备份复制一份到新的临时目录：{ root, target, local, extraFiles, backup.dir }，用完 close() */
+/** 这份备份复制一份到新的临时目录：{ root, target, local, backup.dir }，用完 close() */
 export async function configFixture() {
   template ??= (async () => {
     const dir = mkdtempSync(join(tmpdir(), 'erp-backup-template-'));
@@ -117,12 +128,10 @@ export async function configFixture() {
   new AuthManager(join(target, 'security', 'users.sqlite')).close();
   new ImportRepository(join(target, 'ai-imports', 'workspaces.sqlite')).close();
   openVersionedSqlite(join(target, 'notes', 'notes.sqlite'), fictionalNotes).close();
-  openVersionedSqlite(local, fictionalNotes).close();
   return {
     root,
     target,
     local,
-    extraFiles: { 'local.sqlite': local },
     backup: { dir: join(copies, readdirSync(copies)[0]) },
     close: () => rmSync(root, { recursive: true, force: true }),
   };

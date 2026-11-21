@@ -1,98 +1,55 @@
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
+import { errorMessage } from '../../shared/core/index.js';
+import type { UpgradeStep } from './schema/index.js';
 import { SQLITE_CODE, sqliteCode } from './errors.js';
-import { count, pragmaInteger } from './sql.js';
+import { exists } from './sql.js';
+import { keepUnfinishedBackup, takeUpgradeBackup, unfinishedAdvice, unfinishedBackup } from './versioned-sqlite-backup.js';
+import {
+  VersionedSqliteError,
+  checkedSteps,
+  inspect,
+  latestOf,
+  rememberOpened,
+  specAt,
+  stateOf,
+  type SeenVersion,
+  type VersionedSqliteSpec,
+  type VersionedSqliteState,
+} from './versioned-sqlite-spec.js';
 
-/**
- * 配置库（账号、AI 设置、提示词、助手工具设置、机器人设置、AI 识别工作区）各是一个单独的 SQLite 文件，
- * 各用自己的 PRAGMA user_version 记结构版本，不并进业务库的版本序列。
- * 建表语句留在各库的主人模块里，这里只管认版本、建库和拒收，规则对每个库都一样（旧库不迁移、不留备份）：
+/*
+ * 打开配置库（规格、版本和登记表见 versioned-sqlite-spec.ts）。建表语句和升级步骤在各库的主人模块里，这里只管认版本、建库、升级和拒收，
+ * 规则对每个库都一样：
  * - 当前版本：原样打开；
  * - 没有版本号、也没有表（新文件）：按 create 建成当前结构，记成当前版本；
- * - 比当前版本旧，或者没记版本却有表（0.9.0 以前的程序留下的）：整个文件删掉（连同 -wal 等附属文件），按当前结构重建；
+ * - 基线到当前之间：拿到写锁以后先留一份升级前备份（versioned-sqlite-backup.ts），再在一个事务里一步步升级，数据留着；
+ *   中途出错整个退回，文件和升级前一模一样，拒绝打开；任何情况下都不因为升级失败删库；
+ * - 比基线旧，或者没记版本却有表（0.9.0 以前的程序留下的）：整个文件删掉（连同 -wal 等附属文件），按当前结构重建；
  * - 比程序新：拒绝打开，文件不动（多半是程序被换回了旧版本）；
+ * - 上次升级没做完（步骤违规自己结束了事务，库是半截的，旁边留着 -before-unfinished- 备份）：拒绝打开，等人换回；
  * - 打不开、不是数据库、被占用：不删，原样报错。
- * 拒绝时提示写明是哪个库、文件在哪、该怎么办。
+ * 建库、升级都只在 BEGIN IMMEDIATE 里、并在锁里重新看过版本以后才做：两个程序同时打开，后到的等锁，拿到锁时已是当前版本，
+ * 原样打开，不会升两遍、也不会多做一份备份。拒绝时提示写明是哪个库、文件在哪、该怎么办。
  */
-export type VersionedSqliteSpec = {
-  /** 中文名，写进提示里，例如“账号库” */
-  label: string;
-  /** 当前程序的结构版本。结构变了就加一：旧版本的库下次打开时会被删掉重建 */
-  latest: number;
-  /** 空库按当前完整结构建表。在事务里执行，连接参数写在 pragmas 里 */
-  create(db: DatabaseSync): void;
-  /** 每次打开都要设的连接参数（synchronous、secure_delete 这类），在事务外执行 */
-  pragmas?: string;
-  /** 文件被别的连接占着时最多等多久（毫秒），默认 5000 */
-  busyTimeout?: number;
-};
-/**
- * 配置库不能打开（比程序新、文件损坏或被占用、建库失败）。消息是给人看的中文，
- * 已经写明是哪个库、文件在哪、该怎么办；调用方把 message 原样给人看就行，不用再加堆栈。
- */
-export class VersionedSqliteError extends Error {}
 
 const BUSY_TIMEOUT = 5000;
 const closing = (file: string) => `\n文件：${file}\n文件没有任何改动。`;
-const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-function inspect(db: DatabaseSync) {
-  const version = pragmaInteger(db, 'user_version');
-  const tables = count(db, "SELECT count(*) AS n FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-  return { version, tables };
-}
-/** 比当前版本旧的库（含没记版本却有表的）：要删掉重建。新文件（没版本、没表）不算 */
-const outdated = (seen: { version: number; tables: number }, latest: number) =>
-  seen.version < latest && (seen.version > 0 || seen.tables > 0);
-
-/**
- * 登记表：哪个位置放的是哪个配置库。恢复备份时据此判断备份里的配置库当前程序打不打得开（checkVersionedSqlite），
- * 基础模块自己不用知道上层有哪些库、各支持到第几版。两个时候登记：
- * - openVersionedSqlite 每次打开，登记实际打开的位置；
- * - 各库的主人模块加载时用 registerVersionedSqlite 登记默认位置。恢复备份的维护命令行不打开任何配置库，
- *   只把主人模块加载进来，靠这一条才查得到。
- */
-const openedAt = new Map<string, VersionedSqliteSpec>();
-const homes: { spec: VersionedSqliteSpec; home: () => string }[] = [];
-const locationKey = (file: string) => {
-  const full = resolve(file);
-  return process.platform === 'win32' ? full.toLowerCase() : full;
-};
-/**
- * 登记一个配置库的默认位置。home 用到时才算：配置目录这类位置要读环境变量，加载模块时不去碰。
- * 一个规格可以登记多个位置（提示词库每个模块一个文件）。
- */
-export function registerVersionedSqlite(spec: VersionedSqliteSpec, home: () => string) {
-  homes.push({ spec, home });
-}
-/** 登记过的配置库规格（同一个规格登记了几个位置也只算一个）：scripts/schema-dump.ts 按它们的建表生成行结构 */
-export function registeredVersionedSqlite() {
-  return [...new Set(homes.map((entry) => entry.spec))];
-}
-function specAt(file: string) {
-  const key = locationKey(file);
-  const opened = openedAt.get(key);
-  if (opened) return opened;
-  for (const entry of homes) {
-    try {
-      if (locationKey(entry.home()) === key) return entry.spec;
-    } catch {
-      /* 这个默认位置现在算不出来（比如配置目录设错了），当它没登记 */
-    }
-  }
-  return null;
-}
+/** 打开时要用到的：库文件、规格、排好的步骤 */
+type Opening = { db: DatabaseSync; file: string; spec: VersionedSqliteSpec; steps: readonly UpgradeStep[] };
 
 export type VersionedSqliteCheck = {
   /** 库的中文名 */
   label: string;
   /** 文件里记的版本，0 表示没记 */
   version: number;
+  /** 这个库的基线版本 */
+  baseline: number;
   /** 当前程序的版本 */
   latest: number;
-  /** newer：比程序新，打不开；older：比程序旧，打开时会被删掉重建；null：原样打得开 */
-  problem: 'newer' | 'older' | null;
+  /** 放到这个位置以后打开时会怎样（见 VersionedSqliteState） */
+  state: VersionedSqliteState;
 };
 /**
  * 恢复备份之前用：candidate 是备份里的文件，home 是恢复以后它所在的位置。只读，不改任何文件。
@@ -104,20 +61,19 @@ export function checkVersionedSqlite(candidate: string, home: string): Versioned
   const db = new DatabaseSync(candidate, { readOnly: true });
   try {
     const seen = inspect(db);
-    const problem = seen.version > spec.latest ? 'newer' : outdated(seen, spec.latest) ? 'older' : null;
-    return { label: spec.label, version: seen.version, latest: spec.latest, problem };
+    return { label: spec.label, version: seen.version, baseline: spec.baseline, latest: latestOf(spec), state: stateOf(seen, spec) };
   } finally {
     db.close();
   }
 }
 
 /**
- * 打开前先看一眼：比当前版本旧的库整个删掉（连同附属文件），之后按新库建。
+ * 打开前先看一眼：比基线旧的库（这个库第一次发布以前的程序留下的）整个删掉（连同附属文件），之后按新库建。删库只有这一处，只看基线。
  * 打不开、不是数据库的不删，留给后面按统一的说法报错。删不掉（被别的程序占着）照样报错，不往下建。
  */
-function discardOutdated(file: string, spec: VersionedSqliteSpec) {
+function discardLegacy(file: string, spec: VersionedSqliteSpec) {
   if (file === ':memory:' || !existsSync(file)) return;
-  let seen: { version: number; tables: number };
+  let seen: SeenVersion;
   try {
     const db = new DatabaseSync(file, { readOnly: true });
     try {
@@ -126,61 +82,18 @@ function discardOutdated(file: string, spec: VersionedSqliteSpec) {
       db.close();
     }
   } catch {
+    // 打不开的不删：下面用读写连接再打开时按统一的说法报错
     return;
   }
-  if (!outdated(seen, spec.latest)) return;
+  if (stateOf(seen, spec) !== 'legacy') return;
   try {
     for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(file + suffix, { force: true });
   } catch (error) {
     throw new VersionedSqliteError(
-      `${spec.label}是旧版本（第 ${seen.version} 版，当前是第 ${spec.latest} 版），要删掉重建，但文件删不掉（${reasonOf(error)}）。` +
+      `${spec.label}比基线（第 ${spec.baseline} 版）旧（${seen.version ? `第 ${seen.version} 版` : '没有记版本'}），要删掉重建，但文件删不掉（${errorMessage(error)}）。` +
         '请关掉占用它的程序后再启动。' +
         closing(file),
     );
-  }
-}
-
-/**
- * 把库带到当前版本：新库建表，当前版本不动，比程序新的拒绝。
- * 返回 false 表示拿到写锁后发现别的程序刚改过这个库，要重新判断一次。
- */
-function settle(db: DatabaseSync, file: string, spec: VersionedSqliteSpec) {
-  const seen = inspect(db);
-  if (seen.version === spec.latest) return true;
-  if (seen.version > spec.latest)
-    throw new VersionedSqliteError(
-      `${spec.label}比当前程序新，不能打开：它是第 ${seen.version} 版，当前程序最多支持第 ${spec.latest} 版，多半是程序被换回了旧版本。请换回新版本的程序再启动。` +
-        closing(file),
-    );
-  // 走到这里只剩新文件（旧库在打开前已经删掉）；别的程序刚好在这一刻放进来旧库，下一轮重新判断时会被拒绝
-  if (seen.tables > 0)
-    throw new VersionedSqliteError(
-      `${spec.label}不能打开：打开的同时有别的程序写进了旧版本的内容，请关掉其它程序后再启动。` + closing(file),
-    );
-  let open = false;
-  try {
-    db.exec('BEGIN IMMEDIATE');
-    open = true;
-    const now = inspect(db);
-    if (now.version !== seen.version || now.tables !== seen.tables) {
-      db.exec('ROLLBACK');
-      open = false;
-      return false;
-    }
-    spec.create(db);
-    db.exec(`PRAGMA user_version=${spec.latest}`);
-    db.exec('COMMIT');
-    open = false;
-    return true;
-  } catch (error) {
-    // 磁盘满、读写出错这类情况 SQLite 已经自己退回了，再退一次会报错，不能让它盖住原来的原因
-    if (open)
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        /* 退回失败时要报的是上面建库失败的原因，退回本身的错不再另报 */
-      }
-    throw new VersionedSqliteError(`${spec.label}没有建成：${reasonOf(error)}\n文件：${file}`);
   }
 }
 
@@ -194,30 +107,206 @@ function unreadableAdvice(error: unknown) {
   return '文件读不出来。请检查文件和目录的读写权限。';
 }
 
-/** 打开一个配置库并带到当前版本（规则见文件开头）。':memory:' 也能用（每次都是空库，直接建）。 */
-export function openVersionedSqlite(file: string, spec: VersionedSqliteSpec): DatabaseSync {
-  if (!Number.isInteger(spec.latest) || spec.latest < 1) throw new Error(`${spec.label}的结构版本必须是正整数。`);
-  // 先登记再打开：就算这次被拒绝，也知道这个位置是哪个库、支持到第几版
-  if (file !== ':memory:') openedAt.set(locationKey(file), spec);
-  discardOutdated(file, spec);
-  let db: DatabaseSync;
+/** 退回事务。退回失败时要报的是原来的错；没退回成的改动留在日志里，下次打开时 SQLite 会自己退回 */
+function rollback(db: DatabaseSync) {
+  if (!db.isTransaction) return;
   try {
-    if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
-    db = new DatabaseSync(file);
+    db.exec('ROLLBACK');
+  } catch {
+    /* 见上 */
+  }
+}
+
+/** 拿写锁，拿不到按“被占用”拒绝（这时什么都没改） */
+function lockOrRefuse(o: Opening) {
+  try {
+    o.db.exec('BEGIN IMMEDIATE');
+  } catch (error) {
+    throw new VersionedSqliteError(`${o.spec.label}不能打开：${unreadableAdvice(error)}（${errorMessage(error)}）` + closing(o.file));
+  }
+}
+/** 拿到写锁后再看一眼：两次看之间被别的程序改过，就不能照原来的判断做 */
+const changedSince = (db: DatabaseSync, seen: SeenVersion) => {
+  const now = inspect(db);
+  return now.version !== seen.version || now.tables !== seen.tables;
+};
+
+/** 新文件：在一个事务里建成当前结构。返回 false 表示拿到写锁后发现库被改过，要重新判断 */
+function create(o: Opening, seen: SeenVersion) {
+  try {
+    o.db.exec('BEGIN IMMEDIATE');
+    if (changedSince(o.db, seen)) {
+      o.db.exec('ROLLBACK');
+      return false;
+    }
+    o.spec.create(o.db);
+    o.db.exec(`PRAGMA user_version=${latestOf(o.spec)}`);
+    o.db.exec('COMMIT');
+    return true;
+  } catch (error) {
+    // 磁盘满、读写出错这类情况 SQLite 已经自己退回了；退回不了也不能盖住原来的原因
+    rollback(o.db);
+    throw new VersionedSqliteError(`${o.spec.label}没有建成：${errorMessage(error)}\n文件：${o.file}`);
+  }
+}
+
+/** 升级前备份，做不成就拒绝（这时还没改任何东西，调用方退回事务） */
+function backupOrRefuse(o: Opening, from: number, to: number) {
+  try {
+    return takeUpgradeBackup(o.file, o.spec, from, to);
   } catch (error) {
     throw new VersionedSqliteError(
-      `${spec.label}不能打开：文件或它所在的目录打不开（${reasonOf(error)}）。请检查目录是否存在、运行程序的账号有没有读写权限。\n文件：${file}`,
+      `${o.spec.label}要从第 ${from} 版升级到第 ${to} 版，升级前备份没有做成（${errorMessage(error)}），没有开始升级。` +
+        `请检查 ${dirname(o.file)} 所在磁盘的空间和读写权限后再启动。` +
+        closing(o.file),
     );
   }
+}
+
+/** 升级失败（已整体退回）的提示：哪个库、从第几版到第几版、哪里出错；备份做成了才说备份在哪 */
+function upgradeFailed(o: Opening, from: number, what: string, backup: string | null) {
+  return new VersionedSqliteError(
+    `${o.spec.label}从第 ${from} 版升级到第 ${latestOf(o.spec)} 版失败（${what}），已整体退回。` +
+      closing(o.file) +
+      (backup ? `\n升级前备份：${backup}` : '') +
+      '\n请换回旧版本的程序继续使用，并把这段提示交给维护人员。',
+  );
+}
+
+/**
+ * 步骤自己结束了事务（规矩不许）：这一步之前的改动可能已经写进文件，库成了半截。把升级前备份改名留下
+ * （清理删不掉它，它也是“升级没做完”的标记，以后打开都拒绝，不在半截的库上重跑步骤）。改名失败就照原名说，并提醒先复制走。
+ */
+function selfEnded(o: Opening, from: number, what: string, backup: string) {
+  let kept = backup,
+    note = '';
+  try {
+    kept = keepUnfinishedBackup(o.file, backup, from, latestOf(o.spec));
+  } catch (error) {
+    note = `\n这份备份没能改名保护起来（${errorMessage(error)}），以后的升级会清掉它，请先把它复制到别处。`;
+  }
+  return new VersionedSqliteError(
+    `${o.spec.label}从第 ${from} 版升级到第 ${latestOf(o.spec)} 版停在${what}：这一步自己结束了事务（提交或退回），升级没有做完。` +
+      `库现在是半截的：这一步之前的改动可能已经写进文件，版本号还是第 ${from} 版；以后打开都会拒绝，不会在半截的库上接着升级。` +
+      `\n文件：${o.file}` +
+      unfinishedAdvice(kept) +
+      note,
+  );
+}
+
+/** 上次升级没做完（库是半截的，旁边留着改了名的升级前备份）：拒绝打开，文件不动 */
+function refuseUnfinished(file: string, spec: VersionedSqliteSpec) {
+  const kept = file === ':memory:' ? null : unfinishedBackup(file);
+  if (kept)
+    throw new VersionedSqliteError(
+      `${spec.label}上次升级没有做完，库是半截的，不能打开，也不会在半截的库上接着升级。` + closing(file) + unfinishedAdvice(kept),
+    );
+}
+
+/**
+ * 在已经开好的事务里一步步升级；哪一步出错就说清是哪一步。
+ * 每步之后查事务还在：步骤自己 COMMIT、ROLLBACK 了（规矩不许），后面的不能接着做，这一步之前的改动可能已经写进文件。
+ */
+function runSteps(o: Opening, from: number, backup: string) {
+  for (const step of o.steps.filter((s) => s.version > from)) {
+    const what = `第 ${step.version} 步“${step.name}”`;
+    try {
+      step.up(o.db);
+    } catch (error) {
+      throw upgradeFailed(o, from, `${what}：${errorMessage(error)}`, backup);
+    }
+    if (!o.db.isTransaction) throw selfEnded(o, from, what, backup);
+  }
+  if (exists(o.db, 'PRAGMA foreign_key_check')) throw upgradeFailed(o, from, '升级后数据关联校验没有通过', backup);
+  o.db.exec(`PRAGMA user_version=${latestOf(o.spec)}`);
+}
+
+/**
+ * 基线到当前之间：拿写锁 → 锁里再看一眼 → 升级前备份 → 一步步升级 → 提交。返回 false 表示要重新判断。
+ * 步骤可能要重建表，外键检查先关掉（事务里改这个设置无效，必须在事务外），提交前统一查一遍。
+ * 锁里再看、提交这些地方出的错（磁盘满、读写出错、被别人占着）也整体退回，同样按库名说清。
+ */
+function upgrade(o: Opening, seen: SeenVersion) {
+  const to = latestOf(o.spec);
+  let backup: string | null = null;
+  o.db.exec('PRAGMA foreign_keys=OFF');
+  try {
+    lockOrRefuse(o);
+    try {
+      if (changedSince(o.db, seen)) {
+        o.db.exec('ROLLBACK');
+        return false;
+      }
+      backup = backupOrRefuse(o, seen.version, to);
+      runSteps(o, seen.version, backup);
+      o.db.exec('COMMIT');
+    } catch (error) {
+      rollback(o.db);
+      if (error instanceof VersionedSqliteError) throw error;
+      const busy = sqliteCode(error) === SQLITE_CODE.busy || sqliteCode(error) === SQLITE_CODE.locked;
+      throw upgradeFailed(o, seen.version, (busy ? '文件正被别的程序占用：' : '') + errorMessage(error), backup);
+    }
+    console.log(`${o.spec.label}已从第 ${seen.version} 版升级到第 ${to} 版，升级前备份：${backup}`);
+    return true;
+  } finally {
+    o.db.exec('PRAGMA foreign_keys=ON');
+  }
+}
+
+/** 把库带到当前版本。返回 false 表示拿到写锁后发现别的程序刚改过这个库，要重新判断一次 */
+function settle(o: Opening) {
+  const seen = inspect(o.db);
+  const state = stateOf(seen, o.spec);
+  switch (state) {
+    case 'current':
+      return true;
+    case 'newer':
+      throw new VersionedSqliteError(
+        `${o.spec.label}比当前程序新，不能打开：它是第 ${seen.version} 版，当前程序最多支持第 ${latestOf(o.spec)} 版，多半是程序被换回了旧版本。请换回新版本的程序再启动。` +
+          closing(o.file),
+      );
+    case 'legacy':
+      // 旧库在打开前已经删掉；别的程序刚好在这一刻放进来旧库，不在这里删
+      throw new VersionedSqliteError(
+        `${o.spec.label}不能打开：打开的同时有别的程序写进了旧版本的内容，请关掉其它程序后再启动。` + closing(o.file),
+      );
+    case 'empty':
+      return create(o, seen);
+    case 'upgrade':
+      return upgrade(o, seen);
+  }
+}
+
+/** 打开文件（目录不在就建），打不开时说清是哪个库 */
+function openFile(file: string, spec: VersionedSqliteSpec) {
+  try {
+    if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
+    return new DatabaseSync(file);
+  } catch (error) {
+    throw new VersionedSqliteError(
+      `${spec.label}不能打开：文件或它所在的目录打不开（${errorMessage(error)}）。请检查目录是否存在、运行程序的账号有没有读写权限。\n文件：${file}`,
+    );
+  }
+}
+
+/** 打开一个配置库并带到当前版本（规则见文件开头）。':memory:' 也能用（每次都是空库，直接建）。 */
+export function openVersionedSqlite(file: string, spec: VersionedSqliteSpec): DatabaseSync {
+  const steps = checkedSteps(spec);
+  // 先登记再打开：就算这次被拒绝，也知道这个位置是哪个库、支持到第几版
+  if (file !== ':memory:') rememberOpened(file, spec);
+  refuseUnfinished(file, spec);
+  discardLegacy(file, spec);
+  const db = openFile(file, spec);
   try {
     db.exec(`PRAGMA busy_timeout=${spec.busyTimeout ?? BUSY_TIMEOUT}; PRAGMA foreign_keys=ON;`);
     try {
       inspect(db);
     } catch (error) {
-      throw new VersionedSqliteError(`${spec.label}不能打开：${unreadableAdvice(error)}（${reasonOf(error)}）` + closing(file));
+      throw new VersionedSqliteError(`${spec.label}不能打开：${unreadableAdvice(error)}（${errorMessage(error)}）` + closing(file));
     }
     if (spec.pragmas) db.exec(spec.pragmas);
-    for (let attempt = 0; !settle(db, file, spec); attempt++)
+    const o = { db, file, spec, steps };
+    for (let attempt = 0; !settle(o); attempt++)
       if (attempt >= 2)
         throw new VersionedSqliteError(`${spec.label}不能打开：另一个程序正在改这个库，请稍后再启动。\n文件：${file}`);
     return db;
