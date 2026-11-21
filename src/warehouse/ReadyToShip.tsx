@@ -4,8 +4,7 @@ import { SelectionBar } from '../ui/index';
 import { today } from '../../shared/core/index';
 import { isPhoneNow } from '../ui/index';
 import { quantityString, quantityUnits } from '../../shared/core/index';
-import { deliveryCandidates, planOrderDelivery, stockByProduct } from '../../shared/business/index';
-import type { PlanPreset } from './delivery-plan';
+import { deliveryCandidates, planOrderDelivery, stockByProduct, type PlanPreset } from '../../shared/business/index';
 
 type Orders = CatalogLists['pendingOrders'];
 type Items = CatalogLists['finishedItems'];
