@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { many, one, rows } from '../core/index.js';
-import { accountCodeSchema, centsSchema, requestIdSchema, taxModes, termTypes, versionSchema } from '../../shared/finance/index.js';
+import { accountCodeSchema, centsSchema, requestIdSchema, storedTaxModes, termTypes, versionSchema } from '../../shared/finance/index.js';
 import { dateSchema, today } from '../../shared/core/index.js';
 import { FinanceLedger } from './ledger.js';
 import {
@@ -51,7 +51,7 @@ const terms = z
       .refine((v) => Number(v.replace(/%$/, '')) <= MAX_TAX_RATE)
       .nullable()
       .optional(),
-    taxMode: z.enum(taxModes).nullable().optional(),
+    taxMode: z.enum(storedTaxModes).nullable().optional(),
     version: versionSchema.optional(),
     requestId: requestIdSchema,
   })

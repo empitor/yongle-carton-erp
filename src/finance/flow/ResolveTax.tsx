@@ -3,12 +3,13 @@ import { Hint, Section, notify, useAction, FormField } from '../../ui/index';
 import { useFinPerms } from '../fin-api';
 import { resolveEventTax, type ResolveLine } from './tax-api';
 import { taxModeOptions } from '../fields';
+import { definiteTaxModes, legacyTaxMode } from '../../../shared/finance/index';
 import { readSourceDetail, type SourceLine, type SourceRow } from '../source-detail-view';
 
-/** 已经填过的口径：“不含税”按“未税”算，认不出的空着让人选 */
+/** 已经填过的口径：旧写法“不含税”按“未税”算，认不出的（包括“未明确”）空着让人选 */
 function modeOf(mode: string | undefined) {
-  if (mode === '不含税') return '未税';
-  return mode === '含税' || mode === '未税' ? mode : '';
+  if (mode === legacyTaxMode.written) return legacyTaxMode.means;
+  return definiteTaxModes.find((m) => m === mode) ?? '';
 }
 /** 补税率表里的一行：先填上补过的（financialLines）或单据明细上已有的 */
 const resolveLine = (l: SourceLine): ResolveLine => ({

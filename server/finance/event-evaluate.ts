@@ -7,7 +7,7 @@ import { documentMoney, theoreticalMoney } from './amounts.js';
 import type { SourceHead } from '../flow/index.js';
 import type { EventColumns } from './event-columns.js';
 import type { DocumentMoney, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
-import { taxModes } from '../../shared/finance/index.js';
+import { storedTaxModes, UNSPECIFIED_TAX_MODE } from '../../shared/finance/index.js';
 
 type TaxTerms = { tax_rate: string | null; tax_mode: string | null };
 /** 评估只看来源的种类和状态（窗口交出的来源一条里的这两项） */
@@ -104,11 +104,11 @@ export function evaluateSource(
 /** 税率、含税口径按明细、往来单位的默认依次取第一个写清了的（“未明确”不算），记下从哪来的 */
 function choose(line: string | null | undefined, party: string | null | undefined) {
   const values = [line, party];
-  const index = values.findIndex((v) => v != null && v.trim() && v.trim() !== '未明确');
+  const index = values.findIndex((v) => v != null && v.trim() && v.trim() !== UNSPECIFIED_TAX_MODE);
   return { value: index < 0 ? '' : String(values[index]).trim(), source: ['line', 'party'][index] ?? null };
 }
 const validTax = ({ mode, rate }: { mode: string; rate: string }) =>
-  /^\d{1,3}(\.\d{1,6})?%?$/.test(rate) && Number(rate.replace(/%$/, '')) <= 100 && taxModes.some((m) => m === mode);
+  /^\d{1,3}(\.\d{1,6})?%?$/.test(rate) && Number(rate.replace(/%$/, '')) <= 100 && storedTaxModes.some((m) => m === mode);
 // 算出来就是 0 的行（数量为 0，或单价明确填了 0）不管什么口径金额都是 0：没写清税率口径时按“未税 / 0”计，
 // 不算资料待补，否则要人给一张 0 元单子补税率。单价没填是未知，前面已按缺价格转资料待补，到不了这里。
 const priced = (exact: string, tax: { mode: string; rate: string }) =>
