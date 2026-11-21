@@ -6,8 +6,10 @@ import { z } from 'zod';
 import { accountCodeSchema, centsSchema } from '../../shared/finance/index.js';
 import { parseStoredJson } from '../core/index.js';
 import { costingItem, costingResidual, costingSale } from './costing-month.js';
-import type { Mark } from './costing-source.js';
 import { id, label } from './query.js';
+
+/** 某次成本计算的时间点：那次计算的时间，和当时库存流水的最大行号。 */
+export type Mark = { ranAt: string; maxRowid: number };
 
 /** 启用月已有库存的期初成本：库存品、单位、数量（要和流水结存对上）、金额 */
 export const opening = z.strictObject({

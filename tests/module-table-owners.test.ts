@@ -2,7 +2,8 @@
  * 数据库表也按模块管（表的归属和说明见 docs/数据模型.md）：
  * - 写（INSERT、UPDATE、DELETE）：只有表的主人能写；别的模块要改，调它的接口（比如库存流水调 operations/ledger.ts）。
  *   例外只有 tableWriteExceptions 登记的几处，各写明原因。
- * - 读：顺着代码依赖读（能引用哪个模块，就能读它的表）；逆着读的登记在 tableReadExceptions，都是只读的派生数据。
+ * - 读：顺着代码依赖读（能引用哪个模块，就能读它的表），没有逆着读的例外。
+ *   财务更严：SQL 只读自己的 fin_ 表和审计表，业务数据（连基础的 customers、orders、record_lifecycle）一律经只读窗口拿。
  * - 新建的表要在这里登记属于哪个模块；登记了却没人建的表也拦。
  */
 import assert from 'node:assert/strict';
@@ -45,7 +46,14 @@ const tableWriteExceptions: { path: string; why: string }[] = [
       '升级步骤改 CHECK 用 steps.ts 的 rebuildTable 重建（表名拼出来）：临时表 <表>_rebuilt 建完即改回原名，不是新表',
   },
 ];
-const tableReadExceptions: { reader: string; owner: string; why: string }[] = [];
+/**
+ * 财务的 SQL 只许读这些表：自己的 fin_ 表，和基础的审计表（只给财务操作记录页展示，见 auditReaders）。
+ * 业务数据（单据流转、采购库存的表，基础的 customers、orders、record_lifecycle）一律经只读窗口 financeFacts 拿
+ * （server/flow/finance-facts/，docs/架构说明.md“财务事件和凭证”），业务改表时财务一行不用动。
+ * 不是表的名字（json_each、WITH 起的名字）不算。
+ */
+const financeSqlPath = 'server/finance/';
+const financeReadable = (table: string) => table.startsWith('fin_') || table === 'business_audit';
 
 /** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构说明.md“财务事件和凭证”） */
 const readOnlyPaths = ['server/flow/finance-facts/'];
@@ -144,12 +152,16 @@ function sqlViolations(f: string, facts = sqlFacts(f)) {
     if (!owner) bad.push(f + ':' + w.line + '：写了没登记的表 ' + w.table + '。在本文件的 tableOwnerList 登记它归哪个模块');
     else if (owner !== mod.name && !writeAny) bad.push(f + ':' + w.line + '（' + mod.name + '）写 ' + w.table + '（' + owner + '）：表只由主人写，改调' + owner + '的接口去写');
   }
+  if (f.startsWith(financeSqlPath))
+    for (const r of facts.reads) {
+      const owner = tableOwner(r.table);
+      if (owner && !financeReadable(r.table)) bad.push(f + ':' + r.line + '（财务）读 ' + r.table + '（' + owner + '）：财务的 SQL 只读 fin_ 表和 business_audit，业务数据在 server/flow/finance-facts/ 加只读函数、经 financeFacts 拿');
+    }
   if (f.startsWith('server/core/schema/') || mod.allow.includes('*')) return bad;
   for (const r of facts.reads) {
     const owner = tableOwner(r.table);
     if (!owner || owner === mod.name || mod.allow.includes(owner)) continue;
-    if (tableReadExceptions.some((e) => e.reader === mod.name && e.owner === owner)) continue;
-    bad.push(f + ':' + r.line + '（' + mod.name + '）逆着读 ' + r.table + '（' + owner + '）：只顺着依赖读，改成由' + owner + '的接口给数据（调用方传进来、低层定义接口高层登记）；确实要这样读的在 tableReadExceptions 写明原因');
+    bad.push(f + ':' + r.line + '（' + mod.name + '）逆着读 ' + r.table + '（' + owner + '）：只顺着依赖读，改成由' + owner + '的接口给数据（调用方传进来、低层定义接口高层登记）');
   }
   return bad;
 }
@@ -157,7 +169,7 @@ function sqlViolations(f: string, facts = sqlFacts(f)) {
 const serverFiles = all.filter((x) => x.startsWith('server/'));
 const runtimeFiles = serverFiles.filter((x) => !x.startsWith('server/core/schema/'));
 
-test('数据库表只由主人写，读只顺着代码依赖读（逆着读的都登记了原因）', () => {
+test('数据库表只由主人写，读只顺着代码依赖读，财务的 SQL 只读 fin_ 表和审计表', () => {
   const bad = serverFiles.flatMap((f) => sqlViolations(f));
   assert.deepEqual([...new Set(bad)], []);
 });
@@ -174,21 +186,6 @@ test('只许一个文件写的表：采购明细只由 operations/ledger.ts 写�
     for (const w of sqlFacts(f).writes)
       if (singleWriterTables[w.table] && !singleWriterTables[w.table].includes(f)) bad.push(f + ':' + w.line + ' 写 ' + w.table + '：这张表只许 ' + singleWriterTables[w.table].join('、') + ' 写，改调它的函数');
   assert.deepEqual(bad, []);
-});
-
-test('登记的逆向读表都还用得上', () => {
-  const used = new Set<string>();
-  for (const f of runtimeFiles) {
-    const mod = ownerModule(f).name;
-    for (const r of sqlFacts(f).reads) {
-      const owner = tableOwner(r.table);
-      if (owner && owner !== mod) used.add(mod + ' → ' + owner);
-    }
-  }
-  assert.deepEqual(
-    tableReadExceptions.filter((e) => !used.has(e.reader + ' → ' + e.owner)).map((e) => e.reader + ' → ' + e.owner + '：已经没有这样读了，从 tableReadExceptions 删掉'),
-    [],
-  );
 });
 
 const auditReadersOf = (files: readonly string[], facts = sqlFacts) =>
@@ -251,6 +248,21 @@ test('回归：SQL 读写检查不分大小写，认得出带引号的表名、�
   // 读也逐张查：数据管理读财务、助手的表都拦（初始化前查已结账期间由财务自己说）
   assert.ok(sqlCheck('server/admin/business-reset.ts', "db.prepare('select 1 from fin_periods where closed=1')").length, '数据管理逆着读财务的表');
   assert.ok(sqlCheck('server/admin/workspace-management.ts', "db.prepare('select * from assistant_messages')").length, '数据管理逆着读助手的表');
+  // 财务只读 fin_ 表和审计表：业务表（连基础的客户、订单、记录状态）顺着依赖也不许直接读，要经只读窗口
+  for (const s of [
+    "db.prepare('SELECT document FROM flow_documents WHERE id=?')",
+    "db.prepare('select e.id from fin_events e join customers c on c.id=e.party_id')",
+    "db.prepare(`SELECT id FROM orders WHERE created_at>=${from}`)",
+    "db.prepare('SELECT 1 FROM record_lifecycle WHERE record_id=?')",
+    "db.prepare('SELECT quantity FROM stock_movements')",
+  ])
+    assert.ok(sqlCheck('server/finance/sample.ts', s).some((x) => x.includes('（财务）读')), '财务里应拦住：' + s);
+  for (const s of [
+    "db.prepare('SELECT j.value FROM json_each(?) j JOIN fin_events e ON e.source_id=j.value')",
+    "db.prepare('WITH x AS (SELECT id FROM fin_vouchers) SELECT * FROM x')",
+    "db.prepare('SELECT at FROM business_audit')",
+  ])
+    assert.deepEqual(sqlCheck('server/finance/sample.ts', s), [], '财务里不该拦：' + s);
   // 表的主人在自己的删除规则里写自己的表不拦
   assert.deepEqual(sqlCheck('server/operations/deletion.ts', "db.prepare('DELETE FROM stock_movements WHERE rowid=?')"), []);
   assert.deepEqual(sqlCheck('server/flow/sample.ts', "db.exec('drop table if exists flow_tmp')"), [], '删自己的表不拦');

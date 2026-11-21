@@ -21,16 +21,10 @@ const narrowRefs: { from: string; to: string; allowed: () => string[]; how: stri
     to: '共用-业务',
     allowed: () => [
       ...declaredExports('shared/business/finance-source.ts'),
-      ...['arrivalLineValue', 'deliveryLineValue', 'priceText', 'sizeText', 'stockKinds', 'movementSourceKinds'],
+      ...['arrivalLineValue', 'deliveryLineValue', 'priceText', 'sizeText', 'movementSource'],
     ],
-    how: '财务用共用业务只许单据和财务的约定（shared/business/finance-source.ts 的导出）和 arrivalLineValue、deliveryLineValue、priceText、sizeText、stockKinds、movementSourceKinds：要的东西放进约定，或改由窗口 financeFacts 给数据',
+    how: '财务用共用业务只许单据和财务的约定（shared/business/finance-source.ts 的导出）和 arrivalLineValue、deliveryLineValue、priceText、sizeText、movementSource（流水来源编码，按名字引用）：要的东西放进约定，或改由窗口 financeFacts 给数据',
   },
-];
-/**
- * 等窗口接手后删：财务现在还在引、窄引用之外的名字，窗口那一批做完财务就不再引。只许减少：搬走了就删掉这一条（用不上了下面的测试会报），
- * 不许往里加。
- */
-const narrowPending: { from: string; to: string; name: string; batch: string; why: string }[] = [
 ];
 
 /** 表里管着的模块的文件（只解析这些，别的模块不受这张表管） */
@@ -44,8 +38,7 @@ function narrowViolations(f: string, refs: Ref[] = refsOf(f)) {
     const to = r.target ? moduleOf(r.target) : undefined;
     const rule = narrowRefs.find((n) => n.from === from?.name && n.to === to?.name);
     if (!rule) continue;
-    const pending = narrowPending.filter((p) => p.from === rule.from && p.to === rule.to).map((p) => p.name);
-    const allowed = new Set([...rule.allowed(), ...pending]);
+    const allowed = new Set(rule.allowed());
     const bad = r.names ? r.names.filter((n) => !allowed.has(n)) : ['（看不出引了哪些名字，改成 import { 名字 } from 的写法）'];
     for (const n of bad) out.push(f + ':' + r.line + '（' + rule.from + '）→ ' + r.target + ' 的 ' + n + '：' + rule.how);
   }
@@ -54,18 +47,6 @@ function narrowViolations(f: string, refs: Ref[] = refsOf(f)) {
 
 test('窄引用：财务用单据流转只走只读窗口 financeFacts，用共用业务只用约定和登记的几样', () => {
   assert.deepEqual(ruledFiles().flatMap((f) => narrowViolations(f)), []);
-});
-
-test('“等窗口接手后删”的名单都还有财务在引（搬走了就删掉，名单只许减少）', () => {
-  const used = new Set(
-    ruledFiles().flatMap((f) =>
-      refsOf(f).flatMap((r) => (r.target ? (r.names ?? []).map((n) => moduleOf(f)?.name + '→' + moduleOf(r.target ?? '')?.name + '→' + n) : [])),
-    ),
-  );
-  assert.deepEqual(
-    narrowPending.filter((p) => !used.has(p.from + '→' + p.to + '→' + p.name)).map((p) => p.name + '（' + p.batch + '）：已经没人引了，从 narrowPending 删掉'),
-    [],
-  );
 });
 
 test('回归：窄引用拦住财务引单据流转的服务和别的名字、看不出名字的引用，窗口和约定不误报', () => {

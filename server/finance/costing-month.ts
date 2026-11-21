@@ -4,11 +4,12 @@
  */
 import { z } from 'zod';
 import { quantityUnits } from '../../shared/core/index.js';
+import { movementSource } from '../../shared/business/index.js';
 import { financeError } from './core.js';
 import { proportion } from './amounts.js';
 import { spreadAdjustment, type InvoiceAdjustments } from './costing-invoice-adjust.js';
 import type { StockMovement as Movement } from '../flow/index.js';
-import { movementSource, type ArrivalEvent } from './costing-source.js';
+import type { ArrivalEvent } from './costing-arrivals.js';
 import { expectRow } from './finance-rows.js';
 import { readSnapshot } from './source-snapshot.js';
 

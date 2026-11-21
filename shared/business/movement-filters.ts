@@ -5,17 +5,28 @@ import { presetRange, type DatePreset } from '../core/index.js';
 import { SEARCH_MAX_LENGTH } from './limits.js';
 import type { MaybeText } from './display-text.js';
 /**
- * 库存流水的来源（stock_movements.source_kind）能存的全部值，和建表里的 CHECK 一致（tests/schema-constraints.test.ts 比对）。
+ * 库存流水的来源编码（stock_movements.source_kind），按名字引用（如 movementSource.reversal）：
+ * 编码只写在这里，改编码时别的模块（财务、只读窗口）不用跟着改。
  * manual 是手工出入库和盘点；其余见下面流水类型的说明。
  */
+export const movementSource = {
+  manual: 'manual',
+  arrival: 'flow_arrival',
+  production: 'flow_production',
+  delivery: 'flow_delivery',
+  reversal: 'flow_reversal',
+  purchaseReturn: 'purchase_return',
+  maintenance: 'database-maintenance',
+} as const;
+/** 流水来源能存的全部值，和建表里的 CHECK 一致（tests/schema-constraints.test.ts 比对） */
 export const movementSourceKinds = [
-  'manual',
-  'flow_arrival',
-  'flow_production',
-  'flow_delivery',
-  'flow_reversal',
-  'purchase_return',
-  'database-maintenance',
+  movementSource.manual,
+  movementSource.arrival,
+  movementSource.production,
+  movementSource.delivery,
+  movementSource.reversal,
+  movementSource.purchaseReturn,
+  movementSource.maintenance,
 ] as const;
 /**
  * 流水类型。有来源单据的按来源（stock_movements.source_kind）分：

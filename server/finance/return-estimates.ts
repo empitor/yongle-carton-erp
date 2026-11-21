@@ -25,7 +25,7 @@ import { isReversed } from './reversal-pairs.js';
 import { entry, row } from './query.js';
 import { rescaleInstallments } from './terms.js';
 import { bookingDate } from './periods.js';
-import { bookedArrivalEvent } from './costing-source.js';
+import { bookedArrivalEvent } from './costing-arrivals.js';
 import { readSnapshot, type EventSnapshot } from './source-snapshot.js';
 import type { VoucherRecord } from './voucher-read.js';
 
