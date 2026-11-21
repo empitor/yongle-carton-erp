@@ -1,7 +1,7 @@
 {
   "name": "yongle-erp-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "甬勒ERP 的 Windows 外壳（Tauri）：独立窗口打开 ERP 网页，关窗收进托盘",
   "type": "module",
   "scripts": {

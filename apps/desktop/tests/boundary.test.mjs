@@ -1,6 +1,6 @@
 // 外壳的边界：产品源码是登记过的几个文件，核心里的文件按登记表只往下引、没有循环，启动器只用标准库；
 // 运行时只依赖登记过的包；安装包引用的文件都在本目录里；ERP 网页拿不到外壳接口（不开 IPC 权限、插件不注入脚本）；
-// 文件不超过 500 行。依赖、插件、生成的权限清单这几条要用 cargo metadata 和编译生成物：
+// 启动画面的窗口装得下整段动画；文件不超过 500 行。依赖、插件、生成的权限清单这几条要用 cargo metadata 和编译生成物：
 // 先 . .\scripts\env.ps1，并编译过一次。
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -252,6 +252,57 @@ test('没有插件往网页注入脚本', () => {
     if (injecting.length === 0) continue;
     assert.ok(name in SWITCHED_OFF, `${name} 往网页注入脚本：${injecting.join(', ')}`);
     assert.ok(lib.includes(SWITCHED_OFF[name]), `${name} 注入脚本的开关没在 lib.rs 里关掉`);
+  }
+});
+
+/** 路径 d 里的点（只认绝对坐标的 M、L、H、V、Z；改用别的命令时这里要跟着改） */
+function pathPoints(d) {
+  assert.match(d, /^[MLHVZ\d.,\s-]+$/, `路径用了没认的命令：${d}`);
+  const points = [];
+  let last = [0, 0];
+  for (const [, cmd, args] of d.matchAll(/([MLHVZ])([^MLHVZ]*)/g)) {
+    const nums = args.trim().split(/[\s,]+/).filter(Boolean).map(Number);
+    for (let i = 0; i < nums.length; i += cmd === 'H' || cmd === 'V' ? 1 : 2) {
+      if (cmd === 'H') last = [nums[i], last[1]];
+      else if (cmd === 'V') last = [last[0], nums[i]];
+      else last = [nums[i], nums[i + 1]];
+      points.push(last);
+    }
+  }
+  return points;
+}
+
+/**
+ * 启动画面的窗口大小只在 splash.rs 定义。商标（.logo，viewBox 100×100，在窗口里居中）的每组图形
+ * 按它动画里每个平移值算出占的范围（窗口坐标，逻辑像素），都要在可见范围里：
+ * 商标框不裁（overflow: visible）时是整个窗口，裁的话是商标框
+ */
+test('启动画面的窗口装得下整段动画', () => {
+  const [w, h] = /const SIZE: \(f64, f64\) = \(([\d.]+), ([\d.]+)\);/.exec(source('splash')).slice(1).map(Number);
+  const css = read(join(project, 'pages', 'splash.css'));
+  const html = read(join(project, 'pages', 'splash.html'));
+  assert.match(html, /viewBox="0 0 100 100"/);
+  assert.doesNotMatch(css, /shadow|filter|scale|rotate|skew|matrix|translateY|translate\(/, '加了阴影或别的变换：这条检查要跟着算外扩');
+  const logo = /\.logo\s*\{([^}]*)\}/.exec(css)[1];
+  const size = Number(/width:\s*([\d.]+)px/.exec(logo)[1]);
+  assert.equal(Number(/height:\s*([\d.]+)px/.exec(logo)[1]), size);
+  const [left, top] = [(w - size) / 2, (h - size) / 2];
+  const visible = /overflow:\s*visible/.test(logo) ? [0, 0, w, h] : [left, top, left + size, top + size];
+  const shifts = (anim) => {
+    const block = new RegExp(`@keyframes ${anim}\\s*\\{([\\s\\S]*?)\\r?\\n\\}`).exec(css)[1];
+    return [0, ...[...block.matchAll(/translateX\((-?[\d.]+)px\)/g)].map((m) => Number(m[1]))];
+  };
+  for (const [, group, body] of html.matchAll(/<g class="(\w+)">([\s\S]*?)<\/g>/g)) {
+    const anim = new RegExp(`\\.${group}\\s*\\{[^}]*animation:\\s*([\\w-]+)`).exec(css)[1];
+    const points = [...body.matchAll(/ d="([^"]+)"/g)].flatMap((m) => pathPoints(m[1]));
+    const xs = points.map((p) => p[0]);
+    const ys = points.map((p) => p[1]);
+    for (const dx of shifts(anim)) {
+      const scaled = [Math.min(...xs) + dx, Math.min(...ys), Math.max(...xs) + dx, Math.max(...ys)].map((v) => (v * size) / 100);
+      const box = [left + scaled[0], top + scaled[1], left + scaled[2], top + scaled[3]];
+      const fits = box[0] >= visible[0] && box[1] >= visible[1] && box[2] <= visible[2] && box[3] <= visible[3];
+      assert.ok(fits, `${group} 平移 ${dx} 时占 ${box.join(',')}，超出可见范围 ${visible.join(',')}`);
+    }
   }
 });
 
