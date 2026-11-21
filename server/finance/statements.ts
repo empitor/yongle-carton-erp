@@ -3,7 +3,7 @@ import { versionSchema } from '../../shared/finance/index.js';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { findPartyName } from './business-source.js';
+import { financeFacts } from '../flow/index.js';
 import { centsText } from '../../shared/core/index.js';
 import { cashRecordText } from '../../shared/finance/index.js';
 import { partyBalances } from './obligation-sql.js';
@@ -170,7 +170,7 @@ export class FinanceStatements {
     const { kind, partyId, from, to } = statementInput.parse(raw);
     const receivable = kind === 'receivable';
     const name =
-      findPartyName(this.db, receivable ? 'customer' : 'supplier', partyId) ??
+      financeFacts.parties.names(this.db, receivable ? 'customer' : 'supplier', [partyId]).get(partyId) ??
       one(
         this.db,
         partyNameRow,

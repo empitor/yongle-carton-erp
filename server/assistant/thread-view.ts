@@ -16,7 +16,7 @@ type ThreadViewParts = {
   previews: AssistantPreviews;
   attachments: AssistantAttachments;
   settings: AiSettingsManager;
-  orderWorkflow?: AssistantOrderWorkflow;
+  orderWorkflow: AssistantOrderWorkflow;
 };
 
 const shownMessage = rows.assistant_messages
@@ -45,7 +45,7 @@ export function threadView(parts: ThreadViewParts, id: string, actor: Actor): Th
   return {
     id,
     title: thread.title,
-    orderWorkflow: parts.orderWorkflow?.view(id, actor),
+    orderWorkflow: parts.orderWorkflow.view(id, actor),
     messages: messages(parts, id, actor),
     pendingAttachments: parts.attachments.pending(id, actor),
     previousAttachments: parts.attachments.previous(id, actor),

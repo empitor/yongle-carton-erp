@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { flowStatusText } from '../shared/business/physical-flow.js';
 import { priceText, specLine, taxText } from '../shared/business/display-text.js';
 import { centsText } from '../shared/core/display-amount.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { orderedPurchase } from './receive-fixture.js';
 import { readAs } from './read-result.js';
@@ -48,7 +48,7 @@ test('助手按页面上的叫法筛采购单：“待到货”能找到存成�
   const f = flowFixture();
   try {
     orderedPurchase(f, clerk, ['100']);
-    const tools = new AssistantTools(f.store);
+    const tools = toolsOf(f.store);
     for (const status of ['待到货', '已订货'])
       assert.equal(readAs(tools.read('records.search', { module: 'purchases', filters: { status } }, clerk), {}).total, 1, status);
   } finally {

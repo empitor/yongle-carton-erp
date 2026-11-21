@@ -20,10 +20,10 @@ import { filledForm, importWorkspace, tempDir } from './order-import-fixture.js'
 const editor = pageActor({ id: 'router-editor', name: '虚构业务员', permissions: ['business:edit', 'import:execute'] });
 
 function startRouter(options: { chat?: () => unknown; withBusiness?: boolean } = {}) {
-  const f = importWorkspace(options.chat ?? (() => filledForm()));
   const temp = tempDir('erp-import-router-');
   const store = options.withBusiness ? new Store(':memory:') : undefined;
-  const execution = store ? new ImportExecutionService(store, f.manager, join(temp.dir, 'archive')) : undefined;
+  const f = importWorkspace(options.chat ?? (() => filledForm()), store ? { store, archiveDirectory: join(temp.dir, 'archive') } : {});
+  const execution = store ? new ImportExecutionService(store, f.manager) : undefined;
   const app = express();
   app.use(express.json());
   app.use(

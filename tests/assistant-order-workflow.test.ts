@@ -4,7 +4,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
 import { InboxService } from '../server/inbox/service.js';
 import { z } from 'zod';
@@ -324,8 +323,7 @@ test('经接口上传附件、聊天收 SSE 事件：未登录 401、别人的�
       aiSettings: f.settings,
       assistant: f.manager,
       imports: f.imports,
-      enableReviewedImports: true,
-      importArchiveDirectory: join(f.dir, 'archive'),
+      execution: f.execution,
     });
   try {
     const headers = h.headers,

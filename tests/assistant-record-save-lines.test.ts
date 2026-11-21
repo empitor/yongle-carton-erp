@@ -2,13 +2,13 @@
 // 不是对象的明细（null、文字）被拒收，不悄悄丢掉再出卡片。虚构数据、内存库。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { clerk, flowFixture } from './flow-fixture.js';
 
 test('改订单时明细里有 null 或一段文字：出方案就被拒，不丢掉那一行照样出卡片', () => {
   const f = flowFixture();
   const order = f.order(20);
-  const tools = new AssistantTools(f.store);
+  const tools = toolsOf(f.store);
   const line = { productId: f.product.id, quantity: 20, unit: '只', unitPriceCents: 100 };
   for (const bad of [null, '虚构的一行文字'])
     assert.throws(
@@ -20,7 +20,7 @@ test('改订单时明细里有 null 或一段文字：出方案就被拒，不�
 
 test('助手新建采购单漏写计价方式：出方案就被拒，提示选按平方米还是按张，不按默认算钱', () => {
   const f = flowFixture();
-  const tools = new AssistantTools(f.store);
+  const tools = toolsOf(f.store);
   const line = { ...f.raw, stockItemId: f.raw.id, quantity: '100', unitPrice: '2' };
   const propose = (extra: Record<string, unknown>) =>
     tools.prepare('records.propose_save', { module: 'purchases', patch: { supplierId: f.supplier.id, orderDate: '2026-11-01', status: '待订货', lines: [{ ...line, ...extra }] } }, clerk, 'test');

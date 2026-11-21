@@ -1,11 +1,10 @@
 // 只管：管理后台的只读视图——账号列表（accounts.list）、登录记录（accounts.events）和各项设置现在的值（settings.view），都只给超级管理员。
-// 数据来自装配时接上的现成对象（ToolServices），返回值逐项挑，不整个展开：不含密码、密钥、Secret、页面凭证，也不给机器人 ID。
+// 数据来自建助手时给的现成对象（ToolServices），返回值逐项挑，不整个展开：不含密码、密钥、Secret、页面凭证，也不给机器人 ID。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { readLoginRecords } from '../../system/index.js';
 import { accountLevelNames } from '../../../shared/core/index.js';
 import { botStateLabels } from '../../../shared/import/index.js';
-import { notConnected, paging, requireSuperAdmin, SHORT_TEXT_CHARS, timeText, type ToolContext, type ToolReader } from './context.js';
+import { paging, requireSuperAdmin, SHORT_TEXT_CHARS, timeText, type ToolContext, type ToolReader } from './context.js';
 
 /** 事件叫法最多几个字 */
 const EVENT_MAX_CHARS = 30;
@@ -45,11 +44,10 @@ export const adminViewTools = [
 
 /** 级别叫法和界面同一份（shared/core/accounts.ts） */
 const levelNames: Record<string, string> = accountLevelNames;
-const missing = '还没接上';
 
 function listAccounts(ctx: ToolContext, _raw: unknown, who: Actor | null | undefined) {
   requireSuperAdmin(who, '账号');
-  const rows = (ctx.services.accounts ?? notConnected('账号服务')).listAccounts();
+  const rows = ctx.services.accounts.listAccounts();
   return {
     共: rows.length,
     列表: rows.map((a) => ({ 名字: a.name, 级别: levelNames[a.level] ?? a.level, 状态: a.disabled ? '已停用' : '正常', 账号编号: a.id })),
@@ -57,8 +55,7 @@ function listAccounts(ctx: ToolContext, _raw: unknown, who: Actor | null | undef
 }
 
 function loginEvents(ctx: ToolContext, raw: unknown, who: Actor | null | undefined) {
-  const db = ctx.services.accountsDb ?? notConnected('账号库');
-  const r = readLoginRecords(db, who, eventsSchema.parse(raw ?? {}));
+  const r = ctx.services.loginRecords(who, eventsSchema.parse(raw ?? {}));
   return {
     共: r.total,
     列表: r.items.map((e) => ({ 时间: e.time, 账号: e.account, 事件: e.event, ...(e.target ? { 处理的账号: e.target } : {}) })),
@@ -69,32 +66,23 @@ function loginEvents(ctx: ToolContext, raw: unknown, who: Actor | null | undefin
 function viewSettings(ctx: ToolContext, _raw: unknown, who: Actor | null | undefined) {
   const actor = requireSuperAdmin(who, '设置');
   const { ai, bots, deployment, registry } = ctx.services;
-  const aiView = ai?.view(),
-    botViews = bots?.views();
-  const tools = registry?.view(actor).tools;
+  const tools = registry.view(actor).tools;
   return {
-    同时识别几个文件: aiView ? aiView.recognitionConcurrency : missing,
-    机器人: botViews
-      ? Object.fromEntries(
-          botViews.map((v) => [
-            v.label,
-            { 凭据: v.hasSecret ? '已填写' : '没填', 启用: v.enabled ? '已启用' : '没启用', 连接: botStateLabels[v.status.state] },
-          ]),
-        )
-      : missing,
-    部署:
-      deployment === undefined
-        ? missing
-        : deployment
-          ? { 方式: '服务器部署，从域名访问', 允许的域名: [...deployment.hosts], 备份另存一份: deployment.backupCopyDir ? '已设置' : '没设置' }
-          : { 方式: '本机运行' },
-    助手工具: tools
-      ? {
-          共: tools.length,
-          停用的插件: [...new Set(tools.filter((t) => !t.pluginEnabled).map((t) => t.module))],
-          停用的工具: tools.filter((t) => t.pluginEnabled && !t.toolEnabled).map((t) => t.name),
-        }
-      : missing,
+    同时识别几个文件: ai.view().recognitionConcurrency,
+    机器人: Object.fromEntries(
+      bots.views().map((v) => [
+        v.label,
+        { 凭据: v.hasSecret ? '已填写' : '没填', 启用: v.enabled ? '已启用' : '没启用', 连接: botStateLabels[v.status.state] },
+      ]),
+    ),
+    部署: deployment
+      ? { 方式: '服务器部署，从域名访问', 允许的域名: [...deployment.hosts], 备份另存一份: deployment.backupCopyDir ? '已设置' : '没设置' }
+      : { 方式: '本机运行' },
+    助手工具: {
+      共: tools.length,
+      停用的插件: [...new Set(tools.filter((t) => !t.pluginEnabled).map((t) => t.module))],
+      停用的工具: tools.filter((t) => t.pluginEnabled && !t.toolEnabled).map((t) => t.name),
+    },
   };
 }
 

@@ -4,11 +4,36 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ImportManager } from '../server/import/manager.js';
+import type { WorkspaceOptions } from '../server/import/workspace-store.js';
+import { ReceiptAi } from '../server/import/receipt-ai.js';
+import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
+import { Store } from '../server/core/db.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { OrderDraft } from '../shared/import/order-draft.js';
 import { draftFromForm, orderFormSchema } from '../shared/import/order-form.js';
 import { xlsxFixture } from './import-fixtures.js';
 import { fakeAiSettings, type FakeChat } from './fake-deepseek.js';
+
+/**
+ * 建识别导入管理器（ImportManager 的选项都必填，这里替测试补齐）：没给的业务库、订单提示词、到货识别现建在内存里，
+ * 原件归档默认放在工作区目录下的 archive；这些现建的跟着 close() 一起关。
+ */
+export function testImports(options: Pick<WorkspaceOptions, 'directory' | 'settings'> & Partial<WorkspaceOptions>) {
+  const owned: { close(): void }[] = [];
+  const own = <T extends { close(): void }>(made: T) => (owned.push(made), made);
+  const store = options.store ?? own(new Store(':memory:'));
+  const promptPresets = options.promptPresets ?? own(new PromptPresetManager(':memory:', defaultPromptPreset));
+  const receiptAi =
+    options.receiptAi ?? new ReceiptAi(store, options.settings, own(new PromptPresetManager(':memory:', supplierDefaultPreset)));
+  return new (class extends ImportManager {
+    override close() {
+      super.close();
+      for (const made of owned) made.close();
+    }
+  })({ archiveDirectory: join(options.directory, 'archive'), ...options, store, promptPresets, receiptAi });
+}
 
 type Cells = Record<string, string | null>;
 
@@ -56,11 +81,11 @@ export function tempDir(prefix: string) {
   return { dir, remove: () => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) };
 }
 
-/** 识别工作区：模型替身按 chat 回答（默认交回 filledForm()）；extra 是 ImportManager 别的选项（如查导入台账）。 */
-export function importWorkspace(chat: FakeChat = () => filledForm(), extra: Partial<ConstructorParameters<typeof ImportManager>[0]> = {}) {
+/** 识别工作区：模型替身按 chat 回答（默认交回 filledForm()）；extra 是 ImportManager 别的选项（如导入台账所在的业务库）。 */
+export function importWorkspace(chat: FakeChat = () => filledForm(), extra: Partial<WorkspaceOptions> = {}) {
   const temp = tempDir('erp-import-');
   const { settings, fake } = fakeAiSettings({ chat });
-  const manager = new ImportManager({ ...extra, directory: temp.dir, settings });
+  const manager = testImports({ ...extra, directory: temp.dir, settings });
   return {
     directory: temp.dir,
     settings,

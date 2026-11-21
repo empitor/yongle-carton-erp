@@ -5,7 +5,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
-import { findImport } from '../server/import/import-records.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 // 订单保存要单据流转登记的改单核对、进度规则
 import '../server/flow/index.js';
@@ -49,8 +48,8 @@ function analysis() {
 async function fixture(response = analysis()) {
   const store = new Store(':memory:'),
     archive = tempDir('erp-dimension-archive-'),
-    f = importWorkspace(() => response, { findImport: (id, hash) => findImport(store, id, hash) }),
-    service = new ImportExecutionService(store, f.manager, archive.dir);
+    f = importWorkspace(() => response, { store, archiveDirectory: archive.dir }),
+    service = new ImportExecutionService(store, f.manager);
   let w = await f.upload(docxFixture(), '可选资料测试.docx');
   w = await f.manager.analyze(w.id, { expectedRevision: w.revision, stream: false });
   const preview = () => service.preview(w.id, { expectedRevision: f.manager.get(w.id).revision }, importer);

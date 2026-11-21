@@ -31,7 +31,7 @@ test('ai.status：接上识别导入时列出最近失败、按 workspaceId 过�
     const w = await f.upload();
     f.manager.recordFailure(new Error('第一条虚构失败'), { id: w.id, fileName: '甲.xlsx', size: 10 }, { operation: 'upload', stage: 'upload-validation' });
     f.manager.recordFailure(new Error('第二条虚构失败'), { fileName: '乙.xlsx', size: 20 }, { operation: 'analyze', stage: 'model-call', actor: boss });
-    const ctx = ctxOf(store, { ai: f.settings }, f.manager);
+    const ctx = ctxOf(store, { ai: f.settings, imports: f.manager });
 
     const page1 = readAs(await aiStatusReaders['ai.status'](ctx, { limit: 1, offset: 0 }, boss, 'ai.status'), { 最近识别失败: failureListSchema });
     assert.equal(page1.最近识别失败.共, 2);

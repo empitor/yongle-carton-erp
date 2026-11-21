@@ -2,28 +2,26 @@ import { Store, defaultDbPath, type Deployment } from './core/index.js';
 import { createApp } from './app.js';
 import { acquireLock } from './core/index.js';
 import { ProblemLog, defaultProblemLogPath } from './core/index.js';
-import { RunLog, captureProcessOutput, defaultRunLogPath, programSource } from './system/index.js';
+import { RunLog, captureProcessOutput, defaultRunLogPath, programSource, readLoginRecords } from './system/index.js';
 import { AiSettingsManager } from './ai/index.js';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { SchemaError, VersionedSqliteError, scheduleDailyBackup } from './core/index.js';
 import { writeSync } from 'node:fs';
 import { purgeOperationRequests, scheduleDailyCleanup } from './core/index.js';
 import { defaultAiSettingsPath, initializeCredentialProtection } from './ai/index.js';
-import { ImportManager, defaultWorkspaceDirectory } from './import/index.js';
+import { ImportExecutionService, ImportManager, defaultWorkspaceDirectory } from './import/index.js';
 import { backupDirectory } from './core/index.js';
 import { AuthManager, defaultAccountPath } from './core/index.js';
 import { AI_HTTP_TIMEOUT_MS } from '../shared/ai/index.js';
 import { DAY_MS, errorMessage } from '../shared/core/index.js';
 import { defaultPromptSettingsPath } from './ai/index.js';
 import { createPromptManagers } from './ai/index.js';
-import { workspaceHooks } from './import/index.js';
 import { ReceiptAi, defaultPromptPreset, supplierDefaultPreset } from './import/index.js';
 import { assistantDefaultPreset, defaultAssistantToolsPath } from './assistant/index.js';
 import { AssistantManager } from './assistant/index.js';
 import { createRuntimeControl } from '../scripts/runtime-control.mjs';
 import { createServer, type Server } from 'node:http';
-import { InboxService } from './inbox/index.js';
-import { BotManager, BotSettings, defaultBotSettingsPath, purgeOldInbox } from './inbox/index.js';
+import { BotSettings, defaultBotSettingsPath, inboxBots, purgeOldInbox } from './inbox/index.js';
 import { backupExtraFiles } from './backup-extras.js';
 import { readDeployment } from './core/index.js';
 import { checkDocumentFonts, purgeExportFiles } from './documents/index.js';
@@ -60,7 +58,7 @@ function opening<T>(open: () => T): T {
   }
 }
 
-/** 按真实目录打开各个库和服务，接好助手的只读工具 */
+/** 按真实目录打开各个库和服务；助手要用的一次给全 */
 function openServices(deployment: Deployment | undefined, runLog: RunLog) {
   const store = opening(() => new Store());
   const problems = opening(() => new ProblemLog(defaultProblemLogPath()));
@@ -70,7 +68,8 @@ function openServices(deployment: Deployment | undefined, runLog: RunLog) {
   const aiSettings = new AiSettingsManager({ file: defaultAiSettingsPath() });
   const aiWarning = deployment && aiSettings.credentialWarning();
   if (aiWarning) console.warn(aiWarning);
-  // 默认提示词由用它的模块提供：订单、送货单识别在识别导入，助手的人设在助手
+  // 默认提示词由用它的模块提供：订单、送货单识别在识别导入，助手的人设在助手。
+  // 这一张表交给识别导入、到货识别、助手和提示词设置页（server/app.ts），各处用的是同一个管理器
   const promptManagers = opening(() =>
     createPromptManagers(dirname(defaultPromptSettingsPath()), {
       'sales-order': defaultPromptPreset,
@@ -79,42 +78,42 @@ function openServices(deployment: Deployment | undefined, runLog: RunLog) {
     }),
   );
   const receiptAi = new ReceiptAi(store, aiSettings, promptManagers['supplier-delivery']);
-  const assistant = opening(
-    () =>
-      new AssistantManager(store, aiSettings, promptManagers['assistant'], {
-        toolSettingsFile: defaultAssistantToolsPath(),
-      }),
-  );
   const imports = opening(() => new ImportManager({
     directory: defaultWorkspaceDirectory(),
     // 原件归档跟随业务库目录：服务器上程序目录只读，数据在 DB_PATH 所在目录，备份也按这个目录打包。
     archiveDirectory: join(dirname(defaultDbPath), 'import-archive'),
     settings: aiSettings,
     promptPresets: promptManagers['sales-order'],
-    // 导入记录、保存客户和产品选择前核对档案：问业务库的两件事由识别导入模块提供
-    ...workspaceHooks(store),
+    store,
+    receiptAi,
   }));
+  const execution = new ImportExecutionService(store, imports);
   const botSettings = opening(() => new BotSettings(defaultBotSettingsPath()));
   const botWarning = deployment && botSettings.credentialWarning();
   if (botWarning) console.warn(botWarning);
-  const inbox = new InboxService(store);
-  const bots = new BotManager(botSettings, {
-    ingest: (incoming) => inbox.ingest(incoming),
-    exists: (channel, externalId) => inbox.has(channel, externalId),
-  });
-  // 助手的只读工具要看的东西（AI 设置、账号、机器人、出错记录、运行日志、程序代码）
-  assistant.tools.connect({
-    ai: aiSettings,
-    accounts: auth,
-    bots,
-    deployment,
-    registry: assistant.registry,
-    problems,
-    runLog,
-    source: programSource(),
-    accountsDb: auth.db,
-  });
-  return { store, problems, auth, aiSettings, promptManagers, receiptAi, assistant, imports, botSettings, bots };
+  const bots = inboxBots(store, botSettings);
+  const assistant = opening(
+    () =>
+      new AssistantManager({
+        store,
+        ai: aiSettings,
+        prompts: promptManagers,
+        imports,
+        execution,
+        receiptAi,
+        accounts: auth,
+        loginRecords: (who, filter) => readLoginRecords(auth.db, who, filter),
+        bots,
+        deployment: deployment ?? null,
+        problems,
+        runLog,
+        source: programSource(),
+        // 助手做的完整备份和每日自动备份同一份目录和附带的配置文件
+        backup: { dataDir: dirname(defaultDbPath), backupRoot: backupDirectory(), extraFiles: backupExtraFiles() },
+        toolSettingsFile: defaultAssistantToolsPath(),
+      }),
+  );
+  return { store, problems, auth, aiSettings, promptManagers, receiptAi, assistant, imports, execution, botSettings, bots };
 }
 type Services = ReturnType<typeof openServices>;
 type Listener = { server: Server; port: number };
@@ -201,12 +200,12 @@ async function startServer() {
       aiSettings: services.aiSettings,
       promptModules: services.promptManagers,
       imports: services.imports,
+      execution: services.execution,
       auth: services.auth,
       deployment,
       receiptAi: services.receiptAi,
       problems: services.problems,
       bots,
-      enableReviewedImports: true,
   });
   const listeners = (deployment ? [port, deployment.proxyPort] : [port]).map((port) => {
     const server = createServer(app);
@@ -225,13 +224,6 @@ async function startServer() {
     await shutdown(false).finally(() => control.close());
     process.exit(1);
   }
-  assistant.connectExtras({
-    backup: {
-      dataDir: dirname(defaultDbPath),
-      backupRoot: backupDirectory(),
-      extraFiles: backupExtraFiles(),
-    },
-  });
   running.upkeep.stopBackup = scheduleDailyBackup({
     dataDir: dirname(defaultDbPath),
     backupRoot: backupDirectory(),

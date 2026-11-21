@@ -8,7 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assistantFixture, confirmCard } from './assistant-fixture.js';
+import { assistantDeps, assistantFixture, confirmCard, makeSettings } from './assistant-fixture.js';
 import { Store } from '../server/core/db.js';
 import { count, type Actor } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
@@ -56,7 +56,9 @@ function attachedFile(store: Store, file: Pick<AssistantAttachment, 'name' | 'mi
   };
   const attachments = new AssistantAttachments(store);
   attachments.file = () => ({ meta, bytes: png });
-  return { tools: new AssistantExtraTools(store, attachments), context: ctx([meta]) };
+  const { deps } = assistantDeps(store, makeSettings());
+  const tools = new AssistantExtraTools({ store, attachments, receiptAi: deps.receiptAi, imports: deps.imports, backup: deps.backup });
+  return { tools, context: ctx([meta]) };
 }
 
 const pngInfo = { mime: 'image/png', kind: 'image', transfer: 'image' } as const;
@@ -75,10 +77,9 @@ test('系统维护、唛头、收件箱、到货识别这些工具都在目录�
 
 test('聊天里让助手备份：只出确认卡片，写明会多出一份什么备份；人点了才备份', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-extra-'));
-  const f = assistantFixture();
+  const f = assistantFixture([], { deps: { backup: { dataDir: dir, backupRoot: join(dir, 'backups-out') } } });
   try {
     const local = localAdministratorActor({ ...actor, role: 'super_admin' });
-    f.manager.connectExtras({ backup: { dataDir: dir, backupRoot: join(dir, 'backups-out') } });
     const t = f.manager.create(local);
     // 模型连着要备份两次：两张卡片，一份都没做
     f.replies.push({ message: '', toolCalls: [{ name: 'system.backup', args: {} }, { name: 'system.backup', args: {} }] }, { message: '请在卡片上确认。' });
@@ -106,7 +107,9 @@ const untouched = (what: string): never => {
 function inboxReadContext(store: Store): ToolContext {
   return {
     store,
-    services: {},
+    get services() {
+      return untouched('ctx.services');
+    },
     get ops() {
       return untouched('ctx.ops');
     },
@@ -150,7 +153,6 @@ test('唛头：挂到产品、从产品上移除；只影响唛头（聊天里�
   try {
     const product = store.saveProduct(productSchema.parse({ name: '虚构箱' }));
     const { tools, context } = attachedFile(store, { name: '虚构唛头.png', ...pngInfo });
-    tools.marks = new MarkService(store);
     const added = readAs(await tools.call('marks.add', { productId: product.id }, context), { id: z.number() });
     const service = new MarkService(store);
     assert.equal(service.list(product.id).length, 1);
@@ -162,7 +164,6 @@ test('唛头：挂到产品、从产品上移除；只影响唛头（聊天里�
     assert.ok(store.product(product.id), '产品还在');
     await assert.rejects(tools.call('marks.add', { productId: product.id }, ctx()), /哪一份附件/);
     const bad = attachedFile(store, { name: '虚构.docx', mime: 'application/msword', kind: 'office', transfer: 'file' });
-    bad.tools.marks = tools.marks;
     await assert.rejects(bad.tools.call('marks.add', { productId: product.id }, bad.context), /只支持/);
   } finally {
     store.close();

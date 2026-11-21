@@ -5,13 +5,13 @@ import { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { PROMISE_REFUSED, rehearseChanges, rehearsedTables } from '../server/assistant/tools/card-rehearsal.js';
-import { autoConfirmAssistant } from './assistant-fixture.js';
+import { autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 
 test('试执行拒绝要等的函数：回滚之后它接着写的会真的落库、没人确认，这类命令要登记成流程类卡片', () => {
   const f = autoConfirmAssistant();
   try {
     const tools = f.manager.tools;
-    const ctx: ToolContext = { store: tools.store, ops: tools.ops, flow: tools.flow, services: {}, tools };
+    const ctx: ToolContext = { ...ctxOf(tools.store), ops: tools.ops, flow: tools.flow, tools };
     assert.throws(() => rehearseChanges(ctx, async () => 1, () => undefined), (e: unknown) => e instanceof Error && e.message === PROMISE_REFUSED);
     assert.throws(() => rehearseChanges(ctx, () => Promise.resolve(1), () => undefined), (e: unknown) => e instanceof Error && e.message === PROMISE_REFUSED);
     // 同步的照常试，试完不留触发器

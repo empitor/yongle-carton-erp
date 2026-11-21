@@ -10,7 +10,7 @@ import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { buildDashboard } from '../server/business/dashboard.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { planCorrection } from '../server/flow/correction.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
@@ -193,7 +193,7 @@ test('更正以后采购详情、列表进度、经营概览和助手读到的�
     f.confirm(f.arrival());
     f.correct(['5000']);
     const p = f.current();
-    const record = readAs(new AssistantTools(f.store).read('records.get', { module: 'purchases', id: p.id }, actor), { record: z.looseObject({}) });
+    const record = readAs(toolsOf(f.store).read('records.get', { module: 'purchases', id: p.id }, actor), { record: z.looseObject({}) });
     assert.deepEqual(record.record.lines, p.lines);
     const dashboard = buildDashboard(f.store, [], {});
     assert.equal(dashboard.overview.purchases.outstanding[0].quantity, '5000');

@@ -74,7 +74,14 @@ export async function arrivalAssistantFixture(realSettings?: AiSettingsManager, 
     base = businessBase(actor, store),
     { ops } = base;
   const { supplier, raw } = seedRecords(base);
-  const options = { directory: join(dir, 'imports'), settings, promptPresets: orderPrompts };
+  const options = {
+    directory: join(dir, 'imports'),
+    archiveDirectory: join(dir, 'archive'),
+    settings,
+    promptPresets: orderPrompts,
+    store,
+    receiptAi: ai,
+  };
   let manager = new ImportManager(options);
   async function upload(name = '虚构到货单.png') {
     const w = (await manager.upload(image, name, true)).workspace;

@@ -7,7 +7,7 @@ import type { ReceiptAi } from './receipt-ai.js';
 import type { ImportExecutionService } from './import-execution.js';
 import { matchDraft } from './matching.js';
 import { standardOrderDraft } from './standard-order.js';
-import { arrivalLinks, withArrivalStatus } from './business-links.js';
+import { withArrivalStatus } from './business-links.js';
 import { recognitionModes, type ImportsApi } from '../../shared/import/index.js';
 import { arrivalRouter } from './arrival-router.js';
 import { workspaceAdminRouter, type Operator } from './workspace-admin-router.js';
@@ -76,9 +76,6 @@ export function importRouter(
   business?: { store: Store; execution?: ImportExecutionService },
 ) {
   const who = (req: Request) => operator?.(req) || null;
-  // 到货单在不在、锁没锁、停到货识别：接到工作区上，只接这一处
-  const store = receiptAi?.store ?? business?.store;
-  if (store) manager.connectArrivals(arrivalLinks(store, receiptAi && ((id) => receiptAi.abort(id))));
   const router = Router(),
     on = route<ImportsApi>(router, '/ai/imports');
   router.use(aiPageGuard(manager.csrfToken, '导入工作区'));

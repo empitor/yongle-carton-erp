@@ -10,9 +10,11 @@ import { requestWindow, webSearch } from '../server/ai/web.js';
 import { mergeSearchResults, webReaders, WEB_READ_CHUNK, WEB_SEARCH } from '../server/assistant/tools/web.js';
 import { allowedUrl, noteSearchResult } from '../server/assistant/chat/external-content.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import type { ToolContext, ToolServices } from '../server/assistant/tools/context.js';
+import type { ToolContext } from '../server/assistant/tools/context.js';
 import type { Actor } from '../server/core/index.js';
-import { assistantFixture } from './assistant-fixture.js';
+import { Store } from '../server/core/db.js';
+import type { AiSettingsManager } from '../server/ai/settings-manager.js';
+import { assistantFixture, toolServices } from './assistant-fixture.js';
 import { fakeAiSettings, fakeDeepSeek, fakeKey } from './fake-deepseek.js';
 import { toolResultSent } from './fake-deepseek.js';
 import { readAs } from './read-result.js';
@@ -21,9 +23,10 @@ import { readAs } from './read-result.js';
 const untouched = (what: string): never => {
   throw new Error('联网工具不该碰 ' + what);
 };
-function ctxOf(services: ToolServices = {}): ToolContext {
+function ctxOf(ai: AiSettingsManager): ToolContext {
   return {
-    services,
+    // 只读 AI 设置；别的服务是虚构的空服务（toolServices 用的那个库不是这里的 ctx.store）
+    services: toolServices(new Store(':memory:'), { ai }),
     get store() {
       return untouched('ctx.store');
     },
@@ -120,7 +123,7 @@ test('web.search：几个词同时搜、重复的词只搜一次；合起来最�
     search: (q) => hits(q, 10, q === '甲' ? long : '虚构摘要').map((h, i) => (q === '甲' && i === 0 ? { ...h, title: '题'.repeat(300) } : h)),
   });
   try {
-    const ctx = ctxOf({ ai: settings });
+    const ctx = ctxOf(settings);
     const found = searched.parse(
       await webReaders['web.search'](ctx, { queries: ['甲', '乙', '甲'] }, staff, 'web.search', {
         question: '虚构的问题：最近\n瓦楞纸价格',
@@ -163,7 +166,7 @@ test('web.search：一个词失败就整次失败，其余还在搜的收到取�
     });
   };
   try {
-    const ctx = ctxOf({ ai: settings });
+    const ctx = ctxOf(settings);
     await assert.rejects(async () => call('web.search', ctx, { queries: ['慢', '坏'] }, staff), /虚构的搜索失败/);
     assert.equal(cancelled, true);
   } finally {
@@ -176,7 +179,7 @@ test('web.search、web.read：所有登录账号能用；正文分段给、写�
   const { settings } = fakeAiSettings({ pages: { 'https://example.com/fictional': { title: '虚构网页', content: long } } });
   const { settings: noKey } = fakeAiSettings({ saveKey: false });
   try {
-    const ctx = ctxOf({ ai: settings });
+    const ctx = ctxOf(settings);
     const found = z.looseObject({ 结果: z.array(z.looseObject({})) }).parse(await call('web.search', ctx, { queries: ['虚构纸箱'] }, staff));
     assert.deepEqual(found.结果[0], { 标题: '虚构搜索结果', 网址: 'https://example.com/fictional', 网站: '虚构站点', 摘要: '虚构的较长摘要' });
     const first = readPage.parse(await call('web.read', ctx, { url: 'https://example.com/fictional' }, staff));
@@ -187,9 +190,8 @@ test('web.search、web.read：所有登录账号能用；正文分段给、写�
     assert.equal(rest.正文.length, 500);
     assert.equal(rest.还没读完, undefined);
     await assert.rejects(async () => call('web.read', ctx, { url: 'http://localhost/x' }, staff), /./);
-    await assert.rejects(async () => call('web.search', ctxOf({ ai: noKey }), { queries: ['虚构'] }, staff), /[一-龥]/);
+    await assert.rejects(async () => call('web.search', ctxOf(noKey), { queries: ['虚构'] }, staff), /[一-龥]/);
     await assert.rejects(async () => call('web.search', ctx, { queries: ['虚构'] }, null), statusIs(401));
-    await assert.rejects(async () => call('web.search', ctxOf(), { queries: ['虚构'] }, staff), /AI 设置还没接上/);
   } finally {
     settings.close();
     noKey.close();
@@ -209,7 +211,7 @@ test('web.read 只开用户在这个会话里给的、或这个会话里搜索�
     const thread = f.manager.create(actor);
     f.manager.conversations.message(thread.id, 'user', '读一下 https://example.com/a 这个网页');
     noteSearchResult(f.store, thread.id, { 结果: [{ 网址: 'https://example.com/fictional' }] });
-    const ctx = ctxOf({ ai: settings });
+    const ctx = ctxOf(settings);
     const read = async (url: string, who: Actor) =>
       readAs(await webReaders['web.read'](ctx, { url }, who, 'web.read', { allowedUrl: (u) => allowedUrl(f.store, thread.id, u) }), {});
     for (const who of [staff, cashier]) {
@@ -293,7 +295,7 @@ test('读网页去掉 # 片段才对上也放行，但打开的永远是放行�
     assert.equal(pick('https://example.com/a'), 'https://example.com/a#1', '模型去掉了片段');
     assert.equal(pick('https://example.com/a#d=虚构客户甲'), 'https://example.com/a#1', '模型自己写的片段不带进去');
     for (const url of ['https://example.com/a?d=1', 'https://example.com/a/b', 'https://example.com/b#1']) assert.equal(pick(url), null, url);
-    const ctx = ctxOf({ ai: settings });
+    const ctx = ctxOf(settings);
     const read = async (url: string) => readAs(await webReaders['web.read'](ctx, { url }, staff, 'web.read', { allowedUrl: pick }), {});
     for (const url of ['https://example.com/a', 'https://example.com/a#d=虚构客户甲']) {
       const page = await read(url);
@@ -316,14 +318,15 @@ test('联网命令的结果进对话时不截（直接调和经 run_command 调�
       { message: '', toolCalls: [{ name: 'run_command', args: { name: 'web.read', args: { url: 'https://example.com/long' } } }] },
       { message: '虚构的回答。', toolCalls: [] },
     ],
-    { agent: { session: { toolResultTokens: 500 } } },
+    {
+      agent: { session: { toolResultTokens: 500 } },
+      web: {
+        search: (q) => hits(q, 10, '虚'.repeat(900)),
+        pages: { 'https://example.com/long': { title: '虚构长网页', content: page } },
+      },
+    },
   );
-  const { settings } = fakeAiSettings({
-    search: (q) => hits(q, 10, '虚'.repeat(900)),
-    pages: { 'https://example.com/long': { title: '虚构长网页', content: page } },
-  });
   try {
-    f.manager.tools.connect({ ai: settings });
     const thread = f.manager.create(actor);
     await f.manager.chat(thread.id, f.input('读一下 https://example.com/long 再搜搜纸价', randomUUID()), actor, 's', () => {}, () => actor);
     const calls = f.requests.map((c) => ({ body: c.body }));
@@ -334,7 +337,6 @@ test('联网命令的结果进对话时不截（直接调和经 run_command 调�
     assert.equal(read.正文.length, WEB_READ_CHUNK);
     assert.equal(read.还没读完, '还剩 300 字，接着读传 offset: ' + WEB_READ_CHUNK);
   } finally {
-    settings.close();
     f.close();
   }
 });

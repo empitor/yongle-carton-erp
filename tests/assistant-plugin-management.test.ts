@@ -42,7 +42,7 @@ test('工具管理在 AI 设置的工具页签：助手按名字打开设置里�
 test('启停只有超级管理员能改；整组停用保留单个工具的开关，重开后照旧；模型看不到、执行端也拒绝停用的工具', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-plugin-ui-')),
     file = join(dir, 'tools.sqlite');
-  let registry = new AssistantToolRegistry(file, () => true);
+  let registry = new AssistantToolRegistry(file);
   const admin = superActor();
   let calls = 0;
   const handlers = { read: () => ++calls, business: () => ++calls, workflow: () => ++calls };
@@ -63,7 +63,7 @@ test('启停只有超级管理员能改；整组停用保留单个工具的开�
       /停用/,
     );
     registry.close();
-    registry = new AssistantToolRegistry(file, () => true);
+    registry = new AssistantToolRegistry(file);
     registry.setPlugin({ id: 'erp-page', enabled: true, expectedRevision: 2 }, admin);
     const tools = registry.view(actor).tools;
     const observe = toolNamed(tools, 'page.observe');
@@ -80,9 +80,8 @@ test('启停只有超级管理员能改；整组停用保留单个工具的开�
   }
 });
 
-test('真实权限和服务状态分别参与当前可用状态，分组里的工具数和注册表一致', async () => {
-  let connected = false;
-  const registry = new AssistantToolRegistry(':memory:', () => connected);
+test('真实权限参与当前可用状态，分组里的工具数和注册表一致', async () => {
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     const ordinary = registry.view(actor).tools;
     const limited = toolNamed(registry.view({ ...actor, permissions: [] }).tools, 'page.observe');
@@ -91,8 +90,6 @@ test('真实权限和服务状态分别参与当前可用状态，分组里的�
     assert.equal(toolNamed(ordinary, 'order_import.execute').permitted, false);
     const getImport = toolNamed(ordinary, 'order_import.get');
     assert.equal(getImport.permitted, true);
-    assert.equal(getImport.available, false);
-    connected = true;
     const importActor = { ...actor, permissions: grant('business:edit', 'import:execute') };
     assert.equal(
       toolNamed(registry.view(importActor).tools, 'order_import.execute').usable,
@@ -118,7 +115,7 @@ test('真实权限和服务状态分别参与当前可用状态，分组里的�
 });
 
 test('分组界面：每组名字、说明、整组开关，组里每个工具的状态和单独开关；整组停用时工具勾选保留', () => {
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     registry.setPlugin({ id: 'erp-page', enabled: false, expectedRevision: 0 }, superActor());
     const data = registry.pluginsView(actor);
@@ -159,7 +156,6 @@ test('经接口管工具：未登录 401、没页面凭证 403；整组和单个
     const grouped = readAs(await (await fetch(h.api + '/assistant/plugins', { headers: h.headers })).json(), {
       plugins: z.array(z.looseObject({ id: z.string(), tools: z.array(listedTool) })),
     });
-    assert.equal(grouped.plugins.find((p) => p.id === 'order-import')?.tools[0]?.available, false);
     const flat = readAs(await (await fetch(h.api + '/assistant/tools', { headers: h.headers })).json(), {
       canManage: z.boolean(), revision: z.number(), tools: z.array(listedTool),
     });

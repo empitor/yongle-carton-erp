@@ -2,7 +2,6 @@
 // 登记了的只出确认卡片：card() 由服务器算出卡片上给人看的内容（summary）和确认时原样执行的参数（args）；
 // 人点确认后 run() 按存下来的参数执行。业务类工具（有方案生成器的）一律出卡片，不在这里，见 tool-step.ts。
 // 不算写入的流程类工具在 workflow-direct.ts；流程类工具两边都没登记，tests/assistant-boundaries.test.ts 会拦。
-import { AppError } from '../../core/index.js';
 import type { Store } from '../../core/index.js';
 import { BusinessDocuments } from '../../documents/index.js';
 import { FlowService } from '../../flow/index.js';
@@ -53,14 +52,6 @@ type Entry = {
   | { planned: true }
 );
 
-const orderWorkflow = (svc: ChatServices) => {
-  if (!svc.orderWorkflow) throw new AppError('AI 导入没有接上，这件事现在办不了。', 503);
-  return svc.orderWorkflow;
-};
-const marks = (svc: ChatServices) => {
-  if (!svc.extras.marks) throw new AppError('唛头服务未配置。', 503);
-  return svc.extras.marks;
-};
 const productName = (store: Store, id: number | undefined) =>
   (id === undefined ? undefined : store.products(true, [id])[0]?.name) ?? '编号 ' + id;
 /** 改识别结果的三个命令各自的卡片标题 */
@@ -72,7 +63,7 @@ const DRAFT_EDITS: Record<string, string> = {
 /** 动的不是这次对话里交来的识别结果时那张卡片：写明是哪份文件、要改成什么 */
 function draftEditCard(svc: ChatServices, ctx: WorkflowContext, name: string, raw: unknown): WorkflowCard {
   const a = draftEditView.parse(raw);
-  const wf = orderWorkflow(svc);
+  const wf = svc.orderWorkflow;
   const w = wf.imports.get(wf.selected(ctx, a.taskId).task.workspaceId);
   const rowOf = (lineId: string) => (w.draft?.lines.findIndex((l) => l.id === lineId) ?? -1) + 1;
   const changes: CardLine[] =
@@ -169,8 +160,8 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
   },
   // 正式导入：一份或几份，一张卡片列全
   'order_import.execute': {
-    card: (svc, ctx, a) => importCard(orderWorkflow(svc), ctx, importRequest.parse(a)),
-    run: (svc, ctx, a) => executeImports(orderWorkflow(svc), ctx, storedImports.parse(a).imports),
+    card: (svc, ctx, a) => importCard(svc.orderWorkflow, ctx, importRequest.parse(a)),
+    run: (svc, ctx, a) => executeImports(svc.orderWorkflow, ctx, storedImports.parse(a).imports),
   },
   // 改识别结果、匹配档案、撤回修改：这次对话里用户自己交来的那几份（上传后识别的、从收件箱转来的）直接改（workflow-direct.ts）；
   // 动别的识别结果（关联进来的、别人待导入的）出卡片。按这份东西是不是这次对话带进来的判断，不看用户说了什么
@@ -178,9 +169,9 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
     Object.keys(DRAFT_EDITS).map((name): [string, Entry] => [
       name,
       {
-        when: (a, svc, ctx) => !orderWorkflow(svc).ownTask(ctx, taskIdOf(a)),
+        when: (a, svc, ctx) => !svc.orderWorkflow.ownTask(ctx, taskIdOf(a)),
         card: (svc, ctx, a) => draftEditCard(svc, ctx, name, a),
-        run: (svc, ctx, a) => orderWorkflow(svc).call(name, a, ctx),
+        run: (svc, ctx, a) => svc.orderWorkflow.call(name, a, ctx),
       },
     ]),
   ),
@@ -191,7 +182,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
     when: (a) => !!field(a, 'workspaceId'),
     card: (svc, _ctx, raw) => {
       const a = recognizeView.parse(raw);
-      const w = orderWorkflow(svc).imports.get(a.workspaceId);
+      const w = svc.orderWorkflow.imports.get(a.workspaceId);
       return {
         label: '把识别工作区当到货单识别：' + w.fileName,
         summary: [
@@ -216,12 +207,11 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
         ],
       };
     },
-    run: (svc, ctx, a) => orderWorkflow(svc).call('order_import.from_inbox', a, ctx),
+    run: (svc, ctx, a) => svc.orderWorkflow.call('order_import.from_inbox', a, ctx),
   },
   'marks.add': {
     card: (svc, ctx, raw) => {
       const a = markAddView.parse(raw);
-      marks(svc);
       const file = svc.extras.localFile(ctx, a.attachmentId);
       return {
         label: '给产品挂唛头：' + productName(svc.store, a.productId),
@@ -238,7 +228,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
   },
   'marks.remove': {
     card: (svc, _ctx, raw) => {
-      const mark = marks(svc).get(markRemoveView.parse(raw).id);
+      const mark = svc.extras.marks.get(markRemoveView.parse(raw).id);
       return {
         label: '移除唛头：' + mark.fileName,
         summary: [

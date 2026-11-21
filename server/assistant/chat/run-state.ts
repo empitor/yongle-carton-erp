@@ -34,8 +34,7 @@ export interface ChatServices {
   readonly registry: AssistantToolRegistry;
   readonly attachments: AssistantAttachments;
   readonly promptEdit: AssistantPromptEdit;
-  /** 接上 AI 导入以后才有；每次用时现读。 */
-  readonly orderWorkflow?: AssistantOrderWorkflow;
+  readonly orderWorkflow: AssistantOrderWorkflow;
   readonly extras: AssistantExtraTools;
   readonly conversations: AssistantConversations;
   readonly previews: AssistantPreviews;

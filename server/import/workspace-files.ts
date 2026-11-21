@@ -158,9 +158,9 @@ export function deleteAllWorkspaces(store: WorkspaceStore, who: Actor) {
  * 初始化清空导入台账后，原件归档没有任何记录再引用，跟着清掉，不把客户文件留在服务器上。
  * 只删归档目录下按文件哈希命名的子目录，目录本身保留。返回删掉的原件份数。
  */
-export function clearArchive(base: string | undefined, who: Actor) {
+export function clearArchive(base: string, who: Actor) {
   requireLocalAdministrator(who);
-  if (!base || !existsSync(base)) return 0;
+  if (!existsSync(base)) return 0;
   let count = 0;
   for (const name of readdirSync(base)) {
     const target = resolve(base, name);

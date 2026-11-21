@@ -67,7 +67,6 @@ test('一次动多条、一句话出几张卡片：每张都要点；拒绝的�
 test('流程类写入也只出卡片：挂唛头、移除唛头、放进收件箱、删聊天记录、改提示词；卡片上逐行写明动的是什么', async () => {
   const f = assistantFixture();
   try {
-    f.manager.connectExtras({ marks: new MarkService(f.store) });
     const boss = superActor();
     const product = f.store.saveProduct(productSchema.parse({ name: '虚构界限纸箱' }));
     const t = f.manager.create(boss);

@@ -17,7 +17,7 @@ import {
   firstSentence,
 } from '../server/assistant/command-directory.js';
 import { FILTER_KEYS_HINT } from '../server/assistant/tools/records-filter.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { toolsOf } from './assistant-fixture.js';
 import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
@@ -25,7 +25,7 @@ import { readAs } from './read-result.js';
 
 const cashier = pageActor({ id: 'dir-cashier', name: '虚构出纳', permissions: ['finance:view', 'finance:cash'], role: 'admin' });
 function usableFor(who: Actor) {
-  const registry = new AssistantToolRegistry(':memory:', () => true);
+  const registry = new AssistantToolRegistry(':memory:');
   try {
     return registry.exposed(who);
   } finally {
@@ -176,7 +176,7 @@ test('从提示词里删掉的用法句，在命令说明或查字段写法里�
   // 采购单的字段写法（按面积还是按张计价、库存品留空、纸板没有高度、不关联订单当备货）在查字段写法的结果里
   const store = new Store(':memory:');
   try {
-    const tools = new AssistantTools(store),
+    const tools = toolsOf(store),
       got = readAs(tools.read('records.search', { module: 'purchases', describe: true }, actor), {});
     const text = JSON.stringify(got.dependencies);
     for (const words of ['每平方米', 'stockItemId', '高度传 null', '备货']) assert.ok(text.includes(words), words);

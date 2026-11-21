@@ -4,17 +4,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { ImportManager } from '../server/import/manager.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { Store } from '../server/core/db.js';
 import { AppError, count } from '../server/core/index.js';
 import { docxFixture, imageFixture } from './import-fixtures.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
-import { findImport } from '../server/import/import-records.js';
 // 订单保存要单据流转登记的改单核对、进度规则
 import '../server/flow/index.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
-import { filledForm, fixture, holdModel, importWorkspace, recognized, tempDir } from './order-import-fixture.js';
+import { filledForm, fixture, holdModel, importWorkspace, recognized, tempDir, testImports } from './order-import-fixture.js';
 import { httpError } from './fake-deepseek.js';
 
 const editor = pageActor({ id: 'tester', name: '虚构业务员', permissions: ['business:edit'] });
@@ -62,7 +60,7 @@ test('多文件隔离：归档A后B不变，重开后A仍在归档里，能恢�
     // 识别导入页、数据管理页、助手看到的都是同一份列表
     assert.deepEqual(f.manager.workspaceLists().active.map((r) => r.id), [b.id]);
     assert.deepEqual(f.manager.workspaceLists().archived.map((r) => r.id), [a.id]);
-    const reopened = new ImportManager({ directory: f.directory, settings: f.settings });
+    const reopened = testImports({ directory: f.directory, settings: f.settings });
     assert.equal(reopened.status().workspaces.length, 1);
     assert.deepEqual(reopened.status().archives.map((r) => r.id), [a.id]);
     reopened.close();
@@ -200,7 +198,7 @@ test('永久删除搬到一半时程序关了，重启后库里还有的原件�
     const fs = await import('node:fs/promises');
     await fs.mkdir(join(f.directory, '_deleting'), { recursive: true });
     await fs.rename(join(f.directory, f.w.id), join(f.directory, '_deleting', f.w.id));
-    const reopened = new ImportManager({ directory: f.directory, settings: f.settings });
+    const reopened = testImports({ directory: f.directory, settings: f.settings });
     const original = await reopened.file(f.w.id);
     assert.ok(original.bytes.length);
     reopened.close();
@@ -233,13 +231,13 @@ test('同一原件两份工作区同时正式导入：只成一张订单、台�
   };
   const archive = tempDir('erp-reimport-'),
     store = new Store(':memory:'),
-    f = importWorkspace(() => ({ header, lines: [line], warnings: [] }), { findImport: (id, hash) => findImport(store, id, hash) }),
+    f = importWorkspace(() => ({ header, lines: [line], warnings: [] }), { store, archiveDirectory: archive.dir }),
     actor = pageActor({ id: 'tester', name: '虚构业务员', permissions: ['business:edit', 'import:execute'] });
   store.saveCustomer(customerSchema.parse({ name: header.buyerName }));
   const { productName: _name, specification: _spec, quantity: _q, unit: _u, unitPrice: _p, ...size } = line;
   store.saveProduct(productSchema.parse({ name: line.productName, ...size, length: 300, width: 200, height: 150 }));
   const manager = f.manager,
-    service = new ImportExecutionService(store, manager, archive.dir);
+    service = new ImportExecutionService(store, manager);
   try {
     const draft = async (quantity: string) => {
       let w = (await manager.upload(docxFixture(), '同一虚构原件.docx')).workspace;

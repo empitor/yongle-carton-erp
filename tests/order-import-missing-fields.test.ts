@@ -5,7 +5,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { startHttp } from './http-fixture.js';
-import { findImport } from '../server/import/import-records.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { projectOrder, standardOrderDraft } from '../server/import/standard-order.js';
 import { z } from 'zod';
@@ -56,8 +55,8 @@ const receiptReply = z.object({ orderId: z.number(), executionId: z.string() });
 async function imported(form: unknown) {
   const store = new Store(':memory:'),
     archive = tempDir('erp-import-archive-'),
-    f = importWorkspace(() => form, { findImport: (id, hash) => findImport(store, id, hash) }),
-    service = new ImportExecutionService(store, f.manager, archive.dir);
+    f = importWorkspace(() => form, { store, archiveDirectory: archive.dir }),
+    service = new ImportExecutionService(store, f.manager);
   let w = await f.upload(docxFixture(), '虚构缺项订单.docx');
   w = await f.manager.analyze(w.id, { expectedRevision: w.revision, stream: false });
   return {
@@ -124,8 +123,8 @@ test('经请求导入：外币被拒、中文说明；改成没写币种后按�
   form.lines[0].unit = '个';
   const store = new Store(':memory:'),
     archive = tempDir('erp-import-http-'),
-    f = importWorkspace(() => form, { findImport: (id, hash) => findImport(store, id, hash) }),
-    h = await startHttp(store, { aiSettings: f.settings, imports: f.manager, enableReviewedImports: true, importArchiveDirectory: archive.dir });
+    f = importWorkspace(() => form, { store, archiveDirectory: archive.dir }),
+    h = await startHttp(store, { aiSettings: f.settings, imports: f.manager, execution: new ImportExecutionService(store, f.manager) });
   const request = (path: string, body: unknown) => h.send('/ai/imports/' + path, body, h.cookie, { headers: { 'X-ERP-AI-Token': f.settings.csrfToken } });
   try {
     let w = await f.upload(docxFixture(), '虚构缺项订单.docx');

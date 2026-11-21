@@ -72,7 +72,7 @@ test('history.records（tools/history.ts）：按记录查给关联记录和中�
   }
 });
 
-test('ai.status（tools/ai-status.ts）：密钥和上次检查结果；余额只给超级管理员现查，业务人员不发余额请求；没接上说清楚；要业务编辑权限', async () => {
+test('ai.status（tools/ai-status.ts）：密钥和上次检查结果；余额只给超级管理员现查，业务人员不发余额请求；要业务编辑权限', async () => {
   const store = new Store(':memory:');
   const { settings, fake } = fakeAiSettings({ balance: { is_available: false, balance_infos: [{ currency: 'CNY', total_balance: '0.00', granted_balance: '0.00', topped_up_balance: '0.00' }] } });
   try {
@@ -93,9 +93,7 @@ test('ai.status（tools/ai-status.ts）：密钥和上次检查结果；余额�
     assert.equal(status.余额.够不够用, '余额不足');
     assert.equal(status.余额.明细[0].总余额, '0.00');
     assert.equal(status.上次检查.结果, '余额不足');
-    assert.equal(status.最近识别失败, '识别导入没有接上');
     assert.deepEqual(status.最近七天助手用量.按天, []);
-    await assert.rejects(async () => call(aiStatusReaders, 'ai.status', ctxOf(store), {}, staff), /还没接上/);
     await assert.rejects(async () => call(aiStatusReaders, 'ai.status', ctx, {}, viewer), denied(403));
   } finally {
     settings.close();
@@ -154,14 +152,12 @@ test('accounts.list、settings.view（tools/admin-view.ts）：只给超级管�
       { 名字: '虚构出纳', 级别: '出纳', 状态: '已停用', 账号编号: '1' },
     ]);
     assert.throws(() => call(adminViewReaders, 'accounts.list', ctx, {}, staff), denied(403));
-    assert.throws(() => call(adminViewReaders, 'accounts.list', ctxOf(store), {}, boss), /还没接上/);
     const view = readAs(call(adminViewReaders, 'settings.view', ctx, {}, boss), { 助手工具: z.looseObject({}) });
     assert.deepEqual(view.机器人, { 企业微信机器人: { 凭据: '已填写', 启用: '没启用', 连接: '未启用' } });
     assert.deepEqual(view.部署, { 方式: '本机运行' });
     assert.equal(view.同时识别几个文件, 3);
     assert.deepEqual(view.助手工具.停用的工具, []);
     assert.ok(!JSON.stringify(view).includes('bot-虚构编号'));
-    assert.equal(field(call(adminViewReaders, 'settings.view', ctxOf(store), {}, boss), '同时识别几个文件'), '还没接上');
     assert.throws(() => call(adminViewReaders, 'settings.view', ctx, {}, staff), denied(403));
   } finally {
     registry.close();

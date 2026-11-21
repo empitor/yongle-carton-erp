@@ -11,7 +11,7 @@ import { defaultPromptPreset } from '../server/import/default-prompts/sales-orde
 import { contentParts, fakeAiSettings, messageText } from './fake-deepseek.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
 import { analysisPrompt, fixedRules } from '../server/import/prompts.js';
-import { ImportManager } from '../server/import/manager.js';
+import { testImports } from './order-import-fixture.js';
 import type { PromptPreset } from '../shared/ai/prompt-presets.js';
 import { docxFixture } from './import-fixtures.js';
 
@@ -56,7 +56,7 @@ function fixture() {
     requests: ChatCall[] = [];
   let response: unknown = reply();
   const { settings } = fakeAiSettings({ chat: (_body, call) => (requests.push(call), response) });
-  const manager = new ImportManager({
+  const manager = testImports({
     directory: join(directory, 'imports'),
     settings,
     promptPresets: prompts,

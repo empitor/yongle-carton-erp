@@ -8,9 +8,6 @@ import { createOrderWorkflowFixture, workflowAnalysis } from './assistant-workfl
 import { z } from 'zod';
 import { fakeAiSettings, forcedFunction, freshUserText } from './fake-deepseek.js';
 import { docxFixture, xlsxFixture } from './import-fixtures.js';
-import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
-import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { actor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 
@@ -39,8 +36,6 @@ function setup(tool: { name: string; args: Record<string, unknown> } | null, fin
     },
   });
   const f = createOrderWorkflowFixture(undefined, { settings });
-  const receiptPrompts = new PromptPresetManager(':memory:', supplierDefaultPreset);
-  f.manager.connectExtras({ receiptAi: new ReceiptAi(f.store, settings, receiptPrompts) });
   const send = async (name: string, bytes: Buffer, text: string) => {
     const file = await f.manager.attachments.upload(f.thread.id, bytes, name, randomUUID(), actor);
     return f.send(text, [file.id]);
@@ -57,7 +52,6 @@ function setup(tool: { name: string; args: Record<string, unknown> } | null, fin
     uploads,
     deletes,
     close() {
-      receiptPrompts.close();
       f.close();
     },
   };

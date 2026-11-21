@@ -3,11 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { BusinessDocuments } from '../server/documents/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
-import { assistantFixture, autoConfirmAssistant, lastCard } from './assistant-fixture.js';
+import { assistantFixture, autoConfirmAssistant, lastCard, toolsOf } from './assistant-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { actor } from './actor-fixture.js';
@@ -117,7 +116,7 @@ test('助手导出送货单并出库：文件交付后扣库存、变送货中�
     assert.equal(shipped.status, 'confirmed', '交付完成后出库');
     assert.ok(shipped.shippedAt, '送货中');
     assert.equal(f.balance(), 200_000, '扣了 300 只');
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     // 送达日期要人确认：用户没说就不能悄悄记今天，让模型先问
     assert.throws(
       () => tools.prepare('delivery.mark_delivered', { id: shipped.id, version: shipped.version }, actor, 'test'),
@@ -154,7 +153,7 @@ test('助手安排生产：和页面一样保存后直接下达', () => {
   const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
-    const tools = new AssistantTools(fx.store);
+    const tools = toolsOf(fx.store);
     const plan = tools.prepare(
       'records.propose_save',
       {

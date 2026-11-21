@@ -13,7 +13,8 @@ import { AuthManager } from '../server/core/auth.js';
 import { ProblemLog } from '../server/core/diagnostics/problem-log.js';
 import { RunLog } from '../server/system/run-log.js';
 import type { Actor } from '../server/core/index.js';
-import { AssistantTools } from '../server/assistant/tools.js';
+import { ctxOf, toolsOf } from './assistant-fixture.js';
+import { readLoginRecords } from '../server/system/login-records.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { diagnosticsReaders } from '../server/assistant/tools/diagnostics.js';
 import { sourceReaders } from '../server/assistant/tools/source.js';
@@ -35,10 +36,8 @@ import { readAs } from './read-result.js';
 const staff = pageActor({ id: 'logs-staff', name: '虚构业务员乙', permissions: ['business:edit'], role: 'admin' });
 const boss = pageActor({ id: 'logs-boss', name: '虚构老板', permissions: [], role: 'super_admin' });
 const hex64 = 'cd34'.repeat(16);
-function directReader(store: Store, services: ToolServices = {}) {
-  const tools = new AssistantTools(store);
-  tools.connect(services);
-  const ctx: ToolContext = { store, services, tools, ops: tools.ops, flow: tools.flow };
+function directReader(store: Store, services: Partial<ToolServices> = {}) {
+  const ctx: ToolContext = ctxOf(store, services);
   // 网址来源（用户给的、搜索返回的）由聊天那一层判断；这里只测读取本身。
   return (readers: Record<string, ToolReader>, name: string, raw: unknown, who: Actor | null) =>
     readers[name](ctx, raw, who, name, { allowedUrl: (url) => url });
@@ -66,7 +65,7 @@ function problemLog() {
   return log;
 }
 
-test('diagnostics.errors（tools/diagnostics.ts）：普通账号只看自己的，超级管理员看全部；没登录 401；没接上说清楚', () => {
+test('diagnostics.errors（tools/diagnostics.ts）：普通账号只看自己的，超级管理员看全部；没登录 401', () => {
   const problems = problemLog();
   const store = new Store(':memory:');
   try {
@@ -80,7 +79,6 @@ test('diagnostics.errors（tools/diagnostics.ts）：普通账号只看自己的
     assert.equal(field(call(diagnosticsReaders, 'diagnostics.errors', {}, boss), '共'), 2);
     assert.equal(field(call(diagnosticsReaders, 'diagnostics.errors', { category: '没权限' }, boss), '共'), 0);
     assert.throws(() => call(diagnosticsReaders, 'diagnostics.errors', {}, null), status(401));
-    assert.throws(() => directReader(store)(diagnosticsReaders, 'diagnostics.errors', {}, boss), /出错记录还没接上/);
     // 页面上报的文字谁都能写：超级管理员不传 source 时只给服务端记的；要看页面的，原文放在单独的键里
     problems.record({ source: 'page', account: staff.name, operation: '页面', category: '页面报错', status: 0, message: '虚构：页面发来的话' });
     assert.equal(field(call(diagnosticsReaders, 'diagnostics.errors', {}, boss), '共'), 2);
@@ -94,7 +92,7 @@ test('diagnostics.errors（tools/diagnostics.ts）：普通账号只看自己的
   }
 });
 
-test('logs.read（tools/diagnostics.ts）：不传条件看最后几行，传 text 就是找；只给超级管理员；没接上说清楚', () => {
+test('logs.read（tools/diagnostics.ts）：不传条件看最后几行，传 text 就是找；只给超级管理员', () => {
   const base = mkdtempSync(join(tmpdir(), 'erp-assistant-log-'));
   const store = new Store(':memory:');
   try {
@@ -109,25 +107,23 @@ test('logs.read（tools/diagnostics.ts）：不传条件看最后几行，传 te
     assert.equal(found.行[0].输出, '错误');
     assert.throws(() => call(diagnosticsReaders, 'logs.read', {}, staff), status(403));
     assert.throws(() => call(diagnosticsReaders, 'logs.read', { text: 'x' }, staff), status(403));
-    assert.throws(() => directReader(store)(diagnosticsReaders, 'logs.read', {}, boss), /运行日志还没接上/);
   } finally {
     store.close();
     rmSync(base, { recursive: true, force: true });
   }
 });
 
-test('accounts.events（tools/admin-view.ts）：登录记录只给超级管理员，事件写中文；没接上说清楚', () => {
+test('accounts.events（tools/admin-view.ts）：登录记录只给超级管理员，事件写中文', () => {
   const base = mkdtempSync(join(tmpdir(), 'erp-assistant-auth-'));
   const auth = new AuthManager(join(base, 'users.sqlite'));
   const store = new Store(':memory:');
   try {
     auth.event(null, 'login-failed-unknown');
-    const call = directReader(store, { accountsDb: auth.db });
+    const call = directReader(store, { loginRecords: (who, filter) => readLoginRecords(auth.db, who, filter) });
     const r = readAs(call(adminViewReaders, 'accounts.events', {}, boss), { 列表: z.array(z.looseObject({ 事件: z.string() })) });
     assert.equal(r.共, 1);
     assert.match(r.列表[0].事件, /登录失败/);
     assert.throws(() => call(adminViewReaders, 'accounts.events', {}, staff), status(403));
-    assert.throws(() => directReader(store)(adminViewReaders, 'accounts.events', {}, boss), /账号库还没接上/);
   } finally {
     auth.close();
     store.close();
@@ -135,7 +131,7 @@ test('accounts.events（tools/admin-view.ts）：登录记录只给超级管理�
   }
 });
 
-test('source.search、source.read（tools/source.ts）：只读、只给超级管理员；越出程序目录被拒；没接上说清楚', () => {
+test('source.search、source.read（tools/source.ts）：只读、只给超级管理员；越出程序目录被拒', () => {
   const { base, scope } = fakeProgram();
   const store = new Store(':memory:');
   try {
@@ -147,7 +143,6 @@ test('source.search、source.read（tools/source.ts）：只读、只给超级�
     assert.equal(file.文件共有几行, 3);
     assert.throws(() => call(sourceReaders, 'source.read', { file: '../outside.ts' }, boss), status(403));
     assert.throws(() => call(sourceReaders, 'source.search', { text: '虚构' }, staff), status(403));
-    assert.throws(() => directReader(store)(sourceReaders, 'source.read', { file: 'server/core/receive.ts' }, boss), /读程序代码的范围还没接上/);
   } finally {
     store.close();
     rmSync(base, { recursive: true, force: true });
@@ -181,11 +176,11 @@ test('机密一律不返回：每个排查工具（和系统状态、联网）�
     auth.event(null, 'login-failed-unknown');
     const runLog = new RunLog(join(base, 'run.log'));
     runLog.append('Authorization: Bearer ' + hex64 + '\nsession=' + hex64 + '\n', 'err');
-    const services = {
+    const services: Partial<ToolServices> = {
       problems,
       runLog,
       source: scope,
-      accountsDb: auth.db,
+      loginRecords: (who, filter) => readLoginRecords(auth.db, who, filter),
       ai: settings,
       registry,
       accounts: { listAccounts: () => [{ id: '1', name: '虚构', level: 'admin', disabled: false }] },
@@ -239,8 +234,7 @@ test('出纳账号的助手能用联网、使用说明、自己的出错记录�
     registry = new AssistantToolRegistry(':memory:');
   const { settings } = fakeAiSettings();
   try {
-    const tools = new AssistantTools(store);
-    tools.connect({ ai: settings, problems });
+    const tools = toolsOf(store, { ai: settings, problems });
     assert.ok(readAs(tools.read('guide.read', {}, cashier), { 章节: z.array(z.unknown()) }).章节.length > 0);
     assert.equal(readAs(tools.read('diagnostics.errors', {}, cashier), {}).共, 0, '只看到自己的，别人的看不到');
     assert.equal(readAs(await tools.read('web.search', { queries: ['虚构'] }, cashier), { 结果: z.array(z.unknown()) }).结果.length, 1);

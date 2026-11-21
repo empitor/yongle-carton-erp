@@ -2,7 +2,7 @@
 // 人点确认后保存并读回核对。复用各模块自己的提示词管理器，不另存一份。
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { promptModules, promptPresetSchema } from '../../shared/ai/index.js';
+import { promptModules, promptPresetSchema, type PromptModuleId } from '../../shared/ai/index.js';
 import type { PromptPresetManager } from '../ai/index.js';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, requirePermission, requireSuperModeFor } from '../core/index.js';
@@ -46,17 +46,15 @@ const promptChange = proposal.extend({ before: z.string(), presetName: z.string(
 export type PromptChange = z.infer<typeof promptChange>;
 
 export class AssistantPromptEdit {
-  readonly managers = new Map<string, PromptPresetManager>();
+  /** managers：三个提示词模块各自的管理器，建助手时给（和设置页挂地址用的同一张表，server/app.ts） */
   constructor(
     private readonly store: Store,
-    assistant: PromptPresetManager,
-  ) {
-    this.managers.set('assistant', assistant);
-  }
+    private readonly managers: Record<PromptModuleId, PromptPresetManager>,
+  ) {}
   private manager(module: string) {
-    const manager = this.managers.get(module);
-    if (!manager) throw new AppError('该提示词模块未连接：' + module, 503);
-    return manager;
+    const id = promptModules.find((m) => m.id === module)?.id;
+    if (!id) throw new AppError('没有这个提示词模块：' + module, 404);
+    return this.managers[id];
   }
   private target(change: Pick<PromptChange, 'module' | 'presetId' | 'entryId'>) {
     const state = this.manager(change.module).view(),
@@ -74,7 +72,7 @@ export class AssistantPromptEdit {
     if (!state.presets.some((p) => p.id === presetId)) throw new AppError('提示词预设不存在。', 404);
     return {
       module,
-      modules: promptModules.map((m) => ({ id: m.id, name: m.name, available: this.managers.has(m.id) })),
+      modules: promptModules.map((m) => ({ id: m.id, name: m.name, available: true })),
       ...state,
       presetDirectory: state.presets.map((p) => ({
         id: p.id,

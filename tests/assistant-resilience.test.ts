@@ -43,7 +43,7 @@ const hangFetch = (hooks: HangingFetch) => (next: AiTransport): AiTransport => {
   };
 };
 
-/** 一个会话的夹具：模型按 replies 回答，排完了说“好的。”；读网页一直挂着（connectWeb() 接上后才用得到） */
+/** 一个会话的夹具：模型按 replies 回答，排完了说“好的。”；读网页一直挂着 */
 function setup(replies: unknown[], agent: AgentOptions = {}) {
   const fetchHooks: HangingFetch = {};
   const f = assistantFixture([], { agent, chat: () => replies.shift() ?? answer('好的。'), wrap: hangFetch(fetchHooks) });
@@ -61,8 +61,6 @@ function setup(replies: unknown[], agent: AgentOptions = {}) {
     say: (text: string) => f.say(thread.id, text),
     view: () => f.manager.view(thread.id, actor),
     fetchHooks,
-    /** 让当前助手的联网读取走这个夹具的假 DeepSeek */
-    connectWeb: () => f.manager.tools.connect({ ai: f.settings }),
     audit: (tool: string) =>
       f.store.db
         .prepare('SELECT state,document FROM assistant_audit WHERE tool=? ORDER BY id')
@@ -136,7 +134,6 @@ test('单个命令超过限时：中止它，把超时告诉模型，这一轮�
     f.fetchHooks.aborted = () => {
       aborted = true;
     };
-    f.connectWeb();
     const view = await f.say('读一下 https://example.com/slow');
     assert.equal(aborted, true, '命令收到了中止信号');
     const result = readAs(toolResultSent(f.fake.chatCalls(), 'web.read'), { ok: z.unknown(), message: z.string() });
@@ -158,7 +155,6 @@ test('用户点停止：正在查的那个调用收到中止；下一轮里写�
     f.fetchHooks.aborted = () => {
       aborted = true;
     };
-    f.connectWeb();
     await assert.rejects(f.say('读一下 https://example.com/slow'), /已停止/);
     assert.equal(aborted, true, '联网读取收到了中止');
     await f.say('算了');
@@ -234,7 +230,6 @@ test('进程中断时已经出了、还没显示给人的确认卡片：恢复�
     calls(['records.propose_save', { module: 'customers', patch: { name: '虚构中断客户' } }], ['web.read', { url: 'https://example.com/slow' }]),
   ]);
   try {
-    f.connectWeb();
     const first = f.manager;
     const stuck = f.say('建一个虚构中断客户，再读 https://example.com/slow').catch(() => {});
     for (let i = 0; i < 200 && !f.events.some(([e, d]) => e === 'tool' && d.name === 'web.read'); i++)

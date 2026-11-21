@@ -6,7 +6,6 @@ import {
   evaluateDraft,
   type ImportWorkspaceView,
   type DraftChange,
-  type ImportMapping,
   arrivalLinkSchema,
   ORIGINAL_MAX_MB,
   recognitionModes,
@@ -15,16 +14,16 @@ import {
   workspaceRevisionSchema,
   type RecognitionMode,
 } from '../../shared/import/index.js';
-import { AiSettingsManager, PromptPresetManager } from '../ai/index.js';
-import { AppError, FILE_NAME_MAX, StoredDataError } from '../core/index.js';
+import type { AiSettingsManager, PromptPresetManager } from '../ai/index.js';
+import { AppError, FILE_NAME_MAX, StoredDataError, type Store } from '../core/index.js';
 import { MIB } from '../../shared/core/index.js';
 import { storeOriginal, detectFormat } from './file-store.js';
 import { ImportRepository } from './repository.js';
 import { failureRecord, type FailureContext, type FailureSubject } from './failure-record.js';
 import { PROMPT_VERSION } from './prompts.js';
-import { defaultPromptPreset } from './default-prompts/sales-order.js';
 import { workspaceText, type Workspace } from './workspace-document.js';
-import type { ArrivalLinks } from './business-links.js';
+import { arrivalLinks, type ArrivalLinks } from './business-links.js';
+import { findImport } from './import-records.js';
 
 /**
  * 识别工作区的存储：工作区库的读写和版本、原件、各识别类型的状态存取、任务状态、错误档案。
@@ -40,18 +39,21 @@ const MAX_WORKSPACES = 200;
 const ORIGINALS_MAX_MB = 500;
 export type WorkspaceOptions = {
   directory: string;
-  /** 正式导入的原件归档目录。只由启动入口明确传入；不传时初始化不清理任何归档。 */
-  archiveDirectory?: string;
+  /** 正式导入的原件归档目录（正式导入存原件、初始化时清它）。由启动入口明确传入，不回退到程序目录。 */
+  archiveDirectory: string;
   settings: AiSettingsManager;
   database?: string;
-  promptPresets?: PromptPresetManager;
-  findImport?: (id: string, hash?: string) => ImportWorkspaceView['imported'];
-  validateMapping?: (mapping: ImportMapping) => void;
+  /** 订单识别的提示词（和设置页、助手改提示词同一个管理器，由调用方开、调用方关） */
+  promptPresets: PromptPresetManager;
+  /** 业务库：导入过哪张订单、选的客户和产品还在不在、关联的到货单在不在和锁没锁 */
+  store: Store;
+  /** 到货识别：取消任务、删工作区时停掉那份到货原件正在进行的识别 */
+  receiptAi: { abort(sourceId: string): void };
 };
 
 export class WorkspaceStore {
-  /** 到货单在不在、锁没锁、怎么停到货识别：装配时用 connectArrivals 一次接好（business-links.ts） */
-  private arrivals?: ArrivalLinks;
+  /** 到货单在不在、锁没锁、怎么停到货识别（business-links.ts） */
+  private readonly arrivals: ArrivalLinks;
   readonly promptPresets: PromptPresetManager;
   /** 下面四个只给本模块的目录操作和订单识别用 */
   readonly repo: ImportRepository;
@@ -61,23 +63,24 @@ export class WorkspaceStore {
   private uploading = false;
   constructor(readonly options: WorkspaceOptions) {
     options.directory = resolve(options.directory);
-    this.promptPresets = options.promptPresets || new PromptPresetManager(':memory:', defaultPromptPreset);
+    this.promptPresets = options.promptPresets;
+    this.arrivals = arrivalLinks(options.store, (sourceId) => options.receiptAi.abort(sourceId));
     this.repo = new ImportRepository(options.database || join(options.directory, 'workspaces.sqlite'));
   }
   close() {
     for (const controller of this.busy.values()) controller.abort();
     this.repo.close();
-    if (!this.options.promptPresets) this.promptPresets.close();
   }
-  connectArrivals(links: ArrivalLinks) {
-    this.arrivals = links;
+  /** 这份工作区（或同一原件）导入过哪张订单（import-records.ts） */
+  private imported(w: { id: string; fileHash: string }) {
+    return findImport(this.options.store, w.id, w.fileHash);
   }
   /** 关联的到货单已确认或取消：不能再换识别类型 */
   arrivalLocked(docId: number) {
-    return !!this.arrivals?.locked(docId);
+    return this.arrivals.locked(docId);
   }
   abortArrival(sourceId: string) {
-    this.arrivals?.abort?.(sourceId);
+    this.arrivals.abort(sourceId);
   }
   isBusy(id: string) {
     return this.busy.has(id);
@@ -89,7 +92,7 @@ export class WorkspaceStore {
     return this.repo.archived();
   }
   private tags(w: { id: string; fileHash: string }) {
-    const ref = this.options.findImport?.(w.id, w.fileHash);
+    const ref = this.imported(w);
     const own = ref && !ref.historical ? ref : undefined;
     return { imported: own, historyImport: own ? undefined : ref };
   }
@@ -98,7 +101,6 @@ export class WorkspaceStore {
    * 一次批量查出还在的到货单，只重新读取、保存引用已失效的那几份；有解除时重新列一次，拿到新版本号。
    */
   private detachDeletedArrivals(listed: ReturnType<ImportRepository['list']>) {
-    if (!this.arrivals) return listed;
     const linked = listed.workspaces.flatMap((r) => (r.arrivalDocId ? [{ id: r.id, docId: r.arrivalDocId }] : []));
     if (!linked.length) return listed;
     const found = this.arrivals.exists([...new Set(linked.map((r) => r.docId))]),
@@ -143,7 +145,7 @@ export class WorkspaceStore {
     workspaceId.parse(id);
     const w = this.repo.get(id);
     if (!w) throw new AppError('导入工作区不存在。', 404);
-    if (w.arrivalDocId && this.arrivals && !this.arrivals.exists([w.arrivalDocId]).has(w.arrivalDocId)) {
+    if (w.arrivalDocId && !this.arrivals.exists([w.arrivalDocId]).has(w.arrivalDocId)) {
       w.arrivalDocId = null;
       this.save(w, w.revision, 'detach-deleted-arrival');
     }
@@ -195,7 +197,7 @@ export class WorkspaceStore {
   }
   check(w: Workspace, revision: number, allowImported = false) {
     if (this.importing.has(w.id)) throw new AppError('正在提交正式导入，请等待完成。', 409, 'busy');
-    const imported = this.options.findImport?.(w.id, w.fileHash);
+    const imported = this.imported(w);
     if (!allowImported && imported && !imported.historical)
       throw new AppError(
         '该工作区已导入正式订单，不能继续修改；如需再次导入同一原件，请重新上传建立新的导入任务。',
@@ -233,7 +235,7 @@ export class WorkspaceStore {
       sibling =
         !isolate &&
         this.repo.reusableByHash(hash, mode).find((w) => {
-          const ref = this.options.findImport?.(w.id, w.fileHash);
+          const ref = this.imported(w);
           return !(ref && !ref.historical);
         });
     if (sibling) return { workspace: this.view(sibling), duplicate: true };

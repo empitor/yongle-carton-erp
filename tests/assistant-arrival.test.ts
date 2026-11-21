@@ -7,11 +7,10 @@ import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
-import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { arrivalReaders, arrivalWriters } from '../server/assistant/tools/arrivals.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
+import { autoConfirmAssistant, ctxOf, toolsOf } from './assistant-fixture.js';
 import { orderedPurchase } from './receive-fixture.js';
 import { actor, superActor } from './actor-fixture.js';
 
@@ -63,7 +62,7 @@ test('助手按订货单登记到货：查采购、登记入库、核对到货�
           }),
         /停用/,
       );
-      assert.throws(() => new AssistantTools(a.store).prepare('order_batch.receive', { ...input, requestId: randomUUID() }, { ...actor, permissions: [] }, 's'), /权限/);
+      assert.throws(() => toolsOf(a.store).prepare('order_batch.receive', { ...input, requestId: randomUUID() }, { ...actor, permissions: [] }, 's'), /权限/);
     } finally {
       registry.close();
     }

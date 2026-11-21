@@ -11,7 +11,7 @@ import type { ToolPlan } from '../server/assistant/plan-rules.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { businessBase } from './business-base-fixture.js';
 import { editableFields, UNLISTED } from '../server/assistant/tools/card-summary.js';
-import { autoConfirmAssistant } from './assistant-fixture.js';
+import { autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { superActor } from './actor-fixture.js';
 
 const owner = () => localAdministratorActor(superActor());
@@ -338,7 +338,7 @@ async function assertCovered(s: ReturnType<typeof setup>, plan: ToolPlan) {
       Object.keys(tables).map((t) => [t, new Map(s.f.store.db.prepare('SELECT * FROM ' + t).all().map((r): [SQLOutputValue, Row] => [r.id, r]))]),
     );
   const before = dump();
-  const ctx: ToolContext = { store: s.tools.store, ops: s.tools.ops, flow: s.tools.flow, services: {}, tools: s.tools };
+  const ctx: ToolContext = { ...ctxOf(s.tools.store), ops: s.tools.ops, flow: s.tools.flow, tools: s.tools };
   const after = rehearseChanges(ctx, () => {
     s.tools.commit(plan, s.who, 'card');
     return dump();
