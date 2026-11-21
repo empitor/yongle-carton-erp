@@ -202,37 +202,35 @@ function WarehouseListBody({
   const reading = list.busy || (archivedScope && list.archivedLoading);
   return (
     <section className="panel business-records">
-      <div className="table-wrap unified-table-region" tabIndex={0}>
-        <WarehouseTable
-          kind={kind}
-          rows={list.pageRows}
-          purchaseOf={purchaseOf}
-          partyName={(r) => partyOf(r) || desk.labelRow(r)}
-          selected={(r) => !!desk.view && desk.view.id === (archivedScope ? r.id : docIdOf(r))}
-          // 已归档的打开单据详情（恢复、删除在那里），另两档打开仓库的面板
-          open={open}
+      <WarehouseTable
+        kind={kind}
+        rows={list.pageRows}
+        purchaseOf={purchaseOf}
+        partyName={(r) => partyOf(r) || desk.labelRow(r)}
+        selected={(r) => !!desk.view && desk.view.id === (archivedScope ? r.id : docIdOf(r))}
+        // 已归档的打开单据详情（恢复、删除在那里），另两档打开仓库的面板
+        open={open}
+      />
+      {!filtered.length && (
+        <ListEmpty
+          text={reading ? loadingText() : emptyText(kind, searched, scope)}
+          busy={list.busy}
+          filtered={searched}
+          clear={() => {
+            list.setQ('');
+            list.clearFilters();
+          }}
+          next={
+            canEdit &&
+            kind === 'delivery' &&
+            scope === 'open' && (
+              <button className="secondary" onClick={plan}>
+                安排送货
+              </button>
+            )
+          }
         />
-        {!filtered.length && (
-          <ListEmpty
-            text={reading ? loadingText() : emptyText(kind, searched, scope)}
-            busy={list.busy}
-            filtered={searched}
-            clear={() => {
-              list.setQ('');
-              list.clearFilters();
-            }}
-            next={
-              canEdit &&
-              kind === 'delivery' &&
-              scope === 'open' && (
-                <button className="secondary" onClick={plan}>
-                  安排送货
-                </button>
-              )
-            }
-          />
-        )}
-      </div>
+      )}
       <Pagination page={list.page} total={filtered.length} pageSize={LIST_PAGE_SIZE} onChange={list.setPage} />
       {!list.full && list.recentFrom && scope === 'all' && (
         <p className="help-text record-recent-note">

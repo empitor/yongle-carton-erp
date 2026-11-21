@@ -13,7 +13,8 @@ import { bookingDate, endOfMonth } from './periods.js';
 import { id as recordId } from './query.js';
 import { isReversed } from './reversal-pairs.js';
 import { sourceBooked } from './event-source-obligations.js';
-import { readSnapshot, snapshotNumber } from './source-snapshot.js';
+import { eventColumns } from './event-columns.js';
+import { readSnapshot } from './source-snapshot.js';
 import { eventStatuses } from './stored-values.js';
 import { arrivalReversedOn } from './costing-source.js';
 
@@ -79,6 +80,17 @@ export class FinanceEventViews {
         policyByDate.set(at, policy);
       }
       const result = evaluateSource(this.db, source, doc, { policy, replacement: true, taxTerms });
+      const snapshot = {
+        doc,
+        money: result.money,
+        theoretical: result.theoretical,
+        taxSource: result.taxSource,
+        financialLines: result.financialLines,
+        warnings: result.warnings,
+        missing: result.missing,
+      };
+      // 单号、往来单位和同步以后存进事件列的同一个取法（月度台账按它们列）
+      const columns = eventColumns(snapshot);
       return {
         id: source.previous,
         source_kind: source.kind,
@@ -89,15 +101,9 @@ export class FinanceEventViews {
         missing: result.missing ?? [],
         problem: result.problem,
         theoretical: result.theoretical?.gross ?? null,
-        snapshot: {
-          doc,
-          money: result.money,
-          theoretical: result.theoretical,
-          taxSource: result.taxSource,
-          financialLines: result.financialLines,
-          warnings: result.warnings,
-          missing: result.missing,
-        },
+        number: columns.source_number,
+        party: columns.party_name,
+        snapshot,
       };
     });
   }
@@ -109,14 +115,14 @@ export class FinanceEventViews {
     return {
       ...row,
       snapshot,
-      previous: snapshot.previous ? readEvent(this.db, snapshot.previous.eventId) : null,
+      previous: row.previous_event_id === null ? null : readEvent(this.db, row.previous_event_id),
       // 有差异时详情里列“改之前 / 改之后”，只列变了的、和财务有关的项
-      // 金额：有效的更正单“有差异”时 amount_cents 还空着，用同步时按单据内容算出的 documentAmount（和 sync 里的比法一致）
-      changes: eventChangesSince(this.db, snapshot.previous?.eventId, row.source_kind, row.event_type, {
+      // 金额：有效的更正单“有差异”时 amount_cents 还空着，用同步时按单据内容算出的 document_cents（和 sync 里的比法一致）
+      changes: eventChangesSince(this.db, row.previous_event_id, row.source_kind, row.event_type, {
         doc: snapshot.doc ?? {},
         date: row.date,
-        amount: row.amount_cents ?? snapshot.documentAmount ?? null,
-        ...taxBasis(snapshot),
+        amount: row.amount_cents ?? row.document_cents,
+        ...taxBasis(row),
       }),
     };
   }
@@ -134,7 +140,7 @@ export class FinanceEventViews {
       listedEvent,
       // 同一张单据的几条（原来那条、做红字冲销的那条、重做的那条）排在一起，组内按先后；组按组里最晚的日期倒序，编号兜底保证翻页稳定。
       `SELECT * FROM (SELECT *,max(date) OVER (PARTITION BY group_kind,group_id) AS group_date FROM (
-      SELECT id,source_kind,source_id,${snapshotNumber()} AS number,event_type,date,amount_cents,status,
+      SELECT id,source_kind,source_id,source_number AS number,event_type,date,amount_cents,status,
       voucher_id,problem,version,
       source_kind AS group_kind,
       source_id AS group_id,
@@ -144,7 +150,7 @@ export class FinanceEventViews {
         THEN 'reversed'
         WHEN status='corrected' AND EXISTS(SELECT 1 FROM fin_obligations r JOIN fin_vouchers rv ON rv.id=r.voucher_id
           WHERE r.event_id=e.id AND r.reversal_of IS NOT NULL AND rv.status<>'void') THEN 'reversal' END AS reversal_state,
-      json_extract(e.snapshot,'$.previous.eventId') AS previous_event_id,
+      previous_event_id,
       -- 红字冲销后会不会重做：和 correct() 一样，单据还有效、没被更正替代才重做；已撤销、被替代、删掉的只红冲
       CASE WHEN e.source_kind IN ('delivery','arrival') AND ${sourceConfirmed('e', true)}
         THEN 1 ELSE 0 END AS rebuild,
@@ -184,7 +190,7 @@ export class FinanceEventViews {
       const steps = many(
         this.db,
         chainStep,
-        "SELECT id,voucher_id,json_extract(snapshot,'$.previous.eventId') AS previous FROM fin_events WHERE id IN (SELECT value FROM json_each(?))",
+        'SELECT id,voucher_id,previous_event_id AS previous FROM fin_events WHERE id IN (SELECT value FROM json_each(?))',
         JSON.stringify([...new Set(pending.values())]),
       );
       const found = new Map(steps.map((p) => [p.id, p]));

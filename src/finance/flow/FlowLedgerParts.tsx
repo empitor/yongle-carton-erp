@@ -1,8 +1,7 @@
-import { DetailPanel, FilterPopover, ListSummary, Hint, yuan, Segmented, stepper } from '../../ui/index';
+import { DetailPanel, FilterPopover, ListSummary, Hint, yuan, Segmented, stepper, col, type Col } from '../../ui/index';
 import type { financeMetricNames } from '../../../shared/finance/index';
 import { NeedEnable, useEnable } from '../enable';
 import { SourceActions, SourceDetail, sourceHeader } from '../SourceDetail';
-import { col, type Col } from '../table';
 import { useFinPerms, type FinData } from '../fin-api';
 import type { SourceRow } from '../source-detail-view';
 import ResolveTax from './ResolveTax';

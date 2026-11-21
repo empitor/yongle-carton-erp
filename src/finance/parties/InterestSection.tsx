@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper } from '../../ui/index';
+import { DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper, col, mon, type Col } from '../../ui/index';
 import type { Kind } from './shared';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { FinSection, PeriodInput } from '../layout';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms } from '../fin-api';

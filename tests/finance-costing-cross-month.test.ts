@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { FlowService } from '../server/flow/service.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
 import { setDoc, supervisor } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceEventViews } from '../server/finance/event-views.js';
 import { maker, fixture } from './finance-costing-fixture.js';
@@ -187,8 +188,8 @@ test('上月退过一部分货（未到票，暂估已按退货冲减），本�
     const returns = new PurchaseReturns(f.s);
     returns.reverse(supervisor, back.id, { version: returns.get(back.id).version, reason: '虚构：退错了' });
     // 撤销退货的流水和暂估加回都记在 3 月 2 日（虚构）
-    f.s.db.prepare("UPDATE stock_movements SET date='2026-03-02' WHERE source_kind='purchase_return' AND delta_units>0").run();
-    f.s.db.prepare("UPDATE purchase_returns SET updated_at='2026-03-02T02:00:00.000Z' WHERE id=?").run(back.id);
+    businessChanges(f.s).moveMovements({ kind: 'purchase_return', id: back.id }, '2026-03-02', true);
+    businessChanges(f.s).returnReversedAt(back.id, '2026-03-02T02:00:00.000Z');
     sync();
     undo(f, received, '2026-03-03');
     f.cost('2026-03');

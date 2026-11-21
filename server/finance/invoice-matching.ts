@@ -13,11 +13,12 @@ import { redReleasedByObligation } from './red-invoices.js';
 import { isReversed } from './reversal-pairs.js';
 import { readSnapshot } from './source-snapshot.js';
 
-/** 发票匹配一行：往来一行，加上还欠多少、已开票（确认过的发票，没开过是空）、来源事件快照（JSON 文字） */
+/** 发票匹配一行：往来一行，加上还欠多少、已开票（确认过的发票，没开过是空）、来源事件快照（JSON 文字）和它的理论金额 */
 const matchingRow = rows.fin_obligations.extend({
   outstanding: z.number(),
   invoiced: z.number().nullable(),
   source: z.string().nullable(),
+  source_theoretical: z.number().nullable(),
 });
 type MatchingRow = z.output<typeof matchingRow>;
 const invoice = rows.fin_invoices.shape;
@@ -75,7 +76,7 @@ function threeWay(
   const invoiceQty = sumByUnit(
     invoices.flatMap((l) => (l.quantity_units == null ? [] : [{ unit: l.unit, quantity: l.quantity_units }])),
   );
-  const arrived = source?.theoretical?.gross ?? null;
+  const arrived = o.source_theoretical;
   const ordered =
     purchases.length && purchases.every((p) => p.amount != null)
       ? purchases.reduce((n, p) => n + Number(p.amount), 0)
@@ -122,7 +123,8 @@ export class FinanceInvoiceMatching {
         schema: matchingRow,
         sql: `SELECT o.*,o.amount_cents-${allocationSum('a.obligation_id=o.id', true)} AS outstanding,
       (SELECT sum(l.amount_cents) FROM fin_invoice_links l JOIN fin_invoices i ON i.id=l.invoice_id
-        WHERE l.obligation_id=o.id AND i.status NOT IN ('draft','void')) AS invoiced,e.snapshot AS source
+        WHERE l.obligation_id=o.id AND i.status NOT IN ('draft','void')) AS invoiced,e.snapshot AS source,
+      e.theoretical_cents AS source_theoretical
       FROM fin_obligations o LEFT JOIN fin_events e ON e.id=o.event_id LEFT JOIN fin_vouchers v ON v.id=o.voucher_id
       WHERE o.kind=? AND o.tax_status<>'superseded' AND (o.voucher_id IS NULL OR v.status<>'void')
       AND o.reversal_of IS NULL AND NOT ${isReversed('o')}

@@ -1,6 +1,6 @@
-import { yuan } from '../../ui/index';
+import { yuan, DataTable, col, mon } from '../../ui/index';
 import { FinSection } from '../layout';
-import { FinTable, col, mon } from '../table';
+import { FIN_TABLE } from '../table';
 import { useFinRead, type FinData } from '../fin-api';
 
 /** 一个月的经营数 */
@@ -18,7 +18,8 @@ export default function TrendSection({
   const { data } = useFinRead(['GET /finance/monthly-report/trend', { query: { period, months: 12 } }]);
   return (
     <FinSection title="最近 12 个月" note="点一行切到那个月" collapsed>
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="最近 12 个月经营趋势"
         rows={data ?? []}
         rowKey={(r) => r.period}

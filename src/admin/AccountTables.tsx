@@ -1,4 +1,4 @@
-import { beijingTime, MoreMenu, TableRegion } from '../ui/index';
+import { beijingTime, DataTable, MoreMenu, type Col } from '../ui/index';
 import { levelName } from './account-confirms';
 import type { AccountRequestView, AccountView } from '../../shared/core/index';
 
@@ -16,55 +16,53 @@ export function RequestTable({
   handle: (request: AccountRequestView) => void;
   reject: (request: AccountRequestView) => void;
 }) {
+  const cols: Col<AccountRequestView>[] = [
+    { key: 'name', label: '用户名', render: (r) => r.name },
+    { key: 'kind', label: '类型', render: (r) => (r.kind === 'register' ? '申请账号' : '忘记密码') },
+    { key: 'note', label: '说明', wrap: true, render: (r) => r.note || '—' },
+    { key: 'createdAt', label: '提交时间', render: (r) => beijingTime(r.createdAt, 'short') },
+    { key: 'client', label: '来源', render: (r) => r.client },
+  ];
+  if (changing)
+    cols.push({
+      key: 'actions',
+      label: '操作',
+      cellClass: 'accounts-actions',
+      render: (request) => (
+        <>
+          <button type="button" disabled={busy} onClick={() => handle(request)}>
+            {request.kind === 'register' ? '通过并选级别' : '重置密码'}
+          </button>
+          <MoreMenu label={'更多操作 ' + request.name}>
+            <button type="button" role="menuitem" className="danger-text" disabled={busy} onClick={() => reject(request)}>
+              拒绝申请
+            </button>
+          </MoreMenu>
+        </>
+      ),
+    });
   return (
     <section className="accounts-section">
       <h2>待处理</h2>
-      <TableRegion label="待处理申请">
-        <table>
-          <thead>
-            <tr>
-              <th>用户名</th>
-              <th>类型</th>
-              <th>说明</th>
-              <th>提交时间</th>
-              <th>来源</th>
-              {changing && <th>操作</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((request) => (
-              <tr key={request.id}>
-                <td>{request.name}</td>
-                <td>{request.kind === 'register' ? '申请账号' : '忘记密码'}</td>
-                <td className="cell-wrap">{request.note || '—'}</td>
-                <td>{beijingTime(request.createdAt, 'short')}</td>
-                <td>{request.client}</td>
-                {changing && (
-                  <td className="accounts-actions">
-                    <button type="button" disabled={busy} onClick={() => handle(request)}>
-                      {request.kind === 'register' ? '通过并选级别' : '重置密码'}
-                    </button>
-                    <MoreMenu label={'更多操作 ' + request.name}>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="danger-text"
-                        disabled={busy}
-                        onClick={() => reject(request)}
-                      >
-                        拒绝申请
-                      </button>
-                    </MoreMenu>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableRegion>
+      <DataTable label="待处理申请" cols={cols} rows={requests} empty={null} />
     </section>
   );
 }
+
+const accountCols = (selfId: string): Col<AccountView>[] => [
+  {
+    key: 'name',
+    label: '用户名',
+    render: (user) => (
+      <>
+        {user.name}
+        {user.id === selfId && <span className="sub"> 当前账号</span>}
+      </>
+    ),
+  },
+  { key: 'level', label: '级别', render: (user) => levelName(user.level) },
+  { key: 'disabled', label: '状态', render: (user) => (user.disabled ? '已停用' : '正常') },
+];
 
 /** 账号列表：点一行（或回车）在右侧打开详情。 */
 export function AccountTable({
@@ -81,38 +79,14 @@ export function AccountTable({
   return (
     <section className="accounts-section">
       <h2>账号</h2>
-      <TableRegion label="账号列表">
-        <table>
-          <thead>
-            <tr>
-              <th>用户名</th>
-              <th>级别</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr
-                key={user.id}
-                tabIndex={0}
-                className={'record-row' + (selectedId === user.id ? ' selected' : '')}
-                aria-selected={selectedId === user.id}
-                onClick={() => select(user.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.target === e.currentTarget) select(user.id);
-                }}
-              >
-                <td>
-                  {user.name}
-                  {user.id === selfId && <span className="sub"> 当前账号</span>}
-                </td>
-                <td>{levelName(user.level)}</td>
-                <td>{user.disabled ? '已停用' : '正常'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableRegion>
+      <DataTable
+        label="账号列表"
+        cols={accountCols(selfId)}
+        rows={users}
+        onRow={(user) => select(user.id)}
+        selected={selectedId}
+        empty={null}
+      />
     </section>
   );
 }

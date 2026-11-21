@@ -1,7 +1,7 @@
-import { yuan } from '../../ui/index';
+import { yuan, col } from '../../ui/index';
 import { missingAmountName, type financeMetricNames } from '../../../shared/finance/index';
 import type { FinData } from '../fin-api';
-import { FinList, col } from '../table';
+import { FinList } from '../table';
 import { listMonthlyDetail } from './overview-api';
 import { FinSection, ExportLink } from '../layout';
 import { FlowStatus } from '../status';

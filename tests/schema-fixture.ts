@@ -1,4 +1,4 @@
-// 业务库结构测试共用的准备：临时目录、当前程序建的库、0.9.0 以前旧库的样子、虚构的升级步骤。
+// 业务库结构测试共用的准备：临时目录、当前程序建的库、第 20 版的库、0.9.0 以前旧库的样子、虚构的升级步骤。
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Store } from '../server/core/db.js';
-import { buildTables, type UpgradeStep } from '../server/core/schema/index.js';
+import { openBusinessDatabase, type UpgradeStep } from '../server/core/schema/index.js';
 import { customerSchema } from '../shared/core/domain.js';
 
 export const sha256 = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex');
@@ -32,6 +32,28 @@ export function currentDatabase(path: string) {
   const store = new Store(path);
   store.saveCustomer(customerSchema.parse({ name: '虚构升级客户' }));
   store.close();
+}
+
+const SNAPSHOT_FILE = 'tests/fixtures/schema-v20.sql';
+/**
+ * 第 20 版（0.9.0 基线）的建表：第 20 版结构快照里的建表、建索引和预置数据，不带版本记录（createSchema 自己写）。
+ * 虚构的升级步骤从第 21 版编起，都在第 20 版的库上跑，和程序真有几步无关。
+ */
+export const baselineBuild = (db: DatabaseSync) => {
+  const text = readFileSync(SNAPSHOT_FILE, 'utf8').replaceAll('\r\n', '\n');
+  const body = text.slice(text.indexOf('PRAGMA defer_foreign_keys=ON;'), text.lastIndexOf('COMMIT;'));
+  db.exec(body.split('\n').filter((line) => !line.startsWith('INSERT INTO schema_migrations(')).join('\n'));
+};
+/** 第 20 版的库（文件设置、连接设置和程序新建的一样），里面有一个虚构客户：虚构的升级步骤从它升上去 */
+export function baselineDatabase(path: string) {
+  const db = openBusinessDatabase(path, { ...quiet, steps: [], build: baselineBuild });
+  try {
+    db.prepare(
+      "INSERT INTO customers(name,contact,phone,address,notes,created_at,updated_at) VALUES('虚构升级客户','','','','','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')",
+    ).run();
+  } finally {
+    db.close();
+  }
 }
 /** 0.9.0 以前的旧库的样子：没有 application_id，版本记录只有两列、第 1～19 版 */
 export function legacyDatabase(path: string, upTo = 19) {
@@ -74,11 +96,11 @@ export const fictionalSteps: UpgradeStep[] = [
   },
 ];
 /**
- * 和 fictionalSteps 配套的建表：当前程序的表，加上三步走完以后的样子（直接建出来和从第 20 版升上来的结构一样）。
+ * 和 fictionalSteps 配套的建表：第 20 版的表，加上三步走完以后的样子（直接建出来和从第 20 版升上来的结构一样）。
  * 传了虚构步骤、又要建新库或核对表结构的，连同它一起传（openBusinessDatabase 的 build）。
  */
 export const fictionalBuild = (db: DatabaseSync) => {
-  buildTables(db);
+  baselineBuild(db);
   db.exec(`CREATE TABLE fictional_parents(id INTEGER PRIMARY KEY, name TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE fictional_children(id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL REFERENCES fictional_parents(id), note TEXT NOT NULL);
     ALTER TABLE customers ADD COLUMN fictional_note TEXT NOT NULL DEFAULT '没填';`);

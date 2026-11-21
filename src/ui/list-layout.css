@@ -346,3 +346,13 @@
 .list-summary .metric-select[aria-pressed='true'] {
   background: var(--accent-soft);
 }
+/* 列表表格（DataTable）的长文字列放不下省略、单号列加粗 */
+.business-records .unified-table-region > table > tbody > tr > td.cell-wrap {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.business-records .unified-table-region .record-no {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

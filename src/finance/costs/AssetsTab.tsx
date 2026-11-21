@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FormMessage, useConfirm, notify, stepper, useAction } from '../../ui/index';
+import { FormMessage, useConfirm, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
 import { today } from '../../../shared/core/index';
 import { FinSection, PeriodInput, type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { Status } from '../status';
 import { usePeriod } from '../page-state';

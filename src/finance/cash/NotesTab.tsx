@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { stepper } from '../../ui/index';
+import { stepper, col, mon, type Col } from '../../ui/index';
 import { noteKind, noteStatusName } from './shared';
 import NotePanel, { type NoteRow } from './NotePanel';
 import { today } from '../../../shared/core/index';
 import { type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms } from '../fin-api';
 import { listNotes, saveNote } from './cash-api';

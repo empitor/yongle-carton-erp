@@ -11,6 +11,7 @@ import { FinanceCosting } from '../server/finance/costing.js';
 import { FinanceClosing } from '../server/finance/closing.js';
 import { maker, fixture } from './finance-costing-fixture.js';
 import { booked } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceMargin } from '../server/finance/margin.js';
 import { MonthCostBook, type Item } from '../server/finance/costing-month.js';
 import { spreadAdjustment } from '../server/finance/costing-invoice-adjust.js';
@@ -19,18 +20,10 @@ import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { one, rows } from '../server/core/index.js';
 
 /** 管理员改一条流水（给的数量 delta_units、说明 notes）并留修订记录，再同步财务 */
-function reviseMovement(s: Store, movement: { id: string; itemId: number }, patch: Record<string, unknown>) {
+function reviseMovement(s: Store, movement: { id: string; itemId: number }, patch: { delta_units?: number; notes?: string }) {
   const before = s.db.prepare('SELECT * FROM stock_movements WHERE id=?').get(movement.id);
   assert.ok(before, '盘点流水还在');
-  if (patch.delta_units != null)
-    s.db.prepare('UPDATE stock_movements SET delta_units=? WHERE id=?').run(Number(patch.delta_units), movement.id);
-  if (patch.notes != null) s.db.prepare('UPDATE stock_movements SET notes=? WHERE id=?').run(String(patch.notes), movement.id);
-  s.db
-    .prepare(
-      `INSERT INTO stock_movement_revisions(movement_id,item_id,at,actor_id,actor_name,reason,before_document,after_document)
-          VALUES(?,?,?,?,?,?,?,?)`,
-    )
-    .run(movement.id, movement.itemId, new Date().toISOString(), 'maker', '虚构管理员', '虚构修订', JSON.stringify(before), JSON.stringify({ ...before, ...patch }));
+  businessChanges(s, maker).reviseMovement(movement.id, patch);
   new FinanceEvents(s).sync(maker, { requestId: randomUUID() });
 }
 
@@ -123,7 +116,7 @@ test('已算成本的月份：完工单冲销、管理员改盘点流水，事�
     events.sync(maker, { requestId: randomUUID() });
     assert.equal(status('production', String(made.id)), 'cost_pending');
     // 管理员改了 2 月那条盘点流水：只改说明不惊动财务；改了数量，盘点事件有差异，可以核对掉，也会被下次成本计算处理
-    const revise = (patch: Record<string, unknown>) => reviseMovement(f.s, { id: counted, itemId: item.id }, patch);
+    const revise = (patch: { delta_units?: number; notes?: string }) => reviseMovement(f.s, { id: counted, itemId: item.id }, patch);
     // 只改流水备注：备注不算进来源指纹，事件不动
     revise({ notes: '虚构盘点（补说明）' });
     assert.equal(status('stock', counted), 'costed', '只改流水备注不算来源变了');
@@ -181,12 +174,10 @@ test('补登日期在已算成本月份的流水：计入第一个还没算成�
       maker,
     ).movementId;
     // 登记时间手工写早了的补登（导入或脚本补的）：按行号也认得出
-    f.s.db
-      .prepare(
-        `INSERT INTO stock_movements(id,item_id,action,delta_units,before_units,after_units,source_kind,source_id,date,notes,actor_id,actor_name,created_at)
-        VALUES('fict-backdated',?,'in',2000,15000,17000,'manual',NULL,'2026-02-21','虚构补登','maker','虚构','2026-02-21T01:00:00Z')`,
-      )
-      .run(item.id);
+    businessChanges(f.s, maker).backdatedMovement({
+      id: 'fict-backdated', item_id: item.id, action: 'in', delta_units: 2000, before_units: 15000, after_units: 17000,
+      source_kind: 'manual', date: '2026-02-21', notes: '虚构补登', created_at: '2026-02-21T01:00:00Z',
+    });
     const need = f.costing.requirements(maker, { period: '2026-03' });
     assert.deepEqual(need.late.map((m) => m.id).sort(), ['fict-backdated', late].sort());
     assert.deepEqual(

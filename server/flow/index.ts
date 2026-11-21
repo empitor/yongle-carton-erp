@@ -14,3 +14,5 @@ export { carryOverFlowDocument, replaceFlowDocument } from './maintenance-writes
 export { FlowService } from './service.js';
 export { finishedStockOfProduct, stockItemBatches } from './stock-batches.js';
 export { updateDocumentInfo } from './document-info.js';
+// 财务从业务拿数据的只读窗口：财务只引这一个对象（tests/module-narrow-refs.test.ts）
+export { financeFacts } from './finance-facts/facts.js';

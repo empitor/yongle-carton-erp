@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { isReversed } from './reversal-pairs.js';
 import { allocationSum, voucherReversed } from './obligation-sql.js';
 import { sourceConfirmed } from './business-source.js';
-import { snapshotNumber, snapshotPartyName } from './source-snapshot.js';
 import { uncountedOrderStatuses } from '../../shared/core/index.js';
 
 const cashSign =
@@ -16,11 +15,11 @@ const cashSign =
 // 整张红票冲减后往来金额为 0，按金额大于 0 找会找不到，已收付就显示成 0。
 const eventSql = `SELECT CASE WHEN e.source_kind='delivery' THEN 'theoreticalIncome' ELSE 'theoreticalExpense' END AS metric,
   e.id AS id,e.date,substr(e.date,1,7) AS source_month, e.source_id AS source_id,
-  ${snapshotNumber('e.snapshot', 'e.source_id')} AS number,
-  ${snapshotPartyName('e.snapshot')} AS party,
-  json_extract(e.snapshot,'$.theoretical.gross') AS amount,
+  coalesce(e.source_number,e.source_id) AS number,
+  e.party_name AS party,
+  e.theoretical_cents AS amount,
   e.snapshot AS detail,e.status, o.due_date, coalesce(${allocationSum('a.obligation_id=o.id', true)},0) AS paid,
-  CASE WHEN e.status='info_pending' AND EXISTS(SELECT 1 FROM json_each(e.snapshot,'$.missing') WHERE value='tax') THEN 1 ELSE 0 END AS missing_tax
+  CASE WHEN e.status='info_pending' AND e.missing_tax=1 THEN 1 ELSE 0 END AS missing_tax
   FROM fin_source_observations obs JOIN fin_events e ON e.id=obs.event_id
   LEFT JOIN fin_obligations o ON o.id=(SELECT max(x.id) FROM fin_obligations x LEFT JOIN fin_vouchers xv ON xv.id=x.voucher_id
     WHERE x.event_id=e.id AND x.reversal_of IS NULL AND x.tax_status<>'superseded' AND (x.voucher_id IS NULL OR xv.status<>'void')
@@ -94,8 +93,8 @@ const supplementary = `
     json_object('orderId',id),status,NULL,0,0 FROM orders WHERE status NOT IN (${uncountedOrderStatuses.map(() => '?').join(',')})`;
 const unsyncedSql = `SELECT CASE WHEN json_extract(u.value,'$.source_kind')='delivery' THEN 'theoreticalIncome' ELSE 'theoreticalExpense' END,
   json_extract(u.value,'$.id'),json_extract(u.value,'$.date'),substr(json_extract(u.value,'$.date'),1,7),
-  json_extract(u.value,'$.source_id'),${snapshotNumber('u.value', "json_extract(u.value,'$.source_id')", '$.snapshot')},
-  ${snapshotPartyName('u.value', '$.snapshot')},
+  json_extract(u.value,'$.source_id'),coalesce(json_extract(u.value,'$.number'),json_extract(u.value,'$.source_id')),
+  json_extract(u.value,'$.party'),
   json_extract(u.value,'$.theoretical'),json_extract(u.value,'$.snapshot'),json_extract(u.value,'$.status'),NULL,0,
   EXISTS(SELECT 1 FROM json_each(u.value,'$.missing') WHERE value='tax') FROM json_each(?) u`;
 export const monthlyAll = `${eventSql} UNION ALL ${unsyncedSql} UNION ALL ${allocationRows} UNION ALL ${cashSql} UNION ALL ${ledgerCash} UNION ALL ${supplementary}`;

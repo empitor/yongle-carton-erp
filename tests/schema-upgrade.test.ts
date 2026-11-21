@@ -1,5 +1,5 @@
 // 业务库升级：待做的步骤在一个事务里执行、失败整体回滚、升级前快照、重建自增表编号不回头、步骤编号连续。
-// 升级步骤都是虚构的（0.9.0 还没有真的步骤）。
+// 升级步骤都是虚构的：在第 20 版的库上从第 21 版编起（schema-fixture.ts），和程序真有几步无关。
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,12 +20,12 @@ import {
   upgradeSteps,
   type UpgradeStep,
 } from '../server/core/schema/index.js';
-import { counters, currentDatabase, failing, fictionalBuild, fictionalSteps, one, quiet, rowsOf, sha256, versions, workspace } from './schema-fixture.js';
+import { baselineDatabase, counters, failing, fictionalBuild, fictionalSteps, one, quiet, rowsOf, sha256, versions, workspace } from './schema-fixture.js';
 
 test('升级成功：待做的步骤在一个事务里按顺序执行，版本记录带名字和程序版本，数据保留，外键检查恢复打开', () => {
   const w = workspace('erp-schema-upgrade-');
   try {
-    currentDatabase(w.path);
+    baselineDatabase(w.path);
     const db = new DatabaseSync(w.path);
     try {
       db.exec('PRAGMA foreign_keys=ON');
@@ -61,7 +61,7 @@ test('升级成功：待做的步骤在一个事务里按顺序执行，版本�
 test('升级失败整体回滚：前面成功的步骤一起退回，版本、结构、数据都不变；提交前的数据关联校验不过也退回', () => {
   const w = workspace('erp-schema-rollback-');
   try {
-    currentDatabase(w.path);
+    baselineDatabase(w.path);
     const db = new DatabaseSync(w.path);
     try {
       db.exec('PRAGMA foreign_keys=ON');
@@ -114,7 +114,7 @@ test('升级失败整体回滚：前面成功的步骤一起退回，版本、�
 test('打开旧一些的库：先拍升级前快照（含 WAL 里已提交的内容、版本是升级前的），再升级；升级失败时库不变、快照留着', () => {
   const w = workspace('erp-schema-open-');
   try {
-    currentDatabase(w.path);
+    baselineDatabase(w.path);
     // 留一条还在 WAL 里、没有合并进主文件的提交
     const writer = new DatabaseSync(w.path);
     writer.exec("PRAGMA wal_autocheckpoint=0; INSERT INTO customers(name,contact,phone,address,notes,created_at,updated_at) VALUES('还在 WAL 里的客户','','','','','2026-11-12T00:00:00Z','2026-11-12T00:00:00Z')");
@@ -178,8 +178,8 @@ test('升级前快照：只在可以升级时拍；拍不成就不升级；只�
   try {
     assert.equal(snapshotBeforeUpgrade(w.path), null, '文件不存在');
     assert.equal(snapshotBeforeUpgrade(':memory:'), null);
-    currentDatabase(w.path);
-    assert.equal(snapshotBeforeUpgrade(w.path), null, '已经是当前版本');
+    baselineDatabase(w.path);
+    assert.equal(snapshotBeforeUpgrade(w.path, []), null, '已经是当前版本');
     const dir = join(w.dir, 'snapshots');
     const taken: string[] = [];
     for (let i = 0; i < 5; i++) {
@@ -202,7 +202,7 @@ test('升级前快照：只在可以升级时拍；拍不成就不升级；只�
     // 快照目录不能用：不升级，库不变
     const blocked = workspace('erp-schema-snapshot-blocked-');
     try {
-      currentDatabase(blocked.path);
+      baselineDatabase(blocked.path);
       writeFileSync(join(blocked.dir, 'snapshots'), '占住快照目录的文件');
       const hash = sha256(blocked.path);
       assert.throws(
@@ -257,7 +257,7 @@ const rebuildOrders = (version: number, seen: number[]): UpgradeStep => ({
 test('升级步骤重建自增表：删掉的最大编号不会被重新分出去（表空了也一样），结构不变', () => {
   const w = workspace('erp-schema-autoincrement-');
   try {
-    currentDatabase(w.path);
+    baselineDatabase(w.path);
     const db = new DatabaseSync(w.path);
     try {
       db.exec('PRAGMA foreign_keys=ON');
@@ -300,7 +300,7 @@ test('第 20 版的库用一套建表和升级步骤升上来，再用同一套�
   const w = workspace('erp-schema-upgrade-reopen-');
   const fresh = workspace('erp-schema-upgrade-fresh-');
   try {
-    currentDatabase(w.path);
+    baselineDatabase(w.path);
     const fictional = { ...quiet, steps: fictionalSteps, build: fictionalBuild, snapshot: false };
     openBusinessDatabase(w.path, fictional).close();
     const upgraded = openBusinessDatabase(w.path, fictional);

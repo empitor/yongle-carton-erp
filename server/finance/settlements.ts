@@ -6,8 +6,7 @@ import { accountCodeSchema, cashMethods, versionSchema } from '../../shared/fina
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, one, rows } from '../core/index.js';
-import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { partyName as businessPartyName } from './business-source.js';
+import { checkVersion, financeActor, financeAudit, financeError, financeWrite, requirePartyName } from './core.js';
 import { FinanceCashAccounts } from './cash-accounts.js';
 import {
   activeCashAccount,
@@ -126,7 +125,7 @@ export class FinanceSettlements {
     let partyName: string | null = null;
     if (v.kind === 'receipt' || v.kind === 'payment') {
       if (!v.partyId) financeError('请填写往来单位。');
-      partyName = businessPartyName(this.db, v.kind === 'receipt' ? 'customer' : 'supplier', v.partyId);
+      partyName = requirePartyName(this.db, v.kind === 'receipt' ? 'customer' : 'supplier', v.partyId);
     } else if (v.kind === 'transfer') {
       if (!v.targetAccountId || v.targetAccountId === v.accountId)
         financeError('请填写不同的转入资金账户。');

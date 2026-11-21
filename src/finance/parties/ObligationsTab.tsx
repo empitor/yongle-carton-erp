@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { FormMessage, StatusChip, yuan, stepper } from '../../ui/index';
+import { FormMessage, StatusChip, yuan, stepper, col, mon, type Col } from '../../ui/index';
 import { errorMessage } from '../../../shared/core/index';
 import { AgingSection, HeldSection } from './BalanceSections';
 import CreditTransferDialog from './CreditTransferDialog';
 import { obligationSource, partyKindOf, type Kind } from './shared';
 import ObligationPanel, { type Dialog } from './ObligationPanel';
 import { FinSection, type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { PartyPicker } from '../fields';
 import { RedInk, Status } from '../status';
 import { useFinPerms } from '../fin-api';

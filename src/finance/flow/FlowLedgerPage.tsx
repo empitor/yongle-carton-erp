@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { FormMessage, SelectionBar, yuan, hashParams } from '../../ui/index';
+import { FormMessage, SelectionBar, yuan, hashParams, col, type Col } from '../../ui/index';
 import { missingAmountName } from '../../../shared/finance/index';
 import { useEnable } from '../enable';
 import TaxBatchDialog from './TaxBatchDialog';
 import { financePageTitles } from '../page-titles';
 import { FinHead, PeriodInput } from '../layout';
-import { FinList, col, type Col } from '../table';
+import { FinList } from '../table';
 import { FlowStatus } from '../status';
 import { documentName, metricNames, sourceMonthName } from '../labels';
 import { exportHref, useFinPerms, useFinRead, useSyncOnOpen } from '../fin-api';

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { FormMessage, yuan, stepper, loadingText } from '../../ui/index';
+import { FormMessage, yuan, stepper, loadingText, DataTable, col, mon, type Col } from '../../ui/index';
 import type { Kind } from './shared';
 import { today } from '../../../shared/core/index';
 import { voucherStateNames } from '../labels';
 import { FinSection } from '../layout';
-import { FinTable, col, mon, type Col } from '../table';
+import { FIN_TABLE } from '../table';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms, useFinRead } from '../fin-api';
 import DepositPanel, { depositDirection } from './DepositPanel';
@@ -49,7 +49,8 @@ export default function DepositsSection({ kind }: { kind: Kind }) {
       }
     >
       <FormMessage>{error}</FormMessage>
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="保证金"
         rows={rows}
         onRow={setRow}

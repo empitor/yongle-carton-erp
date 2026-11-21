@@ -12,7 +12,7 @@ import { releaseNoteSettlements } from './note-settlements.js';
 import { row } from './query.js';
 import { redReleasedByObligation } from './red-invoices.js';
 import { isReversed } from './reversal-pairs.js';
-import { snapshotNumber, type FinanceSourceDocument } from './source-snapshot.js';
+import type { FinanceSourceDocument } from './source-snapshot.js';
 import type { VoucherRecord } from './voucher-read.js';
 
 type Obligation = z.output<typeof rows.fin_obligations>;
@@ -30,7 +30,7 @@ const eventNumber = z.object({ n: z.string().nullable() });
  */
 function reversalSummary(db: Store['db'], original: Obligation, reason: string) {
   const number = original.event_id
-    ? one(db, eventNumber, `SELECT ${snapshotNumber()} AS n FROM fin_events WHERE id=?`, original.event_id)?.n
+    ? one(db, eventNumber, 'SELECT source_number AS n FROM fin_events WHERE id=?', original.event_id)?.n
     : null;
   const head =
     '红字冲销 ' +

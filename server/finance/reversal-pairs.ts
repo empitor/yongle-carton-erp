@@ -1,4 +1,3 @@
-import { snapshotNumber } from './source-snapshot.js';
 /**
  * 红字冲销的往来成对看。
  *
@@ -37,7 +36,7 @@ export const reversalState = (o: string) =>
 /** 冲销往来 r 冲的是哪张单据：“送货单 SH-…”“到货单 DH-…”；原往来没有来源单据号时是 NULL。对账单这类外发的地方用它，不用冲销原因。 */
 export const reversedDocument = (r: string) =>
   `(SELECT CASE WHEN x.kind='receivable' THEN '送货单 ' ELSE '到货单 ' END||
-    ${snapshotNumber('ev.snapshot')}
+    ev.source_number
     FROM fin_obligations x JOIN fin_events ev ON ev.id=x.event_id WHERE x.id=${r}.reversal_of)`;
 
 /**

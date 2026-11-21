@@ -16,7 +16,7 @@ import {
   upgradeSteps,
   type UpgradeStep,
 } from '../server/core/schema/index.js';
-import { currentDatabase, fictionalBuild, fictionalSteps, legacyDatabase, quiet, sha256, versions, workspace } from './schema-fixture.js';
+import { baselineDatabase, currentDatabase, fictionalBuild, fictionalSteps, legacyDatabase, quiet, sha256, versions, workspace } from './schema-fixture.js';
 
 const refusals: {
   name: string;
@@ -83,7 +83,7 @@ const refusals: {
   {
     name: '版本缺号的库（有第 20、22 版，缺第 21 版）',
     build: (path) => {
-      currentDatabase(path);
+      baselineDatabase(path);
       const db = new DatabaseSync(path);
       db.prepare('INSERT INTO schema_migrations(version,name,applied_at,app_version) VALUES(?,?,?,?)').run(22, '虚构', '2027-01-01T00:00:00Z', '9.9.9');
       db.close();
@@ -148,15 +148,21 @@ for (const refusal of refusals)
     }
   });
 
+/** 手工改坏表结构：删一张表、多建一张、给客户表加一列 */
+function tamper(path: string) {
+  const db = new DatabaseSync(path);
+  db.exec(`DROP TABLE document_template_settings;
+    CREATE TABLE dev_scratch(id INTEGER PRIMARY KEY);
+    ALTER TABLE customers ADD COLUMN dev_note TEXT;`);
+  db.close();
+}
+
 test('版本是当前版、表结构和程序对不上的库：拒绝打开并写明缺了、多出、结构不同的表，文件不变；升级上来对不上的整体退回', () => {
   const w = workspace('erp-schema-mismatch-');
+  const old = workspace('erp-schema-mismatch-v20-');
   try {
     currentDatabase(w.path);
-    const db = new DatabaseSync(w.path);
-    db.exec(`DROP TABLE document_template_settings;
-      CREATE TABLE dev_scratch(id INTEGER PRIMARY KEY);
-      ALTER TABLE customers ADD COLUMN dev_note TEXT;`);
-    db.close();
+    tamper(w.path);
     const hash = sha256(w.path);
     assert.throws(
       () => new Store(w.path),
@@ -173,14 +179,17 @@ test('版本是当前版、表结构和程序对不上的库：拒绝打开并�
       },
     );
     assert.equal(sha256(w.path), hash, '文件内容不变');
+    // 第 20 版的库同样改坏，按虚构的步骤升上来以后对不上：整体退回
+    baselineDatabase(old.path);
+    tamper(old.path);
     assert.throws(
-      () => openBusinessDatabase(w.path, { ...quiet, steps: fictionalSteps, build: fictionalBuild, snapshot: false }),
+      () => openBusinessDatabase(old.path, { ...quiet, steps: fictionalSteps, build: fictionalBuild, snapshot: false }),
       (error: Error) =>
         error instanceof SchemaError &&
         /第 20 版升级到第 23 版失败，已整体退回/.test(error.message) &&
         /缺了的表：document_template_settings/.test(error.message),
     );
-    const after = new DatabaseSync(w.path, { readOnly: true });
+    const after = new DatabaseSync(old.path, { readOnly: true });
     try {
       assert.deepEqual(inspectSchema(after, 23), { kind: 'upgrade', from: 20, to: 23 }, '升级退回，版本没变');
     } finally {
@@ -188,6 +197,7 @@ test('版本是当前版、表结构和程序对不上的库：拒绝打开并�
     }
   } finally {
     w.close();
+    old.close();
   }
 });
 

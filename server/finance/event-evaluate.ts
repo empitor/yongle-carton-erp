@@ -5,7 +5,8 @@ import { one, rows } from '../core/index.js';
 import { financeError } from './core.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
 import type { SourceRow } from './business-source.js';
-import type { DocumentMoney, EventSnapshot, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
+import type { EventColumns } from './event-columns.js';
+import type { DocumentMoney, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
 import { taxModes } from '../../shared/finance/index.js';
 
 type TaxTerms = { tax_rate: string | null; tax_mode: string | null };
@@ -25,13 +26,14 @@ export function partyTaxTerms(db: DatabaseSync): PartyTaxTerms {
 }
 
 /**
- * “改了什么”比金额的口径：快照里缺的是税率（missing 含 tax）时，记进往来的金额只是理论金额（不含税）；
+ * “改了什么”比金额的口径：缺税率（事件的 missing_tax 列，快照 missing 含 tax）时，记进往来的金额只是理论金额（不含税）；
  * 补过税率的是含税（送货）或不含税（到货）的正式金额。两边不同口径时按理论金额比（event-changes.ts）。
+ * 传事件那几列（event-columns.ts 的 eventColumns 算的，或库里一行）。
  */
-export function taxBasis(snapshot: Pick<EventSnapshot, 'missing' | 'theoretical'>) {
+export function taxBasis(columns: Pick<EventColumns, 'missing_tax' | 'theoretical_cents'>) {
   return {
-    taxPending: snapshot.missing?.includes('tax') ?? false,
-    theoretical: snapshot.theoretical?.gross ?? null,
+    taxPending: columns.missing_tax === 1,
+    theoretical: columns.theoretical_cents,
   };
 }
 

@@ -12,6 +12,7 @@ import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceAllocations } from '../server/finance/allocations.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligation, funds, reverseSource } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { workbook } from './finance-http-fixture.js';
 import type { FinanceSettlements } from '../server/finance/settlements.js';
 
@@ -120,9 +121,9 @@ test('对账单的红字行：每一种都用对方看得懂的说法，不带�
     postDrafts(s);
     const fourth = obligation(s, 4);
     s.db
-      .prepare("UPDATE fin_events SET snapshot=json_remove(snapshot,'$.doc.number','$.doc.reference') WHERE id=?")
+      .prepare("UPDATE fin_events SET snapshot=json_remove(snapshot,'$.doc.number','$.doc.reference'),source_number=NULL WHERE id=?")
       .run(fourth.event_id);
-    s.db.prepare("UPDATE flow_documents SET status='reversed',version=version+1 WHERE id=4").run();
+    businessChanges(s).reverse(4);
     events.sync(maker, { requestId: 'rescan-4' });
     const diff = event(s, 4);
     new FinanceEventHandling(s).correct(maker, diff.id, { version: Number(diff.version), date: '2026-01-26', requestId: 'correct-4', reason });

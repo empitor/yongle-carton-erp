@@ -10,6 +10,7 @@ import { FinanceDue } from '../server/finance/due.js';
 import { FinanceStatements } from '../server/finance/statements.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, funds, reverseSource } from './finance-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 test('到货详情的财务一段：应付一侧也成对显示，不列被替代的事件', () => {
   const s = new Store(':memory:');
@@ -147,7 +148,7 @@ test('账龄边界与到期提醒分开；没有账期的欠款单独一档，�
   const s = new Store(':memory:');
   try {
     newSettings(s);
-    s.db.exec("INSERT INTO customers(id,name,contact,phone,address,notes,version,created_at,updated_at) VALUES(2,'虚构客户乙','','','','',1,'2026-01-01','2026-01-01')");
+    businessBase(maker, s).customer({ name: '虚构客户乙' });
     const parties = new FinanceParties(s);
     // 客户 1 压 10 天，客户 2 没设账期
     parties.saveTerms(maker, { requestId: 'term', kind: 'customer', partyId: 1, termDays: 10 });

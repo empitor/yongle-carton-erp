@@ -8,6 +8,7 @@ import { FinanceNotes } from '../server/finance/notes.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceClosing } from '../server/finance/closing.js';
 import { maker, newSettings, postDrafts as postAll, physical, deliveryDoc } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceStatements } from '../server/finance/statements.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
@@ -233,7 +234,7 @@ test('票据冲过的送货被冲销：更正不被票据核销挡住，票据�
     });
     f.postDrafts();
     // 送货冲销后做来源更正：以前会报“请先撤销并记账该往来单的核销”，票据核销又没有撤销入口
-    f.s.db.prepare("UPDATE flow_documents SET status='reversed',version=version+1 WHERE id=1").run();
+    businessChanges(f.s).reverse(1);
     events.sync(maker, { requestId: 'scan-reversed' });
     const changed = source();
     assert.equal(changed.status, 'difference');

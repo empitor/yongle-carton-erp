@@ -11,8 +11,9 @@ import { businessBase } from './business-base-fixture.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';
 import { FinanceReports } from '../server/finance/reports.js';
 import { FinanceClosing } from '../server/finance/closing.js';
-import { flowColumns } from '../server/flow/document-store.js';
-import { flowDocumentSchema, type FlowKind } from '../shared/business/index.js';
+import type { flowColumns } from '../server/flow/document-store.js';
+import type { FlowKind } from '../shared/business/index.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceDue } from '../server/finance/due.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
@@ -110,30 +111,8 @@ export function physical(s: Store, id: number, kind: FlowKind, date: string, doc
         : kind === 'arrival'
           ? supplierTax(s, doc)
           : doc;
-  // 先按库里的单据结构核对：造出来的必须是程序自己也会存的样子（财务、单据流转都按这份结构读）
-  flowDocumentSchema(kind).parse({ ...content, date, confirmedAt });
-  const columns = flowColumns({ ...content, kind });
-  s.db
-    .prepare(
-      `INSERT INTO flow_documents(id,kind,number,date,status,planned_date,delivered_at,order_batch_id,correction_of,replaced_by,document,actor_id,actor_name,created_at,updated_at)
-    VALUES(?,?,?,?,'confirmed',?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(
-      id,
-      kind,
-      'FICT-' + id,
-      date,
-      columns.planned_date,
-      columns.delivered_at,
-      columns.order_batch_id,
-      columns.correction_of,
-      columns.replaced_by,
-      JSON.stringify({ ...content, date, confirmedAt }),
-      maker.id,
-      maker.name,
-      at,
-      at,
-    );
+  // 按库里的单据结构核对后写（tests/business-changes-fixture.ts）：造出来的必须是程序自己也会存的样子
+  businessChanges(s, maker).confirmed(kind, date, { ...content, confirmedAt }, { id, at });
 }
 
 type PhysicalDoc = Omit<Parameters<typeof flowColumns>[0], 'kind'> & { confirmedAt?: string } & Record<string, unknown>;
@@ -410,7 +389,7 @@ export function suggestedFor(s: Store, cash: FinanceSettlements, kind: 'receipt'
 
 /** 送货（或到货）被撤销后在财务待处理里“红字冲销并重做” */
 export function reverseSource(s: Store, source: number, date: string) {
-  s.db.prepare("UPDATE flow_documents SET status='reversed',version=2 WHERE id=?").run(source);
+  businessChanges(s, maker).reverse(source);
   new FinanceEvents(s).sync(maker, { requestId: 'rescan-' + source });
   const diff = event(s, source);
   return new FinanceEventHandling(s).correct(maker, diff.id, {
@@ -421,8 +400,5 @@ export function reverseSource(s: Store, source: number, date: string) {
   });
 }
 
-/** 直接改库里的单据内容（虚构数据），值按 JSON 写进去，版本号加一 */
-export const setDoc = (s: Store, id: number, path: string, value: unknown) =>
-  s.db
-    .prepare('UPDATE flow_documents SET document=json_set(document,?,json(?)),version=version+1 WHERE id=?')
-    .run(path, JSON.stringify(value), id);
+/** 改单据内容里的一项（虚构数据），值按 JSON 写进去，版本号加一 */
+export const setDoc = (s: Store, id: number, path: string, value: unknown) => businessChanges(s, maker).edit(id, path, value);

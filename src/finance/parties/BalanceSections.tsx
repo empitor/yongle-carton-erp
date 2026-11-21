@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ListSummary, yuan } from '../../ui/index';
+import { ListSummary, yuan, col, mon, type Col } from '../../ui/index';
 import { describeTerm, type Kind, kindWord, advanceWord } from './shared';
 import { today } from '../../../shared/core/index';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { FinSection } from '../layout';
 import type { FinData } from '../fin-api';
 import { listAging, listHeld } from './parties-api';

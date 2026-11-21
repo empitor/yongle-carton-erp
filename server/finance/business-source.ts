@@ -4,48 +4,17 @@
  * 财务不调用业务代码，按表只读单据流转、采购库存的数据（tests/module-boundaries.test.ts 登记的例外）。
  * 读这些表的 SQL 都放在这里，财务别的文件只调这里的函数或 SQL 片段：业务改了表，财务只改这两个文件。
  * 单据内容按库里的单据结构读（shared/business 的 flowDocumentSchema）；事件快照里抄来的单据字段怎么取见 source-snapshot.ts。
+ * 已经搬进单据流转只读窗口（server/flow/finance-facts/）的不在这里：往来单位的名称和选单位的名单。
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { financeSourceSchemas, flowDocumentSchema, purchaseLineDocumentSchema, toFinanceSource } from '../../shared/business/index.js';
 import type { FinanceSource } from '../../shared/business/index.js';
-import { exists, many, one, parseStoredJson, rows } from '../core/index.js';
-import { financeError } from './core.js';
+import { exists, many, parseStoredJson, rows } from '../core/index.js';
 import { sourceHash, withNumber } from './source-fingerprint.js';
 import type { FinanceSourceDocument } from './source-snapshot.js';
 import { snapshotLines } from './source-snapshot.js';
 import { eventSourceKinds } from './stored-values.js';
-
-type PartyKind = 'customer' | 'supplier';
-const named = z.object({ name: z.string() });
-
-/** 往来单位的名称（客户表、供应商表），找不到返回 null。 */
-export function findPartyName(db: DatabaseSync, kind: PartyKind, id: number | string): string | null {
-  const found = one(
-    db,
-    named,
-    kind === 'customer' ? 'SELECT name FROM customers WHERE id=?' : 'SELECT name FROM suppliers WHERE id=?',
-    id,
-  );
-  return found ? found.name : null;
-}
-
-/** 往来单位的名称，找不到报错。 */
-export function partyName(db: DatabaseSync, kind: PartyKind, id: number | string): string {
-  const name = findPartyName(db, kind, id);
-  if (name == null) financeError('往来单位不存在。', 404);
-  return name;
-}
-
-const partyOption = z.object({ id: z.number(), name: z.string() });
-/** 没归档的（归档标记的种类就是表名，参数 ?） */
-const unarchived = 'NOT EXISTS(SELECT 1 FROM record_lifecycle a WHERE a.entity=? AND a.record_id=p.id)';
-/** 选单位用的名单：没归档的客户或供应商（编号、名称），和业务列表一样新建的在前 */
-export function partyOptions(db: DatabaseSync, kind: PartyKind) {
-  return kind === 'customer'
-    ? many(db, partyOption, `SELECT p.id,p.name FROM customers p WHERE ${unarchived} ORDER BY p.id DESC`, 'customers')
-    : many(db, partyOption, `SELECT p.id,p.name FROM suppliers p WHERE ${unarchived} ORDER BY p.id DESC`, 'suppliers');
-}
 
 /**
  * 财务扫描的来源（CTE，名字是 sources，列 kind,id,version,status,date,document,at,number）：

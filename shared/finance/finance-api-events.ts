@@ -20,6 +20,15 @@ type FinanceEventRow = {
   version: number;
   revenue_recognition: string | null;
   snapshot: string;
+  previous_event_id: number | null;
+  previous_status: string | null;
+  party_kind: string | null;
+  party_id: string | null;
+  party_name: string | null;
+  source_number: string | null;
+  document_cents: number | null;
+  theoretical_cents: number | null;
+  missing_tax: number;
 };
 /**
  * 一条财务事件的详情（照 server/finance/event-views.ts 的 get）：事件整行，快照解析好（来源单据内容、金额、缺什么，

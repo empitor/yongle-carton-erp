@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
-import { Segmented, stepper } from '../../ui/index';
+import { Segmented, stepper, col, mon, type Col } from '../../ui/index';
 import { MatchingSection, TaxSection } from './InvoiceSections';
 import InvoicePanel from './InvoicePanel';
 import { invoiceStateName } from './shared';
 import { listInvoices, saveInvoice } from './cash-api';
 import { today } from '../../../shared/core/index';
 import { PeriodInput, type HeadFn } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { FormDialog } from '../FormDialog';
 import { useFinPerms, exportHref, type FinData } from '../fin-api';
 import { usePeriod } from '../page-state';

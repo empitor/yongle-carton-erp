@@ -62,12 +62,12 @@
     flex-wrap: wrap;
   }
   /* 订货单窗底栏：按钮不被挤成竖排字，放不下就换行 */
-  .management-dialog:has(.ob-rows, .ob-preview) .editor-footer-actions {
+  .management-dialog:has(.ob-rows, .export-preview) .editor-footer-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-  .management-dialog:has(.ob-rows, .ob-preview) .editor-footer-actions > button,
-  .management-dialog:has(.ob-rows, .ob-preview) .editor-footer-actions > .more-menu {
+  .management-dialog:has(.ob-rows, .export-preview) .editor-footer-actions > button,
+  .management-dialog:has(.ob-rows, .export-preview) .editor-footer-actions > .more-menu {
     flex: none;
     white-space: nowrap;
   }
@@ -230,9 +230,6 @@
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: 600;
-}
-.ob-preview {
-  overflow: auto;
 }
 
 /* ---- 成品库存详情：批次（每次完工一批，一批一块上下排开，不用多列表格、不横向滚动） ---- */

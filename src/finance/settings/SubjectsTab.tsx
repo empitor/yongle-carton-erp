@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { FormMessage, DetailPanel, ActionBar, Facts, Section, stepper } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Section, stepper, DataTable, col, type Col } from '../../ui/index';
 import { FinSection, type HeadFn } from '../layout';
-import { FinTable, col, type Col } from '../table';
+import { FIN_TABLE } from '../table';
 import { useFinPerms, useFinRead } from '../fin-api';
 import { saveSubject } from './settings-api';
 import { auxiliaries, cashKinds, categories, directions, subjectBody, type AccountRow } from './settings-forms';
@@ -126,7 +126,8 @@ export default function SubjectsTab({ head }: { head: HeadFn }) {
       </div>
       <FormMessage>{error}</FormMessage>
       <FinSection title="科目表" note="已使用的科目不能改类别和方向">
-        <FinTable
+        <DataTable
+          className={FIN_TABLE}
           label="科目表"
           rows={rows}
           rowKey={(a) => a.code}

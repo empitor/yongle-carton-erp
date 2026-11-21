@@ -9,6 +9,7 @@ import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { deliveryDoc, event, eventsStep, maker, newSettings, physical, postDrafts } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 test('已记账的送货单撤销后、还没补扫：结账检查拦下；补扫后照“有差异”拦，红冲重做后放行', async () => {
   const t = await flowFinance();
@@ -77,7 +78,7 @@ test('已记账的送货单被删除、还没补扫：结账检查拦下；补�
     new FinanceEventVouchers(s).generate(maker, e.id, { version: e.version, requestId: randomUUID() });
     postDrafts(s);
     assert.equal(eventsStep(s).ok, true);
-    s.db.prepare('DELETE FROM flow_documents WHERE id=1').run();
+    businessChanges(s).remove(1);
     assert.equal(eventsStep(s).ok, false, '财务还没看到删除，不能结账');
     assert.equal(eventsStep(s, '2025-12').ok, true, '单据日期以前的月份不受影响');
     new FinanceEvents(s).sync(maker, { requestId: randomUUID() });

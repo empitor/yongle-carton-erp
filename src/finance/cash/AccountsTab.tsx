@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper, loadingText } from '../../ui/index';
+import { FormMessage, DetailPanel, ActionBar, Facts, Hint, Section, yuan, stepper, loadingText, DataTable, col, mon, type Col } from '../../ui/index';
 import BankSection, { type BankDialog } from './BankSection';
 import { MAX_PAGE_SIZE, today } from '../../../shared/core/index';
 import { FinSection, type HeadAction, type HeadFn } from '../layout';
-import { FinTable, col, mon, type Col } from '../table';
+import { FIN_TABLE } from '../table';
 import { FormDialog } from '../FormDialog';
 import { ALL_CASH_ACCOUNTS, useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { saveCashAccount } from './cash-api';
@@ -195,7 +195,8 @@ export default function AccountsTab({ head }: { head: HeadFn }) {
             {perms.close ? '先点页面上方的“新建资金账户”建一个（例如基本户、现金）。' : '请财务负责人先新建一个。'}
           </Hint>
         )}
-        <FinTable
+        <DataTable
+          className={FIN_TABLE}
           label="资金日报"
           rows={rows}
           empty={none ? '还没有资金账户' : loadingText()}

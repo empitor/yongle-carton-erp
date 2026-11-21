@@ -153,6 +153,8 @@ function enumOwners(): Record<string, readonly string[]> {
     'fin_events.event_type': finance.eventTypes,
     'fin_events.status': finance.eventStatuses,
     'fin_events.revenue_recognition': revenue,
+    'fin_events.previous_status': finance.eventStatuses,
+    'fin_events.party_kind': finance.partyKinds,
     'fin_source_observations.source_kind': finance.eventSourceKinds,
     'fin_source_observations.status': finance.observationStatuses,
     'fin_templates.name': finance.templateNames,

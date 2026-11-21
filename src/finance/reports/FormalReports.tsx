@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FormMessage, ListSummary, Hint, yuan, Segmented } from '../../ui/index';
+import { FormMessage, ListSummary, Hint, yuan, Segmented, DataTable, col, mon, type Col } from '../../ui/index';
 import { snapshotKinds } from '../../../shared/finance/index';
 import { FinSection, PeriodInput, type HeadFn } from '../layout';
-import { FinTable, col, mon, type Col } from '../table';
+import { FIN_TABLE } from '../table';
 import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { readinessOf, reportOf } from './reports-api';
 
@@ -63,7 +63,8 @@ export function Readiness({ period, syncError }: { period: string; syncError: st
         {unsynced}
         {perms.edit ? '' : '需要有财务编辑权限的人到月度台账补。'}
       </Hint>
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="待补单据"
         rows={data.rows}
         rowKey={(r, i) => (r.id ?? r.source_id) + ':' + i}
@@ -91,7 +92,7 @@ function ReportLines<R extends BalanceLine | ProfitLine>(props: {
   const { title, rows, cols, total } = props;
   return (
     <FinSection title={title}>
-      <FinTable label={title} rows={rows} rowKey={(r) => r.id} onRow={drill} cols={cols} />
+      <DataTable className={FIN_TABLE} label={title} rows={rows} rowKey={(r) => r.id} onRow={drill} cols={cols} />
       {total !== undefined && (
         <p className="fin-note">
           合计 <strong>{yuan(total)}</strong>
@@ -170,7 +171,7 @@ function CashflowSheet({ data }: { data: CashflowReport }) {
         </Hint>
       )}
       <FinSection title="现金流量表">
-        <FinTable label="现金流量表" rows={data.lines} rowKey={(_, i) => i} cols={cashflowCols} />
+        <DataTable className={FIN_TABLE} label="现金流量表" rows={data.lines} rowKey={(_, i) => i} cols={cashflowCols} />
       </FinSection>
     </>
   );
