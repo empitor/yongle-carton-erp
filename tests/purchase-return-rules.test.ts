@@ -1,6 +1,5 @@
 // 采购退货本身的规则：扣库存、冲减采购已到货、超量和带退货冲销到货被拦，删到货单连带删退货（虚构数据、内存库）
-// 加载财务、识别导入、单据导出模块：删除到货单要它们登记的删除规则
-import '../server/finance/index.js';
+// 加载识别导入、单据导出模块：删除到货单要它们登记的删除规则
 import '../server/import/index.js';
 import '../server/documents/index.js';
 import assert from 'node:assert/strict';

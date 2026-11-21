@@ -16,11 +16,13 @@ export const reportKinds = ['balance', 'profit', 'cashflow', 'trial'] as const;
 /** 结账时存快照、归档时打包的三张报表（试算平衡表不存） */
 export const snapshotKinds = ['balance', 'profit', 'cashflow'] as const;
 /**
- * 存进库、页面下拉也按这个顺序列的两组（建表 CHECK 由 tests/schema-constraints.test.ts 比对）：
- * 收付方式（fin_cash_documents.method）；账期方式（fin_party_terms.term_type）：没有账期、月结、按天
+ * 存进库、页面下拉也按这个顺序列的三组（建表 CHECK 由 tests/schema-constraints.test.ts 比对）：
+ * 收付方式（fin_cash_documents.method）；账期方式（fin_party_terms.term_type）：没有账期、月结、按天；
+ * 税率口径（fin_party_terms.tax_mode，也是单据明细的 taxMode）：“不含税”和“未税”同义，库里和单据里都认，页面只列前两个
  */
 export const cashMethods = ['银行', '现金', '承兑汇票', '微信', '支付宝', '其他'] as const;
 export const termTypes = ['none', 'monthly', 'days'] as const;
+export const taxModes = ['含税', '未税', '不含税'] as const;
 export const centsSchema = z.number().int().nonnegative();
 export const versionSchema = z.number().int().positive();
 export const requestIdSchema = z.string().trim().min(1).max(100);

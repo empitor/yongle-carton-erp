@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Hint, Section, notify, useAction, FormField } from '../../ui/index';
 import { useFinPerms } from '../fin-api';
 import { resolveEventTax, type ResolveLine } from './tax-api';
-import { taxModes } from '../fields';
+import { taxModeOptions } from '../fields';
 import { readSourceDetail, type SourceLine, type SourceRow } from '../source-detail-view';
 
 /** 已经填过的口径：“不含税”按“未税”算，认不出的空着让人选 */
@@ -86,7 +86,7 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
                       onChange={(e) => update({ mode: e.target.value })}
                     >
                       <option value="">请选择</option>
-                      {taxModes.map(([k, label]) => (
+                      {taxModeOptions.map(([k, label]) => (
                         <option key={k} value={k}>
                           {label}
                         </option>
