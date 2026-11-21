@@ -79,4 +79,3 @@ node scripts/ui-check/preview.mjs
 ## 许可
 
 代码公开，版权归宁波甬勒包装制品有限公司所有，保留所有权利，见 [LICENSE](LICENSE)。几处移植自开源项目的代码，许可和出处见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
