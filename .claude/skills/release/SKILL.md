@@ -25,7 +25,7 @@ disable-model-invocation: true
 ## 2. 改版本号和更新记录
 
 - `npm version $ARGUMENTS --no-git-tag-version`（改 `package.json` 和 `package-lock.json`，不提交、不打标签），再把 `shared/core/version.ts` 的 `APP_VERSION` 改成同一个（`tests/app-version.test.ts` 核对三处一致）。
-- `docs/CHANGELOG.md` 只有一节，这一节就是这次的发布说明（规矩见 AGENTS.md“文档怎么维护”）。把标题“## 未发布”改成 `## $ARGUMENTS · 今天日期`，内容整理成用户看得懂的发布说明：一段概述、各项改动；写清怎么升级：补丁以哪个安装包为基线，或这一版只能整包；末尾固定一句“升级办法见 `docs/部署与运维.md`”。下载、部署、已知限制不写进来（已知问题在 `docs/路线图.md`）。
+- `docs/CHANGELOG.md` 只留还没发布的改动（规矩见 AGENTS.md“文档怎么维护”）。把“未发布”这一节整理成用户看得懂的发布说明：一段概述、各项改动；写清怎么升级：补丁以哪个安装包为基线，或这一版只能整包；末尾一句“升级办法见 `docs/部署与运维.md`”。下载、部署、已知限制不写进来（已知问题在 `docs/路线图.md`）。整理好的内容另存成临时文件（第 5 步贴到 GitHub 发布页用），然后把 `docs/CHANGELOG.md` 的“未发布”一节清空成“暂时没有。”，和版本号一起提交。
 - 跟着版本走的文档一起改：`README.md` 的当前版本和下载的版本、`docs/路线图.md` 开头的现状、`docs/部署与运维.md`“当前服务器”和安装包版本。
 - `docs/` 只放行根目录的文档、`docs/架构/` 和商标，用 `git status --ignored docs/` 看有没有漏掉要进仓库的文档。
 - 改完再跑一次 `npm run check`。
@@ -45,7 +45,7 @@ disable-model-invocation: true
 
 ## 5. GitHub 发布
 
-- 把 `docs/CHANGELOG.md` 那一节的内容（不含标题行）存成临时文件，`gh release create v$ARGUMENTS --title "v$ARGUMENTS：一句话概括" --notes-file <这个文件>`，设为最新版本，用完删掉临时文件。附上：
+- 用第 2 步存好的发布说明文件，`gh release create v$ARGUMENTS --title "v$ARGUMENTS：一句话概括" --notes-file <这个文件>`，设为最新版本，用完删掉临时文件。附上：
   - **整包：** 两个安装包（`linux-x64.tar.gz`、`win-x64.zip`）和各自的 `.sha256`。
   - **补丁：** 先生成发布补丁，基线是服务器上解压好的上一个整包（现在是 `/home/ubuntu/build/base-v0.9.5/yongle-carton-erp-v0.9.5-linux-x64`，出了新的整包就换成新的）：`npm run patch-server -- --base <基线目录> --out <临时目录>`；附上生成的补丁、执行补丁的三个脚本（`apply-patch.mjs`、`patch-logic.mjs`、`patch-rollback.mjs`，要放在同一目录运行）和各自的 `.sha256`。
 

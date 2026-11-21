@@ -74,7 +74,7 @@ node scripts/ui-check/preview.mjs
 
 根目录每个文件、文件夹是干什么的，看 GitHub 文件列表右边的备注（清单在 `scripts/root-notes.mjs`，每次发布重新标一遍）。
 
-用软件看[使用手册](docs/使用手册.md)；部署运维看[部署与运维](docs/部署与运维.md)；现在做到哪、还剩什么看[路线图](docs/路线图.md)；这一版改了什么看[更新日志](docs/CHANGELOG.md)，以前的版本看 Git 标签和 GitHub 发布。
+用软件看[使用手册](docs/使用手册.md)；部署运维看[部署与运维](docs/部署与运维.md)；现在做到哪、还剩什么看[路线图](docs/路线图.md)；还没发布的改动看[更新日志](docs/CHANGELOG.md)，每个版本改了什么看 GitHub 发布页。
 
 ## 许可
 
