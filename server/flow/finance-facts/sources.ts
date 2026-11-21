@@ -6,17 +6,20 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { financeSourceSchemas, financialContent, flowDocumentSchema, movementSource, toFinanceSource } from '../../../shared/business/index.js';
+import { financeSourceSchemas, financialContent, flowDocumentSchema, flowStatus, movementSource, toFinanceSource } from '../../../shared/business/index.js';
 import type { FinanceSource } from '../../../shared/business/index.js';
+import { financeSource, financeSourceKinds } from '../../../shared/core/index.js';
 import { many, parseStoredJson } from '../../core/index.js';
 
-/** 来源的种类：三种单据和盘点流水（和约定里财务口径的种类一一对应） */
-const kinds = ['delivery', 'arrival', 'production', 'stock'] as const satisfies readonly (keyof typeof financeSourceSchemas)[];
+/** 进财务的单据状态：已确认、已撤销（盘点流水记成已确认） */
+const statuses = [flowStatus.confirmed, flowStatus.reversed] as const;
+/** 进财务的三种单据（来源里除了盘点流水的） */
+const documentKinds = [financeSource.delivery, financeSource.arrival, financeSource.production] as const;
 const head = z.object({
-  kind: z.enum(kinds),
+  kind: z.enum(financeSourceKinds),
   id: z.string(),
   version: z.number(),
-  status: z.enum(['confirmed', 'reversed']),
+  status: z.enum(statuses),
   date: z.string(),
 });
 /** 一条来源：种类、编号（文字；单据是单据编号，盘点流水是流水编号）、版本、状态、单据日期 */
@@ -29,9 +32,12 @@ export type SourceText = z.output<typeof text>;
 const stockVersion = (m: string) =>
   `1+coalesce((SELECT max(r.id) FROM stock_movement_revisions r WHERE r.movement_id=${m}.id),0)`;
 
+/** 常量拼成 SQL 里的值列表（'a','b'）：SQL 文字和直接写字面值一样，查询计划不变 */
+const listed = (values: readonly string[]) => values.map((v) => `'${v}'`).join(',');
 /** 进财务的单据：送货、到货、完工单里已确认、已撤销的（f 是单据表的别名） */
-const financeDocuments = (f: string) =>
-  `${f}.kind IN ('delivery','arrival','production') AND ${f}.status IN ('confirmed','reversed')`;
+const financeDocuments = (f: string) => `${f}.kind IN (${listed(documentKinds)}) AND ${f}.status IN (${listed(statuses)})`;
+const STOCK = financeSource.stock,
+  CONFIRMED = flowStatus.confirmed;
 
 /**
  * 全部来源的种类、编号、版本、状态、日期，一次查完，不读内容。
@@ -44,8 +50,8 @@ function heads(db: DatabaseSync): SourceHead[] {
     `SELECT kind,id,version,status,date FROM (
       SELECT kind,cast(id AS TEXT) AS id,version,status,date,id AS seq FROM flow_documents f WHERE ${financeDocuments('f')}
       UNION ALL
-      SELECT 'stock',m.id,${stockVersion('m')},'confirmed',m.date,m.rowid FROM stock_movements m WHERE m.action='adjust'
-    ) ORDER BY kind,status,CASE WHEN kind='stock' THEN '' ELSE date END,seq`,
+      SELECT '${STOCK}',m.id,${stockVersion('m')},'${CONFIRMED}',m.date,m.rowid FROM stock_movements m WHERE m.action='adjust'
+    ) ORDER BY kind,status,CASE WHEN kind='${STOCK}' THEN '' ELSE date END,seq`,
   );
 }
 
@@ -63,7 +69,7 @@ function texts(db: DatabaseSync, refs: readonly { kind: string; id: string }[]):
     SELECT f.kind,cast(f.id AS TEXT) AS id,f.version,f.status,f.date,f.number,f.updated_at AS at,f.document AS text
       FROM want w CROSS JOIN flow_documents f ON f.id=cast(w.id AS INTEGER) AND f.kind=w.kind WHERE ${financeDocuments('f')}
     UNION ALL
-    SELECT 'stock',m.id,${stockVersion('m')},'confirmed',m.date,
+    SELECT '${STOCK}',m.id,${stockVersion('m')},'${CONFIRMED}',m.date,
       -- 盘点流水没有单据号，流水编号是一串内部编号，人认不出。单号显示“库存品名 规格 调整量 单位”（如“虚构纸板 -2 张”），
       -- 日期、“盘点”另有列。只进快照，不进来源指纹（内容不变）。数量是千分之一的整数，这里只拼成文字显示
       (SELECT i.name||coalesce(' '||nullif(trim(json_extract(i.document,'$.specification')),''),'')||' '||
@@ -71,7 +77,7 @@ function texts(db: DatabaseSync, refs: readonly { kind: string; id: string }[]):
         (abs(m.delta_units)/1000)||rtrim(rtrim('.'||substr('00'||(abs(m.delta_units)%1000),-3),'0'),'.')||' '||i.unit
         FROM stock_items i WHERE i.id=m.item_id),
       m.created_at,json_object('stockId',m.item_id,'deltaUnits',m.delta_units,'reason',m.notes,'createdAt',m.created_at)
-      FROM want w CROSS JOIN stock_movements m ON m.id=w.id WHERE w.kind='stock' AND m.action='adjust'`,
+      FROM want w CROSS JOIN stock_movements m ON m.id=w.id WHERE w.kind='${STOCK}' AND m.action='adjust'`,
     JSON.stringify(refs.map(({ kind, id }) => ({ kind, id }))),
   );
 }
@@ -103,6 +109,8 @@ function read(source: SourceText): { doc: FinanceSource; counted: unknown } {
   }
 }
 
+/** 已撤销的到货单（u 是单据表的别名） */
+const reversedArrival = (u: string) => `${u}.kind='${financeSource.arrival}' AND ${u}.status='${flowStatus.reversed}'`;
 const reversalDates = z.object({ id: z.string(), own: z.string().nullable(), replaced: z.string().nullable() });
 /**
  * 一批到货单撤销（更正）那天：own 是这张已撤销时冲回它库存的流水日期，replaced 是被这张替代的原单（已撤销）
@@ -114,9 +122,9 @@ function arrivalReversalDates(db: DatabaseSync, ids: readonly string[]) {
     reversalDates,
     `SELECT j.value AS id,
       (SELECT max(r.date) FROM stock_movements r WHERE r.source_kind=? AND r.source_id=j.value
-        AND EXISTS(SELECT 1 FROM flow_documents u WHERE u.id=cast(j.value AS INTEGER) AND u.kind='arrival' AND u.status='reversed')) AS own,
+        AND EXISTS(SELECT 1 FROM flow_documents u WHERE u.id=cast(j.value AS INTEGER) AND ${reversedArrival('u')})) AS own,
       (SELECT max(r.date) FROM flow_documents u JOIN stock_movements r ON r.source_kind=? AND r.source_id=cast(u.id AS TEXT)
-        WHERE u.replaced_by=cast(j.value AS INTEGER) AND u.kind='arrival' AND u.status='reversed') AS replaced
+        WHERE u.replaced_by=cast(j.value AS INTEGER) AND ${reversedArrival('u')}) AS replaced
     FROM json_each(?) j`,
     movementSource.reversal,
     movementSource.reversal,

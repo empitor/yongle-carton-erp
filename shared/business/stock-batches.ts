@@ -1,4 +1,5 @@
-import { movementTypeLabel } from './movement-filters.js';
+import { movementSource, movementTypeLabel } from './movement-filters.js';
+import { flowEntityPrefix } from './physical-flow.js';
 
 /**
  * 成品库存按“每次完工”分批：一笔有效的完工入库就是一批，仓库不用另外登记。
@@ -96,7 +97,7 @@ function originalsBySource(sorted: readonly BatchMovement[], restored: boolean) 
   const map = new Map<string, Original[]>();
   for (const m of sorted) {
     const s = sourceOf(m, restored);
-    if (!s || !s.sourceKind.startsWith('flow_') || s.sourceKind === 'flow_reversal') continue;
+    if (!s || !s.sourceKind.startsWith(flowEntityPrefix) || s.sourceKind === movementSource.reversal) continue;
     const list = map.get(s.sourceId) || [];
     list.push({ m, kind: s.sourceKind });
     map.set(s.sourceId, list);
@@ -123,9 +124,9 @@ function pairedReversals(sorted: BatchMovement[]) {
   for (const r of sorted) {
     // 先按现在的来源配，和以前完全一样；配不上再算上改写成系统维护之前的来源
     const now = sourceOf(r, false);
-    if (now?.sourceKind === 'flow_reversal' && pair(r, actual.get(now.sourceId))) continue;
+    if (now?.sourceKind === movementSource.reversal && pair(r, actual.get(now.sourceId))) continue;
     const before = sourceOf(r, true);
-    if (before?.sourceKind === 'flow_reversal') pair(r, all.get(before.sourceId));
+    if (before?.sourceKind === movementSource.reversal) pair(r, all.get(before.sourceId));
   }
   return dropped;
 }
@@ -133,7 +134,7 @@ function pairedReversals(sorted: BatchMovement[]) {
 /** 一笔完工入库：来源是完工单、数量为正、挂着单据号 */
 type Completion = BatchMovement & { sourceId: string };
 const isCompletion = (m: BatchMovement): m is Completion =>
-  m.sourceKind === 'flow_production' && m.delta > 0 && m.sourceId != null;
+  m.sourceKind === movementSource.production && m.delta > 0 && m.sourceId != null;
 /** 被撤销的完工：入库那笔在推算顺序里的位置、完工日期、生产任务 */
 type Undone = { sourceId: string; at: number; date: string; taskId: number | null };
 /** 有效完工的入库：那笔流水、位置、完工单 */
@@ -150,7 +151,7 @@ function undoneCompletions(
     if (!isCompletion(m) || !dropped.has(m.id) || undone.some((u) => u.sourceId === m.sourceId)) return;
     const task = reversed.get(m.sourceId);
     if (!task) return;
-    if (!sorted.some((r) => r.sourceKind === 'flow_reversal' && r.sourceId === m.sourceId && dropped.has(r.id))) return;
+    if (!sorted.some((r) => r.sourceKind === movementSource.reversal && r.sourceId === m.sourceId && dropped.has(r.id))) return;
     undone.push({ sourceId: m.sourceId, at, date: m.date, taskId: task.taskId });
   });
   return undone;
@@ -231,7 +232,7 @@ function take(e: BatchEntry, need: number) {
 
 /** 一笔入库记成一批：有效完工单的完工入库是完工批次，别的是其他入库 */
 function entryOf(m: BatchMovement, position: number, production: ReadonlyMap<string, BatchProduction>): BatchEntry {
-  const isBatch = m.sourceKind === 'flow_production' && m.sourceId != null && production.has(m.sourceId);
+  const isBatch = m.sourceKind === movementSource.production && m.sourceId != null && production.has(m.sourceId);
   return {
     movementId: m.id,
     kind: isBatch ? 'batch' : 'other',
@@ -247,7 +248,7 @@ function entryOf(m: BatchMovement, position: number, production: ReadonlyMap<str
 /** 一笔出库从已入库的批次里扣：送货先扣挂着同一张订单的完工批次，再按先后扣全部；返回扣不到的数 */
 function spend(pool: readonly Pooled[], m: BatchMovement, orderSets: ReadonlyMap<string, ReadonlySet<number>>) {
   let need = -m.delta;
-  const orderId = m.sourceKind === 'flow_delivery' ? m.orderId : null;
+  const orderId = m.sourceKind === movementSource.delivery ? m.orderId : null;
   if (orderId != null)
     for (const { e } of pool) {
       if (!need) break;

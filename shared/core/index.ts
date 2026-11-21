@@ -11,6 +11,8 @@ export { AUDIT_SOURCE, auditSourceNames } from './audit-sources.js';
 export type { AuditSource } from './audit-sources.js';
 export type { AssistantAttachment } from './assistant-attachments.js';
 export { currencyName, currencyNames, inspectCurrency } from './currency.js';
+export { financeSource, financeSourceKinds } from './finance-sources.js';
+export type { FinanceSourceKind } from './finance-sources.js';
 export { fieldLabel, fieldName, fieldShort, fieldTable, fieldTables, fieldTitle, isRecordKind, unitLabel } from './field-names.js';
 export type { FieldKey, FieldTable } from './field-names.js';
 export { monthsBefore, orderInView, presetRange } from './date-ranges.js';

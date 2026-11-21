@@ -4,7 +4,7 @@ import type { Actor } from '../core/index.js';
 import { AUDIT_SOURCE, auditSourceNames, financeOnlyAccount } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import { AppError, count, many, parseStoredJson, rows } from '../core/index.js';
-import { dataManagementModules, flowKinds, isFlowKind, recordEntities } from '../../shared/business/index.js';
+import { dataManagementModules, flowEntity, flowKinds, flowStatus, isFlowKind, recordEntities } from '../../shared/business/index.js';
 import { purchaseOrderLinks } from '../operations/index.js';
 import { businessRecord, businessRecords } from '../lifecycle/index.js';
 import { historyRefs } from './history-refs.js';
@@ -236,8 +236,8 @@ export function recordContext(store: Store, module: string, id: number, who: Act
   requireRecordReader(who);
   const recordModule = z.enum(dataManagementModules).parse(module);
   const flow = new FlowService(store),
-    physical = flowKinds.some((k) => k === recordModule),
-    entity = physical ? 'flow_' + module : module,
+    physical = isFlowKind(recordModule),
+    entity = isFlowKind(recordModule) ? flowEntity(recordModule) : module,
     version = recordVersion(store, flow, recordModule, id);
   const { related, add } = relatedList(module, id);
   const orderIds = relatedOrderIds(store, module, id);
@@ -283,6 +283,6 @@ export function recordContext(store: Store, module: string, id: number, who: Act
       : '归档只是收起来不显示，能恢复；删除不能恢复，删之前会列出一起删掉和保留下来的记录，核对后才删。',
     alternatives: related
       .filter((r) => isFlowKind(r.module))
-      .map(({ view: _view, ...r }) => ({ ...r, action: r.status === 'confirmed' ? 'reverse' : 'archive' })),
+      .map(({ view: _view, ...r }) => ({ ...r, action: r.status === flowStatus.confirmed ? 'reverse' : 'archive' })),
   };
 }

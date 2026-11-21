@@ -13,14 +13,17 @@ export type DateRange = { start?: string; end?: string };
 
 const idRow = z.object({ id: z.number() });
 
+/** 某类记录的归档编号（Store 的归档读法），写成 JSON 数组给 SQL 的 json_each(?) 用 */
+export const archivedIdsJson = (store: Store, entity: string) => JSON.stringify([...store.archivedIds(entity)]);
+
 /** 这段时间里已归档的订单或采购单编号（两张表的日期列都叫 order_date，归档登记的种类名和表名一样） */
 function archivedInRange(store: Store, table: 'orders' | 'purchases', range: DateRange) {
   return many(
     store.db,
     idRow,
-    `SELECT id FROM ${table} WHERE id IN (SELECT record_id FROM record_lifecycle WHERE entity=?)
+    `SELECT id FROM ${table} WHERE id IN (SELECT value FROM json_each(?))
       AND (? IS NULL OR order_date>=?) AND (? IS NULL OR order_date<=?)`,
-    table,
+    archivedIdsJson(store, table),
     range.start ?? null,
     range.start ?? null,
     range.end ?? null,
