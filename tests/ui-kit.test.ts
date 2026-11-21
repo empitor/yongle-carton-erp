@@ -195,7 +195,6 @@ test('出错和正在读取的提示只在 src/ui 写一份', () => {
   }
 });
 
-<<<<<<< ours
 test('列表表格：表头带列优先级和数字列、开着详情的那一行标出来、勾选列有全选、空着时说一句或不画', async () => {
   const { DataTable } = await import('../src/ui/DataTable.js');
   type Row = { id: number; name: string; amount: number };
