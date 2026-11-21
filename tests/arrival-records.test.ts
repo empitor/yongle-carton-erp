@@ -7,6 +7,9 @@ import { orderedPurchase, saveDoc } from './receive-fixture.js';
 import { many, rows as tableRows } from '../server/core/index.js';
 import { batchArrivals, batchHasArrivals, documentNumbers, purchaseArrivals, purchaseReferenced, referencedStock, reservedUnits } from '../server/flow/stock-facts.js';
 import { receiptEvents } from '../server/flow/receipt-events.js';
+import { DataManagementService } from '../server/admin/data-management-service.js';
+import { blankArrivalLine, dataManagementTemplate } from '../shared/business/index.js';
+import { command, firstResult, owner } from './data-management-fixture.js';
 
 function fixture() {
   const f = flowFixture();
@@ -150,6 +153,30 @@ test('到货行没写单价：挂了采购明细、计价方式没写或一样�
       [null, null, null],
       [null, 'quantity', null],
     ]);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('页面“加一种纸板”的空行挂上按张计价的采购明细：计价方式、单价跟采购明细，不当成人选了按平方米', () => {
+  const f = fixture();
+  try {
+    const blank = { ...blankArrivalLine(), ...f.linked('10') };
+    const d = f.confirm(f.draft([blank]));
+    assert.deepEqual(f.flow.get(d.id, 'arrival').lines.map((l) => [l.unitPrice, l.priceBasis, l.amount]), [['2', 'quantity', '20']]);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('数据管理照新建模板建到货单、挂按张计价的采购明细：计价方式、单价跟采购明细', () => {
+  const f = fixture();
+  try {
+    const template = dataManagementTemplate('arrival', '2026-10-29');
+    const patch = { ...template, supplierId: f.supplier.id, reference: '虚构送货单-数据管理', lines: [{ ...template.lines[0], ...f.linked('10') }] };
+    const created = firstResult(new DataManagementService(f.store).execute(command('arrival', 'create', [], patch), owner(), 's'));
+    // 存下的待核对单据就带上了（金额核对入库时才算）
+    assert.deepEqual(f.flow.get(created.id, 'arrival').lines.map((l) => [l.unitPrice, l.priceBasis]), [['2', 'quantity']]);
   } finally {
     f.store.close();
   }

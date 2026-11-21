@@ -109,7 +109,8 @@ const arrivalTemplate = (today: string) => ({
       stockedQuantity: null,
       statedQuantity: null,
       unitPrice: null,
-      priceBasis: 'area',
+      // 计价方式留空，和录入结构一样不猜按平方米；挂了采购明细的保存时跟采购明细走
+      priceBasis: null,
       statedArea: null,
       differenceReason: '',
     },
