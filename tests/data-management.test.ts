@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
 import { AppError, count, isLocalAdministrator, one, rows, type Actor } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { recordStatus } from '../src/admin/record-refs.js';
 import { basics, command, firstResult } from './data-management-fixture.js';
 import { superActor, actor } from './actor-fixture.js';

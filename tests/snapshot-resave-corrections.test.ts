@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { storedDocument, viewOfKind } from '../server/flow/read.js';
+import { storedDocument } from '../server/flow/documents/read.js';
+import { viewAs } from './read-result.js';
 import { lineMoney } from '../shared/business/index.js';
 import { fixture } from './maintenance-fixture.js';
 import { saveDoc } from './receive-fixture.js';
@@ -34,7 +35,7 @@ test('更正到货单换了供应商：表头和每一行的供应商名按新�
       reference: randomUUID(),
       lines: [{ stockId: f.raw.id, item: { name: f.raw.name, unit: '张' }, quantity: '50' }],
     }, f.who);
-    const a = viewOfKind(f.base.check(saved), 'arrival');
+    const a = viewAs(f.base.check(saved), 'arrival');
     markSnapshots(f.store, a.id);
     const id = correct(f.store, a.id, { expectedVersion: f.flow.get(a.id).version, reason, supplierId: other.id, lines: [{ index: 0, quantity: '50' }] }, f.who);
     const after = storedDocument(f.store, id, 'arrival');

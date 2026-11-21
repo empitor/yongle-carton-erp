@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { PurchaseReturns } from '../server/flow/returns.js';
+import { PurchaseReturns } from '../server/flow/index.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';

@@ -5,7 +5,7 @@ import { Store } from '../server/core/db.js';
 import { z } from 'zod';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { impactRowSchema } from '../shared/business/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { deletionDoneMessage, deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { deletionHeadline, deletionInternalTables as internalTables } from '../shared/business/deletion-headline.js';

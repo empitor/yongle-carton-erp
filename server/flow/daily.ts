@@ -13,9 +13,9 @@ import {
 } from '../../shared/business/index.js';
 import type { Store } from '../core/index.js';
 import { many, notFound, one, rows } from '../core/index.js';
-import { arrivalRecords } from './arrivals.js';
-import { deliveryRecords } from './daily-deliveries.js';
-import { FlowService } from './service.js';
+import { arrivalRecords } from './rules/arrivals.js';
+import { deliveryRecords } from './delivery/daily-deliveries.js';
+import { FlowService } from './rules/service.js';
 
 /*
  * 仓库台账（到货、送货、生产任务按日期看）：同一批次按身份合并；计划日与真实完成日分别归属，未计划的实物流转也保留。

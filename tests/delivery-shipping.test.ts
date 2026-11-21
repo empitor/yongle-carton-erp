@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { WarehouseDaily } from '../server/flow/daily.js';
+import { WarehouseDaily } from '../server/flow/index.js';
 import { customerSchema, orderSchema, today } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { flowStatusLabel } from '../shared/business/physical-flow.js';

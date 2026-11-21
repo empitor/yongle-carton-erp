@@ -1,4 +1,4 @@
-// 采购退货（server/flow/returns.ts）：退货扣库存和已到货，撤销退货补回；挂账、编号、幂等、权限。内存库、虚构数据。
+// 采购退货（server/flow/arrival/returns.ts）：退货扣库存和已到货，撤销退货补回；挂账、编号、幂等、权限。内存库、虚构数据。
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -7,8 +7,8 @@ import express from 'express';
 import { listen } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
-import { PurchaseReturns } from '../server/flow/returns.js';
-import { flowRouter } from '../server/flow/router.js';
+import { PurchaseReturns } from '../server/flow/index.js';
+import { flowRouter } from '../server/flow/index.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { today } from '../shared/core/domain.js';

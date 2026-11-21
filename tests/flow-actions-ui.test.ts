@@ -12,7 +12,7 @@ import { FlowActionDialog, FlowScheduleDialog } from '../src/flow/FlowDialogs.js
 import { allWaitingReview } from '../shared/business/task-progress.js';
 import type { FlowDocView } from '../shared/business/index.js';
 import { productSchema, today } from '../shared/core/domain.js';
-import { ProductionCompletion } from '../server/flow/batch-completion.js';
+import { ProductionCompletion } from '../server/flow/index.js';
 import { actions, ctx, noop, task } from './flow-ui-fixture.js';
 import { clerk, flowFixture } from './flow-fixture.js';
 

@@ -1,4 +1,4 @@
-// 库存品的已安排数（单据流转的完整视图 StockViews.items 的 reservedUnits、availableUnits，由 server/flow/stock-facts.ts 的 reservedUnits 算）：
+// 库存品的已安排数（单据流转的完整视图 StockViews.items 的 reservedUnits、availableUnits，由 server/flow/stock/stock-facts.ts 的 reservedUnits 算）：
 // 只算没归档的待送货送货单、待入库完工单的领料净数；已出库、已入库、已取消、已撤销、已归档的不算。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

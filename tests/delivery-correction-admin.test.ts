@@ -5,13 +5,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Actor } from '../server/core/auth.js';
 import { AppError, one as oneRow, rows } from '../server/core/index.js';
-import { stockItemBatches } from '../server/flow/stock-batches.js';
+import { stockItemBatches } from '../server/flow/index.js';
 import { originsOf } from '../server/finance/costing-origins.js';
-import { must } from './read-result.js';
+import { must, viewAs } from './read-result.js';
 import { today } from '../shared/core/index.js';
 import { clerk, localAdmin } from './flow-fixture.js';
 import { deliveryCorrectionSetup } from './delivery-correction-fixture.js';
-import { viewOfKind } from '../server/flow/read.js';
 
 /** 进了超级管理员模式、但不是本机管理员（从域名访问的超级管理员） */
 const superUser = (): Actor =>
@@ -119,7 +118,7 @@ test('老数据：按原单重新填写留下的待送货单（指向已撤销�
   };
   const first = legacy();
   assert.equal(first.correctionOf, d.id);
-  const shipped = viewOfKind(f.base.check(first, {}, clerk), 'delivery');
+  const shipped = viewAs(f.base.check(first, {}, clerk), 'delivery');
   assert.equal(shipped.date, today(), '出库日按当天，不沿用原单');
   assert.equal(today(shipped.shippedAt ? new Date(shipped.shippedAt) : undefined), today());
   assert.equal(f.shipped(f.order, 0), 280);

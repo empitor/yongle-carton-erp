@@ -1,20 +1,20 @@
-// 单据表（server/flow/document-store.ts、建表的 CHECK 和外键）：镜像列按单据内容算，库里核对列和内容一致；
-// 原件表 flow_sources（server/flow/sources.ts）的种类只在列里。内存库、虚构数据。
+// 单据表（server/flow/documents/document-store.ts、建表的 CHECK 和外键）：镜像列按单据内容算，库里核对列和内容一致；
+// 原件表 flow_sources（server/flow/documents/sources.ts）的种类只在列里。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DatabaseSync } from 'node:sqlite';
 import { one, rows } from '../server/core/index.js';
-import { insertFlowDocument, writeFlowDocument } from '../server/flow/document-store.js';
-import { replaceFlowDocument } from '../server/flow/maintenance-writes.js';
-import { storedDocument } from '../server/flow/read.js';
-import { insertSource, updateSourceDocument } from '../server/flow/sources.js';
+import { insertFlowDocument, writeFlowDocument } from '../server/flow/documents/document-store.js';
+import { replaceFlowDocument } from '../server/flow/index.js';
+import { storedDocument } from '../server/flow/documents/read.js';
+import { insertSource, updateSourceDocument } from '../server/flow/index.js';
 import { Store } from '../server/core/db.js';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk as actor } from './flow-fixture.js';
 import type { FlowDocument } from '../shared/business/index.js';
 import { z } from 'zod';
 import { StoredDataError } from '../server/core/errors.js';
-import { finishedStockOfProduct } from '../server/flow/stock-batches.js';
+import { finishedStockOfProduct } from '../server/flow/index.js';
 
 // 各种单据最少的完整内容（库里的单据结构，shared/business/flow-document.ts），测试里只改要看的字段
 const date = '2026-10-20';

@@ -1,12 +1,12 @@
-// 到货记录（server/flow/arrivals.ts、receipt-events.ts、stock-facts.ts）：验收和入库状态、逐行入库流水、采购库存要看的到货数据。
+// 到货记录（server/flow/rules/arrivals.ts、receipt-events.ts、stock-facts.ts）：验收和入库状态、逐行入库流水、采购库存要看的到货数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { orderedPurchase, saveDoc } from './receive-fixture.js';
 import { many, rows as tableRows } from '../server/core/index.js';
-import { batchArrivals, batchHasArrivals, documentNumbers, purchaseArrivals, purchaseReferenced, referencedStock, reservedUnits } from '../server/flow/stock-facts.js';
-import { receiptEvents } from '../server/flow/receipt-events.js';
+import { batchArrivals, batchHasArrivals, documentNumbers, purchaseArrivals, purchaseReferenced, referencedStock, reservedUnits } from '../server/flow/stock/stock-facts.js';
+import { receiptEvents } from '../server/flow/rules/receipt-events.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { blankArrivalLine, dataManagementTemplate } from '../shared/business/index.js';
 import { command, firstResult, owner } from './data-management-fixture.js';

@@ -1,12 +1,12 @@
-// 按范围读的结果（server/flow/arrivals.ts、daily.ts、receipt-events.ts，server/business/workbench.ts、related-business.ts、dashboard.ts）：
+// 按范围读的结果（server/flow/rules/arrivals.ts、daily.ts、receipt-events.ts，server/business/workbench.ts、related-business.ts、dashboard.ts）：
 // 到货记录按日期、供应商、记录编号、采购单筛；仓库台账的日历计数和按天、全部列的记录；工作台、关联面板、只重算相关采购单。
 // 期望值都按下面的虚构数据手算写死。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { many, rows } from '../server/core/index.js';
-import { WarehouseDaily } from '../server/flow/daily.js';
-import { arrivalPurchaseIds, receiptEvents, syncReceivedUnits } from '../server/flow/receipt-events.js';
+import { WarehouseDaily } from '../server/flow/index.js';
+import { arrivalPurchaseIds, receiptEvents, syncReceivedUnits } from '../server/flow/rules/receipt-events.js';
 import { buildWorkbench } from '../server/business/workbench.js';
 import { relatedBusiness } from '../server/business/related-business.js';
 import { buildDashboard } from '../server/business/dashboard.js';

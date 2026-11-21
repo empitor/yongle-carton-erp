@@ -27,15 +27,28 @@ export const modules: Rule[] = [
     name: '采购库存',
     paths: ['server/operations/'],
     allow: ['基础', '共用-基础', '共用-业务'],
-    // 从下往上：账和读（写流水和采购明细、按编号读、库存品内容的规格）← 库存品、订货单 ← 采购单 ← 装配（服务、路由、删除登记）
+    // 从下往上：账和读（写流水和采购明细、按编号读、库存品内容的规格）← 库存品、订货单 ← 采购单 ← 服务和路由（服务、路由、删除登记）；层名不用模块名，免得被当成跨模块的层
     layers: [
       { name: '账和读', paths: ['server/operations/ledger/'] },
       { name: '库存品和订货单', paths: ['server/operations/stock/', 'server/operations/batches/'] },
       { name: '采购单', paths: ['server/operations/purchases/'] },
-      { name: '装配', paths: ['server/operations/router.ts', 'server/operations/deletion.ts', 'server/operations/service.ts'] },
+      { name: '服务和路由', paths: ['server/operations/router.ts', 'server/operations/deletion.ts', 'server/operations/service.ts'] },
     ],
   },
-  { name: '单据流转', paths: ['server/flow/'], allow: ['基础', '采购库存', '共用-基础', '共用-业务'] },
+  {
+    name: '单据流转',
+    paths: ['server/flow/'],
+    allow: ['基础', '采购库存', '共用-基础', '共用-业务'],
+    // 从下往上：单据存取（存取、读、关联、只读窗口）← 规则和服务（核对、预览、确认、撤销、订单进度、FlowService、采购库存的完整视图和保存入口）
+    // ← 按种类（到货、生产、送货）← 更正（三种更正、编辑说明）← 路由和台账（路由、删除登记、跨种类的仓库台账）
+    layers: [
+      { name: '单据存取', paths: ['server/flow/documents/', 'server/flow/finance-facts/'] },
+      { name: '规则和服务', paths: ['server/flow/rules/', 'server/flow/stock/'] },
+      { name: '按种类', paths: ['server/flow/arrival/', 'server/flow/production/', 'server/flow/delivery/'] },
+      { name: '更正', paths: ['server/flow/correction/'] },
+      { name: '路由和台账', paths: ['server/flow/daily.ts', 'server/flow/deletion.ts', 'server/flow/router.ts', 'server/flow/stock-router.ts'] },
+    ],
+  },
   { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
   { name: '业务汇总', paths: ['server/business/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
   // 财务用单据流转只许经只读窗口 financeFacts（module-narrow-refs.test.ts）

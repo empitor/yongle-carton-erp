@@ -337,7 +337,7 @@ test('库里的单据按写入时核对过的内容存：财务按单据结构�
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('3'));
     physical(s, 2, 'arrival', '2026-01-10', arrivalDoc('10'));
-    // 单据流转写入时存的是按库里的单据结构核对后的内容（server/flow/document-store.ts 用 flowDocumentContent）
+    // 单据流转写入时存的是按库里的单据结构核对后的内容（server/flow/documents/document-store.ts 用 flowDocumentContent）
     for (const [id, kind] of [[1, 'delivery'], [2, 'arrival']] as const) {
       const row = s.db.prepare('SELECT document FROM flow_documents WHERE id=?').get(id);
       assert.ok(row);

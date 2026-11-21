@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { buildDashboard } from '../server/business/dashboard.js';
 import { FinanceMonthly } from '../server/finance/monthly.js';
-import { PurchaseReturns } from '../server/flow/returns.js';
+import { PurchaseReturns } from '../server/flow/index.js';
 import { maker, physical, deliveryDoc } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';

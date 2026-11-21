@@ -7,12 +7,12 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { today } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { flowFixture, localAdmin } from './flow-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { deliverySetup, shift } from './delivery-fixture.js';
 import type { z } from 'zod';
 import type { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/index.js';
-import type { FlowService } from '../server/flow/service.js';
+import type { FlowService } from '../server/flow/index.js';
 import { deliveryCorrectionPreviewSchema } from '../shared/business/index.js';
 import type { BusinessForm } from '../shared/documents/index.js';
 import { actor } from './actor-fixture.js';
@@ -20,7 +20,7 @@ import { actor } from './actor-fixture.js';
 const owner = () => localAdministratorActor({ ...actor, role: 'super_admin', superAdminMode: true, superAdminUntil: Date.now() + 3600000 });
 /** 送货更正的一行（deliveryCorrectionPreviewSchema 收的样子） */
 type CorrectionLine = z.input<typeof deliveryCorrectionPreviewSchema>['lines'][number];
-/** 更正一张已出库的送货单（server/flow/correction.ts），返回替代单 */
+/** 更正一张已出库的送货单（server/flow/correction/correction.ts），返回替代单 */
 const correct = (f: { store: Store; flow: FlowService }, id: number, lines: CorrectionLine[], who: Actor, extra: Record<string, unknown> = {}) => {
   const v = { expectedVersion: f.flow.get(id).version, reason: '虚构：数量错了', lines, ...extra };
   return f.flow.get(correctDocument(f.store, id, { ...v, previewDigest: planCorrection(f.store, id, v, who).previewDigest, requestId: randomUUID() }, who).replacementId, 'delivery');

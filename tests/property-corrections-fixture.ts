@@ -5,9 +5,9 @@ import { randomUUID } from 'node:crypto';
 import type { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
 import { AppError } from '../server/core/errors.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import type { OperationsService } from '../server/operations/index.js';
-import type { FlowService } from '../server/flow/service.js';
+import type { FlowService } from '../server/flow/index.js';
 import { quantityString, quantityUnits } from '../shared/core/quantity.js';
 import { clerk } from './flow-fixture.js';
 

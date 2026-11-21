@@ -3,15 +3,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk } from './flow-fixture.js';
-import { documentInput, validateFlow } from '../server/flow/validate.js';
-import { checkArrival } from '../server/flow/validate-arrival.js';
-import { checkDelivery } from '../server/flow/validate-delivery.js';
-import { draftIds, get, list, waitingGood } from '../server/flow/read.js';
-import { receiptKey, rewriteRefs } from '../server/flow/refs.js';
-import { examine, preview } from '../server/flow/preview.js';
-import { confirm } from '../server/flow/confirm.js';
-import { cancel, reverse } from '../server/flow/undo.js';
-import type { Check } from '../server/flow/base.js';
+import { documentInput, validateFlow } from '../server/flow/rules/validate.js';
+import { checkArrival } from '../server/flow/rules/validate-arrival.js';
+import { checkDelivery } from '../server/flow/rules/validate-delivery.js';
+import { draftIds, get, list, waitingGood } from '../server/flow/documents/read.js';
+import { receiptKey, rewriteRefs } from '../server/flow/documents/refs.js';
+import { examine, preview } from '../server/flow/rules/preview.js';
+import { confirm } from '../server/flow/rules/confirm.js';
+import { cancel, reverse } from '../server/flow/rules/undo.js';
+import type { Check } from '../server/flow/documents/base.js';
 
 const check = (f: ReturnType<typeof flowFixture>): Check => ({
   flow: f.flow,

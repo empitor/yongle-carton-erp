@@ -28,6 +28,96 @@ const moduleTests: ModuleTests[] = [
       },
     ],
   },
+  {
+    module: '单据流转',
+    dir: 'server/flow/',
+    own: [
+      {
+        file: 'tests/arrival-ledger-reads.test.ts',
+        why: '测到货事件的按范围读（receiptEvents、arrivalPurchaseIds）和已到货缓存重算 syncReceivedUnits 本身，这几个是单据流转内部的读法，入口不导出',
+      },
+      {
+        file: 'tests/arrival-records.test.ts',
+        why: '测给采购库存的单据事实（stock-facts 的已到货、被引用、已安排）和到货事件本身，入口只导出用它们的 FlowService',
+      },
+      {
+        file: 'tests/arrival-register.test.ts',
+        why: '要把已到货缓存弄乱后直接调 syncReceivedUnits 核对重算，这个函数入口不导出',
+      },
+      {
+        file: 'tests/batch-completion.test.ts',
+        why: '和页面单条登记完工 ManualProductionCompletion 对照；它只挂在单据流转自己的路由上，入口只导出整批的 ProductionCompletion',
+      },
+      {
+        file: 'tests/business-changes-fixture.ts',
+        why: '准备代码：财务测试“假装业务变了”要按表主人的写法直接写单据表（writeFlowDocument、flowColumns）、读库里存的原始内容（storedDocument、documentOf），入口不给写单据表的函数',
+      },
+      {
+        file: 'tests/completion-fixture.ts',
+        why: '准备代码：登记单张完工走页面用的 ManualProductionCompletion（只挂在单据流转自己的路由上，入口不导出）',
+      },
+      {
+        file: 'tests/completion-plan.test.ts',
+        why: '直接测整批完工的纯计算（allocate、pickTasks、checkFacts），不写库，入口只导出用它的 ProductionCompletion',
+      },
+      {
+        file: 'tests/delivery-material-flute.test.ts',
+        why: '要看出库核对后库里存下的送货明细原文（storedDocument），视图会按产品补显示，看不出存没存',
+      },
+      {
+        file: 'tests/flow-core.test.ts',
+        why: '单据流转核心规则的直接调用：校验、读单据、关联表、预览、确认、取消撤销的内部函数，入口只导出 FlowService',
+      },
+      {
+        file: 'tests/flow-document-store.test.ts',
+        why: '测单据表唯一的写法 document-store（插入、写入、镜像列）和存下的原文，入口不导出写单据表的函数',
+      },
+      {
+        file: 'tests/flow-input-units.test.ts',
+        why: '直接测单据输入的单位和数量校验 documentInput（纯校验、不读库），入口不导出',
+      },
+      {
+        file: 'tests/flow-maintenance.test.ts',
+        why: '直接测本机管理员改数据时的连带（alignStock、detachPurchaseLines），它们由采购库存在保存点里回调，入口不导出',
+      },
+      {
+        file: 'tests/flow-totals.test.ts',
+        why: '直接测订单明细已发的合计 shippedByLine、shippedUnits，入口不导出',
+      },
+      {
+        file: 'tests/order-status.test.ts',
+        why: '直接测订单进度的派生（shipped、materialByOrder）和改单核对 orderEditGuard（登记给基础的钩子），入口不导出',
+      },
+      {
+        file: 'tests/read-counts.test.ts',
+        why: '数读语句条数要盯住内部的 StockViews 方法和单条登记完工 ManualProductionCompletion，入口不导出',
+      },
+      {
+        file: 'tests/receive-fixture.ts',
+        why: '准备代码：更正到货单要按原单的到货事件（receiptEvents）编行号，入口没有这个读法',
+      },
+      {
+        file: 'tests/schema-constraints.test.ts',
+        why: '比对建表的原件种类枚举和 flowSourceKinds，这个常量只有测试要，进不了入口',
+      },
+      {
+        file: 'tests/snapshot-fixture.ts',
+        why: '准备代码：把一张单据的快照字段填成标记值要读库里存的原文（storedDocument），入口只给视图',
+      },
+      {
+        file: 'tests/snapshot-resave-cascades.test.ts',
+        why: '直接调管理员连带（alignStock、detachPurchaseLines）后核对库里存的原文（storedDocument），入口都不导出',
+      },
+      {
+        file: 'tests/snapshot-resave-corrections.test.ts',
+        why: '更正后核对库里存的原文里的快照字段（storedDocument），视图看不出原样保留没有',
+      },
+      {
+        file: 'tests/workbench.test.ts',
+        why: '造当日完工实绩走页面单条登记完工 ManualProductionCompletion（只挂在单据流转自己的路由上，入口不导出）',
+      },
+    ],
+  },
 ];
 
 /** 引用方式里算“用代码”的：静态引用、import()、require */
@@ -92,7 +182,7 @@ test('回归样例：引内部文件、export from、require、import() 内部�
   assert.equal(violations(sample, "const m = await import('../server/operations/batches/batches.js');").length, 1);
   assert.equal(violations(sample, "export async function load(n: string) { return import('../server/operations/' + n); }").length, 1, '拼出来的目标看不出来');
   assert.equal(violations(sample, 'export async function load(n: string) { return import(`../server/operations/${n}.js`); }').length, 1, '模板字符串也一样');
-  assert.equal(violations(sample, "export async function load(n: string) { return import('../server/flow/' + n); }").length, 0, '和这个模块无关的不报');
+  assert.equal(violations(sample, "export async function load(n: string) { return import('../server/finance/' + n); }").length, 0, '和这个模块无关的不报');
   assert.equal(violations(sample, "import { stockLedger } from '../server/operations/index.js';").length, 0);
   assert.equal(violations(sample, "import type { RecordIds } from '../server/operations/ledger/record-scope.js';").length, 1, '只引类型也算');
   assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/ledger/movements.js';").length, 0);

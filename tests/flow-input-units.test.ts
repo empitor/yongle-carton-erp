@@ -1,8 +1,8 @@
-// 单据输入的单位和数量入口（server/flow/validate.ts 的 documentInput，纯校验、不读库）：
+// 单据输入的单位和数量入口（server/flow/rules/validate.ts 的 documentInput，纯校验、不读库）：
 // 到货只收“张”、生产任务只收“只”，到货行的 0 只在更正留下的情况下收，且不能整张都是 0、0 的行要有库存品。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentInput } from '../server/flow/validate.js';
+import { documentInput } from '../server/flow/rules/validate.js';
 
 type Line = { stockId: number | null; quantity: string; unit?: string };
 const arrival = (lines: Line[]) => ({

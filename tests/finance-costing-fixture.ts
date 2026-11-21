@@ -1,6 +1,6 @@
 // 成本计算和采购退货测试共用的搭建：真实单据服务走采购到货、领料完工、送货、退货，开发票、算成本（虚构数据、内存库）
 import { randomUUID } from 'node:crypto';
-import { PurchaseReturns } from '../server/flow/returns.js';
+import { PurchaseReturns } from '../server/flow/index.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceEvents } from '../server/finance/events.js';

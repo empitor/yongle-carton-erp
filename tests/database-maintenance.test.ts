@@ -7,11 +7,11 @@ import { count, exists, many, one, rows } from '../server/core/index.js';
 import { businessList, changeLifecycle } from '../server/lifecycle/index.js';
 import { orderSchema } from '../shared/core/domain.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { flowStatusText } from '../shared/business/physical-flow.js';
 import { fixture } from './maintenance-fixture.js';
 import { applyCorrection, archiveDoc, previewCorrection } from './receive-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { must } from './read-result.js';
 

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { quantityUnits } from '../shared/core/quantity.js';

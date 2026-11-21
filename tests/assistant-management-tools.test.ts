@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { localAdministratorActor, isLocalAdministrator } from '../server/core/local-administrator.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { assistantFixture, autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';

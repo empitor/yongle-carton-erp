@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';

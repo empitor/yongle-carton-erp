@@ -1,4 +1,4 @@
-// 送货明细的材质、楞型（server/flow/validate-delivery.ts 补，server/documents/delivery-form.ts 印）：出库核对时按产品补进明细存下，
+// 送货明细的材质、楞型（server/flow/rules/validate-delivery.ts 补，server/documents/delivery-form.ts 印）：出库核对时按产品补进明细存下，
 // 产品没填的为空；导出送货单的“材质 / 配纸”“楞型”两列按明细印，待送货的（明细出库时才补）按产品现在的印；
 // 更正送货单时同一条订单明细的行沿用出库时的（和单价一样），原单没有的订单明细新加的行按产品现在的补。内存库、虚构数据。
 import { test, type TestContext } from 'node:test';
@@ -8,8 +8,8 @@ import type { Actor } from '../server/core/auth.js';
 import type { Store } from '../server/core/db.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { storedDocument } from '../server/flow/read.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { storedDocument } from '../server/flow/documents/read.js';
 import { defaultTemplateColumns } from '../shared/documents/index.js';
 import { orderSchema, productSchema, specification } from '../shared/core/domain.js';
 import { localAdmin, workbenchFixture } from './flow-fixture.js';

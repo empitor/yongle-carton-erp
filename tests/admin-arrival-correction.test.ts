@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { AuthManager } from '../server/core/auth.js';
 import { toolsOf } from './assistant-fixture.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { productSchema, today } from '../shared/core/domain.js';
 import { ofKind, saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';

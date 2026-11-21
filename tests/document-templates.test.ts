@@ -19,7 +19,7 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import '../server/import/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { actor } from './actor-fixture.js';
 
 const [purchase, delivery] = defaultDocumentTemplates().templates;

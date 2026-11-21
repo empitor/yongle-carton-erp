@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { assistantFixture, confirmCard, lastCard } from './assistant-fixture.js';
 import { deliveryCorrectionSetup } from './delivery-correction-fixture.js';
 import { businessFixture } from './flow-fixture.js';
-import { stockItemBatches } from '../server/flow/stock-batches.js';
+import { stockItemBatches } from '../server/flow/index.js';
 import { UNLISTED } from '../server/assistant/tools/card-summary.js';
 import type { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';

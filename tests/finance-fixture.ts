@@ -10,9 +10,8 @@ import { businessBase } from './business-base-fixture.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';
 import { FinanceReports } from '../server/finance/reports.js';
 import { FinanceClosing } from '../server/finance/closing.js';
-import type { flowColumns } from '../server/flow/document-store.js';
 import type { FlowKind } from '../shared/business/index.js';
-import { businessChanges } from './business-changes-fixture.js';
+import { businessChanges, type MirroredFields } from './business-changes-fixture.js';
 import { FinanceDue } from '../server/finance/due.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
@@ -114,7 +113,7 @@ export function physical(s: Store, id: number, kind: FlowKind, date: string, doc
   businessChanges(s, maker).confirmed(kind, date, { ...content, confirmedAt }, { id, at });
 }
 
-type PhysicalDoc = Omit<Parameters<typeof flowColumns>[0], 'kind'> & { confirmedAt?: string } & Record<string, unknown>;
+type PhysicalDoc = MirroredFields &{ confirmedAt?: string } & Record<string, unknown>;
 
 /** 送货明细没给的订单、订单明细、库存品补上（1 号订单第几行、2 号库存品）；没有明细的不动 */
 function deliveryRefs(doc: Record<string, unknown>) {

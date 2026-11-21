@@ -12,7 +12,7 @@ import { purchaseLineAmount, purchaseReturnStatuses } from '../../../shared/busi
 import { quantityString } from '../../../shared/core/index.js';
 import { exists, many, rows } from '../../core/index.js';
 import { stockLedger } from '../../operations/index.js';
-import { readReturnDocument } from '../return-document.js';
+import { readReturnDocument } from '../documents/return-document.js';
 
 const lineRow = z.object({
   id: rows.purchase_lines.shape.id,

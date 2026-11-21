@@ -1,13 +1,13 @@
-// 已生效单据的说明编辑（server/flow/document-info.ts）：到货改备注、到货时间，送货改备注、地址联系人、实际时间，
+// 已生效单据的说明编辑（server/flow/correction/document-info.ts）：到货改备注、到货时间，送货改备注、地址联系人、实际时间，
 // 完工改批次备注、操作人；不出替代单，库存、流水、金额、财务指纹和财务事件都不动。内存库、虚构数据。
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { correctionFixture, archiveDoc } from './receive-fixture.js';
-import { updateDocumentInfo } from '../server/flow/document-info.js';
-import { viewOfKind } from '../server/flow/read.js';
-import { stockItemBatches } from '../server/flow/stock-batches.js';
+import { updateDocumentInfo } from '../server/flow/index.js';
+import { viewAs } from './read-result.js';
+import { stockItemBatches } from '../server/flow/index.js';
 import { financeFingerprint } from '../shared/business/finance-source.js';
 import { flowDocumentContent, flowDocumentOfView } from '../shared/business/flow-document.js';
 import { FinanceSettings } from '../server/finance/settings.js';
@@ -56,7 +56,7 @@ test('到货单：只换备注和到货时间，不出替代单，库存、流�
       moves = f.movements(),
       fingerprint = financeFingerprint('arrival', flowDocumentContent(flowDocumentOfView(before)));
     const r = f.edit(f.arrivalId, { notes: '  虚构：司机说下午才到  ', actualTime: '15:30' }),
-      edited = viewOfKind(r, 'arrival');
+      edited = viewAs(r, 'arrival');
     assert.deepEqual([r.changed, edited.notes, edited.actualTime, edited.number, edited.version], [true, '虚构：司机说下午才到', '15:30', before.number, before.version + 1]);
     const after = f.flow.get(f.arrivalId, 'arrival');
     const { notes: _n1, actualTime: _t1, version: _v1, updatedAt: _u1, ...restBefore } = before,
@@ -69,7 +69,7 @@ test('到货单：只换备注和到货时间，不出替代单，库存、流�
     const again = updateDocumentInfo(f.store, f.arrivalId, { notes: '虚构：司机说下午才到', actualTime: '15:30', expectedVersion: before.version }, clerk);
     assert.deepEqual([again.changed, again.version], [false, after.version]);
     assert.equal(f.audits(f.arrivalId).length, 1);
-    assert.equal(viewOfKind(f.edit(f.arrivalId, { actualTime: null }), 'arrival').actualTime, null, '清空到货时间');
+    assert.equal(viewAs(f.edit(f.arrivalId, { actualTime: null }), 'arrival').actualTime, null, '清空到货时间');
   } finally {
     f.store.close();
   }
@@ -79,7 +79,7 @@ test('送货单：改地址、联系人、联系方式、实际时间、备注�
   const f = fixture();
   try {
     const moves = f.movements();
-    const r = viewOfKind(f.edit(f.delivery.id, { address: '虚构新地址', contact: '虚构收货人', phone: '000-0000', actualTime: '09:10' }), 'delivery');
+    const r = viewAs(f.edit(f.delivery.id, { address: '虚构新地址', contact: '虚构收货人', phone: '000-0000', actualTime: '09:10' }), 'delivery');
     assert.deepEqual([r.address, r.contact, r.phone, r.actualTime, r.notes], ['虚构新地址', '虚构收货人', '000-0000', '09:10', '']);
     assert.equal(r.status, 'confirmed');
     assert.deepEqual(f.movements(), moves);
@@ -105,7 +105,7 @@ test('完工单：改批次备注、操作人，批次里读到新备注；改�
   try {
     sync();
     const first = snapshot();
-    const r = viewOfKind(f.edit(f.production.id, { notes: '虚构：这批压线浅', operator: '虚构二号机长' }), 'production');
+    const r = viewAs(f.edit(f.production.id, { notes: '虚构：这批压线浅', operator: '虚构二号机长' }), 'production');
     assert.deepEqual([r.notes, r.operator], ['虚构：这批压线浅', '虚构二号机长']);
     assert.equal(stockItemBatches(f.store, f.finished.id).open.find((b) => b.documentId === f.production.id)?.notes, '虚构：这批压线浅');
     sync();

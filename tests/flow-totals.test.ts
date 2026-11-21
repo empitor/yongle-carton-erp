@@ -1,10 +1,10 @@
-// 只做合计的几处读法：订单明细已发（server/flow/shipped.ts）、生产任务的完工进度（server/flow/read.ts）。
+// 只做合计的几处读法：订单明细已发（server/flow/documents/shipped.ts）、生产任务的完工进度（server/flow/documents/read.ts）。
 // 守的是结果：送货单、完工单各种状态混在一起时，每条订单明细已发多少、每张任务完工到哪，一个数都不能变。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { orderSchema } from '../shared/core/domain.js';
-import { finishedStockOfProduct } from '../server/flow/stock-batches.js';
-import { shippedByLine, shippedUnits } from '../server/flow/shipped.js';
+import { finishedStockOfProduct } from '../server/flow/index.js';
+import { shippedByLine, shippedUnits } from '../server/flow/documents/shipped.js';
 import { businessFixture } from './flow-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 

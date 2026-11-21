@@ -11,8 +11,8 @@ import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { rawStockKey, sameRawSpec } from '../shared/business/stock-identity.js';
 import { StockConflictError } from '../server/operations/stock/stock-items.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
-import { correctDocument, planCorrection } from '../server/flow/correction.js';
-import { viewOfKind } from '../server/flow/read.js';
+import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { viewAs } from './read-result.js';
 import { businessFixture, clerk } from './flow-fixture.js';
 import { ofKind, saveDoc } from './receive-fixture.js';
 
@@ -163,7 +163,7 @@ test('到货没选库存品：已经有一样的原材料（归档的也算）�
 /** 用普通业务账号登记并核对入库一张到货单（不走本机管理员那条路） */
 const arriveAs = (f: ReturnType<typeof businessFixture>, who: Actor, lines: unknown[], patch: Record<string, unknown> = {}) => {
   const d = saveDoc(f.flow, 'arrival', { date: '2026-10-27', supplierId: f.supplier.id, reference: randomUUID(), lines, ...patch }, who);
-  return viewOfKind(f.base.check(d, {}, who), 'arrival');
+  return viewAs(f.base.check(d, {}, who), 'arrival');
 };
 
 test('同一种纸板只差大小写、全半角、厘米毫米写法：到货自动并进已有的以后，分批到货（选不选都一样）、改采购单都照常', () => {
@@ -325,7 +325,7 @@ test('核对入库的预览和实际一致：没选库存品的到货行写清�
     assert.equal(stockCount(), before);
     assert.equal(f.store.archived('stock_items', f.glue.id), true);
     // 实际入库和预览说的一样
-    const done = viewOfKind(f.flow.confirm(draft.id, { previewDigest: preview.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
+    const done = viewAs(f.flow.confirm(draft.id, { previewDigest: preview.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
     assert.deepEqual(done.lines.map((l) => l.stockId).slice(0, 2), [board.id, f.glue.id]);
     assert.equal(done.lines[2].stockId, done.lines[3].stockId);
     assert.equal(f.ops.balance(board.id), 560_000);
@@ -344,7 +344,7 @@ test('核对入库预览之后，没选库存品的到货行将要入的原材�
     const arrival = () =>
       saveDoc(f.flow, 'arrival', { date: '2026-10-27', supplierId: f.supplier.id, reference: randomUUID(), lines: [{ item, quantity: '100', differenceReason: '虚构' }] }, clerk);
     const confirm = (d: { id: number }, p: { previewDigest: string }) =>
-      viewOfKind(f.flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
+      viewAs(f.flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
     const changed = /预览以后数据已变化，请重新预览。/;
     // 预览写“新建”，确认前别人建了一样的原材料
     const first = arrival(),

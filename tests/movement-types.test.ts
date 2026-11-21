@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { one, rows as tableRows } from '../server/core/index.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
-import { PurchaseReturns } from '../server/flow/returns.js';
+import { PurchaseReturns } from '../server/flow/index.js';
 import type { MovementView } from '../shared/business/index.js';
 import {
   matchesMovement,

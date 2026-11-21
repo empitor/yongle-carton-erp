@@ -1,7 +1,7 @@
 // 登记完工的测试共用（batch-completion、production-completion-single）：内存库、虚构数据。
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { ManualProductionCompletion } from '../server/flow/production-completion.js';
+import { ManualProductionCompletion } from '../server/flow/production/production-completion.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { actor } from './actor-fixture.js';

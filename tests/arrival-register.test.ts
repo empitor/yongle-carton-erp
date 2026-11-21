@@ -1,4 +1,4 @@
-// 登记到货（server/flow/register-arrival.ts，唯一入口）和到货单的核对入库：入库、幂等、回滚、校验。内存库、虚构数据。
+// 登记到货（server/flow/arrival/register-arrival.ts，唯一入口）和到货单的核对入库：入库、幂等、回滚、校验。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -8,9 +8,9 @@ import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 import { orderedPurchase, saveDoc } from './receive-fixture.js';
 import type { Actor } from '../server/core/auth.js';
 import type { StockItemView } from '../shared/business/index.js';
-import { registerArrival } from '../server/flow/register-arrival.js';
-import { syncReceivedUnits } from '../server/flow/receipt-events.js';
-import { viewOfKind } from '../server/flow/read.js';
+import { registerArrival } from '../server/flow/index.js';
+import { syncReceivedUnits } from '../server/flow/rules/receipt-events.js';
+import { viewAs } from './read-result.js';
 import { buildDashboard } from '../server/business/dashboard.js';
 
 function fixture(lines?: (string | [StockItemView, string])[]) {
@@ -152,7 +152,7 @@ test('存成待入库（AI 识别的送货单）：不动库存、已到货和�
     assert.equal(resaved.arrival.id, waiting.arrival.id);
     assert.equal(resaved.arrival.lines[0].quantity, '250');
     assert.equal(f.arrivals().length, 1);
-    const done = viewOfKind(f.base.check(resaved.arrival, {}, clerk), 'arrival');
+    const done = viewAs(f.base.check(resaved.arrival, {}, clerk), 'arrival');
     assert.equal(done.actualTime, '15:45');
     assert.equal(f.balance(), 250000);
     assert.equal(f.current().lines[0].receivedQuantity, '250');
@@ -234,9 +234,9 @@ test('不挂采购单的到货：选的库存品规格不一致、数量和原�
       { item: { ...item, length: 120, dimensionUnit: null }, quantity: '12', unitPrice: '1.2345', differenceReason: '规格待补充' },
     ]);
     const p = f.flow.preview(d.id, clerk);
-    const previewed = viewOfKind(p.document, 'arrival').lines[1];
+    const previewed = viewAs(p.document, 'arrival').lines[1];
     assert.deepEqual([previewed.area, previewed.amount], [null, null]);
-    const result = viewOfKind(f.flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
+    const result = viewAs(f.flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, clerk), 'arrival');
     assert.equal(result.lines[0].stockId, stock.id);
     assert.notEqual(result.lines[1].stockId, stock.id);
   } finally {
@@ -255,7 +255,7 @@ test('到货明细的单位：空、没写按“张”，单据和新建的库�
     assert.equal(draft(noUnit).lines[0].item.unit, '张');
     assert.throws(() => draft({ ...noUnit, unit: '公斤' }), /原材料的数量单位只有“张”；别的单位请先换算成张再填。/);
     const d = draft({ ...noUnit, name: '虚构新纸板', length: 90, unit: '' }, null);
-    const done = viewOfKind(f.base.check(d, {}, clerk), 'arrival');
+    const done = viewAs(f.base.check(d, {}, clerk), 'arrival');
     assert.equal(f.ops.items(true, Number(done.lines[0].stockId))[0].unit, '张');
     const stored = one(f.store.db, tableRows.flow_documents.pick({ document: true }), 'SELECT document FROM flow_documents WHERE id=?', done.id);
     assert.ok(stored);

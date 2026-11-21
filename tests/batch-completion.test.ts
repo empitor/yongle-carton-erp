@@ -1,4 +1,4 @@
-// 整批登记完工（server/flow/batch-completion.ts、production-completion.ts）：预览不扣库存、共用纸板按产量比例分，
+// 整批登记完工（server/flow/production/batch-completion.ts、production-completion.ts）：预览不扣库存、共用纸板按产量比例分，
 // 版本变化、库存不足整批拒绝，只登记稍后核对入库，剩余量扣掉待入库的，不挂任务的完工同一个入口。单张完工见 production-completion-single.test.ts。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,8 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { count, one, parseStoredJson, rows } from '../server/core/index.js';
-import { ManualProductionCompletion } from '../server/flow/production-completion.js';
-import { ProductionCompletion } from '../server/flow/batch-completion.js';
+import { ManualProductionCompletion } from '../server/flow/production/production-completion.js';
+import { ProductionCompletion } from '../server/flow/index.js';
 import { today } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';

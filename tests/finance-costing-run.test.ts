@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { OperationsService } from '../server/operations/index.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceCosting } from '../server/finance/costing.js';

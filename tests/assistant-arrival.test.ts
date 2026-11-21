@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
-import { FlowService } from '../server/flow/service.js';
+import { FlowService } from '../server/flow/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';

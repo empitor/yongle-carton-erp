@@ -1,4 +1,4 @@
-// 更正送货单以后财务怎么接（server/flow/correction.ts 写好 correctionOf、replacedBy、沿用 confirmedAt，财务代码不改）：
+// 更正送货单以后财务怎么接（server/flow/correction/correction.ts 写好 correctionOf、replacedBy、沿用 confirmedAt，财务代码不改）：
 // 原单“已被更正替代”、替代单是一张更正单，红字冲销并重做；没入过账的原单直接已更正；已核销、已开票的照现有规则先处理。
 // 走真实的单据流程和更正服务，内存库、虚构数据。
 import assert from 'node:assert/strict';
