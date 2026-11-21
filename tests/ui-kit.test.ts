@@ -1,4 +1,4 @@
-// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、切回页面重新取数。
+// 公共件：金额写法、数量角标、字号和圆角档位、可搜索下拉、疑点清单、概览说明、Markdown、提示词编辑区、出错和正在读取的提示、列表表格、pdf.js 只在 src/ui 引、切回页面重新取数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -177,19 +177,25 @@ test('正在读取：一句小字、读屏会念，说明读的是什么', async
   );
 });
 
-// 出错提示只用 FormMessage、“正在读取”只用 Loading 或 loadingText：别处不再手写这两种样式和这句话
-test('出错和正在读取的提示只在 src/ui 写一份', () => {
+/** 前端 src/ui 以外的代码文件 */
+const outsideUi = () => {
   const files = readdirSync('src', { recursive: true, encoding: 'utf8' })
     .filter((f) => /\.tsx?$/.test(f) && !f.replaceAll('\\', '/').startsWith('ui/'))
     .map((f) => 'src/' + f.replaceAll('\\', '/'));
   assert.ok(files.length > 100);
-  for (const file of files) {
+  return files;
+};
+
+// 出错提示只用 FormMessage、“正在读取”只用 Loading 或 loadingText：别处不再手写这两种样式和这句话
+test('出错和正在读取的提示只在 src/ui 写一份', () => {
+  for (const file of outsideUi()) {
     const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /className="(error|form-error|operation-error)"|['"]form-message\b/, file + ' 手写了出错提示的样式，改用 FormMessage');
     assert.doesNotMatch(source, /正在读取/, file + ' 手写了“正在读取”，改用 Loading 或 loadingText');
   }
 });
 
+<<<<<<< ours
 test('列表表格：表头带列优先级和数字列、开着详情的那一行标出来、勾选列有全选、空着时说一句或不画', async () => {
   const { DataTable } = await import('../src/ui/DataTable.js');
   type Row = { id: number; name: string; amount: number };
@@ -227,14 +233,17 @@ test('列表表格：表头带列优先级和数字列、开着详情的那一�
 
 // 列表行“点一下或按回车打开详情”和勾选框只在 src/ui/DataTable.tsx 写：别处用 DataTable、DataRow、SelectAll、SelectRow
 test('列表行点开详情只在 src/ui 写一份', () => {
-  const files = readdirSync('src', { recursive: true, encoding: 'utf8' })
-    .filter((f) => /\.tsx$/.test(f) && !f.replaceAll('\\', '/').startsWith('ui/'))
-    .map((f) => 'src/' + f.replaceAll('\\', '/'));
-  for (const file of files) {
+  for (const file of outsideUi()) {
     const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /<tr\s[^<]*?\bon(Click|KeyDown)=/, file + ' 在行上手写了点击或按键，改用 DataTable 或 DataRow');
     assert.doesNotMatch(source, /['"]record-row\b/, file + ' 手写了可点的行，改用 DataTable 或 DataRow');
   }
+});
+
+// 打开 PDF、画一页只用 src/ui/pdf.ts 的 openPdf、drawPdfPage：pdf.js 和它的后台线程只在那里引一次（静态、动态、只引类型都算）
+test('pdf.js 只在 src/ui 引', () => {
+  for (const file of outsideUi())
+    assert.doesNotMatch(readFileSync(file, 'utf8'), /['"]pdfjs-dist[/'"]/, file + ' 引了 pdf.js，改用 src/ui 的 openPdf、drawPdfPage');
 });
 
 test('切回页面时重新取数：页面可见才发，离上一次不到间隔的不重复发', async () => {

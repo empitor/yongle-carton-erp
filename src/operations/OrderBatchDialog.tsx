@@ -1,12 +1,21 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { OrderBatchDraft, OrderBatchView } from '../../shared/business/index';
 import { errorMessage } from '../../shared/core/index';
-import type { DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
-import { FormMessage, ManagementDialog, emit, useAction, useSaveFile, loadingText } from '../ui/index';
-import { deliverBusinessFile, exportDocument, previewDocumentBatch, previewWordFile, readDocumentTemplates } from '../documents/index';
+import type { DocumentFormat } from '../../shared/documents/index';
+import { emit, useAction, loadingText } from '../ui/index';
+import {
+  DocumentExportDialog,
+  afterSaved,
+  previewDocumentBatch,
+  previewWordFile,
+  useExportFile,
+  useExportTemplates,
+  type ExportBody,
+  type ExportPreview,
+} from '../documents/index';
 import { draftOrderBatch, scheduleOrderBatch } from '../warehouse/order-batch-api';
 import { rowDrafts, scheduleBody, scheduleProblem, type RowDrafts } from './BatchSchedule';
-import { FileChoice, OrderFooter, OrderRows, PreviewPane, type Preview } from './OrderBatchParts';
+import { FileChoice, OrderActions, OrderRows } from './OrderBatchParts';
 
 /** 已经订过货的那份订货单（重新导出时带着）：编号、单号、版本 */
 type DraftBatch = NonNullable<OrderBatchDraft['batch']>;
@@ -34,7 +43,7 @@ function exportBody(
   draft: OrderBatchDraft,
   schedule: RowDrafts,
   o: { format: DocumentFormat; markOrdered: boolean; templateId: string },
-): Parameters<typeof exportDocument>[0] {
+): ExportBody {
   const head = draft.purchases[0];
   return {
     kind: 'purchase',
@@ -58,29 +67,27 @@ function exportedMessage(draft: OrderBatchDraft, markOrdered: boolean) {
 }
 
 /**
- * 打开窗口时读的：按这几张采购单排的订货单（已订过货的带着原批次）、采购订货单能用的模板，
- * 和各行可编辑的到货安排。initial 记着打开时（或最近一次存进批次的）到货安排，重新导出时比对改过没有。
+ * 打开窗口时读的：按这几张采购单排的订货单（已订过货的带着原批次）和各行可编辑的到货安排。
+ * initial 记着打开时（或最近一次存进批次的）到货安排，重新导出时比对改过没有。
  */
 function useOrderDraft(purchaseIds: number[]) {
   const [draft, setDraft] = useState<OrderBatchDraft | null>(null),
-    [templates, setTemplates] = useState<DocumentTemplate[]>([]),
     [schedule, setSchedule] = useState<RowDrafts>({}),
     [loading, setLoading] = useState(true),
     [loadError, setLoadError] = useState('');
   const initial = useRef('');
   // 换了采购单才重读；读的时候取这一组的编号
   const idsKey = purchaseIds.join(',');
-  const read = useEffectEvent(() => Promise.all([draftOrderBatch(purchaseIds), readDocumentTemplates()]));
+  const read = useEffectEvent(() => draftOrderBatch(purchaseIds));
   useEffect(() => {
     let active = true;
     read()
-      .then(([d, settings]) => {
+      .then((d) => {
         if (!active) return;
         setDraft(d);
         const drafts = rowDrafts(d.rows);
         setSchedule(drafts);
         initial.current = JSON.stringify(scheduleBody(drafts));
-        setTemplates(settings.templates.filter((t) => t.kind === 'purchase'));
       })
       .catch((e: unknown) => active && setLoadError(errorMessage(e)))
       .finally(() => active && setLoading(false));
@@ -88,7 +95,7 @@ function useOrderDraft(purchaseIds: number[]) {
       active = false;
     };
   }, [idsKey]);
-  return { draft, setDraft, templates, schedule, setSchedule, initial, loading, loadError };
+  return { draft, setDraft, schedule, setSchedule, initial, loading, loadError };
 }
 
 /**
@@ -110,12 +117,13 @@ export default function OrderBatchDialog({
   const { draft, schedule, initial } = order;
   const [templateId, setTemplateId] = useState(''),
     [format, setFormat] = useState<DocumentFormat>('docx'),
-    [preview, setPreview] = useState<Preview | null>(null);
+    [preview, setPreview] = useState<ExportPreview | null>(null);
   const action = useAction(),
-    save = useSaveFile();
+    exportFile = useExportFile(),
+    templates = useExportTemplates('purchase');
   // 读的时候和办事的时候都算忙；读不出来时按钮都不能点，两处的错误不会同时有
   const busy = order.loading || action.busy,
-    error = order.loadError || action.error;
+    error = order.loadError || action.error || templates.error;
   const problem = draft ? scheduleProblem(draft.rows, schedule) : '';
   // 按钮在读到订货单之前都不能点，下面几个都只在有订货单时办
   const showPreview = () =>
@@ -146,41 +154,45 @@ export default function OrderBatchDialog({
         initial.current = JSON.stringify(body);
         order.setDraft((d) => (d?.batch ? { ...d, batch: batchAfterSave(d.batch, saved) } : d));
       }
-      await deliverBusinessFile(await exportDocument(exportBody(draft, schedule, { format, markOrdered, templateId })), save);
+      await (await exportFile(exportBody(draft, schedule, { format, markOrdered, templateId }))).saved;
       emit('erp-business-changed');
       done(exportedMessage(draft, markOrdered));
     });
   const batch = draft?.batch;
   return (
-    <ManagementDialog
+    <DocumentExportDialog
       title={batch ? '订货单 ' + batch.number : '导出订货单'}
       subtitle={draft ? draft.supplierName + ' · ' + draft.purchases.map((p) => p.number).join('、') : undefined}
       size="lg"
       close={close}
       busy={busy}
-      footer={
-        <OrderFooter
-          {...{ busy, problem, close, showPreview, showWord, exportOrder }}
+      error={error || problem}
+      preview={preview}
+      back={() => setPreview(null)}
+      note={preview ? '这是导出后的样子。' : batch ? '改过的到货安排一起保存。' : afterSaved.ordered + '。'}
+      actions={
+        <OrderActions
+          {...{ busy, problem, showPreview, showWord, exportOrder }}
           hasDraft={!!draft}
           ordered={!!batch}
           previewing={!!preview}
-          back={() => setPreview(null)}
         />
       }
     >
-      <FormMessage>{error || problem}</FormMessage>
       {!draft ? (
         <p className="help-text" role="status">
           {busy ? loadingText('采购单') : ''}
         </p>
-      ) : preview ? (
-        <PreviewPane preview={preview} />
       ) : (
         <>
           <OrderRows draft={draft} schedule={schedule} setSchedule={order.setSchedule} busy={busy} />
-          <FileChoice {...{ format, setFormat, templateId, setTemplateId, busy }} templates={order.templates} />
+          <FileChoice
+            {...{ format, setFormat, setTemplateId, busy }}
+            templateId={templateId || templates.defaultId}
+            templates={templates.templates}
+          />
         </>
       )}
-    </ManagementDialog>
+    </DocumentExportDialog>
   );
 }
