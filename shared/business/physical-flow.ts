@@ -122,7 +122,8 @@ export const arrivalLineSchema = z.object({
   ...inspectionFields,
   statedQuantity: quantityText.nullable().default(null),
   unitPrice: exactPriceSchema.nullable().default(null),
-  priceBasis: arrivalPriceBasisSchema.default('area'),
+  // 没写计价方式就留空（不猜按平方米）：照常入库，金额待定，财务按缺价格等人补
+  priceBasis: arrivalPriceBasisSchema.default(null),
   statedArea: z
     .string()
     .trim()

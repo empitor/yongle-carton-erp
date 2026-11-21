@@ -11,11 +11,13 @@ import { count as countRows } from '../server/core/sql.js';
 import { sampleDocument } from '../server/documents/sample.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { today } from '../shared/core/domain.js';
+import { UNPRICED_TEXT } from '../shared/business/display-text.js';
 import { workbenchFixture } from './flow-fixture.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
+import '../server/import/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { actor } from './actor-fixture.js';
@@ -343,7 +345,7 @@ test('初始化（清空业务数据）清掉导出记录；单据模板设置�
   }
 });
 
-test('采购单导出的单价和界面同一个写法：至少两位、最多四位，尾零去掉；按面积写“元/m²”，按数量写“元/单位”，没价写待核价', () => {
+test('采购单导出的单价和界面同一个写法：至少两位、最多四位，尾零去掉；按面积写“元/m²”，按数量写“元/单位”，没价单价、金额都写“单价待定”', () => {
   const f = workbenchFixture(actor);
   try {
     const docs = new BusinessDocuments(f.store),
@@ -357,12 +359,12 @@ test('采购单导出的单价和界面同一个写法：至少两位、最多�
           },
           actor,
         );
-        return docs.form('purchase', p.id).form.rows[0][5];
+        return docs.form('purchase', p.id).form.rows[0].slice(5, 7);
       };
-    assert.equal(priceCell('2.7600', 'area'), '2.76 元/m²');
-    assert.equal(priceCell('2.5', 'quantity'), '2.50 元/' + f.raw.unit);
-    assert.equal(priceCell('1.2345', 'area'), '1.2345 元/m²');
-    assert.equal(priceCell(null, 'area'), '待核价');
+    assert.equal(priceCell('2.7600', 'area')[0], '2.76 元/m²');
+    assert.equal(priceCell('2.5', 'quantity')[0], '2.50 元/' + f.raw.unit);
+    assert.equal(priceCell('1.2345', 'area')[0], '1.2345 元/m²');
+    assert.deepEqual(priceCell(null, 'area'), [UNPRICED_TEXT, UNPRICED_TEXT]);
   } finally {
     f.store.close();
   }

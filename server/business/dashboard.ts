@@ -9,13 +9,13 @@ import { quantityString } from '../../shared/core/index.js';
 import { OperationsRepository } from '../operations/index.js';
 import type { UnitBalance } from '../../shared/business/index.js';
 import { orderMetrics, productMetrics, pendingPurchase } from '../../shared/business/index.js';
+import { periodPurchases, type DateRange } from './period-records.js';
 
 /** 采购单、库存品、库存流水的视图（采购库存模块给的样子） */
 type PurchaseView = ReturnType<OperationsRepository['purchases']>[number];
 type StockItemView = ReturnType<OperationsRepository['items']>[number];
 type MovementView = ReturnType<OperationsRepository['movements']>[number];
 type Overview = Dashboard['overview'];
-type DateRange = { start?: string; end?: string };
 
 /** 首页“最近”几栏各列几条：订单、采购单、库存流水，合起来的动态最多几条 */
 const RECENT_ORDERS = 6;
@@ -112,10 +112,11 @@ function recentActivity(orders: Order[], purchases: PurchaseView[], movements: M
     .map(({ recordedAt: _recordedAt, ...event }) => event);
 }
 
-/** 订单概况：区间里的、全部的待办和逾期，以及算作历史的 */
-function orderOverview(inRange: Order[], all: Order[], date: string): Overview['orders'] {
+/** 订单概况：区间里的（含几张已归档的）、全部没归档的待办和逾期，以及算作历史的 */
+function orderOverview(inRange: Order[], all: Order[], date: string, archived: number): Overview['orders'] {
   return {
     total: inRange.length,
+    archived,
     pendingInRange: orderMetrics(inRange, date).pending,
     pendingAll: orderMetrics(all, date).pending,
     overdueAll: orderMetrics(all, date).overdue,
@@ -123,15 +124,17 @@ function orderOverview(inRange: Order[], all: Order[], date: string): Overview['
   };
 }
 
-/** 采购概况：区间里的张数、金额、到货金额，全部没到齐的还差多少 */
+/** 采购概况：区间里的张数（含几张已归档的）、金额、到货金额，全部没到齐的还差多少 */
 function purchaseOverview(
   purchases: { all: PurchaseView[]; inRange: PurchaseView[]; recent: PurchaseView[] },
   arrivals: { cents: number; uncomputed: number },
+  archived: number,
 ): Overview['purchases'] {
   const { all, inRange, recent } = purchases;
   const priced = inRange.filter((p) => p.status !== '已取消' && p.totalAmount !== null);
   return {
     total: inRange.length,
+    archived,
     pending: inRange.filter(pendingPurchase).length,
     pendingAll: all.filter(pendingPurchase).length,
     unknownPrices: inRange.filter((p) => p.status !== '已取消' && p.totalAmount === null).length,
@@ -162,8 +165,8 @@ function inventoryOverview(items: StockItemView[]): Overview['inventory'] {
   };
 }
 
-/** 区间里有效的订单（不算待确认、已取消）的数量、金额、估算成本和利润、按状态的张数 */
-function orderFigures(rows: Order[], date: string) {
+/** 区间里有效的订单（不算待确认、已取消）的数量、金额、估算成本和利润、按状态的张数（各含几张已归档的） */
+function orderFigures(rows: Order[], date: string, archived: (o: Order) => boolean) {
   const valid = rows.filter(effectiveOrder),
     costed = valid.filter((o) => o.costCents !== null);
   const sum = (items: Order[], key: 'totalCents' | 'costCents') => items.reduce((n, o) => n + (o[key] || 0), 0);
@@ -175,16 +178,19 @@ function orderFigures(rows: Order[], date: string) {
     costedCount: costed.length,
     uncostedCount: valid.length - costed.length,
     overdueCount: valid.filter((o) => deliverableOrder(o) && o.deliveryDate < date).length,
-    byStatus: displayOrderStatuses.map((status) => ({
-      status,
-      count: rows.filter((o) => orderDisplayStatus(o) === status).length,
-    })),
+    byStatus: displayOrderStatuses.map((status) => {
+      const same = rows.filter((o) => orderDisplayStatus(o) === status);
+      return { status, count: same.length, archived: same.filter(archived).length };
+    }),
   };
 }
 
 /**
  * 首页数据。工作台汇总首页页面不显示、AI 概览要用：不需要时传 options.workbench=false 跳过计算，
- * 不传时照旧计算。调用方已读过全部订单时用 options.allOrders 传入，不再读一遍。
+ * 不传时照旧计算。调用方已读过全部没归档的订单时用 options.allOrders 传入，不再读一遍。
+ * rows 是筛好的这段时间的订单，可以带这段时间里已归档的（period-records.ts 的 periodOrders）：
+ * 所选日期的统计（订单数、金额、状态分布、采购单数、采购金额、送货和到货金额）算上已归档的，归档只是把办完的收起来，
+ * 张数里含几张已归档的另外报（点进去的列表不列已归档的）；最近的订单、采购单和实时的待完成、待到货、历史订单数不带已归档的。
  */
 export function buildDashboard(
   store: Store,
@@ -193,28 +199,32 @@ export function buildDashboard(
   date = today(),
   options: { allOrders?: Order[]; workbench?: boolean } = {},
 ): Dashboard {
-  const allOrders = options.allOrders ?? store.orders();
+  const allOrders = options.allOrders ?? store.orders(),
+    currentIds = new Set(allOrders.map((o) => o.id)),
+    archived = (o: Order) => !currentIds.has(o.id);
   const repo = new OperationsRepository(store),
-    allPurchases = repo.purchases();
+    periodPurchase = periodPurchases(store, range);
   const inRange = (value: string) => (!range.start || value >= range.start) && (!range.end || value <= range.end);
-  const purchases = allPurchases.filter((p) => inRange(p.orderDate));
+  const currentPurchases = periodPurchase.current.filter((p) => inRange(p.orderDate)),
+    purchases = [...currentPurchases, ...periodPurchase.archived];
   const deliveries = documentAmounts(store, 'delivery', range);
   const movements = repo.movements({ start: range.start, end: range.end }, { limit: RECENT_MOVEMENTS });
-  const recentOrders = newestFirst(rows, RECENT_ORDERS),
-    recentPurchases = newestFirst(purchases, RECENT_PURCHASES);
+  const recentOrders = newestFirst(rows.filter((o) => !archived(o)), RECENT_ORDERS),
+    recentPurchases = newestFirst(currentPurchases, RECENT_PURCHASES);
   const products = store.products();
   return {
-    ...orderFigures(rows, date),
+    ...orderFigures(rows, date, archived),
     deliveredCents: deliveries.cents,
     deliveryUncomputed: deliveries.uncomputed,
     recentOrders,
     overview: {
       ...(options.workbench === false ? {} : { workbench: buildWorkbench(store, date) }),
       range: { start: range.start || null, end: range.end || null },
-      orders: orderOverview(rows, allOrders, date),
+      orders: orderOverview(rows, allOrders, date, rows.filter(archived).length),
       purchases: purchaseOverview(
-        { all: allPurchases, inRange: purchases, recent: recentPurchases },
+        { all: periodPurchase.current, inRange: purchases, recent: recentPurchases },
         documentAmounts(store, 'arrival', range),
+        periodPurchase.archived.length,
       ),
       inventory: inventoryOverview(repo.items()),
       products: { total: products.length, incomplete: productMetrics(products).incomplete },

@@ -29,7 +29,7 @@ function setup() {
   return { store, summarize, order, close: () => store.close() };
 }
 
-test('订单合计：金额只算有效订单（不含待确认、已取消），只数不含已取消；按客户分的只数和金额同一口径', () => {
+test('订单合计：金额、只数、单数都只算有效订单（不含待确认、已取消）；按客户分的同一口径', () => {
   const f = setup();
   try {
     const a = f.store.saveCustomer(customerSchema.parse({ name: '虚构甲' })),
@@ -44,12 +44,12 @@ test('订单合计：金额只算有效订单（不含待确认、已取消）�
       }),
     }).metrics;
     assert.equal(m.amount, '110.0000000');
-    assert.equal(m.quantity, 170);
+    assert.equal(m.quantity, 120);
     assert.deepEqual(
       m.byCustomer.map((c) => [c.customerName, c.orders, c.quantity, c.amount]).sort(),
       [
         ['虚构乙', 1, 20, '10.0000000'],
-        ['虚构甲', 2, 150, '100.0000000'],
+        ['虚构甲', 1, 100, '100.0000000'],
       ],
     );
   } finally {

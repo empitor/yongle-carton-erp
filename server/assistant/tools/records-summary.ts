@@ -81,9 +81,9 @@ const orderQuantity = (rows: readonly OrderRow[]) => rows.reduce((n, r) => n + r
 /** 每个值出现几条 */
 const countBy = <R>(rows: readonly R[], key: (r: R) => unknown) =>
   Object.fromEntries([...new Set(rows.map(key))].map((s) => [String(s), rows.filter((r) => key(r) === s).length]));
-/** 订单的总只数和按客户分：只数不算已取消的，金额和总金额同一口径。问“一共多少只、按客户分”时模型直接读，不用翻页自己加。 */
+/** 订单的总只数和按客户分：只数、单数、金额都只算有效订单（和总金额同一口径）。问“一共多少只、按客户分”时模型直接读，不用翻页自己加。 */
 function orderTotals(rows: readonly OrderRow[]) {
-  const counted = rows.filter((r) => r.status !== '已取消');
+  const counted = rows.filter(effectiveOrder);
   const customers = new Map<number, OrderRow[]>();
   for (const r of counted) customers.set(r.customerId, [...(customers.get(r.customerId) ?? []), r]);
   return {
@@ -94,9 +94,9 @@ function orderTotals(rows: readonly OrderRow[]) {
       customerName: list[0].customerName,
       orders: list.length,
       quantity: orderQuantity(list),
-      amount: sumMoney(list.filter(effectiveOrder).map(exactAmount)),
+      amount: sumMoney(list.map(exactAmount)),
     })),
-    quantityDefinition: '筛出来的订单里不含已取消的明细只数合计',
+    quantityDefinition: '筛出来的有效订单（不含待确认、已取消）的明细只数合计',
   };
 }
 function orderSummary(rows: readonly OrderRow[]) {

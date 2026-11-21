@@ -13,6 +13,7 @@ import {
   productQuerySchema,
 } from '../../shared/business/index.js';
 import { buildDashboard } from './dashboard.js';
+import { periodOrders } from './period-records.js';
 
 /*
  * 客户、产品、订单列表和经营概况的读取：按请求参数筛选、分页、算统计（原来写在 server/app.ts 里）。
@@ -50,36 +51,26 @@ function listed<T extends { id: number }>(rows: T[], archivedIds: Set<number>, a
     .filter((x) => archived !== '1' || archivedIds.has(x.id))
     .map((row) => ({ ...row, archived: archivedIds.has(row.id) }));
 }
-/** 不带 withMetrics 时按关键字在全部字段里搜（下拉、助手用） */
-const searchAll = <T extends { archived: boolean }>(rows: T[], q: string) =>
-  rows.filter(({ archived, ...x }) => Object.values(x).join(' ').toLowerCase().includes(q));
-
 /**
- * 客户列表。withMetrics=1 时按关键字筛，返回 { rows, totalRecords, metrics: null }；
- * 不带时按关键字在全部字段里搜，直接返回数组（下拉、助手用）。
+ * 客户列表。关键字和客户页同一套（matchesOperationalRecord）；withMetrics=1 时返回 { rows, totalRecords, metrics: null }，
+ * 不带时直接返回数组（下拉用）。
  */
 export function customerList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
-  const f = customerQuerySchema.parse(query),
-    q = (f.q ?? '').toLowerCase();
+  const f = customerQuerySchema.parse(query);
   const scoped = listed(store.customers(includeArchived), store.archivedIds('customers'), f.archived);
-  if (query.withMetrics !== '1') return searchAll(scoped, q);
-  return {
-    rows: scoped.filter((row) => matchesOperationalRecord(row, q)),
-    totalRecords: scoped.length,
-    metrics: null,
-  };
+  const rows = scoped.filter((row) => matchesOperationalRecord(row, f.q));
+  return query.withMetrics === '1' ? { rows, totalRecords: scoped.length, metrics: null } : rows;
 }
 
 /**
- * 产品列表。withMetrics=1 时按页面的筛选（关键字、只看资料不全、按客户筛）返回 { rows, totalRecords, metrics }；
- * 不带时按关键字在全部字段里搜，直接返回数组（下拉、助手用）。
+ * 产品列表。关键字和产品页同一套（matchesProduct）；withMetrics=1 时再按页面的筛选（只看资料不全、按客户筛）
+ * 返回 { rows, totalRecords, metrics }，不带时直接返回数组（下拉用）。
  */
 export function productList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
-  const f = productQuerySchema.parse(query),
-    q = (f.q ?? '').toLowerCase();
+  const f = productQuerySchema.parse(query);
   const scoped = listed(store.products(includeArchived), store.archivedIds('products'), f.archived);
-  if (query.withMetrics !== '1') return searchAll(scoped, q);
-  const matched = scoped.filter((row) => matchesProduct(row, q));
+  const matched = scoped.filter((row) => matchesProduct(row, f.q ?? ''));
+  if (query.withMetrics !== '1') return matched;
   // 按客户筛：这个客户下过单的产品（产品本身不挂客户，靠订单明细关联）
   const ordered = f.customerId ? productIdsOfCustomer(store, f.customerId) : null;
   const byCustomer = ordered ? matched.filter((row) => ordered.has(row.id)) : matched;
@@ -104,9 +95,10 @@ export function orderList(store: Store, query: Record<string, unknown>, includeA
 export function orderDashboard(store: Store, query: Record<string, unknown>) {
   const range = z.object({ start: dateSchema.optional(), end: dateSchema.optional() }).parse(query);
   // 页面不显示工作台统计，只有助手 overview.get 需要；这里不算，首页少卡几秒。
-  const all = store.orders();
-  return buildDashboard(store, filterOrders(orderQuerySchema.parse(query), all), range, undefined, {
-    allOrders: all,
+  // 所选日期的统计算上这段时间里已归档的订单（只按日期圈出来读），实时的待办用没归档的
+  const { current, archived } = periodOrders(store, range);
+  return buildDashboard(store, filterOrders(orderQuerySchema.parse(query), [...current, ...archived]), range, undefined, {
+    allOrders: current,
     workbench: false,
   });
 }

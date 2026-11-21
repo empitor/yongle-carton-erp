@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { RAW_UNIT, UNITS_PER_QUANTITY, errorMessage, today, quantityUnits } from '../../shared/core/index.js';
+import { RAW_UNIT, UNITS_PER_QUANTITY, errorMessage, priceBases, today, quantityUnits } from '../../shared/core/index.js';
 import { arrivalQuantities, purchaseLineAmount, sameRawSpec, sheetArea, stockItemSchema, type FlowDocument, type PurchaseView } from '../../shared/business/index.js';
 import { lineOrderId } from '../operations/index.js';
 import { exists, many, one, rows, type Store } from '../core/index.js';
@@ -115,7 +115,7 @@ function purchaseLineOf(purchases: PurchaseView[], lineId: number | null | undef
 
 /**
  * 挂了采购明细的一行：采购单是当前供应商正常已订货的，不早于采购日期，规格一样，不超采购剩余（更正不查），
- * 采购明细已经关联了库存品的，没选的就入那一个（和明确选它一样），选了别的拒收
+ * 采购明细已经关联了库存品的，没选的就入那一个（和明确选它一样），选了别的拒收；没写计价方式的按采购明细的
  */
 function checkPurchaseLine(ctx: ArrivalCheck, v: Arrival, l: ArrivalLine, found: ReturnType<typeof purchaseLineOf>) {
   const { maintenance, skipRemaining } = ctx;
@@ -133,6 +133,8 @@ function checkPurchaseLine(ctx: ArrivalCheck, v: Arrival, l: ArrivalLine, found:
     fail('实收超过采购剩余数量；请核对采购，超出部分作为独立无采购单明细并填写差异原因。', 409);
   if (pl.stockItemId && l.stockId == null) l.stockId = pl.stockItemId;
   if (pl.stockItemId && l.stockId !== pl.stockItemId) fail('请使用采购明细已关联的原材料库存品。');
+  // 没写计价方式的按采购明细上写的（这是已知的，不是猜）；写了的照写的
+  if (l.priceBasis == null) l.priceBasis = priceBases.find((b) => b === pl.priceBasis) ?? null;
 }
 
 /** 一行的数量：纸板按整张，验收三个数合规，实收和送货单数量不一样要写差异原因；返回验收后的三个数 */
