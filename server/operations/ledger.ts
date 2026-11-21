@@ -111,7 +111,7 @@ export function setPurchaseLineStock(store: Store, purchaseLineId: number, stock
 }
 
 /*
- * 采购明细存进 document 的内容按共用的 purchaseLineDocumentSchema（shared/business，财务按表读也用它）。
+ * 采购明细存进 document 的内容按共用的 purchaseLineDocumentSchema（shared/business，单据流转的只读窗口给财务解析采购明细也用它）。
  * 关联的库存品、数量、已到货和这一行关联的客户订单存在列里（客户订单是真外键，订单删了由数据库和删除规则管），
  * 不在 JSON 里重复存；读的时候由 purchase-rows.ts 拼回，对外的对象形状不变。写和读都按这一份。
  */

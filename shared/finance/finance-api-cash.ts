@@ -206,7 +206,6 @@ type ThreeWayMatching = {
     number: string;
     line_id: number;
     quantity_units: number;
-    document: string;
     unit: string;
     amount: number | null;
   }[];
