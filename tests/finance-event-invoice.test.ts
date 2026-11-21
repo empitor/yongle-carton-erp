@@ -11,6 +11,7 @@ import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceAllocations } from '../server/finance/allocations.js';
 import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, obligation, obligationRow, funds, bill, ledgerBalance, subledger, eventsStep, setDoc } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { count } from '../server/core/index.js';
 
 test('已开票送货被冲销，整张红票后可以更正，结账的事件步骤放行', () => {
@@ -32,7 +33,7 @@ test('已开票送货被冲销，整张红票后可以更正，结账的事件�
     });
     new FinanceInvoiceConfirm(s).confirm(maker, blue.id, { version: 2, requestId: 'confirm-blue' });
     postDrafts(s);
-    s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
+    businessChanges(s).reverse(1);
     events.sync(maker, { requestId: 'rescan' });
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     assert.equal(diff.event_type, 'delivery.reversed');
@@ -86,7 +87,7 @@ test('作废的发票草稿还挂着关联，不妨碍更正', () => {
       reason: '虚构开错作废',
     });
     assert.ok(s.db.prepare('SELECT 1 FROM fin_invoice_links WHERE obligation_id=?').get(o.id));
-    s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
+    businessChanges(s).reverse(1);
     events.sync(maker, { requestId: 'rescan' });
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     const result = new FinanceEventHandling(s).correct(maker, diff.id, {
@@ -210,7 +211,7 @@ test('原应付已整张红冲且付过款，来源更正先拦下；处理后�
     postDrafts(s);
     assert.equal(Number(obligationRow(s, payable).amount_cents), 0, '整张红冲后应付为 0，已付 100 显示多付');
     // 超级管理员冲销原到货，按 8 张更正
-    s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
+    businessChanges(s).reverse(1);
     physical(s, 2, 'arrival', '2026-01-18', arrivalDoc('8', { correctionOf: 1 }));
     events.sync(maker, { requestId: 'rescan' });
     const replacement = event(s, 2),

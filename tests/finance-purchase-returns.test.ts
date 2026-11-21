@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { bill as invoiceInput, maker, postDrafts, supervisor } from './finance-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceCosting } from '../server/finance/costing.js';
@@ -125,8 +126,8 @@ test('未到票的退货撤销：剩下那张暂估红冲、按原数另出一�
     const current = f.s.db.prepare('SELECT version FROM purchase_returns WHERE id=?').get(back.id);
     f.returns.reverse(supervisor, back.id, { version: Number(current?.version), reason: '虚构退错了' });
     // 撤销退货默认记在今天，挪到 3 月 5 日（虚构），只算 2、3 两个月，不随真实日期变
-    f.s.db.prepare("UPDATE stock_movements SET date='2026-03-05' WHERE source_kind='purchase_return' AND delta_units>0").run();
-    f.s.db.prepare("UPDATE purchase_returns SET updated_at='2026-03-05T02:00:00.000Z' WHERE id=?").run(back.id);
+    businessChanges(f.s).moveMovements({ kind: 'purchase_return', id: back.id }, '2026-03-05', true);
+    businessChanges(f.s).returnReversedAt(back.id, '2026-03-05T02:00:00.000Z');
     sync('scan-restore');
     postDrafts(f.s);
     assert.deepEqual(estimates(), ['红', '出', '红', '出']);

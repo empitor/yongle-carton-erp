@@ -9,6 +9,7 @@ import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { maker, newSettings, post, physical, deliveryDoc, booked } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
 import { FinanceBooks } from '../server/finance/books.js';
 import { FinanceAuditLog } from '../server/finance/audit-log.js';
@@ -183,12 +184,7 @@ test('HTTP 财务路由拒绝无财务权限的账号和已记账凭证修改、
       customerName: '虚构客户',
       lines: [{ orderId: 1, orderLineId: 1, stockId: 1, unit: '个', quantity: '1', unitPriceExact: '10.0000' }],
     };
-    store.db
-      .prepare(
-        `INSERT INTO flow_documents(kind,number,date,planned_date,status,document,actor_id,actor_name,created_at,updated_at)
-      VALUES('delivery','FICT','2026-01-19','2026-01-19','confirmed',?,'fixture','虚构财务','2026-01-19','2026-01-19')`,
-      )
-      .run(JSON.stringify(flow));
+    businessChanges(store).confirmed('delivery', '2026-01-19', flow, { number: 'FICT' });
     const pending = await fetch(base + '/finance/reports/balance?period=2026-01', {
       headers: { cookie },
     });

@@ -12,6 +12,7 @@ import { FinanceEventViews } from '../server/finance/event-views.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { maker, newSettings, physical, deliveryDoc, arrivalDoc, event } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { readSnapshot } from '../server/finance/source-snapshot.js';
 
 test('同步幂等，缺价缺税待补，补齐后制单，来源删除保留历史', () => {
@@ -78,14 +79,14 @@ test('同步幂等，缺价缺税待补，补齐后制单，来源删除保留�
     ledger.transition(approver, voucherId, 'approve', { version: 2, requestId: 'approve' });
     ledger.transition(approver, voucherId, 'post', { version: 3, requestId: 'post' });
     const original = ledger.get(maker, voucherId);
-    store.db.prepare("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1").run();
-    store.db.prepare("UPDATE flow_documents SET status='reversed',version=2 WHERE id=4").run();
+    businessChanges(store).reverse(1);
+    businessChanges(store).reverse(4);
     assert.equal(events.sync(maker, { requestId: 'reversal' }).processed, 2);
     assert.deepEqual(
       new Set(new FinanceEventViews(store).list(maker, { status: 'difference' }).rows.map((row) => row.event_type)),
       new Set(['delivery.reversed']),
     );
-    store.db.prepare('DELETE FROM flow_documents WHERE id=1').run();
+    businessChanges(store).remove(1);
     assert.equal(events.sync(maker, { requestId: 'delete' }).processed, 1);
     assert.equal(new FinanceEventViews(store).list(maker, { status: 'source_deleted' }).rows[0].source_id, '1');
     assert.deepEqual(ledger.get(maker, voucherId), original);
@@ -105,7 +106,7 @@ test('正式报表的资料检查和结账同一个口径：还没同步进财�
     assert.deepEqual([readiness().ready, readiness().unsynced], [false, 1], '资料齐全、还没同步的也拦');
     events.sync(maker, { requestId: 'scan' });
     assert.deepEqual([readiness().ready, readiness().unsynced], [true, 0]);
-    store.db.prepare("UPDATE flow_documents SET version=version+1,status='reversed' WHERE id=1").run();
+    businessChanges(store).reverse(1);
     assert.deepEqual([readiness().ready, readiness().unsynced], [false, unseenSources(store.db, '2026-01-31')], '撤销了还没同步');
     assert.throws(() => reports.assertReady(maker, '2026-01'), /还没同步进财务/);
   } finally {

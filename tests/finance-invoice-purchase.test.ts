@@ -13,6 +13,7 @@ import { FinanceEventViews } from '../server/finance/event-views.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, obligationRow, ledgerBalance, bill, arrived, confirmBlue, confirmRed } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 
 /** 1 号单据的日期（送货单还有计划日）：直接改写单据内容时照原样带上 */
 function documentDates(s: Store) {
@@ -125,9 +126,7 @@ test('被更正冲销的往来不能再关联发票：旧往来和冲销行都�
       tInvoices = new FinanceInvoices(t);
     const original = arrived(t);
     const doc = arrivalDoc('12', { price: '10.00', taxed: false });
-    t.db
-      .prepare('UPDATE flow_documents SET document=?,version=2 WHERE id=1')
-      .run(JSON.stringify({ ...doc, date: '2026-02-05', confirmedAt: '2026-02-05T09:00:00.000Z' }));
+    businessChanges(t).rewrite(1, { ...doc, date: '2026-02-05', confirmedAt: '2026-02-05T09:00:00.000Z' });
     tEvents.sync(maker, { requestId: 're-scan' });
     const diff = new FinanceEventViews(t).list(maker, { status: 'difference' }).rows[0];
     new FinanceEventHandling(t).correct(maker, diff.id, {
@@ -179,9 +178,7 @@ test('被更正冲销的往来不能再关联发票：旧往来和冲销行都�
 test('确认发票时再查往来：草稿关联后来源单被更正，旧往来已冲销或被替代，确认被拦下', () => {
   const correct = (s: Store, doc: Record<string, unknown>, at: string) => {
     const events = new FinanceEvents(s);
-    s.db
-      .prepare('UPDATE flow_documents SET document=?,version=2 WHERE id=1')
-      .run(JSON.stringify({ ...doc, ...documentDates(s), confirmedAt: at }));
+    businessChanges(s).rewrite(1, { ...doc, ...documentDates(s), confirmedAt: at });
     events.sync(maker, { requestId: 're-scan' });
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     assert.ok(diff, '有草稿关联时改了来源单，要走差异更正');
@@ -261,18 +258,13 @@ test('部分到票的退货例外：到货退过货，按退后剩下的数量�
     const invoices = new FinanceInvoices(s);
     const key = arrived(s);
     // 虚构一张已确认的退货，直接写库模拟这个状态
-    s.db
-      .prepare(
-        `INSERT INTO purchase_returns(number,arrival_id,date,status,document,actor_id,actor_name,created_at,updated_at)
-        VALUES('FICT-R1',1,'2026-02-06','confirmed',?,?,?,?,?)`,
-      )
-      .run(
-        JSON.stringify({ lines: [{ lineIndex: 0, quantity: '4' }] }),
-        maker.id,
-        maker.name,
-        '2026-02-06T09:00:00.000Z',
-        '2026-02-06T09:00:00.000Z',
-      );
+    businessChanges(s, maker).purchaseReturn({
+      number: 'FICT-R1',
+      arrivalId: 1,
+      date: '2026-02-06',
+      document: { lines: [{ lineIndex: 0, quantity: '4' }] },
+      at: '2026-02-06T09:00:00.000Z',
+    });
     const partial = invoices.create(maker, bill('purchase', 'P-1', { date: '2026-02-10', gross: 6000 }));
     invoices.link(maker, partial.id, { version: 1, requestId: 'link-1', links: [{ obligationId: key, amount: 6000 }] });
     new FinanceInvoiceConfirm(s).confirm(maker, partial.id, { version: 2, requestId: 'confirm-1' });
