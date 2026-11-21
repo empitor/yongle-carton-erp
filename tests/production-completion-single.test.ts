@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ProductionCompletion } from '../server/flow/batch-completion.js';
 import { today } from '../shared/core/domain.js';
-import { actor } from './assistant-fixture.js';
 import { completionFixture as fixture } from './completion-fixture.js';
+import { actor } from './actor-fixture.js';
 
 test('单张完工不用选成品库存：保存时按产品对应（没有就新建），一个产品只用一个；传了别的产品的成品库存被拒', () => {
   const f = fixture();

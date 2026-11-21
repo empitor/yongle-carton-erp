@@ -18,8 +18,8 @@ import {
   type BusinessForm,
   type DocumentKind,
 } from '../shared/documents/index.js';
-import { actor } from './assistant-fixture.js';
 import { setup } from './document-fixture.js';
+import { actor } from './actor-fixture.js';
 
 /** 填满我方资料和条款的模板（这些格子只在填了时才印），hidden 是勾了隐藏的格子 */
 function fullTemplate(kind: DocumentKind, hidden: readonly string[] = []) {

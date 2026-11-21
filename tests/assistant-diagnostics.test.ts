@@ -25,8 +25,9 @@ import { systemStatus } from '../server/assistant/tools/system.js';
 import { insertExport } from '../server/documents/export-records.js';
 import { defaultDocumentTemplates } from '../shared/documents/document-templates.js';
 import { fakeAiSettings } from './fake-deepseek.js';
-import { ctxOf, readAs } from './assistant-fixture.js';
+import { ctxOf } from './assistant-fixture.js';
 import { listen } from './http-fixture.js';
+import { readAs } from './read-result.js';
 
 const staff = pageActor({ id: 'diag-staff', name: '虚构业务员甲', permissions: ['business:edit'], role: 'admin' });
 const viewer = pageActor({ id: 'diag-viewer', name: '虚构只读', permissions: [], role: 'admin' });

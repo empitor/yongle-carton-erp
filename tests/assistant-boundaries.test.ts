@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { assistantFixture, actor, superActor, confirmCard, lastCard, readAs } from './assistant-fixture.js';
+import { assistantFixture, confirmCard, lastCard } from './assistant-fixture.js';
 import { messageText } from './fake-deepseek.js';
 import type { ChatBody } from './fake-deepseek-wire.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
@@ -22,6 +22,8 @@ import { count, type Actor } from '../server/core/index.js';
 import { InboxService } from '../server/inbox/service.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { actor, superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const call = (name: string, args: unknown = {}, message = '') => ({ message, toolCalls: [{ name, args }] });
 function last<T>(items: readonly T[]) {

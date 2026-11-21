@@ -15,8 +15,9 @@ import { assistantProductionCompletionSchema } from '../shared/business/producti
 import type { FlowDocView } from '../shared/business/index.js';
 import { AuthManager } from '../server/core/auth.js';
 import { startHttp } from './http-fixture.js';
-import { actor, readAs } from './assistant-fixture.js';
 import { completionFixture as fixture } from './completion-fixture.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 完工单里和拆分有关的内容：合格、报废、用料、操作人、日期、批次备注（按任务排好） */
 const split = (docs: FlowDocView<'production'>[]) =>

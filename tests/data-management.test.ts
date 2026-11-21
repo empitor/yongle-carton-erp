@@ -7,15 +7,11 @@ import { z, ZodError } from 'zod';
 import { AppError, count, isLocalAdministrator, one, rows, type Actor } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/service.js';
 import { FlowService } from '../server/flow/service.js';
-import { superActor, actor } from './assistant-fixture.js';
 import { recordStatus } from '../src/admin/record-refs.js';
 import { basics, command, firstResult } from './data-management-fixture.js';
+import { superActor, actor } from './actor-fixture.js';
+import { must } from './read-result.js';
 
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 
 test('本机管理员的能力不能由普通对象属性伪造；普通账号、超级管理员模式都用不了数据管理', () => {
   const f = basics();

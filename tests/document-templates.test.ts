@@ -11,7 +11,6 @@ import { count as countRows } from '../server/core/sql.js';
 import { sampleDocument } from '../server/documents/sample.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { today } from '../shared/core/domain.js';
-import { actor } from './assistant-fixture.js';
 import { workbenchFixture } from './flow-fixture.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
@@ -19,6 +18,7 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { OperationsRepository } from '../server/operations/repository.js';
+import { actor } from './actor-fixture.js';
 
 const [purchase, delivery] = defaultDocumentTemplates().templates;
 

@@ -10,8 +10,9 @@ import type { Actor } from '../server/core/index.js';
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
 import { customerSchema, today } from '../shared/core/domain.js';
-import { flowFixture, readAs } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { cookieOf, startHttp, startProxied, stateActor } from './http-fixture.js';
+import { readAs } from './read-result.js';
 
 const sessionBinding = (cookie: string) => createHash('sha256').update(cookie.split('=')[1]).digest('hex');
 /** 卡片存在哪：哪个会话、谁的、绑定哪次登录 */
@@ -27,7 +28,7 @@ function savePreview(store: Store, owner: PreviewOwner, plan: unknown, stamp: un
 }
 /** 部署模式：本机建好管理员，从域名登录、建一个会话 */
 async function overDomain() {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     p = await startProxied(f.store, { assistant: f.manager }),
     owner = { name: '虚构维护员', password: 'Fictional-owner-password' };
   assert.equal((await p.call(p.localPort, '/auth/setup', { body: owner })).code, 200);
@@ -128,7 +129,7 @@ test('从域名删还没核对的单据：点确认就删、不用密码；已�
 });
 
 test('不是部署的本机入口：不是本机最高管理员的执行删除卡片要带本人密码，错了不删', async () => {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     password = 'Fictional-owner-456',
     h = await startHttp(f.store, { assistant: f.manager, admin: { name: '虚构老板', password } });
   try {

@@ -7,10 +7,11 @@ import { randomUUID } from 'node:crypto';
 import { createCanvas } from '@napi-rs/canvas';
 import { z } from 'zod';
 import { count } from '../server/core/index.js';
-import { actor, assistantFixture } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { contentParts, httpError } from './fake-deepseek.js';
 import { imageFixture, pdfFixture, docxFixture, xlsxFixture } from './import-fixtures.js';
 import { isChatCall } from './fake-deepseek-wire.js';
+import { actor } from './actor-fixture.js';
 
 test('单图/多图/PDF/Word/Excel/CSV/TXT/WebP：图片发原图、文字发原文、文档原样上传后按文件编号引用，消息关联可核对', async () => {
   const f = assistantFixture([], { chat: () => ({ message: '已按附件内容回答。', toolCalls: [] }) });

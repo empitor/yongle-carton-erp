@@ -1,12 +1,12 @@
 // 助手的数据管理命令（management.*）：只给本机最高管理员，走和数据管理同一个服务，写入要人在卡片上确认；
 // 删除不在数据管理命令里，用 records.delete。读识别工作区的列表只读、不要确认。虚构数据。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, superActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { localAdministratorActor, isLocalAdministrator } from '../server/core/local-administrator.js';
 import { OperationsRepository } from '../server/operations/repository.js';
-import { assistantFixture, superActor, actor, flowFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture, autoConfirmAssistant } from './assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 import { fixture } from './maintenance-fixture.js';
@@ -18,6 +18,7 @@ import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
+import { readAs } from './read-result.js';
 
 const owner = () => localAdministratorActor(superActor());
 const cmd = (module: string, action: string, rows: { id: number; version: number }[] = [], patch: Record<string, unknown> = {}) => ({
@@ -32,7 +33,7 @@ const noEffects = { read: () => {}, business: () => {}, workflow: () => {} };
 
 test('助手按本机管理员的权限改订单、更正已入库的完工、删采购单；删除要人在卡片上确认，不用再输密码', async () => {
   // 测试开了自动确认：出了卡片立刻替人点（删除照样只出卡片）
-  const a = flowFixture(),
+  const a = autoConfirmAssistant(),
     f = fixture(a.store),
     thread = a.manager.create(f.who),
     effects: unknown[] = [];
@@ -106,7 +107,7 @@ test('数据管理命令不认模型伪造的本机管理员身份；停用后�
 });
 
 test('management.execute 真的写库', async () => {
-  const a = flowFixture(),
+  const a = autoConfirmAssistant(),
     f = fixture(a.store),
     thread = a.manager.create(f.who);
   try {

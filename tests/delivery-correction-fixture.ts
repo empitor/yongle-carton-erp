@@ -2,14 +2,11 @@
 // 一个客户、一个产品（成品库存期初 stock 只），订单 A 两行同一个产品（各 1000 只），订单 B 一行（1000 只，下单晚 19 天）。
 import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
-import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { viewOfKind } from '../server/flow/read.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { clerk } from './flow-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 import { ofKind } from './receive-fixture.js';
 import { deliveryCorrectionPreviewSchema } from '../shared/business/index.js';
 import type { z } from 'zod';
@@ -20,21 +17,15 @@ type OrderRef = { id: number; lines: { id: number }[] };
 type CorrectionLine = z.input<typeof deliveryCorrectionPreviewSchema>['lines'][number];
 
 export function deliveryCorrectionSetup(t: TestContext, stock = '1000') {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
+  const base = businessBase(clerk),
+    { store, ops, flow } = base;
   t.after(() => store.close());
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构外箱' }));
-  const line = { productId: product.id, productName: product.name, quantity: 1000, unit: '只', unitPriceCents: 100 };
-  const order = store.saveOrder(
-    orderSchema.parse({ customerId: customer.id, orderDate: '2026-10-01', deliveryDate: '2026-12-30', status: '已确认', lines: [line, line] }),
-  );
-  const second = store.saveOrder(
-    orderSchema.parse({ customerId: customer.id, orderDate: '2026-10-20', deliveryDate: '2026-12-30', status: '已确认', lines: [line] }),
-  );
-  const item = ops.saveItem({ name: '虚构外箱', kind: 'finished', unit: '只', productId: product.id }, clerk);
-  ops.move(item.id, { action: 'in', quantity: stock, date: '2026-10-01', notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: item.version }, clerk);
+  const customer = base.customer();
+  const product = base.product({ name: '虚构外箱' });
+  const line = base.line(product, 1000, { productName: product.name });
+  const order = base.order(customer, [line, line], { deliveryDate: '2026-12-30' });
+  const second = base.order(customer, [line], { orderDate: '2026-10-20', deliveryDate: '2026-12-30' });
+  const item = base.finished(product, { name: '虚构外箱' }, { quantity: stock, date: '2026-10-01' });
   /** 安排并出库一张送货单：lines 每项是 [订单, 第几行, 数量] */
   const ship = (lines: [OrderRef, number, string][], date = '2026-11-02', who: Actor = clerk) => {
     const d = flow.save(
@@ -47,7 +38,7 @@ export function deliveryCorrectionSetup(t: TestContext, stock = '1000') {
       },
       who,
     );
-    return viewOfKind(flow.confirm(d.id, { previewDigest: flow.preview(d.id, who).previewDigest, requestId: randomUUID(), acknowledged: true, shipDate: date }, who), 'delivery');
+    return viewOfKind(base.check(d, { shipDate: date }, who), 'delivery');
   };
   const input = (id: number, lines: CorrectionLine[], extra: Record<string, unknown> = {}) => ({
     expectedVersion: flow.get(id).version,

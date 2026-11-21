@@ -9,19 +9,15 @@ import { deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { OrderBatchService } from '../server/operations/batches.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { actor, superActor } from './assistant-fixture.js';
 import { InboxService } from '../server/inbox/service.js';
 import type { InboxIncoming } from '../shared/import/inbox.js';
 import { resetClear, resetParticipants } from '../server/core/deletion-rules.js';
 import { listingFixture, mergeIntoBatch, orderWithImports, setup } from './delete-fixture.js';
 import { z } from 'zod';
 import { count, many, one, rows } from '../server/core/index.js';
+import { actor, superActor } from './actor-fixture.js';
+import { must } from './read-result.js';
 
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 
 for (const [where, actorOf] of [
   ['本机最高管理员', () => localAdministratorActor(superActor())],

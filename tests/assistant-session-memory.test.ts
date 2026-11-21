@@ -9,9 +9,11 @@ import { LONG_TERM_HEAD } from '../server/assistant/chat/long-term-memory.js';
 import type { AgentOptions } from '../server/assistant/chat/agent-config.js';
 import { customerSchema } from '../shared/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import { actor, assistantFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { messageText } from './fake-deepseek.js';
 import type { ChatBody, WireMessage } from './fake-deepseek-wire.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const call = (name: string, args: unknown) => ({ message: '', toolCalls: [{ name, args }] });
 const answer = (message: string) => ({ message, toolCalls: [] });

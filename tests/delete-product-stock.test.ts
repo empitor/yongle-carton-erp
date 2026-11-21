@@ -13,10 +13,10 @@ import { OperationsService } from '../server/operations/service.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { impactRowSchema } from '../shared/business/deletion-request.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { actor, superActor } from './assistant-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import './delete-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
 
 /** 删除预览的回答里测试要看的几项（影响清单按共用结构读） */
 const previewAnswer = z.looseObject({ digest: z.string(), inventoryChoice: z.number(), impact: z.array(impactRowSchema) });

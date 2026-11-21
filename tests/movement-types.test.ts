@@ -6,13 +6,9 @@ import { createElement as h, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { z } from 'zod';
 import { one, rows as tableRows } from '../server/core/index.js';
-import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { listen } from './http-fixture.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import type { MovementView } from '../shared/business/index.js';
 import {
   matchesMovement,
@@ -25,6 +21,7 @@ import {
 import MovementRecords from '../src/warehouse/MovementRecords.js';
 import type { Actor } from '../server/core/auth.js';
 import { saveDoc } from './receive-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 // 全部是虚构数据，只用内存库。
 const actor: Actor = pageActor({ id: 'movement-type-test', name: '虚构仓库员', permissions: ['business:edit'] });
@@ -37,13 +34,12 @@ const superActor = (): Actor => ({
 
 /** 每种流水各来一条以上：到货、生产领料 / 退料 / 完工、发货、撤销、采购退货、手工、系统维护。 */
 function worldBase() {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store),
+  const base = businessBase(actor),
+    { store, ops, flow } = base,
     returns = new PurchaseReturns(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构流水客户' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构流水纸箱' }));
-  const supplier = ops.saveSupplier({ name: '虚构流水供应商' }, actor);
+  const customer = base.customer({ name: '虚构流水客户' });
+  const product = base.product({ name: '虚构流水纸箱' });
+  const supplier = base.supplier({ name: '虚构流水供应商' });
   const rawInput = {
     name: '虚构五层纸板',
     kind: 'raw',
@@ -58,23 +54,12 @@ function worldBase() {
     notes: '',
     productId: null,
   };
-  const raw = ops.saveItem(rawInput, actor),
-    finished = ops.saveItem(
-      { ...rawInput, name: '虚构成品纸箱', kind: 'finished', unit: '只', productId: product.id, specification: '型号A' },
-      actor,
-    );
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-10-01',
-      deliveryDate: '2026-10-30',
-      status: '已确认',
-      notes: '',
-      costs: null,
-      lines: [
-        { productId: product.id, productName: product.name, specification: '型号A', quantity: 100, unit: '只', unitPriceCents: 123, notes: '' },
-      ],
-    }),
+  const raw = base.raw(rawInput),
+    finished = base.finished(product, { ...rawInput, name: '虚构成品纸箱', kind: 'finished', unit: '只', productId: product.id, specification: '型号A' });
+  const order = base.order(
+    customer,
+    [base.line(product, 100, { productName: product.name, specification: '型号A', unitPriceCents: 123, notes: '' })],
+    { notes: '', costs: null },
   );
   const purchase = ops.savePurchase(
     {

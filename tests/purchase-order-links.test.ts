@@ -2,14 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
 import { OrderBatchService } from '../server/operations/batches.js';
 import { purchaseOrderLinks } from '../server/operations/purchase-rows.js';
 import { updatePurchaseLineDocument } from '../server/operations/ledger.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { relatedBusiness } from '../server/business/related-business.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { actor, superActor } from './assistant-fixture.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 // 删订单要识别导入配合（给导入记录打标记），加载时登记
 import '../server/import/index.js';
@@ -17,32 +14,26 @@ import '../server/finance/index.js';
 import { registerArrival } from '../server/flow/register-arrival.js';
 import { one, parseStoredJson, rows } from '../server/core/index.js';
 import { purchaseLineDocumentSchema } from '../shared/business/index.js';
+import { actor, superActor } from './actor-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 /** 两张虚构订单、一种纸板；采购单不挂单头订单，两行各给一张订单订料。 */
 function setup() {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构东海电器有限公司' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构电饭煲外箱', material: 'K=A', flute: 'BC' }));
+  const base = businessBase(actor),
+    { store, ops } = base;
+  const customer = base.customer({ name: '虚构东海电器有限公司' });
+  const product = base.product({ name: '虚构电饭煲外箱', material: 'K=A', flute: 'BC' });
   const order = (deliveryDate: string) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate: '2026-11-01',
-        deliveryDate,
-        status: '已确认',
-        notes: '',
-        costs: null,
-        lines: [{ productId: product.id, productName: product.name, quantity: 500, unit: '只', unitPriceCents: 100, notes: '' }],
-      }),
-    );
+    base.order(customer, [base.line(product, 500, { productName: product.name, notes: '' })], {
+      orderDate: '2026-11-01',
+      deliveryDate,
+      notes: '',
+      costs: null,
+    });
   const a = order('2026-11-20'),
     b = order('2026-11-25');
-  const supplier = ops.saveSupplier({ name: '虚构春芳纸板厂', contact: '', phone: '', address: '' }, actor);
-  const item = ops.saveItem(
-    { name: '虚构纸板A', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm', material: 'K=A', flute: 'BC' },
-    actor,
-  );
+  const supplier = base.supplier({ name: '虚构春芳纸板厂', contact: '', phone: '', address: '' });
+  const item = base.raw({ name: '虚构纸板A', length: 1000, width: 800, dimensionUnit: 'mm', material: 'K=A', flute: 'BC' });
   const purchase = ops.savePurchase(
     {
       supplierId: supplier.id,

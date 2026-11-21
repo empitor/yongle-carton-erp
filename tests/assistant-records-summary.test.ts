@@ -8,7 +8,8 @@ import { AppError } from '../server/core/errors.js';
 import { OperationsService } from '../server/operations/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { actor, readAs } from './assistant-fixture.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 function setup() {
   const store = new Store(':memory:');

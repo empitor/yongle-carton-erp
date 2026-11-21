@@ -7,9 +7,10 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { aiStatusReaders } from '../server/assistant/tools/ai-status.js';
 import { pageActor } from './actor-fixture.js';
-import { ctxOf, readAs } from './assistant-fixture.js';
+import { ctxOf } from './assistant-fixture.js';
 import { fakeAiSettings, httpError } from './fake-deepseek.js';
 import { importWorkspace } from './order-import-fixture.js';
+import { readAs } from './read-result.js';
 
 const boss = pageActor({ id: 'status-boss', name: '虚构老板', permissions: ['business:edit'], role: 'super_admin' });
 

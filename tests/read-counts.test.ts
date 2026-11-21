@@ -22,6 +22,7 @@ import { stackActor as editorActor, stackFixture } from './stack-fixture.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { ManualProductionCompletion } from '../server/flow/production-completion.js';
 import { ProductionCompletion } from '../server/flow/batch-completion.js';
+import { must } from './read-result.js';
 
 const actor: Actor = pageActor({ id: 'perf-operator', name: '虚构测试操作员', permissions: ['business:edit'] });
 
@@ -55,11 +56,6 @@ const planOf = (store: Store, sql: string, fill: string | number = 1) =>
     .all(...Array<string | number>((sql.match(/\?/g) || []).length).fill(fill))
     .map((r) => String(r.detail))
     .join(' | ');
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function required<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 
 test('读取用的索引新库就有，重新打开不变，查询走索引', () => {
   const dir = mkdtempSync(join(tmpdir(), 'erp-perf-index-'));
@@ -158,17 +154,17 @@ test('数据管理改一条记录只按编号读选中的那条；本机管理�
       wholeFlow = (sql: string) => /^SELECT \* FROM flow_documents( WHERE kind=\?)? ORDER BY/.test(sql),
       wholeProducts = (sql: string) => /FROM products ORDER BY/.test(sql);
     // 挂着它的任务安排时已下达，订单的生产状态变过（版本号加一），按现在的版本改
-    const order = required(f.store.order(target.id, true), '订单');
+    const order = must(f.store.order(target.id, true), '订单');
     let seen = record(() => service.execute(command('orders', order, { notes: '虚构改备注' }), who, 's'));
     assert.equal(f.store.order(target.id)?.notes, '虚构改备注');
     assert.deepEqual(seen.filter(wholeOrders), [], '不组装全部订单');
     assert.deepEqual(seen.filter(wholeFlow), [], '不读全部送货单、生产任务');
     assert.ok(seen.some((sql) => sql.includes('flow_refs WHERE order_id=?')), '按单据关联圈出这张订单的单据');
-    const product = required(f.store.product(f.pa.id), '产品');
+    const product = must(f.store.product(f.pa.id), '产品');
     seen = record(() => service.execute(command('products', product, { name: '虚构箱A改名' }), who, 's'));
     assert.equal(f.store.product(f.pa.id)?.name, '虚构箱A改名');
     assert.deepEqual(seen.filter(wholeProducts), [], '不组装全部产品');
-    const task = required(f.flow.list('task').find((t) => t.orderIds.includes(target.id)), '生产任务');
+    const task = must(f.flow.list('task').find((t) => t.orderIds.includes(target.id)), '生产任务');
     seen = record(() => service.execute(command('task', task, { notes: '虚构任务备注' }), who, 's'));
     assert.equal(f.flow.get(task.id).notes, '虚构任务备注');
     assert.deepEqual(seen.filter(wholeFlow), [], '不组装全部生产任务');
@@ -318,7 +314,7 @@ test('批量完工只按编号读用到的生产任务、采购单和库存品�
     const productions = store.db.prepare("SELECT id FROM flow_documents WHERE kind='production'").all().map((r) => Number(r.id));
     // 这回别的产品的任务也在这批里，它的成品档案、别单纸板是要读的；挂在空订单上的纸板、采购单仍然不读
     checkReads('全部待完工', [dropped.id, ...productions], new Set(noise.map((i) => i.id)), noisePurchaseIds);
-    const listed = required(watch.calls().find((c) => c.name === 'list'), '读生产任务的调用').byIds;
+    const listed = must(watch.calls().find((c) => c.name === 'list'), '读生产任务的调用').byIds;
     assert.ok(typeof listed === 'object' && !listed.includes(dropped.id), '取消的任务不进编号');
   } finally {
     watch.restore();

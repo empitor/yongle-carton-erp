@@ -12,9 +12,9 @@ import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { storedDocument } from '../server/flow/read.js';
 import { defaultTemplateColumns } from '../shared/documents/index.js';
 import { orderSchema, productSchema, specification } from '../shared/core/domain.js';
-import { actor } from './assistant-fixture.js';
 import { localAdmin, workbenchFixture } from './flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
+import { actor } from './actor-fixture.js';
 
 /**
  * 一张两行的送货单：第一行是工作台的产品（材质 K=A、楞型 BC，订单 100 只），第二行是材质楞型都没填的产品（另一张订单 50 只）；

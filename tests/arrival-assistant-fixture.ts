@@ -6,11 +6,12 @@ import { ImportManager } from '../server/import/manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
-import { OperationsService } from '../server/operations/service.js';
-import { makeSettings, actor } from './assistant-fixture.js';
+import { makeSettings } from './assistant-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
+import { actor } from './actor-fixture.js';
 const arrivalAnalysis = () => ({
   supplierName: '虚构到货纸板厂',
   reference: 'FICTIONAL-DH-TEST',
@@ -47,22 +48,17 @@ function standInSettings(replies: unknown[], requests: ChatCall[]) {
   });
 }
 /** 虚构供应商（备注是不许发给模型的内容）和一种能对上识别结果第一行的原材料 */
-function seedRecords(ops: OperationsService) {
-  const supplier = ops.saveSupplier({ name: '虚构到货纸板厂', notes: 'PRIVATE-ARCHIVE-NOTES-MUST-NOT-SEND' }, actor),
-    raw = ops.saveItem(
-      {
-        name: '虚构匹配纸板甲',
-        kind: 'raw',
-        specification: '100x80cm',
-        material: 'K=A',
-        flute: 'BC',
-        length: 100,
-        width: 80,
-        dimensionUnit: 'cm',
-        unit: '张',
-      },
-      actor,
-    );
+function seedRecords(base: ReturnType<typeof businessBase>) {
+  const supplier = base.supplier({ name: '虚构到货纸板厂', notes: 'PRIVATE-ARCHIVE-NOTES-MUST-NOT-SEND' }),
+    raw = base.raw({
+      name: '虚构匹配纸板甲',
+      specification: '100x80cm',
+      material: 'K=A',
+      flute: 'BC',
+      length: 100,
+      width: 80,
+      dimensionUnit: 'cm',
+    });
   return { supplier, raw };
 }
 export async function arrivalAssistantFixture(realSettings?: AiSettingsManager, image = imageFixture()) {
@@ -74,8 +70,9 @@ export async function arrivalAssistantFixture(realSettings?: AiSettingsManager, 
   const prompts = new PromptPresetManager(':memory:', supplierDefaultPreset),
     orderPrompts = new PromptPresetManager(':memory:'),
     ai = new ReceiptAi(store, settings, prompts),
-    ops = new OperationsService(store);
-  const { supplier, raw } = seedRecords(ops);
+    base = businessBase(actor, store),
+    { ops } = base;
+  const { supplier, raw } = seedRecords(base);
   const options = { directory: join(dir, 'imports'), settings, promptPresets: orderPrompts };
   let manager = new ImportManager(options);
   async function upload(name = '虚构到货单.png') {

@@ -2,21 +2,20 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { OperationsRepository } from '../server/operations/repository.js';
-import { actor } from './assistant-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
 import { applyCorrection, previewCorrection, saveDoc } from './receive-fixture.js';
+import { businessBase } from './business-base-fixture.js';
+import { actor } from './actor-fixture.js';
 
 export const owner = () => localAdministratorActor({ ...actor, role: 'super_admin' });
 
 export function fixture(store = new Store(':memory:')) {
-  const ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const supplier = ops.saveSupplier({ name: '虚构纠偏供应商' }, actor);
-  const raw = ops.saveItem({ name: '虚构纸板A', kind: 'raw', unit: '张' }, actor);
+  const base = businessBase(actor, store),
+    { ops, flow } = base;
+  const supplier = base.supplier({ name: '虚构纠偏供应商' });
+  const raw = base.raw({ name: '虚构纸板A' });
   const purchase = ops.savePurchase(
     {
       supplierId: supplier.id,
@@ -30,17 +29,7 @@ export function fixture(store = new Store(':memory:')) {
   );
   const current = () =>
     new OperationsRepository(store).purchases(true).find((p) => p.id === purchase.id) ?? assert.fail('采购单 ' + purchase.id + ' 读不到');
-  const confirm = (doc: { id: number }) =>
-    flow.confirm(
-      doc.id,
-      {
-        previewDigest: flow.preview(doc.id, actor).previewDigest,
-        requestId: randomUUID(),
-        acknowledged: true,
-        ...shipOnDocDate(flow, doc.id),
-      },
-      actor,
-    );
+  const confirm = (doc: { id: number }) => base.check(doc, shipOnDocDate(flow, doc.id));
   const receive = () =>
     confirm(
       saveDoc(flow, 

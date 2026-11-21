@@ -13,7 +13,7 @@ import { netQuantity } from '../src/recordkit/quantity.js';
 import { buildToday } from '../server/business/workbench.js';
 import { formatStockSize } from '../shared/business/operations.js';
 import { quantityUnits } from '../shared/core/quantity.js';
-import { actor } from './assistant-fixture.js';
+import { actor } from './actor-fixture.js';
 
 /**
  * 和用户本机遇到的一样：订单明细规格只写了产品名称、没写数量单位；成品库存按“只”，规格是尺寸+材质+楞型。

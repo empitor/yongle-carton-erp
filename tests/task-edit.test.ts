@@ -11,8 +11,8 @@ import { OperationsService } from '../server/operations/service.js';
 import { FlowService } from '../server/flow/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { productSchema } from '../shared/core/domain.js';
-import { actor } from './assistant-fixture.js';
 import { localAdmin } from './flow-fixture.js';
+import { actor } from './actor-fixture.js';
 
 /** 一张已下达的生产任务（普通编辑账号，不是本机管理员），成品和原材料档案各一个；测试结束关库。 */
 function setup(t: TestContext) {

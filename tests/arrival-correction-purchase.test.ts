@@ -19,10 +19,11 @@ import { flowInput } from '../shared/business/physical-flow.js';
 import { matchesPurchase } from '../shared/business/purchase-filters.js';
 import { PurchaseDetails } from '../src/records/PurchaseDetails.js';
 import { startHttp } from './http-fixture.js';
-import { actor, readAs, superActor } from './assistant-fixture.js';
 import { saveDoc, applyCorrection, previewCorrection } from './receive-fixture.js';
 import { one, rows } from '../server/core/index.js';
 import { arrivalCorrectionExtraSchema, correctionResultSchema, type PurchaseView } from '../shared/business/index.js';
+import { actor, superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 采购单上的一条到货记录 */
 type Receipt = PurchaseView['receipts'][number];

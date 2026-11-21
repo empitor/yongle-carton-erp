@@ -1,41 +1,32 @@
 // 关联记录与修改历史（server/business/record-context.ts）：每类业务和单据列出哪些上下游、按顺序，归档的带标记；只按编号读。内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { recordContext } from '../server/business/record-context.js';
-import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { flowStatusText } from '../shared/business/index.js';
-import { actor } from './assistant-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 import type { FlowKind } from '../shared/business/index.js';
 import type { RecordIds } from '../server/operations/record-scope.js';
+import { actor } from './actor-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 function fixture() {
-  const store = new Store(':memory:'), ops = new OperationsService(store), flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构关联客户' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构关联产品' }));
-  const supplier = ops.saveSupplier({ name: '虚构供应商甲' }, actor);
-  const otherSupplier = ops.saveSupplier({ name: '虚构供应商乙' }, actor);
-  const raw = ops.saveItem({ name: '虚构原料', kind: 'raw', unit: '张' }, actor);
-  const finished = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: product.id }, actor);
-  const orders = [1, 2].map((n) => store.saveOrder(orderSchema.parse({ number: '虚构关联单' + n,
-    customerId: customer.id, orderDate: '2026-11-01', deliveryDate: '2026-11-30', status: '已确认',
-    lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 100 }],
-  })));
+  const base = businessBase(actor), { store, ops, flow } = base;
+  const customer = base.customer({ name: '虚构关联客户' });
+  const product = base.product({ name: '虚构关联产品' });
+  const supplier = base.supplier({ name: '虚构供应商甲' });
+  const otherSupplier = base.supplier({ name: '虚构供应商乙' });
+  const raw = base.raw({ name: '虚构原料' });
+  const finished = base.finished(product);
+  const orders = [1, 2].map((n) =>
+    base.order(customer, [base.line(product, 100)], { number: '虚构关联单' + n, orderDate: '2026-11-01', deliveryDate: '2026-11-30' }),
+  );
   const purchase = (supplierId: number, customerOrderId: number | null) => ops.savePurchase({
     supplierId, customerOrderId, orderDate: '2026-11-01', status: '已订货',
     lines: [{ stockItemId: raw.id, name: raw.name, unit: '张', quantity: '100', unitPrice: '1', priceBasis: 'quantity' }],
   }, actor);
   const purchases = [purchase(supplier.id, orders[0].id), purchase(supplier.id, null), purchase(otherSupplier.id, null)];
-  const confirm = (kind: FlowKind, input: Record<string, unknown>) => {
-    const d = saveDoc(flow, kind, { date: '2026-11-07', ...input }, actor);
-    return flow.confirm(d.id, { previewDigest: flow.preview(d.id, actor).previewDigest,
-      requestId: randomUUID(), acknowledged: true }, actor);
-  };
+  const confirm = (kind: FlowKind, input: Record<string, unknown>) => base.check(saveDoc(flow, kind, { date: '2026-11-07', ...input }, actor));
   const arrival = confirm('arrival', { supplierId: supplier.id, reference: '虚构到货',
     lines: purchases.slice(0, 2).map((p) => ({ stockId: raw.id, purchaseLineId: p.lines[0].id,
       item: { name: raw.name, unit: '张' }, quantity: '10', unitPrice: '1', priceBasis: 'quantity' })),

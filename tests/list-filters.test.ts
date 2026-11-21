@@ -1,6 +1,6 @@
 // 列表的筛选和分页（server/core/paging.ts、server/business/record-lists.ts、server/operations/party-links.ts）：
 // 流水的日期范围、接口组合筛选、分页统计，产品和库存按客户、供应商筛，页面和助手同一套。内存库、虚构数据。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor as assistantActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,10 +23,10 @@ import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
 import { pageRows } from '../server/core/paging.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { productIdsOfCustomer, stockIdsOfParty } from '../server/operations/party-links.js';
-import { actor as assistantActor, readAs } from './assistant-fixture.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { receiveLines } from './receive-fixture.js';
 import type { StockItemView } from '../shared/business/index.js';
+import { readAs } from './read-result.js';
 
 const actor = pageActor({ id: 'ui', name: '虚构操作员', permissions: ['business:edit'] });
 

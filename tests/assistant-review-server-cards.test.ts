@@ -9,8 +9,9 @@ import { jsonValue, type ThreadView } from '../shared/assistant/index.js';
 import { reviewView } from '../src/assistant/review-view.js';
 import { afterExecuted, type ExecutedEffects } from '../src/assistant/review-actions.js';
 import { readExportFile } from '../src/assistant/chat-events.js';
-import { actor, assistantFixture, lastCard, superActor } from './assistant-fixture.js';
+import { assistantFixture, lastCard } from './assistant-fixture.js';
 import { flowFixture as businessFlow } from './flow-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
 
 /** 页面经接口拿到的执行结果：JSON 往返一次（和 HTTP 一样），按对象读 */
 const executedResult = (raw: unknown) => z.record(z.string(), jsonValue).parse(JSON.parse(JSON.stringify(raw)));

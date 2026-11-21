@@ -4,7 +4,8 @@ import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { RESTARTED_TEXT, recoverRuns } from '../server/assistant/chat/finish-run.js';
-import { actor, assistantFixture } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
+import { actor } from './actor-fixture.js';
 
 test('启动时收尾停在半路的轮：一个会话的消息读不出来，只记一行带会话编号的日志，别的会话照常收尾', () => {
   const f = assistantFixture();

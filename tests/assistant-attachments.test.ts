@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { z } from 'zod';
-import { assistantFixture, actor, actor as assistantActor, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { imageFixture, docxFixture, xlsxFixture } from './import-fixtures.js';
 import { Store } from '../server/core/db.js';
 import { count, one, rows } from '../server/core/index.js';
@@ -14,6 +14,8 @@ import { AssistantManager } from '../server/assistant/manager.js';
 import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { startHttp } from './http-fixture.js';
+import { actor, actor as assistantActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 // 附件里的话不能让模型办事，由 assistant-boundaries「界限 4」守
 test('附件原文交给模型时标明只是数据；后面几轮附件原文还在，说不带附件时就不带', async () => {

@@ -14,7 +14,7 @@ import { ImportManager } from '../server/import/manager.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { findImport } from '../server/import/import-records.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { actor as baseActor, eventData } from './assistant-fixture.js';
+import { eventData } from './assistant-fixture.js';
 import { fakeAiSettings, freshUserText, httpError, turnFailure } from './fake-deepseek.js';
 import type { ChatBody, ChatCall } from './fake-deepseek-wire.js';
 import { imageFixture } from './import-fixtures.js';
@@ -22,6 +22,7 @@ import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { AiTransport } from '../server/ai/transport.js';
 import { customerSchema, productSchema, today } from '../shared/core/domain.js';
 import type { Actor } from '../server/core/auth.js';
+import { actor as baseActor } from './actor-fixture.js';
 
 /** 能识别导入的账号 */
 export const importer = { ...baseActor, permissions: ['business:edit', 'import:execute'] };

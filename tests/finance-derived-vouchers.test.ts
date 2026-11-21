@@ -13,7 +13,8 @@ import { FinanceNotes } from '../server/finance/notes.js';
 import { FinanceDepositsInterest } from '../server/finance/deposits-interest.js';
 import { FinanceDerivedVouchers } from '../server/finance/derived-vouchers.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { physical, deliveryDoc, maker, approver, newSettings, postDrafts, event, obligation, found } from './finance-fixture.js';
+import { physical, deliveryDoc, maker, approver, newSettings, postDrafts, event, obligation } from './finance-fixture.js';
+import { must } from './read-result.js';
 
 /** 一张 100 元、已记账的应收（客户 1 压 20 天，按逾期年 36.5% 计息） */
 function receivable(s: Store) {
@@ -31,15 +32,15 @@ function receivable(s: Store) {
   return obligation(s, 1);
 }
 const latest = (s: Store, module: string) =>
-  found(
+  must(
     one(s.db, rows.fin_vouchers, 'SELECT * FROM fin_vouchers WHERE module_source=? AND reversal_of IS NULL ORDER BY id DESC', module),
     module + ' 生成的凭证',
   );
 const voucherById = (s: Store, id: number | null) =>
-  found(one(s.db, rows.fin_vouchers, 'SELECT * FROM fin_vouchers WHERE id=?', id), '凭证 ' + String(id));
+  must(one(s.db, rows.fin_vouchers, 'SELECT * FROM fin_vouchers WHERE id=?', id), '凭证 ' + String(id));
 const balanceOf = (s: Store, id: unknown) =>
   Number(
-    found(
+    must(
       new FinanceParties(s).obligations(maker, { kind: 'receivable' }).rows.find((r) => r.id === Number(id)),
       '应收 ' + String(id),
     ).balance,
@@ -66,7 +67,7 @@ test('保证金：收保证金撤回；转抵红冲后往来和余额回去；�
       /请到来源页面撤回/,
     );
     undo(s, voucher, 'withdraw', 'w1');
-    const listed = (id: unknown) => found(term.deposits(maker, {}).rows.find((r) => r.id === id), '保证金 ' + String(id));
+    const listed = (id: unknown) => must(term.deposits(maker, {}).rows.find((r) => r.id === id), '保证金 ' + String(id));
     assert.deepEqual([listed(first.id).balance, listed(first.id).voucher_state], [0, 'withdrawn']);
     const second = deposit('d2');
     postDrafts(s);
@@ -129,7 +130,7 @@ test('坏账：核销撤回、记账后红冲，往来余额都回去', () => {
     writeoff('b1');
     assert.equal(balanceOf(s, o.id), 8000);
     const debtRow = () =>
-      found(parties.obligations(maker, { kind: 'receivable' }).rows.find((r) => r.id === Number(o.id)), '应收 ' + o.id);
+      must(parties.obligations(maker, { kind: 'receivable' }).rows.find((r) => r.id === Number(o.id)), '应收 ' + o.id);
     assert.deepEqual([debtRow().bad_debt_voucher_id, debtRow().bad_debt_voucher_status, debtRow().bad_debt_voucher_state], [latest(s, 'bad_debt').id, 'draft', null]);
     undo(s, latest(s, 'bad_debt'), 'withdraw', 'w');
     assert.equal(balanceOf(s, o.id), 10000);
@@ -154,11 +155,11 @@ test('资产处置：撤回、红冲后资产回到在用', () => {
     });
     postDrafts(s);
     const status = () =>
-      found(one(s.db, rows.fin_assets.pick({ status: true, version: true }), 'SELECT status,version FROM fin_assets WHERE id=?', asset.id), '资产 ' + asset.id);
+      must(one(s.db, rows.fin_assets.pick({ status: true, version: true }), 'SELECT status,version FROM fin_assets WHERE id=?', asset.id), '资产 ' + asset.id);
     const dispose = (requestId: string) =>
       assets.dispose(maker, asset.id, { requestId, version: Number(status().version), date: '2026-01-20', reason: '虚构报废' });
     dispose('p1');
-    const listed = () => found(assets.list(maker, {}).rows.find((r) => r.id === asset.id), '资产列表里的 ' + asset.id);
+    const listed = () => must(assets.list(maker, {}).rows.find((r) => r.id === asset.id), '资产列表里的 ' + asset.id);
     assert.deepEqual([listed().disposal_voucher_id, listed().disposal_voucher_status], [latest(s, 'asset_disposal').id, 'draft'], '列表带处置凭证');
     undo(s, latest(s, 'asset_disposal'), 'withdraw', 'w');
     assert.equal(listed().disposal_voucher_state, 'withdrawn');
@@ -182,7 +183,7 @@ test('费用报销：审核出的凭证撤回、红冲后回到待审核，可�
       date: '2026-01-20', accountCode: '560201', amount: 400, description: '虚构办公费',
     });
     const state = () =>
-      found(
+      must(
         one(s.db, rows.fin_expenses.pick({ status: true, version: true, voucher_id: true }), 'SELECT status,version,voucher_id FROM fin_expenses WHERE id=?', ex.id),
         '报销单 ' + ex.id,
       );
@@ -215,7 +216,7 @@ test('承兑票据：到期收款的凭证撤回、红冲后票据回到持有�
     });
     postDrafts(s);
     const state = () =>
-      found(
+      must(
         one(s.db, rows.fin_notes.pick({ status: true, version: true, voucher_id: true }), 'SELECT status,version,voucher_id FROM fin_notes WHERE id=?', note.id),
         '票据 ' + note.id,
       );
@@ -223,7 +224,7 @@ test('承兑票据：到期收款的凭证撤回、红冲后票据回到持有�
       notes.change(maker, note.id, { requestId, version: Number(state().version), status: 'matured', date: '2026-01-25', reason: '虚构到期收款', accountId: 1 });
     const added = state().voucher_id;
     collect('c1');
-    const listedNote = () => found(notes.list(maker, {}).rows.find((r) => r.id === note.id), '票据列表里的 ' + note.id);
+    const listedNote = () => must(notes.list(maker, {}).rows.find((r) => r.id === note.id), '票据列表里的 ' + note.id);
     assert.deepEqual([listedNote().change_voucher_id, listedNote().change_voucher_status], [latest(s, 'note').id, 'draft'], '列表带最近一次变更的凭证');
     undo(s, latest(s, 'note'), 'withdraw', 'w');
     assert.deepEqual([state().status, state().voucher_id], ['held', added]);

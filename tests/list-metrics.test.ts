@@ -20,7 +20,7 @@ import { customerSchema, productSchema, orderSchema, today } from '../shared/cor
 import { monthsBefore } from '../shared/core/date-ranges.js';
 import { receiveLines } from './receive-fixture.js';
 import { z } from 'zod';
-import { readAs } from './assistant-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 库存统计收的一个库存品 */
 type InventoryRow = Parameters<typeof inventoryMetrics>[0][number];

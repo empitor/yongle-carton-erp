@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { pdfFixture } from './import-fixtures.js';
 import { FILE_RENEW_MS, FILE_TTL_SECONDS } from '../server/assistant/chat/model-attachments.js';
-import { actor, assistantFixture } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { contentParts, httpError, replyNative } from './fake-deepseek.js';
+import { actor } from './actor-fixture.js';
 
 const answer = (message: string) => ({ message, toolCalls: [] });
 /** 模型按 replies 回答，排完了说“好的。”；fake 是假 DeepSeek（记下的请求、存着的上传文件） */

@@ -17,8 +17,8 @@ import { materialByOrder } from '../server/flow/order-progress.js';
 import { orderEditGuard } from '../server/flow/order-edit-guard.js';
 import { businessFixture, flowFixture, clerk, localAdmin, orderOf } from './flow-fixture.js';
 import { rawInput, stackActor as actor, stackFixture } from './stack-fixture.js';
-import { superActor } from './assistant-fixture.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
+import { superActor } from './actor-fixture.js';
 
 /** flowFixture 加纸板 100 张；make(订单, 数量) 安排一张任务并全部完工入库 */
 function madeFixture() {

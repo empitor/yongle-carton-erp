@@ -16,7 +16,8 @@ import { OperationsService } from '../server/operations/service.js';
 import { DELETION_MAX_RECORDS, deletionSelection, impactRowSchema } from '../shared/business/index.js';
 import { customerSchema, today } from '../shared/core/domain.js';
 import { deletionImpactView } from '../src/recordkit/deletion-impact.js';
-import { actor, assistantFixture, cardDigest, lastCard, superActor } from './assistant-fixture.js';
+import { assistantFixture, cardDigest, lastCard } from './assistant-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
 
 const local = () => localAdministratorActor(superActor());
 const noEffects = { read: () => {}, business: () => {}, workflow: () => {} };

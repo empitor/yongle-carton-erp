@@ -8,12 +8,12 @@ import { customerSchema, orderSchema, today } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { flowStatusLabel } from '../shared/business/physical-flow.js';
 import type { DeliveryDaily } from '../shared/business/index.js';
-import { actor } from './assistant-fixture.js';
 import { allocateShipments } from '../src/warehouse/ReadyToShip.js';
 import { deliverySetup, shift } from './delivery-fixture.js';
 import { deliveryForm } from '../server/documents/delivery-form.js';
 import { archiveDoc } from './receive-fixture.js';
 import { AppError, count, one as oneRow, rows, type Actor } from '../server/core/index.js';
+import { actor } from './actor-fixture.js';
 
 const exportShip = (f: ReturnType<typeof deliverySetup>, id: number, version: number) =>
   f.docs.generate({ kind: 'delivery', id, format: 'xlsx', markShipped: true, expectedVersion: version, requestId: randomUUID() }, actor);

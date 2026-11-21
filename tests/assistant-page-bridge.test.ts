@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { AssistantPageBridge } from '../server/assistant/page-bridge.js';
-import { actor, flowFixture, readAs } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { startHttp } from './http-fixture.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 test('页面回执要对上账号、登录会话、浏览器才收；收过的、停止以后的迟到回执都拒绝；没连着页面直接说看不到', async () => {
   const bridge = new AssistantPageBridge(),
@@ -32,7 +34,7 @@ test('页面回执要对上账号、登录会话、浏览器才收；收过的�
 });
 
 test('经接口交回的页面回执格式不对时 400', async () => {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     h = await startHttp(f.store, { assistant: f.manager, aiSettings: f.settings });
   try {
     assert.equal((await h.send('/assistant/page/results', { commandId: randomUUID() }, h.cookie)).status, 400);

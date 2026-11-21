@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -7,10 +7,11 @@ import { OperationsService } from '../server/operations/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
-import { actor, assistantFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import type { Store as StoreType } from '../server/core/db.js';
 import type { OperationsRepository } from '../server/operations/repository.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
+import { readAs } from './read-result.js';
 
 /** 试算结果里的行（各命令的键不同，按名字取） */
 const rows = z.array(z.looseObject({}));

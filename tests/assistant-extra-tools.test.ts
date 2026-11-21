@@ -8,7 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assistantFixture, actor, confirmCard, readAs } from './assistant-fixture.js';
+import { assistantFixture, confirmCard } from './assistant-fixture.js';
 import { Store } from '../server/core/db.js';
 import { count, type Actor } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
@@ -24,6 +24,8 @@ import { resetPreview, systemBackup, systemCheck, systemStatus, type SystemDeps 
 import { MarkService } from '../server/business/product-marks.js';
 import { productSchema } from '../shared/core/domain.js';
 import type { AssistantAttachment } from '../shared/core/index.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7yMK/gAAAABJRU5ErkJggg==',

@@ -24,7 +24,7 @@ import { DataManagementService } from '../server/admin/data-management-service.j
 import { AssistantManager } from '../server/assistant/manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
-import { makeSettings } from './assistant-fixture.js';
+import { fakeAiSettings } from './fake-deepseek.js';
 import { orderBasics } from './stack-fixture.js';
 import { fixture } from './maintenance-fixture.js';
 
@@ -288,7 +288,7 @@ test('本机管理员改订单删掉一行、只挂这一行的送货单整张�
 
 test('助手删对话前拍快照，快照里还有删掉的对话；没有要删的对话时不拍', () => {
   const f = tempStore('erp-snapshot-chat-');
-  const settings = makeSettings(),
+  const settings = fakeAiSettings({}).settings,
     prompts = new PromptPresetManager(':memory:', assistantDefaultPreset),
     manager = new AssistantManager(f.store, settings, prompts);
   const who: Actor = pageActor({ id: 'fictional-chat-user', name: '虚构用户', permissions: ['business:edit'], role: 'admin' });

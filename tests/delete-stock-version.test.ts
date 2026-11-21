@@ -6,8 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../server/core/errors.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { OperationsRepository } from '../server/operations/repository.js';
-import { actor } from './assistant-fixture.js';
 import { setup } from './delete-fixture.js';
+import { actor } from './actor-fixture.js';
 
 test('按“库存改回”删掉已入库的到货单：入的那个库存品版本号变了，删之前打开的核对入库带旧摘要确认被拒', () => {
   const f = setup(),

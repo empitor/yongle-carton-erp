@@ -23,7 +23,7 @@ import { viaEntry } from '../server/core/audit.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
-import { protector } from './assistant-fixture.js';
+import { testProtector as protector } from './fake-deepseek.js';
 
 const superActor = (): Actor => (pageActor({ id: 'p0', name: '虚构操作员', permissions: ['business:edit'], role: 'super_admin', superAdminMode: true, superAdminUntil: Date.now() + 60000 }));
 const auditor: Actor = pageActor({ id: 'audit-fixture', name: '虚构验收员', permissions: ['business:edit'] });

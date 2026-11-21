@@ -9,7 +9,7 @@ import { OperationsService } from '../server/operations/service.js';
 import { OrderBatchService } from '../server/operations/batches.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { quantityUnits } from '../shared/core/quantity.js';
-import { actor } from './assistant-fixture.js';
+import { actor } from './actor-fixture.js';
 
 /** 几张合并、还没建批次的导出记下的订货单号；没有就直接判失败 */
 function batchNo(e: { batchNumber?: string | null }) {

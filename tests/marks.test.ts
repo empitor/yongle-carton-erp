@@ -13,7 +13,7 @@ import { fixtureOwner } from './flow-fixture.js';
 import { MarkService } from '../server/business/product-marks.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { productSchema } from '../shared/core/domain.js';
-import { superActor as fixtureSuperActor } from './assistant-fixture.js';
+import { superActor as fixtureSuperActor } from './actor-fixture.js';
 
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'erp-marks-'));

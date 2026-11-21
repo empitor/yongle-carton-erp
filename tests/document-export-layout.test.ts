@@ -5,8 +5,7 @@ import ExcelJS from 'exceljs';
 import { Readable } from 'node:stream';
 import { SyntaxValidator } from 'fast-xml-validator';
 import { renderBusinessForm } from '../server/documents/render.js';
-import { actor } from './assistant-fixture.js';
-import { setup, zipEntries } from './document-fixture.js';
+import { allRows, setup, wordXml, zipEntries } from './document-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { workbenchFixture } from './flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
@@ -14,19 +13,7 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
 import { specification } from '../shared/core/domain.js';
 import { count } from '../server/core/sql.js';
-
-/** 表格里的全部行：读不出来就报错 */
-function allRows(sheet: ExcelJS.Worksheet) {
-  const rows = sheet.getRows(1, sheet.rowCount);
-  assert.ok(rows, '表格里有行');
-  return rows;
-}
-/** 生成的 Word 正文 */
-async function wordXml(bytes: Buffer) {
-  const xml = (await zipEntries(bytes)).get('word/document.xml');
-  assert.ok(xml, 'Word 里有正文');
-  return xml;
-}
+import { actor } from './actor-fixture.js';
 
 test('采购Word和Excel完整多行、可容纳中文规格、原单位尺寸和精度可读回，标题与打印布局合法', async () => {
   const f = setup();

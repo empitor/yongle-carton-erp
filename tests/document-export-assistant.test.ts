@@ -5,9 +5,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { actor, assistantFixture, confirmCard, flowFixture, lastCard, readAs } from './assistant-fixture.js';
+import { assistantFixture, confirmCard, autoConfirmAssistant, lastCard } from './assistant-fixture.js';
 import { setup } from './document-fixture.js';
 import { count } from '../server/core/sql.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 生成好的导出文件：交付、回执要用编号和哈希 */
 const exportedFile = z.looseObject({ exportId: z.string(), sha256: z.string() });
@@ -63,7 +65,7 @@ test('助手导出订货单：只出确认卡片，模型说“已订货”也�
 });
 
 test('助手导出遇到超长规格保留具体中文原因，不生成文件、不改变采购状态', async () => {
-  const a = flowFixture(),
+  const a = autoConfirmAssistant(),
     f = setup(a.store);
   try {
     const p = f.ops.savePurchase(
@@ -110,7 +112,7 @@ test('助手导出遇到超长规格保留具体中文原因，不生成文件�
 });
 
 test('助手安排送货、改期、核对出库和导出本批 Excel 走同一个服务，导出不再出库', async () => {
-  const a = flowFixture(),
+  const a = autoConfirmAssistant(),
     f = setup(a.store);
   try {
     const tools = new AssistantTools(f.store);

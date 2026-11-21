@@ -10,8 +10,8 @@ import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';
 import { count } from '../server/core/sql.js';
-import { actor } from './assistant-fixture.js';
 import { setup } from './document-fixture.js';
+import { actor } from './actor-fixture.js';
 
 /** 抛的是给人看的业务错误：状态码对、说明对（文字或规则） */
 const failsWith = (status: number, message: string | RegExp) => (e: unknown) =>

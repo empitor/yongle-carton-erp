@@ -4,11 +4,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { assistantFixture, actor, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { toolResultSent } from './fake-deepseek.js';
 import type { ChatBody } from './fake-deepseek-wire.js';
 import { commonCommands } from '../server/assistant/command-directory.js';
 import { customerSchema } from '../shared/core/domain.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const say = (f: ReturnType<typeof assistantFixture>, threadId: string, text: string) =>
   f.manager.chat(threadId, f.input(text, randomUUID()), actor, 's', () => {}, () => actor);

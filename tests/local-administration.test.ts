@@ -19,11 +19,11 @@ import { recordContext } from '../server/business/record-context.js';
 import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { historyActionName } from '../shared/business/history-fields.js';
-import { superActor } from './assistant-fixture.js';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';
 import { startHttp, stateActor } from './http-fixture.js';
 import { fixture } from './maintenance-fixture.js';
 import { command as cmd, firstResult, firstWorkspace } from './data-management-fixture.js';
+import { superActor } from './actor-fixture.js';
 
 const password = 'Fictional-local-admin-123';
 const jsonObject = z.record(z.string(), z.unknown());

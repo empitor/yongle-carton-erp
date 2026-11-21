@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { assistantFixture, actor, superActor, confirmCard, lastCard, readAs } from './assistant-fixture.js';
+import { assistantFixture, confirmCard, lastCard } from './assistant-fixture.js';
 import { messageText } from './fake-deepseek.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
 import { AppError } from '../server/core/errors.js';
@@ -17,6 +17,8 @@ import { flowFixture, clerk } from './flow-fixture.js';
 import { correctionFixture } from './receive-fixture.js';
 import { createOrderWorkflowFixture, importer } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
+import { actor, superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const call = (name: string, args: Record<string, unknown> = {}, message = '') => ({ message, toolCalls: [{ name, args }] });
 /** 发给模型的第 at 次请求（负数从后数）里，最后一条以 prefix 开头的“用户”消息：服务器写的卡片结果 */

@@ -10,12 +10,14 @@ import { RESTARTED_TEXT } from '../server/assistant/chat/finish-run.js';
 import { INTERRUPTED, NOT_RUN_NOTE, SHOWN_NOTE } from '../server/assistant/chat/session-history.js';
 import type { AgentOptions } from '../server/assistant/chat/agent-config.js';
 import { z } from 'zod';
-import { actor, assistantFixture, flowFixture, lastCard, readAs, scriptModel } from './assistant-fixture.js';
+import { assistantFixture, autoConfirmAssistant, lastCard, scriptModel } from './assistant-fixture.js';
 import { messageText, replyCutOff, toolResultSent } from './fake-deepseek.js';
 import type { ChatBody } from './fake-deepseek-wire.js';
 import type { AiTransport } from '../server/ai/transport.js';
 import { count } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const answer = (message: string) => ({ message, toolCalls: [] });
 const calls = (...list: [string, unknown][]) => ({ message: '', toolCalls: list.map(([name, args]) => ({ name, args })) });
@@ -342,7 +344,7 @@ test('同一请求编号重发：不再问模型、直接给上次的结果；�
 });
 
 test('写入执行后模型接口断了：已经执行的照实记在这一轮的事实里；同一请求重发不再问模型、不重复创建', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const t = f.manager.create(actor);
     let n = 0;

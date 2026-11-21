@@ -7,7 +7,7 @@ import { centsText } from '../shared/core/display-amount.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { orderedPurchase } from './receive-fixture.js';
-import { readAs } from './assistant-fixture.js';
+import { readAs } from './read-result.js';
 
 test('单据状态：被更正的到货叫“已更正”，撤销的叫“已撤销”，取消的叫“已取消”', () => {
   assert.equal(flowStatusText({ kind: 'arrival', status: 'reversed', replacedBy: 'x' }), '已更正');

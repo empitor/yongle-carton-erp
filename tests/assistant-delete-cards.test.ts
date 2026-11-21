@@ -15,8 +15,9 @@ import { OperationsService } from '../server/operations/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { receiveLines } from './receive-fixture.js';
 import { customerSchema, orderSchema, productSchema, today } from '../shared/core/domain.js';
-import { actor, superActor, flowFixture } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
+import { actor, superActor } from './actor-fixture.js';
 
 /** 一张还没核对的到货单（不挂采购单）：生产任务安排即下达，删“还没核对的单据”拿它做例子 */
 function looseArrival(store: Store, who: Actor, reference: string) {
@@ -35,7 +36,7 @@ function lastReply(view: ThreadView) {
 }
 
 test('收件箱里的注入文字诱导删除：只生成待确认方案，不删；确认时要本人密码', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const who = superActor();
     const victim = f.store.saveCustomer(customerSchema.parse({ name: '虚构被诱导删除客户' }));
@@ -86,7 +87,7 @@ test('收件箱里的注入文字诱导删除：只生成待确认方案，不�
 });
 
 test('本机最高管理员：删除和一键清空也只生成方案，确认执行后才删；数据管理命令不收删除，删除只走 records.delete', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const local = localAdministratorActor(superActor());
     const a = f.store.saveCustomer(customerSchema.parse({ name: '虚构本机删除客户甲' })),
@@ -141,7 +142,7 @@ test('本机最高管理员：删除和一键清空也只生成方案，确认�
 });
 
 test('从域名访问：助手删还没核对的单据和人一样，确认卡片上点确认就删、不用密码；普通账号删不了已核对的', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const flow = new FlowService(f.store);
     const product = f.store.saveProduct(productSchema.parse({ name: '虚构待删纸箱' }));
@@ -185,7 +186,7 @@ test('从域名访问：助手删还没核对的单据和人一样，确认卡�
 });
 
 /** 从域名访问删除的准备：一张还没核对的到货单、一张已核对的生产任务、一个客户；propose 让助手在新会话里提一次删除 */
-function domainDeletion(f: ReturnType<typeof flowFixture>) {
+function domainDeletion(f: ReturnType<typeof autoConfirmAssistant>) {
   const flow = new FlowService(f.store);
   const product = f.store.saveProduct(productSchema.parse({ name: '虚构域名删除纸箱' }));
   const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构域名删除客户' }));
@@ -203,7 +204,7 @@ function domainDeletion(f: ReturnType<typeof flowFixture>) {
 }
 
 test('从域名访问：超级管理员模式下助手删已核对的单据和档案照常出卡片、要输密码；没进超级管理员模式给出和页面一样的提示', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { flow, customer, draft, live, propose } = domainDeletion(f);
     // 没进超级管理员模式的管理员、普通业务账号：不出卡片，提示和页面一样，数据不动
@@ -260,7 +261,7 @@ test('从域名访问：超级管理员模式下助手删已核对的单据和�
 });
 
 test('从域名访问：一键清空只能在本机做，从域名进来不出方案，本机出的方案从域名进来也执行不了', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { product } = domainDeletion(f);
     // 一键清空仍然只能在服务器本机做：从域名进来不出方案（说清只能在服务器本机做、到哪里做）；本机出的方案从域名进来也执行不了
@@ -292,7 +293,7 @@ test('从域名访问：一键清空只能在本机做，从域名进来不出�
 });
 
 test('助手用 records.delete 删已全部到货的采购单：不在本机的超级管理员模式输密码后能删，到货单和库存流水留着、关联解除', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const who = superActor();
     const ops = new OperationsService(f.store),
@@ -370,7 +371,7 @@ test('助手用 records.delete 删已全部到货的采购单：不在本机的�
 });
 
 test('助手删除方案带只读的说明标记：待送货不用密码不用超级管理员模式；执行回执带方案的中文标题', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const who = superActor();
     const flow = new FlowService(f.store),

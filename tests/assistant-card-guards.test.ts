@@ -10,10 +10,11 @@ import { withCard } from '../server/assistant/tools/card-summary.js';
 import { readTarget } from '../server/assistant/tools/card-targets.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { planCardSchema } from '../shared/assistant/index.js';
-import { flowFixture, superActor } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
+import { superActor } from './actor-fixture.js';
 
 /** 工具上下文：和外壳给的一样，执行函数换成测试给的 */
-function context(f: ReturnType<typeof flowFixture>, commit: () => unknown): ToolContext {
+function context(f: ReturnType<typeof autoConfirmAssistant>, commit: () => unknown): ToolContext {
   const tools = f.manager.tools;
   return {
     store: f.store,
@@ -25,7 +26,7 @@ function context(f: ReturnType<typeof flowFixture>, commit: () => unknown): Tool
 }
 
 test('出卡片试执行时执行函数返回要等的结果（Promise）：拒绝，不出卡片（回滚之后它接着写的会真的落库）', () => {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = localAdministratorActor(superActor());
   try {
     const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
@@ -38,7 +39,7 @@ test('出卡片试执行时执行函数返回要等的结果（Promise）：拒�
 });
 
 test('读目标记录：查不到的算没有；库里的单据内容对不上结构照常报错，不当成“没有这条”', () => {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = localAdministratorActor(superActor());
   try {
     const ctx = context(f, () => undefined);
@@ -53,7 +54,7 @@ test('读目标记录：查不到的算没有；库里的单据内容对不上�
 });
 
 test('删除卡片上改“库存怎么处理”：写进聊天记录的卡片合卡片的结构，和回给页面的是同一份', async () => {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = superActor();
   try {
     const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构要删的客户' }));

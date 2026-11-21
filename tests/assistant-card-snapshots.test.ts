@@ -10,7 +10,8 @@ import { editableFields } from '../server/assistant/tools/card-summary.js';
 import { InboxService } from '../server/inbox/service.js';
 import { OrderBatchService } from '../server/operations/batches.js';
 import { FlowService } from '../server/flow/index.js';
-import { flowFixture, superActor } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
+import { superActor } from './actor-fixture.js';
 
 type Line = { label: string; value: string };
 const shown = (plan: { label: string; summary?: Line[] }) => [plan.label, ...(plan.summary ?? []).map((l) => l.label + '：' + l.value)];
@@ -19,7 +20,7 @@ const saved = z.looseObject({ id: z.number(), version: z.number(), name: z.strin
 const numbered = z.looseObject({ id: z.number(), number: z.string() });
 
 function setup() {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = localAdministratorActor(superActor()),
     tools = f.manager.tools;
   const prepare = (tool: string, args: unknown) => tools.prepare(tool, args, who, 'card');

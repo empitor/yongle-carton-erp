@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { purgeExportFiles } from '../server/documents/export-records.js';
-import { actor } from './assistant-fixture.js';
 import { startHttp } from './http-fixture.js';
 import { setup } from './document-fixture.js';
 import { Store } from '../server/core/db.js';
 import { count as countRows } from '../server/core/sql.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
+import { actor } from './actor-fixture.js';
 
 const allowedOrigin = 'http://127.0.0.1:3001';
 /** 导出接口回的文件：下载地址、编号、摘要、大小 */

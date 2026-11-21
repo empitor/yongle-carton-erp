@@ -2,17 +2,17 @@ import { pageActor } from './actor-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { createBusinessService } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { saveDoc } from './receive-fixture.js';
+import { businessBase, standardRecords } from './business-base-fixture.js';
 import { viewOfKind } from '../server/flow/read.js';
 import type { FlowKind } from '../shared/business/index.js';
 import type { Actor } from '../server/core/auth.js';
 import { count } from '../server/core/index.js';
+
+type Base = ReturnType<typeof businessBase>;
 
 /**
  * 删除引擎（database-maintenance.test.ts）、管理员改订单连带改单据（order-edit-cascade.test.ts）、
@@ -31,18 +31,20 @@ export function fixture(store = new Store(':memory:')) {
         superAdminUntil: Date.now() + 3600000,
       }),
     ),
-    ops = new OperationsService(store),
-    flow = new FlowService(store),
+    base = businessBase(who, store),
+    { ops, flow } = base,
     service = new DatabaseMaintenanceService(store);
-  const records = baseRecords(store, ops, who);
+  const records = baseRecords(base, who);
   return {
     store,
     who,
+    /** 建档、预览再核对（business-base-fixture） */
+    base,
     ops,
     flow,
     service,
     ...records,
-    ...documentMakers(flow, records, who),
+    ...documentMakers(base, records, who),
     /** 数据管理（本机管理员直接改全部业务数据），local-administration.test.ts 用 */
     dataManagement: new DataManagementService(store),
     del: deleter(service, who),
@@ -50,22 +52,10 @@ export function fixture(store = new Store(':memory:')) {
 }
 
 /** 虚构客户、产品、供应商、纸板 raw、成品 finished，一张 1000 只的订单和挂它的已订货采购单（1000 张） */
-function baseRecords(store: Store, ops: OperationsService, who: Actor) {
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' })),
-    supplier = ops.saveSupplier({ name: '虚构供应商' }, who);
-  const raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, who),
-    finished = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: product.id }, who);
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-10-01',
-      deliveryDate: '2026-10-30',
-      status: '已确认',
-      lines: [{ productId: product.id, quantity: 1000, unit: '只', unitPriceCents: 100 }],
-    }),
-  );
-  const purchase = ops.savePurchase(
+function baseRecords(base: Base, who: Actor) {
+  const { customer, product, supplier, raw, finished } = standardRecords(base);
+  const order = base.order(customer, [base.line(product, 1000)]);
+  const purchase = base.ops.savePurchase(
     {
       supplierId: supplier.id,
       customerOrderId: order.id,
@@ -79,13 +69,9 @@ function baseRecords(store: Store, ops: OperationsService, who: Actor) {
 }
 
 /** 各确认一张单据：arrival 到货 1000 张、task 安排 1000 只（安排即下达）、production(任务) 完工 860 只、delivery 送 100 只 */
-function documentMakers(flow: FlowService, r: ReturnType<typeof baseRecords>, who: Actor) {
-  const save = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => saveDoc(flow, kind, { date: '2026-10-27', ...input }, who);
-  const confirm = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => {
-    const d = save(kind, input);
-    const p = flow.preview(d.id, who);
-    return viewOfKind(flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, who), kind);
-  };
+function documentMakers(base: Base, r: ReturnType<typeof baseRecords>, who: Actor) {
+  const save = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => saveDoc(base.flow, kind, { date: '2026-10-27', ...input }, who);
+  const confirm = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => viewOfKind(base.check(save(kind, input)), kind);
   const arrival = () =>
     confirm('arrival', {
       supplierId: r.supplier.id,
@@ -130,16 +116,7 @@ export function splitDeliveryFixture() {
   const f = fixture();
   f.arrival();
   f.production();
-  const order = (quantities: number[]) =>
-    f.store.saveOrder(
-      orderSchema.parse({
-        customerId: f.customer.id,
-        orderDate: '2026-10-01',
-        deliveryDate: '2026-10-30',
-        status: '已确认',
-        lines: quantities.map((quantity) => ({ productId: f.product.id, quantity, unit: '只', unitPriceCents: 100 })),
-      }),
-    );
+  const order = (quantities: number[]) => f.base.order(f.customer, quantities.map((q) => f.base.line(f.product, q)));
   const pending = (lines: ShipLine[], extra: object = {}) =>
     f.flow.save(
       'delivery',
@@ -151,11 +128,7 @@ export function splitDeliveryFixture() {
       },
       f.who,
     );
-  const ship = (lines: ShipLine[], extra: object = {}) => {
-    const d = pending(lines, extra),
-      p = f.flow.preview(d.id, f.who);
-    return viewOfKind(f.flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, f.who), 'delivery');
-  };
+  const ship = (lines: ShipLine[], extra: object = {}) => viewOfKind(f.base.check(pending(lines, extra)), 'delivery');
   const undo = (id: number) => f.flow.reverse(id, { version: f.flow.get(id).version, reason: '虚构：发错了', acknowledged: true }, f.who);
   const editOrder = (id: number, patch: Record<string, unknown>, who: Actor = f.who) => {
     const current = f.store.order(id);

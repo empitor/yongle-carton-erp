@@ -8,9 +8,10 @@ import { isWebLink } from '../shared/assistant/index.js';
 import { noteSources, trailOf } from '../server/assistant/chat/turn-trail.js';
 import type { ChatRun } from '../server/assistant/chat/run-state.js';
 import { WEB_SEARCH } from '../server/assistant/tools/web.js';
-import { assistantFixture, actor, scriptModel } from './assistant-fixture.js';
+import { assistantFixture, scriptModel } from './assistant-fixture.js';
 import { fakeAiSettings } from './fake-deepseek.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { actor } from './actor-fixture.js';
 
 const sourcesOf = (calls: [string, unknown][]) => {
   const run: Pick<ChatRun, 'sources' | 'interim'> = { sources: new Map(), interim: [] };

@@ -1,7 +1,7 @@
 // 助手按账号能读到什么、能办什么：出纳读不了业务记录；读已归档的和全部记录要超级管理员模式；
 // 要超级管理员模式的事分两类说法（业务员说没有权限，没进模式的超级管理员叫他去系统维护进入），页面服务同一个分法。
 // 内存库、虚构数据。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor, superActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,15 +11,16 @@ import { OperationsService } from '../server/operations/service.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { customerSchema, productSchema, today } from '../shared/core/domain.js';
-import { actor, readAs, superActor, flowFixture } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { AppError } from '../server/core/errors.js';
 import type { Actor } from '../server/core/index.js';
+import { readAs } from './read-result.js';
 
 const cashier = pageActor({ id: 'fictional-cashier', name: '虚构出纳', role: 'admin' as const, permissions: ['finance:view', 'finance:cash'] });
 const notElevated = () => ({ ...superActor(), superAdminMode: false, superAdminUntil: undefined });
 
 test('出纳账号：ui.open 带编号、records.get 和聊天上下文预读都不能读业务记录', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const secretName = '虚构出纳不可见客户甲';
     const customer = f.store.saveCustomer(customerSchema.parse({ name: secretName }));
@@ -70,7 +71,7 @@ test('出纳账号：ui.open 带编号、records.get 和聊天上下文预读都
 });
 
 test('已归档的记录：普通账号读不到，进了超级管理员模式的照常读', () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const p = f.store.saveProduct(productSchema.parse({ name: '虚构归档产品' })),
       owner = superActor();
@@ -83,7 +84,7 @@ test('已归档的记录：普通账号读不到，进了超级管理员模式�
 });
 
 test('助手读全部记录（含已归档）：业务员直接说没有权限（permission），没进模式的超级管理员提示去系统维护进入（super-mode），进了模式照常读', () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构读全部客户' }));
     const calls = [
@@ -119,7 +120,7 @@ test('助手读全部记录（含已归档）：业务员直接说没有权限�
 });
 
 test('要超级管理员模式的事统一分两类：业务员让助手撤销生产任务、完工、采购退货，原因直接说没有权限，不叫他进模式；没进模式的超级管理员才提示去系统维护', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const flow = new FlowService(f.store),
       ops = new OperationsService(f.store);

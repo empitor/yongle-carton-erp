@@ -6,7 +6,6 @@ import { executeImports, importCard } from '../server/assistant/order-import-car
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
-import { actor } from './assistant-fixture.js';
 import { imageFixture, xlsxFixture } from './import-fixtures.js';
 import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
 import type { WorkflowContext } from '../server/assistant/order-import-state.js';
@@ -17,6 +16,7 @@ import { WORKFLOW_DIRECT } from '../server/assistant/chat/workflow-direct.js';
 import { orderImportTools } from '../server/assistant/tools/order-import.js';
 import { InboxService } from '../server/inbox/index.js';
 import { AppError } from '../server/core/errors.js';
+import { actor } from './actor-fixture.js';
 
 const who = { ...actor, permissions: ['business:edit', 'import:execute'] };
 

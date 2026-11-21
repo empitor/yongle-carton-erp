@@ -7,12 +7,13 @@ import assert from 'node:assert/strict';
 /** 登记完工的结果：取出逐张的结果，其余键保留 */
 const completed = z.looseObject({ results: z.array(z.looseObject({})) });
 import { randomUUID } from 'node:crypto';
-import { actor, superActor, flowFixture } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { productSchema, customerSchema, orderSchema, today } from '../shared/core/domain.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import type { AssistantManager } from '../server/assistant/manager.js';
 import { count as countOf } from '../server/core/index.js';
+import { actor, superActor } from './actor-fixture.js';
 const request = (name: string, args: Record<string, unknown>) => ({ message: '', toolCalls: [{ name, args }] });
 /** 用户说了的完工事实：完工日期和每个任务的实际良品、废品（全部做完、100%良品）。助手登记完工这两项必填。 */
 const completionFacts = (f: { manager: AssistantManager }) => ({
@@ -24,7 +25,7 @@ const completionFacts = (f: { manager: AssistantManager }) => ({
  * send 用本机最高管理员身份在一个会话里说话。
  */
 function setup() {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = localAdministratorActor(superActor()),
     { ops, flow } = f.manager.tools,
     t = f.manager.create(who);

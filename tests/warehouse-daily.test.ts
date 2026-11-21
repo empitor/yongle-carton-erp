@@ -2,9 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { actor } from './assistant-fixture.js';
 import { setup } from './document-fixture.js';
 import { applyCorrection, previewCorrection } from './receive-fixture.js';
+import { actor } from './actor-fixture.js';
 
 test('每日到货按到货日期归属：待入库列在登记那天、核对入库前不算完成，取消和更正不重复计算', () => {
   const f = setup();

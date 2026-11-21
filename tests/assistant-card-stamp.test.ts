@@ -9,14 +9,15 @@ import { AppError } from '../server/core/errors.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { updateDocumentInfo } from '../server/flow/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { flowFixture, superActor } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
+import { superActor } from './actor-fixture.js';
 
 const saved = z.looseObject({ id: z.number(), version: z.number(), name: z.string() });
 const purchaseSaved = z.looseObject({ id: z.number(), lines: z.array(z.looseObject({ id: z.number() })) });
 const CARD_LIFETIME_MS = 60_000;
 
 function setup() {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = localAdministratorActor(superActor()),
     tools = f.manager.tools;
   /** 出一张卡片存起来（和聊天里出卡片同一个存法），返回“人点确认” */

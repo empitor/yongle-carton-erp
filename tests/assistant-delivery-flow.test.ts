@@ -8,9 +8,11 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { customerSchema, orderSchema, productSchema, today } from '../shared/core/domain.js';
-import { actor, assistantFixture, flowFixture, lastCard, readAs } from './assistant-fixture.js';
+import { assistantFixture, autoConfirmAssistant, lastCard } from './assistant-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 一个虚构客户订了 300 只，成品库存 500 只，已经安排了一张待送货的送货单。 */
 function setup(store: Store) {
@@ -80,7 +82,7 @@ test('导出送货单并出库的确认卡片：写明是哪张送货单和客�
 });
 
 test('助手导出送货单并出库：文件交付后扣库存、变送货中；再确认送达，只记送达不动库存', async () => {
-  const fx = flowFixture(),
+  const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
     const docs = new BusinessDocuments(fx.store);
@@ -156,7 +158,7 @@ test('助手导出送货单并出库：文件交付后扣库存、变送货中�
 });
 
 test('助手安排生产：和页面一样保存后直接下达', () => {
-  const fx = flowFixture(),
+  const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
     const tools = new AssistantTools(fx.store);
