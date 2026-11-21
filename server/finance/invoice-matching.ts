@@ -70,7 +70,7 @@ const qtyDiff = (a: Map<string, number>, b: Map<string, number>) =>
     : null;
 
 /**
- * 三单匹配里的一条采购明细：采购单编号、单号、明细编号、数量、明细内容（JSON 文字）、单位，
+ * 三单匹配里的一条采购明细：采购单编号、单号、明细编号、数量、单位，
  * 和窗口按单价算好的金额换成的价税合计（分；没写单价的算不出，是空）
  */
 function purchaseLineView(l: PurchaseLine) {
@@ -81,7 +81,6 @@ function purchaseLineView(l: PurchaseLine) {
     number: l.purchaseNumber,
     line_id: l.line_id,
     quantity_units: l.quantityUnits,
-    document: JSON.stringify(l.item),
     unit: l.item.unit,
     amount,
   };
