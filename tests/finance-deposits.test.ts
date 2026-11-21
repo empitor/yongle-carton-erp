@@ -35,7 +35,7 @@ function interestDelivery(s: Store, deposits: boolean) {
     },
   });
   physical(s, 1, 'delivery', '2026-01-01', deliveryDoc('1', { price: '100.00', taxed: false, line: { taxMode: '未税', taxRate: '0' } }));
-  events.sync(maker, { requestId: 'scan' });
+  events.sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
   postDrafts(s);
   return { term, parties };
@@ -217,7 +217,7 @@ test('压款利息一个月确认几次：凭证按算到的那天，合计等�
     // 两张 100 元的送货，01-21 到期；每天 0.10 元
     physical(s, 1, 'delivery', '2026-01-01', deliveryDoc('1', { price: '100.00', taxed: false, line: { taxMode: '未税', taxRate: '0' } }));
     physical(s, 2, 'delivery', '2026-01-01', deliveryDoc('1', { price: '100.00', taxed: false, line: { taxMode: '未税', taxRate: '0' } }));
-    new FinanceEvents(s).sync(maker, { requestId: 'scan' });
+    new FinanceEvents(s).sync(maker);
     for (const source of [1, 2])
       new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
     postDrafts(s);

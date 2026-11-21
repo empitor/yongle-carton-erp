@@ -112,7 +112,7 @@ test('分期付款跟着往来金额走：收到含税发票、红票冲减后�
         .map((r) => Number(r.amount_cents));
     // 采购：暂估 1000 元，收到 13% 的专票，应付变成 1130 元
     physical(s, 1, 'arrival', '2026-02-05', arrivalDoc('100', { price: '10.00' }));
-    events.sync(maker, { requestId: 'scan-arrival' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate-arrival' });
     postDrafts(s);
     const payable = obligationOfEvent(s, event(s, 1).id);
@@ -130,7 +130,7 @@ test('分期付款跟着往来金额走：收到含税发票、红票冲减后�
     assert.equal(forecast.reduce((n, r) => n + Number(r.payable), 0), 113000, '收付计划按新金额');
     // 销售：应收 100 元，折让红票冲掉 20 元
     physical(s, 2, 'delivery', '2026-02-06', deliveryDoc('1', { price: '100.0000' }));
-    events.sync(maker, { requestId: 'scan-delivery' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 2).id, { version: 1, requestId: 'generate-delivery' });
     postDrafts(s);
     const receivable = obligationOfEvent(s, event(s, 2).id);
@@ -151,7 +151,7 @@ test('分期付款跟着往来金额走：收到含税发票、红票冲减后�
       ...untaxed,
       lines: untaxed.lines.map((line) => ({ ...line, taxRate: undefined })),
     });
-    events.sync(maker, { requestId: 'scan-untaxed' });
+    events.sync(maker);
     const waiting = event(s, 3);
     assert.equal(waiting.status, 'info_pending');
     const provisional = obligationOfEvent(s, waiting.id);
@@ -176,7 +176,7 @@ test('开票确认收入部分开票：按单位多一项“已送货未开票�
     settings.update(maker, { version: 3, requestId: 'policy', revenueRecognition: 'invoice' });
     // 确认时间晚于切换口径的时间，这张送货单按开票确认收入
     physical(s, 1, 'delivery', '2026-02-05', deliveryDoc('1', { price: '100.0000', confirmedAt: '2999-01-01T00:00:00.000Z' }));
-    new FinanceEvents(s).sync(maker, { requestId: 'scan' });
+    new FinanceEvents(s).sync(maker);
     const key = obligationOfEvent(s, event(s, 1).id);
     const held = () => {
       const t = new FinanceDue(s).held(maker, { kind: 'receivable', date: '2026-02-28' }).totals;

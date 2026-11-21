@@ -185,9 +185,17 @@ function bookReturn(store: Store, ledger: FinanceLedger, user: Actor, r: ReturnT
   return true;
 }
 
+/** 采购退货暂估只由有财务编辑权限的人（或超级管理员模式）在补扫时记；只能看财务的人补扫时不记 */
+const booksReturns = (user: Actor) => isSuperMode(user) || user.permissions.includes('finance:edit');
+
+/** 有没有这个人补扫时要看的采购退货（补扫前判断要不要开写事务，events.ts 的 pending） */
+export function returnEstimatesPending(store: Store, user: Actor) {
+  return booksReturns(user) && purchaseReturnsToBook(store.db, returnBooked('r')).length > 0;
+}
+
 /** 同步时把采购退货记进暂估：返回这次处理了几张 */
 export function syncReturnEstimates(store: Store, user: Actor) {
-  if (!isSuperMode(user) && !user.permissions.includes('finance:edit')) return 0;
+  if (!booksReturns(user)) return 0;
   const ledger = new FinanceLedger(store);
   let done = 0;
   for (const r of purchaseReturnsToBook(store.db, returnBooked('r'))) if (bookReturn(store, ledger, user, r)) done++;

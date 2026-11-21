@@ -98,7 +98,8 @@ export class AssistantTools {
   }
   /** extra：这一轮的中止信号等，聊天里调用时传，别的内部调用可以不传。 */
   read(name: string, raw: unknown, who: Actor | null | undefined, extra?: ReadExtra): unknown {
-    if (name.startsWith('finance.')) return financeForModel(name, readFinanceTool(this.store, who, name, raw));
+    if (name.startsWith('finance.'))
+      return financeForModel(name, readFinanceTool(this.store, who, name, raw, this.ctx.services.problems));
     // 出纳这类纯财务账号只能读财务和白名单里不碰业务数据的（打开页面只能开财务页、联网、使用说明、自己的出错记录）。
     // 注册表之外的内部调用（打开记录、预读聊天上下文、核验页面结果）都走这里，所以在这里统一拦，不只靠注册表。
     if (financeOnlyAccount(who) && !financeOnlyToolAllowed(name))

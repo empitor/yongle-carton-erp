@@ -157,7 +157,7 @@ test('当月确认一张无单价到货又在当月冲销：没记过账，入�
     const item = f.raw();
     const doc = f.arrive(item, '2026-02-05');
     f.reverse(doc, '2026-02-12');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     f.cost('2026-02');
     assert.deepEqual(f.costing.requirements(maker, { period: '2026-02' }).valuations, []);
     const r = f.row('2026-02', item.id);
@@ -190,7 +190,7 @@ test('同一种材料一张无单价到货已冲销、另一张未冲销：仍�
     const reversed = f.arrive(item, '2026-02-05');
     f.arrive(item, '2026-02-09');
     f.reverse(reversed, '2026-02-12');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     assert.throws(
       () => f.cost('2026-02'),
       (err: Error) =>
@@ -208,7 +208,7 @@ test('一张无单价到货两行同一种材料当月冲销：两行入库和�
     const item = f.raw();
     const doc = f.arrive(item, '2026-02-05', { quantities: ['4', '6'] });
     f.reverse(doc, '2026-02-10');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     f.cost('2026-02');
     assert.deepEqual(f.costRow('2026-02', item.id), [0, 0, 0, 0, 0, 0]);
     assert.equal(f.gl('1403', '2026-02'), 0);
@@ -223,7 +223,7 @@ test('有单价但还没生成暂估凭证的到货当月冲销：没记过账�
     const item = f.raw();
     const doc = f.arrive(item, '2026-02-04', { unitPrice: '10.0000' });
     f.reverse(doc, '2026-02-10');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     f.cost('2026-02');
     assert.deepEqual(f.costing.requirements(maker, { period: '2026-02' }).valuations, []);
     assert.deepEqual(f.costRow('2026-02', item.id), [0, 0, 0, 0, 0, 0]);
@@ -273,7 +273,7 @@ test('无单价到货当月冲销后同种材料又正常到货并领用：出�
     const item = f.raw();
     const bad = f.arrive(item, '2026-02-03');
     f.reverse(bad, '2026-02-04');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     f.receive(item, '2026-02-06');
     f.produce(item, '2026-02-15', '4');
     f.cost('2026-02');

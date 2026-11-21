@@ -1,9 +1,10 @@
 import { Router, type ErrorRequestHandler, type Request } from 'express';
 import { ZodError } from 'zod';
-import type { AuthManager } from '../core/index.js';
+import type { AuthManager, ProblemLog } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { route } from '../core/index.js';
 import type { FinanceApi } from '../../shared/finance/index.js';
+import { catchUp } from './catch-up.js';
 import { financeActor, financeError } from './core.js';
 import { ledgerPages, type FinanceRoutes } from './routes.js';
 import { partyCashPages } from './routes-cash.js';
@@ -32,17 +33,19 @@ const financeInputError: ErrorRequestHandler = (error: unknown, _req, res, next)
 
 /**
  * 财务的接口（接口表 shared/finance/finance-api.ts，地址按页面分在 routes.ts、routes-cash.ts、routes-period.ts，
- * 注册顺序就是匹配顺序）。每个请求先认人、要财务查看权限，不缓存，写操作要带页面凭证；输入不合规则的转成中文说明。
+ * 注册顺序就是匹配顺序）。每个请求先认人、要财务查看权限，不缓存，写操作要带页面凭证，再把还没记进财务的业务单据
+ * 补扫进来（catch-up.ts，读不出来的单据记进出错记录 problems）；输入不合规则的转成中文说明。
  */
-export function financeRouter(store: Store, auth?: AuthManager) {
+export function financeRouter(store: Store, auth?: AuthManager, problems?: ProblemLog) {
   const router = Router();
   // 中间件已核过财务查看权限，各地址按同一个判断取出操作人（要更高权限的由服务再查）
   const actor = (req: Request) => financeActor(auth?.actor(req));
   router.use((req, res, next) => {
-    actor(req);
+    const user = actor(req);
     res.set('Cache-Control', 'no-store');
     if (!['GET', 'HEAD'].includes(req.method) && req.headers['x-erp-auth-token'] !== auth?.csrf)
       financeError('页面凭证已过期，请刷新。', 403);
+    catchUp(store, user, problems);
     next();
   });
   const routes: FinanceRoutes = { router, on: route<FinanceApi>(router, FINANCE_MOUNT), store, actor };

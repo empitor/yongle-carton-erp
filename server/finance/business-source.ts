@@ -10,7 +10,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { financeSourceSchemas, flowDocumentSchema, purchaseLineDocumentSchema, toFinanceSource } from '../../shared/business/index.js';
 import type { FinanceSource } from '../../shared/business/index.js';
-import { exists, many, parseStoredJson, rows } from '../core/index.js';
+import { StoredDataError, exists, many, parseStoredJson, rows } from '../core/index.js';
 import { sourceHash, withNumber } from './source-fingerprint.js';
 import type { FinanceSourceDocument } from './source-snapshot.js';
 import { snapshotLines } from './source-snapshot.js';
@@ -76,6 +76,19 @@ export function readSource(source: SourceRow): { doc: FinanceSourceDocument; has
       const content = parseStoredJson(financeSourceSchemas.stock, source.document, `盘点流水 ${source.id} 拼出的来源内容`);
       return read(content, content);
     }
+  }
+}
+
+/**
+ * 同 readSource，内容读不出来（StoredDataError）的返回 null：只用在列“还没同步的单据”的地方（月度台账、报表检查），
+ * 一张坏单据不让整页出错。它照样算“还没同步”（unseenSources），补扫时跳过并记出错记录（events.ts）。
+ */
+export function readableSource(source: SourceRow) {
+  try {
+    return readSource(source);
+  } catch (error) {
+    if (error instanceof StoredDataError) return null;
+    throw error;
   }
 }
 

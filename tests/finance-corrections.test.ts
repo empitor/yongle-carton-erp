@@ -173,7 +173,7 @@ for (const syncBeforeRevoke of [true, false])
           lines: [{ orderId: 1, orderLineId: 1, stockId: 2, unit: '个', quantity: '1', unitPriceExact: '100.0000' }],
         };
         physical(s, 1, 'delivery', date, doc);
-        events.sync(maker, { requestId: 'scan' });
+        events.sync(maker);
         const ob = new FinanceParties(s).obligations(maker, { kind: 'receivable' }).rows[0];
         assert.deepEqual(reports.readiness(maker, { period }).rows[0].missing, ['tax']);
         const c = cash.saveCash(maker, {
@@ -195,7 +195,7 @@ for (const syncBeforeRevoke of [true, false])
         s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
         assert.match(String(reports.readiness(maker, { period }).rows[0].problem), /先撤销核销/);
         if (syncBeforeRevoke) {
-          events.sync(maker, { requestId: 're-scan' });
+          events.sync(maker);
           assert.equal(new FinanceEventViews(s).list(maker, { status: 'info_pending' }).filteredRecords, 0);
           assert.equal(
             new FinanceEventViews(s).list(maker, { status: 'awaiting_allocation_reversal' }).filteredRecords,
@@ -218,7 +218,7 @@ for (const syncBeforeRevoke of [true, false])
         assert.equal(reports.readiness(maker, { period }).ready, syncBeforeRevoke, '撤销还没补扫进财务时报表也拦着');
         if (!syncBeforeRevoke) {
           assert.equal(closing.check(maker, { period }).steps[0].ok, false, '撤销还没补扫进财务，结账检查拦着');
-          events.sync(maker, { requestId: 're-scan' });
+          events.sync(maker);
           assert.equal(reports.readiness(maker, { period }).ready, true);
         }
         assert.equal(closing.check(maker, { period }).steps[0].ok, true);
@@ -336,7 +336,7 @@ function allocatedDelivery(s: Store) {
     ],
   };
   physical(s, 1, 'delivery', date, doc);
-  events.sync(maker, { requestId: 'scan' });
+  events.sync(maker);
   const first = new FinanceEventViews(s).list(maker, {}).rows[0];
   const voucher = new FinanceEventVouchers(s).generate(maker, first.id, {
     version: 1,
@@ -371,7 +371,7 @@ test('来源更正先撤销核销，全额红冲重做保留旧凭证，物理�
     s.db
       .prepare('UPDATE flow_documents SET document=?,version=2 WHERE id=1')
       .run(JSON.stringify({ ...doc, date, plannedDate: date }));
-    events.sync(maker, { requestId: 're-scan' });
+    events.sync(maker);
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     assert.throws(
       () =>
@@ -418,7 +418,7 @@ test('来源更正先撤销核销，全额红冲重做保留旧凭证，物理�
     );
     // 删除只管业务：财务下次补扫时才发现来源没了
     assert.equal(new FinanceEventViews(s).list(maker, { status: 'source_deleted' }).filteredRecords, 0);
-    events.sync(maker, { requestId: 'after-delete' });
+    events.sync(maker);
     assert.equal(new FinanceEventViews(s).list(maker, { status: 'source_deleted' }).rows[0].id, diff.id);
     assert.equal(
       s.db.prepare('SELECT status FROM fin_vouchers WHERE id=?').get(voucher)?.status,

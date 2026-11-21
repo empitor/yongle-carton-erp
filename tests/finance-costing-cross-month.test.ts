@@ -177,7 +177,7 @@ test('上月退过一部分货（未到票，暂估已按退货冲减），本�
     const { received } = f.receive(item, '2026-02-05');
     const back = f.returnGoods(received.id, '2026-02-10', '3');
     const sync = () => {
-      new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+      new FinanceEvents(f.s).sync(maker);
       f.postDrafts();
     };
     sync();
@@ -261,7 +261,7 @@ test('红字冲销已撤销到货的日期默认取撤销那天；那个月已�
   try {
     const { received } = f.receive(f.raw(), '2026-02-25');
     f.reverse(received, '2026-03-04');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     const pending = () =>
       new FinanceEventViews(f.s).list(maker, { status: 'difference' }).rows.map((r) => [r.source_id, r.correction_date]);
     assert.deepEqual(pending(), [[String(received.id), '2026-03-04']]);
@@ -280,7 +280,7 @@ test('替代单记过账以后又改了内容：这次的“有差异”默认�
     f.redReverse('2026-02-12');
     const replacement = Number(new FlowService(f.s).get(received.id).replacedBy);
     setDoc(f.s, replacement, '$.lines[0].unitPrice', '12.0000');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     const pending = new FinanceEventViews(f.s).list(maker, { status: 'difference' }).rows;
     assert.deepEqual(pending.map((r) => [r.source_id, r.correction_date]), [[String(replacement), null]]);
   } finally {
@@ -293,7 +293,7 @@ test('更正到货单后，原单和替代单的红字冲销默认日期都是�
   try {
     const { received } = f.receive(f.raw(), '2026-02-25');
     f.correctArrival(received.id, '6', '2026-03-05');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     const pending = new FinanceEventViews(f.s).list(maker, { status: 'difference' }).rows;
     assert.equal(pending.length, 2, '原单、替代单都“有差异”');
     assert.deepEqual(pending.map((r) => r.correction_date), ['2026-03-05', '2026-03-05']);

@@ -101,7 +101,8 @@ function eventRoutes({ on, store, actor }: FinanceRoutes) {
     eventViews = new FinanceEventViews(store),
     handling = new FinanceEventHandling(store),
     eventVouchers = new FinanceEventVouchers(store);
-  on('POST /finance/events/sync', ({ body, req }) => events.sync(actor(req), body));
+  // 请求前已经补扫到完（router.ts），这里再扫一批多半是 0（请求号不再用，补扫本身不会重复记）
+  on('POST /finance/events/sync', ({ req }) => events.sync(actor(req)));
   on('GET /finance/events', ({ query, req }) => eventViews.list(actor(req), query));
   on('GET /finance/events/:id', ({ param, req }) => eventViews.get(actor(req), param('id')));
   on('POST /finance/events/:id/resolve', ({ param, body, req }) => handling.resolve(actor(req), param('id'), body));

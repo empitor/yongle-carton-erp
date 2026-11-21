@@ -72,7 +72,7 @@ test('已记账的送货单被删除、还没补扫：结账检查拦下；补�
   try {
     newSettings(s);
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
-    new FinanceEvents(s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(s).sync(maker);
     const e = event(s, 1);
     new FinanceEventVouchers(s).generate(maker, e.id, { version: e.version, requestId: randomUUID() });
     postDrafts(s);
@@ -80,7 +80,7 @@ test('已记账的送货单被删除、还没补扫：结账检查拦下；补�
     s.db.prepare('DELETE FROM flow_documents WHERE id=1').run();
     assert.equal(eventsStep(s).ok, false, '财务还没看到删除，不能结账');
     assert.equal(eventsStep(s, '2025-12').ok, true, '单据日期以前的月份不受影响');
-    new FinanceEvents(s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(s).sync(maker);
     assert.equal(event(s, 1).status, 'source_deleted');
     assert.deepEqual(eventsStep(s), { key: 'events', ok: false, count: 1, blocking: true }, '补扫后只按“来源已删除”数一次');
   } finally {

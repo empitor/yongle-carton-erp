@@ -19,7 +19,7 @@ function lateDelivery(doc: Record<string, unknown> = deliveryDoc('1')) {
   new FinanceParties(s).saveTerms(maker, { kind: 'customer', partyId: 1, termDays: 30, requestId: 'terms' });
   s.db.prepare("INSERT INTO fin_periods(period,status) VALUES('2026-01','closed') ON CONFLICT(period) DO UPDATE SET status='closed'").run();
   physical(s, 1, 'delivery', '2026-01-20', doc);
-  new FinanceEvents(s).sync(maker, { requestId: 'scan' });
+  new FinanceEvents(s).sync(maker);
   return s;
 }
 const voucherOf = (s: Store, id: unknown) => {
@@ -136,12 +136,12 @@ test('红字冲销并重做选的日期只定记账日：重做的往来到期�
     new FinanceParties(s).saveTerms(maker, { kind: 'customer', partyId: 1, termDays: 30, requestId: 'terms' });
     physical(s, 1, 'delivery', '2026-01-20', deliveryDoc('1'));
     const events = new FinanceEvents(s);
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'g' });
     postDrafts(s);
     // 改了数量，红冲重做选 1 月 25 日
     s.db.prepare("UPDATE flow_documents SET document=json_set(document,'$.lines[0].quantity','2'),version=version+1 WHERE id=1").run();
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const diff = event(s, 1);
     const redo = new FinanceEventHandling(s).correct(maker, diff.id, {
       version: Number(diff.version),
@@ -168,7 +168,7 @@ test('凭证页作废来源凭证后重新生成：接着用原来的往来，�
       customerName: '虚构客户',
       lines: [{ unit: '个', quantity: '1', unitPriceExact: '100.00' }],
     });
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const pending = obligation(s, 1);
     funds(s, service, { kind: 'receipt', date: '2026-01-06', amount: 10000 }, [
       { obligationId: Number(pending.id), version: Number(pending.version), amount: 10000 },
@@ -212,7 +212,7 @@ test('凭证：被红字冲销的原凭证指向冲它的那张，红字凭证�
     const events = new FinanceEvents(s),
       ledger = new FinanceLedger(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const voucherId = Number(new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'g' }).voucher_id);
     postDrafts(s);
     assert.equal(ledger.get(maker, voucherId).reversedBy, null);

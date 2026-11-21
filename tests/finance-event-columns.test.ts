@@ -150,7 +150,7 @@ test('各种写法造出来的事件，从快照取出来的列都等于 eventCo
     physical(s, 2, 'delivery', '2026-01-11', deliveryDoc('3', { taxed: false }));
     physical(s, 3, 'arrival', '2026-01-12', arrivalDoc('5'));
     physical(s, 4, 'delivery', '2025-12-20', deliveryDoc('1'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     // 缺税率的补上（换快照）
     const pending = event(s, 2);
     assert.equal(pending.missing_tax, 1);
@@ -163,7 +163,7 @@ test('各种写法造出来的事件，从快照取出来的列都等于 eventCo
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     setDoc(s, 1, '$.lines[0].quantity', '12');
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     const diff = event(s, 1);
     assert.equal(diff.status, 'difference');
     handling.correct(maker, diff.id, { version: diff.version, date: '2026-01-20', requestId: 'correct', reason: '虚构改单' });

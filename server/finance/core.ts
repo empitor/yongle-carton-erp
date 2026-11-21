@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
-import { audit, onceByRequest, operationRequest, requirePermission } from '../core/index.js';
+import { audit, inSavepoint, onceByRequest, operationRequest, requirePermission } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import type { FinancePermission } from '../../shared/core/index.js';
 import type { financeAuditActions, financeAuditEntities } from '../../shared/finance/index.js';
@@ -51,15 +51,21 @@ export function financeWrite<S extends z.ZodType>(
   request: FinanceWriteRequest<S>,
   work: () => z.output<S>,
 ): z.output<S> {
-  const db = store.db;
   const { action, input, result } = request;
   // 财务的写入都记成一种：同一个账号的同一个编号换了操作也算换了内容
-  const once = () => onceByRequest(store, operationRequest('finance', input.requestId, actor, { action, input }), work, result);
-  if (db.isTransaction) return once();
-  // 不在别的事务里时用 BEGIN IMMEDIATE，一开始就拿写锁
+  return financeTransaction(store.db, () =>
+    onceByRequest(store, operationRequest('finance', input.requestId, actor, { action, input }), work, result),
+  );
+}
+
+/**
+ * 在一个写事务里办 work，出错整段回滚：已经在别的事务里就在其中开一个保存点；不在时用 BEGIN IMMEDIATE，一开始就拿写锁
+ */
+export function financeTransaction<T>(db: DatabaseSync, work: () => T): T {
+  if (db.isTransaction) return inSavepoint(db, work);
   db.exec('BEGIN IMMEDIATE');
   try {
-    const done = once();
+    const done = work();
     db.exec('COMMIT');
     return done;
   } catch (error) {

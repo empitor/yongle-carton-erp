@@ -1,6 +1,5 @@
 // 财务测试共用的搭建（只用内存库、虚构数据）：账号、启用财务、记账、直接插单据、找事件和往来、收付款、发票、红冲重做
 import { pageActor } from './actor-fixture.js';
-import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
@@ -241,7 +240,7 @@ export const rawObligation = (s: Store, cents: number, date = '2026-02-10') =>
 
 /** 同步、给单据当前事件生成凭证并记账，返回事件 */
 export function booked(s: Store, source: number, kind?: string) {
-  new FinanceEvents(s).sync(maker, { requestId: randomUUID() });
+  new FinanceEvents(s).sync(maker);
   const e = event(s, source, kind);
   new FinanceEventVouchers(s).generate(maker, e.id, { version: Number(e.version), requestId: 'generate-' + e.id });
   postDrafts(s);
@@ -411,7 +410,7 @@ export function suggestedFor(s: Store, cash: FinanceSettlements, kind: 'receipt'
 /** 送货（或到货）被撤销后在财务待处理里“红字冲销并重做” */
 export function reverseSource(s: Store, source: number, date: string) {
   s.db.prepare("UPDATE flow_documents SET status='reversed',version=2 WHERE id=?").run(source);
-  new FinanceEvents(s).sync(maker, { requestId: 'rescan-' + source });
+  new FinanceEvents(s).sync(maker);
   const diff = event(s, source);
   return new FinanceEventHandling(s).correct(maker, diff.id, {
     version: Number(diff.version),

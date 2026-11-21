@@ -80,7 +80,7 @@ test('来源指纹只含财务用得到的内容：送货、到货、完工单�
     physical(s, 4, 'arrival', '2026-01-10', { ...arrivalDoc('10'), notes: '' });
     physical(s, 5, 'production', '2026-01-10', productionDoc);
     physical(s, 6, 'production', '2026-01-10', productionDoc);
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const source of [2, 4])
       new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
     postDrafts(s);
@@ -98,7 +98,7 @@ test('来源指纹只含财务用得到的内容：送货、到货、完工单�
       ['ready', 'generated', 'ready', 'generated', 'cost_pending', 'costed'],
     );
     for (const [id, path, value] of NOISE) setDoc(s, id, path, value);
-    events.sync(maker, { requestId: 'notes-only' });
+    events.sync(maker);
     assert.deepEqual(state(), before, '只改说明：事件条数、状态、版本、指纹、快照和观察记录都不变');
     assert.deepEqual(
       s.db
@@ -110,14 +110,14 @@ test('来源指纹只含财务用得到的内容：送货、到货、完工单�
       [],
       '看到的版本号跟上了，不会每次同步都重扫',
     );
-    assert.deepEqual(events.sync(maker, { requestId: 'again' }), { processed: 0, remaining: false });
+    assert.deepEqual(events.sync(maker), { processed: 0, remaining: false });
 
     // 改了数量、单价照旧发现：已入账的走“有差异”，没入账的换成新的一条
     setDoc(s, 1, '$.lines[0].quantity', '2');
     setDoc(s, 2, '$.lines[0].quantity', '2');
     setDoc(s, 4, '$.lines[0].unitPrice', '12.00');
     setDoc(s, 5, '$.goodQuantity', '9');
-    events.sync(maker, { requestId: 'content' });
+    events.sync(maker);
     assert.equal(event(s, 1).status, 'ready');
     assert.equal(Number(event(s, 1).amount_cents), 20000, '没入账的送货单换成新的一条，金额跟着变');
     assert.equal(event(s, 2).status, 'difference');
@@ -158,14 +158,14 @@ test('来源指纹：财务读的照旧发现——按面积计价的纸板长�
       customerName: '虚构客户',
       lines: [{ orderLineId: 3, productId: 1, unit: '只', quantity: '1', unitPriceExact: '100.0000', taxMode: '未税', taxRate: '0' }],
     });
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     assert.equal(Number(event(s, 2).amount_cents), 1600, '0.8 m² × 10 张 × 2 元');
     for (const source of [2, 3])
       new FinanceEventVouchers(s).generate(maker, event(s, source).id, { version: 1, requestId: 'generate-' + source });
     postDrafts(s);
     setDoc(s, 2, '$.lines[0].item.length', 1200);
     setDoc(s, 3, '$.lines[0].productId', 2);
-    events.sync(maker, { requestId: 'content' });
+    events.sync(maker);
     const changes = (source: number) => {
       const e = event(s, source);
       assert.equal(e.status, 'difference');
@@ -341,7 +341,7 @@ test('库里的单据按写入时核对过的内容存：财务按单据结构�
       const content = flowDocumentContent(flowDocumentSchema(kind).parse(JSON.parse(String(row.document))));
       s.db.prepare('UPDATE flow_documents SET document=? WHERE id=?').run(JSON.stringify(content), id);
     }
-    new FinanceEvents(s).sync(maker, { requestId: 'scan' });
+    new FinanceEvents(s).sync(maker);
     for (const id of [1, 2]) {
       const row = s.db.prepare('SELECT kind,status,date,document FROM flow_documents WHERE id=?').get(id);
       assert.ok(row);

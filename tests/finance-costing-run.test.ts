@@ -30,7 +30,7 @@ function reviseMovement(s: Store, movement: { id: string; itemId: number }, patc
           VALUES(?,?,?,?,?,?,?,?)`,
     )
     .run(movement.id, movement.itemId, new Date().toISOString(), 'maker', '虚构管理员', '虚构修订', JSON.stringify(before), JSON.stringify({ ...before, ...patch }));
-  new FinanceEvents(s).sync(maker, { requestId: randomUUID() });
+  new FinanceEvents(s).sync(maker);
 }
 
 /** 对象上有个 compute 方法（成本服务试算用的那个） */
@@ -104,7 +104,7 @@ test('已算成本的月份：完工单冲销、管理员改盘点流水，事�
       { action: 'adjust', quantity: '4', date: '2026-02-20', notes: '虚构盘点', expectedVersion: version, acknowledged: true, requestId: randomUUID() },
       maker,
     ).movementId;
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     f.cost('2026-02');
     const status = (kind: string, source: string) =>
       String(
@@ -118,7 +118,7 @@ test('已算成本的月份：完工单冲销、管理员改盘点流水，事�
     assert.equal(status('stock', counted), 'costed');
     // 3 月冲销 2 月的完工单：等成本计算，不是谁都处理不了的“有差异”
     f.reverse(made, '2026-03-05');
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     assert.equal(status('production', String(made.id)), 'cost_pending');
     // 管理员改了 2 月那条盘点流水：只改说明不惊动财务；改了数量，盘点事件有差异，可以核对掉，也会被下次成本计算处理
     const revise = (patch: Record<string, unknown>) => reviseMovement(f.s, { id: counted, itemId: item.id }, patch);
@@ -218,10 +218,10 @@ test('本月成本算完以后又冲销同月的完工单：结账不被“待�
     const item = f.raw();
     f.receive(item);
     const made = f.produce(item, '2026-02-08', '5');
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     f.cost('2026-02');
     f.reverse(made, '2026-02-20');
-    events.sync(maker, { requestId: randomUUID() });
+    events.sync(maker);
     const closing = new FinanceClosing(f.s);
     assert.equal(closing.check(maker, { period: '2026-02' }).steps.find((x) => x.key === 'events')?.ok, true);
     assert.equal(f.costing.stale(maker, '2026-02')?.stale, false, '2 月成本按口径不用重做');

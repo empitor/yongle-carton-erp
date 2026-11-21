@@ -15,6 +15,7 @@ import { sourceReversed } from './business-source.js';
 import { readSnapshot } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
 import { unseenSources } from './events.js';
+import { unseenSourceList } from './catch-up.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
 import {
   balanceSheet,
@@ -55,6 +56,15 @@ const accountingTotals = z.object({ revenue: z.number(), salesCost: z.number(), 
 const closedPeriod = (db: Store['db'], period: string) =>
   exists(db, "SELECT 1 FROM fin_periods WHERE period=? AND status='closed'", period);
 
+/**
+ * 还有单据没同步进财务时的说法。读之前已经补扫到完（catch-up.ts），剩下的是内容读不出来、补扫跳过的，写明是哪几张；
+ * 列不出单号的（只有已被删的来源）只说有单据没同步。
+ */
+const unsyncedMessage = (numbers: string[]) =>
+  numbers.length
+    ? '有业务单据还没同步进财务：' + numbers.join('、') + '。单据内容读不出来，请联系维护人员查看出错记录，修好后再输出正式报表。'
+    : '有业务单据还没同步进财务，请稍后重试，再输出正式报表。';
+
 export class FinanceInfoPending extends AppError {
   constructor(readonly details: ReturnType<FinanceReports['readiness']>) {
     super(
@@ -62,7 +72,7 @@ export class FinanceInfoPending extends AppError {
         ? '本期有冲销送货单待处理，请先撤销核销并记账相关红冲。'
         : details.count
           ? '本期有待补财务资料，请补完后再输出正式报表。'
-          : '有业务单据还没同步进财务，请先打开财务的业务单据页同步，再输出正式报表。',
+          : unsyncedMessage(details.unsyncedSources.map((s) => s.number ?? s.source_id)),
       409,
       'FINANCE_INFO_PENDING',
     );
@@ -123,6 +133,14 @@ export class FinanceReports {
           .filter((r) => r.source_kind === 'delivery')
           .reduce((n, r) => n + Number(r.amount_cents), 0),
       unsynced: unseen,
+      // 还没同步的是哪几张（结账、正式报表拦下时的说法写明单号）
+      unsyncedSources: unseen
+        ? unseenSourceList(this.db, endOfMonth(period), READINESS_ROWS).map((s) => ({
+            source_kind: s.kind,
+            source_id: s.id,
+            number: s.number,
+          }))
+        : [],
       rows: [
         ...blocked.map(({ reverse_pending, snapshot, ...r }) => ({
           ...r,

@@ -20,7 +20,7 @@ test('一笔收款跨多张来源单，多个收款单冲同一往来单，下�
       monthly = new FinanceMonthly(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('1', { price: '100.00', taxed: false, line: { taxRate: '0', taxMode: '未税' } }));
     physical(s, 2, 'delivery', '2026-02-10', deliveryDoc('1', { price: '200.00', taxed: false, line: { taxRate: '0', taxMode: '未税' } }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     for (const id of [1, 2])
       new FinanceEventVouchers(s).generate(maker, event(s, id).id, { version: 1, requestId: 'source-' + id });
     postDrafts(s);
@@ -113,7 +113,7 @@ test('实际收入、实际支出按收付款日归月：预收以后才核销�
     funds(s, cash, { kind: 'payment', date: '2026-01-12', amount: 10000 });
     // 2 月才送货、入账，2 月 5 日把预收核销到这笔应收上
     physical(s, 1, 'delivery', '2026-02-01', deliveryDoc('1', { price: '300.00', taxed: false, line: { taxRate: '0', taxMode: '未税' } }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     const allocations = new FinanceAllocations(s);

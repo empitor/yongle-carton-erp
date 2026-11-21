@@ -128,7 +128,7 @@ test('被更正冲销的往来不能再关联发票：旧往来和冲销行都�
     t.db
       .prepare('UPDATE flow_documents SET document=?,version=2 WHERE id=1')
       .run(JSON.stringify({ ...doc, date: '2026-02-05', confirmedAt: '2026-02-05T09:00:00.000Z' }));
-    tEvents.sync(maker, { requestId: 're-scan' });
+    tEvents.sync(maker);
     const diff = new FinanceEventViews(t).list(maker, { status: 'difference' }).rows[0];
     new FinanceEventHandling(t).correct(maker, diff.id, {
       version: Number(diff.version),
@@ -182,7 +182,7 @@ test('确认发票时再查往来：草稿关联后来源单被更正，旧往�
     s.db
       .prepare('UPDATE flow_documents SET document=?,version=2 WHERE id=1')
       .run(JSON.stringify({ ...doc, ...documentDates(s), confirmedAt: at }));
-    events.sync(maker, { requestId: 're-scan' });
+    events.sync(maker);
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     assert.ok(diff, '有草稿关联时改了来源单，要走差异更正');
     new FinanceEventHandling(s).correct(maker, diff.id, {
@@ -229,7 +229,7 @@ test('确认发票时再查往来：草稿关联后来源单被更正，旧往�
       invoices = new FinanceInvoices(t);
     const at = '2999-01-01T00:00:00.000Z';
     physical(t, 1, 'delivery', '2026-02-05', deliveryDoc('1', { price: '100.0000', confirmedAt: at }));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     const original = Number(
       t.db.prepare('SELECT id FROM fin_obligations WHERE event_id=?').get(event(t, 1).id)?.id,
     );

@@ -4,7 +4,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { clampPage, count, many, parsePaging, rows } from '../core/index.js';
 import { financeActor } from './core.js';
-import { confirmedDocumentsCte, readSource, sourceConfirmed, sourceRow, sourceUnseen } from './business-source.js';
+import { confirmedDocumentsCte, readableSource, sourceConfirmed, sourceRow, sourceUnseen } from './business-source.js';
 import { periodOf } from './days.js';
 import { eventChangesSince, PREVIOUS_CHAIN_MAX } from './event-changes.js';
 import { evaluateSource, partyTaxTerms, taxBasis } from './event-evaluate.js';
@@ -71,8 +71,11 @@ export class FinanceEventViews {
     );
     const policyByDate = new Map<string, string>();
     const taxTerms = partyTaxTerms(this.db);
-    return sourceRows.map((source) => {
-      const { doc } = readSource(source);
+    // 内容读不出来的跳过（一张坏单据不让台账、报表检查整页出错），它照样算在 unseenSources 里拦结账
+    return sourceRows.flatMap((source) => {
+      const read = readableSource(source);
+      if (!read) return [];
+      const { doc } = read;
       const at = doc.confirmedAt ?? source.at;
       let policy = policyByDate.get(at);
       if (policy === undefined) {
@@ -91,20 +94,22 @@ export class FinanceEventViews {
       };
       // 单号、往来单位和同步以后存进事件列的同一个取法（月度台账按它们列）
       const columns = eventColumns(snapshot);
-      return {
-        id: source.previous,
-        source_kind: source.kind,
-        source_id: source.id,
-        date: source.date,
-        amount_cents: (source.kind === 'delivery' ? result.money?.gross : result.money?.net) ?? null,
-        status: result.status,
-        missing: result.missing ?? [],
-        problem: result.problem,
-        theoretical: result.theoretical?.gross ?? null,
-        number: columns.source_number,
-        party: columns.party_name,
-        snapshot,
-      };
+      return [
+        {
+          id: source.previous,
+          source_kind: source.kind,
+          source_id: source.id,
+          date: source.date,
+          amount_cents: (source.kind === 'delivery' ? result.money?.gross : result.money?.net) ?? null,
+          status: result.status,
+          missing: result.missing ?? [],
+          problem: result.problem,
+          theoretical: result.theoretical?.gross ?? null,
+          number: columns.source_number,
+          party: columns.party_name,
+          snapshot,
+        },
+      ];
     });
   }
 

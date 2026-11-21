@@ -94,7 +94,7 @@ function monthlyTermsDelivery(s: Store) {
     requestId: 'term',
   });
   physical(s, 1, 'delivery', '2026-01-26', deliveryDoc('1', { price: '100.0000', taxed: false, line: { taxRate: '0', taxMode: '未明确' } }));
-  events.sync(maker, { requestId: 'scan' });
+  events.sync(maker);
   new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
   postDrafts(s);
   const o = obligation(s, 1);

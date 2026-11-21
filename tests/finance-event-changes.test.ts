@@ -77,13 +77,13 @@ test('改了什么：有效的更正单被改了数量，金额照样比（更�
     newSettings(s);
     const events = new FinanceEvents(s);
     physical(s, 1, 'delivery', '2026-01-10', deliveryDoc('10'));
-    events.sync(maker, { requestId: 'scan' });
+    events.sync(maker);
     new FinanceEventVouchers(s).generate(maker, event(s, 1).id, { version: 1, requestId: 'generate' });
     postDrafts(s);
     // 原单冲销，按 8 只开更正单；两边“红字冲销并重做”后更正单入账
     s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
     physical(s, 2, 'delivery', '2026-01-12', { ...deliveryDoc('8'), correctionOf: 1 });
-    events.sync(maker, { requestId: 'rescan' });
+    events.sync(maker);
     assert.equal(event(s, 2).event_type, 'delivery.reversed', '更正单的事件类型是冲销那一种');
     for (const source of [2, 1]) {
       const e = event(s, source);
@@ -98,7 +98,7 @@ test('改了什么：有效的更正单被改了数量，金额照样比（更�
     assert.equal(Number(event(s, 2).amount_cents), 80000);
     // 管理员把已入账的更正单改成 9 只
     setDoc(s, 2, '$.lines[0].quantity', '9');
-    events.sync(maker, { requestId: 'edit' });
+    events.sync(maker);
     const edited = event(s, 2);
     assert.equal(edited.status, 'difference');
     assert.equal(edited.amount_cents, null, '红字冲销并重做以前金额列还空着');

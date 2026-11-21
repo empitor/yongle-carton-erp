@@ -92,7 +92,7 @@ test('撤销那个月算完以后，蓝票才记账、被下个月的成本用�
     f.cost('2026-02');
     f.blue('BLUE', '2026-03-01', [[payable, 11000]]);
     f.reverse(received, '2026-03-03');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     f.costing.run(maker, { period: '2026-03', requestId: randomUUID() });
     assert.deepEqual(f.costRow('2026-03', item.id), [-10000, 0, 0, 0, 0, 10000], '蓝票还没记账，留着到过票的 100');
     f.postDrafts();
@@ -129,7 +129,7 @@ test('开票对比不列已撤销、被更正替代的到货（还没红冲的�
       replaced = f.receive(f.raw(), '2026-02-07');
     f.reverse(reversed.received, '2026-03-03');
     f.correctArrival(replaced.received.id, '6', '2026-03-03');
-    new FinanceEvents(f.s).sync(maker, { requestId: randomUUID() });
+    new FinanceEvents(f.s).sync(maker);
     const listed = () => new FinanceInvoiceMatching(f.s).list(maker, { kind: 'payable' }).rows.map((r) => r.id);
     assert.deepEqual(listed(), [kept.payable], '撤销、被替代的原单不列；替代单要红冲重做后才有往来');
   } finally {
