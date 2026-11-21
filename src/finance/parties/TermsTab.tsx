@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { DetailPanel, ActionBar, Facts, Section, yuan, stepper } from '../../ui/index';
+import { DetailPanel, ActionBar, Facts, Section, yuan, stepper, col, type Col } from '../../ui/index';
 import TermsDialog from './TermsDialog';
 import DepositsSection from './DepositsSection';
 import InterestSection from './InterestSection';
 import { describeTerm, partyKindOf, type Kind } from './shared';
-import { FinList, col, type Col } from '../table';
+import { FinList } from '../table';
 import { FinSection, type HeadFn } from '../layout';
 import { useFinPerms, type FinData } from '../fin-api';
 import { listPartyTerms } from './parties-api';

@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { FormMessage, ListSummary, yuan, notify, stepper, useAction } from '../../ui/index';
+import { FormMessage, ListSummary, yuan, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
 import { today } from '../../../shared/core/index';
 import { FinSection } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { FormDialog } from '../FormDialog';
 import type { FinData } from '../fin-api';
 import type { SubmitValues } from '../form-values';

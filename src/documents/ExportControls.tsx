@@ -1,11 +1,12 @@
 import { Download, Eye } from 'lucide-react';
-import { Hint, MoreMenu } from '../ui/index';
-import type { DocumentExportStatus, DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
+import { MoreMenu } from '../ui/index';
+import type { DocumentExportStatus, DocumentFormat } from '../../shared/documents/index';
 import { ExportFileCard, afterSaved } from './export-file';
+import { FormatSelect } from './ExportDialog';
 
 /*
- * 送货单导出窗里的几块（BusinessExport.tsx 用）：说明和模板设置入口、模板下拉、一排操作、“导出并出库”那一行、办完的结果。
- * 只排版，数据和动作由 BusinessExport 传进来。
+ * 送货单导出窗里送货单自己的几块（BusinessExport.tsx 用）：说明和模板设置入口、一排操作、“导出并出库”那一行、办完的结果。
+ * 只排版，数据和动作由 BusinessExport 传进来；模板下拉、格式下拉是单据导出窗的公共部分（ExportDialog.tsx）。
  */
 
 /** 导出说明：已出库的重新导出不再出库；待送货的导出就是出库 */
@@ -23,23 +24,6 @@ export function ExportHeader({ status }: { status?: string }) {
         模板设置
       </a>
     </header>
-  );
-}
-
-/** 模板下拉：换模板就按新模板重读要印的内容 */
-export function TemplatePicker(o: { templates: DocumentTemplate[]; busy: boolean; value: string; change: (id: string) => void }) {
-  if (!o.templates.length) return null;
-  return (
-    <label className="adm-export-template">
-      <span>模板</span>
-      <select aria-label="单据导出模板" disabled={o.busy} value={o.value} onChange={(e) => o.change(e.target.value)}>
-        {o.templates.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -80,14 +64,10 @@ export function ExportButtons(o: {
 }
 
 /** 待送货的“导出并出库”那一行：选格式、一个主按钮 */
-export function FormalExportRow({
-  format,
-  setFormat,
-  disabled,
-  run,
-}: {
+export function FormalExportRow(o: {
   format: DocumentFormat;
   setFormat: (f: DocumentFormat) => void;
+  busy: boolean;
   disabled: boolean;
   run: () => void;
 }) {
@@ -97,30 +77,22 @@ export function FormalExportRow({
         <strong>导出并出库</strong>
         <small>{afterSaved.shipped}；客户收到后再点“确认送达”。</small>
       </div>
-      <select aria-label="出库送货单文件格式" value={format} onChange={(e) => setFormat(e.target.value === 'xlsx' ? 'xlsx' : 'docx')}>
-        <option value="docx">Word (.docx)</option>
-        <option value="xlsx">Excel (.xlsx)</option>
-      </select>
-      <button className="primary" disabled={disabled} onClick={run}>
+      <FormatSelect ariaLabel="出库送货单文件格式" value={o.format} change={o.setFormat} disabled={o.busy} />
+      <button className="primary" disabled={o.disabled} onClick={o.run}>
         导出并出库
       </button>
     </div>
   );
 }
 
-/** 办完的结果：办成的一句话、出错的原因、导出好的文件（可以再下载） */
-export function ExportOutcome(o: { done: string; error: string; file: DocumentExportStatus | null }) {
+/** 办完的结果：办成的一句话、导出好的文件（可以再下载）；出错的原因在窗口最上面 */
+export function ExportOutcome(o: { done: string; file: DocumentExportStatus | null }) {
   return (
     <>
       {o.done && (
         <p className="adm-inline-status" role="status">
           {o.done}
         </p>
-      )}
-      {o.error && (
-        <div role="alert">
-          <Hint tone="danger">{o.error}</Hint>
-        </div>
       )}
       {o.file && <ExportFileCard file={o.file} />}
     </>

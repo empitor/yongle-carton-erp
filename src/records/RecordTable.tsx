@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import type { RecordEntity } from '../../shared/business/index';
-import { EmptyState, TableRegion } from '../ui/index';
+import { DataRow, EmptyState, SelectAll, SelectRow, TableRegion } from '../ui/index';
 import { RecordCells, RecordHead, type RecordCellContext } from './record-columns';
 import { recordLabel, type RecordRowOf } from './record-rows';
 
 /**
  * 记录列表的表格：表头（全选、可排序的列）、这一页的行（勾选框、点行开详情、回车也开）、空列表的一句话。
- * 行里不放按钮；选中、排序、翻页的状态由 BusinessRecords 管。
+ * 表头和格子按记录种类写在 record-columns.tsx（带排序的表头、按行标逾期），所以不套 DataTable 的列定义，
+ * 行和勾选框用它同一套件（src/ui/DataTable.tsx）。行里不放按钮；选中、排序、翻页的状态由 BusinessRecords 管。
  */
 export default function RecordTable<E extends RecordEntity>({
   entity,
@@ -31,26 +32,24 @@ export default function RecordTable<E extends RecordEntity>({
   /** 服务端分页：全选只是这一页 */
   pageOnly: boolean;
   selected: number[];
-  setSelected: (update: number[] | ((ids: number[]) => number[])) => void;
+  setSelected: (update: number[]) => void;
   viewId?: number;
   open: (row: RecordRowOf[E]) => void;
   sortHead: (text: string, column: 'first' | 'due', className?: string) => ReactNode;
   cell: RecordCellContext<RecordRowOf[E]>;
   empty?: { title: string; description: string };
 }) {
-  const allLabel = (pageOnly ? '全选这一页（' : '全选（') + rows.length + ' 条）';
   return (
     <TableRegion label={noun + '列表'}>
       <table>
         <thead>
           <tr>
-            <th className="col-check">
-              <input
-                type="checkbox"
-                aria-label={allLabel}
-                title={allLabel}
-                checked={!!rows.length && rows.every((r) => selected.includes(r.id))}
-                onChange={(e) => setSelected(e.target.checked ? rows.map((r) => r.id) : [])}
+            <th>
+              <SelectAll
+                keys={rows.map((r) => r.id)}
+                selected={selected}
+                set={setSelected}
+                label={(pageOnly ? '全选这一页（' : '全选（') + rows.length + ' 条）'}
               />
             </th>
             <RecordHead entity={entity} sortHead={sortHead} />
@@ -58,33 +57,15 @@ export default function RecordTable<E extends RecordEntity>({
         </thead>
         <tbody>
           {pageRows.map((row) => (
-            <tr
-              key={row.id}
-              tabIndex={0}
-              className={'record-row' + (viewId === row.id ? ' selected' : '')}
-              aria-selected={viewId === row.id}
-              onClick={(e) => {
-                if (!(e.target instanceof Element && e.target.closest('input,button,a'))) open(row);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.target === e.currentTarget) open(row);
-              }}
-            >
-              <td className="col-check">
-                <input
-                  type="checkbox"
-                  aria-label={'选择 ' + recordLabel(row)}
-                  checked={selected.includes(row.id)}
-                  onChange={(e) =>
-                    setSelected((v) => (e.target.checked ? [...v, row.id] : v.filter((x) => x !== row.id)))
-                  }
-                />
+            <DataRow key={row.id} open={() => open(row)} opened={viewId === row.id}>
+              <td>
+                <SelectRow value={row.id} selected={selected} set={setSelected} label={'选择 ' + recordLabel(row)} />
               </td>
               <RecordCells entity={entity} row={row} cell={cell} />
-            </tr>
+            </DataRow>
           ))}
           {!rows.length && (
-            <tr className="records-empty-row">
+            <tr>
               <td colSpan={10}>
                 <EmptyState
                   title={empty?.title || '没有符合条件的' + noun}

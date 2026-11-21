@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { FormMessage, Facts, Hint, Section, yuan } from '../../ui/index';
+import { FormMessage, Facts, Hint, Section, yuan, col, mon, type Col } from '../../ui/index';
 import { FinSection } from '../layout';
-import { FinList, col, mon, type Col } from '../table';
+import { FinList } from '../table';
 import { useFinRead, type FinData } from '../fin-api';
 import { listInvoiceMatching } from './cash-api';
 

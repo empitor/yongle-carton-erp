@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { stepper } from '../../ui/index';
-import { FinList, col, mon, type Col } from '../table';
+import { stepper, col, mon, type Col } from '../../ui/index';
+import { FinList } from '../table';
 import { Status } from '../status';
 import { useFinPerms } from '../fin-api';
 import { type HeadFn } from '../layout';

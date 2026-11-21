@@ -1,8 +1,8 @@
-import { FormMessage, ListSummary, yuan } from '../../ui/index';
+import { FormMessage, ListSummary, yuan, DataTable, col, mon, type Col } from '../../ui/index';
 import ClosingTab from './ClosingTab';
 import { Readiness, type TabProps } from './FormalReports';
 import { FinSection, PeriodInput, ExportLink } from '../layout';
-import { FinTable, col, mon, type Col } from '../table';
+import { FIN_TABLE } from '../table';
 import { Status } from '../status';
 import { useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { reportOf } from './reports-api';
@@ -46,7 +46,8 @@ function TrialBalance({ period }: { period: string }) {
           ]}
         />
       )}
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="试算平衡表"
         rows={data?.rows || []}
         rowKey={(r) => r.account_code}
@@ -63,7 +64,8 @@ function PeriodsSection() {
   return (
     <FinSection id="periods" title="会计期间" note="每个月的结账状态" collapsed>
       <FormMessage>{error}</FormMessage>
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label="会计期间"
         rows={data ?? []}
         rowKey={(r) => r.period}

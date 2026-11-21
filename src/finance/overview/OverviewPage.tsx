@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FormMessage, DetailPanel, Hint, yuan, loadingText } from '../../ui/index';
+import { FormMessage, DetailPanel, Hint, yuan, loadingText, DataTable, col, mon } from '../../ui/index';
 import { SourceDetail, SourceActions, sourceHeader } from '../SourceDetail';
 import { useEnable } from '../enable';
 import { overviewTodos } from './todos';
@@ -8,7 +8,7 @@ import TrendSection from './TrendSection';
 import AccountingSection from './AccountingSection';
 import { financePageTitles } from '../page-titles';
 import { FinHead, FinSection, PeriodInput } from '../layout';
-import { FinTable, col, mon } from '../table';
+import { FIN_TABLE } from '../table';
 import { exportHref, useFinPerms, useFinRead, useSyncOnOpen, type FinData } from '../fin-api';
 import { metricNames, sourceMonthName } from '../labels';
 import { usePeriod } from '../page-state';
@@ -174,7 +174,8 @@ function SourceTable({
   if (!rows.length) return null;
   return (
     <FinSection title={title}>
-      <FinTable
+      <DataTable
+        className={FIN_TABLE}
         label={title}
         rows={rows}
         rowKey={(r) => r.source_month}
