@@ -23,10 +23,11 @@ import { recordStatusActions } from '../shared/business/record-status.js';
 import { HISTORY_UNKNOWN, historyView, type HistoryView } from '../shared/business/record-history.js';
 import { historyActionName, historyActionNames } from '../shared/business/history-fields.js';
 import { HistoryList } from '../src/recordkit/RecordContext.js';
-import { actor, superActor } from './assistant-fixture.js';
 import { archiveDoc } from './receive-fixture.js';
 import { firstResult } from './data-management-fixture.js';
 import { assertClean, C, F, GONE, ids, L, O, P, refs, row, S, SUP } from './history-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
+import { must } from './read-result.js';
 
 /**
  * server/ 下所有 .ts 文件里的 audit(store, actor, { action, entity, id, document }) 调用，拆出对象里每个字段的写法
@@ -90,11 +91,6 @@ function callArgs(text: string, from: number) {
     } else current += ch;
   }
   return args;
-}
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
 }
 const literals = (expr: string) => [...expr.matchAll(/'([^']*)'/g)].map((m) => m[1]);
 /** 修改历史只查这几类记录（server/business/record-context.ts：六类业务档案和 flow_ 开头的四类单据） */

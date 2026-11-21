@@ -46,8 +46,9 @@ import {
   termTypes,
 } from '../shared/finance/finance.js';
 import { convertedKinds, inboxChannels, inboxKinds, inboxStatuses } from '../shared/import/inbox.js';
-import { actor as assistantActor, assistantFixture } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { accepts, rejects, sha } from './schema-fixture.js';
+import { actor as assistantActor } from './actor-fixture.js';
 
 type Row = Record<string, unknown>;
 const all = (db: DatabaseSync, sql: string, ...args: (string | number)[]) =>

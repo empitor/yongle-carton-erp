@@ -14,9 +14,9 @@ import { DatabaseMaintenanceService } from '../server/business/database-maintena
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { purchaseNextSteps } from '../shared/business/order-next-step.js';
 import { quantityUnits } from '../shared/core/quantity.js';
-import { actor, superActor } from './assistant-fixture.js';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { registerArrival } from '../server/flow/register-arrival.js';
+import { actor, superActor } from './actor-fixture.js';
 
 /** 移出订货单那条审计的内容：这里要看的几项（版本号前后原样取，整个对象比） */
 const detachAudit = z.object({

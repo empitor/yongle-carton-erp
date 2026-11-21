@@ -1,14 +1,12 @@
 // 一套虚构业务数据：一个客户、两个产品（箱A、箱B），能下订单；stackFixture 再加纸板（期初 100000 张）、
 // 成品A，能核对单据、安排生产、登记完工。只用到客户、产品、订单的测试用 orderBasics，不建库存。
 import { pageActor } from './actor-fixture.js';
-import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import type { Actor } from '../server/core/auth.js';
-import { customerSchema, orderSchema, productSchema, type Product } from '../shared/core/domain.js';
+import type { orderSchema, Product } from '../shared/core/domain.js';
 import type { z } from 'zod';
 import { shipOnDocDate } from './ship-date.js';
+import { businessBase } from './business-base-fixture.js';
 
 /** 订单明细的输入（orderSchema 收的一行）。 */
 type OrderLineDraft = z.input<typeof orderSchema>['lines'][number];
@@ -34,9 +32,10 @@ export const rawInput = {
 
 /** 客户、箱A（pa）、箱B（pb）；line(产品, 数量) 拼一行订单明细（单价 1 元），order(明细) 下一张已确认的订单。 */
 export function orderBasics(store = new Store(':memory:')) {
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-    pa = store.saveProduct(productSchema.parse({ name: '虚构箱A' })),
-    pb = store.saveProduct(productSchema.parse({ name: '虚构箱B' }));
+  const base = businessBase(stackActor, store);
+  const customer = base.customer(),
+    pa = base.product({ name: '虚构箱A' }),
+    pb = base.product({ name: '虚构箱B' });
   const line = (p: Pick<Product, 'id' | 'name'>, quantity = 100): OrderLineDraft => ({
     productId: p.id,
     productName: p.name,
@@ -46,18 +45,7 @@ export function orderBasics(store = new Store(':memory:')) {
     unitPriceCents: 100,
     notes: '',
   });
-  const order = (lines: OrderLineDraft[]) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate: '2026-10-01',
-        deliveryDate: '2026-10-30',
-        status: '已确认',
-        notes: '',
-        costs: null,
-        lines,
-      }),
-    );
+  const order = (lines: OrderLineDraft[]) => base.order(customer, lines, { notes: '', costs: null });
   return { store, customer, pa, pb, line, order };
 }
 
@@ -67,30 +55,13 @@ export function orderBasics(store = new Store(':memory:')) {
  * shipOnDocDate：核对送货单时出库日按单据日期（补录历史送货的测试用）。
  */
 export function stackFixture(file = ':memory:', options: { shipOnDocDate?: boolean } = {}) {
-  const store = new Store(file),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
+  const base = businessBase(stackActor, new Store(file)),
+    { store, ops, flow } = base;
   const basics = orderBasics(store);
-  const raw = ops.saveItem(rawInput, stackActor),
-    fa = ops.saveItem({ ...rawInput, name: '成品A', kind: 'finished', unit: '只', productId: basics.pa.id }, stackActor);
-  ops.move(
-    raw.id,
-    {
-      action: 'in',
-      quantity: '100000',
-      date: '2026-10-01',
-      notes: '虚构期初',
-      acknowledged: true,
-      requestId: randomUUID(),
-      expectedVersion: raw.version,
-    },
-    stackActor,
-  );
-  const confirm = (d: Ref, who: Actor = stackActor) => {
-    const p = flow.preview(d.id, who);
-    const ship = options.shipOnDocDate ? shipOnDocDate(flow, d.id) : {};
-    return flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true, ...ship }, who);
-  };
+  const raw = base.raw(rawInput),
+    fa = base.finished(basics.pa, { ...rawInput, name: '成品A', kind: 'finished', unit: '只', productId: basics.pa.id });
+  base.stockIn(raw, { quantity: '100000', date: '2026-10-01' });
+  const confirm = (d: Ref, who: Actor = stackActor) => base.check(d, options.shipOnDocDate ? shipOnDocDate(flow, d.id) : {}, who);
   // 安排生产即下达，没有核对这一步
   const task = (o: Ref, p: Ref) =>
     flow.save('task', { date: '2026-10-02', productId: p.id, quantity: '100', unit: '只', orderIds: [o.id] }, stackActor);

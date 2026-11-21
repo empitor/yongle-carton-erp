@@ -11,12 +11,13 @@ import { routeChatEvent, type ChatEventHandlers } from '../src/assistant/chat-st
 import { readExportFile } from '../src/assistant/chat-events.js';
 import { chatAttachmentSchema, speechReplySchema } from '../src/assistant/assistant-api.js';
 import { readEventStream } from '../src/ui/event-stream.js';
-import { actor, assistantFixture, confirmCard, flowFixture } from './assistant-fixture.js';
+import { assistantFixture, confirmCard, autoConfirmAssistant } from './assistant-fixture.js';
 import { createOrderWorkflowFixture, importer } from './assistant-workflow-fixture.js';
 import { setup } from './document-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 import { startHttp } from './http-fixture.js';
 import { replyNative } from './fake-deepseek.js';
+import { actor } from './actor-fixture.js';
 
 /** 服务端推给页面的样子：经 JSON 来回（值是 undefined 的键丢掉），和页面从事件流读到的一样 */
 const wire = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
@@ -65,7 +66,7 @@ test('页面认得服务端发的说话人、先说的话、正文、思考、�
 });
 
 test('页面认得服务端发的“业务变了、刷新”和“打开页面”两种效果', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
       product = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));

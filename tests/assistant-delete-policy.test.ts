@@ -7,11 +7,13 @@ import { z } from 'zod';
 import { AppError } from '../server/core/errors.js';
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
-import { superActor, flowFixture, lastCard, readAs } from './assistant-fixture.js';
+import { autoConfirmAssistant, lastCard } from './assistant-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
+import { superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 一个虚构供应商、一张已入库 1000 张的到货单，助手提出删除这个供应商 */
-async function policyCard(f: ReturnType<typeof flowFixture>) {
+async function policyCard(f: ReturnType<typeof autoConfirmAssistant>) {
   const who = superActor();
   const ops = new OperationsService(f.store),
     flow = new FlowService(f.store);
@@ -29,15 +31,15 @@ async function policyCard(f: ReturnType<typeof flowFixture>) {
   return { who, ops, supplier, raw, thread, plan };
 }
 /** 存着的待确认方案（摘要和内容）；没有就让测试失败 */
-function storedPreview(f: ReturnType<typeof flowFixture>, id: string) {
+function storedPreview(f: ReturnType<typeof autoConfirmAssistant>, id: string) {
   const row = f.store.db.prepare('SELECT digest,document FROM assistant_previews WHERE id=?').get(id);
   assert.ok(row, '待确认方案不在库里');
   return row;
 }
-const digestOf = (f: ReturnType<typeof flowFixture>, id: string) => storedPreview(f, id).digest;
+const digestOf = (f: ReturnType<typeof autoConfirmAssistant>, id: string) => storedPreview(f, id).digest;
 
 test('助手删除卡片上改“库存怎么处理”：服务器按新选项重新生成同一份方案（新摘要），执行按人选的来；校验一样都不放松', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { who, ops, supplier, raw, thread, plan } = await policyCard(f);
     assert.equal(plan.tool, 'records.delete');
@@ -102,7 +104,7 @@ test('助手删除卡片上改“库存怎么处理”：服务器按新选项�
 });
 
 test('两个标签页：B 页把库存处理改成“库存数量不动”，A 页还显示“库存一起改回”时点确认被拒，不按 B 页的选项删；看过最新卡片再确认才删', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { who, ops, supplier, raw, thread, plan: cardA } = await policyCard(f);
     assert.equal(field(field(cardA.after, 'selection'), 'inventoryPolicy'), 'recalculate');
@@ -132,7 +134,7 @@ test('两个标签页：B 页把库存处理改成“库存数量不动”，A �
 });
 
 test('改选的响应丢了：服务器已经换成“库存数量不动”，页面还停在“库存一起改回”，点确认被拒；改回原来的选项后旧卡片又对得上', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { who, ops, supplier, raw, plan: shown } = await policyCard(f);
     f.manager.changeDeletionPolicy(shown.id, { inventoryPolicy: 'preserve' }, who, 's'); // 响应没回到页面
@@ -153,7 +155,7 @@ test('改选的响应丢了：服务器已经换成“库存数量不动”，�
 });
 
 test('改选时方案、聊天里的卡片、审计在同一个事务里：中途出错一起回滚，方案和卡片都还是原来那一版', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { who, thread, plan } = await policyCard(f);
     const previewRow = () => storedPreview(f, plan.id);

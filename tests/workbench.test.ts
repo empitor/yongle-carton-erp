@@ -14,9 +14,9 @@ import { buildWorkbench, buildToday } from '../server/business/workbench.js';
 import { relatedBusiness } from '../server/business/related-business.js';
 import { customerSchema, orderSchema, productSchema, specification } from '../shared/core/domain.js';
 import { deliveryCandidates } from '../shared/business/warehouse-delivery.js';
-import { actor } from './assistant-fixture.js';
 import { workbenchFixture } from './flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
+import { actor } from './actor-fixture.js';
 
 const date = '2026-10-29';
 

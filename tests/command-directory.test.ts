@@ -1,5 +1,5 @@
 // 命令目录（server/assistant/command-directory.ts）：目录文字、用法、找命令、常用名单。直接调纯函数，输入是注册表按账号给出的可用命令。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor, superActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
@@ -17,11 +17,11 @@ import {
   firstSentence,
 } from '../server/assistant/command-directory.js';
 import { FILTER_KEYS_HINT } from '../server/assistant/tools/records-filter.js';
-import { actor, readAs, superActor } from './assistant-fixture.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { readAs } from './read-result.js';
 
 const cashier = pageActor({ id: 'dir-cashier', name: '虚构出纳', permissions: ['finance:view', 'finance:cash'], role: 'admin' });
 function usableFor(who: Actor) {

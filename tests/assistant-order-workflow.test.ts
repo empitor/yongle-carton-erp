@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
 import { InboxService } from '../server/inbox/service.js';
 import { z } from 'zod';
-import { confirmCard, lastCard, readAs } from './assistant-fixture.js';
+import { confirmCard, lastCard } from './assistant-fixture.js';
 import { count as countOf } from '../server/core/index.js';
 import { productSchema } from '../shared/core/domain.js';
 import { imageFixture, docxFixture, xlsxFixture, pdfFixture } from './import-fixtures.js';
@@ -17,6 +17,7 @@ import { startHttp } from './http-fixture.js';
 import { SseParser } from '../shared/core/sse.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
+import { readAs } from './read-result.js';
 /** 工作流 call() 交回的结果（各命令不同）按路径取一项 */
 const at = (value: unknown, ...path: (string | number)[]) => path.reduce<unknown>((v, k) => (typeof k === 'number' ? (asList(v) ?? [])[k] : field(v, k)), value);
 

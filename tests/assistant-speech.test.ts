@@ -10,7 +10,7 @@ import { transcribePcm } from '../server/speech/service.js';
 import { SPEECH_MAX_SAMPLES } from '../shared/ai/speech.js';
 import { jsonResponse } from './fake-deepseek-wire.js';
 import { halfSecond, pcm, speechServer } from './speech-fixture.js';
-import { readAs } from './assistant-fixture.js';
+import { readAs } from './read-result.js';
 
 const speechError = (status: number, pattern: RegExp) => (e: unknown) =>
   e instanceof AppError && e.status === status && pattern.test(e.message);

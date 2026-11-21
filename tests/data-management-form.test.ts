@@ -5,7 +5,6 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { costSchema, customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { OperationsService } from '../server/operations/service.js';
-import { actor } from './assistant-fixture.js';
 import { dataManagementFieldName, dataManagementModules } from '../shared/business/data-management-modules.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { dataManagementCommand } from '../src/admin/data-api.js';
@@ -23,12 +22,9 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { basics, command, firstResult, shownError } from './data-management-fixture.js';
 import { isJsonList, isJsonObject, type JsonObject } from '../src/admin/record-types.js';
+import { actor } from './actor-fixture.js';
+import { must } from './read-result.js';
 
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 const viaJsonList = (value: unknown) => z.array(z.record(z.string(), z.json())).parse(JSON.parse(JSON.stringify(value)));
 
 /** 编辑窗内容里的明细（一组对象） */

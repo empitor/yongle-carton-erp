@@ -14,8 +14,7 @@ import { FinanceAssets } from '../server/finance/assets.js';
 import { FinancePayroll } from '../server/finance/payroll.js';
 import { FinanceCosting } from '../server/finance/costing.js';
 import { entry } from '../server/finance/query.js';
-import { count, rows } from '../server/core/index.js';
-import { z } from 'zod';
+import { count } from '../server/core/index.js';
 import { maker, newSettings, postDrafts as postAll, ledgerBalance, monthEndJobs } from './finance-fixture.js';
 
 /** 结账：计提、成本跑完以后数据又变了（多见于反结账后改账），检查要发现，并能红冲后重做。全部虚构数据。 */
@@ -185,9 +184,8 @@ test('计提后重新导入工资表：整月覆盖不要版本列，少了的�
     await payroll.upload(maker, { period, format: 'csv', requestId: 'upload-2' }, csv([
       'E1,虚构甲,虚构部门,560204,350.00,0,0,0,350.00,0,0',
     ]));
-    // 看明细时一行是一个员工（工资表整行）；列表的返回类型把明细和按部门汇总并在一起，按工资表的行认
-    const detailRows = z.array(rows.fin_payroll.pick({ employee_id: true, gross: true }));
-    const listed = detailRows.parse(payroll.list(maker, { period, detail: '1' }).rows).map((r) => [r.employee_id, Number(r.gross)]);
+    // 看明细时一行是一个员工（工资表整行）
+    const listed = payroll.list(maker, { period, detail: '1' }).rows.map((r) => [r.employee_id, Number(r.gross)]);
     assert.deepEqual(listed, [['E1', 35000]], '整月覆盖，乙删掉');
     const step = f.jobs();
     const stale = step.stale.find((x) => x.kind === 'payroll');

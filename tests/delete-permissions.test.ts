@@ -7,12 +7,12 @@ import { AuthManager } from '../server/core/auth.js';
 import { OperationsService } from '../server/operations/service.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { actor, superActor } from './assistant-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import { setup } from './delete-fixture.js';
 import { z } from 'zod';
 import { count } from '../server/core/index.js';
+import { actor, superActor } from './actor-fixture.js';
 
 /** 抛出的错带的状态码、类别和说明（不是带说明的对象就让断言失败） */
 const errorOf = (e: unknown) => z.object({ status: z.number().optional(), code: z.string().optional(), message: z.string() }).parse(e);

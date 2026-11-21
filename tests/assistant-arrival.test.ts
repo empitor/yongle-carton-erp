@@ -5,18 +5,18 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
-import type { ToolContext } from '../server/assistant/tools/context.js';
 import { FlowService } from '../server/flow/service.js';
 import { OperationsService } from '../server/operations/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { arrivalReaders, arrivalWriters } from '../server/assistant/tools/arrivals.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { actor, flowFixture, superActor } from './assistant-fixture.js';
+import { autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { orderedPurchase } from './receive-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
 
 test('助手按订货单登记到货：查采购、登记入库、核对到货记录各一步，和页面同一个服务，不另要确认；停用了不能执行，没有权限被拒', async () => {
-  const a = flowFixture();
+  const a = autoConfirmAssistant();
   try {
     const ops = new OperationsService(a.store),
       flow = new FlowService(a.store);
@@ -75,7 +75,7 @@ test('助手按订货单登记到货：查采购、登记入库、核对到货�
 test('撤销退货卡片绑定的退货单不在了：数据版本是 null（卡片按数据变了作废），不报找不到', () => {
   const store = new Store(':memory:');
   try {
-    const ctx = { store, ops: new OperationsService(store), flow: new FlowService(store), services: {}, tools: new AssistantTools(store) };
+    const ctx = ctxOf(store);
     const plan = {
       tool: 'purchase_return.reverse',
       args: { id: 999, input: { version: 1, reason: '虚构退错了' } },
@@ -94,8 +94,8 @@ test('撤销退货卡片绑定的退货单不在了：数据版本是 null（卡
 test('助手查到货：到货记录取单据流转服务的同一份数据，带到货页面地址；没登录被拒', () => {
   const store = new Store(':memory:');
   try {
-    const flow = new FlowService(store),
-      ctx: ToolContext = { store, ops: new OperationsService(store), flow, services: {}, tools: new AssistantTools(store) };
+    const ctx = ctxOf(store),
+      flow = ctx.flow;
     assert.deepEqual(arrivalReaders['arrival.records'](ctx, {}, actor, 'arrival.records'), {
       records: flow.arrivalRecords({}),
       url: '#warehouse?arrivals=1',

@@ -7,19 +7,15 @@ import { count, exists, many, one, rows } from '../server/core/index.js';
 import { businessList } from '../server/business/records.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { orderSchema } from '../shared/core/domain.js';
-import { flowFixture } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { OperationsRepository } from '../server/operations/repository.js';
 import { flowStatusText } from '../shared/business/physical-flow.js';
 import { fixture } from './maintenance-fixture.js';
 import { applyCorrection, archiveDoc, previewCorrection } from './receive-fixture.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { must } from './read-result.js';
 
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 
 // 每个模块删一条（数据都铺满：到货、生产任务、完工、送货）：原表没有这一行，归档标记也没有，外键检查为空
 test('删除客户、产品、供应商、订单、采购单、库存品和四类单据：原表没有这一行，不留归档标记，外键对得上', () => {
@@ -208,7 +204,7 @@ test('已入库完工 860、已发货 100：更正成 850 不用先撤销送货�
 });
 test('AI删除、归档、恢复使用不同操作，已归档记录删除后在原表与归档中均不存在', async () => {
   // 测试开了自动确认：出了卡片立刻替人点（删除照样只出卡片）
-  const a = flowFixture(),
+  const a = autoConfirmAssistant(),
     f = fixture(a.store),
     thread = a.manager.create(f.who);
   const chat = async (text: string, name: string, args: Record<string, unknown>) => {

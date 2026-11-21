@@ -1,16 +1,15 @@
-// 单据流转测试的公共底子（都是内存库、虚构数据）：flowFixture 一个客户、产品、供应商、纸板和成品库存；
+// 单据流转测试的公共底子（都是内存库、虚构数据，档案按 business-base-fixture 建）：flowFixture 一个客户、产品、供应商、纸板和成品库存；
 // businessFixture 再带一张订单和到货、安排生产、完工的写法；workbenchFixture 是工作台和单据样张用的有料号产品。
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
-import { customerSchema, orderSchema, productSchema, specification } from '../shared/core/domain.js';
+import { specification } from '../shared/core/domain.js';
 import type { Actor } from '../server/core/auth.js';
 import type { FlowKind } from '../shared/business/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
+import { businessBase, standardRecords } from './business-base-fixture.js';
 
 export const clerk: Actor = pageActor({ id: 'flow-clerk', name: '虚构业务员', permissions: ['business:edit'] });
 export const localAdmin = (): Actor =>
@@ -32,21 +31,13 @@ export function orderOf(store: Store, id: number, includeArchived = false) {
 }
 
 export function flowFixture(who: Actor = clerk) {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户', address: '虚构地址' }));
-  const product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
-  const supplier = ops.saveSupplier({ name: '虚构供应商' }, who);
-  const raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, who);
-  const finished = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: product.id }, who);
+  const base = businessBase(who),
+    { store, ops, flow } = base;
+  const { customer, product, supplier, raw, finished } = standardRecords(base, { customer: { address: '虚构地址' } });
   const draft = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => saveDoc(flow, kind, { date: '2026-10-27', ...input }, who);
   /** 安排生产任务：安排即下达，没有核对这一步 */
   const task = (input: Record<string, unknown>) => flow.save('task', { date: '2026-10-27', ...input }, who);
-  const confirmId = (id: number, extra: Record<string, unknown> = {}) => {
-    const p = flow.preview(id, who);
-    return flow.confirm(id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true, ...extra }, who);
-  };
+  const confirmId = (id: number, extra: Record<string, unknown> = {}) => base.check({ id }, extra);
   /** 保存并核对，返回核对后的这张单据（按种类收窄） */
   const confirm = <K extends FlowKind>(kind: K, input: Record<string, unknown>, extra: Record<string, unknown> = {}) => {
     const id = draft(kind, input).id;
@@ -54,24 +45,8 @@ export function flowFixture(who: Actor = clerk) {
     return flow.get(id, kind);
   };
   const order = (quantity: number, over: Record<string, unknown> = {}) =>
-    store.saveOrder(
-      orderSchema.parse({
-        customerId: customer.id,
-        orderDate: '2026-10-01',
-        deliveryDate: '2026-12-30',
-        status: '已确认',
-        lines: [{ productId: product.id, quantity, unit: '只', unitPriceCents: 100 }],
-        ...over,
-      }),
-    );
-  const stockIn = (quantity: string, stockId = finished.id) => {
-    const it = ops.repo.items(true, stockId)[0];
-    ops.move(
-      stockId,
-      { expectedVersion: it.version, requestId: randomUUID(), action: 'in', quantity, date: '2026-10-20', notes: '虚构入库', acknowledged: true },
-      who,
-    );
-  };
+    base.order(customer, [base.line(product, quantity)], { deliveryDate: '2026-12-30', ...over });
+  const stockIn = (quantity: string, stockId = finished.id) => base.stockIn({ id: stockId }, { quantity, date: '2026-10-20', notes: '虚构入库' });
   const arrive = (reference: string, quantity: string) =>
     confirm('arrival', {
       supplierId: supplier.id,
@@ -100,29 +75,19 @@ export const fixtureOwner = () =>
  * production(任务编号, 良品数) 登记完工，领 10 张纸板。
  */
 export function businessFixture() {
-  const store = new Store(':memory:'),
-    actor = fixtureOwner(),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' })),
-    supplier = ops.saveSupplier({ name: '虚构供应商' }, actor),
-    raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张' }, actor),
-    glue = ops.saveItem({ name: '虚构衬板', kind: 'raw', unit: '张' }, actor),
-    finished = ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: product.id }, actor);
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-10-01',
-      deliveryDate: '2026-10-30',
-      status: '已确认',
-      lines: [{ productId: product.id, quantity: 1000, unit: '只', unitPriceCents: 100 }],
-    }),
-  );
+  const actor = fixtureOwner(),
+    base = businessBase(actor),
+    { store, ops, flow } = base;
+  const customer = base.customer(),
+    product = base.product(),
+    supplier = base.supplier(),
+    raw = base.raw(),
+    glue = base.raw({ name: '虚构衬板' }),
+    finished = base.finished(product);
+  const order = base.order(customer, [base.line(product, 1000)]);
   const confirm = <K extends FlowKind>(kind: K, input: Record<string, unknown>) => {
     const d = saveDoc(flow, kind, { date: '2026-10-27', ...input }, actor);
-    const p = flow.preview(d.id, actor);
-    flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true }, actor);
+    base.check(d);
     return flow.get(d.id, kind);
   };
   const arrival = (quantity: string) =>
@@ -152,42 +117,20 @@ export function businessFixture() {
  */
 export function workbenchFixture(who: Actor) {
   const date = '2026-10-29',
-    store = new Store(':memory:'),
-    ops = new OperationsService(store),
-    flow = new FlowService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构工作台客户' }));
-  const product = store.saveProduct(
-    productSchema.parse({
-      name: '虚构有料号纸箱',
-      length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'BC',
-      customerProductCode: '000123',
-    }),
-  );
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: date,
-      deliveryDate: date,
-      status: '已确认',
-      lines: [
-        {
-          productId: product.id,
-          quantity: 100,
-          unit: '只',
-          unitPriceCents: 100,
-          specification: specification(product),
-          customerProductCode: '000123',
-        },
-      ],
-    }),
-  );
-  const supplier = ops.saveSupplier({ name: '虚构模板供应商' }, who),
-    raw = ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' }, who);
-  ops.move(
-    raw.id,
-    { expectedVersion: raw.version, requestId: randomUUID(), action: 'in', quantity: '100', date, notes: '虚构期初', acknowledged: true },
-    who,
-  );
+    base = businessBase(who),
+    { store, ops, flow } = base;
+  const customer = base.customer({ name: '虚构工作台客户' });
+  const product = base.product({
+    name: '虚构有料号纸箱',
+    length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'BC',
+    customerProductCode: '000123',
+  });
+  const order = base.order(customer, [base.line(product, 100, { specification: specification(product), customerProductCode: '000123' })], {
+    orderDate: date,
+    deliveryDate: date,
+  });
+  const supplier = base.supplier({ name: '虚构模板供应商' }),
+    raw = base.raw({ name: '虚构纸板', length: 1000, width: 800, dimensionUnit: 'mm' }, { quantity: '100', date });
   const purchase = ops.savePurchase(
     {
       supplierId: supplier.id,

@@ -1,6 +1,6 @@
 // 清空业务数据（人工和助手）：连带清哪些、保留哪些，财务已有记录时拒绝，编号不回头，初始化的范围登记全。
 import { z } from 'zod';
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor as assistantActor, superActor as assistantSuperActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -10,7 +10,6 @@ import { DatabaseMaintenanceService } from '../server/business/database-maintena
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { count, many, resetCounts, resetParticipants, rows } from '../server/core/index.js';
 import { AssistantAttachments } from '../server/assistant/attachments.js';
-import { readAs } from './assistant-fixture.js';
 // 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务汇总加载时登记（server/core/deletion-rules.ts）
 import '../server/finance/index.js';
 import '../server/import/index.js';
@@ -23,13 +22,14 @@ import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { OperationsService } from '../server/operations/service.js';
-import { assistantFixture, actor as assistantActor, superActor as assistantSuperActor } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { InboxService } from '../server/inbox/service.js';
 import { BotSettings } from '../server/inbox/bots/settings.js';
 import { imageFixture } from './import-fixtures.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { readAs } from './read-result.js';
 
 const who = () =>
   localAdministratorActor(pageActor({

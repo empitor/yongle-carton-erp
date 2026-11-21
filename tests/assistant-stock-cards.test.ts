@@ -4,13 +4,15 @@ import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { actor, superActor, assistantFixture, cardDigest, lastCard, readAs } from './assistant-fixture.js';
+import { assistantFixture, cardDigest, lastCard } from './assistant-fixture.js';
 import { customerSchema, productSchema, orderSchema, today } from '../shared/core/domain.js';
 import { OperationsService } from '../server/operations/service.js';
 import { saveDoc } from './receive-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { count } from '../server/core/index.js';
 import type { Actor } from '../server/core/index.js';
+import { actor, superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const call = (name: string, args: Record<string, unknown>) => ({ message: '', toolCalls: [{ name, args }] });
 /** 让模型调一个出卡片的命令，返回这张卡片 */

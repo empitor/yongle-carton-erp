@@ -1,7 +1,5 @@
 // 对账测试的固定种子：内存库、虚构客户供应商产品、启用财务、资金账户和账期（全部是虚构数据）
 import { Store } from '../server/core/db.js';
-import { FlowService } from '../server/flow/service.js';
-import { OperationsService } from '../server/operations/service.js';
 import { FinanceBooks } from '../server/finance/books.js';
 import { FinanceClosing } from '../server/finance/closing.js';
 import { FinanceCosting } from '../server/finance/costing.js';
@@ -14,11 +12,11 @@ import { FinanceReports } from '../server/finance/reports.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';
 import { FinanceDepositsInterest } from '../server/finance/deposits-interest.js';
-import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { approver, postDrafts, supervisor } from './finance-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
 import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
 import { one, rows } from '../server/core/index.js';
+import { businessBase } from './business-base-fixture.js';
 
 /** 对账测试用进了超级管理员模式的财务账号（冲销单据要用），审核用基础 fixture 的审核员 */
 export const maker = supervisor;
@@ -40,24 +38,16 @@ export function invariantsWorld() {
   const req = () => ({
     requestId: '20261106-0000-4000-8000-' + String(++serial).padStart(12, '0'),
   });
-  const services = invariantServices(store);
+  const base = businessBase(maker, store),
+    services = invariantServices(base);
   const post = () => postDrafts(store);
-  const confirm = (doc: { id: number }) =>
-    services.flow.confirm(
-      doc.id,
-      {
-        ...req(),
-        previewDigest: services.flow.preview(doc.id, maker).previewDigest,
-        acknowledged: true,
-        ...shipOnDocDate(services.flow, doc.id),
-      },
-      maker,
-    );
-  return { store, db, random, req, post, confirm, ...eventReads(store), ...services, ...seedWorld(store, services, req) };
+  // 请求号按序号起（可重复），不用随机的
+  const confirm = (doc: { id: number }) => base.check(doc, { ...req(), ...shipOnDocDate(services.flow, doc.id) });
+  return { store, db, random, req, post, confirm, ...eventReads(store), ...services, ...seedWorld(base, services, req) };
 }
 
 /** 对账测试要用的各个服务 */
-function invariantServices(store: Store) {
+function invariantServices({ store, ops, flow }: ReturnType<typeof businessBase>) {
   return {
     finance: new FinanceSettings(store),
     ledger: new FinanceLedger(store),
@@ -71,8 +61,8 @@ function invariantServices(store: Store) {
     costing: new FinanceCosting(store),
     expenses: new FinanceExpenses(store),
     terms: new FinanceDepositsInterest(store),
-    ops: new OperationsService(store),
-    flow: new FlowService(store),
+    ops,
+    flow,
   };
 }
 
@@ -98,12 +88,13 @@ function eventReads(store: Store) {
 }
 
 /** 主数据（客户、供应商、产品、纸板、成品）、启用财务（2026-01，期初银行存款 1000 元）、银行账户、双方账期 */
-function seedWorld(store: Store, s: ReturnType<typeof invariantServices>, req: () => { requestId: string }) {
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构对账客户' }));
-  const supplier = s.ops.saveSupplier({ name: '虚构对账供应商' }, maker);
-  const product = store.saveProduct(productSchema.parse({ name: '虚构对账纸箱' }));
-  const raw = s.ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' }, maker);
-  const finished = s.ops.saveItem({ name: product.name, kind: 'finished', unit: '个', productId: product.id }, maker);
+function seedWorld(base: ReturnType<typeof businessBase>, s: ReturnType<typeof invariantServices>, req: () => { requestId: string }) {
+  const { store } = base;
+  const customer = base.customer({ name: '虚构对账客户' });
+  const supplier = base.supplier({ name: '虚构对账供应商' });
+  const product = base.product({ name: '虚构对账纸箱' });
+  const raw = base.raw({ length: 1000, width: 800, dimensionUnit: 'mm' });
+  const finished = base.finished(product, { name: product.name, unit: '个' });
   s.finance.enable(maker, {
     ...req(),
     version: 1,

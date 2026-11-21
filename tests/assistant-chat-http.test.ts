@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { z } from 'zod';
-import { actor, assistantFixture, flowFixture, lastCard, readAs, secret } from './assistant-fixture.js';
+import { assistantFixture, autoConfirmAssistant, lastCard, secret } from './assistant-fixture.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { OperationsService } from '../server/operations/service.js';
 import { createBusinessService } from '../server/business/service.js';
@@ -18,6 +18,8 @@ import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.j
 import { field } from '../server/assistant/chat/result-fields.js';
 import { count } from '../server/core/index.js';
 import { planCardSchema } from '../shared/assistant/index.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const call = (name: string, args: unknown) => ({ message: '', toolCalls: [{ name, args }] });
 const audits = (f: { store: Store }) => count(f.store.db, 'SELECT COUNT(*) n FROM business_audit');
@@ -67,7 +69,7 @@ test('当前记录从服务器读给模型（不信页面带来的内容）：�
 });
 
 test('改当前记录：确认写入后给页面发业务刷新事件', async () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
       product = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));

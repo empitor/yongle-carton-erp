@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { buildModelTools, modelToolName, trimSchema } from '../server/assistant/chat/model-tools.js';
-import { readAs } from './assistant-fixture.js';
+import { readAs } from './read-result.js';
 
 test('发给模型的工具：目录里每个工具都能换成合法且不重名的名字，反查回原名；不另加别的工具', () => {
   const registry = new AssistantToolRegistry(':memory:', () => true);

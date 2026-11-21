@@ -1,10 +1,6 @@
 // 成本计算和采购退货测试共用的搭建：真实单据服务走采购到货、领料完工、送货、退货，开发票、算成本（虚构数据、内存库）
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import { OperationsService } from '../server/operations/service.js';
-import { FlowService } from '../server/flow/service.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceEvents } from '../server/finance/events.js';
@@ -20,6 +16,7 @@ import { bill, event, maker, newSettings, obligation, obligationRow, postDrafts 
 import { many, one, rows } from '../server/core/index.js';
 import { readCostingDetails } from '../server/finance/costing-details.js';
 import type { StockItemView } from '../shared/business/index.js';
+import { businessBase } from './business-base-fixture.js';
 
 export { maker };
 
@@ -30,7 +27,7 @@ export function fixture() {
   return {
     s: base.s,
     costing: base.costing,
-    raw: rawMaker(base.ops),
+    raw: rawMaker(base.base),
     finished: sales.finished,
     receive: receiver(base),
     ...arrivals(base),
@@ -44,21 +41,16 @@ export function fixture() {
 
 /** 内存库、启用财务、虚构客户和供应商（1 号，未税 0 税率），各个服务；confirm(单据) 预览后核对（出库日按单据日期） */
 function costingBase() {
-  const s = new Store(':memory:');
+  const base = businessBase(maker),
+    { store: s, ops, flow } = base;
   new FinanceSettings(s).enable(maker, { period: '2026-02', taxpayer: 'general', version: 1, requestId: 'enable', rows: [] });
-  s.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
-  const ops = new OperationsService(s),
-    flow = new FlowService(s);
-  ops.saveSupplier({ name: '虚构供应商' }, maker);
+  base.customer();
+  base.supplier();
   new FinanceParties(s).saveTerms(maker, { kind: 'supplier', partyId: 1, termDays: 0, taxRate: '0', taxMode: '未税', requestId: 'supplier-tax' });
   const postDrafts = () => postAll(s);
-  const confirm = (doc: { id: number }) =>
-    flow.confirm(
-      doc.id,
-      { previewDigest: flow.preview(doc.id, maker).previewDigest, requestId: randomUUID(), acknowledged: true, ...shipOnDocDate(flow, doc.id) },
-      maker,
-    );
+  const confirm = (doc: { id: number }) => base.check(doc, shipOnDocDate(flow, doc.id));
   return {
+    base,
     s,
     ops,
     flow,
@@ -74,14 +66,11 @@ function costingBase() {
 type CostingBase = ReturnType<typeof costingBase>;
 
 /** raw() 每调一次建一种新纸板（名称、长度按序号区分） */
-function rawMaker(ops: OperationsService) {
+function rawMaker(base: ReturnType<typeof businessBase>) {
   let serial = 0;
   return () => {
     serial++;
-    return ops.saveItem(
-      { name: '虚构纸板' + serial, kind: 'raw', unit: '张', length: 1000 + serial, width: 800, dimensionUnit: 'mm' },
-      maker,
-    );
+    return base.raw({ name: '虚构纸板' + serial, length: 1000 + serial, width: 800, dimensionUnit: 'mm' });
   };
 }
 
@@ -151,9 +140,9 @@ function invoicing({ s, invoices }: CostingBase) {
 }
 
 /** 成品纸箱和一张 10 只、30 元/只的订单；produce(纸板, 日期, 数量) 领料完工，deliver(日期, 数量) 送货 */
-function salesSide({ s, ops, flow, confirm }: CostingBase) {
-  const product = s.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
-  const finished = ops.saveItem({ name: '虚构纸箱', kind: 'finished', unit: '只', productId: product.id }, maker);
+function salesSide({ base, flow, confirm }: CostingBase) {
+  const product = base.product();
+  const finished = base.finished(product, { name: '虚构纸箱' });
   const produce = (item: StockItemView, date: string, qty: string) =>
     confirm(
       saveDoc(
@@ -163,16 +152,10 @@ function salesSide({ s, ops, flow, confirm }: CostingBase) {
         maker,
       ),
     );
-  const order = s.saveOrder(
-    orderSchema.parse({
-      customerId: 1,
-      orderDate: '2026-02-01',
-      deliveryDate: '2026-02-15',
-      status: '已确认',
-      taxRate: '0',
-      taxMode: '未税',
-      lines: [{ productId: product.id, productName: product.name, unit: '只', quantity: 10, unitPriceCents: 3000, unitPriceExact: '30.0000' }],
-    }),
+  const order = base.order(
+    { id: 1 },
+    [base.line(product, 10, { productName: product.name, unitPriceCents: 3000, unitPriceExact: '30.0000' })],
+    { orderDate: '2026-02-01', deliveryDate: '2026-02-15', taxRate: '0', taxMode: '未税' },
   );
   const deliver = (date: string, qty: string) =>
     confirm(
@@ -274,19 +257,15 @@ function afterwards({ s, flow, costing, reports, returns, postDrafts }: CostingB
 
 /** 采购退货测试：财务从 2026-02 启用，经单据服务到货 10 张、每张 10 元、未税，暂估记账 */
 export function returnFixture(start = '2026-02') {
-  const s = new Store(':memory:');
+  const base = businessBase(maker),
+    { store: s, ops, flow } = base;
   newSettings(s, start);
   const events = new FinanceEvents(s),
     invoices = new FinanceInvoices(s),
     cost = new FinanceCosting(s),
     reports = new FinanceReports(s),
-    ops = new OperationsService(s),
-    flow = new FlowService(s),
     returns = new PurchaseReturns(s);
-  const raw = ops.saveItem(
-    { name: '虚构纸板', kind: 'raw', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' },
-    maker,
-  );
+  const raw = base.raw({ length: 1000, width: 800, dimensionUnit: 'mm' });
   const purchase = ops.savePurchase(
     {
       supplierId: 1,
@@ -310,11 +289,7 @@ export function returnFixture(start = '2026-02') {
     },
     maker,
   );
-  const received = flow.confirm(
-    saved.id,
-    { previewDigest: flow.preview(saved.id, maker).previewDigest, requestId: randomUUID(), acknowledged: true },
-    maker,
-  );
+  const received = base.check(saved);
   events.sync(maker, { requestId: 'physical' });
   new FinanceEventVouchers(s).generate(maker, event(s, received.id).id, { version: 1, requestId: 'arrival-event' });
   postAll(s);

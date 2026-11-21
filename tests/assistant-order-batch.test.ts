@@ -8,10 +8,12 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { quantityUnits } from '../shared/core/quantity.js';
-import { actor, flowFixture, readAs } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import type { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 /** 改到货安排的结果：取出逐行的安排，其余键保留 */
 const scheduled = z.looseObject({ rows: z.array(z.looseObject({ schedule: z.array(z.looseObject({})) })) });
@@ -45,7 +47,7 @@ function setup(store: Store) {
 }
 
 test('助手合并导出订货单：先看合并后的行，再按行号写到货安排导出，交付完成后两张都已订货、进待到货', async () => {
-  const fx = flowFixture(),
+  const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
     const tools = new AssistantTools(fx.store);
@@ -115,7 +117,7 @@ test('助手合并导出订货单：先看合并后的行，再按行号写到�
 });
 
 test('助手按订货单登记到货：和人工同一个服务入库，分到各张采购单；改到货安排；没权限拒绝', async () => {
-  const fx = flowFixture(),
+  const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
     const tools = new AssistantTools(fx.store);
@@ -197,7 +199,7 @@ test('助手按订货单登记到货：和人工同一个服务入库，分到�
 });
 
 test('以前订的采购单按 purchaseId 登记到货：生成方案（生成几次都一样）不建订货批次、不写审计，确认执行时才补建；已有订货单必须带版本', () => {
-  const fx = flowFixture(),
+  const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
     // 模拟功能上线前订的采购单：已订货，但没有订货批次
@@ -246,7 +248,7 @@ test('以前订的采购单按 purchaseId 登记到货：生成方案（生成�
 });
 
 test('order_batch.list 先按供应商、采购单筛再组装，结果和全部待到货一致', () => {
-  const fx = flowFixture(),
+  const fx = autoConfirmAssistant(),
     f = setup(fx.store);
   try {
     const order = (p: { id: number }) => {

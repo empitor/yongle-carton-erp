@@ -15,7 +15,7 @@ import { documentRowsPerPage } from '../server/documents/layout.js';
 import { layoutCases } from '../server/documents/layout-check.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { AppError } from '../server/core/errors.js';
-import { zipEntries } from './document-fixture.js';
+import { allRows, wordXml, zipEntries } from './document-fixture.js';
 
 const templates = defaultDocumentTemplates().templates;
 /** 出厂默认模板里这一类的那一份 */
@@ -39,23 +39,11 @@ const pageSize = (xml: string) => {
   assert.ok(m, 'Word 里有纸张大小');
   return [Math.round(Number(m[1]) / 56.6929), Math.round(Number(m[2]) / 56.6929)];
 };
-/** 渲染出的 Word 正文 */
-async function wordXml(bytes: Buffer) {
-  const xml = (await zipEntries(bytes)).get('word/document.xml');
-  assert.ok(xml, 'Word 里有正文');
-  return xml;
-}
 /** Excel 读进来的第一张表 */
 async function firstSheet(bytes: Buffer) {
   const book = new ExcelJS.Workbook();
   await book.xlsx.read(Readable.from([bytes]));
   return book.worksheets[0];
-}
-/** 表格里的全部行：读不出来就报错 */
-function allRows(sheet: ExcelJS.Worksheet) {
-  const rows = sheet.getRows(1, sheet.rowCount);
-  assert.ok(rows, '表格里有行');
-  return rows;
 }
 /** 每张行数：样张都算好了 */
 function rowsPerPageOf(form: { rowsPerPage?: number }) {

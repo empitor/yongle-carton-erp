@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { SQLInputValue } from 'node:sqlite';
 import { count as countRows } from '../server/core/index.js';
-import { assistantFixture, actor } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
+import { actor } from './actor-fixture.js';
 
 const count = (f: ReturnType<typeof assistantFixture>, sql: string, ...params: SQLInputValue[]) =>
   countRows(f.store.db, sql, ...params);

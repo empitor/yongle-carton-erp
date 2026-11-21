@@ -7,8 +7,7 @@ import { FinanceEvents } from '../server/finance/events.js';
 import { FinanceParties } from '../server/finance/parties.js';
 import { FinanceLedger } from '../server/finance/ledger.js';
 import { financePermissions } from '../shared/core/accounts.js';
-import { OperationsService } from '../server/operations/service.js';
-import { customerSchema } from '../shared/core/domain.js';
+import { businessBase } from './business-base-fixture.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';
 import { FinanceReports } from '../server/finance/reports.js';
 import { FinanceClosing } from '../server/finance/closing.js';
@@ -25,6 +24,7 @@ import { FinanceAssets } from '../server/finance/assets.js';
 import { FinancePayroll } from '../server/finance/payroll.js';
 import { FinanceCosting } from '../server/finance/costing.js';
 import { count, one, rows } from '../server/core/index.js';
+import { must } from './read-result.js';
 
 /** 财务账号：最高管理员带全部财务权限和业务编辑 */
 export const maker = pageActor({
@@ -64,8 +64,9 @@ export function newSettings(s: Store, period = '2026-01', opening: number | Open
     requestId: 'rates',
     taxRates: { smallVat: null, urban: 0, education: 0, localEducation: 0, income: 0 },
   });
-  s.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
-  new OperationsService(s).saveSupplier({ name: '虚构供应商' }, maker);
+  const base = businessBase(maker, s);
+  base.customer();
+  base.supplier();
   new FinanceCashAccounts(s).saveAccount(maker, {
     kind: 'bank',
     name: '虚构资金账户',
@@ -214,25 +215,19 @@ export function event(s: Store, source: number | string, kind?: string) {
     kind ?? null,
     kind ?? null,
   );
-  return found(row, '单据 ' + source + ' 的财务事件');
-}
-
-/** 测试数据该有的那条记录：没有就让测试失败（说清找的是什么） */
-export function found<T>(row: T | undefined, what: string): T {
-  if (row === undefined) throw new Error('测试数据：没有' + what);
-  return row;
+  return must(row, '单据 ' + source + ' 的财务事件');
 }
 
 /** 单据当前事件名下最新的一笔正数往来 */
 export function obligation(s: Store, source: number, kind?: string) {
   const e = event(s, source, kind);
   const row = one(s.db, rows.fin_obligations, 'SELECT * FROM fin_obligations WHERE event_id=? AND amount_cents>0 ORDER BY id DESC LIMIT 1', e.id);
-  return found(row, '财务事件 ' + e.id + ' 的正数往来');
+  return must(row, '财务事件 ' + e.id + ' 的正数往来');
 }
 
 /** 按编号读一笔往来（id 可以直接给库里读出来的列值，按数字认） */
 export const obligationRow = (s: Store, id: unknown) =>
-  found(one(s.db, rows.fin_obligations, 'SELECT * FROM fin_obligations WHERE id=?', Number(id)), '往来 ' + String(id));
+  must(one(s.db, rows.fin_obligations, 'SELECT * FROM fin_obligations WHERE id=?', Number(id)), '往来 ' + String(id));
 
 /** 直接记一笔虚构客户 1 的应收往来（没有凭证），返回编号 */
 export const rawObligation = (s: Store, cents: number, date = '2026-02-10') =>
@@ -367,7 +362,7 @@ export function closeMonth(s: Store, period: string) {
   postDrafts(s);
   const check = closing.check(maker, { period });
   if (!check.canClose) throw new Error('结账检查没通过：' + JSON.stringify(check.steps));
-  const record = found(check.record ?? undefined, period + ' 的结账记录');
+  const record = must(check.record ?? undefined, period + ' 的结账记录');
   closing.close(maker, { period, version: Number(record.version), requestId: 'close-' + period });
 }
 
@@ -380,7 +375,7 @@ export const subledger = (s: Store, kind: 'receivable' | 'payable') =>
   new FinanceParties(s).obligations(maker, { kind, pageSize: 200 }).rows.reduce((n, r) => n + Number(r.balance), 0);
 
 export const eventsStep = (s: Store, period = '2026-01') =>
-  found(
+  must(
     new FinanceClosing(s).check(maker, { period }).steps.find((x) => x.key === 'events'),
     period + ' 结账检查的“业务单据”一步',
   );

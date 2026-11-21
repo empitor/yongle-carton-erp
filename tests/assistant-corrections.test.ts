@@ -1,11 +1,11 @@
 // 助手改已生效的单据（server/assistant/tools/corrections.ts、flow-docs.ts 的 flow.edit_info）：
 // 更正送货单、更正完工单出卡片（写明哪张、每行更正前后、库存和订单已发或任务已入库的净变化），没人点不改库，
 // 点了原单已更正、新单更正自它；出卡片后数据变了确认被拒；没权限的账号被拒。只改说明的 flow.edit_info 不动库存。内存库、虚构数据。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor, superActor } from './actor-fixture.js';
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { assistantFixture, actor, superActor, confirmCard, lastCard } from './assistant-fixture.js';
+import { assistantFixture, confirmCard, lastCard } from './assistant-fixture.js';
 import { deliveryCorrectionSetup } from './delivery-correction-fixture.js';
 import { businessFixture } from './flow-fixture.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';

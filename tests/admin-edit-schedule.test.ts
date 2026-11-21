@@ -2,13 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { actor } from './assistant-fixture.js';
 import { productSchema, orderSchema, customerSchema, today } from '../shared/core/domain.js';
 import { planDate, shiftDate } from '../shared/business/schedule.js';
 import { flowInput } from '../shared/business/physical-flow.js';
 import { saveDoc } from './receive-fixture.js';
 import { flowFixture, localAdmin, clerk, orderOf } from './flow-fixture.js';
 import { fixture, owner } from './admin-edit-fixture.js';
+import { actor } from './actor-fixture.js';
 
 type ScheduleFixture = ReturnType<typeof fixture>;
 

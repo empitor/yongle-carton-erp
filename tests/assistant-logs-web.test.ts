@@ -3,7 +3,6 @@
 // 数据全是虚构的，库在内存或临时目录里。
 import { pageActor } from './actor-fixture.js';
 import { z } from 'zod';
-import { readAs } from './assistant-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -31,6 +30,7 @@ import { field } from '../server/assistant/chat/result-fields.js';
 import { manualWrite } from '../server/business/service.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { fakeAiSettings, fakeKey } from './fake-deepseek.js';
+import { readAs } from './read-result.js';
 
 const staff = pageActor({ id: 'logs-staff', name: '虚构业务员乙', permissions: ['business:edit'], role: 'admin' });
 const boss = pageActor({ id: 'logs-boss', name: '虚构老板', permissions: [], role: 'super_admin' });

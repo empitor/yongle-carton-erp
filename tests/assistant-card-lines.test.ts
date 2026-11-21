@@ -11,7 +11,8 @@ import type { ToolPlan } from '../server/assistant/plan-rules.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { editableFields, UNLISTED } from '../server/assistant/tools/card-summary.js';
-import { flowFixture, superActor } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
+import { superActor } from './actor-fixture.js';
 
 const owner = () => localAdministratorActor(superActor());
 /** 卡片上逐行给人看的内容；没有就让测试失败 */
@@ -27,7 +28,7 @@ const text = (plan: ToolPlan) => {
 };
 
 function setup() {
-  const f = flowFixture(),
+  const f = autoConfirmAssistant(),
     who = owner(),
     tools = f.manager.tools,
     prepare = (tool: string, args: Record<string, unknown>) => tools.prepare(tool, args, who, 'card');

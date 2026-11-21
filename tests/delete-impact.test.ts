@@ -16,19 +16,15 @@ import { deletionTableLabel as tableLabel, deletionFieldLabels as fieldLabels } 
 import { AssistantTools } from '../server/assistant/tools.js';
 import { inventoryOptions } from '../shared/business/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { actor } from './assistant-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 import { listingFixture, mergeIntoBatch, orderWithImports } from './delete-fixture.js';
 import type { Actor } from '../server/core/auth.js';
+import { actor } from './actor-fixture.js';
+import { must } from './read-result.js';
 
 const owner = () => localAdministratorActor({ ...actor, role: 'super_admin' });
 type Plan = ReturnType<DatabaseMaintenanceService['preview']>;
 type ImpactRow = Plan['impact'][number];
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 /** 本机管理员按“库存数量不动”预览删除 */
 const previewPreserve = (store: Store, module: string, items: { id: number; version: number }[]) =>
   new DatabaseMaintenanceService(store).preview({ module, items, inventoryPolicy: 'preserve' }, owner());

@@ -7,7 +7,6 @@ import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { productSchema, today } from '../shared/core/domain.js';
-import { actor } from './assistant-fixture.js';
 import { ofKind, saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import { flowFixture, localAdmin, clerk } from './flow-fixture.js';
@@ -22,6 +21,7 @@ import {
   type arrivalCorrectionPreviewSchema,
 } from '../shared/business/index.js';
 import type { z } from 'zod';
+import { actor } from './actor-fixture.js';
 
 /** 到货更正每行的输入（按原单的行号改数量，或加新行） */
 type CorrectionLines = z.input<typeof arrivalCorrectionPreviewSchema>['lines'];

@@ -15,7 +15,9 @@ import { orderImportTools } from '../server/assistant/tools/order-import.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { pragmaInteger } from '../server/core/sql.js';
 import { erpPageIds, isErpNavigation, pageLink } from '../shared/assistant/assistant-navigation.js';
-import { actor, superActor, assistantFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const tempDir = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
 // Windows 上杀毒扫描会短暂占住刚建的 SQLite 文件，删目录要重试几次

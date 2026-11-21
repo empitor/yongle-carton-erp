@@ -2,13 +2,12 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
-import { Store } from '../server/core/db.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
-import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { userError } from '../shared/core/user-errors.js';
 import { errorMessage } from '../shared/core/error-message.js';
-import { superActor } from './assistant-fixture.js';
+import { superActor } from './actor-fixture.js';
+import { businessBase } from './business-base-fixture.js';
 
 export const owner = () => localAdministratorActor(superActor());
 /**
@@ -37,20 +36,13 @@ export const command = (module: string, action: string, items: readonly CommandI
 });
 type CommandItem = { id: number | string; version?: number | string | null };
 export function basics() {
-  const store = new Store(':memory:'),
-    service = new DataManagementService(store),
-    who = owner();
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构开发客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构开发纸箱' }));
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-10-01',
-      deliveryDate: '2026-10-27',
-      status: '已发货',
-      lines: [{ productId: product.id, quantity: 100, unitPriceCents: 123 }],
-    }),
-  );
+  const who = owner(),
+    base = businessBase(who),
+    { store } = base,
+    service = new DataManagementService(store);
+  const customer = base.customer({ name: '虚构开发客户' }),
+    product = base.product({ name: '虚构开发纸箱' });
+  const order = base.order(customer, [{ productId: product.id, quantity: 100, unitPriceCents: 123 }], { deliveryDate: '2026-10-27', status: '已发货' });
   return { store, service, who, customer, product, order };
 }
 

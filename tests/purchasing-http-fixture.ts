@@ -15,8 +15,8 @@ import {
   stockItemViewSchema,
   type PurchaseView,
 } from '../shared/business/index.js';
-import { readAs } from './assistant-fixture.js';
 import { startHttp } from './http-fixture.js';
+import { readAs } from './read-result.js';
 
 export const password = 'Fictional-operations-password-123';
 

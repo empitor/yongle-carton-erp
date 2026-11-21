@@ -12,6 +12,7 @@ import { Store } from '../server/core/db.js';
 import { count, many, one, rows } from '../server/core/index.js';
 import { passwordAllowed, passwordPattern } from '../shared/core/password-policy.js';
 import { startHttp, userList } from './http-fixture.js';
+import { must } from './read-result.js';
 import {
   forgetAccount,
   lastUsedLabel,
@@ -21,11 +22,6 @@ import {
 
 const adminPassword = 'Fictional-admin-123';
 
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 
 const read = async <T extends z.ZodType>(response: Response | Promise<Response>, schema: T): Promise<z.output<T>> =>
   schema.parse(await (await response).json());

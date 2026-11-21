@@ -7,7 +7,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { z } from 'zod';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { actor, superActor, assistantFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { count } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import {
@@ -19,6 +19,8 @@ import { PluginManagementView } from '../src/assistant/AssistantPlugins.js';
 import { startHttp } from './http-fixture.js';
 import { AuthManager } from '../server/core/auth.js';
 import { toolCatalog } from '../server/assistant/tool-catalog.js';
+import { actor, superActor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 function toolNamed<T extends { name: string }>(tools: readonly T[], name: string) {
   const tool = tools.find((t) => t.name === name);

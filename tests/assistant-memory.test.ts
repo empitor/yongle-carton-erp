@@ -1,6 +1,6 @@
 // 助手的长期记忆：存储（memory-store.ts，放在临时目录的助手设置库里）、
 // 工具（tools/memory.ts，经注册表分派）、面板地址（memory-router.ts）和一次走模型替身的聊天；规则的直接测试在 assistant-memory-rules.test.ts。数据都是虚构的。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -20,8 +20,9 @@ import { assistantRouter } from '../server/assistant/router.js';
 import { memoryLimits, type ThreadView } from '../shared/assistant/index.js';
 import { longTermMemoryMessage } from '../server/assistant/chat/long-term-memory.js';
 import { z } from 'zod';
-import { actor, assistantFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { messageText, toolResultSent } from './fake-deepseek.js';
+import { readAs } from './read-result.js';
 
 const other = pageActor({ id: 'fictional-memory-other', name: '虚构同事乙', permissions: ['business:edit'], role: 'admin' as const });
 const boss = pageActor({ id: 'fictional-memory-boss', name: '虚构老板', permissions: ['business:edit'], role: 'super_admin' as const });

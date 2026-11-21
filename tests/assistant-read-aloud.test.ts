@@ -8,7 +8,7 @@ import { AppError } from '../server/core/index.js';
 import { clipForSpeech, messageForSpeech } from '../server/assistant/speech-text.js';
 import { jsonResponse } from './fake-deepseek-wire.js';
 import { speechServer } from './speech-fixture.js';
-import { readAs } from './assistant-fixture.js';
+import { readAs } from './read-result.js';
 
 const now = '2026-11-13T08:00:00.000Z';
 const messageOf = async (response: Response) => readAs(await response.json(), { message: z.string() }).message;

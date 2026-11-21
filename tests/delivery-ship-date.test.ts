@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { today } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { actor } from './assistant-fixture.js';
 import { flowFixture, localAdmin } from './flow-fixture.js';
 import { correctDocument, planCorrection } from '../server/flow/correction.js';
 import { deliverySetup, shift } from './delivery-fixture.js';
@@ -16,6 +15,7 @@ import type { Actor } from '../server/core/index.js';
 import type { FlowService } from '../server/flow/service.js';
 import { deliveryCorrectionPreviewSchema } from '../shared/business/index.js';
 import type { BusinessForm } from '../shared/documents/index.js';
+import { actor } from './actor-fixture.js';
 
 const owner = () => localAdministratorActor({ ...actor, role: 'super_admin', superAdminMode: true, superAdminUntil: Date.now() + 3600000 });
 /** 送货更正的一行（deliveryCorrectionPreviewSchema 收的样子） */

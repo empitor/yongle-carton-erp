@@ -3,7 +3,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { actor } from './assistant-fixture.js';
 import { createOrderWorkflowFixture, importOrders, importer as who } from './assistant-workflow-fixture.js';
 import { xlsxFixture } from './import-fixtures.js';
 import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
@@ -11,6 +10,7 @@ import { resolveImportCustomer } from '../server/import/customer-resolution.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import { count } from '../server/core/index.js';
+import { actor } from './actor-fixture.js';
 /** 工作流 call() 交回的结果（各命令不同）按路径取一项 */
 const at = (value: unknown, ...path: (string | number)[]) => path.reduce<unknown>((v, k) => (typeof k === 'number' ? (asList(v) ?? [])[k] : field(v, k)), value);
 

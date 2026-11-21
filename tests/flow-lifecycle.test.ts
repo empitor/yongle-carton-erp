@@ -8,7 +8,7 @@ import { flowViewSchema } from '../shared/business/index.js';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { archiveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
-import { readAs } from './assistant-fixture.js';
+import { readAs } from './read-result.js';
 
 const looseLine = (f: ReturnType<typeof flowFixture>, quantity: string) => [{ stockId: f.raw.id, item: { name: f.raw.name, unit: '张' }, quantity }];
 /** 归档、恢复（POST /flow/batch）逐条的结果 */

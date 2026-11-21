@@ -2,7 +2,7 @@
 // 每秒最多 5 个请求；读网页只开用户给的、搜索返回过的网址，打开的是放行过的原样；两条命令的结果进对话时不截。
 // 假 DeepSeek、内存库、虚构数据，不发真实请求。
 import { z } from 'zod';
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -12,9 +12,10 @@ import { allowedUrl, noteSearchResult } from '../server/assistant/chat/external-
 import { field } from '../server/assistant/chat/result-fields.js';
 import type { ToolContext, ToolServices } from '../server/assistant/tools/context.js';
 import type { Actor } from '../server/core/index.js';
-import { assistantFixture, actor, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { fakeAiSettings, fakeDeepSeek, fakeKey } from './fake-deepseek.js';
 import { toolResultSent } from './fake-deepseek.js';
+import { readAs } from './read-result.js';
 
 /** 联网读取只用 AI 设置：库、外壳、业务服务一碰就报错（网址来源由聊天那一层判断，读取本身不查库） */
 const untouched = (what: string): never => {

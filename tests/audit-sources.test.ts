@@ -8,8 +8,9 @@ import { recordContext } from '../server/business/record-context.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { AUDIT_SOURCE, auditSourceNames } from '../shared/core/audit-sources.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { actor, assistantFixture, confirmCard, superActor } from './assistant-fixture.js';
+import { assistantFixture, confirmCard } from './assistant-fixture.js';
 import { startHttp } from './http-fixture.js';
+import { actor, superActor } from './actor-fixture.js';
 
 test('归档客户：页面、助手、数据管理三个入口各做一次，审计来源分别记页面、助手、数据管理，修改历史写中文', async () => {
   const f = assistantFixture();

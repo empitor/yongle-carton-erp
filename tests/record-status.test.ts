@@ -13,39 +13,30 @@ import { Store } from '../server/core/db.js';
 import { AuthManager } from '../server/core/auth.js';
 import { z } from 'zod';
 import { cookieOf, startHttp } from './http-fixture.js';
-import { readAs } from './assistant-fixture.js';
 import { count } from '../server/core/index.js';
-import { OperationsService } from '../server/operations/service.js';
 import { OrderBatchService } from '../server/operations/batches.js';
 import { changeOrderStatus, assertOrderStatusKept } from '../server/business/order-status.js';
 import { changePurchaseStatus } from '../server/operations/purchase-status.js';
 import { recordContext } from '../server/business/record-context.js';
 import { historyView } from '../shared/business/record-history.js';
 import { statusActionFor } from '../shared/business/record-status.js';
-import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { InputError } from '../server/core/errors.js';
 import { changeLifecycle } from '../server/business/lifecycle.js';
 import { flowFixture, clerk } from './flow-fixture.js';
+import { readAs, must } from './read-result.js';
+import { businessBase } from './business-base-fixture.js';
 
 const actor = pageActor({ id: 'fictional-status-user', name: '虚构状态操作员', permissions: ['business:edit'], role: 'admin' as const });
 const reader = pageActor({ id: 'fictional-reader', name: '虚构只读', permissions: [] as string[], role: 'admin' as const });
 
 function fixture() {
-  const store = new Store(':memory:'),
-    ops = new OperationsService(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构状态客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构状态纸箱' }));
-  const order = store.saveOrder(
-    orderSchema.parse({
-      customerId: customer.id,
-      orderDate: '2026-11-01',
-      deliveryDate: '2026-11-30',
-      status: '待确认',
-      lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 100 }],
-    }),
-  );
-  const supplier = ops.saveSupplier({ name: '虚构状态供应商' }, actor),
-    raw = ops.saveItem({ name: '虚构状态纸板', kind: 'raw', unit: '张' }, actor);
+  const base = businessBase(actor),
+    { store, ops } = base;
+  const customer = base.customer({ name: '虚构状态客户' }),
+    product = base.product({ name: '虚构状态纸箱' });
+  const order = base.order(customer, [base.line(product, 100)], { orderDate: '2026-11-01', deliveryDate: '2026-11-30', status: '待确认' });
+  const supplier = base.supplier({ name: '虚构状态供应商' }),
+    raw = base.raw({ name: '虚构状态纸板' });
   const purchase = ops.savePurchase(
     {
       supplierId: supplier.id,
@@ -80,11 +71,6 @@ const failsWith =
     typeof e.status === 'number' &&
     (typeof codes === 'number' ? [codes] : codes).includes(e.status) &&
     (!message || (e instanceof Error && message.test(e.message)));
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 
 test('订单的确认、退回、取消、恢复各是一个动作：取消必填原因，原因记进审计、修改历史里看得到', () => {
   const f = fixture();

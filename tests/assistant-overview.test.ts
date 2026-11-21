@@ -1,15 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { actor, flowFixture, readAs } from './assistant-fixture.js';
+import { autoConfirmAssistant } from './assistant-fixture.js';
 import { orderBasics } from './stack-fixture.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const dashboard = {
   overview: z.looseObject({ orders: z.looseObject({ total: z.number() }) }),
 };
 
 test('助手经营概况按指定日期筛选订单，全部日期包含范围外的订单', () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     const { pa, line, order } = orderBasics(f.store);
     order([line(pa)]);
@@ -24,7 +26,7 @@ test('助手经营概况按指定日期筛选订单，全部日期包含范围�
 });
 
 test('助手经营概况拒绝互相矛盾的日期条件', () => {
-  const f = flowFixture();
+  const f = autoConfirmAssistant();
   try {
     assert.throws(() => f.manager.tools.read('overview.get', { allDates: true, months: 2 }, actor), /全部日期不能同时指定日期范围/);
     assert.throws(() => f.manager.tools.read('overview.get', { start: '2026-11-30', end: '2026-11-01' }, actor), /开始日期不能晚于结束日期/);

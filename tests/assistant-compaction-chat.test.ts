@@ -7,10 +7,12 @@ import { COMPACTION_INSTRUCTION, SUMMARY_OPEN_TAG } from '../server/assistant/ch
 import { estimateTokens } from '../server/assistant/chat/session-limits.js';
 import { z } from 'zod';
 import { customerSchema, errorMessage } from '../shared/core/index.js';
-import { actor, assistantFixture, readAs } from './assistant-fixture.js';
+import { assistantFixture } from './assistant-fixture.js';
 import { httpError } from './fake-deepseek.js';
 import type { ChatBody, WireMessage } from './fake-deepseek-wire.js';
 import { field } from '../server/assistant/chat/result-fields.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const call = (name: string, args: unknown) => ({ message: '', toolCalls: [{ name, args }] });
 const answer = (message: string) => ({ message, toolCalls: [] });

@@ -6,12 +6,13 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createOrderWorkflowFixture, workflowAnalysis } from './assistant-workflow-fixture.js';
 import { z } from 'zod';
-import { actor, readAs } from './assistant-fixture.js';
 import { fakeAiSettings, forcedFunction, freshUserText } from './fake-deepseek.js';
 import { docxFixture, xlsxFixture } from './import-fixtures.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
+import { actor } from './actor-fixture.js';
+import { readAs } from './read-result.js';
 
 const arrivalResult = {
   supplierName: '虚构纸板厂',

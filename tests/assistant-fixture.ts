@@ -12,25 +12,12 @@ import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { ToolChatMessage } from '../server/ai/chat-tools.js';
 import type { AiTransport } from '../server/ai/transport.js';
 import type { PlanCard, ThreadView } from '../shared/assistant/index.js';
-import { fakeAiSettings, fakeKey, scriptedResult, testProtector, turnFailure, type FakeChat } from './fake-deepseek.js';
+import { fakeAiSettings, fakeKey, scriptedResult, turnFailure, type FakeChat } from './fake-deepseek.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
-import { pageActor } from './actor-fixture.js';
+import { actor } from './actor-fixture.js';
 /** 说话、点确认的账号（没登录时是 null） */
 type Who = Parameters<AssistantManager['chat']>[2];
-export const secret = fakeKey,
-  protector = testProtector;
-export const actor = pageActor({
-  id: 'fictional-assistant-user',
-  name: '虚构AI验收',
-  permissions: ['business:edit'],
-  role: 'admin' as const,
-});
-export const superActor = () => ({
-  ...actor,
-  role: 'super_admin' as const,
-  superAdminMode: true,
-  superAdminUntil: Date.now() + 120000,
-});
+export const secret = fakeKey;
 export function ctxOf(store: Store, services: ToolServices = {}, imports?: ToolContext['imports']): ToolContext {
   const tools = new AssistantTools(store);
   tools.connect(services);
@@ -57,7 +44,7 @@ export function scriptModel(
 export const eventData = z.record(z.string(), z.unknown());
 
 type FixtureOptions = {
-  /** 不给就和真实的一样（写入只出确认卡片，等人点）；只测业务流程本身的测试用 flowFixture（自动确认） */
+  /** 不给就和真实的一样（写入只出确认卡片，等人点）；只测业务流程本身的测试用 autoConfirmAssistant（自动确认） */
   agent?: AgentOptions;
   budget?: Partial<AgentBudgetLimits>;
   /** 自己写模型替身（不用 replies 排队）；requests、calls() 只记 replies 那种 */
@@ -127,7 +114,7 @@ export function assistantFixture(replies: unknown[] = [], options: FixtureOption
  * 开了自动确认的助手夹具：出了确认卡片立刻替人点确认（走和人点确认同一个执行函数；删除、清空照样只出卡片）。
  * 给只测业务流程本身的测试用；“不点确认就不落库”等界限集中在 tests/assistant-boundaries.test.ts。
  */
-export const flowFixture = (replies: unknown[] = []) => assistantFixture(replies, { agent: { autoConfirm: true } });
+export const autoConfirmAssistant = (replies: unknown[] = []) => assistantFixture(replies, { agent: { autoConfirm: true } });
 
 /** 最后一条回复里的第 index 张卡片；没有就让测试失败 */
 export function lastCard(view: ThreadView, index = 0) {
@@ -144,6 +131,3 @@ export async function confirmCard(f: { manager: AssistantManager }, view: Thread
   const digest = cardDigest(plan);
   return f.manager.execute(plan.id, { acknowledged: true, ...(digest ? { deletionDigest: digest } : {}) }, who, binding);
 }
-
-/** 助手读命令的结果是 unknown：按结构取出测试要比的几项（没列的键原样留着），对不上结构就让测试失败。 */
-export const readAs = <T extends z.ZodRawShape>(value: unknown, shape: T) => z.looseObject(shape).parse(value);

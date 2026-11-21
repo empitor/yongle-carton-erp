@@ -1,5 +1,5 @@
 // 识别工作区的维护：归档保留、永久删除真删；删掉到货后解除引用；归档的可以直接改、直接删；已正式导入的可以改、撤销、归档，不重复导入。
-import { pageActor } from './actor-fixture.js';
+import { pageActor, actor as fixtureActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -13,7 +13,6 @@ import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { arrivalLinks } from '../server/import/business-links.js';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
-import { actor as fixtureActor } from './assistant-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 
 /** 工作区草稿的第一行；没有草稿说明识别没做成，直接报错 */

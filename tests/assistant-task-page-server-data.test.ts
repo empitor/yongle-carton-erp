@@ -10,9 +10,9 @@ import { attach } from '../server/assistant/order-import-intake.js';
 import { onTask } from '../server/assistant/order-import-edits.js';
 import { importedOrderOf, previewPlanOf } from '../src/assistant/order-task-view.js';
 import { executePageCommand } from '../src/assistant/assistant-page.js';
-import { actor } from './assistant-fixture.js';
 import { createOrderWorkflowFixture, importOrders, importer } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
+import { actor } from './actor-fixture.js';
 
 /** 会话里当前那份识别任务（页面从会话视图里拿到的样子） */
 function activeTask(f: ReturnType<typeof createOrderWorkflowFixture>) {

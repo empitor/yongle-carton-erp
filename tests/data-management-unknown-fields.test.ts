@@ -10,8 +10,8 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { editableInput, submittedInput } from '../src/admin/record-input.js';
 import DataManagementFields from '../src/admin/DataManagementFields.js';
-import { actor } from './assistant-fixture.js';
 import { basics, command, firstResult } from './data-management-fixture.js';
+import { actor } from './actor-fixture.js';
 
 /** 一套虚构数据加一个供应商 */
 function withSupplier() {

@@ -13,7 +13,7 @@ import { standardOrderDraft } from '../server/import/standard-order.js';
 import { ImportManager } from '../server/import/manager.js';
 import { createOrderWorkflowFixture, workflowAnalysis } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';
-import { actor as baseActor } from './assistant-fixture.js';
+import { actor as baseActor } from './actor-fixture.js';
 
 const actor = { ...baseActor, permissions: ['business:edit', 'import:execute'] };
 

@@ -5,13 +5,9 @@ import { productSchema, orderSchema } from '../shared/core/domain.js';
 import { editableInput } from '../src/admin/record-input.js';
 import { basics, command, firstResult } from './data-management-fixture.js';
 import { z } from 'zod';
+import { must } from './read-result.js';
 
 type Basics = ReturnType<typeof basics>;
-/** 测试数据里一定有的记录：没有就让测试失败 */
-function must<T>(value: T | null | undefined, what: string): T {
-  if (value == null) throw new Error('测试数据：没有' + what);
-  return value;
-}
 function findRecord<T extends { record: { id: number } }>(records: readonly T[], id: number): T {
   return must(records.find((r) => r.record.id === id), '记录 ' + id);
 }
