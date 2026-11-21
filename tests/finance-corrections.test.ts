@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { maker, newSettings, postDrafts, physical } from './finance-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { DatabaseMaintenanceService } from '../server/business/database-maintenance.js';
 import { FinanceEvents } from '../server/finance/events.js';
@@ -192,7 +193,7 @@ for (const syncBeforeRevoke of [true, false])
           allocations: [{ obligationId: ob.id, version: ob.version, amount: 5000 }],
         });
         postDrafts(s);
-        s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
+        businessChanges(s).reverse(1);
         assert.match(String(reports.readiness(maker, { period }).rows[0].problem), /先撤销核销/);
         if (syncBeforeRevoke) {
           events.sync(maker, { requestId: 're-scan' });
@@ -368,9 +369,7 @@ test('来源更正先撤销核销，全额红冲重做保留旧凭证，物理�
   try {
     const { events, doc, date, voucher } = allocatedDelivery(s);
     doc.lines[0].quantity = '2';
-    s.db
-      .prepare('UPDATE flow_documents SET document=?,version=2 WHERE id=1')
-      .run(JSON.stringify({ ...doc, date, plannedDate: date }));
+    businessChanges(s).rewrite(1, { ...doc, date, plannedDate: date });
     events.sync(maker, { requestId: 're-scan' });
     const diff = new FinanceEventViews(s).list(maker, { status: 'difference' }).rows[0];
     assert.throws(

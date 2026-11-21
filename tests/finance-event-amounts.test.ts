@@ -10,6 +10,7 @@ import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { FinanceClosing } from '../server/finance/closing.js';
 import { maker, newSettings, physical, deliveryDoc, arrivalDoc, event, eventsStep, setDoc } from './finance-fixture.js';
 import { evaluateSource } from '../server/finance/event-evaluate.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { readSnapshot } from '../server/finance/source-snapshot.js';
 import { count } from '../server/core/index.js';
 
@@ -25,7 +26,7 @@ test('启用前的单据启用后被改（补价格、编辑、冲销）：仍�
     // 改单据内容（版本加一）：setDoc 只改给的那一项
     const reprice = (price: string) => setDoc(s, 1, '$.lines[0].unitPriceExact', price);
     reprice('120.0000');
-    s.db.prepare("UPDATE flow_documents SET version=version+1,status='reversed' WHERE id=2").run();
+    businessChanges(s).reverse(2);
     events.sync(maker, { requestId: 'scan-2' });
     assert.equal(event(s, 1).status, 'before_opening', '改价后仍是启用前');
     assert.equal(event(s, 2).status, 'before_opening', '冲销后仍是启用前');
@@ -236,7 +237,7 @@ test('有效的到货更正单直接入账（原单没入过账）：金额按�
     events.sync(maker, { requestId: 'scan' });
     assert.equal(Number(event(s, 1).amount_cents), 10000, '普通到货按不含税');
     // 原单还没入账就冲销，按 8 张开更正单：更正单当成一张新单据直接入账
-    s.db.exec("UPDATE flow_documents SET status='reversed',version=2 WHERE id=1");
+    businessChanges(s).reverse(1);
     physical(s, 2, 'arrival', '2026-01-12', taxed('8', { correctionOf: 1 }));
     events.sync(maker, { requestId: 'rescan' });
     const replacement = event(s, 2);

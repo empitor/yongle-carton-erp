@@ -8,6 +8,7 @@ import { FinanceEventViews } from '../server/finance/event-views.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, setDoc } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
+import { businessChanges } from './business-changes-fixture.js';
 import { sourceHash, withNumber } from '../server/finance/source-fingerprint.js';
 import { flowDocumentContent, flowDocumentSchema } from '../shared/business/flow-document.js';
 import { count } from '../server/core/index.js';
@@ -339,7 +340,7 @@ test('库里的单据按写入时核对过的内容存：财务按单据结构�
       const row = s.db.prepare('SELECT document FROM flow_documents WHERE id=?').get(id);
       assert.ok(row);
       const content = flowDocumentContent(flowDocumentSchema(kind).parse(JSON.parse(String(row.document))));
-      s.db.prepare('UPDATE flow_documents SET document=? WHERE id=?').run(JSON.stringify(content), id);
+      businessChanges(s).rewrite(id, content);
     }
     new FinanceEvents(s).sync(maker, { requestId: 'scan' });
     for (const id of [1, 2]) {
