@@ -3,7 +3,7 @@ export { financeOnlyAccount, financeOnlyApiAllowed, financeOnlyPageAllowed, fina
 export { accountLevelNames, accountLevels, accountRequestKinds, financePermissions, permissionNames, userRoles } from './accounts.js';
 export type { AccountLevel, FinancePermission, Permission, UserRole } from './accounts.js';
 export { ACCOUNT_NOTE_MAX, accountApplySchema, accountCreateSchema, accountUpdateSchema, emptyBodySchema, loginSchema, passwordChangeSchema, passwordForgotSchema, requestApproveSchema, setupSchema, superModeEnterSchema } from './account-input.js';
-export type { AccountApi, AccountRequestView, AccountView } from './account-api.js';
+export type { AccountApi, AccountRequestView, AccountView, FilingRecords } from './account-api.js';
 export { PROBLEM_TEXT, pageProblemsSchema } from './diagnostics-api.js';
 export type { DiagnosticsApi } from './diagnostics-api.js';
 export { attachmentAccept, attachmentKinds, attachmentLimitMb, attachmentLimits, attachmentSizeMessage, attachmentTransfers } from './assistant-attachments.js';

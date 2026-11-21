@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
-import { BrandLogo } from './ui/index';
+import { BrandLogo, useAuthState } from './ui/index';
+import { FilingLine } from './FilingLine';
 
 /* 登录页、强制改密页共用的外框和出错提示。 */
 
-/** 居中的卡片：公司商标和名称、这一步的标题和一句说明 */
+/** 居中的卡片：公司商标和名称、这一步的标题和一句说明；最底部是备案号（有才显示） */
 export function LoginCard({ title, subtitle, children }: { title?: string; subtitle: string; children: ReactNode }) {
+  const filing = useAuthState()?.filing;
   return (
     <main className="login-screen" data-agent-private>
       <section className="login-card">
@@ -16,6 +18,7 @@ export function LoginCard({ title, subtitle, children }: { title?: string; subti
         </header>
         {children}
       </section>
+      <FilingLine filing={filing} />
     </main>
   );
 }

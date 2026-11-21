@@ -47,7 +47,11 @@ type AuthStateView = {
   /** 部署模式才有：从域名（代理）进来的 proxyAccess 是 true */
   deploymentMode?: boolean;
   proxyAccess?: boolean;
+  /** 从域名进来、服务器填了备案号才有 */
+  filing?: FilingRecords;
 };
+/** 网站备案号（服务器的部署设置）：ICP 备案号、公安备案号，原样的字，各自可以不填 */
+export type FilingRecords = { icp?: string; police?: string };
 
 /** 账号列表的一行（不含密码） */
 export type AccountView = { id: string; name: string; level: AccountLevel; disabled: boolean };

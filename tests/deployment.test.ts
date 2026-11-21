@@ -45,6 +45,41 @@ test('部署配置：省略或 0 是本机模式；只给域名时来源默认�
   assert.deepEqual([...d.origins], ['https://' + host]);
 });
 
+test('备案号设置：没填、只填空白都没有；填了去掉首尾空白原样记下，两项各自可以不填', () => {
+  const base = { ERP_DEPLOYMENT: '1', ERP_ALLOWED_HOSTS: host };
+  assert.equal(readDeployment(base, 3001)?.filing, undefined);
+  assert.equal(readDeployment({ ...base, ERP_ICP_RECORD: '  ', ERP_POLICE_RECORD: '' }, 3001)?.filing, undefined);
+  assert.deepEqual(readDeployment({ ...base, ERP_ICP_RECORD: ' 虚构ICP备00000000号 ' }, 3001)?.filing, {
+    icp: '虚构ICP备00000000号',
+  });
+  assert.deepEqual(
+    readDeployment({ ...base, ERP_ICP_RECORD: '虚构ICP备00000000号', ERP_POLICE_RECORD: '虚构公网安备 00000000000000号' }, 3001)
+      ?.filing,
+    { icp: '虚构ICP备00000000号', police: '虚构公网安备 00000000000000号' },
+  );
+});
+
+test('登录状态接口：填了备案号时只给从域名进来的页面，本机入口不给；没填就都没有', async () => {
+  const filing = { icp: '虚构ICP备00000000号' };
+  const store = new Store(':memory:');
+  const withFiling = await startProxied(store, {}, {
+    makeAuth: (deployment) =>
+      new AuthManager(':memory:', Date.now, { deployment: { ...deployment, filing }, localAdministration: true }),
+  });
+  const without = await startProxied(store);
+  try {
+    const state = async (p: typeof without, port: number, headers = {}) =>
+      (await p.call(port, '/auth/state', { headers })).value.filing;
+    assert.deepEqual(await state(withFiling, withFiling.proxyPort, withFiling.remote), filing);
+    assert.equal(await state(withFiling, withFiling.localPort), undefined);
+    assert.equal(await state(without, without.proxyPort, without.remote), undefined);
+  } finally {
+    await withFiling.close();
+    await without.close();
+    store.close();
+  }
+});
+
 /** 部署模式的两个入口；账号库是临时目录里的文件、时钟可拨；维护员从本机入口建好 */
 async function deployed(options: Omit<AppOptions, 'auth' | 'deployment'> = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'erp-deployment-')),

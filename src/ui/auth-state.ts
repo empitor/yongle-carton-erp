@@ -11,6 +11,8 @@ const authStateSchema = z.object({
   configured: z.boolean(),
   deploymentMode: z.boolean().optional(),
   proxyAccess: z.boolean().optional(),
+  /** 备案号：从域名进来、服务器填了才有 */
+  filing: z.object({ icp: z.string().optional(), police: z.string().optional() }).optional(),
   actor: z
     .object({
       id: z.string(),

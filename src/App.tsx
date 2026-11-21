@@ -3,6 +3,7 @@ import { AlertCircle, Check, Info } from 'lucide-react';
 import { APP_VERSION, financeOnlyAccount } from '../shared/core/index';
 import { BrandLogo, canEditBusiness, canViewFinance, ErrorBoundary, FormMessage, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
 import { useAppHome } from './app-bridge';
+import { FilingLine } from './FilingLine';
 import LoginScreen from './LoginScreen';
 import ForcedPasswordChange from './ForcedPasswordChange';
 import Navigation from './Navigation';
@@ -124,6 +125,7 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
               <CurrentPage page={page} routeKey={routeKey} finance={finance} actor={actor} pending={auth.pendingRequests || 0} />
               <footer>
                 宁波甬勒包装制品有限公司 · 管理系统
+                <FilingLine filing={auth.filing} />
                 <span>v{APP_VERSION}</span>
               </footer>
             </Suspense>

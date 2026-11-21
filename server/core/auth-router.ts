@@ -71,14 +71,18 @@ export function authRouter(auth: AuthRoutesHost) {
   });
   const on = authRoute(router);
   on('GET /auth/state', ({ req }) => {
-    const actor = auth.sessionActor(req);
+    const actor = auth.sessionActor(req),
+      { deployment } = auth.options,
+      proxied = proxyIngress(req, deployment);
     return {
       configured: auth.configured(),
       actor,
       ...(actor ? { level: accountLevel(String(actor.role), actor.permissions) } : {}),
       ...(actor?.role === 'super_admin' && !actor.mustChangePassword ? { pendingRequests: auth.pendingRequests() } : {}),
       csrf: auth.csrf,
-      ...(auth.options.deployment ? { deploymentMode: true, proxyAccess: proxyIngress(req, auth.options.deployment) } : {}),
+      ...(deployment ? { deploymentMode: true, proxyAccess: proxied } : {}),
+      // 备案号跟着域名走：只给从域名进来的页面，本机入口不给
+      ...(proxied && deployment?.filing ? { filing: deployment.filing } : {}),
     };
   });
   superModeRoute(on, auth);
