@@ -12,7 +12,7 @@ import { FinanceParties } from './parties.js';
 import { entry, pageSql, request } from './query.js';
 import { activeCashAllocation, allocationReversalMessage } from './obligation-sql.js';
 import { sourceReversed } from './business-source.js';
-import { documentNumber, readSnapshot } from './source-snapshot.js';
+import { readSnapshot } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
 import { unseenSources } from './events.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
@@ -129,12 +129,10 @@ export class FinanceReports {
           problem: reverse_pending ? allocationReversalMessage : r.problem,
           missing: reverse_pending ? ['allocation_reversal'] : (readSnapshot({ id: r.id, snapshot }).missing ?? []),
         })),
+        // 单号已由 unsynced 按 eventColumns 算好；快照、理论金额、往来单位是月度台账用的，这里不回
         ...pending
           .slice(0, READINESS_ROWS)
-          .map(({ snapshot, theoretical: _theoretical, ...r }) => ({
-            ...r,
-            number: documentNumber(snapshot.doc),
-          })),
+          .map(({ snapshot: _snapshot, theoretical: _theoretical, party: _party, ...r }) => r),
       ].slice(0, READINESS_ROWS),
     };
   }

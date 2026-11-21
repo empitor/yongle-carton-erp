@@ -8,18 +8,20 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { z } from 'zod';
 import type { rows } from '../core/index.js';
 import { documentNumber, snapshotText, type EventSnapshot } from './source-snapshot.js';
+import { partyKinds } from './stored-values.js';
 
 type EventRow = z.output<typeof rows.fin_events>;
+const [customer, supplier] = partyKinds;
 
 /** 快照和从它算出来的几列（写库的值；快照是核对过结构的 JSON 文字） */
 export function eventColumns(snapshot: EventSnapshot) {
   const doc = snapshot.doc;
   // 送货单只有客户、到货单只有供应商；完工、盘点和启用前的 {} 没有往来单位
-  const party =
+  const party: { kind: (typeof partyKinds)[number]; id: string } | null =
     doc?.customerId != null
-      ? { kind: 'customer', id: String(doc.customerId) }
+      ? { kind: customer, id: String(doc.customerId) }
       : doc?.supplierId != null
-        ? { kind: 'supplier', id: String(doc.supplierId) }
+        ? { kind: supplier, id: String(doc.supplierId) }
         : null;
   return {
     snapshot: snapshotText(snapshot),

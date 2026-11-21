@@ -45,6 +45,17 @@
         "date": "2026-01-08",
         "status": "info_pending",
         "snapshot": "{\"doc\":{\"supplierId\":3,\"supplierName\":\"虚构供应商乙\",\"reference\":\"FICT-R-9\"},\"theoretical\":null,\"missing\":[\"price\"]}"
+      },
+      {
+        "id": 5,
+        "source_kind": "delivery",
+        "source_id": "5",
+        "event_type": "delivery.confirmed",
+        "source_version": 1,
+        "source_hash": "fict-hash-5",
+        "date": "2026-01-15",
+        "status": "info_pending",
+        "snapshot": "{\"doc\":{\"customerId\":7,\"customerName\":\"虚构客户甲\",\"number\":\"FICT-5\"},\"missing\":[\"tax\"],\"previous\":{\"eventId\":5,\"hash\":\"fict-hash-5\",\"status\":\"info_pending\"}}"
       }
     ]
   },
@@ -101,6 +112,16 @@
         "previous_event_id": null,
         "previous_status": null,
         "snapshot": "{\"doc\":{\"supplierId\":3,\"supplierName\":\"虚构供应商乙\",\"reference\":\"FICT-R-9\"},\"theoretical\":null,\"missing\":[\"price\"]}"
+      },
+      {
+        "id": 5,
+        "party_kind": "customer",
+        "party_id": "7",
+        "source_number": "FICT-5",
+        "missing_tax": 1,
+        "previous_event_id": null,
+        "previous_status": null,
+        "snapshot": "{\"doc\":{\"customerId\":7,\"customerName\":\"虚构客户甲\",\"number\":\"FICT-5\"},\"missing\":[\"tax\"]}"
       }
     ]
   }

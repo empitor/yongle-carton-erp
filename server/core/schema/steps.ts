@@ -42,7 +42,8 @@ export const upgradeSteps: readonly UpgradeStep[] = [
     name: '财务事件加上一条、往来单位、单号、金额、缺税率几列',
     // 加列、建索引，再从快照回填：往来单位按快照里有客户还是供应商定种类（送货只有客户、到货只有供应商），
     // 编号存文字；单号取单据号，没有取对方单号；缺税率看 missing 里有没有 tax。启用前的事件快照是 {}，回填出来全是空和 0。
-    // 上一条和单据金额以后只存在列里，回填完从快照里去掉。和 server/finance/event-columns.ts 的 eventColumns 同一个取法
+    // 上一条和单据金额以后只存在列里，回填完从快照里去掉。和 server/finance/event-columns.ts 的 eventColumns 同一个取法。
+    // 以前资料待补的事件重新评估时会把快照里的上一条写成它自己（真正的上一条已经丢了），这种回填成空
     up: (db) =>
       db.exec(`ALTER TABLE fin_events ADD COLUMN previous_event_id INTEGER REFERENCES fin_events(id);
         ALTER TABLE fin_events ADD COLUMN previous_status TEXT CHECK(previous_status IS NULL OR previous_status IN ('ready','info_pending','waiting_invoice','generated','difference','source_deleted','awaiting_allocation_reversal','cost_pending','costed','no_amount','corrected','superseded','before_opening'));
@@ -56,8 +57,9 @@ export const upgradeSteps: readonly UpgradeStep[] = [
         CREATE INDEX fin_events_previous ON fin_events(previous_event_id);
         CREATE INDEX fin_events_party ON fin_events(party_kind,party_id);
         UPDATE fin_events SET
-          previous_event_id=json_extract(snapshot,'$.previous.eventId'),
-          previous_status=json_extract(snapshot,'$.previous.status'),
+          previous_event_id=NULLIF(json_extract(snapshot,'$.previous.eventId'),id),
+          previous_status=CASE WHEN json_extract(snapshot,'$.previous.eventId')=id THEN NULL
+            ELSE json_extract(snapshot,'$.previous.status') END,
           party_kind=CASE WHEN json_extract(snapshot,'$.doc.customerId') IS NOT NULL THEN 'customer'
             WHEN json_extract(snapshot,'$.doc.supplierId') IS NOT NULL THEN 'supplier' END,
           party_id=CAST(coalesce(json_extract(snapshot,'$.doc.customerId'),json_extract(snapshot,'$.doc.supplierId')) AS TEXT),
