@@ -50,7 +50,9 @@ export { allWaitingReview, completableTask, taskLeftUnits, taskProgress } from '
 export { stockBatches } from './stock-batches.js';
 export { rawStockKey, sameRawSpec } from './stock-identity.js';
 export type { StockBatchesResponse, StockBatchView } from './stock-batches.js';
-export { deliveryBlockers, deliveryCandidates, pendingByOrderLine, planOrderDelivery, planStockDelivery, selectedStockUnits, specificationMismatch, specificationMismatchText, stockByProduct, waitingCustomers } from './warehouse-delivery.js';
+export { deliveryBlockers, deliveryCandidates, pendingByOrderLine, planOrderDelivery, selectedStockUnits, specificationMismatch, specificationMismatchText, stockByProduct } from './warehouse-delivery.js';
+export { deliveryPlan, openOrder, overOrderLines } from './delivery-plan.js';
+export type { PlanPreset } from './delivery-plan.js';
 export type { Listed, RecordsApi } from './records-api.js';
 export { customerQuerySchema, orderQuerySchema, productQuerySchema } from './record-queries.js';
 export { DELETION_MAX_RECORDS, deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema, inventoryPolicies } from './deletion-request.js';

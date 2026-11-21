@@ -2,27 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ManagementDialog, Loading } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { createFlow } from '../flow/flow-api';
-import { pendingByOrderLine } from '../../shared/business/index';
+import { deliveryPlan, openOrder, pendingByOrderLine, type PlanPreset } from '../../shared/business/index';
 import { errorMessage, userError } from '../../shared/core/index';
 import DeliveryBlockers from '../flow/DeliveryBlockers';
 import { emit } from '../ui/index';
 import { readCatalog } from '../recordkit/catalog-api';
 import DeliveryPlanGroup, { type GroupInput } from './DeliveryPlanGroup';
 import { StockOwners, Unplanned } from './DeliveryPlanNotes';
-import {
-  blockersOf,
-  contestedOf,
-  deliveryBody,
-  emptyText,
-  idleOf,
-  openOrder,
-  planLookups,
-  planOf,
-  planProblem,
-  shownGroups,
-  type PlanData,
-  type PlanPreset,
-} from './delivery-plan';
+import { deliveryBody, emptyText, planLookups, planProblem, shownGroups, type PlanData } from './delivery-plan';
 
 type Props = {
   stockIds?: number[];
@@ -32,6 +19,9 @@ type Props = {
   close: () => void;
   done: (message: string) => void;
 };
+
+/** 还在读的时候按什么都没有排：没有送货单，也没有要提示的 */
+const NO_DATA: PlanData = { items: [], orders: [], customers: [], pending: new Map() };
 
 /** 打开时读一次库存品、订单、客户和待送货单（已经排在待送货单上的数量不再重复排，可用库存也已扣掉它们） */
 function usePlanData() {
@@ -56,7 +46,7 @@ function usePlanData() {
  * 打开方式：选了订单（orderIds）、选了成品库存（stockIds）、可发货里勾好的几行（preset），
  * 或者什么都没选（送货页页头）——先选给哪个客户，带出这个客户在等的订单。
  * 几个客户在等同一种货时先让人选给谁；每张送货单的日期、收货信息、每行数量都能改；超过订单还没发的要写原因。
- * 安排后在送货里待送货，导出送货单时出库。排法和检查在 delivery-plan.ts。
+ * 安排后在送货里待送货，导出送货单时出库。排法在共用的 deliveryPlan（和助手同一份），窗口状态和检查在 delivery-plan.ts。
  */
 export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, done }: Props) {
   const { data, error, setError } = usePlanData();
@@ -71,20 +61,11 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
   const requests = useRef<Record<number, { body: string; id: string }>>({}),
     created = useRef<Record<number, string>>({});
   const chooseCustomer = !stockIds && !orderIds && !preset;
-  const pickedOrders = useMemo(() => {
-    if (!data || stockIds || preset) return [];
-    return data.orders.filter((o) => (orderIds ? orderIds.includes(o.id) : o.customerId === pickedCustomer && openOrder(o)));
-  }, [data, orderIds, pickedCustomer, stockIds, preset]);
-  const stocks = useMemo(
-    () => (data && stockIds ? data.items.filter((i) => stockIds.includes(i.id) && i.kind === 'finished') : []),
-    [data, stockIds],
-  );
   const plan = useMemo(
-    () => (data ? planOf(data, { preset, stockIds, stocks, owners, pickedOrders }) : null),
-    [data, preset, stockIds, stocks, owners, pickedOrders],
+    () => deliveryPlan(data || NO_DATA, { preset, stockIds, orderIds, customerId: pickedCustomer, owners }),
+    [data, preset, stockIds, orderIds, pickedCustomer, owners],
   );
-  const blockers = data ? blockersOf(data, stockIds, stocks, pickedOrders) : [];
-  const contested = data ? contestedOf(stocks, data.orders) : [];
+  const { blockers, contested } = plan;
   const groups = shownGroups(plan, removed, edits);
   const look = planLookups(data, inputs);
   async function submit() {
@@ -96,7 +77,7 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
     try {
       for (const g of groups) {
         if (created.current[g.customerId]) continue;
-        const body = deliveryBody(g, look.inputOf(g.customerId), look.overOf(g.lines).length > 0);
+        const body = deliveryBody(g, look.inputOf(g), look.overOf(g.lines).length > 0);
         const text = JSON.stringify(body),
           prior = requests.current[g.customerId];
         if (!prior || prior.body !== text) requests.current[g.customerId] = { body: text, id: crypto.randomUUID() };
@@ -157,7 +138,7 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
               key={g.customerId}
               title={(groups.length > 1 ? '送货单 ' + (n + 1) + ' · ' : '') + look.customerName(g.customerId)}
               lines={g.lines}
-              input={look.inputOf(g.customerId)}
+              input={look.inputOf(g)}
               change={(patch) => setInputs((x) => ({ ...x, [g.customerId]: { ...x[g.customerId], ...patch } }))}
               over={look.overOf(g.lines)}
               locked={busy || !!created.current[g.customerId]}
@@ -171,9 +152,9 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
             <p className="choice-list-empty">{emptyText(blockers.length > 0, !!stockIds)}</p>
           )}
           <Unplanned
-            idle={idleOf(stocks, data.orders)}
-            skipped={plan?.skipped || []}
-            missing={plan?.missing || []}
+            idle={plan.idle}
+            skipped={plan.skipped}
+            missing={plan.missing}
             orderNumber={(id) => data.orders.find((o) => o.id === id)?.number || '订单'}
           />
         </>

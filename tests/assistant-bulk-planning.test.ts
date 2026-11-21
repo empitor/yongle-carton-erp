@@ -52,7 +52,8 @@ test('按交期先后把成品排满：先给交期早的甲，剩下给乙；�
     assert.equal(plan.contested.length, 1, '两个客户在等，先问给谁');
     const onlyB = readAs(tools.read('delivery.plan', { stockIds: [f.stock.id], owners: [{ stockId: f.stock.id, customerId: f.b.id }] }, actor), { groups, contested: z.array(z.unknown()) });
     assert.deepEqual(onlyB.groups.map((g) => [g.customerName, g.lines[0].quantity]), [['虚构乙食品', '400']]);
-    assert.equal(onlyB.contested.length, 0);
+    // 和窗口一样：指定了给谁的还列着，带上指定的客户
+    assert.deepEqual(readAs(onlyB.contested[0], { owner: z.number() }).owner, f.b.id);
     // 和人工窗口同一份算法
     const items = f.base.flow.views.items().filter((i) => i.kind === 'finished');
     assert.deepEqual(
@@ -149,6 +150,25 @@ test('delivery.plan 扣掉已经排在待送货单上的数量，和人工“安
       [[f.ob.id, '200']],
     );
     assert.deepEqual(byOrders.missing.map((m) => [m.orderId, m.quantity]), [[f.ob.id, '200']]);
+  } finally {
+    fx.close();
+  }
+});
+
+test('delivery.plan 选的成品送不了时和窗口说同样的原因：没可用库存、没有订单在等', () => {
+  const fx = assistantFixture(),
+    f = setup(fx.store);
+  try {
+    const tools = toolsOf(fx.store);
+    const tray = readAs(f.base.flow.views.items().find((i) => i.productId === f.tray.id), { id: z.number() });
+    const idle = f.base.finished(f.base.product({ name: '虚构无单纸箱' }), { name: '虚构无单纸箱' });
+    f.base.stockIn(idle, { quantity: '10', date: '2026-11-05' });
+    const plan = readAs(tools.read('delivery.plan', { stockIds: [tray.id, idle.id] }, actor), { skipped: rows });
+    const byStock = (s: { stockId?: unknown }) => (s.stockId === tray.id ? 0 : 1);
+    assert.deepEqual(plan.skipped.sort((a, b) => byStock(a) - byStock(b)).map((s) => [s.stockId, s.reason]), [
+      [tray.id, '可用库存为 0（没货，或已被待送货的送货单占用）'],
+      [idle.id, '没有客户订单在等'],
+    ]);
   } finally {
     fx.close();
   }
