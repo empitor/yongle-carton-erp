@@ -1,4 +1,27 @@
 /* 业务列表页和单据详情（订单、采购、库存、回收站） */
+.rb-stocks > .help-text {
+  margin: var(--space-sm) 0 var(--space-2xs);
+  font-size: var(--text-xs);
+}
+
+/* ---- 采购单、供应商、库存品详情 ---- */
+.pur-details .receipt-history table {
+  min-width: 0;
+}
+.chain-link.done {
+  background: var(--success);
+}
+.chain-node.done {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--on-success);
+}
+.chain-node.blocked {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
 .business-overview {
   display: flex;
   flex-direction: column;

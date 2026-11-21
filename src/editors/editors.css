@@ -1,4 +1,9 @@
 /* 订单、客户、产品编辑窗 */
+.specification {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .dimension-unit-control {
   display: flex;
   flex-direction: column;
@@ -357,4 +362,22 @@
     content: attr(data-label);
     text-align: left;
   }
+}
+/* 固定的数量单位（产品、成品“只”，纸板“张”）：跟在数量后面的字，不是输入框 */
+.unit-fixed {
+  flex: none;
+  align-self: center;
+  min-width: 1.5em;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+output.unit-fixed {
+  /* 单独占一个表单项时靠左，不跟着上面的 align-self 居中 */
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  color: var(--ink);
+  font-size: var(--text-md);
 }

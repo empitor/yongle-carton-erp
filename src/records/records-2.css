@@ -49,3 +49,14 @@
   min-height: 28px;
   font-size: var(--text-sm);
 }
+/* 表格行里的操作：不填底色，蓝色字，鼠标移上去才出底色，免得一行一排灰块 */
+:root[data-ui='refined'] main td button:not(.primary, .row-key, .danger-solid, .icon-button, .chain-node) {
+  min-height: 26px;
+  padding: 0 var(--space-sm);
+  background: transparent;
+  color: var(--accent-ink);
+  font-size: var(--text-sm);
+}
+:root[data-ui='refined'] main td button:not(.primary, .row-key, .danger-solid, .icon-button, .chain-node):hover:not(:disabled) {
+  background: var(--fill-1);
+}

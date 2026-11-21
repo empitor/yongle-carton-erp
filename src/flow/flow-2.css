@@ -1,0 +1,11 @@
+/* 单据表格的格子（第 2 份）：到货、送货列表的表格同时带 flow-table 和 arrival-table，这几条要压过 warehouse/warehouse.css 里同特异性的 .arrival-table th、td，所以单独成份、排在它后面。顺序见 src/main.tsx */
+.flow-table th,
+.flow-table td {
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.flow-table tbody tr {
+  height: 36px;
+}
