@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parseStoredJson } from '../core/index.js';
-import { priceBases } from '../../shared/core/index.js';
+import { financeSourceSchemas } from '../../shared/business/index.js';
 import { taxModes } from '../../shared/finance/index.js';
 
 /*
@@ -8,57 +8,21 @@ import { taxModes } from '../../shared/finance/index.js';
  * （event-handling.ts）在上面改；生成凭证、“改了什么”、成本计算、发票匹配读。写、读都按这里的结构核对。
  */
 
-/** 快照里财务不读的项：原样留着。来源是库里单据按结构读出来的内容，都是 JSON 值（页面详情原样拿到） */
-const untouched = z.json();
-/** 快照里明细的纸板资料（到货明细的 item）：财务读品名、单位和按面积计价的长宽，别的项原样留着 */
-const sourceItem = z
-  .object({
-    name: z.string().optional(),
-    unit: z.string().optional(),
-    length: z.number().nullable().optional(),
-    width: z.number().nullable().optional(),
-    dimensionUnit: z.string().nullable().optional(),
-  })
-  .catchall(untouched);
-/** 快照里的一行明细（送货、到货明细）：财务读的那几项，别的项原样留着 */
-const sourceLine = z.object({
-  quantity: z.string(),
-  unit: z.string().optional(),
-  productName: z.string().optional(),
-  unitPrice: z.string().nullable().optional(),
-  unitPriceExact: z.string().optional(),
-  priceBasis: z.enum(priceBases).nullable().optional(),
-  taxMode: z.string().optional(),
-  taxRate: z.string().optional(),
-  stockId: z.number().nullable().optional(),
-  purchaseLineId: z.number().nullable().optional(),
-  orderId: z.number().optional(),
-  orderLineId: z.number().optional(),
-  orderNumber: z.string().optional(),
-  purchaseId: z.number().nullable().optional(),
-  purchaseNumber: z.string().optional(),
-  productId: z.number().optional(),
-  stockedQuantity: z.string().nullable().optional(),
-  acceptedQuantity: z.string().nullable().optional(),
-  item: sourceItem.optional(),
-}).catchall(untouched);
+const { delivery, arrival, production, stock } = financeSourceSchemas;
+const deliveryLine = delivery.shape.lines.element.shape,
+  arrivalLine = arrival.shape.lines.element.shape;
+/** 快照里的一行明细：送货、到货明细的财务口径合在一起读（快照不记种类，种类在事件行上），纸板资料只有到货明细有 */
+const sourceLine = z
+  .object({ ...deliveryLine, ...arrivalLine, item: arrivalLine.item.partial() })
+  .partial()
+  .extend({ quantity: arrivalLine.quantity });
 /**
- * 来源单据的内容（送货、到货、完工单的 document 加上单号，盘点流水是流水几项拼的）：财务读的那几项，
- * 别的项原样留着（快照照旧存整份单据，“有差异”的改前改后对比从这里读）。
+ * 快照里的来源内容（doc）：四种来源的财务口径（shared/business/finance-source.ts 的 financeSourceSchemas）合在一起读，
+ * 加上同步时补的单号（withNumber）；每项都可能没有。快照只存财务口径，多出来的项（按旧结构存的）读的时候忽略。
  */
-const financeSourceDocument = z.object({
-  number: z.string().optional(),
-  reference: z.string().optional(),
-  confirmedAt: z.string().optional(),
-  customerId: z.number().optional(),
-  customerName: z.string().optional(),
-  supplierId: z.number().optional(),
-  supplierName: z.string().optional(),
-  correctionOf: z.number().nullable().optional(),
-  correctionOfReceiptId: z.string().optional(),
-  replacedBy: z.number().optional(),
-  lines: z.array(sourceLine).optional(),
-}).catchall(untouched);
+const financeSourceDocument = z
+  .object({ ...production.shape, ...stock.shape, ...arrival.shape, ...delivery.shape, number: z.string(), lines: z.array(sourceLine) })
+  .partial();
 export type FinanceSourceLine = z.output<typeof sourceLine>;
 export type FinanceSourceDocument = z.output<typeof financeSourceDocument>;
 
@@ -117,7 +81,7 @@ export function snapshotText(snapshot: EventSnapshot): string {
 }
 
 /*
- * 事件快照里单据字段的取法。快照的 doc 是抄来的业务单据（送货、到货、完工单的 document），
+ * 事件快照里单据字段的取法。快照的 doc 是来源的财务口径（加上单号），
  * 财务别处取单号、往来单位、明细都走这几个，不各写一遍 JSON 路径。
  * column 是快照所在的列或表达式（默认 snapshot）；root 是快照在那段 JSON 里的位置（默认整段就是快照）。
  */

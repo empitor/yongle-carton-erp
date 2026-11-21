@@ -11,7 +11,7 @@ import { maker, newSettings, postDrafts, physical, deliveryDoc, event, setDoc } 
 import { readSnapshot, type FinanceSourceLine } from '../server/finance/source-snapshot.js';
 
 test('改了什么：到货两行同一种纸板、没关联采购明细时改了库存品名称，两行都列出来；新增的行写数量（带单位）和单价（“元/m²”）；不比金额时不出“金额 … → —”', () => {
-  const board = { name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' };
+  const board: NonNullable<FinanceSourceLine['item']> = { name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' };
   const arrivalLine = (quantity: string, unitPrice: string, priceBasis: 'quantity' | 'area' = 'quantity', item = board) => ({
     stockId: 7,
     purchaseLineId: null,

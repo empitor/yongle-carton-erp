@@ -9,7 +9,7 @@ import { correctionFixture, archiveDoc } from './receive-fixture.js';
 import { updateDocumentInfo } from '../server/flow/document-info.js';
 import { viewOfKind } from '../server/flow/read.js';
 import { stockItemBatches } from '../server/flow/stock-batches.js';
-import { sourceHash } from '../server/finance/source-fingerprint.js';
+import { financialContent } from '../shared/business/finance-source.js';
 import { flowDocumentContent, flowDocumentOfView } from '../shared/business/flow-document.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
@@ -55,7 +55,7 @@ test('到货单：只换备注和到货时间，不出替代单，库存、流�
   try {
     const before = f.flow.get(f.arrivalId, 'arrival'),
       moves = f.movements(),
-      fingerprint = sourceHash({ kind: 'arrival', status: 'confirmed', date: before.date }, flowDocumentContent(flowDocumentOfView(before)));
+      fingerprint = financialContent('arrival', flowDocumentContent(flowDocumentOfView(before)));
     const r = f.edit(f.arrivalId, { notes: '  虚构：司机说下午才到  ', actualTime: '15:30' }),
       edited = viewOfKind(r, 'arrival');
     assert.deepEqual([r.changed, edited.notes, edited.actualTime, edited.number, edited.version], [true, '虚构：司机说下午才到', '15:30', before.number, before.version + 1]);
@@ -65,7 +65,7 @@ test('到货单：只换备注和到货时间，不出替代单，库存、流�
     assert.deepEqual(restAfter, restBefore, '别的字段一个不变');
     assert.deepEqual(f.movements(), moves);
     assert.equal(f.current().lines[0].receivedQuantity, '1000');
-    assert.equal(sourceHash({ kind: 'arrival', status: 'confirmed', date: after.date }, flowDocumentContent(flowDocumentOfView(after))), fingerprint, '财务的来源指纹不变');
+    assert.deepEqual(financialContent('arrival', flowDocumentContent(flowDocumentOfView(after))), fingerprint, '财务来源指纹用的内容不变');
     assert.deepEqual(f.audits(f.arrivalId).map((a) => [a.before, a.after]), [[{ notes: '', actualTime: null }, { notes: '虚构：司机说下午才到', actualTime: '15:30' }]]);
     const again = updateDocumentInfo(f.store, f.arrivalId, { notes: '虚构：司机说下午才到', actualTime: '15:30', expectedVersion: before.version }, clerk);
     assert.deepEqual([again.changed, again.version], [false, after.version]);

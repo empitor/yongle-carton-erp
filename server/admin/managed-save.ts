@@ -1,10 +1,10 @@
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, reviewedAssistantGrant } from '../core/index.js';
-import { dataManagementNoCreate, flowDocNames, flowInput, type FlowKind } from '../../shared/business/index.js';
+import { dataManagementNoCreate, documentInfoFields, flowDocNames, flowInput, type FlowKind } from '../../shared/business/index.js';
 import { createBusinessService } from '../business/index.js';
 import type { OperationsService } from '../operations/index.js';
-import { documentInfoFields, updateDocumentInfo, type FlowService } from '../flow/index.js';
+import { updateDocumentInfo, type FlowService } from '../flow/index.js';
 import { inputSchemas, isFlowModule, recordSchemas, type ManagedModule } from './managed-records.js';
 import { editedKeys, rejectedFields, unknownFields, type Current } from './input-fields.js';
 import { rejectionText } from './field-rejection.js';

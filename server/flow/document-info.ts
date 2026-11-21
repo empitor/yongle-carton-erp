@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, inSavepoint, one, requirePermission, rows } from '../core/index.js';
-import { documentInfoSchema, flowDocNames, flowKinds, pendingLabels, type FlowKind } from '../../shared/business/index.js';
+import { documentInfoFields, documentInfoSchema, flowDocNames, flowKinds, pendingLabels, type FlowKind } from '../../shared/business/index.js';
 import { writeFlowDocument } from './document-store.js';
 import { get, storedDocument } from './read.js';
 
@@ -10,7 +10,7 @@ import { get, storedDocument } from './read.js';
  * 只改不动库存、金额的说明字段，不出替代单——到货：备注、到货时间；送货：备注、地址、联系人、联系方式、实际送达时间；
  * 完工：批次备注、操作人。在库里存的那份内容上只换这几项，版本号加一、记修改历史。
  * 改数量这类走更正（correction.ts），整张没发生走撤销；待核对的单据在编辑窗里整张改；已撤销、已取消、已被更正替代、
- * 已归档的不改。财务不受影响：来源指纹不含这些说明字段，版本变了只更新观察记录。
+ * 已归档的不改。财务不受影响：来源指纹不含归“说明”的栏目，版本变了只更新观察记录。
  */
 // 输入的规则（只传要改的那几项，expectedVersion 是打开时的版本）在 shared/business/flow-requests.ts，POST /flow/:id/info 和助手共用。
 type Field = Exclude<keyof z.infer<typeof documentInfoSchema>, 'expectedVersion'>;
@@ -19,13 +19,8 @@ const infoFields = documentInfoSchema.keyof().options.filter((k): k is Field => 
 /** 这张单据现在的种类、单号、状态、版本 */
 const headRow = rows.flow_documents.pick({ number: true, status: true, version: true }).extend({ kind: z.enum(flowKinds) });
 
-/** 每种已生效单据能改的说明字段（数据管理按它判断一次修改是不是只改说明） */
-export const documentInfoFields: Partial<Record<FlowKind, readonly Field[]>> = {
-  arrival: ['notes', 'actualTime'],
-  delivery: ['notes', 'address', 'contact', 'phone', 'actualTime'],
-  production: ['notes', 'operator'],
-};
-const editable = documentInfoFields;
+/** 每种已生效单据能改的说明字段：单据表头归“说明”的那些（shared/business/finance-source.ts），生产任务没有 */
+const editable: Partial<Record<FlowKind, readonly Field[]>> = documentInfoFields;
 const labels: Record<Field, string> = { notes: '备注', actualTime: '时间', address: '地址', contact: '联系人', phone: '联系方式', operator: '操作人' };
 /** 库里没写过的说明按空算：时间是 null，别的是空字符串 */
 const valueOf = (field: Field, v: unknown) => (field === 'actualTime' ? (v ?? null) : String(v ?? ''));

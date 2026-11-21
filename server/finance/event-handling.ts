@@ -10,7 +10,7 @@ import { dateSchema } from '../../shared/core/index.js';
 import { periodSchema, versionSchema } from '../../shared/finance/index.js';
 import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
 import { documentMoney, theoreticalMoney } from './amounts.js';
-import { sourceContent } from './business-source.js';
+import { readSource } from './business-source.js';
 import { reverseOriginalObligation } from './event-correction.js';
 import { hasBookedObligations } from './event-source-obligations.js';
 import { evaluateSource } from './event-evaluate.js';
@@ -212,7 +212,7 @@ export class FinanceEventHandling {
       if (status === 'corrected') {
         const ending = !source
           ? '，单据已删除，不再重做。'
-          : sourceContent(source).replacedBy
+          : readSource(source).doc.replacedBy
             ? '，单据已被更正替代，由替代单入账。'
             : '，单据已撤销，不再重做。';
         this.db.prepare('UPDATE fin_events SET problem=? WHERE id=?').run(handled + ending, id);
