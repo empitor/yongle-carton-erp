@@ -13,93 +13,86 @@ import { businessResetSchema, workspaceCommandSchema } from '../../../shared/adm
 import { importStateLabel, type ImportWorkspaceView } from '../../../shared/import/index.js';
 import { dataManagementModules, dataManagementNames } from '../../../shared/business/index.js';
 import { WORKSPACE_DELETES, type ToolPlan } from '../plan-rules.js';
-import { notConnected, requireLocalOrSuperAdmin, uuid, positive, type ToolContext, type ToolReader, type ToolWriter } from './context.js';
+import { fail, requireLocalOrSuperAdmin, uuid, positive, type ToolContext } from './context.js';
+import { planTool, readTool } from './define.js';
 import { rehearse } from '../../core/index.js';
 
 /** 给模型看的写法：版本可以不带（出卡片时补上当时的版本），其余和 workspaceCommandSchema 一样 */
 const workspaceToolSchema = z.strictObject(workspaceCommandSchema.shape);
+const workspacesSchema = z.union([z.strictObject({ action: z.literal('list'), requestId: uuid.optional() }), workspaceToolSchema]);
+
 export const managementTools = [
-  {
-    name: 'management.delete_preview',
-    description:
-      '查删除影响：物理删除前用，看要级联删除的、要解除引用的、库存怎么处理。已确认、有库存的也能删；涉及别的独立记录时先把清单给用户看。',
-    arguments: {
-      module: '与management.execute相同',
-      items: [{ id: 1, version: 1 }],
-      inventoryPolicy: '默认recalculate：库存一起改回（删掉被删单据的出入库流水并重算，改回会变负数时删不了）；preserve：库存数量不动，只删单子，流水改成“系统维护”流水。没动过库存的单据不用传',
+  readTool(
+    {
+      name: 'management.delete_preview',
+      description:
+        '查删除影响：物理删除前用，看要级联删除的、要解除引用的、库存怎么处理。已确认、有库存的也能删；涉及别的独立记录时先把清单给用户看。',
+      schema: deletionSelection,
     },
-    risk: 'read',
-    schema: deletionSelection,
-  },
-  {
-    name: 'management.workspaces',
-    description:
-      '管理 AI 识别的原件、任务和识别结果工作区：list 列出，open 打开，fork 复制成独立任务，archive 归档，restore 恢复归档，delete 真正删除（要删就用 delete，不用 archive 代替）。修改要新 requestId；版本可以不填，卡片按当时的版本，确认前被别人改过就拒绝。不会重新识别或收费。',
-    arguments: {
-      action: 'list/open/fork/delete/archive/restore',
-      requestId: '修改时必填UUID',
-      items: [{ id: '工作区UUID', revision: '可省略，按出卡片时的版本' }],
+    (ctx, v, who) => new DatabaseMaintenanceService(ctx.store).preview(v, who),
+  ),
+  // 识别工作区的归档、恢复、复制、打开、删除：都出确认卡片，卡片上写文件名；删除（原件、识别结果一起删，找不回）
+  // 按删除卡片画（plan-rules.ts 的 destructivePlan）。只列出（list）直接执行（chat/workflow-direct.ts）
+  planTool(
+    {
+      name: 'management.workspaces',
+      description:
+        '管理 AI 识别的原件、任务和识别结果工作区：list 列出，open 打开，fork 复制成独立任务，archive 归档，restore 恢复归档，delete 真正删除（要删就用 delete，不用 archive 代替）。修改要新 requestId；版本可以不填，卡片按当时的版本，确认前被别人改过就拒绝。不会重新识别或收费。',
+      risk: 'workflow',
+      schema: workspacesSchema,
     },
-    risk: 'workflow',
-    schema: z.union([
-      z.strictObject({ action: z.literal('list'), requestId: uuid.optional() }),
-      workspaceToolSchema,
-    ]),
-  },
-  {
-    name: 'management.execute',
-    description:
-      '通用改数据：专门的工具做不了时用：一次改多条（items 列出编号和版本，patches 按编号给各自的改动）、改产品或库存品的尺寸单位（dimensionPolicy）。先 management.context 查影响；删除用 records.delete。要建几条互相引用的记录，一条建完拿到编号再建下一条。',
-    arguments: {
-      module: 'customers/products/orders/suppliers/purchases/stock_items/arrival/task/production/delivery',
-      action: 'create/update/archive/restore/confirm/reverse/cancel',
-      items: [{ id: 1, version: 1 }],
-      patch: {},
-      requestId: 'UUID',
-      reason: '用户操作原因',
+    {
+      build: buildWorkspaces,
+      commit: (ctx, plan, actor, binding) => manageWorkspaces(ctx.store, ctx.imports, plan.args, actor, binding),
+      stamp: () => ({}),
     },
-    risk: 'review',
-    schema: assistantManagementSchema,
-  },
-  {
-    name: 'management.reset',
-    description:
-      '一键清空：用户明确要清空全部数据时用，调用一次，不要逐条删。business 清业务数据，ai-imports 清 AI 识别工作区和失败记录，all 都清；账号、审计和 AI 配置保留，不可恢复。出确认卡片，回复说待确认。',
-    arguments: {
-      scope: 'business/ai-imports/all，默认all',
-      reason: '用户要求初始化的原因（可选）',
+  ),
+  planTool(
+    {
+      name: 'management.execute',
+      description:
+        '通用改数据：专门的工具做不了时用：一次改多条（items 列出编号和版本，patches 按编号给各自的改动）、改产品或库存品的尺寸单位（dimensionPolicy）。先 management.context 查影响；删除用 records.delete。要建几条互相引用的记录，一条建完拿到编号再建下一条。',
+      risk: 'review',
+      schema: assistantManagementSchema,
     },
-    risk: 'review',
-    schema: businessResetSchema,
-  },
-  {
-    name: 'management.context',
-    description:
-      '查删改影响：删除或更正一条记录之前用，查关联单据、删除和更正怎么处理、最近修改。先用 records.search 或 records.get 定位 id。',
-    arguments: { module: '与management.execute相同的模块', id: 1 },
-    risk: 'read',
-    schema: z.strictObject({ module: z.enum(dataManagementModules), id: positive }),
-  },
+    {
+      build: buildManagement,
+      commit: (ctx, plan, actor, binding) => {
+        requireLocalAdministrator(actor);
+        return new DataManagementService(ctx.store).execute(managementArgs.parse(plan.args).input, actor, binding, 'management-assistant');
+      },
+      stamp: (ctx, plan, actor) => ({
+        administrator: requireLocalAdministrator(actor).id,
+        records: new DataManagementService(ctx.store).list(managementModule.parse(plan.args).input.module, actor).records,
+      }),
+    },
+  ),
+  planTool(
+    {
+      name: 'management.reset',
+      description:
+        '一键清空：用户明确要清空全部数据时用，调用一次，不要逐条删。business 清业务数据，ai-imports 清 AI 识别工作区和失败记录，all 都清；账号、审计和 AI 配置保留，不可恢复。出确认卡片，回复说待确认。',
+      risk: 'review',
+      schema: businessResetSchema,
+    },
+    {
+      build: buildReset,
+      commit: (ctx, plan, actor) => new BusinessReset(ctx.store, ctx.imports).execute(plan.args, actor, { by: 'assistant' }),
+    },
+  ),
+  readTool(
+    {
+      name: 'management.context',
+      description:
+        '查删改影响：删除或更正一条记录之前用，查关联单据、删除和更正怎么处理、最近修改。先用 records.search 或 records.get 定位 id。',
+      schema: z.strictObject({ module: z.enum(dataManagementModules), id: positive }),
+    },
+    (ctx, v, who) => recordContext(ctx.store, v.module, v.id, requireLocalOrSuperAdmin(who)),
+  ),
 ];
 
-function deletePreview(ctx: ToolContext, raw: unknown, who: Actor | null | undefined) {
-  return new DatabaseMaintenanceService(ctx.store).preview(raw, who);
-}
-
-function managedRecord(ctx: ToolContext, raw: unknown, who: Actor | null | undefined) {
-  const actor = requireLocalOrSuperAdmin(who),
-    v = z.strictObject({ module: z.string(), id: positive }).parse(raw);
-  return recordContext(ctx.store, v.module, v.id, actor);
-}
-
-export const managementReaders: Record<string, ToolReader> = {
-  'management.delete_preview': deletePreview,
-  'management.context': managedRecord,
-};
-
-function buildReset(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
-  const v = businessResetSchema.parse(raw),
-    reset = new BusinessReset(ctx.store);
+function buildReset(ctx: ToolContext, tool: string, v: z.output<typeof businessResetSchema>, actor: Actor): ToolPlan {
+  const reset = new BusinessReset(ctx.store, ctx.imports);
   if (v.scope !== 'ai-imports') reset.refuseWithFinanceData();
   const before = reset.preview(v.scope, actor, { by: 'assistant' });
   return {
@@ -129,10 +122,9 @@ const managementVerbs: Record<z.output<typeof assistantManagementSchema>['action
   reverse: '撤销',
 };
 
-function buildManagement(ctx: ToolContext, tool: string, raw: unknown, actor: Actor, binding: string): ToolPlan {
+function buildManagement(ctx: ToolContext, tool: string, command: z.output<typeof assistantManagementSchema>, actor: Actor, binding: string): ToolPlan {
   requireLocalAdministrator(actor);
-  const command = assistantManagementSchema.parse(raw),
-    service = new DataManagementService(ctx.store);
+  const service = new DataManagementService(ctx.store);
   const before = service
     .list(command.module, actor)
     .records.filter((x) => command.items.some((i) => i.id === x.record.id))
@@ -166,52 +158,22 @@ const workspaceState = (w: ImportWorkspaceView) => importStateLabel({ ...w, hasD
 /** 卡片标题上的动作叫法 */
 const workspaceVerbs: Record<string, string> = { fork: '复制', restore: '恢复', delete: '删除', archive: '归档', open: '打开' };
 
-export const managementWriters: Record<string, ToolWriter> = {
-  // 识别工作区的归档、恢复、复制、打开、删除：都出确认卡片，卡片上写文件名；删除（原件、识别结果一起删，找不回）
-  // 按删除卡片画（plan-rules.ts 的 destructivePlan）
-  'management.workspaces': {
-    build: (ctx, tool, raw, actor) => {
-      requireLocalAdministrator(actor);
-      // 卡片上写文件名和识别状态，人看得出删的是哪几份；没带版本的按这时的版本，确认前被改过服务就拒绝
-      const raw0 = workspaceToolSchema.parse(raw);
-      const loaded = raw0.items.map((i) => ({ i, w: (ctx.imports ?? notConnected('AI 导入')).load(i.id) }));
-      const v = workspaceCommandSchema.parse({ ...raw0, items: loaded.map(({ i, w }) => ({ id: i.id, revision: i.revision ?? w.revision })) });
-      const files = loaded.map(({ i, w }) => ({ id: i.id, fileName: w.fileName, state: workspaceState(w) }));
-      const deletes = WORKSPACE_DELETES.includes(v.action);
-      return {
-        tool,
-        args: v,
-        label: workspaceVerbs[v.action] + '识别工作区 ' + files.length + ' 份：' + files.map((f) => f.fileName).join('、'),
-        highRisk: deletes,
-        before: files,
-        after: { count: v.items.length },
-        warnings: deletes ? ['原件和识别结果一起删，删除后找不回；已正式导入的订单不受影响。'] : [],
-      };
-    },
-    commit: (ctx, plan, actor, binding) => manageWorkspaces(ctx.store, ctx.imports ?? notConnected('AI 导入'), plan.args, actor, binding),
-    stamp: () => ({}),
-  },
-  'management.reset': {
-    build: buildReset,
-    commit: (ctx, plan, actor) => new BusinessReset(ctx.store, ctx.imports).execute(plan.args, actor, { by: 'assistant' }),
-  },
-  'management.execute': {
-    build: buildManagement,
-    commit: (ctx, plan, actor, binding) => {
-      requireLocalAdministrator(actor);
-      return new DataManagementService(ctx.store).execute(
-        managementArgs.parse(plan.args).input,
-        actor,
-        binding,
-        'management-assistant',
-      );
-    },
-    stamp: (ctx, plan, actor) => {
-      if (plan.tool === 'management.execute')
-        return {
-          administrator: requireLocalAdministrator(actor).id,
-          records: new DataManagementService(ctx.store).list(managementModule.parse(plan.args).input.module, actor).records,
-        };
-    },
-  },
-};
+function buildWorkspaces(ctx: ToolContext, tool: string, args: z.output<typeof workspacesSchema>, actor: Actor): ToolPlan {
+  requireLocalAdministrator(actor);
+  // 只列出不出卡片（chat/workflow-cards.ts 的登记只把别的动作交到这里）
+  if (args.action === 'list') return fail('列出识别工作区不用确认卡片。');
+  // 卡片上写文件名和识别状态，人看得出删的是哪几份；没带版本的按这时的版本，确认前被改过服务就拒绝
+  const loaded = args.items.map((i) => ({ i, w: ctx.imports.load(i.id) }));
+  const v = workspaceCommandSchema.parse({ ...args, items: loaded.map(({ i, w }) => ({ id: i.id, revision: i.revision ?? w.revision })) });
+  const files = loaded.map(({ i, w }) => ({ id: i.id, fileName: w.fileName, state: workspaceState(w) }));
+  const deletes = WORKSPACE_DELETES.includes(v.action);
+  return {
+    tool,
+    args: v,
+    label: workspaceVerbs[v.action] + '识别工作区 ' + files.length + ' 份：' + files.map((f) => f.fileName).join('、'),
+    highRisk: deletes,
+    before: files,
+    after: { count: v.items.length },
+    warnings: deletes ? ['原件和识别结果一起删，删除后找不回；已正式导入的订单不受影响。'] : [],
+  };
+}

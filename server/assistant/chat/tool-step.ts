@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 import { AppError, failureMessage } from '../../core/index.js';
 import type { ToolPlan } from '../plan-rules.js';
 import type { ToolHandlers, ToolKind } from '../tool-registry.js';
+import type { CheckedCall } from '../tools/define.js';
 import { commandLabel } from '../command-directory.js';
 import { unwrapCommand, usageHint } from './command-tools.js';
 import { allowedUrl, noteSearchResult } from './external-content.js';
@@ -80,8 +81,9 @@ const cardPlan = (tool: string, args: unknown, card: WorkflowCard): ToolPlan => 
   summary: card.summary,
 });
 
-function read(svc: ChatServices, run: ChatRun, name: string, args: unknown, signal: AbortSignal): unknown {
+function read(svc: ChatServices, run: ChatRun, name: string, call: CheckedCall, signal: AbortSignal): unknown {
   const { id, input, binding, check, emit } = run;
+  const { args } = call;
   if (name === 'prompts.get') return svc.promptEdit.get(args, check());
   if (name === 'chat.list') return svc.conversations.listThreads(id, check());
   if (name === 'page.observe')
@@ -96,7 +98,7 @@ function read(svc: ChatServices, run: ChatRun, name: string, args: unknown, sign
       emit,
     });
   if (svc.extras.handles(name)) return svc.extras.read(name, args, check());
-  return svc.tools.read(name, args, check(), {
+  return svc.tools.readChecked(name, call, check(), {
     signal,
     // 联网只开用户给的、或这个会话里搜索返回过的网址
     allowedUrl: (url) => allowedUrl(svc.store, id, url),
@@ -140,15 +142,16 @@ function noteReadResult(svc: ChatServices, run: ChatRun, name: string, result: u
 function handlers(svc: ChatServices, run: ChatRun, signal: AbortSignal): ToolHandlers {
   const { binding, check, options } = run;
   const workflow = { ...run.workflow, signal };
-  const planned = (name: string, args: unknown) => {
-    const plan = svc.tools.prepare(name, args, check(), binding, { proxy: !!options.proxy });
+  const planned = (name: string, call: CheckedCall) => {
+    const plan = svc.tools.prepareChecked(name, call, check(), binding, { proxy: !!options.proxy });
     return proposeCard(svc, run, plan, svc.tools.stamp(plan, check()));
   };
   return {
     business: planned,
-    workflow: async (name, args) => {
+    workflow: async (name, call) => {
+      const { args } = call;
       const write = workflowWrite(name, args, svc, workflow);
-      if (write && 'planned' in write) return planned(name, args);
+      if (write && 'planned' in write) return planned(name, call);
       if (write) return proposeCard(svc, run, cardPlan(name, args, await write.card(svc, workflow, args)), null);
       const direct = Object.hasOwn(WORKFLOW_DIRECT, name) ? WORKFLOW_DIRECT[name] : undefined;
       // 新加的流程类工具两张表都没登记：不执行（测试也会拦）
@@ -157,8 +160,8 @@ function handlers(svc: ChatServices, run: ChatRun, signal: AbortSignal): ToolHan
       noteDirectResult(run, name, typeof direct.does === 'function' ? direct.does(result) : direct.does, result);
       return result;
     },
-    read: async (name, args) => {
-      const result = await read(svc, run, name, args, signal);
+    read: async (name, call) => {
+      const result = await read(svc, run, name, call, signal);
       noteReadResult(svc, run, name, result);
       return result;
     },
@@ -179,7 +182,7 @@ function carded(svc: ChatServices, run: ChatRun, name: string, args: unknown, ki
   try {
     return !!workflowWrite(name, args, svc, run.workflow);
   } catch {
-    // 判断不了（比如识别还没接上）：照普通命令写，执行时会把原因交给模型
+    // 判断不了（比如这个会话还没有要改的识别任务）：照普通命令写，执行时会把原因交给模型
     return false;
   }
 }

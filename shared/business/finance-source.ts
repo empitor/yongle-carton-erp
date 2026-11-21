@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isRecord } from '../core/index.js';
+import { isRecord, type FinanceSourceKind } from '../core/index.js';
 import { flowContentSchema, type FlowDocuments } from './flow-document.js';
 import { documentInfoSchema } from './flow-requests.js';
 
@@ -86,8 +86,7 @@ export const financeSourceSchemas = {
     replacedBy: production.replacedBy,
   }),
   stock: z.object({ stockId: z.number(), deltaUnits: z.number(), reason: z.string().nullable(), createdAt: z.string() }),
-};
-type FinanceSourceKind = keyof typeof financeSourceSchemas;
+} satisfies Record<FinanceSourceKind, z.ZodType>;
 /** 一种来源的财务口径 */
 export type FinanceSource<K extends FinanceSourceKind = FinanceSourceKind> = z.output<(typeof financeSourceSchemas)[K]>;
 /** 业务交给财务的完整内容：单据是库里的内容（不带种类），盘点流水是拼出来的那几项 */

@@ -161,12 +161,10 @@ const sourceWorkspaceId = (input: ChatInput) =>
     ? new URLSearchParams(input.context.page.split('?')[1]).get('workspace') || undefined
     : undefined;
 
-/** 出纳只看财务：页面上选中的业务记录不预读进提示词（助手上下文的模块都是业务模块）。 */
+/** 出纳只看财务：页面上选中的业务记录不预读进提示词（页面报的记录种类都是业务记录）。 */
 function selectedRecord(svc: ChatServices, input: ChatInput, actor: Actor): unknown {
   const context = input.context;
-  return context?.id && context.module && !financeOnlyAccount(actor)
-    ? svc.tools.read('records.get', { module: context.module, id: context.id }, actor)
-    : null;
+  return context?.id && context.module && !financeOnlyAccount(actor) ? svc.tools.pageRecord(context.module, context.id, actor) : null;
 }
 
 /** 同一请求已经回复过时返回 { replayed: 会话视图 }，否则返回建好的这一轮状态。 */

@@ -45,7 +45,7 @@ async function executeCard(manager: AssistantManager, auth: AuthManager, req: Re
   assertCardCurrent(plan, input.deletionDigest);
   if (proxy && localOnlyPlan(plan)) throw new AppError(localOnlyMessage(plan.tool), 403, 'proxy-deletion');
   // 还没核对的单据和人在页面上一样：不用密码
-  if (destructivePlan(plan) && !unconfirmedDeletion(manager.store, plan) && !isLocalAdministrator(actor)) {
+  if (destructivePlan(plan) && !unconfirmedDeletion(manager.tools.flow, plan) && !isLocalAdministrator(actor)) {
     await auth.verifyPassword(req, password);
     passwordVerified = true;
   }

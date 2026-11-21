@@ -9,6 +9,8 @@ import { InboxService } from '../../inbox/index.js';
 import { executeImports, importCard } from '../order-import-card.js';
 import type { WorkflowContext } from '../order-import-state.js';
 import type { ChatServices } from './run-state.js';
+import { inboxAddSchema, markAddSchema, markRemoveSchema } from '../extra-tools.js';
+import { fromInboxArgs } from '../tools/order-import.js';
 import { field } from './result-fields.js';
 import {
   INBOX_TEXT_CHARS,
@@ -16,11 +18,7 @@ import {
   exportArgs,
   exportView,
   fieldNames,
-  fromInboxView,
   importRequest,
-  inboxAddView,
-  markAddView,
-  markRemoveView,
   mergedIds,
   recognizeView,
   storedImports,
@@ -197,7 +195,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
   'order_import.from_inbox': {
     card: (svc, ctx, raw) => {
       ctx.check();
-      const a = fromInboxView.parse(raw);
+      const a = fromInboxArgs.parse(raw);
       const item = new InboxService(svc.store).get(a.inboxId);
       return {
         label: '把收件箱第 ' + a.inboxId + ' 条转进 AI 导入',
@@ -211,7 +209,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
   },
   'marks.add': {
     card: (svc, ctx, raw) => {
-      const a = markAddView.parse(raw);
+      const a = markAddSchema.parse(raw);
       const file = svc.extras.localFile(ctx, a.attachmentId);
       return {
         label: '给产品挂唛头：' + productName(svc.store, a.productId),
@@ -228,7 +226,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
   },
   'marks.remove': {
     card: (svc, _ctx, raw) => {
-      const mark = svc.extras.marks.get(markRemoveView.parse(raw).id);
+      const mark = svc.extras.marks.get(markRemoveSchema.parse(raw).id);
       return {
         label: '移除唛头：' + mark.fileName,
         summary: [
@@ -257,7 +255,7 @@ export const WORKFLOW_WRITES: Record<string, Entry> = {
   // 收件箱全员共用：放进去的东西别人也看得到
   'inbox.add': {
     card: (svc, ctx, raw) => {
-      const { text, attachmentId } = inboxAddView.parse(raw);
+      const { text, attachmentId } = inboxAddSchema.parse(raw);
       if (text) return { label: '放进收件箱：一段文字', summary: [{ label: '文字', value: text }], args: { text } };
       const file = svc.extras.localFile(ctx, attachmentId);
       return {

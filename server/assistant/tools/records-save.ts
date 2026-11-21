@@ -10,12 +10,14 @@ import { DataManagementService } from '../../admin/index.js';
 import { isLocalAdministrator } from '../../core/index.js';
 import { customerSchema, productSchema, orderSchema, exactPriceSchema } from '../../../shared/core/index.js';
 import { purchaseSchema, statusActionFor, stockItemSchema, supplierSchema } from '../../../shared/business/index.js';
-import { flowInput } from '../../../shared/business/index.js';
+import { flowInput, type FlowKind } from '../../../shared/business/index.js';
 import { legacyCents, productPricePatch } from '../../../shared/core/index.js';
 import type { ToolPlan } from '../plan-rules.js';
-import { fieldList, isFields, positive, type Fields, type ToolContext, type ToolWriter } from './context.js';
+import { fieldList, isFields, positive, type Fields, type ToolContext } from './context.js';
+import { planTool } from './define.js';
 import { rehearse } from '../../core/index.js';
-import { assistantModules, flowMap, moduleNames, moduleSchema, type Module, type ModuleRecord, recordRow, recordVersion } from './modules.js';
+import { flowKindOfModule, moduleName, stockKindOf } from '../../../shared/assistant/index.js';
+import { moduleSchema, type Module, type ModuleRecord, recordRow, recordVersion } from './modules.js';
 
 /** 一次新建几条最多 20 条 */
 const ITEMS_MAX = 20;
@@ -39,19 +41,19 @@ const saveArgs = z.object({
 type SaveJob = { module: Module; id?: number; input: Record<string, unknown>; fields: readonly string[]; reason?: string };
 
 export const recordSaveTools = [
-  {
+  planTool({
     name: 'records.propose_save',
     description:
       '新建或修改记录：id 空是新建，patch 只写要改的字段；一次建几条同类记录（几种产品的生产任务、几张送货单）用 items，出一张卡片，不要拆成几条。字段写法先用 records.search 带 describe:true 看；查不到档案、用户给了名称规格就直接新建，没说的选填项留空。改订单、采购状态在 patch 写 status，取消带 reason；导出订货单会自动标已订货。',
-    arguments: {
-      module: assistantModules.filter((m) => m !== 'movements'),
-      id: '正整数或省略',
-      patch: '字段对象',
-      items: '一次新建几条时：每条一个字段对象（不带 id、不带 patch）',
-    },
     risk: 'review',
     schema: saveSchema,
-  },
+  }, {
+    build: buildSave,
+    commit: (ctx, plan, actor, binding) => {
+      const one = (a: z.output<typeof saveArgs>) => executeSave(ctx, { ...a, fields: a.fields || [] }, actor, binding);
+      return plan.args.items ? { results: z.array(saveArgs).parse(plan.args.items).map(one) } : one(saveArgs.parse(plan.args));
+    },
+  }),
 ];
 
 /** 订单、采购单现在的状态和版本（采购单比的是基础状态） */
@@ -79,7 +81,7 @@ function saveStatus(ctx: ToolContext, job: SaveJob & { id: number }, actor: Acto
   const action = statusActionFor(module, from, to);
   if (!action)
     throw new AppError(
-      moduleNames[module] + '现在是“' + from + '”，不能直接改成“' + to + '”。生产中、待发货、已发货由生产和送货单据推进。',
+      moduleName(module) + '现在是“' + from + '”，不能直接改成“' + to + '”。生产中、待发货、已发货由生产和送货单据推进。',
     );
   const version = job.fields.some((k) => k !== 'status')
     ? z.object({ version: z.number() }).parse(executeSave(ctx, { ...job, input: { ...input, status: from }, fields: [] }, actor, binding)).version
@@ -93,7 +95,7 @@ function saveStatus(ctx: ToolContext, job: SaveJob & { id: number }, actor: Acto
 const isWritable = (m: Module): m is 'customers' | 'products' | 'orders' => m === 'customers' || m === 'products' || m === 'orders';
 
 /** 单据：新的完工单只走登记完工；本机管理员改已有单据走数据管理；别的交给单据流转保存 */
-function saveFlow(ctx: ToolContext, kind: NonNullable<(typeof flowMap)[string]>, job: SaveJob, actor: Actor, binding: string): unknown {
+function saveFlow(ctx: ToolContext, kind: FlowKind, job: SaveJob, actor: Actor, binding: string): unknown {
   const { id, input } = job;
   // 新的完工单只走登记完工那一个入口（不挂任务的写 untasked），这里只改已有的完工单
   if (kind === 'production' && !id) throw new AppError('登记完工用 flow.propose_production_completion，不挂生产任务的写在 untasked 里。');
@@ -132,9 +134,10 @@ function executeSave(ctx: ToolContext, job: SaveJob, actor: Actor, binding: stri
     );
   if (module === 'suppliers') return ctx.ops.saveSupplier(input, actor, id);
   if (module === 'purchases') return ctx.flow.stock.savePurchase(input, actor, id);
-  if (module === 'raw_inventory' || module === 'finished_inventory')
-    return ctx.flow.stock.saveItem({ ...input, kind: module === 'raw_inventory' ? 'raw' : 'finished' }, actor, id);
-  const kind = flowMap[module];
+  const stockKind = stockKindOf(module);
+  if (stockKind)
+    return ctx.flow.stock.saveItem({ ...input, kind: stockKind }, actor, id);
+  const kind = flowKindOfModule(module);
   if (kind) return saveFlow(ctx, kind, job, actor, binding);
   throw new AppError('此模块不允许直接修改。', 403);
 }
@@ -149,7 +152,7 @@ function buildMany(ctx: ToolContext, tool: string, asked: { module: Module; item
   return {
     tool,
     args: { module, items: children.map((c) => c.args) },
-    label: '新建' + moduleNames[module] + ' ' + children.length + ' 条',
+    label: '新建' + moduleName(module) + ' ' + children.length + ' 条',
     highRisk: children.some((c) => c.highRisk),
     before: null,
     after: children.map((c) => c.after),
@@ -168,7 +171,7 @@ const recordSchemas: Partial<Record<Module, z.ZodType<Record<string, unknown>>>>
   finished_inventory: stockItemSchema,
 };
 function parseInput(module: Module, candidate: Record<string, unknown>): Record<string, unknown> {
-  const kind = flowMap[module];
+  const kind = flowKindOfModule(module);
   if (kind) return flowInput(kind, candidate);
   const schema = recordSchemas[module];
   if (!schema) throw new AppError('此模块不允许直接修改。', 403);
@@ -209,7 +212,8 @@ function candidateFor(module: Module, patch: Record<string, unknown>, before: Mo
   if (module === 'purchases' && before && 'baseStatus' in before && !Object.hasOwn(patch, 'status')) candidate.status = before.baseStatus;
   // 明细原样交给订单结构核对：不是对象的行（null、文字）在那里被拒收，不在这里滤掉
   if (module === 'orders' && Array.isArray(candidate.lines)) candidate.lines = candidate.lines.map(withLegacyCents);
-  if (module === 'raw_inventory' || module === 'finished_inventory') candidate.kind = module === 'raw_inventory' ? 'raw' : 'finished';
+  const stockKind = stockKindOf(module);
+  if (stockKind) candidate.kind = stockKind;
   return candidate;
 }
 /** 改归档的、或订单已发货（有发出的明细）的，卡片标成高风险 */
@@ -221,14 +225,13 @@ function highRiskOf(module: Module, before: Fields | undefined, input: Record<st
   );
 }
 function warningsOf(module: Module) {
-  const kind = flowMap[module];
+  const kind = flowKindOfModule(module);
   if (kind === 'delivery') return ['保存后是待送货，不扣库存；导出送货单或核对出库时才扣。'];
   if (kind === 'task') return ['保存后直接下达，不动库存。'];
   return kind ? ['保存后是待入库，核对入库时才加库存。'] : [];
 }
 
-function buildSave(ctx: ToolContext, tool: string, raw: unknown, actor: Actor, binding: string): ToolPlan {
-  const asked = saveSchema.parse(raw);
+function buildSave(ctx: ToolContext, tool: string, asked: z.output<typeof saveSchema>, actor: Actor, binding: string): ToolPlan {
   if (asked.items) return buildMany(ctx, tool, { module: asked.module, items: asked.items }, actor, binding);
   const { module, id } = asked;
   if (module === 'movements') throw new AppError('库存流水不可直接编辑。');
@@ -253,20 +256,10 @@ function buildSave(ctx: ToolContext, tool: string, raw: unknown, actor: Actor, b
   return {
     tool,
     args: { module, id, input, fields, ...(statusReason ? { reason: statusReason } : {}) },
-    label: (id ? '修改' : '新建') + moduleNames[module],
+    label: (id ? '修改' : '新建') + moduleName(module),
     highRisk: highRiskOf(module, before, input),
     before: before ?? null,
     after,
     warnings: warningsOf(module),
   };
 }
-
-export const recordSaveWriters: Record<string, ToolWriter> = {
-  'records.propose_save': {
-    build: buildSave,
-    commit: (ctx, plan, actor, binding) => {
-      const one = (a: z.output<typeof saveArgs>) => executeSave(ctx, { ...a, fields: a.fields || [] }, actor, binding);
-      return plan.args.items ? { results: z.array(saveArgs).parse(plan.args.items).map(one) } : one(saveArgs.parse(plan.args));
-    },
-  },
-};

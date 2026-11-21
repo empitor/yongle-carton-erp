@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { pageRows, InputError, type Store } from '../core/index.js';
 import { productIdsOfCustomer } from '../operations/index.js';
-import { dateSchema, orderDisplayStatus, orderInView, type Order } from '../../shared/core/index.js';
+import { dateSchema, type Order } from '../../shared/core/index.js';
 import {
   customerQuerySchema,
   matchesOperationalRecord,
   matchesProduct,
+  orderMatches,
   orderMetrics,
   orderQuerySchema,
   productIncomplete,
@@ -23,26 +24,11 @@ import { periodOrders } from './period-records.js';
 /** 请求的查询参数（express 给的总是对象）：各字段再按列表的规则校验 */
 export const listFields = (query: unknown) => z.record(z.string(), z.unknown()).parse(query);
 
-/** 订单的筛选：客户、产品、下单日期、显示状态、关键字、待处理/全部/历史 */
+/** 订单的筛选：客户、产品、下单日期、显示状态、关键字、待处理/全部/历史（判断和助手同一份 orderMatches） */
 function filterOrders<T extends Order>(f: z.output<typeof orderQuerySchema>, rows: T[]) {
   if (f.start && f.end && f.start > f.end) throw new InputError('开始日期不能晚于结束日期');
-  return rows.filter(
-    (o) =>
-      (!f.customerId || o.customerId === f.customerId) &&
-      (!f.productId || o.lines.some((l) => l.productId === f.productId)) &&
-      orderInView(o, {
-        view: f.view,
-        start: f.start,
-        end: f.end,
-        retainPending: f.retainPending === '1',
-      }) &&
-      (!f.status || orderDisplayStatus(o) === f.status) &&
-      (!f.q ||
-        [o.number, o.customerName, ...o.lines.map((l) => l.productName)]
-          .join(' ')
-          .toLowerCase()
-          .includes(f.q.toLowerCase())),
-  );
+  const filter = { ...f, retainPending: f.retainPending === '1' };
+  return rows.filter((o) => orderMatches(o, filter));
 }
 
 /** 带上归档标记（一次批量取，不逐行查）；archived=1 只留已归档的 */

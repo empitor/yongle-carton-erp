@@ -12,6 +12,7 @@ export { flowRouter } from './router.js';
 export { insertSource, updateSourceDocument } from './sources.js';
 export { carryOverFlowDocument, replaceFlowDocument } from './maintenance-writes.js';
 export { FlowService } from './service.js';
+export { documentVersions, pendingCompletionVersions, sourceFileNames } from './document-lookups.js';
 export { finishedStockOfProduct, stockItemBatches } from './stock-batches.js';
 export { updateDocumentInfo } from './document-info.js';
 // 财务从业务拿数据的只读窗口：财务只引这一个对象（tests/module-narrow-refs.test.ts）

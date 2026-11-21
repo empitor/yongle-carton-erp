@@ -72,7 +72,7 @@ const readOnlyPaths = ['server/flow/finance-facts/'];
  */
 const singleWriterTables: Record<string, string[]> = {
   // 采购明细关联的客户订单只存在 customer_order_id 列里，document 里不存
-  purchase_lines: ['server/operations/ledger.ts', 'server/operations/deletion.ts'],
+  purchase_lines: ['server/operations/ledger/ledger.ts', 'server/operations/deletion.ts'],
   // 单据表有 5 列是 document 里字段的镜像（计划日、送达日、订货批次、更正关系），列的值只在 document-store.ts 里从要写的内容算
   flow_documents: ['server/flow/document-store.ts', 'server/flow/deletion.ts'],
   // 识别原件的用途（kind）是列，不在 document 里；存原件、去掉原件里的内容都在 sources.ts
@@ -89,6 +89,13 @@ const auditReaders: { file: string; why: string }[] = [
   { file: 'server/finance/audit-log.ts', why: '财务操作记录页，展示和筛选' },
   { file: 'server/admin/reset-archive.ts', why: '初始化后确认自己刚写的那条审计已经提交，再删原件归档；技术用途' },
 ];
+
+/**
+ * 助手只读自己的表（assistant_ 开头的、助手的配置库）：业务数据一律经各模块的读函数和服务拿，表名拼出来的读也算
+ * （docs/架构说明.md“助手”）。SQLite 自己的伪表（pragma_ 开头、json_each）不是谁的表；别的例外登记在这里，写明原因。
+ */
+const assistantReadExceptions: { table: string; why: string }[] = [];
+const sqliteOwn = (t: string) => t.startsWith('pragma_') || t === 'json_each';
 
 type Facts = {
   writes: { table: string; line: number }[];
@@ -247,7 +254,7 @@ test('建的每张表都登记了主人，登记的每张表都还有人建（�
   assert.deepEqual([...tableOwnerMap.keys()].filter((t) => !created.has(t)), [], '没人建的表要从登记里删掉');
 });
 
-test('只许一个文件写的表：采购明细只由 operations/ledger.ts 写，单据只由 flow/document-store.ts 写', () => {
+test('只许一个文件写的表：采购明细只由 operations/ledger/ledger.ts 写，单据只由 flow/document-store.ts 写', () => {
   const bad: string[] = [];
   for (const f of runtimeFiles)
     for (const w of sqlFacts(f).writes)
@@ -367,4 +374,35 @@ test('只读目录里没有写库的 SQL，自己模块的表也不写；登记�
   ])
     assert.ok(sqlCheck(s).some((x) => x.includes('只读目录')), '只读目录里应拦住：' + s);
   assert.deepEqual(sqlCheck("db.prepare('SELECT p.name FROM customers p JOIN flow_documents f ON f.id=p.id')"), [], '只读目录里读不该拦');
+});
+
+/** 助手的文件里读了别人的表、或表名是拼出来的读（回归测试直接喂样例） */
+function assistantReadViolations(f: string, facts = sqlFacts(f)) {
+  if (!f.startsWith('server/assistant/')) return [];
+  const bad = facts.dynamicReads.map((d) => f + ':' + d.line + '：表名是拼出来的读（拼进来的是 ' + d.splice + '），看不出读的是谁的表。助手只读自己的表，业务数据调各模块的读函数');
+  for (const r of facts.reads)
+    if (tableOwner(r.table) !== '助手' && !sqliteOwn(r.table) && !assistantReadExceptions.some((e) => e.table === r.table))
+      bad.push(f + ':' + r.line + '：助手直接读了 ' + r.table + '（' + (tableOwner(r.table) ?? '没登记') + '）。助手只读自己的表，业务数据调表主人模块的读函数或服务');
+  return bad;
+}
+
+test('助手不直接读业务表：server/assistant/ 下的 SQL 只读助手自己的表，拼出来的读也拦；登记的例外都还用得上', () => {
+  assert.deepEqual(serverFiles.flatMap((f) => assistantReadViolations(f)), []);
+  const read = new Set(serverFiles.filter((f) => f.startsWith('server/assistant/')).flatMap((f) => sqlFacts(f).reads.map((r) => r.table)));
+  assert.deepEqual(assistantReadExceptions.filter((e) => !read.has(e.table)).map((e) => e.table), [], '已经不读了，从 assistantReadExceptions 删掉');
+  const check = (text: string) => assistantReadViolations('server/assistant/sample.ts', sqlFacts('server/assistant/sample.ts', text));
+  for (const s of [
+    "one(db, row, 'SELECT * FROM stock_items WHERE id=?', id)",
+    'many(db, row, `SELECT t.id,t.version FROM ${table} t ORDER BY t.id`)',
+    "count(db, 'SELECT COUNT(*) AS n FROM \"' + table + '\"')",
+    "many(db, row, 'SELECT a.id FROM assistant_runs a JOIN flow_documents d ON d.id=a.thread_id')",
+    "one(db, row, 'select kind,status from flow_documents where id=?', id)",
+  ])
+    assert.ok(check(s).length, '助手里应拦住：' + s);
+  for (const s of [
+    "one(db, row, 'SELECT seq FROM assistant_messages WHERE id=?', id)",
+    "one(db, row, 'SELECT enabled FROM tool_settings WHERE name=?', name)",
+    "count(db, 'SELECT COUNT(*) FROM pragma_foreign_key_check')",
+  ])
+    assert.deepEqual(check(s), [], '助手里不该拦：' + s);
 });

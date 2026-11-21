@@ -5,7 +5,6 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
-import { aiStatusReaders } from '../server/assistant/tools/ai-status.js';
 import { pageActor } from './actor-fixture.js';
 import { ctxOf } from './assistant-fixture.js';
 import { fakeAiSettings, httpError } from './fake-deepseek.js';
@@ -33,14 +32,14 @@ test('ai.status：接上识别导入时列出最近失败、按 workspaceId 过�
     f.manager.recordFailure(new Error('第二条虚构失败'), { fileName: '乙.xlsx', size: 20 }, { operation: 'analyze', stage: 'model-call', actor: boss });
     const ctx = ctxOf(store, { ai: f.settings, imports: f.manager });
 
-    const page1 = readAs(await aiStatusReaders['ai.status'](ctx, { limit: 1, offset: 0 }, boss, 'ai.status'), { 最近识别失败: failureListSchema });
+    const page1 = readAs(await ctx.tools.read('ai.status', { limit: 1, offset: 0 }, boss), { 最近识别失败: failureListSchema });
     assert.equal(page1.最近识别失败.共, 2);
     assert.equal(page1.最近识别失败.列表.length, 1);
     assert.equal(page1.最近识别失败.还有更多, true);
     assert.equal(page1.最近识别失败.列表[0].操作, '识别');
     assert.equal(page1.最近识别失败.列表[0].操作人, boss.name);
 
-    const byWorkspace = readAs(await aiStatusReaders['ai.status'](ctx, { workspaceId: w.id, limit: 10, offset: 0 }, boss, 'ai.status'), { 最近识别失败: failureListSchema });
+    const byWorkspace = readAs(await ctx.tools.read('ai.status', { workspaceId: w.id, limit: 10, offset: 0 }, boss), { 最近识别失败: failureListSchema });
     assert.equal(byWorkspace.最近识别失败.共, 1);
     assert.equal(byWorkspace.最近识别失败.还有更多, false);
     assert.equal(byWorkspace.最近识别失败.列表[0].操作, '上传文件');
@@ -77,7 +76,7 @@ test('ai.status：统计最近七天助手每天的调用轮数、失败次数�
     );
 
     const ctx = ctxOf(store, { ai: settings });
-    const status = readAs(await aiStatusReaders['ai.status'](ctx, {}, boss, 'ai.status'), { 最近七天助手用量: usageSchema });
+    const status = readAs(await ctx.tools.read('ai.status', {}, boss), { 最近七天助手用量: usageSchema });
     assert.equal(status.最近七天助手用量.按天.length, 1);
     assert.equal(status.最近七天助手用量.按天[0].日期, '2026-11-12');
     assert.equal(status.最近七天助手用量.按天[0].轮数, 2);
@@ -96,7 +95,7 @@ test('ai.status：没有密钥时不查余额；查余额上游报错时回查�
   const withoutKey = fakeAiSettings({ saveKey: false });
   const withKey = fakeAiSettings();
   try {
-    const noKeyStatus = readAs(await aiStatusReaders['ai.status'](ctxOf(store, { ai: withoutKey.settings }), {}, boss, 'ai.status'), {
+    const noKeyStatus = readAs(await ctxOf(store, { ai: withoutKey.settings }).tools.read('ai.status', {}, boss), {
       密钥: z.string(),
       余额: z.string(),
       上次检查: z.object({ 结果: z.string(), 时间: z.string() }),
@@ -107,7 +106,7 @@ test('ai.status：没有密钥时不查余额；查余额上游报错时回查�
     assert.equal(withoutKey.fake.calls.length, 0);
 
     withKey.fake.next('/user/balance', httpError(500).response);
-    const failedBalance = readAs(await aiStatusReaders['ai.status'](ctxOf(store, { ai: withKey.settings }), {}, boss, 'ai.status'), {
+    const failedBalance = readAs(await ctxOf(store, { ai: withKey.settings }).tools.read('ai.status', {}, boss), {
       余额: z.object({ 查询失败: z.string() }),
     });
     assert.equal(failedBalance.余额.查询失败, 'DeepSeek 服务内部出错，请稍后重试。');

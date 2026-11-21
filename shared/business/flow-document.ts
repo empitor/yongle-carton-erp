@@ -16,19 +16,43 @@ import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, tas
 
 const id = z.number().int().positive();
 const by = { reason: z.string(), by: z.string(), at: z.string() };
-/** 每种单据都可能有的：确认（server/flow/confirm.ts）、取消和撤销（undo.ts）、更正（correction.ts）写进去的 */
-const lifecycle = {
+/*
+ * 单据内容的字段分三类：录入的（physical-flow.ts 的录入结构）、生命周期记录（下面这几组）、服务端抄下来的快照
+ * （名称、单价税率、材质楞型、面积金额……，严格结构减去前两类，登记在 flow-snapshot.ts）。
+ */
+/** 经办记录，每种单据都可能有：确认（server/flow/confirm.ts）、取消和撤销（undo.ts）写进去的 */
+const records = {
   confirmedBy: z.string().optional(),
   confirmedAt: z.string().optional(),
   movements: z.array(z.string()).optional(),
   cancellation: z.strictObject(by).optional(),
   reversal: reversalRecordSchema.optional(),
+};
+/** 更正关系，每种单据都可能有：更正（server/flow/correction.ts）写进去的 */
+const correction = {
   // 删除引擎删掉原单时写成 null（server/flow/deletion.ts 的 mirrors）
   correctionOf: id.nullable().optional(),
   correctionReason: z.string().optional(),
   correctedAt: z.string().optional(),
   replacedBy: id.optional(),
 };
+const lifecycle = { ...records, ...correction };
+/** 送货单的出库（confirm.ts）、送达（FlowService.markDelivered）记录 */
+const shipping = {
+  shippedAt: z.string().optional(),
+  shippedBy: z.string().optional(),
+  deliveredAt: z.string().optional(),
+  deliveredBy: z.string().optional(),
+};
+/** 到货更正的替代单：原单的到货记录编号（flow-原单编号） */
+const receiptCorrection = { correctionOfReceiptId: z.string().optional() };
+const keysOf = <T extends object>(shape: T) => Object.keys(shape).filter((k): k is Extract<keyof T, string> => Object.hasOwn(shape, k));
+/**
+ * 生命周期字段（四种单据合在一起）：经办记录（确认、取消撤销、送货的出库送达）和更正关系。
+ * 快照登记（flow-snapshot.ts）按“严格结构减录入结构再减这些”认快照字段；拆送货单（server/business/order-edit-cascade.ts）照带经办记录
+ */
+export const lifecycleFields = { records: keysOf({ ...records, ...shipping }), correction: keysOf({ ...correction, ...receiptCorrection }) };
+export type LifecycleField = (typeof lifecycleFields)[keyof typeof lifecycleFields][number];
 
 /** 到货明细：核对入库（server/flow/validate-arrival.ts）补上面积、金额、采购单和供应商名 */
 const arrivalLine = z.strictObject({
@@ -46,8 +70,7 @@ const arrivalDocument = z.strictObject({
   lines: z.array(arrivalLine),
   ...lifecycle,
   supplierName: z.string().optional(),
-  /** 到货更正的替代单：原单的到货记录编号（flow-原单编号） */
-  correctionOfReceiptId: z.string().optional(),
+  ...receiptCorrection,
 });
 /** 生产任务、送货单的计划日：保存时没写就按单据日期补上（server/flow），库里一定有 */
 const plannedDate = dateSchema;
@@ -96,10 +119,7 @@ const deliveryDocument = z.strictObject({
   lines: z.array(deliveryLine),
   ...lifecycle,
   customerName: z.string().optional(),
-  shippedAt: z.string().optional(),
-  shippedBy: z.string().optional(),
-  deliveredAt: z.string().optional(),
-  deliveredBy: z.string().optional(),
+  ...shipping,
 });
 
 /** 每种单据库里的内容（不含种类：种类是行上的 kind 列） */

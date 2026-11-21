@@ -10,6 +10,7 @@
  * 税率口径 fin_party_terms.tax_mode）放在
  * shared/finance/finance.ts，前后端共用。
  */
+import { financeSourceKinds } from '../../shared/core/index.js';
 
 /** fin_periods.status */
 export const periodStatuses = ['open', 'closed'] as const;
@@ -41,8 +42,8 @@ export const voucherModuleSources = [
   'purchase_return',
 ] as const;
 
-/** fin_events.source_kind、fin_source_observations.source_kind：送货单、到货单、完工单、盘点调整流水 */
-export const eventSourceKinds = ['delivery', 'arrival', 'production', 'stock'] as const;
+/** fin_events.source_kind、fin_source_observations.source_kind：送货单、到货单、完工单、盘点调整流水（种类只定义在 shared/core/finance-sources.ts） */
+export const eventSourceKinds = financeSourceKinds;
 
 /** fin_events.event_type */
 export const eventTypes = [

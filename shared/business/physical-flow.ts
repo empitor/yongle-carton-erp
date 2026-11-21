@@ -27,14 +27,26 @@ export const flowDocNames: Record<FlowKind, string> = {
   production: '完工单',
   delivery: '送货单',
 };
-/** 单据存的状态（建表的枚举，tests/schema-constraints.test.ts 比对）；给人看的叫法按单据种类，见 storedFlowStatusName */
+/**
+ * 单据存的状态（flow_documents.status）：代码和 SQL 里按名字引用（flowStatus.confirmed），不写字面值，
+ * 单据流转以外的 SQL 由 scripts/eslint-local-rules.mjs 的 no-flow-literals 拦。
+ */
+export const flowStatus = { draft: 'draft', confirmed: 'confirmed', cancelled: 'cancelled', reversed: 'reversed' } as const;
+type FlowStatus = (typeof flowStatus)[keyof typeof flowStatus];
+/**
+ * 单据在归档标记、审计、库存流水来源里记的种类：前缀加单据种类（flowEntity('delivery') 是 flow_delivery）。
+ * SQL 里按单据种类列拼的写 '${flowEntityPrefix}'||kind。
+ */
+export const flowEntityPrefix = 'flow_';
+export const flowEntity = <K extends FlowKind>(kind: K): `${typeof flowEntityPrefix}${K}` => `${flowEntityPrefix}${kind}`;
+/** 单据存的状态的叫法（建表的枚举，tests/schema-constraints.test.ts 比对）；给人看的叫法按单据种类，见 storedFlowStatusName */
 export const flowStates: Record<string, string> = {
   draft: '待核对',
   confirmed: '已确认',
   cancelled: '已取消',
   // 业务单据不说“冲销”（那是财务凭证的词），撤回统一叫“已撤销”
   reversed: '已撤销',
-};
+} satisfies Record<FlowStatus, string>;
 /** 已确认的单据按种类叫：到货、完工“已入库”，送货“已出库”，生产任务“已下达”（页面和使用手册上的说法） */
 const confirmedNames: Record<FlowKind, string> = {
   arrival: '已入库',

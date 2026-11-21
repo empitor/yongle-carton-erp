@@ -5,62 +5,95 @@ import { OrderBatchService } from '../../operations/index.js';
 import { registerArrival } from '../../flow/index.js';
 import { dateSchema, quantityText, quantityString } from '../../../shared/core/index.js';
 import type { ToolPlan } from '../plan-rules.js';
-import { uuid, fail, idAndInput, positive, requireActor, type ToolContext, type ToolReader, type ToolWriter } from './context.js';
+import { uuid, fail, idAndInput, positive, requireActor, type ToolContext } from './context.js';
+import { planTool, readTool } from './define.js';
 import { rehearse } from '../../core/index.js';
 import { MAX_BATCH_PURCHASES, MAX_RECEIVE_ROWS, MAX_SCHEDULE_ENTRIES, NOTE_MAX_LENGTH, arrivalTimeSchema } from '../../../shared/business/index.js';
 import type { batchProgress, batchRows } from '../../../shared/business/index.js';
 
+const scheduleSchema = z.strictObject({
+  id: positive,
+  expectedVersion: positive,
+  schedule: z.array(z.strictObject({ row: positive, quantity: quantityText, dueDate: dateSchema })).max(MAX_SCHEDULE_ENTRIES),
+});
+const receiveSchema = z.strictObject({
+  id: positive.optional(),
+  purchaseId: positive.optional(),
+  expectedVersion: positive.optional(),
+  requestId: uuid,
+  date: dateSchema,
+  actualTime: arrivalTimeSchema,
+  reference: z.string().trim().max(100).optional(),
+  notes: z.string().trim().max(NOTE_MAX_LENGTH).optional(),
+  // 拒收数量必须明确写（没有就是 0），不替用户猜全部合格；入库数量不写就等于合格数
+  rows: z.array(z.strictObject({ row: positive, quantity: quantityText, rejectedQuantity: quantityText, stockedQuantity: quantityText.optional() })).min(1).max(MAX_RECEIVE_ROWS),
+});
+
 export const orderBatchTools = [
-  {
-    name: 'order_batch.draft',
-    risk: 'read',
-    description: '看合并订货单：几张采购单要合成一份订货单导出前用，先看合并后的样子。传同一供应商的几张采购单 id，返回合并后的行（row 行号）、各单版本和默认到货安排；已在订货单里的返回整份。只读。',
-    arguments: { purchaseIds: [1, 2] },
-    schema: z.strictObject({ purchaseIds: z.array(positive).min(1).max(MAX_BATCH_PURCHASES) }),
-  },
-  {
-    name: 'order_batch.list',
-    risk: 'read',
-    description: '查待到货的订货单：每行还差多少、到货截止日期、是否逾期。',
-    arguments: { supplierId: '可省略', purchaseId: '可省略' },
-    schema: z.strictObject({ supplierId: positive.optional(), purchaseId: positive.optional() }),
-  },
-  {
-    name: 'order_batch.get',
-    risk: 'read',
-    description: '查一份订货单的到货进度（传 id 或 purchaseId）：版本、每行订货/已到/还差、到货安排和已登记的到货单；没有返回 null。看订货单文件上写的内容用 documents.preview。',
-    arguments: { id: '批次ID，或改传purchaseId' },
-    schema: z.strictObject({ id: positive.optional(), purchaseId: positive.optional() }),
-  },
-  {
-    name: 'order_batch.schedule',
-    risk: 'review',
-    description: '改订货单的到货安排（每行可拆几段“多少在哪天前到”），不动采购单和库存。先 order_batch.get 拿 version 和 row；schedule 传改完的完整安排，空数组是全部日期待定；日期只用用户说的。',
-    arguments: { id: 1, expectedVersion: 1, schedule: [{ row: 1, quantity: '1000', dueDate: '2026-11-12' }] },
-    schema: z.strictObject({
-      id: positive,
-      expectedVersion: positive,
-      schedule: z.array(z.strictObject({ row: positive, quantity: quantityText, dueDate: dateSchema })).max(MAX_SCHEDULE_ENTRIES),
-    }),
-  },
-  {
-    name: 'order_batch.receive',
-    risk: 'review',
-    description: '登记到货：按一张供应商送货单登记到货并入库。先 order_batch.get 拿 version 和 row；rows 写实到 quantity 和拒收 rejectedQuantity（没有写 0，用户没说验收结果先问），部分入库另写入库数量 stockedQuantity。没有订货单的老采购单不传 id、改传 purchaseId。reference 是供应商送货单号，没给就不填。',
-    arguments: { id: 1, expectedVersion: 1, date: '2026-11-10', reference: '送货单号可省略', rows: [{ row: 1, quantity: '1200', rejectedQuantity: '0' }], requestId: '唯一UUID' },
-    schema: z.strictObject({
-      id: positive.optional(),
-      purchaseId: positive.optional(),
-      expectedVersion: positive.optional(),
-      requestId: uuid,
-      date: dateSchema,
-      actualTime: arrivalTimeSchema,
-      reference: z.string().trim().max(100).optional(),
-      notes: z.string().trim().max(NOTE_MAX_LENGTH).optional(),
-      // 拒收数量必须明确写（没有就是 0），不替用户猜全部合格；入库数量不写就等于合格数
-      rows: z.array(z.strictObject({ row: positive, quantity: quantityText, rejectedQuantity: quantityText, stockedQuantity: quantityText.optional() })).min(1).max(MAX_RECEIVE_ROWS),
-    }),
-  },
+  readTool(
+    {
+      name: 'order_batch.draft',
+      description: '看合并订货单：几张采购单要合成一份订货单导出前用，先看合并后的样子。传同一供应商的几张采购单 id，返回合并后的行（row 行号）、各单版本和默认到货安排；已在订货单里的返回整份。只读。',
+      schema: z.strictObject({ purchaseIds: z.array(positive).min(1).max(MAX_BATCH_PURCHASES) }),
+    },
+    (ctx, v, who) => aiBatch(new OrderBatchService(ctx.store).draft(v.purchaseIds, requireActor(who))),
+  ),
+  readTool(
+    {
+      name: 'order_batch.list',
+      description: '查待到货的订货单：每行还差多少、到货截止日期、是否逾期。',
+      schema: z.strictObject({ supplierId: positive.optional(), purchaseId: positive.optional() }),
+    },
+    (ctx, v, who) => {
+      requireActor(who);
+      // 和到货页“待到货”同一个口径（views.openBatches：先在库里按供应商、采购单和还没到齐圈出来再组装，带到货单）
+      return { batches: ctx.flow.views.openBatches(v).map(aiBatch), url: '#warehouse?arrivals=1' };
+    },
+  ),
+  readTool(
+    {
+      name: 'order_batch.get',
+      description: '查一份订货单的到货进度（传 id 或 purchaseId）：版本、每行订货/已到/还差、到货安排和已登记的到货单；没有返回 null。看订货单文件上写的内容用 documents.preview。',
+      schema: z.strictObject({ id: positive.optional(), purchaseId: positive.optional() }),
+    },
+    (ctx, v, who) => {
+      requireActor(who);
+      const batches = new OrderBatchService(ctx.store);
+      const id = v.id ?? (v.purchaseId ? batches.batchIdOf(v.purchaseId) : fail('请传订货单id或purchaseId。'));
+      return id === null ? null : aiBatch(ctx.flow.views.batch(id));
+    },
+  ),
+  planTool(
+    {
+      name: 'order_batch.schedule',
+      risk: 'review',
+      description: '改订货单的到货安排（每行可拆几段“多少在哪天前到”），不动采购单和库存。先 order_batch.get 拿 version 和 row；schedule 传改完的完整安排，空数组是全部日期待定；日期只用用户说的。',
+      schema: scheduleSchema,
+    },
+    {
+      build: buildBatchSchedule,
+      commit: (ctx, plan, actor) => {
+        const { id, input } = idAndInput.parse(plan.args);
+        return ctx.flow.views.batch(new OrderBatchService(ctx.store).saveSchedule(id, input, actor).id);
+      },
+    },
+  ),
+  planTool(
+    {
+      name: 'order_batch.receive',
+      risk: 'review',
+      description: '登记到货：按一张供应商送货单登记到货并入库。先 order_batch.get 拿 version 和 row；rows 写实到 quantity 和拒收 rejectedQuantity（没有写 0，用户没说验收结果先问），部分入库另写入库数量 stockedQuantity。没有订货单的老采购单不传 id、改传 purchaseId。reference 是供应商送货单号，没给就不填。',
+      schema: receiveSchema,
+    },
+    {
+      build: buildBatchReceive,
+      // 生成方案时还没有订货单的（a.id 为 null）：登记时在同一个事务里补建；同一个请求已经登记过就原样返回
+      commit: (ctx, plan, actor) => {
+        const a = receiveArgs.parse(plan.args);
+        return registerArrival(ctx.store, a.id !== null ? { batchId: a.id } : { purchaseId: a.purchaseId }, a.input, actor);
+      },
+    },
+  ),
 ];
 
 /** aiBatch 读的那几行：订货单详情（单据流转的 views.batch、openBatches）和导出前的合并预览（draft）都有这些 */
@@ -119,15 +152,7 @@ export function aiBatch(b: BatchSource) {
   };
 }
 /** 助手传的是行号：换成订货单里的行键，再交给和人工同一个服务。 */
-function batchScheduleInput(batches: OrderBatchService, raw: unknown) {
-  const row = z.number().int().positive();
-  const v = z
-    .strictObject({
-      id: positive,
-      expectedVersion: positive,
-      schedule: z.array(z.strictObject({ row, quantity: z.string(), dueDate: z.string() })).max(MAX_SCHEDULE_ENTRIES),
-    })
-    .parse(raw);
+function batchScheduleInput(batches: OrderBatchService, v: z.output<typeof scheduleSchema>) {
   const view = batches.view(v.id);
   const key = (n: number) => view.rows[n - 1]?.key ?? fail('订货单 ' + view.number + ' 没有第 ' + n + ' 行。');
   return {
@@ -151,21 +176,7 @@ function batchTarget(batches: OrderBatchService, v: { id?: number; purchaseId?: 
  * 以前订的采购单没有订货单：这里只在回滚预演里补建（调用方放在 rehearse 里），正式补建放到执行时。
  * 返回的 id 为 null 表示执行时再补建。
  */
-function batchReceiveInput(ctx: ToolContext, batches: OrderBatchService, raw: unknown, actor: Actor) {
-  const row = z.number().int().positive();
-  const v = z
-    .strictObject({
-      id: positive.optional(),
-      purchaseId: positive.optional(),
-      expectedVersion: positive.optional(),
-      requestId: z.uuid(),
-      date: z.string(),
-      actualTime: z.string().nullable().optional(),
-      reference: z.string().optional(),
-      notes: z.string().optional(),
-      rows: z.array(z.strictObject({ row, quantity: z.string(), rejectedQuantity: z.string(), stockedQuantity: z.string().optional() })).min(1).max(MAX_RECEIVE_ROWS),
-    })
-    .parse(raw);
+function batchReceiveInput(ctx: ToolContext, batches: OrderBatchService, v: z.output<typeof receiveSchema>, actor: Actor) {
   const target = batchTarget(batches, v);
   if (target.existing !== null && v.expectedVersion === undefined)
     fail('按订货单登记到货要带 expectedVersion：先用 order_batch.get 读这份订货单的最新 version。');
@@ -193,32 +204,9 @@ function batchReceiveInput(ctx: ToolContext, batches: OrderBatchService, raw: un
   };
 }
 
-function readBatches(ctx: ToolContext, raw: unknown, who: Actor | null | undefined, name: string) {
-  const actor = requireActor(who),
-    batches = new OrderBatchService(ctx.store);
-  if (name === 'order_batch.draft') {
-    const v = z.strictObject({ purchaseIds: z.array(positive).min(1).max(MAX_BATCH_PURCHASES) }).parse(raw);
-    return aiBatch(batches.draft(v.purchaseIds, actor));
-  }
-  if (name === 'order_batch.list') {
-    const v = z.strictObject({ supplierId: positive.optional(), purchaseId: positive.optional() }).parse(raw ?? {});
-    // 和到货页“待到货”同一个口径（views.openBatches：先在库里按供应商、采购单和还没到齐圈出来再组装，带到货单）
-    return { batches: ctx.flow.views.openBatches(v).map(aiBatch), url: '#warehouse?arrivals=1' };
-  }
-  const v = z.strictObject({ id: positive.optional(), purchaseId: positive.optional() }).parse(raw ?? {});
-  const id = v.id ?? (v.purchaseId ? batches.batchIdOf(v.purchaseId) : fail('请传订货单id或purchaseId。'));
-  return id === null ? null : aiBatch(ctx.flow.views.batch(id));
-}
-
-export const orderBatchReaders: Record<string, ToolReader> = {
-  'order_batch.draft': readBatches,
-  'order_batch.list': readBatches,
-  'order_batch.get': readBatches,
-};
-
-function buildBatchSchedule(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
+function buildBatchSchedule(ctx: ToolContext, tool: string, args: z.output<typeof scheduleSchema>, actor: Actor): ToolPlan {
   const batches = new OrderBatchService(ctx.store);
-  const { id, input } = batchScheduleInput(batches, raw);
+  const { id, input } = batchScheduleInput(batches, args);
   const before = aiBatch(ctx.flow.views.batch(id));
   const after = rehearse(ctx.store.db, () => ctx.flow.views.batch(batches.saveSchedule(id, input, actor).id));
   return {
@@ -232,11 +220,11 @@ function buildBatchSchedule(ctx: ToolContext, tool: string, raw: unknown, actor:
   };
 }
 
-function buildBatchReceive(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
+function buildBatchReceive(ctx: ToolContext, tool: string, args: z.output<typeof receiveSchema>, actor: Actor): ToolPlan {
   const batches = new OrderBatchService(ctx.store);
   // 生成方案不写库：没有订货单时补建、登记到货都只在回滚预演里做
   const { id, purchaseId, input, before, after } = rehearse(ctx.store.db, () => {
-    const prepared = batchReceiveInput(ctx, batches, raw, actor);
+    const prepared = batchReceiveInput(ctx, batches, args, actor);
     return {
       id: prepared.id,
       purchaseId: prepared.purchaseId,
@@ -270,21 +258,3 @@ const receiveArgs = z.union([
   z.object({ id: positive, input: z.unknown() }),
   z.object({ id: z.null(), purchaseId: positive, input: z.unknown() }),
 ]);
-
-export const orderBatchWriters: Record<string, ToolWriter> = {
-  'order_batch.schedule': {
-    build: buildBatchSchedule,
-    commit: (ctx, plan, actor) => {
-      const { id, input } = idAndInput.parse(plan.args);
-      return ctx.flow.views.batch(new OrderBatchService(ctx.store).saveSchedule(id, input, actor).id);
-    },
-  },
-  'order_batch.receive': {
-    build: buildBatchReceive,
-    // 生成方案时还没有订货单的（a.id 为 null）：登记时在同一个事务里补建；同一个请求已经登记过就原样返回
-    commit: (ctx, plan, actor) => {
-      const a = receiveArgs.parse(plan.args);
-      return registerArrival(ctx.store, a.id !== null ? { batchId: a.id } : { purchaseId: a.purchaseId }, a.input, actor);
-    },
-  },
-};

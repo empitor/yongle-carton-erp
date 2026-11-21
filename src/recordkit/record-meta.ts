@@ -27,14 +27,15 @@ export function useRecordContext(module: string, id: number, label: string) {
   }, [module, id, label]);
 }
 
-/** 详情里给助手认的一条：采购单用单号；供应商、库存品用名称（库存品带种类，分原材料、成品） */
-type AgentRow = { id: number; number: string } | { id: number; name: string; kind?: string };
+/** 详情里给助手认的一条：采购单用单号；供应商、库存品用名称 */
+type AgentRow = { id: number; number: string } | { id: number; name: string };
 
-/** 采购单、供应商、库存品详情：告诉助手正在看哪条记录，并返回挂在正文上的记录标记（库存品按原材料、成品分） */
+/**
+ * 采购单、供应商、库存品详情：告诉助手正在看哪条记录，并返回挂在正文上的记录标记。
+ * 报全站的记录种类（purchases、suppliers、stock_items），助手那边换成它自己的模块名（库存品按这条是原材料还是成品分）。
+ */
 export function useAgentRecord(entity: string, row: AgentRow) {
-  const module =
-    entity === 'stock_items' ? ('kind' in row && row.kind === 'raw' ? 'raw_inventory' : 'finished_inventory') : entity;
   const label = 'number' in row ? row.number : row.name;
-  useRecordContext(module, row.id, label);
-  return { 'data-agent-module': module, 'data-agent-record': row.id, 'data-agent-label': label };
+  useRecordContext(entity, row.id, label);
+  return { 'data-agent-module': entity, 'data-agent-record': row.id, 'data-agent-label': label };
 }

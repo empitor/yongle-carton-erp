@@ -1,6 +1,7 @@
 // 归前端财务-乙（reports 页，成本毛利在 costs 页）。财务接口表“报表结账”一块（服务端 server/finance/routes-period.ts 的 periodRoutes）：
 // 成本、毛利，正式报表、预算、结账和归档。
 // 看板（reports/dashboard）是甲在第 1 批给概览写的（照 server/finance/reports.ts 的 dashboard）。
+import type { FinanceSourceKind } from '../core/index.js';
 import type { Body, Data, Page, Paging } from './finance-api-shapes.js';
 import type { PeriodJobResult } from './finance-api-costs.js';
 import type { BookBalanceRow } from './finance-api-ledger.js';
@@ -124,7 +125,7 @@ type ClosingReadinessRow =
   | {
       number: string | null;
       id: number | null;
-      source_kind: 'delivery' | 'arrival' | 'production' | 'stock';
+      source_kind: FinanceSourceKind;
       source_id: string;
       date: string;
       amount_cents: number | null;
@@ -174,7 +175,7 @@ type ReportReadiness = {
   unsynced: number;
   /** 读之前的补扫没成功（原因在出错记录里）：正式报表、结账照拦 */
   syncFailed: boolean;
-  unsyncedSources: { source_kind: 'delivery' | 'arrival' | 'production' | 'stock'; source_id: string; number: string | null }[];
+  unsyncedSources: { source_kind: FinanceSourceKind; source_id: string; number: string | null }[];
   rows: ClosingReadinessRow[];
 };
 /** 结账检查：这个月和下一个能结的月、这个月的期间记录、待补单据、各步、能不能结账 */

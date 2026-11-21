@@ -18,66 +18,36 @@ import {
 } from '../../../shared/business/index.js';
 import { correctDocument, planCorrection } from '../../flow/index.js';
 import type { ToolPlan } from '../plan-rules.js';
-import { idAndInput, positive, type ToolContext, type ToolWriter } from './context.js';
+import { idAndInput, positive, type ToolContext } from './context.js';
+import { planTool } from './define.js';
 
 type Line = { label: string; value: string };
-/** 预览输入加上单据编号（和命令的参数结构同一份写法） */
-type Spec = { kind: FlowKind; name: string; schema: z.ZodType<{ id: number } & Record<string, unknown>>; warning: string };
+type Spec = { kind: FlowKind; name: string; warning: string };
 
-/** 命令 → 它更正的单据种类、叫法（和界面按钮一样）、预览输入、卡片上的提醒 */
+/** 命令 → 它更正的单据种类、叫法（和界面按钮一样）、卡片上的提醒 */
 const specs: Record<string, Spec> = {
   'arrival.correct': {
     kind: 'arrival',
     name: '更正' + flowDocNames.arrival,
-    schema: arrivalCorrectionPreviewSchema.extend({ id: positive }),
     warning: '撤销原到货单、另出一张更正后的到货单；库存、采购单的已到货一起改，应付跟着变。',
   },
   'delivery.correct': {
     kind: 'delivery',
     name: '更正' + flowDocNames.delivery,
-    schema: deliveryCorrectionPreviewSchema.extend({ id: positive }),
     warning: '撤销原送货单、另出一张更正后的送货单；库存和订单已发跟着变，入过账的要在财务里红字冲销并重做。',
   },
   'production.correct': {
     kind: 'production',
     name: '更正' + flowDocNames.production,
-    schema: productionCorrectionPreviewSchema.extend({ id: positive }),
     warning: '撤销原完工单、另出一张更正后的完工单；成品和纸板库存、生产任务的已入库跟着变。',
   },
 };
 /** 单据种类 → 更正它的命令 */
 const commandOf = new Map(Object.entries(specs).map(([command, s]) => [s.kind, command]));
 
-export const correctionTools = [
-  {
-    name: 'arrival.correct',
-    risk: 'review',
-    description:
-      '更正到货单：到货数量或验收数登记错了时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get（arrivals）读到货单的行和 version；lines 列出原单每一行（index 是原单行号，从 0 起）和更正后的 quantity，可另写验收合格数量、拒收数量、入库数量；reason 写用户说的原因。撤销原单、另出一张替代单，原记录和更正链保留。',
-    arguments: { id: 1, expectedVersion: 1, reason: '用户说的原因', lines: [{ index: 0, quantity: '5000' }] },
-    schema: arrivalCorrectionPreviewSchema.extend({ id: positive }),
-  },
-  {
-    name: 'delivery.correct',
-    risk: 'review',
-    description:
-      '更正送货单：已出库的送货单数量登记错了、某一行其实没发时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get 读送货单的行和 version；lines 列出要留的原单行（index 从 0 起）和正确的 quantity，没列的行算没发；reason 写用户说的原因。撤销原单、另出一张替代单，出库日和送达记录照旧。',
-    arguments: { id: 1, expectedVersion: 1, reason: '用户说的原因', lines: [{ index: 0, quantity: '550' }] },
-    schema: deliveryCorrectionPreviewSchema.extend({ id: positive }),
-  },
-  {
-    name: 'production.correct',
-    risk: 'review',
-    description:
-      '更正完工单：已入库的完工单合格数、报废数或领料登记错了时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get 读完工单和 version；只写要改的合格数、报废数，materials 写更正后的整张领料（index 是原单行号，新加的行带 stockId）；reason 写用户说的原因。撤销原单、另出一张替代单。',
-    arguments: { id: 1, expectedVersion: 1, reason: '用户说的原因', goodQuantity: '900', materials: [{ index: 0, issued: '95', returned: '0' }] },
-    schema: productionCorrectionPreviewSchema.extend({ id: positive }),
-  },
-];
-
-function buildCorrection(ctx: ToolContext, tool: string, raw: unknown, actor: Actor): ToolPlan {
-  const spec = specs[tool],
-    { id, ...input } = spec.schema.parse(raw);
+/** 参数是预览输入加上单据编号（和页面更正窗的预览同一份结构） */
+function buildCorrection(ctx: ToolContext, tool: string, { id, ...input }: { id: number } & Record<string, unknown>, actor: Actor): ToolPlan {
+  const spec = specs[tool];
   const before = ctx.flow.get(id);
   // 命令和单据种类对不上：直接说该用哪一个（生产任务不能更正，由服务说明原因）
   const right = commandOf.get(before.kind);
@@ -95,14 +65,46 @@ function buildCorrection(ctx: ToolContext, tool: string, raw: unknown, actor: Ac
   };
 }
 
-const writer: ToolWriter = {
+const correction = {
   build: buildCorrection,
-  commit: (ctx, plan, actor) => {
+  commit: (ctx: ToolContext, plan: ToolPlan, actor: Actor) => {
     const { id, input } = idAndInput.parse(plan.args);
     return correctDocument(ctx.store, id, input, actor);
   },
 };
-export const correctionWriters: Record<string, ToolWriter> = Object.fromEntries(Object.keys(specs).map((name) => [name, writer]));
+
+export const correctionTools = [
+  planTool(
+    {
+      name: 'arrival.correct',
+      risk: 'review',
+      description:
+        '更正到货单：到货数量或验收数登记错了时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get（arrivals）读到货单的行和 version；lines 列出原单每一行（index 是原单行号，从 0 起）和更正后的 quantity，可另写验收合格数量、拒收数量、入库数量；reason 写用户说的原因。撤销原单、另出一张替代单，原记录和更正链保留。',
+      schema: arrivalCorrectionPreviewSchema.extend({ id: positive }),
+    },
+    correction,
+  ),
+  planTool(
+    {
+      name: 'delivery.correct',
+      risk: 'review',
+      description:
+        '更正送货单：已出库的送货单数量登记错了、某一行其实没发时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get 读送货单的行和 version；lines 列出要留的原单行（index 从 0 起）和正确的 quantity，没列的行算没发；reason 写用户说的原因。撤销原单、另出一张替代单，出库日和送达记录照旧。',
+      schema: deliveryCorrectionPreviewSchema.extend({ id: positive }),
+    },
+    correction,
+  ),
+  planTool(
+    {
+      name: 'production.correct',
+      risk: 'review',
+      description:
+        '更正完工单：已入库的完工单合格数、报废数或领料登记错了时用；只想先看更正前后对比也用它，只出卡片不改数据，人确认后才改。先 records.get 读完工单和 version；只写要改的合格数、报废数，materials 写更正后的整张领料（index 是原单行号，新加的行带 stockId）；reason 写用户说的原因。撤销原单、另出一张替代单。',
+      schema: productionCorrectionPreviewSchema.extend({ id: positive }),
+    },
+    correction,
+  ),
+];
 
 type DeliveryView = z.output<typeof deliveryCorrectionViewSchema>;
 type ProductionView = z.output<typeof productionCorrectionViewSchema>;

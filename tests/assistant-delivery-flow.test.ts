@@ -117,10 +117,10 @@ test('助手导出送货单并出库：文件交付后扣库存、变送货中�
     assert.ok(shipped.shippedAt, '送货中');
     assert.equal(f.balance(), 200_000, '扣了 300 只');
     const tools = toolsOf(fx.store);
-    // 送达日期要人确认：用户没说就不能悄悄记今天，让模型先问
+    // 送达日期要人确认：参数结构里必填，用户没说就不能悄悄记今天
     assert.throws(
       () => tools.prepare('delivery.mark_delivered', { id: shipped.id, version: shipped.version }, actor, 'test'),
-      /送达日期要用用户说的日期/,
+      (e: unknown) => e instanceof z.ZodError && e.issues.some((i) => i.path[0] === 'date'),
     );
     const registry = new AssistantToolRegistry();
     try {

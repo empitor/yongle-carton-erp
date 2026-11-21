@@ -57,7 +57,7 @@ export class DataManagementService {
   constructor(readonly store: Store) {
     this.ops = new OperationsService(store);
     this.flow = new FlowService(store);
-    this.records = new ManagedRecords(store, this.ops, this.flow);
+    this.records = new ManagedRecords(store, this.flow);
     this.saves = new ManagedSaves(store, this.ops, this.flow);
   }
   /** 一个模块的新建模板和全部记录（含归档的）；模块写死的调用拿到这个模块的记录类型 */

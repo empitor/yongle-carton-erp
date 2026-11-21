@@ -4,7 +4,8 @@ import { flowDocNames, flowKinds, recordNames } from '../../../shared/business/i
 import { fieldLabel, fieldShort, quantityString } from '../../../shared/core/index.js';
 import { type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
-import { assistantModules, type Module } from './modules.js';
+import { assistantModules } from '../../../shared/assistant/index.js';
+import type { Module } from './modules.js';
 import { asList, field } from '../chat/result-fields.js';
 
 export type Line = { label: string; value: string };
@@ -23,7 +24,7 @@ const inParens = (v: unknown) => (v ? '（' + v + '）' : '');
 const titles: Record<string, (row: Obj) => string> = {
   purchase_return: (row) => '采购退货 ' + row.number,
   order_batch: (row) => '订货单 ' + (row.number || row.id) + inParens(row.supplierName),
-  inbox: (row) => '收件 ' + (row.file_name || row.sender_name || String(row.text || '').slice(0, INBOX_TITLE_CHARS) || row.id),
+  inbox: (row) => '收件 ' + (row.fileName || row.senderName || String(row.text || '').slice(0, INBOX_TITLE_CHARS) || row.id),
   stock_items: (row) => (row.kind === 'raw' ? '原材料 ' : '成品库存 ') + row.name,
   orders: (row) => recordNames.orders + ' ' + row.number + inParens(partyOf(row)),
   purchases: (row) => recordNames.purchases + ' ' + row.number + inParens(partyOf(row)),

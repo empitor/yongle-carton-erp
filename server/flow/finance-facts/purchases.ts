@@ -93,7 +93,8 @@ function returnLines(row: { id: number; number: string; document: string }) {
  * 已撤销、被更正替代的到货在关联、确认发票时就被财务拦下，问到这里的都还有效，不另看到货状态。
  */
 function hasConfirmedReturn(db: DatabaseSync, arrivalId: number) {
-  return exists(db, "SELECT 1 FROM purchase_returns WHERE arrival_id=? AND status='confirmed' LIMIT 1", arrivalId);
+  const confirmed: (typeof purchaseReturnStatuses)[number] = 'confirmed';
+  return exists(db, 'SELECT 1 FROM purchase_returns WHERE arrival_id=? AND status=? LIMIT 1', arrivalId, confirmed);
 }
 
 export const purchases = { lines, returnsOfArrivals, returnRows, returnLines, hasConfirmedReturn };

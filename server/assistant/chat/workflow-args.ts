@@ -53,10 +53,6 @@ const importCardItem: z.ZodType<ImportCardItem, ImportCardItem> = z.object({
 });
 export const storedImports = z.object({ imports: z.array(importCardItem) });
 export const recognizeView = z.looseObject({ workspaceId: z.string(), force: z.boolean().optional() });
-export const fromInboxView = z.looseObject({ inboxId: z.number(), recognitionType: z.string().optional() });
-export const markAddView = z.looseObject({ productId: z.number(), attachmentId: z.string().optional(), title: z.string().optional() });
-export const markRemoveView = z.looseObject({ id: z.number() });
-export const inboxAddView = z.looseObject({ text: z.string().optional(), attachmentId: z.string().optional() });
 
 /** 合在一份订货单里的几张采购单；没合就是 id 那一张 */
 export const mergedIds = (a: z.infer<typeof exportView>) => (a.purchases?.length ? a.purchases.map((p) => p.id) : [a.id]);

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { pageSnapshotSchema } from '../../../shared/assistant/index.js';
 import { DEEPSEEK_THINKING_LEVELS } from '../../../shared/ai/index.js';
 import { attachmentLimits } from '../../../shared/core/index.js';
-import { assistantModules } from '../tools/modules.js';
+import { dataManagementModules } from '../../../shared/business/index.js';
 
 export const CARD_DECISIONS = ['confirmed', 'rejected'] as const;
 /** 用户一句话最多多少字（输入框 src/assistant/AssistantComposer.tsx 也是这么多） */
@@ -26,10 +26,11 @@ export function parseChatInput(raw: unknown) {
       usePreviousAttachments: z.boolean().default(true),
       /** 人刚在这张卡片上点了确认或拒绝：把结果交给模型接着办剩下的步骤 */
       card: z.strictObject({ id: z.uuid(), decision: z.enum(CARD_DECISIONS) }).optional(),
+      /** 页面上正在看的那条记录：module 是全站记录种类（stock_items、arrival……），由服务器换成助手模块 */
       context: z
         .object({
           page: z.string().max(PAGE_CHARS),
-          module: z.enum(assistantModules).optional(),
+          module: z.enum(dataManagementModules).optional(),
           id: z.number().int().positive().optional(),
         })
         .optional(),

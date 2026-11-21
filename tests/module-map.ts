@@ -23,7 +23,18 @@ export const modules: Rule[] = [
   // 系统资料：运行日志、登录记录、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
   { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
   // 业务主线分四层，只能往下：采购库存 ← 单据流转 ← 删除归档 ← 业务汇总
-  { name: '采购库存', paths: ['server/operations/'], allow: ['基础', '共用-基础', '共用-业务'] },
+  {
+    name: '采购库存',
+    paths: ['server/operations/'],
+    allow: ['基础', '共用-基础', '共用-业务'],
+    // 从下往上：账和读（写流水和采购明细、按编号读、库存品内容的规格）← 库存品、订货单 ← 采购单 ← 装配（服务、路由、删除登记）
+    layers: [
+      { name: '账和读', paths: ['server/operations/ledger/'] },
+      { name: '库存品和订货单', paths: ['server/operations/stock/', 'server/operations/batches/'] },
+      { name: '采购单', paths: ['server/operations/purchases/'] },
+      { name: '装配', paths: ['server/operations/router.ts', 'server/operations/deletion.ts', 'server/operations/service.ts'] },
+    ],
+  },
   { name: '单据流转', paths: ['server/flow/'], allow: ['基础', '采购库存', '共用-基础', '共用-业务'] },
   { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
   { name: '业务汇总', paths: ['server/business/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
@@ -71,7 +82,7 @@ export const modules: Rule[] = [
         name: '单据流转',
         paths: business([
           'physical-flow', 'arrival', 'flow-api', 'flow-requests', 'flow-results', 'flow-views', 'flow-correction', 'flow-correction-views',
-          'flow-document', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery', 'delivery-plan',
+          'flow-document', 'flow-snapshot', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery', 'delivery-plan',
           'document-value', 'arrival-draft', 'production-plan', 'labels', 'finance-source', 'stock-flow-views', 'stock-flow-api',
         ]),
       },
@@ -85,7 +96,7 @@ export const modules: Rule[] = [
       {
         name: '业务汇总',
         paths: business([
-          'records-api', 'record-queries', 'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
+          'records-api', 'record-queries', 'order-filter', 'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
           'product-family', 'history-fields', 'history-text', 'record-history', 'record-changes', 'data-management-templates',
         ]),
       },

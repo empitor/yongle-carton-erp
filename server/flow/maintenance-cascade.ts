@@ -1,6 +1,6 @@
 import type { Actor } from '../core/index.js';
 import { audit, many, requireLocalAdministrator, rows } from '../core/index.js';
-import { sheetArea, purchaseLineAmount, type StockItemBaseView } from '../../shared/business/index.js';
+import { keepSnapshot, sheetArea, purchaseLineAmount, type StockItemBaseView } from '../../shared/business/index.js';
 import { stockLedger } from '../operations/index.js';
 import type { ArrivalLine, FlowCommands } from './base.js';
 import { writeFlowDocument } from './document-store.js';
@@ -9,7 +9,8 @@ import { readReturnDocument, returnDocumentText } from './return-document.js';
 
 // 本机管理员直接改库存品、删采购明细时，已有单据要跟着改。保存入口（stock-entries.ts）把这两个函数作为连带交给采购库存，
 // 采购库存在原位置、同一保存点里调，不反过来引用单据流转。
-// 改单据和同模块别处一样：取库里那份内容（read.ts 的 storedDocuments）改好整份写回（document-store.ts）。
+// 改单据和同模块别处一样：取库里那份内容（read.ts 的 storedDocuments）改好整份写回（document-store.ts）；
+// 抄下来的快照按 keepSnapshot 对照原单：引用没变的照留，换了纸板资料、采购明细的按改好的取。
 const { readPurchaseLineDocument, recordMovementRevision, resetPurchaseLineReceived, touchPurchases, unlinkPurchaseLineMovements, updatePurchaseLineDocument } =
   stockLedger;
 
@@ -73,7 +74,7 @@ export function alignStock(flow: FlowCommands, before: StockItemBaseView, after:
   for (const { id, document } of linkedArrivals(flow, 'stock_id', [after.id])) {
     if (!document.lines.some((l) => l.stockId === after.id)) continue;
     const lines = document.lines.map((l) => (l.stockId === after.id ? alignedLine(l, content) : l));
-    writeFlowDocument(flow.store, id, { ...document, lines });
+    writeFlowDocument(flow.store, id, keepSnapshot(document, { ...document, lines }));
     flow.maintenanceReferences(id);
   }
   audit(flow.store, actor, {
@@ -115,7 +116,7 @@ export function detachPurchaseLines(flow: FlowCommands, _purchaseId: number, lin
     const lines = document.lines.map((l) =>
       detached(l.purchaseLineId) ? { ...l, purchaseLineId: null, purchaseId: null, purchaseNumber: '' } : l,
     );
-    writeFlowDocument(flow.store, id, { ...document, lines });
+    writeFlowDocument(flow.store, id, keepSnapshot(document, { ...document, lines }));
     flow.maintenanceReferences(id);
   }
   detachReturns(flow, detached, lineIds);

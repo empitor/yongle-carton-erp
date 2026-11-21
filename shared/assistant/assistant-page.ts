@@ -86,17 +86,3 @@ export const pageResultBody = z.strictObject({
   requestId: z.uuid(),
   result: pageResultSchema,
 });
-export const pageTools = [
-  {
-    name: 'page.observe',
-    description:
-      '看眼前的页面：要知道用户眼前的 ERP 页面上的提示、弹窗和表格时用。mode 默认 summary 概要，region 看某块区域，record 看当前打开的记录，full 看完整；offset、limit 翻表格。查数据优先用查记录的命令。',
-    arguments: {
-      mode: 'summary/region/record/full',
-      region: '指定区域',
-      offset: 0,
-      limit: 5,
-    },
-    risk: 'read',
-  },
-] as const;

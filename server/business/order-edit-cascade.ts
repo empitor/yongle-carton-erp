@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, exists, many, requireLocalAdministrator, rows } from '../core/index.js';
 import { quantityUnits, type Order } from '../../shared/core/index.js';
-import type { FlowDocView } from '../../shared/business/index.js';
+import { lifecycleFields, type FlowDocView } from '../../shared/business/index.js';
 import { FlowService, carryOverFlowDocument, replaceFlowDocument } from '../flow/index.js';
 import { stockLedger } from '../operations/index.js';
 import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from '../lifecycle/index.js';
@@ -237,22 +237,10 @@ function changeCustomer(store: Store, { flow, after, actor, d }: CustomerChange 
 }
 
 /**
- * 拆出来的仍是同一次确认、同一车货：保存时校验会丢掉的系统字段（确认人和时间、出库和送达记录、
- * 原来安排的日期等）都照原单带过来
+ * 拆出来的仍是同一次确认、同一车货：保存时校验会丢掉的经办记录（确认、取消撤销、出库送达，单据结构的
+ * lifecycleFields.records）照原单带过来；流水号按状态另算（见下）。更正关系不带：新单不是谁的更正，也没被谁替代
  */
-const CARRIED_FIELDS = [
-  'plannedDate',
-  'plannedTime',
-  'actualTime',
-  'confirmedBy',
-  'confirmedAt',
-  'shippedAt',
-  'shippedBy',
-  'deliveredAt',
-  'deliveredBy',
-  'reversal',
-  'cancellation',
-] as const;
+const carried = lifecycleFields.records.filter((k) => k !== 'movements');
 /** 原单上有的字段才带（原单上没有的不盖掉新单上的） */
 function present<T extends object, K extends keyof T>(source: T, keys: readonly K[]): Partial<Pick<T, K>> {
   const picked: Partial<Pick<T, K>> = {};
@@ -275,17 +263,23 @@ function splitDelivery(store: Store, job: CustomerChange & { d: Delivery; other:
     { moved: true },
   );
   const detached = retainDeliveryLines(store, d, job.other, actor, created);
-  carryOverFlowDocument(store, created.id, d.status, {
-    ...created,
-    customerName: after.customerName,
-    // 新单据经过待核对单据的校验会丢字段，已确认单据的明细快照要原样留着。
-    lines: created.lines.map((l, i) => ({ ...l, ...affected[i] })),
-    ...present(d, CARRIED_FIELDS),
-    // 已出库的：拆出去的那几笔出库已经改挂到新单名下。已撤销的：出库和冲销两组流水都留在原单上，
-    // 新单名下没有流水，撤销记录里也就不带流水号
-    ...(d.status === 'confirmed' ? { movements: detached } : {}),
-    ...(d.reversal ? { reversal: { ...d.reversal, movements: [] } } : {}),
-  });
+  // 新单据经过待核对单据的校验只剩录入的内容：明细抄下来的快照按原单同一条订单明细的照留（carryOverFlowDocument 的 keepSnapshot），
+  // 客户换了，客户名按新客户
+  carryOverFlowDocument(
+    store,
+    created.id,
+    d.status,
+    {
+      ...created,
+      customerName: after.customerName,
+      ...present(d, carried),
+      // 已出库的：拆出去的那几笔出库已经改挂到新单名下。已撤销的：出库和冲销两组流水都留在原单上，
+      // 新单名下没有流水，撤销记录里也就不带流水号
+      ...(d.status === 'confirmed' ? { movements: detached } : {}),
+      ...(d.reversal ? { reversal: { ...d.reversal, movements: [] } } : {}),
+    },
+    d,
+  );
   flow.maintenanceReferences(created.id);
   // 新单最后是什么状态、带着哪几笔流水，在这里记准：保存时那条“新建待核对单据”的审计不记（save 的 moved）
   audit(store, actor, {

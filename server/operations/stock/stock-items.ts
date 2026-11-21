@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { FINISHED_UNIT, RAW_UNIT, finishedUnitMessage, rawUnitMessage, stockUnit } from '../../shared/core/index.js';
-import type { Store } from '../core/index.js';
-import type { Actor } from '../core/index.js';
-import { AppError, audit, exists, inSavepoint, isLocalAdministrator, isSuperMode, many, one, rows } from '../core/index.js';
-import { stockItemSchema, rawStockKey, type ArrivalItem, type StockItemBaseView } from '../../shared/business/index.js';
-import { normalizedDimensions, normalizeDimensionUnit, specification, type Product } from '../../shared/core/index.js';
-import type { OperationsRepository } from './repository.js';
-import { stockDocumentText } from './stock-document.js';
-import { businessActor, priorRecord } from './write-base.js';
+import { FINISHED_UNIT, RAW_UNIT, finishedUnitMessage, rawUnitMessage, stockUnit } from '../../../shared/core/index.js';
+import type { Store } from '../../core/index.js';
+import type { Actor } from '../../core/index.js';
+import { AppError, audit, exists, inSavepoint, isLocalAdministrator, isSuperMode, many, one, rows } from '../../core/index.js';
+import { stockItemSchema, rawStockKey, type ArrivalItem, type StockItemBaseView } from '../../../shared/business/index.js';
+import { normalizedDimensions, normalizeDimensionUnit, specification, type Product } from '../../../shared/core/index.js';
+import type { OperationsRepository } from '../ledger/repository.js';
+import { stockDocumentText } from '../ledger/stock-document.js';
+import { businessActor, priorRecord } from '../ledger/write-base.js';
 
 /** 库存品用过没有：有出入库记录是 moved，没有流水但被单据或采购明细引用是 referenced */
 const stockUsages = ['moved', 'referenced'] as const;

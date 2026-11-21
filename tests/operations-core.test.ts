@@ -2,11 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { flowFixture, clerk } from './flow-fixture.js';
-import { businessActor, priorRecord } from '../server/operations/write-base.js';
-import { StockItems, finishedFromProduct } from '../server/operations/stock-items.js';
-import { MovementQueries } from '../server/operations/movements.js';
-import { OperationsRepository } from '../server/operations/repository.js';
-import { syncFinishedStock } from '../server/operations/product-stock.js';
+import { businessActor, priorRecord } from '../server/operations/ledger/write-base.js';
+import { StockItems, finishedFromProduct } from '../server/operations/stock/stock-items.js';
+import { MovementQueries } from '../server/operations/ledger/movements.js';
+import { OperationsRepository } from '../server/operations/ledger/repository.js';
+import { syncFinishedStock } from '../server/operations/stock/product-stock.js';
 
 test('写入共用的两件事：要业务编辑权限、改记录前核对版本', () => {
   const f = flowFixture();

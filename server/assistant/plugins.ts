@@ -1,6 +1,6 @@
 import type { Actor } from '../core/index.js';
-import type { z } from 'zod';
 import type { Permission } from '../../shared/core/index.js';
+import type { ToolDefinition } from './tools/define.js';
 /**
  * 工具分组：命令目录按组分小节，管理员能在“插件与工具”里整组停用。只有编号、名字和一句说明；
  * 每个工具归哪一组由 builtinPluginFor 按名字定，新工具不在表里就报错，加工具时补一行。
@@ -10,15 +10,10 @@ export type PluginManifest = {
   name: string;
   description: string;
 };
-export type PluginTool = {
-  name: string;
-  description: string;
-  arguments: unknown;
-  risk: string;
+/** 注册表里的一条：目录里的定义（说明、参数结构、校验）加上类别、另要的权限，查记忆这类由注册表直接执行的带 execute */
+export type PluginTool = Pick<ToolDefinition, 'name' | 'description' | 'risk' | 'schema' | 'check'> & {
   kind: 'read' | 'business' | 'workflow';
-  schema: z.ZodType;
   permissions?: Permission[];
-  available?: (actor?: Actor | null) => boolean;
   execute?: (args: unknown, actor: Actor, context: unknown) => unknown;
 };
 export const builtinPlugins: PluginManifest[] = [

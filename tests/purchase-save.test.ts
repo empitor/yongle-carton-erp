@@ -1,4 +1,4 @@
-// 保存采购单和供应商（server/operations/purchase-save.ts、suppliers）：明细规则、已登记到货后锁定、采购进度、归档供应商的修改。
+// 保存采购单和供应商（server/operations/purchases/purchase-save.ts、suppliers）：明细规则、已登记到货后锁定、采购进度、归档供应商的修改。
 // 页面、助手、数据管理共用这一份保存。内存库、虚构数据。
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { OperationsService } from '../server/operations/index.js';
-import { PurchaseWriter } from '../server/operations/purchase-save.js';
-import { OperationsRepository } from '../server/operations/repository.js';
+import { PurchaseWriter } from '../server/operations/purchases/purchase-save.js';
+import { OperationsRepository } from '../server/operations/ledger/repository.js';
 import { requiredPurchaseSize } from '../shared/business/index.js';
 import { businessFixture, flowFixture, clerk } from './flow-fixture.js';
 import { receiveLines } from './receive-fixture.js';

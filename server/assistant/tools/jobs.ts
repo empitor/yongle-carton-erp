@@ -4,34 +4,22 @@ import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { autoBackupFailure, canEnterSuperMode, requirePermission } from '../../core/index.js';
 import { listExports } from '../../documents/index.js';
-import { REASON_CHARS, clip, type ToolContext, type ToolReader } from './context.js';
+import { REASON_CHARS, clip, type ToolContext } from './context.js';
+import { readTool } from './define.js';
 import { exportText } from './documents-inbox.js';
-
-export const jobsTools = [
-  {
-    name: 'jobs.status',
-    risk: 'read',
-    description:
-      '查后台在办的事：识别排队和进行中的文件、没交付完的导出、最近自动备份有没有失败。',
-    arguments: {},
-    schema: z.strictObject({}),
-  },
-] as const;
 
 /** 进行中的文件、没交付完的导出最多列几条 */
 const LIST_LIMIT = 20;
 const taskNames: Record<string, string> = { queued: '排队中', running: '识别中', backoff: '等一会儿重试' };
 
-function jobsStatus(ctx: ToolContext, _raw: unknown, who: Actor | null | undefined) {
+function jobsStatus(ctx: ToolContext, who: Actor | null | undefined) {
   const actor = requirePermission(who, 'business:edit');
-  const queue = ctx.services.ai?.workQueue.stats();
+  const queue = ctx.services.ai.workQueue.stats();
   const working = ctx.imports
-    ? ctx.imports
-        .status()
-        .workspaces.filter((w) => taskNames[w.task?.state])
-        .slice(0, LIST_LIMIT)
-        .map((w) => ({ 文件: w.fileName, 状态: taskNames[w.task.state], 开始时间: w.task.startedAt ?? '' }))
-    : '识别导入没有接上';
+    .status()
+    .workspaces.filter((w) => taskNames[w.task?.state])
+    .slice(0, LIST_LIMIT)
+    .map((w) => ({ 文件: w.fileName, 状态: taskNames[w.task.state], 开始时间: w.task.startedAt ?? '' }));
   const exports = listExports(
     ctx.store,
     { pending: true, actorId: canEnterSuperMode(actor) ? undefined : actor.id },
@@ -40,7 +28,7 @@ function jobsStatus(ctx: ToolContext, _raw: unknown, who: Actor | null | undefin
   const backup = autoBackupFailure();
   return {
     识别: {
-      排队: queue ? { 正在识别: queue.active, 排队: queue.waiting, 同时最多: queue.limit } : 'AI 设置还没接上',
+      排队: { 正在识别: queue.active, 排队: queue.waiting, 同时最多: queue.limit },
       进行中的文件: working,
     },
     没交付完的导出: { 共: exports.total, 列表: exports.rows.map(exportText) },
@@ -48,4 +36,13 @@ function jobsStatus(ctx: ToolContext, _raw: unknown, who: Actor | null | undefin
   };
 }
 
-export const jobsReaders: Record<string, ToolReader> = { 'jobs.status': jobsStatus };
+export const jobsTools = [
+  readTool(
+    {
+      name: 'jobs.status',
+      description: '查后台在办的事：识别排队和进行中的文件、没交付完的导出、最近自动备份有没有失败。',
+      schema: z.strictObject({}),
+    },
+    (ctx, _args, who) => jobsStatus(ctx, who),
+  ),
+];

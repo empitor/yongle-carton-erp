@@ -1,6 +1,13 @@
-// 只管：看页面（page.observe）的工具在服务端的定义。说明和示例参数在 shared（前端也用），这里配上参数结构。
-import { z } from 'zod';
-import { pageObserveSchema, pageTools } from '../../../shared/assistant/index.js';
+// 只管：看页面（page.observe）的工具定义。参数结构在 shared（页面交回结果也按它），执行在 page-bridge.ts。
+import { pageObserveSchema } from '../../../shared/assistant/index.js';
+import { toolSpec } from './define.js';
 
-const schemas: Record<string, z.ZodType> = { 'page.observe': pageObserveSchema };
-export const pageToolDefinitions = pageTools.map((t) => ({ ...t, schema: schemas[t.name] }));
+export const pageToolDefinitions = [
+  toolSpec({
+    name: 'page.observe',
+    description:
+      '看眼前的页面：要知道用户眼前的 ERP 页面上的提示、弹窗和表格时用。mode 默认 summary 概要，region 看某块区域，record 看当前打开的记录，full 看完整；offset、limit 翻表格。查数据优先用查记录的命令。',
+    risk: 'read',
+    schema: pageObserveSchema,
+  }),
+];
