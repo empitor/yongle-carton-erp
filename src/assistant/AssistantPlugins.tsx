@@ -129,14 +129,8 @@ export default function AssistantPlugins() {
       ) : !state && !error ? (
         <Loading what="插件与工具" />
       ) : null}
-      {/* 开关要在超级管理员模式里改：超级管理员账号没进时给入口，别的账号只能看 */}
-      {state &&
-        !state.canManage &&
-        (auth?.actor?.role === 'super_admin' ? (
-          <SuperModeNotice what="启停工具" />
-        ) : (
-          <FormMessage tone="info">当前账号只能查看状态；开关只有管理员能改。</FormMessage>
-        ))}
+      {/* 这一页只给超级管理员账号；开关要在超级管理员模式里改，没进时给入口 */}
+      {state && !state.canManage && <SuperModeNotice what="启停工具" />}
       {state && (
         <PluginManagementView
           state={state}

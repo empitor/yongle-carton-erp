@@ -30,6 +30,7 @@ import {
   ownHeading,
   pageAllowed,
   pageNames,
+  settingsTabsOf,
   useHashPage,
   useNavCounts,
   useNotice,
@@ -92,6 +93,7 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
           finance={finance}
           financeOnly={financeOnly}
           accounts={actor.role === 'super_admin'}
+          settings={settingsTabsOf(actor).length > 0}
           accountRequests={auth.pendingRequests || 0}
         />
       </aside>

@@ -28,6 +28,7 @@ export {
   includeArchivedFor,
   isSuperMode,
   requirePermission,
+  requireSuperAdminAccount,
   requireSuperModeFor,
   superModeDenied,
 } from './permissions.js';

@@ -1,7 +1,7 @@
 // 助手收发 JSON 的地址：按接口表（shared/assistant/assistant-api.ts）用 route() 注册，正文先按表里同一份结构校验。
 // 原始字节、事件流、下载原件这几个在 router.ts，卡片的三个按钮在 preview-router.ts，记忆在 memory-router.ts。
 import type { Router } from 'express';
-import { isSuperMode, one, route, rows } from '../core/index.js';
+import { isSuperMode, one, requireSuperAdminAccount, route, rows } from '../core/index.js';
 import type { Actor, AuthManager } from '../core/index.js';
 import {
   acknowledgedBody,
@@ -22,9 +22,9 @@ function toolSettingRoutes(router: Router, manager: AssistantManager, auth: Auth
     manager.store.db
       .prepare('INSERT INTO assistant_audit(user_id,thread_id,tool,state,document,created_at) VALUES(?,NULL,?,?,?,?)')
       .run(actor.id, tool, 'completed', JSON.stringify(body), new Date().toISOString());
-  // 启停要先进超级管理员模式（tool-registry.ts 的 set）
+  // 启停要先进超级管理员模式（tool-registry.ts 的 set）；分组清单只有设置 → 高级用，只给超级管理员账号看
   on('GET /assistant/plugins', ({ req }) => {
-    const actor = auth.signedIn(req);
+    const actor = requireSuperAdminAccount(auth.signedIn(req), '查看插件与工具');
     return { ...manager.registry.pluginsView(actor), canManage: isSuperMode(actor) };
   });
   on('POST /assistant/plugins/settings', ({ body, req }) => {

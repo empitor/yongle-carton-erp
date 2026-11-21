@@ -1,5 +1,5 @@
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
-import { pageProblemRouter, proxyIngress, requirePermission, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
+import { pageProblemRouter, proxyIngress, requirePermission, requireSuperAdminAccount, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
 import { userManualRouter } from './system/index.js';
 import { operationsRouter } from './operations/index.js';
 import { recordsRouter, workbenchRouter } from './business/index.js';
@@ -74,9 +74,9 @@ function promptRoutes(app: Express, auth: AuthManager, managers: Record<PromptMo
       module.apiPath,
       (req, _res, next) => {
         const actor = auth.actor(req);
-        requirePermission(actor, 'business:edit');
-        // 提示词全员共用，进所有人助手的系统提示词：改动和 AI 设置一样要先进超级管理员模式；读取照旧
-        if (req.method !== 'GET') requireSuperModeFor(actor, '修改提示词');
+        // 提示词全员共用，进所有人助手的系统提示词：只有设置页用，只给超级管理员账号看；改动和 AI 设置一样要先进超级管理员模式
+        if (req.method === 'GET') requireSuperAdminAccount(actor, '查看提示词');
+        else requireSuperModeFor(actor, '修改提示词');
         next();
       },
       promptSettingsRouter(module.id, manager, auth.csrf),

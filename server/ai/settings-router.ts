@@ -1,5 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { canEnterSuperMode, isSuperMode, route, superModeDenied, type Actor } from '../core/index.js';
+import { canEnterSuperMode, isSuperMode, requireSuperAdminAccount, route, superModeDenied, type Actor } from '../core/index.js';
 import { ZodError } from 'zod';
 import type { AiSettingsApi } from '../../shared/ai/index.js';
 import { aiPageGuard } from './page-guard.js';
@@ -25,7 +25,8 @@ const settled = async <T>(job: () => T | Promise<T>): Promise<T> => {
 /**
  * AI 设置的接口（/api/ai/settings，接口表 shared/ai/ai-settings-api.ts）。actorOf 是开了登录时认登录账号的办法：
  * 模型配置关系到密钥和对外发送，改密钥和识别设置要先进超级管理员模式；查余额、重新测试不改配置，超级管理员账号就行；
- * 读取放开（聊天和识别要用）；没开登录（测试）时不查。
+ * 读取只有设置页用，也只给超级管理员账号（聊天和识别要的“能不能用、用哪个模型”在 GET /api/assistant 的 ai 里）；
+ * 没开登录（测试）时不查。
  */
 const checksOnly = new Set(['/balance', '/test']);
 export function aiSettingsRouter(manager: AiSettingsManager, actorOf?: (req: Request) => Actor | null | undefined) {
@@ -35,8 +36,12 @@ export function aiSettingsRouter(manager: AiSettingsManager, actorOf?: (req: Req
     router.use((req, res, next) => {
       // 拒绝的说法和类别跟全站一致（server/core/permissions.ts）
       const who = actorOf(req);
+      if (req.method === 'GET') {
+        requireSuperAdminAccount(who, '查看 AI 设置');
+        return next();
+      }
       const allowed = checksOnly.has(req.path) ? canEnterSuperMode(who) : isSuperMode(who);
-      if (req.method !== 'GET' && !allowed) {
+      if (!allowed) {
         const denied = superModeDenied(who, '修改 AI 设置');
         return res.status(denied.status).json({ message: denied.message, code: denied.code });
       }

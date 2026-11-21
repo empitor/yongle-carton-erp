@@ -82,21 +82,22 @@ const real = [...new Set(consoleErrors)].filter((e) => !/status of (401|403)/.te
 if (real.length) fail('控制台报错：' + real.join(' | ').slice(0, 300));
 await context.close();
 
-// 远程只读账号打开 #ai-settings 和 #ai-settings?tab=prompts：零 4xx 请求、不显示“提示词”页签、无报错红条
+// 远程只读账号设置一个页签都没有（读单据模板也要业务编辑权限）：侧栏没有“设置”；从 #ai-settings 和 tab=prompts 的链接进来
+// 只说一句，零 4xx 请求、无报错红条
 const viewer = await openChrome({ width: 1440, height: 900, ...remote });
 const badStatuses = [];
 viewer.page.on('response', (res) => {
   if (res.url().includes('/api/') && res.status() >= 400) badStatuses.push(`${res.status()} ${res.url()}`);
 });
 await login(viewer.page, '虚构只读');
+if (await viewer.page.locator('.erp-nav-item', { hasText: '设置' }).count()) fail('只读账号侧栏还有“设置”');
 for (const hash of ['#ai-settings', '#ai-settings?tab=prompts']) {
   await viewer.page.goto(BASE + hash);
-  await viewer.page.locator('main [role="tablist"]').waitFor();
-  await viewer.page.locator('main [role="tabpanel"]:not([hidden])').first().waitFor();
+  await viewer.page.getByText('当前账号没有可改的设置').waitFor();
   await viewer.page.waitForTimeout(400);
-  if (await viewer.page.getByRole('tab', { name: '提示词' }).count()) fail('只读账号仍显示“提示词”页签：' + hash);
+  if (await viewer.page.locator('main [role="tab"]').count()) fail('只读账号的设置还有页签：' + hash);
   if (await viewer.page.locator('main .form-message.error').count()) fail('只读账号打开设置出现红条报错：' + hash);
 }
 if (badStatuses.length) fail('只读账号打开设置触发了 4xx 请求：' + badStatuses.join(' | '));
-ok('远程只读账号打开设置页与 tab=prompts 零 4xx、不显示提示词页签');
+ok('远程只读账号侧栏没有设置，打开设置的链接只说一句、零 4xx');
 await viewer.context.close();

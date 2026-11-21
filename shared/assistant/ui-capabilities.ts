@@ -204,7 +204,7 @@ export const uiCapabilities = [
     name: 'AI设置、提示词及插件',
     page: '#ai-settings',
     entry:
-      '设置：API 配置（填 DeepSeek 密钥，保存并测试）、提示词（保存并启用；提示词全员共用，改动只有超级管理员账号能做，别的账号只读）、单据模板、消息接入、高级（插件与工具启停、诊断）',
+      '设置：API 配置（填 DeepSeek 密钥，保存并测试）、提示词（保存并启用；提示词全员共用）、单据模板、消息接入、高级（插件与工具启停、诊断）；除了单据模板都只有超级管理员账号看得到，改要进超级管理员模式',
     api: ['/api/ai/settings', '/api/ai/prompt-modules', '/api/assistant/tools'],
     tools: ['prompts.get', 'prompts.propose'],
     kind: 'business',

@@ -1,9 +1,20 @@
 import { modulePages } from './assistant-modules.js';
 
 export const assistantManagementHash = '#ai-settings?tab=tools';
+const settingsTabParam = (hash: string) => new URLSearchParams(hash.split('?')[1] || '').get('tab');
 export function aiSettingsTab(hash: string): 'api' | 'prompts' | 'tools' | 'templates' {
-  const tab = new URLSearchParams(hash.split('?')[1] || '').get('tab');
+  const tab = settingsTabParam(hash);
   return tab === 'templates' ? 'templates' : tab === 'tools' ? 'tools' : tab === 'prompts' ? 'prompts' : 'api';
+}
+/**
+ * 设置里人人都能看的页签。其余（API 配置、提示词、消息接入、高级）只给超级管理员账号：
+ * 别的账号设置页里只有这一个页签（src/AiSettingsHub.tsx），助手也不替他们打开那几个（ui.open）。
+ */
+export const everyoneSettingsTab = 'templates';
+/** 这个页面链接是不是设置里只给超级管理员账号的页签；没写页签的打开各人能看的那一页，不算 */
+export function adminSettingsLink(url: string) {
+  const tab = settingsTabParam(url);
+  return url.slice(1).split('?')[0] === 'ai-settings' && tab !== null && tab !== everyoneSettingsTab;
 }
 /** 财务页面。需要 finance:view，导航和助手都按这个判断。 */
 export const financePageTargets = {

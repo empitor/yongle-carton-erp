@@ -229,8 +229,6 @@ test('只读和业务账号不能改 AI 设置；只读账号不能动导入工�
         'AI 设置只有管理员能改',
       );
     assert.notEqual((await send('/ai/settings/key/delete', { confirmed: true }, admin, settingsToken)).status, 403);
-    // 能读当前配置，聊天要用
-    assert.equal((await send('/ai/settings', undefined, viewer)).status, 200);
     const upload = await fetch(base + '/ai/imports/upload', {
       method: 'POST',
       headers: {
@@ -250,12 +248,11 @@ test('只读和业务账号不能改 AI 设置；只读账号不能动导入工�
       '只读账号不能归档工作区',
     );
     assert.equal((await send('/ai/prompt-modules/sales-order/activate', {}, viewer, importToken)).status, 403);
-    // 提示词全员共用：业务人员也不能改，和 AI 设置一样要超级管理员账号（读照旧）
+    // 提示词全员共用：业务人员也不能改，和 AI 设置一样要超级管理员账号（读也一样，见 super-mode-settings.test.ts）
     const promptToken = { 'X-ERP-AI-Token': auth.csrf };
     const staffChange = await send('/ai/prompt-modules/sales-order/activate', {}, staff, promptToken);
     assert.equal(staffChange.status, 403, '业务人员不能改提示词');
     assert.match(errorAnswer.parse(await staffChange.json()).message ?? '', /超级管理员/);
-    assert.equal((await send('/ai/prompt-modules/sales-order', undefined, staff)).status, 200, '业务人员能读提示词');
     assert.notEqual((await send('/ai/prompt-modules/sales-order/activate', {}, admin, promptToken)).status, 403, '超级管理员照常');
     assert.equal((await send('/ai/imports', undefined, viewer)).status, 200, '可以看');
   } finally {

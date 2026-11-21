@@ -99,31 +99,6 @@
   }
 }
 
-/* 设置 → API 配置（非管理员）：只看用的是哪个模型、管理员填没填密钥 */
-.adm-ai-user {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  max-width: 560px;
-  padding: var(--space-lg) var(--space-xl);
-  border: 1px solid var(--border);
-  border-radius: var(--r-panel);
-  background: var(--surface);
-}
-.adm-ai-user .adm-muted {
-  margin: 0;
-}
-.adm-ai-user-model {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3xs);
-  margin: 0;
-  font-size: var(--text-md);
-}
-.adm-ai-user-model span {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-}
 .oi-account {
   min-height: 32px;
   height: 32px;

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { promptModules, promptPresetSchema, type PromptModuleId } from '../../shared/ai/index.js';
 import type { PromptPresetManager } from '../ai/index.js';
 import type { Actor, Store } from '../core/index.js';
-import { AppError, audit, requirePermission, requireSuperModeFor } from '../core/index.js';
+import { AppError, audit, requireSuperAdminAccount, requireSuperModeFor } from '../core/index.js';
 import { toolSpec } from './tools/define.js';
 
 /** 提出修改时一条提示词最多多少字（和提示词预设单条的上限一样，shared/ai/prompt-presets.ts） */
@@ -57,7 +57,8 @@ export class AssistantPromptEdit {
     return { state, preset, entry };
   }
   get(raw: unknown, actor: Actor) {
-    requirePermission(actor, 'business:edit');
+    // 和设置里的提示词页签一样只给超级管理员账号看
+    requireSuperAdminAccount(actor, '查看提示词');
     const args = readArgs.parse(raw);
     const module = args.module || 'assistant',
       state = this.manager(module).view(),
