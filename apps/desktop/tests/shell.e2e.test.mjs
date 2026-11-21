@@ -120,7 +120,7 @@ test('Windows 外壳按顺序走一遍', async (t) => {
     await staysHome('拖文件进来之后');
   });
 
-  await t.test('打开的网页上有 Tauri 注入的 window.__TAURI_INTERNALS__（ERP 网页靠它认出 Windows 客户端，见 ERP 项目 docs/架构说明.md）', async () => {
+  await t.test('打开的网页上有 Tauri 注入的 window.__TAURI_INTERNALS__（ERP 网页靠它认出 Windows 客户端，见 ERP 项目 docs/架构/外壳和网页.md“网页怎么认出两个外壳”）', async () => {
     assert.equal(await evaluate(await home(), 'typeof window.__TAURI_INTERNALS__'), 'object');
   });
 
