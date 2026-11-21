@@ -5,8 +5,9 @@ import { test } from 'node:test';
 import { ProblemLog, count } from '../server/core/index.js';
 import { catchUp } from '../server/finance/catch-up.js';
 import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { pageActor } from './actor-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
-import { catchUpProblems, totalChanges, watchBegins } from './finance-catch-up-fixture.js';
+import { catchUpProblems, quietLog, totalChanges, watchBegins } from './finance-catch-up-fixture.js';
 import { bill, maker, postDrafts } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 
@@ -32,6 +33,21 @@ test('有一张采购退货单内容坏了：逐张跳过、记进出错记录�
   }
 });
 
+test('只能看财务的账号补扫：有已确认、没冲暂估的采购退货也不记暂估、不出新凭证；有编辑权限的人补扫才记', () => {
+  const f = returnFixture(),
+    viewer = pageActor({ id: 'finance-viewer', name: '虚构只看财务', permissions: ['finance:view'] });
+  try {
+    giveBack(f, 'return-waiting');
+    const vouchers = count(f.s.db, 'SELECT count(*) FROM fin_vouchers');
+    assert.deepEqual(catchUp(f.s, viewer, quietLog), { processed: 0, remaining: false, failed: false }, '不去记，补扫也不因为没权限出错');
+    assert.deepEqual([returnVouchers(f), count(f.s.db, 'SELECT count(*) FROM fin_vouchers')], [0, vouchers], '只读账号补扫不记');
+    catchUp(f.s, maker, quietLog);
+    assert.equal(returnVouchers(f), 2, '这张退货本来能记：编辑权限的人补扫时红冲原暂估、另出一张');
+  } finally {
+    f.s.close();
+  }
+});
+
 test('这次记不了的退货（到货已经确认过发票）：不算有要补的，补扫只读，不开写事务', () => {
   const f = returnFixture();
   try {
@@ -40,10 +56,10 @@ test('这次记不了的退货（到货已经确认过发票）：不算有要�
     new FinanceInvoiceConfirm(f.s).confirm(maker, invoices.id, { version: 2, requestId: 'confirm' });
     postDrafts(f.s);
     giveBack(f, 'return-after-invoice');
-    catchUp(f.s, maker, undefined);
+    catchUp(f.s, maker, quietLog);
     const begun = watchBegins(f.s),
       before = totalChanges(f.s);
-    assert.deepEqual(catchUp(f.s, maker, undefined), { processed: 0, remaining: false, failed: false });
+    assert.deepEqual(catchUp(f.s, maker, quietLog), { processed: 0, remaining: false, failed: false });
     assert.deepEqual([begun.length, totalChanges(f.s)], [0, before]);
     assert.equal(returnVouchers(f), 0, '已到票的退货等红票，不冲暂估');
   } finally {

@@ -4,13 +4,16 @@ import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 import { StoredDataError, count } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events.js';
-import { returnEstimatesPending } from '../server/finance/return-estimates.js';
+import { ReturnEstimates } from '../server/finance/return-estimates.js';
+import { catchUp } from '../server/finance/catch-up.js';
+import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { quietLog } from './finance-catch-up-fixture.js';
 import { financeFacts } from '../server/flow/index.js';
 import { actor } from './actor-fixture.js';
 import { businessBase } from './business-base-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
-import { maker, postDrafts, supervisor } from './finance-fixture.js';
+import { bill as invoiceInput, maker, postDrafts, supervisor } from './finance-fixture.js';
 
 type Returns = ReturnType<typeof returnFixture>;
 /** 退 quantity 张这批到货 */
@@ -53,16 +56,18 @@ test('采购明细：一批编号一次查完，带采购单号、解析好的�
   assert.equal(financeFacts.purchases.lines(base.store.db, []).size, 0);
 });
 
-test('采购退货：表头只给编号和状态（已确认、已撤销都给），按编号读出整张原文，解析出退了哪几行', () => {
+test('采购退货：按到货单圈出已确认、已撤销的（别的到货的不给），按编号读出整张原文，解析出退了哪几行', () => {
   const f = returnFixture();
   try {
     const first = giveBack(f, 'return-1', '3');
     const second = giveBack(f, 'return-2', '2', '2026-02-09');
     f.returns.reverse(supervisor, first.id, { version: first.version, reason: '虚构退错了' });
-    assert.deepEqual(financeFacts.purchases.returnHeads(f.s.db), [
-      { id: first.id, status: 'reversed' },
-      { id: second.id, status: 'confirmed' },
+    const ofArrival = (arrivals: number[]) => financeFacts.purchases.returnsOfArrivals(f.s.db, arrivals).map((r) => [r.id, r.status]);
+    assert.deepEqual(ofArrival([f.received.id]), [
+      [first.id, 'reversed'],
+      [second.id, 'confirmed'],
     ]);
+    assert.deepEqual(ofArrival([f.received.id + 100]), [], '别的到货单的不给');
     const rows = financeFacts.purchases.returnRows(f.s.db, [second.id, second.id + 100]);
     assert.deepEqual(
       rows.map(({ document: _document, updatedAt: _at, ...r }) => r),
@@ -118,7 +123,7 @@ function pendingStatements(n: number) {
     }
     assert.equal(count(f.s.db, "SELECT count(*) FROM fin_vouchers WHERE module_source='purchase_return' AND reversal_of IS NULL"), n, '每张都冲了');
     const prepare = mock.method(f.s.db, 'prepare');
-    assert.equal(returnEstimatesPending(f.s, maker), false, '都冲过了，没有要记的');
+    assert.equal(new ReturnEstimates(f.s, maker).pending(), false, '都冲过了，没有要记的');
     return prepare.mock.callCount();
   } finally {
     f.s.close();
@@ -127,4 +132,26 @@ function pendingStatements(n: number) {
 
 test('财务挑要记的退货：语句条数不随退货多少变（1 张和 5 张一样）', () => {
   assert.equal(pendingStatements(5), pendingStatements(1));
+});
+
+/** 到货先到票、再退 n 次（这些退货永远等红票、不冲暂估），每个财务请求前的补扫发出的语句条数 */
+function invoicedStatements(n: number) {
+  const f = returnFixture();
+  try {
+    const bill = f.invoices.create(maker, invoiceInput('purchase', 'FULL', { date: '2026-02-06' }));
+    f.invoices.link(maker, bill.id, { version: 1, requestId: 'link', links: [{ obligationId: f.payable, amount: 10000 }] });
+    new FinanceInvoiceConfirm(f.s).confirm(maker, bill.id, { version: 2, requestId: 'confirm' });
+    postDrafts(f.s);
+    for (let i = 0; i < n; i++) giveBack(f, 'return-' + i, '1');
+    catchUp(f.s, maker, quietLog);
+    const prepare = mock.method(f.s.db, 'prepare');
+    assert.equal(catchUp(f.s, maker, quietLog).processed, 0, '到票后的退货不冲暂估');
+    return prepare.mock.callCount();
+  } finally {
+    f.s.close();
+  }
+}
+
+test('到票后才退的货越积越多：每个财务请求前的补扫语句条数不跟着涨（1 张和 5 张一样），这些退货一张都不读', () => {
+  assert.equal(invoicedStatements(5), invoicedStatements(1));
 });

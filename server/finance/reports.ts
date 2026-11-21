@@ -13,7 +13,8 @@ import { entry, pageSql, request } from './query.js';
 import { activeCashAllocation, allocationReversalMessage } from './obligation-sql.js';
 import { readSnapshot } from './source-snapshot.js';
 import { endOfMonth } from './periods.js';
-import { catchUpFailed, unseenSourceList } from './catch-up.js';
+import { unseenSourceList } from './catch-up.js';
+import { catchUpFailed } from './sync-health.js';
 import { lapsedStatuses, scanSources, sourceIs, unseenCount } from './source-scan.js';
 import { readReportSnapshot, type BalanceReport, type CashflowReport, type ProfitReport } from './report-shapes.js';
 import {
@@ -63,7 +64,7 @@ const unsyncedMessage = (numbers: string[]) =>
   numbers.length
     ? '有业务单据还没同步进财务：' + numbers.join('、') + '。多半是单据内容读不出来，请联系维护人员查看出错记录，在库里改好后会自动补上，再输出正式报表。'
     : '有业务单据还没同步进财务，请稍后重试，再输出正式报表。';
-/** 补扫没成功（catch-up.ts 的 catchUpFailed）时的说法 */
+/** 补扫没成功（sync-health.ts 的 catchUpFailed）时的说法 */
 const SYNC_FAILED = '业务单据没能同步进财务（原因已记进出错记录），请联系维护人员，修好后再输出正式报表。';
 
 export class FinanceInfoPending extends AppError {

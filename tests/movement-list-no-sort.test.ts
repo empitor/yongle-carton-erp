@@ -9,7 +9,7 @@ import { createApp } from '../server/app.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/service.js';
 import { pageActor } from './actor-fixture.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 
 const actor = pageActor({ id: 'movement-no-sort', name: '虚构仓管', permissions: ['business:edit'] });
 
@@ -22,7 +22,7 @@ test('流水列表带了 sort（哪怕是不认识的值）也照常回答，仍
     const current = ops.items(true, item.id)[0];
     flow.stock.move(item.id, { expectedVersion: current.version, requestId: randomUUID(), action: 'in', quantity: '1', date, notes, acknowledged: true }, actor);
   }
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   try {
     const query = new URLSearchParams({ withMetrics: '1', page: '1', pageSize: '5', sort: '不认识的排序' });
     const r = await fetch(server.origin + '/api/warehouse/movements?' + query);

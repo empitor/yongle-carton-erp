@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
-import { cookieOf, startHttp } from './http-fixture.js';
+import { cookieOf, startHttp, testProblems } from './http-fixture.js';
 import { financeRouter } from '../server/finance/router.js';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
@@ -151,7 +151,7 @@ test('HTTP 财务路由拒绝无财务权限的账号和已记账凭证修改、
       password: 'Test-only-password',
     });
     const staffCookie = cookieOf(login);
-    const routes = routerLayers.parse(financeRouter(store, auth).stack);
+    const routes = routerLayers.parse(financeRouter(store, auth, testProblems()).stack);
     for (const { route } of routes) {
       if (!route) continue;
       const path = '/finance' + route.path.replace(/:kind/g, 'balance').replace(/:id/g, '1');

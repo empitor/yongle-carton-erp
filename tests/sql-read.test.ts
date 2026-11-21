@@ -8,7 +8,7 @@ import { STORED_DATA_MESSAGE } from '../server/core/errors.js';
 import { Store, count, exists, many, one, parseStoredJson, rows } from '../server/core/index.js';
 import { StoredDataError } from '../server/core/errors.js';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 
 const store = new Store(':memory:');
 after(() => store.close());
@@ -115,7 +115,7 @@ test('JSON 列：形状不对、根本不是 JSON 都抛 StoredDataError，写�
 
 test('库里的数据不合结构时，接口经出错处理回 500 和给人看的话，不是 400 的“输入不对”', async () => {
   const bad = new Store(':memory:');
-  const server = await listen(createApp(bad));
+  const server = await listen(createApp(bad, { problems: testProblems() }));
   const logged = mock.method(console, 'error', () => {});
   try {
     bad.db.prepare("INSERT INTO customers(id,name,contact,phone,address,notes,created_at,updated_at) VALUES(1,'甲客户','','','','',?,?)").run(now, now);

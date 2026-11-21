@@ -43,8 +43,8 @@ type AppOptions = {
   assistant?: AssistantManager;
   /** 三个提示词模块各自的管理器：挂提示词设置页的地址，和交给助手、识别导入的是同一张表 */
   promptModules?: Record<PromptModuleId, PromptPresetManager>;
-  /** 出错记录库：请求失败由请求守卫记，页面报错走 /api/diagnostics */
-  problems?: ProblemLog;
+  /** 出错记录库（必传，测试给内存库）：请求失败由请求守卫记，页面报错走 /api/diagnostics，财务补扫跳过的单据也记在这里 */
+  problems: ProblemLog;
 };
 
 /** 健康检查：从域名进来的只回 ok，版本号、进程号不对外（停服务、启动、打补丁的脚本都走本机端口） */
@@ -101,7 +101,7 @@ function staticSite(app: Express) {
   );
 }
 
-export function createApp(store: Store, options: AppOptions = {}) {
+export function createApp(store: Store, options: AppOptions) {
   const app = express();
   installRequestGuards(app, options);
   healthRoute(app, options.deployment);
@@ -153,8 +153,7 @@ export function createApp(store: Store, options: AppOptions = {}) {
       importRouter(options.imports, (req) => options.auth?.actor(req) || null, options.receiptAi, { store, execution: options.execution }),
     );
   // 页面上报的报错存进出错记录库，助手和管理员排查时一起查（server/core/diagnostics/）
-  if (options.problems)
-    app.use('/api/diagnostics', pageProblemRouter(options.problems, (req) => options.auth?.actor(req) ?? null));
+  app.use('/api/diagnostics', pageProblemRouter(options.problems, (req) => options.auth?.actor(req) ?? null));
   app.use('/api', (_req, res) => res.status(404).json({ message: '接口不存在' }));
   staticSite(app);
   app.use(apiErrorHandler);

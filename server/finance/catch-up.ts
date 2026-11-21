@@ -12,8 +12,8 @@
  *
  * 出错怎么办：内容读不出来的单据、采购退货单逐条跳过（unreadable.ts），第一次跳过时记进出错记录，它一直算“还没同步”。
  * 别的错（程序或财务自己的数据出了问题）这一批整批回滚，记进出错记录（同一个原因只记一次），读请求照常回答
- * 已经进财务的数；结账、正式报表按“补扫没成功”拦（catchUpFailed，reports.ts 的 readiness），
- * 财务的写请求由 router.ts 拦下（写入要按最新的单据状态核对，比如核销前看送货单撤没撤销）。下次补扫成功就放开。
+ * 已经进财务的数；结账、正式报表按“补扫没成功”拦（sync-health.ts 的 catchUpFailed，reports.ts 的 readiness），
+ * 要按来源单据状态核对的财务写入（核销、关联发票、红冲这类，名单见 sync-health.ts）拦下，别的写入照常。下次补扫成功就放开。
  */
 import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, ProblemLog, Store } from '../core/index.js';
@@ -22,47 +22,44 @@ import { errorMessage } from '../../shared/core/index.js';
 import type { SourceHead } from '../flow/index.js';
 import { financeActor } from './core.js';
 import { FinanceEvents } from './events.js';
+import { ReturnEstimates } from './return-estimates.js';
 import { scanSources, sourceKey, sourceTexts } from './source-scan.js';
+import { noteCatchUp } from './sync-health.js';
 import { unreportedSkips } from './unreadable.js';
 
-/** 出错记录：只用到记一条（装配时给的 server/core 的 ProblemLog；没给就不记） */
+/** 出错记录：只用到记一条（装配时给的 server/core 的 ProblemLog，测试给假的；必传，记过的才标成已记） */
 export type SkipLog = Pick<ProblemLog, 'record'>;
 
 /** 一次补扫最多扫几批（每批最多 100 条来源）：大批历史单据（刚启用、批量导入后）分到几个请求里扫，批与批之间别的请求能进来 */
 export const CATCH_UP_BATCHES = 2;
 /** 出错记录里这件事的叫法 */
 const OPERATION = '同步业务单据进财务';
-/** 补扫没成功的原因（每个库一份，只记在进程里）：同一个原因只记一次出错记录，补扫成功就清掉 */
-const failures = new WeakMap<DatabaseSync, string>();
-/** 最近一次补扫没成功（还没有成功过一次）：结账、正式报表要拦 */
-export const catchUpFailed = (db: DatabaseSync) => failures.has(db);
 
 /**
  * 补扫：最多 CATCH_UP_BATCHES 批。返回这次新增或改动了几条、还有没有没扫的（remaining）、这次是不是没成功（failed）。
  * 只有没权限（财务查看）的会抛错；补扫本身出错不抛，见文件开头“出错怎么办”。
  */
-export function catchUp(store: Store, actor: Actor | null | undefined, log: SkipLog | undefined) {
+export function catchUp(store: Store, actor: Actor | null | undefined, log: SkipLog) {
   const user = financeActor(actor),
     db = store.db;
   let result: { processed: number; remaining: boolean; failed: boolean };
   try {
     result = { ...syncBatches(store, user), failed: false };
-    failures.delete(db);
+    noteCatchUp(db, null);
   } catch (error) {
     const reason = errorReason(error);
-    if (failures.get(db) !== reason) {
+    if (noteCatchUp(db, reason)) {
       console.error('[财务补扫] 业务单据没能同步进财务：' + errorMessage(error), error);
-      log?.record({
+      log.record({
         ...entry(user, 500),
-        message: '业务单据没能同步进财务，财务的数可能不是最新的；结账、正式报表和财务的修改先拦着，请联系维护人员。',
+        message: '业务单据没能同步进财务，财务的数可能不是最新的；结账、正式报表和要核对业务单据的财务操作先拦着，请联系维护人员。',
         reason,
       });
     }
-    failures.set(db, reason);
     result = { processed: 0, remaining: true, failed: true };
   }
   for (const skip of unreportedSkips(db))
-    log?.record({
+    log.record({
       ...entry(user, skip.error.status),
       message: `单据 ${skip.number ?? skip.id} 的内容读不出来，没有同步进财务；在库里改好后下次打开财务自动补上，结账前要修好。`,
       reason: errorReason(skip.error),
@@ -80,13 +77,14 @@ const entry = (user: Actor, status: number): Omit<ProblemEntry, 'message'> => ({
   status,
 });
 
-/** 有要补的就扫，最多 CATCH_UP_BATCHES 批 */
+/** 有要补的就扫，最多 CATCH_UP_BATCHES 批；要看的采购退货只读一次，判断要不要补和真去记共用（ReturnEstimates） */
 function syncBatches(store: Store, user: Actor) {
-  const events = new FinanceEvents(store);
+  const events = new FinanceEvents(store),
+    returns = new ReturnEstimates(store, user);
   let processed = 0,
-    remaining = events.pending(user);
+    remaining = events.pending(user, returns);
   for (let batch = 0; remaining && batch < CATCH_UP_BATCHES; batch++) {
-    const done = events.sync(user);
+    const done = events.sync(user, returns);
     processed += done.processed;
     remaining = done.remaining;
   }

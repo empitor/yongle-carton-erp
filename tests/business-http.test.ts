@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { specification, today } from '../shared/core/domain.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { z } from 'zod';
 import { orderViewSchema } from '../shared/core/order-view.js';
 
@@ -30,7 +30,7 @@ const read = async <T extends z.ZodType>(response: Response | Promise<Response>,
 
 async function served(file = ':memory:') {
   const store = new Store(file),
-    server = await listen(createApp(store));
+    server = await listen(createApp(store, { problems: testProblems() }));
   const request = (route: string, body?: unknown, method = 'POST', extra: Record<string, string> = {}) =>
     fetch(server.api + route, {
       method: body === undefined ? 'GET' : method,

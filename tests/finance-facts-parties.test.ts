@@ -78,7 +78,7 @@ const calls: Calls = {
   },
   purchases: {
     lines: (w) => financeFacts.purchases.lines(w.db, [1, 2]),
-    returnHeads: (w) => financeFacts.purchases.returnHeads(w.db),
+    returnsOfArrivals: (w) => financeFacts.purchases.returnsOfArrivals(w.db, [1]),
     returnRows: (w) => financeFacts.purchases.returnRows(w.db, [1]),
     returnLines: () => financeFacts.purchases.returnLines({ id: 1, number: '虚构退货', document: sampleReturn }),
     hasConfirmedReturn: (w) => financeFacts.purchases.hasConfirmedReturn(w.db, 1),

@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { z } from 'zod';
 import { one, rows as tableRows } from '../server/core/index.js';
 import { createApp } from '../server/app.js';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { PurchaseReturns } from '../server/flow/returns.js';
 import type { MovementView } from '../shared/business/index.js';
 import {
@@ -191,7 +191,7 @@ test('流水类型按来源单据分：生产领料、退料、完工入库、�
 
 test('按类型筛选：SQL 筛出的和按 movementTypeOf 判断的完全一致，有关键词、分页、计数也一样', async () => {
   const w = world();
-  const server = await listen(createApp(w.store));
+  const server = await listen(createApp(w.store, { problems: testProblems() }));
   const base = server.origin + '/api/warehouse/movements';
   try {
     const repo = w.ops,

@@ -1,6 +1,6 @@
 // 静态资源和 API 的缓存头（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
-import { listen } from './http-fixture.js';
+import { listen, testProblems } from './http-fixture.js';
 import { test } from 'node:test';
 import { createApp } from '../server/app.js';
 import { Store } from '../server/core/db.js';
@@ -19,7 +19,7 @@ test('静态带哈希资源长缓存，HTML 重新验证，其余静态文件和
   writeFileSync(join(dist, 'manual-M4qP1_kz.js'), '/* test */');
   const store = new Store(':memory:');
   process.chdir(dir);
-  const server = await listen(createApp(store));
+  const server = await listen(createApp(store, { problems: testProblems() }));
   try {
     const get = (path: string, headers?: HeadersInit) => fetch(server.origin + path, { headers });
     for (const path of ['/', '/index.html', '/some/client/route']) {
