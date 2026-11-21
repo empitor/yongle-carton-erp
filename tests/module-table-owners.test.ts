@@ -45,10 +45,7 @@ const tableWriteExceptions: { path: string; why: string }[] = [
       '升级步骤改 CHECK 用 steps.ts 的 rebuildTable 重建（表名拼出来）：临时表 <表>_rebuilt 建完即改回原名，不是新表',
   },
 ];
-const tableReadExceptions: { reader: string; owner: string; why: string }[] = [
-  { reader: '财务', owner: '采购库存', why: '财务按表读业务数据生成凭证、成本和往来，不调用业务代码，只读' },
-  { reader: '财务', owner: '单据流转', why: '同上' },
-];
+const tableReadExceptions: { reader: string; owner: string; why: string }[] = [];
 
 /** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构说明.md“财务事件和凭证”） */
 const readOnlyPaths = ['server/flow/finance-facts/'];
