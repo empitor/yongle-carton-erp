@@ -208,7 +208,7 @@ textarea:focus-visible {
   font-size: var(--text-sm);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .ed-grid.cols-2,
   .ed-grid.cols-3,
   .ed-grid.cols-4 {

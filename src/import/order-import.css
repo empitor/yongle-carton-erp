@@ -172,7 +172,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .oi-workspace-head p {
     flex-wrap: wrap;
     font-size: var(--text-xs);
@@ -214,7 +214,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .sales-batch-card .record-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -246,7 +246,7 @@
   padding-bottom: 64px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .order-import:has(> .selection-bar) {
     padding-bottom: 96px;
   }
