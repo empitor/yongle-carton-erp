@@ -3,13 +3,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sourceHash } from '../server/finance/source-fingerprint.js';
+import { financeFingerprint } from '../shared/business/finance-source.js';
 
-const source = { kind: 'delivery', status: 'confirmed', date: '2026-10-27' };
-const delivery = (line: Record<string, unknown>) => ({
-  date: '2026-10-27',
-  customerId: 1,
-  lines: [{ orderId: 1, orderLineId: 1, stockId: 1, quantity: '10', unitPriceExact: '1.5000', material: 'K=A', flute: 'BC', ...line }],
-});
+const source = { status: 'confirmed', date: '2026-10-27' };
+/** 一张送货单算进指纹的内容（按约定取，见 shared/business/finance-source.ts） */
+const delivery = (line: Record<string, unknown>) =>
+  financeFingerprint('delivery', {
+    date: '2026-10-27',
+    customerId: 1,
+    lines: [{ orderId: 1, orderLineId: 1, stockId: 1, quantity: '10', unitPriceExact: '1.5000', material: 'K=A', flute: 'BC', ...line }],
+  });
 
 test('同一张送货单只改了明细的材质、楞型：财务来源指纹不变', () => {
   assert.equal(sourceHash(source, delivery({ material: 'B=B', flute: 'E' })), sourceHash(source, delivery({})));

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { StoredDataError } from '../server/core/index.js';
 import { financeFacts, type SourceText } from '../server/flow/index.js';
 import { z } from 'zod';
-import { financialContent, flowDocumentSchema, toFinanceSource } from '../shared/business/index.js';
+import { financeFingerprint, flowDocumentSchema, toFinanceSource } from '../shared/business/index.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { clerk, flowFixture } from './flow-fixture.js';
 import { applyCorrection, previewCorrection } from './receive-fixture.js';
@@ -64,7 +64,7 @@ test('来源一览：只给已确认、已撤销的送货、到货、完工单�
   assert.ok(heads.every((h) => h.version >= 1));
 });
 
-test('按批读原文：一次读出单号和内容，解析成财务口径；算进指纹的内容是约定的 financialContent；找不到的不在结果里', () => {
+test('按批读原文：一次读出单号和内容，解析成财务口径；算进指纹的内容按约定的 financeFingerprint 取；找不到的不在结果里', () => {
   const w = world();
   const db = w.f.store.db;
   const texts = financeFacts.sources.texts(db, [
@@ -79,7 +79,7 @@ test('按批读原文：一次读出单号和内容，解析成财务口径；�
   assert.equal(shipped.number, w.f.flow.get(w.shipped).number);
   const { kind: _kind, ...content } = z.record(z.string(), z.unknown()).parse(JSON.parse(shipped.text));
   const read = financeFacts.sources.read(shipped);
-  assert.deepEqual(read.counted, financialContent('delivery', content), '指纹算的是单据内容（不带种类）去掉不算的栏目');
+  assert.deepEqual(read.counted, financeFingerprint('delivery', content), '指纹算的是约定里归“算”的栏目，财务口径的名字');
   assert.deepEqual(read.doc, toFinanceSource('delivery', flowDocumentSchema('delivery').parse(content)));
   assert.equal(read.doc.customerId, w.f.customer.id);
   assert.deepEqual(financeFacts.sources.texts(db, []), []);

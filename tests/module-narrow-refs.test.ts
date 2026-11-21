@@ -64,7 +64,7 @@ test('回归：窄引用拦住财务引单据流转的服务和别的名字、�
   }
   const allowed = [
     "import { financeFacts } from '../flow/index.js';",
-    "import { priceText, financialContent, type FinanceSource } from '../../shared/business/index.js';",
+    "import { priceText, financeFingerprint, type FinanceSource } from '../../shared/business/index.js';",
   ];
   for (const text of allowed) assert.deepEqual(narrowViolations('server/finance/sample.ts', refsOf('server/finance/sample.ts', text)), [], '不该拦：' + text);
   // 别的模块不受这张表管
