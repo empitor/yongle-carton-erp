@@ -1,4 +1,19 @@
-/* 产品唛头 */
+/* 产品唛头；业务页面共用的小件：第二行小字（.sub）、文字链接按钮（.text-link） */
+.sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  margin-top: var(--space-2xs);
+}
+.business-records .sub {
+  font-size: var(--text-xs);
+  line-height: 1.7;
+}
+.business-records .unified-table-region .sub {
+  display: inline;
+  margin-left: var(--space-2xs);
+  color: var(--text-secondary);
+}
 .record-section > .product-marks {
   margin-top: 0;
 }
@@ -119,4 +134,20 @@
   margin: 0;
   font-size: var(--text-md);
   font-weight: 600;
+}
+.text-link {
+  align-self: flex-start;
+  height: auto;
+  min-height: 0;
+  margin-top: var(--space-3xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+}
+.text-link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
 }

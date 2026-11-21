@@ -421,3 +421,15 @@
   max-height: none;
   overflow: visible;
 }
+/* 明细卡片里收起的“更多”（单据模板的列设置、到货和采购明细卡片都用） */
+.line-card-more {
+  margin-top: var(--space-sm);
+}
+.line-card-more > summary {
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.line-card-more[open] > summary {
+  margin-bottom: var(--space-sm);
+}

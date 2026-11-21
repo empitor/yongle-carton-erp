@@ -1,4 +1,28 @@
 /* 仓库：到货页、待发货、库存流水 */
+
+@container list-table (max-width: 659px) {
+  .arrival-warehouse .business-records > .unified-table-region > .arrival-table .sub {
+    display: block;
+    margin-left: 0;
+  }
+}
+.arrival-table .sub {
+  display: block;
+}
+.queue-row .record-no {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.arrival-warehouse > .section-heading .sub {
+  display: none;
+}
+
+/* 单据表复用高密度行 */
+.flow-records .section-heading h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
 .section-heading span {
   color: var(--muted);
   font-size: var(--text-xs);

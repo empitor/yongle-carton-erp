@@ -4,14 +4,13 @@
 // 一条选择器：
 // - 用到的类名只能是本模块的、或本模块能用的模块的（不往上、不往旁边改别人的类）；
 // - 除了基础，至少有一个本模块自己的类名（不在自己的文件里改别的模块的东西）；
-// - 分了层的模块（前端业务四层）里，只能写本层和下层的类名（类名的层按写它的最低一层目录算）；现有越层的在 tests/layer-backlog.ts，只许减少；
+// - 分了层的模块（前端业务四层）里，只能写本层和下层的类名（类名的层按写它的最低一层目录算）；
 // - 类名要“有人用”：组件代码的 className、classList 或字符串字面量里出现过（找不到的规则就是没人用的，删掉）。
 // 确实要跨模块的写进 exceptions，写明原因。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
-import { compareBacklog, cssLayerBacklog } from './layer-backlog.js';
 import { all, canUse, files, layerOf, matchOf, ownerModule, scriptKind, type Rule } from './module-map.js';
 
 /** 全站公共的类名：哪个模块写都归基础。动态拼出来的（tone-success、span-2 这种）按前缀算。 */
@@ -45,13 +44,7 @@ export const exceptions: { file: string; selector: string; why: string }[] = [
  * 收紧“类名有人用”（只认 className、classList、字符串字面量）后新报出来、还没定怎么办的规则：只许减少。
  * 删掉规则、或查明确实有人用并补上认法后，从这里删。
  */
-export const pendingRules: { file: string; selector: string; why: string }[] = [
-  {
-    file: 'src/ui/elements.css',
-    selector: '.end',
-    why: '组件代码没有写出 end 这个类名，只在业务页面的日期地址参数（\'end\'）里出现过这个词，于是被算成业务的类名；样式比对里也从没命中，看起来没人用，待定要不要删',
-  },
-];
+export const pendingRules: { file: string; selector: string; why: string }[] = [];
 
 /** 组件代码写出的类名：className="…"、className={…} 里的字面量、classList.xxx('…') */
 function writtenClasses(text: string) {
@@ -213,17 +206,8 @@ test('待定的规则都还在、也确实还报问题（定下来处理掉了�
   );
 });
 
-test('前端业务四层的样式只写本层和下层的类名，现有越层的只许减少', () => {
-  const found = rules.flatMap(({ f, sel }) => {
-    const text = layerProblem(index, f, sel);
-    return text ? [{ key: f + '：' + sel, text }] : [];
-  });
-  const { extra, stale } = compareBacklog(
-    found.map((x) => x.key),
-    cssLayerBacklog.flatMap((e) => e.selectors.map((s) => e.file + '：' + s)),
-  );
-  assert.deepEqual(found.filter((x) => extra.includes(x.key)).map((x) => x.text), [], '新的越层写法（不许往 tests/layer-backlog.ts 里加）');
-  assert.deepEqual(stale, [], '这几条已经搬走或改掉了，从 tests/layer-backlog.ts 的 cssLayerBacklog 里删掉');
+test('前端业务四层的样式只写本层和下层的类名', () => {
+  assert.deepEqual(rules.flatMap(({ f, sel }) => layerProblem(index, f, sel) ?? []), []);
 });
 
 test('登记的例外都还用得上', () => {

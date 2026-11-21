@@ -1,4 +1,14 @@
 /* 仓库：到货页、待发货、库存流水（第 2 份）：这几条要压过排在前面的别的文件里同特异性的写法，所以单独成份、排在后面。顺序见 src/main.tsx */
+.flow-records .section-heading {
+  min-height: 36px;
+  padding: var(--space-3xs) var(--space-md);
+}
+.flow-records .section-heading h3 {
+  font-weight: 400;
+}
+.flow-records .section-heading > button {
+  margin-left: auto;
+}
 .business-records .section-heading {
   align-items: center;
   min-height: 0;

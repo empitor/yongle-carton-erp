@@ -1,4 +1,71 @@
 /* 采购单、订货批次、库存品编辑 */
+/* 尺寸单位下拉自带的长说明换成字段下面的一句提示 */
+.pur-unit-select .dimension-unit-control small {
+  display: none;
+}
+.pur-unit-select .dimension-unit-control {
+  display: block;
+  min-width: 0;
+}
+
+/* ---- 采购单、供应商、库存品详情 ---- */
+.pur-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* 订货单（订货批次）：合并后的行、到货安排、登记到货、待到货列表 */
+.ob-rows {
+  display: flex;
+  flex-direction: column;
+}
+.ob-row {
+  padding: 10px 0;
+  border-top: 0.5px solid var(--sep, var(--border));
+}
+.ob-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ob-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.ob-row-head small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.ob-row-qty {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ob-due {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
+}
+
+@media (max-width: 760px) {
+  .ob-row-head {
+    flex-wrap: wrap;
+  }
+  /* 订货单窗底栏：按钮不被挤成竖排字，放不下就换行 */
+  .management-dialog:has(.ob-rows, .ob-preview) .editor-footer-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .management-dialog:has(.ob-rows, .ob-preview) .editor-footer-actions > button,
+  .management-dialog:has(.ob-rows, .ob-preview) .editor-footer-actions > .more-menu {
+    flex: none;
+    white-space: nowrap;
+  }
+}
 /* purchasing：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。 */
 
 /* ---- 采购单编辑窗 ---- */

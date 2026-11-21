@@ -5,55 +5,10 @@
 }
 :root[data-ui='refined'] .list-search input,
 :root[data-ui='refined'] .list-search input:focus,
-:root[data-ui='refined'] .list-search input:hover,
-:root[data-ui='refined'] .flow-search > input,
-:root[data-ui='refined'] .flow-search > input:focus,
-:root[data-ui='refined'] .flow-search > input:hover {
+:root[data-ui='refined'] .list-search input:hover {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-}
-/* 详情明细表里的单号（到货明细的采购单链接、到货记录的单号）不在连字符处拆成几行；放不下时表格在卡片里左右滑 */
-:root[data-ui='refined'] .detail-panel-body table.wh-linked td > a {
-  white-space: nowrap;
-}
-/* 表格行里的操作：不填底色，蓝色字，鼠标移上去才出底色，免得一行一排灰块 */
-:root[data-ui='refined'] main td button:not(.primary, .row-key, .danger-solid, .icon-button, .chain-node) {
-  min-height: 26px;
-  padding: 0 var(--space-sm);
-  background: transparent;
-  color: var(--accent-ink);
-  font-size: var(--text-sm);
-}
-:root[data-ui='refined'] main td button:not(.primary, .row-key, .danger-solid, .icon-button, .chain-node):hover:not(:disabled) {
-  background: var(--fill-1);
-}
-/* 批量安排里“这次不排/送不了的”说明列表 */
-.help-list {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 20px;
-}
-
-/* 固定的数量单位（产品、成品“只”，纸板“张”）：跟在数量后面的字，不是输入框 */
-.unit-fixed {
-  flex: none;
-  align-self: center;
-  min-width: 1.5em;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-}
-output.unit-fixed {
-  /* 单独占一个表单项时靠左，不跟着上面的 align-self 居中 */
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  color: var(--ink);
-  font-size: var(--text-md);
 }
 .record-tree-branch {
   position: relative;
