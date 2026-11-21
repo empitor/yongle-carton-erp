@@ -70,7 +70,7 @@ export const modules: Rule[] = [
         paths: business([
           'physical-flow', 'arrival', 'flow-api', 'flow-requests', 'flow-results', 'flow-views', 'flow-correction', 'flow-correction-views',
           'flow-document', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery',
-          'document-value', 'arrival-draft', 'production-plan', 'labels',
+          'document-value', 'arrival-draft', 'production-plan', 'labels', 'finance-source',
         ]),
       },
       {

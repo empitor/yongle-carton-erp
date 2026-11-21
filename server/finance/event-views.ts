@@ -4,7 +4,7 @@ import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { clampPage, count, many, parsePaging, rows } from '../core/index.js';
 import { financeActor } from './core.js';
-import { confirmedDocumentsCte, sourceConfirmed, sourceContent, sourceRow, sourceUnseen } from './business-source.js';
+import { confirmedDocumentsCte, readSource, sourceConfirmed, sourceRow, sourceUnseen } from './business-source.js';
 import { periodOf } from './days.js';
 import { eventChangesSince, PREVIOUS_CHAIN_MAX } from './event-changes.js';
 import { evaluateSource, partyTaxTerms, taxBasis } from './event-evaluate.js';
@@ -13,7 +13,6 @@ import { bookingDate, endOfMonth } from './periods.js';
 import { id as recordId } from './query.js';
 import { isReversed } from './reversal-pairs.js';
 import { sourceBooked } from './event-source-obligations.js';
-import { withNumber } from './source-fingerprint.js';
 import { readSnapshot, snapshotNumber } from './source-snapshot.js';
 import { eventStatuses } from './stored-values.js';
 import { arrivalReversedOn } from './costing-source.js';
@@ -72,7 +71,7 @@ export class FinanceEventViews {
     const policyByDate = new Map<string, string>();
     const taxTerms = partyTaxTerms(this.db);
     return sourceRows.map((source) => {
-      const doc = withNumber(sourceContent(source), source.number);
+      const { doc } = readSource(source);
       const at = doc.confirmedAt ?? source.at;
       let policy = policyByDate.get(at);
       if (policy === undefined) {

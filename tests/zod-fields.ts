@@ -32,6 +32,3 @@ export function fieldSteps(schema: Schema, prefix: FieldStep[] = []): FieldStep[
 
 /** 路径写成一个词，数组那一层不写：lines.item.name */
 export const pathText = (path: readonly FieldStep[]) => path.map((s) => s.key).join('.');
-
-/** 结构里每个字段的路径（数组那一层不写进路径）：送货单的 lines.notes、到货单的 lines.item.name */
-export const fieldPaths = (schema: Schema) => fieldSteps(schema).map(pathText);
