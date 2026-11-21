@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { MicrophoneCapture, type CaptureEnvironment } from '../src/assistant/capture.js';
 import { openCaptureGraph } from '../src/assistant/capture-graph.js';
 import { mergeAudioChunks, resampleAudio, encodePcm16LE } from '../src/assistant/audio.js';
-import { pcmToWav } from '../server/speech/wav.js';
+import { pcmToWav } from '../server/assistant/speech/wav.js';
 
 type Failure = 'module' | 'source' | 'connect' | 'resume';
 type Stats = {

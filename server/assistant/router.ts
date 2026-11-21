@@ -7,7 +7,7 @@ import type { AuthManager } from '../core/index.js';
 import type { AssistantManager } from './manager.js';
 import { AppError, openEventStream, watchDisconnect } from '../core/index.js';
 import { AI_HTTP_TIMEOUT_MS } from '../../shared/ai/index.js';
-import { readAloud, transcribePcm } from '../speech/index.js';
+import { readAloud, transcribePcm } from './speech/service.js';
 import { messageForSpeech } from './speech-text.js';
 import { memoryRouter } from './memory-router.js';
 import { previewRoutes } from './preview-router.js';

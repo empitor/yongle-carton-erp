@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assistantFixture, actor, readAs } from './assistant-fixture.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { assistantSystemPrompt } from '../server/assistant/system-prompt.js';
 import { toolCatalog } from '../server/assistant/tool-catalog.js';
 import {

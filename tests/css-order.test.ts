@@ -22,12 +22,14 @@ test('样式只在 main.tsx 引入，页面里 import 会让结果取决于先�
   const offenders = all
     .filter((f) => /\.(ts|tsx)$/.test(f) && f !== 'main.tsx')
     .filter((f) => imports(readFileSync(join(src, f), 'utf8')).length);
-  assert.deepEqual(offenders, []);
+  assert.deepEqual(offenders.map((f) => f + '：删掉这里的样式 import，改在 src/main.tsx 引入'), []);
 });
 
 test('每份样式都在 main.tsx 里引入，且只引入一次', () => {
   assert.equal(new Set(listed).size, listed.length, '有样式引入了两次');
-  assert.deepEqual([...listed].sort(), all.filter((f) => f.endsWith('.css')).sort());
+  const styles = all.filter((f) => f.endsWith('.css'));
+  assert.deepEqual(styles.filter((f) => !listed.includes(f)).map((f) => f + '：没在 src/main.tsx 引入，按它要压过的样式排好位置加一行 import'), []);
+  assert.deepEqual(listed.filter((f) => !styles.includes(f)).map((f) => f + '：src/main.tsx 引入的样式已经不在了，删掉这行 import'), []);
 });
 
 test('同一主题的几份按序号排', () => {

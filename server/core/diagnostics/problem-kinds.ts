@@ -2,7 +2,7 @@ import { isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROBLEM_TEXT } from '../../../shared/core/index.js';
 import { StoredDataError } from '../errors.js';
-import { programRoot } from './source-paths.js';
+import { programRoot } from './paths.js';
 import { safeText } from './redact.js';
 
 /**

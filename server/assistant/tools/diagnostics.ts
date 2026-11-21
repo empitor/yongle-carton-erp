@@ -1,8 +1,9 @@
-// 只管：最近出错（diagnostics.errors）和运行日志（logs.read：看最后几行，或按字、按时间找）。数据和权限都在基础模块的现成函数里
-// （readRecentProblems、readRunLog、searchRunLog，文字已打码、截断），这里只把参数接过去、把结果换成中文键。
+// 只管：最近出错（diagnostics.errors）和运行日志（logs.read：看最后几行，或按字、按时间找）。数据和权限都在现成函数里
+// （出错记录 readRecentProblems 在基础，运行日志 readRunLog、searchRunLog 在系统资料，文字已打码、截断），这里只把参数接过去、把结果换成中文键。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { problemCategories, readRecentProblems, readRunLog, searchRunLog } from '../../core/index.js';
+import { problemCategories, readRecentProblems } from '../../core/index.js';
+import { readRunLog, searchRunLog } from '../../system/index.js';
 import { notConnected, paging, SHORT_TEXT_CHARS, timeText as time, type ToolContext, type ToolReader } from './context.js';
 
 /** 要找的字最多几个字；不按字找时默认给最后几行 */

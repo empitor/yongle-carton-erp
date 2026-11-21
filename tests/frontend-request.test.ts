@@ -199,15 +199,17 @@ test('只有 src/ui 的请求入口直接调浏览器的 fetch，别处都经入
   const callers = sourceFiles('src').filter((file) =>
     /\bfetch\s*\(|\b(?:globalThis|window|self)\.fetch\b/.test(readFileSync(file, 'utf8')),
   );
-  assert.deepEqual(callers.sort(), Object.keys(fetchEntries).sort());
+  const entries = Object.keys(fetchEntries);
+  assert.deepEqual(callers.filter((f) => !entries.includes(f)).map((f) => f + '：直接调了 fetch，改经 src/ui 的 request（或 call()、uploadFile）发'), []);
+  assert.deepEqual(entries.filter((f) => !callers.includes(f)).map((f) => f + '：已经不直接调 fetch 了，从 fetchEntries 删掉'), []);
 });
 
 const uploadAddress = /['"`][^'"`]*\/upload\b/;
 /** 一个文件里上传的写法不对的地方：自己拼文件正文发请求；写了上传地址（含接口表的键 'POST /inbox/upload'）却不调 uploadFile */
 function uploadProblems(file: string, text: string): string[] {
   return [
-    ...(/application\/octet-stream|\bFormData\b|XMLHttpRequest/.test(text) ? [file + '：自己拼文件正文发请求'] : []),
-    ...(uploadAddress.test(text) && !/\buploadFile\b/.test(text) ? [file + '：发往上传地址却没调 uploadFile'] : []),
+    ...(/application\/octet-stream|\bFormData\b|XMLHttpRequest/.test(text) ? [file + '：自己拼文件正文发请求，改用 src/ui 的 uploadFile 发'] : []),
+    ...(uploadAddress.test(text) && !/\buploadFile\b/.test(text) ? [file + '：发往上传地址却没调 uploadFile，改用 src/ui 的 uploadFile 发'] : []),
   ];
 }
 
@@ -226,7 +228,7 @@ test('上传检查认得接口表的写法：用 call() 发上传地址（正文
 const inbox = call<InboxApi>();
 export const upload = (body: { name: string }) => inbox('POST /inbox/upload', { body });`;
   assert.deepEqual(uploadProblems('src/inbox/__upload_probe__.ts', sample), [
-    'src/inbox/__upload_probe__.ts：发往上传地址却没调 uploadFile',
+    'src/inbox/__upload_probe__.ts：发往上传地址却没调 uploadFile，改用 src/ui 的 uploadFile 发',
   ]);
 });
 

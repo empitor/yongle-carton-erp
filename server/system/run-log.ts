@@ -1,9 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { MIB } from '../../../shared/core/index.js';
-import type { Actor } from '../actor.js';
-import { isoTime, pageWindow, requireSuperAdmin, type PageSize } from './reading.js';
-import { clip, redactSecrets } from './redact.js';
+import { MIB } from '../../shared/core/index.js';
+import { clip, isoTime, pageWindow, redactSecrets, requireSuperAdmin, type Actor, type PageSize } from '../core/index.js';
 
 /**
  * 运行日志：程序自己把输出（console 写到标准输出、标准错误的）另存一份能读回来的，不靠命令行看系统日志。

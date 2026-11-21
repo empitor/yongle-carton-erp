@@ -1,5 +1,5 @@
 // 全局助手代码里的提示词：开场一句、回复格式、六条界限、做事的原则；另有当天日期、当前账号是什么级别。
-// 人设和业务口径在 server/ai/default-prompts/assistant.ts（用户可以在“设置 → 提示词”里改），排在最前面；
+// 人设和业务口径在 server/assistant/default-prompt.ts（用户可以在“设置 → 提示词”里改），排在最前面；
 // 这里的界限排在它后面、写明不能被覆盖。命令怎么用不写在提示词里：在各命令自己的说明里，用到再查（命令目录）。
 import { financeOnlyAccount } from '../../shared/core/index.js';
 import { speakerPairName } from '../../shared/assistant/index.js';

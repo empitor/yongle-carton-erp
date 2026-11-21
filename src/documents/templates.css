@@ -14,20 +14,9 @@
   font-size: var(--text-xs);
 }
 /* admin：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。
-   范围：收件箱、账号、账号菜单弹窗、单据导出、数据管理、单据模板、AI 设置与提示词、插件。
-   只用新类名（adm- 开头），不覆盖 design.css 的公共样式。字号 12/13/14/16，圆角 4/8。 */
+   只用新类名（adm- 开头），不覆盖 design.css 的公共样式。字号 12/13/14/16，圆角 4/8。
+   几个模块都用的说明文字、行内状态、勾选项（adm-muted、adm-inline-status、adm-check）在 ui/elements.css。 */
 
-/* ---------- 通用 ---------- */
-.adm-muted {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-}
-.adm-inline-status {
-  margin: var(--space-sm) 0 0;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-}
 /* ---------- 单据导出（采购、送货详情里的一节） ---------- */
 .record-section.adm-export > header {
   margin-bottom: var(--space-2xs);
@@ -160,21 +149,6 @@
 }
 .adm-template-bar > button:first-of-type {
   margin-left: auto;
-}
-.adm-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-.adm-check.form-field {
-  flex-direction: row;
-  align-items: center;
-}
-.adm-check input[type='checkbox'] {
-  width: auto;
-  min-height: 0;
 }
 .adm-template-grid {
   display: grid;

@@ -171,7 +171,7 @@ function moduleProblems(ix: ClassIndex, f: string, sel: string) {
   });
   if (foreign.length) out.push(f + '：' + sel + '（' + foreign.join('、') + '，' + mod.name + '不能用，规则搬到类名主人的样式里）');
   else if (mod !== base && !missing.length && !cls.some((c) => owner(ix, c) === mod))
-    out.push(f + '：' + sel + '（没有' + mod.name + '自己的类名，改的是别的模块的东西）');
+    out.push(f + '：' + sel + '（没有' + mod.name + '自己的类名，改的是别的模块的东西；加上本模块自己的类名，或把规则搬到类名主人的样式里）');
   return out;
 }
 
@@ -201,7 +201,9 @@ test('样式文件只管自己模块的类名', () => {
 test('待定的规则都还在、也确实还报问题（定下来处理掉了就从 pendingRules 里删）', () => {
   const have = new Set(rules.map(({ f, sel }) => f + '\0' + sel));
   assert.deepEqual(
-    pendingRules.filter((e) => !have.has(e.file + '\0' + e.selector) || !moduleProblems(index, e.file, e.selector).length),
+    pendingRules
+      .filter((e) => !have.has(e.file + '\0' + e.selector) || !moduleProblems(index, e.file, e.selector).length)
+      .map((e) => e.file + '：' + e.selector + '：规则已经不在或不再报问题，从 pendingRules 删掉'),
     [],
   );
 });
@@ -213,7 +215,7 @@ test('前端业务四层的样式只写本层和下层的类名', () => {
 test('登记的例外都还用得上', () => {
   const have = new Set(rules.map(({ f, sel }) => f + '\0' + sel));
   assert.deepEqual(
-    exceptions.filter((e) => !have.has(e.file + '\0' + e.selector)).map((e) => e.file + '：' + e.selector),
+    exceptions.filter((e) => !have.has(e.file + '\0' + e.selector)).map((e) => e.file + '：' + e.selector + '：规则已经不在了，从 exceptions 删掉'),
     [],
   );
 });
@@ -221,9 +223,9 @@ test('登记的例外都还用得上', () => {
 test('样式目录都登记了归哪个模块，分了层的模块里也登记了层', () => {
   const unknown = styles.flatMap((f) => {
     const p = matchOf(f)?.p;
-    if (!p || (p === 'src/' && f.split('/').length > 2)) return [f + '：所在目录没登记进 tests/module-map.ts 的模块表'];
+    if (!p || (p === 'src/' && f.split('/').length > 2)) return [f + '：所在目录没登记进 tests/module-map.ts 的模块表，在它所属模块的 paths 里加上'];
     const mod = ownerModule(f);
-    return mod.layers && layerOf(f, mod) === undefined ? [f + '：没登记进' + mod.name + '的任何一层'] : [];
+    return mod.layers && layerOf(f, mod) === undefined ? [f + '：没登记进' + mod.name + '的任何一层，在 tests/module-map.ts 这个模块的 layers 里加上'] : [];
   });
   assert.deepEqual(unknown, []);
 });

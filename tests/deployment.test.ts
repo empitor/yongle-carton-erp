@@ -11,7 +11,7 @@ import { readDeployment } from '../server/core/deployment.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager } from '../server/assistant/manager.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { fakeDeepSeek, testProtector } from './fake-deepseek.js';
 import { cookieOf, setCookieOf, startProxied, stateActor, userList, type AppOptions } from './http-fixture.js';
 

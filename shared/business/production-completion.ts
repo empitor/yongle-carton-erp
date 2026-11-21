@@ -2,7 +2,7 @@ import { RAW_UNIT } from '../core/index.js';
 import { z } from 'zod';
 import { dateSchema } from '../core/index.js';
 import { positiveQuantity, quantityText } from '../core/index.js';
-import { noteText } from './physical-flow.js';
+import { noteText } from './operations.js';
 /** 一次登记里不挂任务的完工最多几行 */
 const MAX_UNTASKED_LINES = 20;
 const id = z.number().int().positive();

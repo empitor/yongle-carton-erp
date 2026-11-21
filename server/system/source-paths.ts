@@ -1,8 +1,7 @@
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { MIB } from '../../../shared/core/index.js';
-import { AppError } from '../errors.js';
+import { MIB } from '../../shared/core/index.js';
+import { AppError } from '../core/index.js';
 
 /**
  * 读程序代码的范围：只认程序自己的几个代码目录，路径先解析成真实的绝对路径再判断。
@@ -10,8 +9,6 @@ import { AppError } from '../errors.js';
  * 密钥文件、环境变量文件、数据库文件一律拒绝。只给读，不给写和执行。
  */
 
-/** 程序目录（这个文件在 server/core/diagnostics/ 下） */
-export const programRoot = fileURLToPath(new URL('../../../', import.meta.url));
 /** 能读的代码目录（服务器上的安装包没有 src/，存在哪些读哪些） */
 export const sourceDirectories = ['server', 'shared', 'src', 'scripts', 'docs'] as const;
 /** root：程序目录；denied：真实数据目录、备份目录、配置目录这类绝对路径，就算落在代码目录里也不给读 */

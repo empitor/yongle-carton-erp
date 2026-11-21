@@ -10,6 +10,7 @@ import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/auth.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { ImportManager } from '../server/import/manager.js';
 import { importRouter } from '../server/import/router.js';
 import { InboxService } from '../server/inbox/service.js';
@@ -37,7 +38,7 @@ function fixture() {
     dir = temp.dir,
     store = new Store(':memory:'),
     settings = new AiSettingsManager({ protector }),
-    receiptPrompts = new PromptPresetManager(':memory:'),
+    receiptPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
     manager = new ImportManager({ directory: join(dir, 'imports'), settings }),
     receiptAi = new ReceiptAi(store, settings, receiptPrompts);
   const arrivalDoc = (status: 'draft' | 'confirmed' | 'cancelled') =>

@@ -14,8 +14,8 @@ const apiOwners: [prefix: string, module: string][] = [
   ['/auth', '基础'],
   // 页面报错上报进出错记录库（server/core/diagnostics/page-problems.ts）
   ['/diagnostics', '基础'],
-  // 使用手册（server/core/user-manual.ts），“使用说明”页读
-  ['/guide', '基础'],
+  // 使用手册（server/system/user-manual.ts），“使用说明”页读
+  ['/guide', '系统资料'],
   ['/business', '业务汇总'], ['/dashboard', '业务汇总'], ['/customers', '业务汇总'], ['/products', '业务汇总'],
   ['/orders', '业务汇总'], ['/deletions', '业务汇总'], ['/marks', '业务汇总'],
   ['/suppliers', '采购库存'], ['/purchases', '采购库存'], ['/warehouse', '采购库存'], ['/order-batches', '采购库存'],
@@ -38,7 +38,9 @@ const apiOwners: [prefix: string, module: string][] = [
 ];
 const apiAllow: Record<string, string[]> = {
   '前端-基础': ['基础'],
-  '前端-业务': ['基础', '采购库存', '单据流转', '业务汇总', '单据导出'],
+  '前端-业务': ['基础', '采购库存', '单据流转', '业务汇总'],
+  '前端-单据导出': ['单据导出'],
+  '前端-系统资料': ['系统资料'],
   '前端-财务': ['基础', '财务'],
   '前端-识别': ['基础', 'AI接入', '采购库存', '单据流转', '业务汇总', '识别导入'],
   // AI 接入没有自己的页面，模型和提示词设置页在数据管理
@@ -191,9 +193,12 @@ test('前端每个模块只请求自己和能用的后端模块的接口，别�
     const from = ownerModule(f).name;
     for (const r of api.refs(f, readFileSync(f, 'utf8'))) {
       const owner = apiOwner(r.path);
-      if (!owner) bad.push(f + ':' + r.line + '：' + r.path + ' 没登记属于哪个后端模块（' + r.via + '）');
+      if (!owner) bad.push(f + ':' + r.line + '：' + r.path + ' 没登记属于哪个后端模块（' + r.via + '），在本文件的 apiOwners 按前缀登记');
       else if (f.startsWith('src/') && from !== '前端-装配' && !apiAllow[from]?.includes(owner))
-        bad.push(f + ':' + r.line + '（' + from + '）→ ' + r.path + '（' + owner + '，' + r.via + '）');
+        bad.push(
+          f + ':' + r.line + '（' + from + '）→ ' + r.path + '（' + owner + '，' + r.via + '）：' + from + '不能请求' + owner +
+            '的地址。别的模块的数据走 src/ui/slots.tsx 的服务接口（由那个模块实现、src/slots.ts 装配），或借用那个模块经入口给的组件、函数',
+        );
     }
   }
   assert.deepEqual(bad, []);
@@ -216,7 +221,13 @@ test('前端请求地址的取法：该拦的拦住，外部地址、页面跳�
 });
 
 test('登记的每个地址前缀在服务端都还挂着路由，前端模块的可用表只写登记过的模块', () => {
-  assert.deepEqual(apiOwners.filter(([p]) => !hasRouteUnder('/api' + p)).map(([p]) => p), []);
+  assert.deepEqual(
+    apiOwners.filter(([p]) => !hasRouteUnder('/api' + p)).map(([p]) => p + '：服务端已经没有这个前缀的路由，从 apiOwners 删掉或改成现在的前缀'),
+    [],
+  );
   const owners = new Set(apiOwners.map(([, m]) => m));
-  assert.deepEqual(Object.values(apiAllow).flat().filter((m) => !owners.has(m)), []);
+  assert.deepEqual(
+    Object.values(apiAllow).flat().filter((m) => !owners.has(m)).map((m) => m + '：apiOwners 里没有这个模块，从 apiAllow 删掉或先在 apiOwners 登记它的前缀'),
+    [],
+  );
 });

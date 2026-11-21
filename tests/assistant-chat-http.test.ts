@@ -14,7 +14,7 @@ import { createBusinessService } from '../server/business/service.js';
 import { startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { count } from '../server/core/index.js';
 import { planCardSchema } from '../shared/assistant/index.js';

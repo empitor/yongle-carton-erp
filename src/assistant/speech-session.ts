@@ -4,7 +4,7 @@ import {
   SPEECH_MAX_SECONDS,
   SPEECH_MIN_SECONDS,
   SPEECH_REQUEST_TIMEOUT_MS,
-} from '../../shared/ai/index';
+} from '../../shared/assistant/index';
 import { errorMessage } from '../../shared/core/index';
 import { browserAudioContext } from './audio-context';
 import { MicrophoneCapture } from './capture';

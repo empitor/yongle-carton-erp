@@ -11,6 +11,7 @@ import { defaultAiSettingsPath, defaultPromptSettingsPath } from '../server/ai/i
 import { defaultAssistantToolsPath } from '../server/assistant/index.js';
 import { defaultWorkspaceDirectory } from '../server/import/index.js';
 import { defaultBotSettingsPath } from '../server/inbox/index.js';
+import { defaultRunLogPath } from '../server/system/index.js';
 
 const inTemp = (path: string) => {
   const rel = relative(tmpdir().toLowerCase(), path.toLowerCase());
@@ -24,6 +25,7 @@ test('业务库、备份、配置目录、本机数据目录和各个配置库�
     配置目录: configDirectory(),
     账号库: defaultAccountPath(),
     出错记录库: defaultProblemLogPath(),
+    运行日志: defaultRunLogPath(),
     AI设置库: defaultAiSettingsPath(),
     提示词库: defaultPromptSettingsPath(),
     助手工具设置库: defaultAssistantToolsPath(),

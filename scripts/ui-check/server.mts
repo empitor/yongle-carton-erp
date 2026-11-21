@@ -145,14 +145,14 @@ const bots = new BotManager(botSettings, {
   WebSocketImpl: fakeBots.WebSocketImpl,
 });
 // 到货识别：模型替身固定回一张虚构送货单（真实模型模式用真实设置）
-const { ReceiptAi } = await import('../../server/import/index.ts');
+const { ReceiptAi, defaultPromptPreset } = await import('../../server/import/index.ts');
 const { PromptPresetManager } = await import('../../server/ai/index.ts');
 const { makeSettings } = await import('../../tests/assistant-fixture.ts');
 const supplierReply = {
   supplierName: suppliers[0].name, reference: 'GYS-SD-虚构', purchaseNumber: null, date: today(), notes: null, warnings: [],
   lines: [{ name: raws[0][0], specification: null, material: raws[0][3], flute: raws[0][4], length: String(raws[0][1]), width: String(raws[0][2]), dimensionUnit: 'mm', quantity: '500', unit: '张', area: null, unitPrice: null, priceBasis: null, notes: null }],
 };
-const receiptAi = new ReceiptAi(f.store, real ? real.settings : makeSettings(() => supplierReply), new PromptPresetManager(':memory:'));
+const receiptAi = new ReceiptAi(f.store, real ? real.settings : makeSettings(() => supplierReply), new PromptPresetManager(':memory:', defaultPromptPreset));
 // 识别好的文件（模型替身给结果，不调真实模型）：AI 导入页、助手导入卡片、“助手改的”标记要看。
 // 订单那份是“聊天验收客户”的：第 1 行“聊天纸箱甲 300×200×150”这位客户以前订过（一张早就取消的老订单），第 2 行要新建产品。
 if (!real) {
@@ -169,7 +169,8 @@ if (!real) {
   await receiptAi.analyze(source.id, { force: false }, actor);
 }
 // 出错记录和运行日志放在这个实例的临时目录里；助手的只读工具接法和 server/index.ts 一样
-const { ProblemLog, RunLog, captureProcessOutput, programSource } = await import('../../server/core/index.ts');
+const { ProblemLog } = await import('../../server/core/index.ts');
+const { RunLog, captureProcessOutput, programSource } = await import('../../server/system/index.ts');
 const problems = new ProblemLog(join(f.dir, 'logs', 'problems.sqlite'));
 const runLog = new RunLog(join(f.dir, 'logs', 'run.log'));
 captureProcessOutput(runLog);

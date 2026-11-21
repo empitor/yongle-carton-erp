@@ -3,8 +3,7 @@ import type { OrderBatchDraft, OrderBatchView } from '../../shared/business/inde
 import { errorMessage } from '../../shared/core/index';
 import type { DocumentFormat, DocumentTemplate } from '../../shared/documents/index';
 import { FormMessage, ManagementDialog, emit, useAction, useSaveFile } from '../ui/index';
-import { deliverBusinessFile } from '../documents/export-file';
-import { exportDocument, previewDocumentBatch, previewWordFile, readDocumentTemplates } from '../documents/document-api';
+import { deliverBusinessFile, exportDocument, previewDocumentBatch, previewWordFile, readDocumentTemplates } from '../documents/index';
 import { draftOrderBatch, scheduleOrderBatch } from '../warehouse/order-batch-api';
 import { rowDrafts, scheduleBody, scheduleProblem, type RowDrafts } from './BatchSchedule';
 import { FileChoice, OrderFooter, OrderRows, PreviewPane, type Preview } from './OrderBatchParts';

@@ -55,11 +55,14 @@ test('外壳的源码和测试也在查的范围里（构建产物不算）', ()
     'apps/desktop/tests/',
   ];
   for (const dir of shellDirs) assert.ok(files.some((f) => f.startsWith(dir)), dir + ' 下的文件没有查到');
-  assert.deepEqual(files.filter((f) => f.split('/').some((part) => generated.has(part))), []);
+  assert.deepEqual(
+    files.filter((f) => f.split('/').some((part) => generated.has(part))).map((f) => f + '：构建产物被算进来了，查本文件 sources 跳过 generated 目录的写法'),
+    [],
+  );
 });
 
 test('例外名单里的文件都还存在、还超过 500 行（拆完就从名单里删掉）', () => {
   const files = new Set(all());
   const stale = Object.keys(allowed).filter((f) => !files.has(f) || lineCount(f) <= LIMIT);
-  assert.deepEqual(stale, []);
+  assert.deepEqual(stale.map((f) => f + '：已经不在或不超过 ' + LIMIT + ' 行了，从 allowed 名单里删掉'), []);
 });

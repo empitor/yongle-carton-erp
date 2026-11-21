@@ -10,6 +10,8 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import yauzl from 'yauzl';
 import ExcelJS from 'exceljs';
+// 语音在助手模块里，和原来一样在指好临时目录之前加载：这些模块加载时不读写数据
+import { transcribePcm } from '../../server/assistant/index.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const marker = JSON.parse(readFileSync(join(root, '.release-package'), 'utf8'));
 // 版本号以包里的 package.json 为准，不写死，换版本时不用改这里。
@@ -18,7 +20,6 @@ assert.ok(process.execPath.startsWith(join(root, 'runtime')));
 assert.equal(existsSync(join(root, 'data')), false);
 assert.equal(existsSync(join(root, 'backups')), false);
 // 语音交给 DeepSeek 识别（这里不连网，换成假的识别）：1 秒录音包成 WAV，头 44 字节、采样率 16 kHz、16 位
-const { transcribePcm } = await import('../../server/speech/index.ts');
 const heard = await transcribePcm({ speechToText: async (wav) => ({ text: [wav.subarray(0, 4), wav.length, wav.readUInt32LE(24), wav.readUInt16LE(34)].join(' '), durationMs: 0 }) }, Buffer.alloc(32000), 'package-check');
 assert.deepEqual(heard, { text: 'RIFF 32044 16000 16', durationMs: 1000 });
 const dir = mkdtempSync(join(tmpdir(), 'erp-package-check-'));

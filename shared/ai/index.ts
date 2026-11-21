@@ -17,8 +17,6 @@ export {
   uploadPurposes,
 } from './deepseek.js';
 export type { DeepSeekThinking, DeepSeekVoice, UploadPurpose } from './deepseek.js';
-export { SPEECH_MAX_SAMPLES, SPEECH_MAX_SECONDS, SPEECH_MIN_SAMPLES, SPEECH_MIN_SECONDS, SPEECH_REQUEST_TIMEOUT_MS, SPEECH_SAMPLE_RATE, SPEECH_WAV_HEADER_BYTES } from './speech.js';
-export type { ReadAloudRequest, SpeechResult } from './speech.js';
 export { promptModules } from './prompt-modules.js';
 export type { PromptModuleId } from './prompt-modules.js';
 export { promptActions, promptPresetSchema, promptRevisionSchema, promptSaveSchema, promptStateSchema, promptTargetSchema } from './prompt-presets.js';

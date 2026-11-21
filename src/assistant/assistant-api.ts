@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { inventoryPolicyBody, type AssistantApi, type JsonView } from '../../shared/assistant/index';
-import type { ReadAloudRequest } from '../../shared/ai/index';
+import type { ReadAloudRequest } from '../../shared/assistant/index';
 import { attachmentKinds, attachmentTransfers, isRecord } from '../../shared/core/index';
 import { authChanged, call, parseAuthState, readJson, request, throwIfFailed, uploadFile } from '../ui/index';
 import { attachmentUrl } from './attachment-slots';
@@ -175,7 +175,7 @@ export async function speechToken(userId: string | undefined, signal: AbortSigna
   return auth.csrf;
 }
 
-/** 录音识别的回答（shared/ai 的 SpeechResult）：只用识别出的文字 */
+/** 录音识别的回答（shared/assistant 的 SpeechResult）：只用识别出的文字 */
 export const speechReplySchema = z.object({ text: z.string() });
 /** 录音交给 DeepSeek 识别，返回识别出的文字（去掉首尾空白） */
 export async function transcribe(csrf: string, pcm: ArrayBuffer, signal: AbortSignal) {

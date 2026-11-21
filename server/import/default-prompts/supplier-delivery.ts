@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-// 供应商送货单识别的默认规则：只放表上放不下的。栏目怎么填写在表上（server/import/receipt-form.ts）。所有识别模块的默认提示词都放在 server/ai/default-prompts/，由 recognition-modules.ts 登记。
+// 供应商送货单识别的默认规则：只放表上放不下的。栏目怎么填写在表上（server/import/receipt-form.ts）。识别的默认提示词放在这个目录，由装配（server/index.ts）交给 AI 接入的提示词库。
 export const supplierDefaultPreset = () => ({
   id: randomUUID(),
   name: '供应商送货单识别 · 默认',

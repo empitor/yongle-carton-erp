@@ -23,7 +23,7 @@ import {
   OrderImportPage,
 } from './lazy-pages';
 import { RecordPages, recordPages } from './records/index';
-import GuidePage from './GuidePage';
+import { GuidePage } from './system/index';
 import {
   homePage,
   ownHeading,

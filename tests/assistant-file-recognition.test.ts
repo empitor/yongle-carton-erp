@@ -10,7 +10,7 @@ import { actor, readAs } from './assistant-fixture.js';
 import { fakeAiSettings, forcedFunction, freshUserText } from './fake-deepseek.js';
 import { docxFixture, xlsxFixture } from './import-fixtures.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { supplierDefaultPreset } from '../server/ai/default-prompts/supplier-delivery.js';
+import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
 
 const arrivalResult = {

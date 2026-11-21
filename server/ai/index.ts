@@ -5,7 +5,6 @@ export type { RawToolCall } from './chat-receiver.js';
 export { AiConnectionError } from './errors.js';
 export { defaultAiSettingsPath, initializeCredentialProtection, platformProtector } from './credential-store.js';
 export type { SecretProtector } from './credential-store.js';
-export { defaultPromptPreset } from './default-prompts/sales-order.js';
 export { retryBadModelOutput } from './model-retry.js';
 export { aiPageGuard } from './page-guard.js';
 export { PromptPresetManager, defaultPromptSettingsPath } from './prompt-presets.js';

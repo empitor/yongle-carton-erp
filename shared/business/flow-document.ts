@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { dateSchema, quantityText } from '../core/index.js';
+import { reversalRecordSchema } from './operations-views.js';
 import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema, type FlowKind } from './physical-flow.js';
 
 /*
@@ -21,7 +22,7 @@ const lifecycle = {
   confirmedAt: z.string().optional(),
   movements: z.array(z.string()).optional(),
   cancellation: z.strictObject(by).optional(),
-  reversal: z.strictObject({ ...by, requestId: z.string().optional(), movements: z.array(z.string()) }).optional(),
+  reversal: reversalRecordSchema.optional(),
   // 删除引擎删掉原单时写成 null（server/flow/deletion.ts 的 mirrors）
   correctionOf: id.nullable().optional(),
   correctionReason: z.string().optional(),

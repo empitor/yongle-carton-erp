@@ -23,7 +23,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { makeSettings } from './assistant-fixture.js';
 import { orderBasics } from './stack-fixture.js';
 import { fixture } from './maintenance-fixture.js';

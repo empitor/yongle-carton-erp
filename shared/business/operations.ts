@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { PRICE_DECIMALS, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
+import { PRICE_DECIMALS, RAW_UNIT, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
 import { chosenId, dateSchema, exactPriceSchema, customerSchema } from '../core/index.js';
 import { cmLimitIssue, dimensionUnitSchema, priceBases, dimensionValueSchema, specification, withinCmLimit } from '../core/index.js';
-import { MONEY_DECIMALS, NOTE_MAX_LENGTH, UNIT_MAX_LENGTH } from './limits.js';
+import { MONEY_DECIMALS, NOTE_MAX_LENGTH, SQUARE_METRE_SHIFT, UNIT_MAX_LENGTH } from './limits.js';
 /** 楞型最多多少字 */
 const FLUTE_MAX_LENGTH = 50;
 /** 一张采购单最多几行明细 */
@@ -74,6 +74,19 @@ export const stockItemSchema = z
     productId: optionalId('产品'),
   })
   .refine(withinCmLimit, cmLimitIssue);
+/** 单据的说明文字（备注、地址、联系人这类）：去掉首尾空白，最多 2000 字；说明编辑（server/flow/document-info.ts）也用它 */
+export const noteText = z.string().trim().max(NOTE_MAX_LENGTH);
+/**
+ * 到货明细里的纸板（到货单一行的 item）：到货没选库存品时按它对上已有的原材料，没有就按它新建（server/operations/stock-items.ts）。
+ * 到货的纸板只有“张”：空、没写的 flowInput 归成“张”，别的单位由单据保存服务拦
+ */
+export const arrivalItemSchema = z
+  .object(stockItemSchema.shape)
+  .omit({ kind: true, productId: true })
+  .extend({ unit: z.string().trim().max(UNIT_MAX_LENGTH).default(RAW_UNIT) });
+export type ArrivalItem = z.output<typeof arrivalItemSchema>;
+/** 到货明细的计价方式：没选是 null（到货单录入时默认按平方米，见 physical-flow.ts 的 arrivalLineSchema） */
+export const arrivalPriceBasisSchema = z.enum(priceBases, { error: '计价方式只能选按平方米或按张' }).nullable();
 /**
  * 采购明细必须写的尺寸栏（用户定的）：没关联库存品的行要写长和宽（页面“尺寸”那组；高收在“更多”里、尺寸单位不确定可不选，都不要求），
  * 材质、楞型选填；关联了库存品的行尺寸跟着库存品走，不要求。服务端保存（server/operations/purchase-save.ts）
@@ -147,4 +160,46 @@ export function formatStockSize(v: {
   // 就是 specification() 里尺寸那一段，写法完全一样：单位规范成 mm / cm，没写单位的只写数字、不写“尺寸单位待确认”；
   // 末尾没填的不写，中间没填的写“—”；长宽高一项都没填时是空串，调用处显示“—”或不显示
   return specification({ length: v.length, width: v.width, height: v.height, dimensionUnit: v.dimensionUnit });
+}
+/** 十进制数里科学记数法的指数最多多大（再大就当无效数，不去算天文数字） */
+const MAX_DECIMAL_EXPONENT = 400;
+/** 一个十进制数写成整数系数和小数位数：12.5 是 125 和 1 位 */
+function decimalTerm(v: string) {
+  const match = /^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(v);
+  if (!match || Math.abs(Number(match[3] || 0)) > MAX_DECIMAL_EXPONENT) throw new Error('无效十进制数');
+  const [, a, b = '', exponent = '0'] = match,
+    termScale = b.length - Number(exponent),
+    digits = BigInt(a + b);
+  return {
+    coefficient: termScale < 0 ? digits * 10n ** BigInt(-termScale) : digits,
+    scale: Math.max(0, termScale),
+  };
+}
+// 十进制精确面积/金额。尺寸单位未知时返回null，不把未知尺寸当作毫米。
+function multiplyDecimal(values: [string, ...string[]], divisionScale = 0): string {
+  const terms = values.map(decimalTerm);
+  const value = terms.map((t) => t.coefficient).reduce((product, c) => product * c),
+    scale = terms.reduce((n, t) => n + t.scale, divisionScale);
+  const s = String(value).padStart(scale + 1, '0');
+  return scale ? (s.slice(0, -scale) + '.' + s.slice(-scale)).replace(/\.?0+$/, '') : s;
+}
+/** 算纸板面积要用的库存品资料：单位、长、宽和尺寸单位 */
+export type SheetItem = {
+  unit?: string | null;
+  length?: number | null;
+  width?: number | null;
+  dimensionUnit?: string | null;
+};
+export function sheetArea(item: SheetItem, quantity: string): string | null {
+  const unit = item.dimensionUnit;
+  if (item.unit !== RAW_UNIT || (unit !== 'mm' && unit !== 'cm') || !((item.length ?? 0) > 0) || !((item.width ?? 0) > 0))
+    return null;
+  return multiplyDecimal([String(item.length), String(item.width), quantity], SQUARE_METRE_SHIFT[unit]);
+}
+/** 采购、到货一行的金额：数量、单价和计价方式（按面积时还要纸板资料） */
+type PricedLine = SheetItem & { quantity: string; unitPrice?: string | null; priceBasis?: string | null };
+export function purchaseLineAmount(line: PricedLine): string | null {
+  if (line.unitPrice == null || line.priceBasis === null) return null;
+  const basis = line.priceBasis === 'area' ? sheetArea(line, line.quantity) : line.quantity;
+  return basis == null ? null : multiplyDecimal([basis, line.unitPrice]);
 }

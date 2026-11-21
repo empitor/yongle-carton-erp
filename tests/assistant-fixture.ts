@@ -5,7 +5,7 @@ import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import { AssistantTools } from '../server/assistant/tools.js';
 import type { ToolContext, ToolServices } from '../server/assistant/tools/context.js';
-import { assistantDefaultPreset } from '../server/ai/default-prompts/assistant.js';
+import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import type { AgentOptions } from '../server/assistant/chat/agent-config.js';
 import type { AgentBudgetLimits } from '../server/assistant/budget.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';

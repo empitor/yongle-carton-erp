@@ -20,6 +20,8 @@ export const modules: Rule[] = [
   // 服务端
   { name: '基础', paths: ['server/core/'], allow: ['共用-基础'] },
   { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
+  // 系统资料：运行日志、登录记录、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
+  { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
   // 业务主线分三层，只能往下：采购库存 ← 单据流转 ← 业务汇总
   { name: '采购库存', paths: ['server/operations/'], allow: ['基础', '共用-基础', '共用-业务'] },
   { name: '单据流转', paths: ['server/flow/'], allow: ['基础', '采购库存', '共用-基础', '共用-业务'] },
@@ -32,7 +34,7 @@ export const modules: Rule[] = [
   },
   {
     name: '识别导入',
-    paths: ['server/import/', 'server/inbox/', 'server/speech/'],
+    paths: ['server/import/', 'server/inbox/'],
     allow: ['基础', 'AI接入', '单据流转', '共用-基础', '共用-AI', '共用-识别'],
   },
   {
@@ -44,7 +46,7 @@ export const modules: Rule[] = [
   {
     name: '助手',
     paths: ['server/assistant/'],
-    allow: ['基础', 'AI接入', '采购库存', '单据流转', '业务汇总', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
+    allow: ['基础', 'AI接入', '系统资料', '采购库存', '单据流转', '业务汇总', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
   },
   // 服务端根目录只放启动、装配和命令行入口，可以引用全部（只算根目录的文件，新建的子目录要登记进上面的模块）
   { name: '装配', paths: ['server/'], allow: ['*'] },
@@ -84,20 +86,25 @@ export const modules: Rule[] = [
   { name: '共用-财务', paths: ['shared/finance/'], allow: ['共用-基础'] },
   { name: '共用-单据', paths: ['shared/documents/'], allow: ['共用-基础', '共用-业务'] },
   { name: '共用-AI', paths: ['shared/ai/'], allow: [] },
+  { name: '共用-系统资料', paths: ['shared/system/'], allow: [] },
   { name: '共用-识别', paths: ['shared/import/'], allow: ['共用-基础', '共用-AI'] },
   { name: '共用-管理', paths: ['shared/admin/'], allow: ['共用-基础', '共用-业务'] },
   { name: '共用-助手', paths: ['shared/assistant/'], allow: ['共用-基础', '共用-业务', '共用-AI'] },
   // 前端：和服务端同样分模块，能用的共用代码不超过服务端对应的模块；都不能引用服务端代码。
   // 前端数据管理还放着 AI 接入的模型、提示词设置页和识别导入的消息接入设置页，所以多了共用-AI、共用-识别
   { name: '前端-基础', paths: ['src/ui/'], allow: ['共用-基础'] },
+  // 使用说明页
+  { name: '前端-系统资料', paths: ['src/system/'], allow: ['前端-基础', '共用-基础', '共用-系统资料'] },
+  // 单据导出的前端（导出窗、模板设置、文件交付）：业务页面和助手经它的 index.ts、pages.ts 用；能用的共用代码不超过服务端单据导出
+  { name: '前端-单据导出', paths: ['src/documents/'], allow: ['前端-基础', '共用-基础', '共用-单据'] },
   {
     // 业务主线的前端按界面角色分四层，只往下用：上层嵌下层的窗口，下层要打开上层的页面用页面地址，不引上层的代码。
     // 单据在采购仓储下面（采购、仓储页面要显示到货单、送货单，单据窗口用不着采购窗口），和服务端三层的顺序不同。
     name: '前端-业务',
-    paths: ['src/records/', 'src/recordkit/', 'src/flow/', 'src/warehouse/', 'src/operations/', 'src/editors/', 'src/marks/', 'src/documents/'],
-    allow: ['前端-基础', '共用-基础', '共用-业务', '共用-单据'],
+    paths: ['src/records/', 'src/recordkit/', 'src/flow/', 'src/warehouse/', 'src/operations/', 'src/editors/', 'src/marks/'],
+    allow: ['前端-基础', '前端-单据导出', '共用-基础', '共用-业务', '共用-单据'],
     layers: [
-      { name: '业务公共件', paths: ['src/recordkit/', 'src/marks/', 'src/editors/', 'src/documents/'] },
+      { name: '业务公共件', paths: ['src/recordkit/', 'src/marks/', 'src/editors/'] },
       { name: '单据', paths: ['src/flow/'] },
       { name: '采购仓储', paths: ['src/operations/', 'src/warehouse/'] },
       { name: '页面', paths: ['src/records/'] },
@@ -117,7 +124,7 @@ export const modules: Rule[] = [
   {
     name: '前端-助手',
     paths: ['src/assistant/'],
-    allow: ['前端-基础', '前端-业务', '共用-基础', '共用-业务', '共用-AI', '共用-助手'],
+    allow: ['前端-基础', '前端-业务', '前端-单据导出', '共用-基础', '共用-业务', '共用-AI', '共用-助手'],
   },
   // src 根目录和手机导航：入口、导航、登录、账号菜单、设置总页、插槽装配，把各模块的页面装起来
   { name: '前端-装配', paths: ['src/', 'src/mobile/'], allow: ['前端-*', '*共用'] },

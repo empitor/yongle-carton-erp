@@ -13,6 +13,7 @@ import { Store } from '../server/core/db.js';
 import { listen } from './http-fixture.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { ImportManager } from '../server/import/manager.js';
 import { ImportRepository } from '../server/import/repository.js';
 import { importRouter } from '../server/import/router.js';
@@ -184,7 +185,7 @@ function importsFixture(wiring: 'router' | 'per-id' | 'none') {
   seedSources(store);
   seedWorkspaces(database, docs);
   const settings = new AiSettingsManager({ protector }),
-    receiptPrompts = new PromptPresetManager(':memory:'),
+    receiptPrompts = new PromptPresetManager(':memory:', defaultPromptPreset),
     manager = new ImportManager({
       directory: join(dir, 'imports'),
       database,

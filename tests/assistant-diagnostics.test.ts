@@ -18,7 +18,7 @@ import { jobsReaders } from '../server/assistant/tools/jobs.js';
 import { adminViewReaders } from '../server/assistant/tools/admin-view.js';
 import { guideReaders } from '../server/assistant/tools/guide.js';
 import express from 'express';
-import { userManualRouter } from '../server/core/user-manual.js';
+import { userManualRouter } from '../server/system/user-manual.js';
 import { documentInboxReaders } from '../server/assistant/tools/documents-inbox.js';
 import { managementReaders } from '../server/assistant/tools/management.js';
 import { systemStatus } from '../server/assistant/tools/system.js';

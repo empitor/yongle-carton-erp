@@ -14,6 +14,7 @@ import { listen, startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { ImportManager } from '../server/import/manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
+import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { fakeAiSettings, fakeDeepSeek, fakeKey, httpError } from './fake-deepseek.js';
 import { settingsAt, storedSettings, withTempDir } from './ai-settings-fixture.js';
 
@@ -192,7 +193,7 @@ test('只读和业务账号不能改 AI 设置；只读账号不能动导入工�
   const dir = mkdtempSync(join(tmpdir(), 'erp-review-'));
   const store = new Store(':memory:'),
     { settings } = fakeAiSettings(),
-    prompts = new PromptPresetManager(':memory:'),
+    prompts = new PromptPresetManager(':memory:', defaultPromptPreset),
     imports = new ImportManager({
       directory: join(dir, 'imports'),
       settings,
