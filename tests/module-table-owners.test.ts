@@ -45,6 +45,9 @@ const tableReadExceptions: { reader: string; owner: string; why: string }[] = [
   { reader: '财务', owner: '单据流转', why: '同上' },
 ];
 
+/** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构说明.md“财务事件和凭证”） */
+const readOnlyPaths = ['server/flow/finance-facts/'];
+
 /**
  * 有的表除了归一个模块，还只许模块里的一个文件写：“哪些内容存在列里、哪些存在 JSON 里”的规矩集中在一处，别处不会漏。
  * deletion.ts 是登记给删除引擎的语句前缀和整表清空。
@@ -130,6 +133,9 @@ function sqlViolations(f: string, facts = sqlFacts(f)) {
   const mod = ownerModule(f);
   const bad: string[] = [];
   const writeAny = tableWriteExceptions.some((e) => (e.path.endsWith('/') ? f.startsWith(e.path) : f === e.path));
+  if (readOnlyPaths.some((p) => f.startsWith(p)))
+    for (const line of [...facts.writes.map((w) => w.line), ...facts.dynamicWrites])
+      bad.push(f + ':' + line + '：只读目录里写了库。这里只给数据，要改数据调表主人模块的服务');
   if (!writeAny) for (const line of facts.dynamicWrites) bad.push(f + ':' + line + '：表名是拼出来的写入，看不出写的是谁的表。把表名写成字面量，或改调表主人模块的接口');
   for (const w of facts.writes) {
     const owner = tableOwner(w.table);
@@ -248,4 +254,17 @@ test('回归：SQL 读写检查不分大小写，认得出带引号的表名、�
   assert.deepEqual(sqlCheck('server/flow/sample.ts', "db.exec('drop table if exists flow_tmp')"), [], '删自己的表不拦');
   // 建表要登记归属
   assert.deepEqual(sqlFacts('server/flow/sample.ts', "db.exec('create table if not exists \"flow_new\"(id integer)')").creates, ['flow_new']);
+});
+
+test('只读目录里没有写库的 SQL，自己模块的表也不写；登记的目录都还在', () => {
+  assert.deepEqual(readOnlyPaths.filter((p) => !all.some((f) => f.startsWith(p))), [], '只读目录已经没有文件了，从 readOnlyPaths 删掉');
+  const sqlCheck = (text: string) => sqlViolations('server/flow/finance-facts/sample.ts', sqlFacts('server/flow/finance-facts/sample.ts', text));
+  for (const s of [
+    "db.prepare('update flow_documents set version=1')",
+    "db.prepare('INSERT INTO flow_refs(document_id) VALUES(?)')",
+    "db.prepare('delete from customers where id=?')",
+    "db.prepare('UPDATE ' + table + ' SET a=1')",
+  ])
+    assert.ok(sqlCheck(s).some((x) => x.includes('只读目录')), '只读目录里应拦住：' + s);
+  assert.deepEqual(sqlCheck("db.prepare('SELECT p.name FROM customers p JOIN flow_documents f ON f.id=p.id')"), [], '只读目录里读不该拦');
 });

@@ -5,8 +5,7 @@ import type { FinanceEntry } from '../../shared/finance/index.js';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { exists, many, one, parseStoredJson, rows } from '../core/index.js';
-import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { partyName } from './business-source.js';
+import { checkVersion, financeActor, financeAudit, financeError, financeWrite, requirePartyName } from './core.js';
 import { financeTemplate } from './template.js';
 import { FinanceLedger } from './ledger.js';
 import { edit, entry, id, label, money, pageSql, partyKind, request, row } from './query.js';
@@ -126,7 +125,7 @@ export class FinanceDepositsInterest {
       })
       .parse(raw);
     return financeWrite(this.store, user, { action: 'deposit.create', input: v, result: rows.fin_deposits }, () => {
-      const name = partyName(this.db, v.partyKind, v.partyId);
+      const name = requirePartyName(this.db, v.partyKind, v.partyId);
       const key = Number(
         this.db
           .prepare(

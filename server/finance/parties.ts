@@ -18,8 +18,8 @@ import {
 } from './terms.js';
 import { edit, entry, id, label, money, pageSql, request, row } from './query.js';
 import { parsePaging } from '../core/index.js';
-import { checkVersion, financeActor, financeAudit, financeError, financeWrite } from './core.js';
-import { partyName, partyOptions } from './business-source.js';
+import { checkVersion, financeActor, financeAudit, financeError, financeWrite, requirePartyName } from './core.js';
+import { financeFacts } from '../flow/index.js';
 import { financeTemplate } from './template.js';
 import { obligationKinds, partyKinds } from './stored-values.js';
 import { isReversed } from './reversal-pairs.js';
@@ -93,7 +93,7 @@ export class FinanceParties {
   /** 选客户、供应商用的单位名单（没归档的）：要财务查看权限就能读，出纳这类纯财务账号不用借业务的地址 */
   options(actor: Actor | null, raw: unknown) {
     financeActor(actor);
-    return partyOptions(this.store.db, z.object({ kind: partyKind }).parse(raw).kind);
+    return financeFacts.parties.options(this.store.db, z.object({ kind: partyKind }).parse(raw).kind);
   }
   badDebt(actor: Actor | null, rawId: unknown, raw: unknown) {
     const user = financeActor(actor, 'finance:edit'),
@@ -189,7 +189,7 @@ export class FinanceParties {
     return financeWrite(this.store, user, { action: 'obligations.create', input: v, result: rows.fin_obligations }, () => {
       const db = this.store.db,
         ar = v.kind === 'receivable';
-      const name = partyName(db, ar ? 'customer' : 'supplier', v.partyId);
+      const name = requirePartyName(db, ar ? 'customer' : 'supplier', v.partyId);
       const terms = partyTerms(db, ar ? 'customer' : 'supplier', String(v.partyId));
       const due = v.dueDate === undefined ? dueDate(v.date, terms) : v.dueDate;
       const account = ar ? '1122' : '2202';
@@ -270,7 +270,7 @@ export class FinanceParties {
       input = terms.parse(raw);
     return financeWrite(this.store, user, { action: 'terms.save', input, result: rows.fin_party_terms }, () => {
       const db = this.store.db;
-      const name = partyName(db, input.kind, input.partyId);
+      const name = requirePartyName(db, input.kind, input.partyId);
       const id = String(input.partyId),
         before = partyTerms(db, input.kind, id);
       if (before) {

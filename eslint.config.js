@@ -152,4 +152,17 @@ export default [
       'local/no-direct-db-read': 'error',
     },
   },
+  {
+    // 财务从业务拿数据的只读窗口：只用 server/core 的 one、many、exists、count 读，能写库的入口一个都不碰（SQL 里的写由 tests/module-table-owners.test.ts 查）
+    files: ['server/flow/finance-facts/**/*.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        ...['prepare', 'exec', 'run', 'transaction'].map((property) => ({
+          property,
+          message: '只读窗口只用 server/core 的 one、many、exists、count 读库，不碰 prepare、exec、run、transaction。',
+        })),
+      ],
+    },
+  },
 ];
