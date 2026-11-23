@@ -54,7 +54,7 @@
 
 ## 模块
 
-代码按模块分：基础、账号、AI 接入、系统资料、业务主线（客户产品订单 ← 采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览六层）、财务、单据导出、识别导入、数据管理、助手，外加启动装配；服务端、`shared/`、`src/` 用同一套分法。模块表、谁能用谁、模块内怎么分层见 `docs/架构说明.md`“模块”；模块表和层登记在 `tests/module-map.ts`。五条规则，这些检查会拦：`tests/module-boundaries.test.ts`（引用和分层）、`tests/module-api-owners.test.ts`（前端请求的地址）、`tests/module-table-owners.test.ts`（表的主人）、`tests/module-narrow-refs.test.ts`（只许用对方几个名字的窄引用）、`tests/module-test-entries.test.ts`（测试只经入口引模块）、`tests/module-names.test.ts`（登记用的模块名和模块表一致）、`tests/css-modules.test.ts`（样式的类名）：
+代码按模块分：基础、账号、AI 接入、系统资料、业务主线（客户产品订单 ← 采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览六层）、财务、单据导出、识别导入、数据管理、助手，外加启动装配；服务端、`shared/`、`src/` 用同一套分法。模块表、谁能用谁、模块内怎么分层见 `docs/架构说明.md`“模块”；模块表和层登记在 `tests/checks/module-map.ts`。五条规则，这些检查会拦：`tests/checks/module-boundaries.test.ts`（引用和分层）、`tests/checks/module-api-owners.test.ts`（前端请求的地址）、`tests/checks/module-table-owners.test.ts`（表的主人）、`tests/checks/module-narrow-refs.test.ts`（只许用对方几个名字的窄引用）、`tests/checks/module-test-entries.test.ts`（测试只经入口引模块）、`tests/checks/module-names.test.ts`（登记用的模块名和模块表一致）、`tests/checks/css-modules.test.ts`（样式的类名）：
 
 - **只往下用：** 新代码放进所属模块的目录，只能引用更基础的模块；前端模块能用的共用代码不超过服务端对应的模块（例外：前端数据管理也放着 AI 接入的模型和提示词设置页、识别导入的消息接入设置页，所以还能用共用-AI、共用-识别）。分了层的模块（前端业务、共用业务、服务端基础、服务端采购库存、服务端单据流转）内部也只往下用，代码和样式都只能用本层和下层的；新文件、新目录要登记进某一层；现在一处越层都没有，检查不许有。没分层的模块，内部照“文件怎么分”。
 - **只走接口：** 引用别的模块只走它的 `index.ts`（按需加载的页面走 `pages.ts`），接口只列有人用的名字，不转手别的模块的东西。脚本和配置文件（`scripts/`、`vite.config.ts`）引用模块也一样，确实要验证内部实现的在测试里登记理由；动态加载（`import(变量)`、`require`、`new URL(…, import.meta.url)`）的目标要能看出来。
@@ -80,7 +80,7 @@
 
 加表或字段、改配置库、加页面、加写地址、加助手工具，各要一起改、一起登记哪些地方，逐项清单在文档里，漏了多数会被检查拦下；照清单改完，同一轮改文档（见“文档怎么维护”）。
 
-- **表、字段：** 0.9.0 已经发布，结构快照 `tests/fixtures/schema-v20.sql` 和已发布的升级步骤都不许改。改结构在 `server/core/schema/steps.ts` 末尾加编号的升级步骤（规矩写在那个文件开头），同时把 `server/core/schema/tables/` 改成改完以后的完整结构、`server/core/schema/version.ts` 的 `SCHEMA_LATEST` 加一，每一步带一份升级前后的小数据样例（放 `tests/fixtures/upgrade-samples/`，`tests/upgrade-step-samples.test.ts` 真跑比对，没有样例就失败）；再跑 `npm run schema:dump` 重新生成读库用的行结构，它会在导出第 20 版快照那一步报错退出，这是预期的。新表、枚举列、单据镜像列、单据内容新字段要一起登记的地方见 `docs/架构/数据库和备份.md`“改结构时一起改”。
+- **表、字段：** 0.9.0 已经发布，结构快照 `tests/fixtures/schema-v20.sql` 和已发布的升级步骤都不许改。改结构在 `server/core/schema/steps.ts` 末尾加编号的升级步骤（规矩写在那个文件开头），同时把 `server/core/schema/tables/` 改成改完以后的完整结构、`server/core/schema/version.ts` 的 `SCHEMA_LATEST` 加一，每一步带一份升级前后的小数据样例（放 `tests/fixtures/upgrade-samples/`，`tests/core/upgrade-step-samples.test.ts` 真跑比对，没有样例就失败）；再跑 `npm run schema:dump` 重新生成读库用的行结构，它会在导出第 20 版快照那一步报错退出，这是预期的。新表、枚举列、单据镜像列、单据内容新字段要一起登记的地方见 `docs/架构/数据库和备份.md`“改结构时一起改”。
 - **配置库**（账号、出错记录、AI 设置、提示词、助手工具设置、机器人设置、AI 识别工作区）：在那个库规格的 `steps` 末尾加一步、同一步把 `create` 改成完整结构、带数据样例；基线快照和已发布的步骤不许改；新加配置库要登记短名、导出基线快照。规矩写在 `server/core/backup/versioned-sqlite-spec.ts` 开头，细则见 `docs/架构/数据库和备份.md`“配置库”“改结构时一起改”。
 - **页面、写地址、助手工具：** 清单在 `docs/功能链路表.md`“新增功能时”。每个写地址登记成一条业务动作、只属于一条动作，前端只由一个 `*-api.ts` 发；同一种记录的同一个动词已经有动作了，就用它，不另开地址。人能在界面上做的业务功能，助手同一轮也要能做；助手的写入一律出确认卡片，卡片上写明动的是哪条记录、每个变了的字段。
 
@@ -100,7 +100,7 @@ npm run check
 
 一条命令按顺序跑全部体检，哪步不过就停在哪：类型检查 → 代码检查 → 函数只许变小 → 样式写死的值 → 没人用的代码 → 重复代码 → 完整测试 → 覆盖 → 发布检查 → 构建到临时目录，约三分钟。各步的命令、测试怎么分组运行、在哪台机器上跑，见 `docs/架构/检查和测试.md`“测试怎么跑”。
 
-- 改的过程中点名跑相关的测试（`npm test -- tests/<a>.test.ts`；`npm run test:related` 按 git 改动挑测试，只在改动少时用），想快就对单个目录跑 `npx eslint <目录>`；收尾跑一次 `npm run check`。
+- 改的过程中点名跑相关的测试（`npm test -- tests/<大类>/<a>.test.ts`；`npm run test:related` 按 git 改动挑测试，只在改动少时用），想快就对单个目录跑 `npx eslint <目录>`；收尾跑一次 `npm run check`。
 - 改了界面跑相关的浏览器流程（如 `npm run test:ui -- production`，`--list` 看有哪些组，`a11y` 组查无障碍）；全部流程发布前跑。改了 `apps/` 跑 `npm run check:apps`（不在 `npm run check` 里）。
 - 自己的检查不放在 GitHub 上跑（那边的机器慢，靠时间的测试会误报；GitHub 自带的代码扫描照常）：Windows 在开发机上跑，Linux 在服务器上打包之前跑（见 `docs/部署与运维.md`“打包和 Linux 验证”）。红了先修，不接着发布。
 

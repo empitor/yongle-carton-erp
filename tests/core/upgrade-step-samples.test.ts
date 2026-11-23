@@ -218,7 +218,7 @@ test('升级样例的写法不对会报出来：文件名、缺 after、值不�
     const text = problems.join('\n');
     assert.match(text, /第21步\.json：文件名要写成 v<版本号>\.json/);
     assert.match(text, /v022\.json：文件名要写成 v<版本号>\.json，版本号不带前面的 0/);
-    assert.match(text, /v21\.json：after.*写法见 tests\/upgrade-step-samples\.test\.ts 开头/);
+    assert.match(text, /v21\.json：after.*写法见 tests\/core\/upgrade-step-samples\.test\.ts 开头/);
     assert.match(text, /v23\.json：不是合法的 JSON（[^）]+），写法见/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
