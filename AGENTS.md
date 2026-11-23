@@ -54,7 +54,7 @@
 
 ## 模块
 
-代码按模块分：基础、账号、AI 接入、系统资料、业务主线（采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览五层）、财务、单据导出、识别导入、数据管理、助手，外加启动装配；服务端、`shared/`、`src/` 用同一套分法。模块表、谁能用谁、模块内怎么分层见 `docs/架构说明.md`“模块”；模块表和层登记在 `tests/module-map.ts`。五条规则，这些检查会拦：`tests/module-boundaries.test.ts`（引用和分层）、`tests/module-api-owners.test.ts`（前端请求的地址）、`tests/module-table-owners.test.ts`（表的主人）、`tests/module-narrow-refs.test.ts`（只许用对方几个名字的窄引用）、`tests/module-test-entries.test.ts`（测试只经入口引模块）、`tests/module-names.test.ts`（登记用的模块名和模块表一致）、`tests/css-modules.test.ts`（样式的类名）：
+代码按模块分：基础、账号、AI 接入、系统资料、业务主线（客户产品订单 ← 采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览六层）、财务、单据导出、识别导入、数据管理、助手，外加启动装配；服务端、`shared/`、`src/` 用同一套分法。模块表、谁能用谁、模块内怎么分层见 `docs/架构说明.md`“模块”；模块表和层登记在 `tests/module-map.ts`。五条规则，这些检查会拦：`tests/module-boundaries.test.ts`（引用和分层）、`tests/module-api-owners.test.ts`（前端请求的地址）、`tests/module-table-owners.test.ts`（表的主人）、`tests/module-narrow-refs.test.ts`（只许用对方几个名字的窄引用）、`tests/module-test-entries.test.ts`（测试只经入口引模块）、`tests/module-names.test.ts`（登记用的模块名和模块表一致）、`tests/css-modules.test.ts`（样式的类名）：
 
 - **只往下用：** 新代码放进所属模块的目录，只能引用更基础的模块；前端模块能用的共用代码不超过服务端对应的模块（例外：前端数据管理也放着 AI 接入的模型和提示词设置页、识别导入的消息接入设置页，所以还能用共用-AI、共用-识别）。分了层的模块（前端业务、共用业务、服务端采购库存、服务端单据流转）内部也只往下用，代码和样式都只能用本层和下层的；新文件、新目录要登记进某一层；现在一处越层都没有，检查不许有。没分层的模块，内部照“文件怎么分”。
 - **只走接口：** 引用别的模块只走它的 `index.ts`（按需加载的页面走 `pages.ts`），接口只列有人用的名字，不转手别的模块的东西。脚本和配置文件（`scripts/`、`vite.config.ts`）引用模块也一样，确实要验证内部实现的在测试里登记理由；动态加载（`import(变量)`、`require`、`new URL(…, import.meta.url)`）的目标要能看出来。
