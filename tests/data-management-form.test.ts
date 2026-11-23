@@ -72,6 +72,7 @@ test('数据管理新建：编号不预填 0；什么都不填直接保存，提
     assert.match(shown.delivery, /客户：请选择客户/);
     assert.match(shown.delivery, /明细第1项的订单：请选择订单/);
     assert.match(shown.customers, /请填写客户名称/);
+    assert.match(shown.suppliers, /请填写供应商名称/);
     // 填了 0 或负数：同样说人话
     const zero = shownError(() =>
       f.service.execute(command('orders', 'create', [], { ...template('orders'), customerId: 0, deliveryDate: '2026-12-31', lines: [{ ...template('orders').lines[0], productId: -1, quantity: 1, unitPriceCents: 100 }] }), f.who, 's'),

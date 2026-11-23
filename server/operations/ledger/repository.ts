@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { type Store } from '../../core/index.js';
-import { many, one, partyView, rows } from '../../core/index.js';
+import { type Rows, type Store } from '../../core/index.js';
+import { many, one, rows } from '../../core/index.js';
 import { type MovementFilters } from '../../../shared/business/index.js';
-import type { PurchaseRowView, StockItemBaseView, SupplierView, purchaseBusinessStatuses } from '../../../shared/business/index.js';
+import type { PurchaseRowView, StockItemBaseView, Supplier, SupplierView, purchaseBusinessStatuses } from '../../../shared/business/index.js';
 import { quantityString, stockKinds } from '../../../shared/core/index.js';
 import { MovementQueries } from './movements.js';
 import { assemblePurchases, purchaseHeads, purchaseScope } from './purchase-rows.js';
@@ -14,6 +14,12 @@ const stockTotalRow = z.object({ id: z.number(), n: z.number() });
 /** 采购单的“已订货”（SQL 里由它拼，不写字面值） */
 const ORDERED: (typeof purchaseBusinessStatuses)[number] = '已订货';
 const stockRow = rows.stock_items.extend({ kind: z.enum(stockKinds) });
+
+/** 供应商：库里的一行 → 供应商档案视图；归档和采购历史在 suppliers() 里补 */
+const supplierView = (r: Rows['suppliers']): Supplier => ({
+  id: r.id, name: r.name, contact: r.contact, phone: r.phone, address: r.address,
+  notes: r.notes, version: r.version, createdAt: r.created_at, updatedAt: r.updated_at,
+});
 
 /** 一个库存品的基本视图：库里的一行加上结余、在途（千分整数），archived 是否已归档；已安排、可用由单据流转补 */
 function stockItemView(r: z.output<typeof stockRow>, n: { balance: number; onOrder: number; archived: boolean }): StockItemBaseView {
@@ -49,7 +55,7 @@ export class OperationsRepository {
     return many(this.store.db, rows.suppliers, 'SELECT * FROM suppliers' + (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC', ...params)
       .filter((r) => include || !archived.has(r.id))
       .map((r) => ({
-        ...partyView(r),
+        ...supplierView(r),
         archived: archived.has(r.id),
         purchaseHistory: history.get(r.id) || [],
       }));

@@ -59,19 +59,19 @@ export function matchesProduct(row: { name?: MaybeText; material?: MaybeText; fl
     .toLowerCase()
     .includes(q.toLowerCase());
 }
-/** 客户、供应商、采购单、库存品的关键词搜索要看的文字 */
-type OperationalText = {
+/** 客户、供应商共用的搜索文字：名称、联系方式和备注 */
+type PartySearchText = {
   name?: MaybeText;
-  number?: MaybeText;
-  supplierName?: MaybeText;
-  specification?: MaybeText;
-  material?: MaybeText;
-  flute?: MaybeText;
   contact?: MaybeText;
   phone?: MaybeText;
   address?: MaybeText;
   notes?: MaybeText;
-  lines?: readonly { name?: MaybeText }[];
+};
+/** 客户、供应商、库存品的关键词搜索要看的文字 */
+type OperationalText = PartySearchText & {
+  specification?: MaybeText;
+  material?: MaybeText;
+  flute?: MaybeText;
 };
 /**
  * 一条记录能被搜到的文字（小写）：列表按整句找，命令面板按几个词都要有。
@@ -80,8 +80,6 @@ type OperationalText = {
 export function operationalSearchText(row: OperationalText) {
   return [
     row.name,
-    row.number,
-    row.supplierName,
     row.specification,
     row.material,
     row.flute,
@@ -89,7 +87,6 @@ export function operationalSearchText(row: OperationalText) {
     row.phone,
     row.address,
     row.notes,
-    ...(row.lines || []).map((line) => line.name),
   ]
     .filter(Boolean)
     .join(' ')

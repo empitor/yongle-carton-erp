@@ -13,9 +13,8 @@ export { UNPRICED_TEXT, amountText, priceText, sizeText, specLine, taxText } fro
 export { ARRIVAL_HISTORY_TITLE, arrivalProgressText, purchaseState, purchaseStatusLabel, purchaseStatusOptions, recordNames } from './labels.js';
 export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementSource, movementSourceKinds, movementTypeLabel, movementTypeOf, movementTypes } from './movement-filters.js';
 export type { MovementFilters } from './movement-filters.js';
-export { arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineAmount, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, sheetArea, stockItemSchema, stockKindNames, sumMoney, supplierSchema } from './operations.js';
-export type { ArrivalItem } from './operations.js';
-export type { RecordEntity } from './operations.js';
+export { SUPPLIER_NAME_MAX, arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineAmount, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, sheetArea, stockItemSchema, stockKindNames, sumMoney, supplierSchema } from './operations.js';
+export type { ArrivalItem, RecordEntity, Supplier } from './operations.js';
 export { allocateReceipt, batchProgress, batchReceiveSchema, batchRowKey, batchRows, batchScheduleSchema, defaultSchedule, dueSegments, scheduleEntrySchema, scheduleText, toScheduleEntries } from './order-batch.js';
 export type { BatchSourceLine, ScheduleEntry } from './order-batch.js';
 export { purchaseLinesOf } from './order-batch.js';

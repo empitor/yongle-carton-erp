@@ -12,6 +12,8 @@ import CommandPalette, { paletteActions } from '../src/CommandPalette.js';
 import { fieldChoices } from '../src/admin/field-rules.js';
 import { batchAfterSave } from '../src/operations/OrderBatchDialog.js';
 import OrderEditor from '../src/editors/OrderEditor.js';
+import CustomerEditor from '../src/editors/CustomerEditor.js';
+import SupplierEditor from '../src/editors/SupplierEditor.js';
 import { finishInboxOrder, inboxOrderSource } from '../src/import/InboxOrderDialog.js';
 import { productSchema, today } from '../shared/core/domain.js';
 import { trackedOrderViewSchema } from '../shared/core/index.js';
@@ -371,5 +373,46 @@ test('订单、客户、产品列表的条件：从地址读筛选、拼读列�
   assert.equal(trash.products.archived, '1');
   // 超级管理员勾了“全部记录”：连同已归档的
   assert.equal(recordListQueries({ ...base, superMode: true, allRecordsView: true }).orders.archived, 'all');
+});
+
+test('客户和供应商编辑窗各自独立：标题、名称栏、保存按钮和代理标识按各自的档案种类渲染，共用怎么联系和底栏', () => {
+  const newCustomer = renderToStaticMarkup(h(CustomerEditor, { close: () => {}, saved: () => {} }));
+  assert.match(newCustomer, /新建客户/);
+  assert.match(newCustomer, /aria-label="客户名称"/);
+  assert.match(newCustomer, /aria-label="客户地址"/);
+  assert.match(newCustomer, /aria-label="客户备注"/);
+  assert.match(newCustomer, /保存客户/);
+  assert.doesNotMatch(newCustomer, /供应商/);
+
+  const editCustomer = renderToStaticMarkup(
+    h(CustomerEditor, {
+      value: { id: 11, version: 2, name: '虚构客户甲', contact: '张工', phone: '0574-1111', address: '虚构路1号', notes: '客户备注', createdAt: '2026-11-01', updatedAt: '2026-11-01' },
+      close: () => {},
+      saved: () => {},
+    }),
+  );
+  assert.match(editCustomer, /编辑客户/);
+  assert.match(editCustomer, /data-agent-module="customers"/);
+  assert.match(editCustomer, /data-agent-record="11"/);
+
+  const newSupplier = renderToStaticMarkup(h(SupplierEditor, { quick: true, close: () => {}, saved: () => {} }));
+  assert.match(newSupplier, /新建供应商/);
+  assert.match(newSupplier, /保存后直接选进当前单据，已填的内容保留/);
+  assert.match(newSupplier, /aria-label="供应商名称"/);
+  assert.match(newSupplier, /aria-label="供应商地址"/);
+  assert.match(newSupplier, /aria-label="供应商备注"/);
+  assert.match(newSupplier, /保存供应商/);
+  assert.doesNotMatch(newSupplier, /客户/);
+
+  const editSupplier = renderToStaticMarkup(
+    h(SupplierEditor, {
+      value: { id: 22, version: 3, name: '虚构纸板厂', contact: '李工', phone: '0574-2222', address: '虚构路2号', notes: '供应商备注', createdAt: '2026-11-01', updatedAt: '2026-11-01' },
+      close: () => {},
+      saved: () => {},
+    }),
+  );
+  assert.match(editSupplier, /编辑供应商/);
+  assert.match(editSupplier, /data-agent-module="suppliers"/);
+  assert.match(editSupplier, /data-agent-record="22"/);
 });
 

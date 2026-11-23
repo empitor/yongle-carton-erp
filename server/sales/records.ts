@@ -1,9 +1,15 @@
 import type { z } from 'zod';
 import { priceFromE4, productSchema, type Customer, type CustomerInput, type Order, type OrderInput, type Product, type ProductInput } from '../../shared/core/index.js';
-import { ConflictError, many, one, partyView, rows, type Store } from '../core/index.js';
+import { ConflictError, many, one, rows, type Rows, type Store } from '../core/index.js';
 import { orderViews, saveOrder, type OrderEditCheck } from './orders.js';
 import { saveProductRecord } from './products.js';
 import { existingRecord, given, readBack } from './record-fields.js';
+
+/** 客户：库里的一行 → 接口里的客户档案 */
+const customerView = (r: Rows['customers']): Customer => ({
+  id: r.id, name: r.name, contact: r.contact, phone: r.phone, address: r.address,
+  notes: r.notes, version: r.version, createdAt: r.created_at, updatedAt: r.updated_at,
+});
 
 /** 产品的一行：尺寸单位只有 mm、cm（建表有 CHECK），按产品录入规则的同一个取值校验 */
 const productRow = rows.products.extend({ dimension_unit: productSchema.shape.dimensionUnit.unwrap() });
@@ -46,7 +52,7 @@ class SalesRecords {
     const archived = includeArchived ? null : this.store.archivedIds('customers');
     return many(this.db, rows.customers, 'SELECT * FROM customers' + idFilter(ids) + ' ORDER BY id DESC', ...idParams(ids))
       .filter((r) => !archived?.has(r.id))
-      .map(partyView);
+      .map(customerView);
   }
   products(includeArchived = false, ids?: readonly number[]): Product[] {
     const archived = includeArchived ? null : this.store.archivedIds('products');
@@ -57,7 +63,7 @@ class SalesRecords {
   customer(id: number, includeArchived = false): Customer | undefined {
     if (!includeArchived && this.store.archived('customers', id)) return undefined;
     const row = one(this.db, rows.customers, 'SELECT * FROM customers WHERE id=?', id);
-    return row && partyView(row);
+    return row && customerView(row);
   }
   product(id: number, includeArchived = false): Product | undefined {
     if (!includeArchived && this.store.archived('products', id)) return undefined;

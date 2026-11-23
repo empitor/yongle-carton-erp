@@ -7,7 +7,9 @@ import type { dataManagementModules } from './data-management-modules.js';
  */
 type DataManagementModule = (typeof dataManagementModules)[number];
 
-const archiveTemplate = () => ({ name: '', contact: '', phone: '', address: '', notes: '' });
+const contactTemplate = () => ({ contact: '', phone: '', address: '' });
+const customerTemplate = () => ({ name: '', ...contactTemplate(), notes: '' });
+const supplierTemplate = () => ({ name: '', ...contactTemplate(), notes: '' });
 const productTemplate = () => ({
   name: '',
   length: null,
@@ -144,8 +146,8 @@ const deliveryTemplate = (today: string) => ({
 
 const templates = (today: string) =>
   ({
-    customers: archiveTemplate(),
-    suppliers: archiveTemplate(),
+    customers: customerTemplate(),
+    suppliers: supplierTemplate(),
     products: productTemplate(),
     stock_items: stockTemplate(),
     orders: orderTemplate(today),

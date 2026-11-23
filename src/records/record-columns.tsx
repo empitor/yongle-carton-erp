@@ -7,7 +7,6 @@ import {
   orderDisplayStatus,
   quantityString,
   today,
-  type Customer,
   type TrackedOrder,
   type Product,
 } from '../../shared/core/index';
@@ -213,8 +212,8 @@ function OrderCells({ row, cell }: CellProps<TrackedOrder>) {
   );
 }
 
-/** 客户和供应商的档案同一个样子 */
-type PartyRow = Pick<Customer, 'name' | 'contact' | 'phone' | 'address' | 'notes'>;
+/** 客户、供应商列表一行的栏目 */
+type PartyRow = { name: string; contact: string; phone: string; address: string; notes: string };
 
 function PartyCells<R extends PartyRow>({ row, cell }: CellProps<R>) {
   return (

@@ -6,7 +6,7 @@ import { readCatalog } from '../recordkit/catalog-api';
 import { PurchaseEditor } from '../operations/PurchaseEditor';
 import { StockEditor } from '../operations/StockEditor';
 import { MovementDialog } from '../operations/MovementDialog';
-import CustomerEditor from '../editors/CustomerEditor';
+import SupplierEditor from '../editors/SupplierEditor';
 import PurchaseLaunch from '../operations/PurchaseLaunch';
 import { purchaseSeedFrom } from '../operations/purchase-seed';
 
@@ -93,8 +93,7 @@ function OperationsEditors({ editor, lookups, suppliers, items, kind, close, don
   if (editor?.type === 'stock')
     return lookups ? <StockEditor value={editor.value} kind={kind} products={lookups.products} close={close} saved={done} /> : null;
   if (editor?.type === 'move') return <MovementDialog item={editor.value} close={close} saved={done} />;
-  // 供应商档案和客户档案同一个窗口、同样的结构
-  if (editor?.type === 'supplier') return <CustomerEditor entity="suppliers" value={editor.value} close={close} saved={done} />;
+  if (editor?.type === 'supplier') return <SupplierEditor value={editor.value} close={close} saved={done} />;
   if (editor?.type === 'purchase-launch')
     return <PurchaseLaunch orderIds={[editor.value.orderId]} productIds={editor.value.productIds} close={close} done={launched} />;
   return null;

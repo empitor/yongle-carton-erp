@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { PRICE_DECIMALS, RAW_UNIT, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits, stockKinds, type StockKind } from '../core/index.js';
-import { chosenId, dateSchema, exactPriceSchema, customerSchema, fieldLabel } from '../core/index.js';
+import { chosenId, contactFields, dateSchema, exactPriceSchema, fieldLabel } from '../core/index.js';
 import { cmLimitIssue, dimensionUnitSchema, priceBases, dimensionValueSchema, specification, withinCmLimit } from '../core/index.js';
 import { MONEY_DECIMALS, NOTE_MAX_LENGTH, SQUARE_METRE_SHIFT, UNIT_MAX_LENGTH } from './limits.js';
 /** 楞型最多多少字 */
@@ -54,10 +54,14 @@ const nullableDate = z
     dateSchema.nullable(),
   )
   .default(null);
-// 和客户档案同一套字段和规则，只是名称没填时说“供应商名称”
-export const supplierSchema = customerSchema.extend({
-  name: z.string().trim().max(100).min(1, '请填写供应商名称'),
+/** 供应商名称最多多少字（schema 和供应商编辑窗共用） */
+export const SUPPLIER_NAME_MAX = 100;
+export const supplierSchema = z.object({
+  name: z.string().trim().max(SUPPLIER_NAME_MAX).min(1, '请填写供应商名称'),
+  ...contactFields,
+  notes: txt(1000),
 });
+export type Supplier = z.infer<typeof supplierSchema> & { id: number; version: number; createdAt: string; updatedAt: string };
 export const stockItemSchema = z
   .object({
     name: z.string().trim().min(1, '请填写库存品名称').max(100),

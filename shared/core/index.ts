@@ -22,7 +22,7 @@ export type { FlowKind, StockKind } from './business-kinds.js';
 export { financePageIds, flowDocHref, isFinancePage, isPageHref, isPageId, pageHref, pageIdOf, pageIds, pageParams, pageShortTitle, pageTitle, pages, pagesInGroup, productionViews, warehouseViews, withPageQuery, withPageTab } from './pages.js';
 export type { FinancePageId, PageGroup, PageId, PageTab, SettingsTab, TabbedPageId } from './pages.js';
 export { centsText, displayAmount, uppercaseAmount } from './display-amount.js';
-export { BUSINESS_TIME_ZONE, ISO_DATE_LENGTH, MAX_ORDER_LINES, MONTH_DAY_START, chosenId, closedOrder, customerSchema, dateSchema, deliverableOrder, derivedOrderStatuses, displayOrderStatuses, effectiveOrder, exactPriceSchema, lineSchema, lineSpecification, orderDisplayStatus, orderSchema, orderTaxModes, productSchema, storedOrderInput, roundingPolicies, roundingPolicyLabels, sameSpecification, specification, specificationDifference, statuses, today, totalCost, uncountedOrderStatuses } from './domain.js';
+export { BUSINESS_TIME_ZONE, CUSTOMER_NAME_MAX, ISO_DATE_LENGTH, MAX_ORDER_LINES, MONTH_DAY_START, chosenId, closedOrder, contactFields, customerSchema, dateSchema, deliverableOrder, derivedOrderStatuses, displayOrderStatuses, effectiveOrder, exactPriceSchema, lineSchema, lineSpecification, orderDisplayStatus, orderSchema, orderTaxModes, productSchema, storedOrderInput, roundingPolicies, roundingPolicyLabels, sameSpecification, specification, specificationDifference, statuses, today, totalCost, uncountedOrderStatuses } from './domain.js';
 export type { Customer, CustomerInput, OrderInput, Product, ProductInput } from './domain.js';
 export { trackedOrderViewSchema } from './order-view.js';
 export type { Order, TrackedOrder } from './order-view.js';

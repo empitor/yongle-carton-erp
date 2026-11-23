@@ -19,7 +19,7 @@ const action = async (name) => {
 };
 await login(page);
 
-// 客户、供应商用同一个编辑窗：只有名称必填
+// 客户、供应商各自的编辑窗：只有名称必填
 for (const [hash, noun, list, name] of [
   ['#customers', '客户', '/api/customers', '虚构界面新客户有限公司'],
   ['#suppliers', '供应商', '/api/suppliers', '虚构界面新纸板厂'],

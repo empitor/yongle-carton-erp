@@ -13,7 +13,6 @@ export { validateBusinessDatabase } from './backup-check.js';
 export { snapshotBeforeDestructive } from './snapshots.js';
 export { backupDirectory, configDirectory, masterKeyName } from './config-paths.js';
 export { Store, archivedAmongIn, archivedIdsIn, defaultDbPath } from './db.js';
-export { partyView } from './party-view.js';
 export { clientNetwork, forwardedClient, hasProxyHeaders, proxyIngress, readDeployment } from './deployment.js';
 export type { Deployment } from './deployment.js';
 export { isLocalAdministrator, localAdministratorActor, requireLocalAdministrator } from './local-administrator.js';
@@ -60,6 +59,7 @@ export type { PageSize } from './diagnostics/reading.js';
 export { clip, redactCodeSecrets, redactSecrets } from './diagnostics/redact.js';
 // 读库：按建表生成的行结构（schema/rows.ts）和读库时校验的 one、many、exists、count（sql.ts）
 export { rows } from './schema/rows.js';
+export type { Rows } from './schema/rows.js';
 export { count, exists, many, one } from './sql.js';
 // 库里读出来的数据（行、JSON 列）不合结构：抛 StoredDataError（回 500、记日志），单据内容等 JSON 列用 parseStoredJson 读
 export { parseStoredJson } from './sql.js';

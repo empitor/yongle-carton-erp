@@ -115,11 +115,17 @@ const optionalDate = z.preprocess(
   (v) => (v === null || (typeof v === 'string' && !v.trim()) ? undefined : v),
   dateSchema.optional(),
 );
-export const customerSchema = z.object({
-  name: text(100).min(1, '请填写客户名称'),
+/** 客户、供应商共用的联系方式字段（联系人、联系方式、地址） */
+export const contactFields = {
   contact: blankText(TEXT_MAX.contact).default(''),
   phone: blankText(TEXT_MAX.phone).default(''),
   address: blankText(TEXT_MAX.address).default(''),
+};
+/** 客户名称最多多少字（schema 和客户编辑窗共用） */
+export const CUSTOMER_NAME_MAX = 100;
+export const customerSchema = z.object({
+  name: text(CUSTOMER_NAME_MAX).min(1, '请填写客户名称'),
+  ...contactFields,
   notes: blankText(1000).default(''),
 });
 export const productSchema = z

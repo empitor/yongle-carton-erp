@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { type arrivalLineStatus, stockKinds } from '../core/index.js';
-import { arrivalProgresses, purchaseBusinessStatuses, purchaseLineDocumentSchema, purchaseStatuses } from './operations.js';
+import { arrivalProgresses, purchaseBusinessStatuses, purchaseLineDocumentSchema, purchaseStatuses, type Supplier } from './operations.js';
 import { movementColumnsSchema, stockDocumentSchema, storedScheduleEntrySchema } from './operations-stored.js';
 import type { batchProgress, batchRows } from './order-batch.js';
 
@@ -86,16 +86,7 @@ const purchaseRowViewSchema = z.strictObject({ ...purchaseHead, lines: z.array(p
 export type PurchaseRowView = z.output<typeof purchaseRowViewSchema>;
 
 /** 供应商：档案加上它的采购历史（只带单号、日期和状态；到货进度按采购明细的已到货缓存算） */
-export type SupplierView = {
-  id: number;
-  name: string;
-  contact: string;
-  phone: string;
-  address: string;
-  notes: string;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
+export type SupplierView = Supplier & {
   archived: boolean;
   purchaseHistory: Pick<PurchaseRowView, 'id' | 'number' | 'orderDate' | 'status' | 'businessStatus' | 'arrivalProgress'>[];
 };

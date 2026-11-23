@@ -3,7 +3,7 @@ import type { PurchaseView, StockItemView, SupplierView } from '../../shared/bus
 import { errorMessage, today } from '../../shared/core/index';
 import { ManagementDialog } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
-import CustomerEditor from '../editors/CustomerEditor';
+import SupplierEditor from '../editors/SupplierEditor';
 import { useAuthState } from '../ui/index';
 import { purchaseTotalText } from './fields';
 import { PurchaseLines, SupplierAndOrder, type PurchaseForm, type PurchaseOrderOption } from './PurchaseEditorParts';
@@ -242,8 +242,7 @@ export function PurchaseEditor({ value, initialValues, suppliers, orders, items,
         </FormSection>
       </form>
       {quickSupplier && (
-        <CustomerEditor
-          entity="suppliers"
+        <SupplierEditor
           quick
           close={() => setQuickSupplier(false)}
           saved={(s) => {
