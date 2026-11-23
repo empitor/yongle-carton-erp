@@ -15,7 +15,7 @@ import { FlowService } from '../server/flow/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { businessBase } from './business-base-fixture.js';
 import { quantityUnits } from '../shared/core/quantity.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { stackActor as editorActor, stackFixture } from './stack-fixture.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';

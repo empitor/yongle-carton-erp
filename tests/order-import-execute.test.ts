@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { Store } from '../server/core/db.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { testImports } from './order-import-fixture.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';

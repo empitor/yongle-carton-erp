@@ -11,7 +11,7 @@ import { ImportRepository } from '../server/import/repository.js';
 import { restoreFullBackup } from '../server/core/backup.js';
 import { readBackupManifest } from '../server/core/backup-manifest.js';
 import { supportedDatabaseVersions, validateBusinessDatabase } from '../server/core/backup-check.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import {
   alterBackupDatabase,
   configFixture,

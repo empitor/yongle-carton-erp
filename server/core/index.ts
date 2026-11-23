@@ -1,10 +1,9 @@
 export { reviewedAssistantGrant, validAssistantGrant } from './assistant-approval.js';
-export { defaultAccountPath } from './account-db.js';
 export type { Actor } from './actor.js';
+export type { RequestAuth } from './request-auth.js';
 export { audit, rememberDeletedRecord, viaEntry } from './audit.js';
 export { changeArchive, recordArchiveTarget } from './archive.js';
 export type { ArchiveTarget } from './archive.js';
-export { AuthManager } from './auth.js';
 export { FILE_NAME_MAX, validateAttachment } from './attachment-validation.js';
 export { validateOffice } from './office-validation.js';
 export { createFullBackup, restoreFullBackup } from './backup.js';
@@ -16,9 +15,9 @@ export { assertNewProductAllowed, describeProduct, duplicateCustomers } from './
 export type { DuplicateRecord } from './duplicate-records.js';
 export { backupDirectory, configDirectory, masterKeyName } from './config-paths.js';
 export { Store, archivedAmongIn, archivedIdsIn, defaultDbPath, partyView, registerProductStockSync } from './db.js';
-export { forwardedClient, hasProxyHeaders, proxyIngress, readDeployment } from './deployment.js';
+export { clientNetwork, forwardedClient, hasProxyHeaders, proxyIngress, readDeployment } from './deployment.js';
 export type { Deployment } from './deployment.js';
-export { isLocalAdministrator, requireLocalAdministrator } from './local-administrator.js';
+export { isLocalAdministrator, localAdministratorActor, requireLocalAdministrator } from './local-administrator.js';
 export { AppError, ConflictError, InputError, StoredDataError, constraintFailure, failureMessage, isConstraintError } from './errors.js';
 export { SchemaError, currentSchemaVersion, stamp } from './schema/index.js';
 export { acquireLock } from './lock.js';
@@ -48,12 +47,12 @@ export { scheduleDailyCleanup } from './cleanup.js';
 export { openEventStream, pipeBytes, watchDisconnect } from './stream.js';
 export { openVersionedSqlite } from './versioned-sqlite.js';
 export { VersionedSqliteError, registerVersionedSqlite } from './versioned-sqlite-spec.js';
+export type { VersionedSqliteSpec } from './versioned-sqlite-spec.js';
 // 补丁回滚、换回旧程序以后把配置库换回升级前的备份（维护命令行 revert-config-upgrades 用）
 export { revertConfigUpgrades } from './versioned-sqlite-backup.js';
 export { nextAutoId } from './ids.js';
 // 出错记录（server/core/diagnostics/）：请求关卡记失败的请求、页面上报，最近出错的读取。
-// 运行日志、登录记录、读程序代码、使用手册在系统资料（server/system/），下面几样是给它用的：
-// 读取的权限和分页、遮密钥、程序目录
+// 系统资料和账号也用这里的读取权限、分页、遮密钥等公共规则。
 export { ProblemLog, readRecentProblems } from './diagnostics/problem-log.js';
 export { errorReason, problemCategories } from './diagnostics/problem-kinds.js';
 export { recordFailedRequests } from './diagnostics/request-recorder.js';
@@ -70,4 +69,6 @@ export { parseStoredJson } from './sql.js';
 // 生成行结构用（scripts/schema-rows.ts）：业务库的建表分组、登记过的配置库规格
 export { schemaTableGroups } from './schema/index.js';
 export { registeredVersionedSqlite } from './versioned-sqlite-spec.js';
-export { notFound, route } from './route.js';
+export { done, notFound, refuse, route } from './route.js';
+export type { RouteReply } from './route.js';
+export { LOG_ONCE_MS, retryMinutes, Throttle } from './throttle.js';

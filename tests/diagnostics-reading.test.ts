@@ -8,14 +8,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { backupDirectory, configDirectory, defaultDbPath } from '../server/core/index.js';
 import { programSource } from '../server/system/paths.js';
-import { AuthManager, type Actor } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
+import type { Actor } from '../server/core/index.js';
 import type { AppError } from '../server/core/errors.js';
 import { redactSecrets } from '../server/core/diagnostics/redact.js';
 import { RunLog, captureProcessOutput, readRunLog, searchRunLog } from '../server/system/run-log.js';
 import { readProgramSource, searchProgramSource } from '../server/system/source-reader.js';
 import { resolveSourcePath, type SourceScope } from '../server/system/source-paths.js';
 import { ProblemLog, readRecentProblems } from '../server/core/diagnostics/problem-log.js';
-import { readLoginRecords } from '../server/system/login-records.js';
+import { readLoginRecords } from '../server/accounts/index.js';
 
 const boss: Actor = pageActor({ id: 'a1', name: '虚构管理员', permissions: [], role: 'super_admin' });
 const clerk: Actor = pageActor({ id: 's1', name: '虚构业务员', permissions: ['business:edit'], role: 'admin' });
@@ -113,9 +114,9 @@ function fakeProgram() {
   const base = mkdtempSync(join(tmpdir(), 'erp-source-'));
   const root = join(base, 'app'),
     outside = join(base, 'outside');
-  for (const d of ['server/core', 'server/data', 'shared', 'docs', 'node_modules/pkg', 'data', 'server/private', 'server/security']) mkdirSync(join(root, d), { recursive: true });
+  for (const d of ['server/accounts', 'server/core', 'server/data', 'shared', 'docs', 'node_modules/pkg', 'data', 'server/private', 'server/security']) mkdirSync(join(root, d), { recursive: true });
   mkdirSync(outside);
-  writeFileSync(join(root, 'server/core/auth.ts'), Array.from({ length: 450 }, (_, i) => `// 第 ${i + 1} 行${i === 0 ? ' 虚构代码' : ''}`).join('\n'));
+  writeFileSync(join(root, 'server/accounts/auth.ts'), Array.from({ length: 450 }, (_, i) => `// 第 ${i + 1} 行${i === 0 ? ' 虚构代码' : ''}`).join('\n'));
   writeFileSync(join(root, 'server/core/keys.ts'), `const apiKey = 'sk-abcdefghijklmnop1234'; // 虚构代码\nconst session = '${hex64}';\n`);
   writeFileSync(join(root, 'server/.env'), 'DEEPSEEK_KEY=虚构代码');
   writeFileSync(join(root, 'server/core/server.pem'), '虚构代码');
@@ -148,14 +149,14 @@ test('读程序代码：各种越界写法、机密文件、数据和依赖目�
       '../outside/secret.ts',
       'server/../../outside/secret.ts',
       'server\\..\\..\\outside\\secret.ts',
-      'server/./core/auth.ts',
-      join(root, 'server/core/auth.ts'),
+      'server/./accounts/auth.ts',
+      join(root, 'server/accounts/auth.ts'),
       '/etc/passwd',
       'C:/Windows/win.ini',
-      'c:server/core/auth.ts',
+      'c:server/accounts/auth.ts',
       '\\\\host\\share\\x.ts',
       '~/x.ts',
-      'server/core/auth.ts:stream',
+      'server/accounts/auth.ts:stream',
       'data/erp.ts',
       'node_modules/pkg/index.js',
       'tests/x.ts',
@@ -169,12 +170,12 @@ test('读程序代码：各种越界写法、机密文件、数据和依赖目�
       'server/alias/x.ts',
       join(outside, 'secret.ts'),
       '',
-      'server/core/auth.ts\0',
+      'server/accounts/auth.ts\0',
     ];
     for (const path of refused)
       assert.throws(() => resolveSourcePath(scope, path), (e: AppError) => e.status === 403 || e.status === 400, path);
     assert.throws(() => resolveSourcePath(scope, 'server/core/nothing.ts'), (e: AppError) => e.status === 404);
-    assert.equal(resolveSourcePath(scope, 'server\\core\\auth.ts').path, 'server/core/auth.ts');
+    assert.equal(resolveSourcePath(scope, 'server\\accounts\\auth.ts').path, 'server/accounts/auth.ts');
     assert.throws(() => readProgramSource(scope, boss, { file: 'server/linked/secret.ts' }), (e: AppError) => e.status === 403);
   } finally {
     rmSync(base, { recursive: true, force: true });
@@ -184,14 +185,14 @@ test('读程序代码：各种越界写法、机密文件、数据和依赖目�
 test('读程序代码：按行读最多 200 行、搜索跳过机密文件和链接；只给超级管理员', () => {
   const { base, scope } = fakeProgram();
   try {
-    const part = readProgramSource(scope, boss, { file: 'server/core/auth.ts', from: 100, to: 900 });
+    const part = readProgramSource(scope, boss, { file: 'server/accounts/auth.ts', from: 100, to: 900 });
     assert.deepEqual([part.from, part.to, part.totalLines, part.lines.length], [100, 299, 450, 200]);
     assert.equal(part.lines[0].text, '// 第 100 行');
-    assert.throws(() => readProgramSource(scope, boss, { file: 'server/core/auth.ts', from: 999 }), /只有 450 行/);
+    assert.throws(() => readProgramSource(scope, boss, { file: 'server/accounts/auth.ts', from: 999 }), /只有 450 行/);
     assert.throws(() => readProgramSource(scope, boss, { file: 'server/core' }), /目录/);
     const found = searchProgramSource(scope, boss, { text: '虚构代码' });
     const files = [...new Set(found.matches.map((m) => m.file))].sort();
-    assert.deepEqual(files, ['docs/使用手册.md', 'server/core/auth.ts', 'server/core/keys.ts']);
+    assert.deepEqual(files, ['docs/使用手册.md', 'server/accounts/auth.ts', 'server/core/keys.ts']);
     assert.equal(found.truncated, false);
     assert.equal(searchProgramSource(scope, boss, { text: '// 第', limit: 5 }).truncated, true, '到上限就停');
     const keys = searchProgramSource(scope, boss, { text: 'apiKey', directory: 'server/core' });
@@ -201,7 +202,7 @@ test('读程序代码：按行读最多 200 行、搜索跳过机密文件和链
     assert.throws(() => searchProgramSource(scope, boss, { text: 'x' }), /2 到 200/);
     assert.throws(() => searchProgramSource(scope, boss, { text: '虚构', directory: '../outside' }), (e: AppError) => e.status === 403);
     assert.throws(() => searchProgramSource(scope, clerk, { text: '虚构代码' }), (e: AppError) => e.status === 403);
-    assert.throws(() => readProgramSource(scope, null, { file: 'server/core/auth.ts' }), (e: AppError) => e.status === 401);
+    assert.throws(() => readProgramSource(scope, null, { file: 'server/accounts/auth.ts' }), (e: AppError) => e.status === 401);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }

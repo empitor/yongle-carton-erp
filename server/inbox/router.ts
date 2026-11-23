@@ -2,7 +2,7 @@ import express, { Router, type Request } from 'express';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Store } from '../core/index.js';
-import type { AuthManager } from '../core/index.js';
+import type { RequestAuth } from '../core/index.js';
 import { AppError, route } from '../core/index.js';
 import { audit, requirePermission, requireSuperAdminAccount, requireSuperModeFor } from '../core/index.js';
 import { INBOX_MAX_FILE, botChannels, inboxFilterSchema, inboxStatusSchema, inboxTextSchema, type InboxApi } from '../../shared/import/index.js';
@@ -18,7 +18,7 @@ type InboxRoutes = {
   on: ReturnType<typeof route<InboxApi>>;
   store: Store;
   service: InboxService;
-  auth?: AuthManager;
+  auth?: RequestAuth;
   imports?: InboxImportTarget;
   bots?: BotManager;
   /** 写操作：要页面凭证和业务编辑权限 */
@@ -129,7 +129,7 @@ function itemRoutes({ router, on, service, imports, actor, id }: InboxRoutes) {
 
 export function inboxRouter(
   store: Store,
-  auth?: AuthManager,
+  auth?: RequestAuth,
   imports?: InboxImportTarget,
   bots?: BotManager,
 ) {

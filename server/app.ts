@@ -11,7 +11,7 @@ import { AiSettingsManager } from './ai/index.js';
 import { aiSettingsRouter } from './ai/index.js';
 import { importRouter } from './import/index.js';
 import type { ImportManager } from './import/index.js';
-import { AuthManager } from './core/index.js';
+import type { AuthManager } from './accounts/index.js';
 import { promptModuleListRouter, promptSettingsRouter } from './ai/index.js';
 import type { PromptPresetManager } from './ai/index.js';
 import { promptModules, type PromptModuleId } from '../shared/ai/index.js';

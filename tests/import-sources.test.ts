@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { ZodError } from 'zod';
 import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';

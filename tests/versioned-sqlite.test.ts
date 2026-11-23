@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { defaultAccountPath } from '../server/core/account-db.js';
+import { defaultAccountPath } from '../server/accounts/index.js';
 import { checkVersionedSqlite, openVersionedSqlite } from '../server/core/versioned-sqlite.js';
 import {
   resolveHomes,

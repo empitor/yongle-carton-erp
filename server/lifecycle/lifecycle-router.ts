@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { AppError, route, type AuthManager, type Store } from '../core/index.js';
+import { AppError, route, type RequestAuth, type Store } from '../core/index.js';
 import { recordEntities, type LifecycleApi } from '../../shared/business/index.js';
 import { changeLifecycle } from './lifecycle.js';
 
@@ -8,7 +8,7 @@ import { changeLifecycle } from './lifecycle.js';
  * POST /api/<档案>/batch，共用一套规则（lifecycle.ts）。只取参数、调服务；页面凭证由装配层对写接口统一检查。
  * 单据的批量归档恢复在单据流转（/api/flow/batch）。
  */
-export function lifecycleRouter(store: Store, auth?: AuthManager) {
+export function lifecycleRouter(store: Store, auth?: RequestAuth) {
   const router = Router();
   const on = route<LifecycleApi>(router);
   for (const entity of recordEntities)

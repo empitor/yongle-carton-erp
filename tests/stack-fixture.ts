@@ -2,7 +2,7 @@
 // 成品A，能核对单据、安排生产、登记完工。只用到客户、产品、订单的测试用 orderBasics，不建库存。
 import { pageActor } from './actor-fixture.js';
 import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import type { orderSchema, Product } from '../shared/core/domain.js';
 import type { z } from 'zod';
 import { shipOnDocDate } from './ship-date.js';

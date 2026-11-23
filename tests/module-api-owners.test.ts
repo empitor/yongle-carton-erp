@@ -11,7 +11,7 @@ import { apiScanner } from './module-boundaries-api.js';
 import { hasRouteUnder } from './server-routes.js';
 
 const apiOwners: [prefix: string, module: string][] = [
-  ['/auth', '基础'],
+  ['/auth', '账号'],
   // 页面报错上报进出错记录库（server/core/diagnostics/page-problems.ts）
   ['/diagnostics', '基础'],
   // 使用手册（server/system/user-manual.ts），“使用说明”页读
@@ -38,15 +38,16 @@ const apiOwners: [prefix: string, module: string][] = [
   ['/assistant', '助手'],
 ];
 const apiAllow: Record<string, string[]> = {
-  '前端-基础': ['基础'],
+  // 每个页面的登录状态和凭证刷新都由前端基础读 /auth/state。
+  '前端-基础': ['基础', '账号'],
   '前端-业务': ['基础', '采购库存', '单据流转', '删除归档', '业务汇总'],
   '前端-单据导出': ['单据导出'],
   '前端-系统资料': ['系统资料'],
   '前端-财务': ['基础', '财务'],
   '前端-识别': ['基础', 'AI接入', '采购库存', '单据流转', '业务汇总', '识别导入'],
   // AI 接入没有自己的页面，模型和提示词设置页在数据管理
-  '前端-管理': ['基础', 'AI接入', '识别导入', '数据管理'],
-  '前端-助手': ['基础', '助手'],
+  '前端-管理': ['基础', '账号', 'AI接入', '识别导入', '数据管理'],
+  '前端-助手': ['基础', '账号', '助手'],
 };
 const apiOwner = (path: string) =>
   apiOwners

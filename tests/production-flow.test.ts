@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { count } from '../server/core/index.js';
 import { productSchema } from '../shared/core/domain.js';
 import { flowStatusLabel, matchesFlowStatus } from '../shared/business/physical-flow.js';

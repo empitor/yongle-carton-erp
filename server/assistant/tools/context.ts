@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import type { Actor, Deployment, ProblemLog } from '../../core/index.js';
-import type { RunLog, SourceScope, readLoginRecords } from '../../system/index.js';
+import type { RunLog, SourceScope } from '../../system/index.js';
 import { AppError, canEnterSuperMode, requireLocalAdministrator } from '../../core/index.js';
 import type { AiSettingsManager } from '../../ai/index.js';
 import type { OperationsService } from '../../operations/index.js';
@@ -66,8 +66,11 @@ export type ToolShell = {
   ): ToolPlan;
   commit(plan: ToolPlan, who: Actor | null | undefined, binding: string): unknown;
 };
-/** 读登录记录（账号库里的，只给超级管理员）：筛选条件和系统资料模块的 readLoginRecords 一样 */
-type LoginRecords = typeof readLoginRecords;
+/** 装配传入账号模块的只读查询，助手只接收展示所需的字段。 */
+type LoginRecords = (
+  who: Actor | null | undefined,
+  filter: { from?: string; to?: string; account?: string; event?: string; limit: number; offset: number },
+) => { total: number; more: boolean; items: { time: string; account: string; event: string; target?: string }[] };
 /**
  * 建助手时一次给全的只读服务（AssistantManager 的依赖对象，装配在 server/index.ts）：AI 设置、账号、登录记录、
  * 机器人设置和连接状态、部署方式（null 是本机运行）、助手自己的工具注册表、识别导入，
@@ -76,7 +79,7 @@ type LoginRecords = typeof readLoginRecords;
 export type ToolServices = {
   ai: AiSettingsManager;
   accounts: { listAccounts(): { id: string; name: string; level: string; disabled: boolean }[] };
-  loginRecords: (who: Actor | null | undefined, filter: NonNullable<Parameters<LoginRecords>[2]>) => ReturnType<LoginRecords>;
+  loginRecords: LoginRecords;
   bots: { views(): { label: string; hasSecret: boolean; enabled: boolean; status: { state: BotState } }[] };
   deployment: Deployment | null;
   registry: {

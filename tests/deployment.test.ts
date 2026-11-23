@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { Store } from '../server/core/db.js';
 import { readDeployment } from '../server/core/deployment.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';

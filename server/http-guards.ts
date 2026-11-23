@@ -1,7 +1,8 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { financeOnlyAccount, financeOnlyApiAllowed } from '../shared/core/index.js';
-import { forwardedClient, hasProxyHeaders, proxyIngress, recordFailedRequests, type AuthManager, type Deployment, type ProblemLog } from './core/index.js';
+import type { AuthManager } from './accounts/index.js';
+import { forwardedClient, hasProxyHeaders, proxyIngress, recordFailedRequests, type Deployment, type ProblemLog } from './core/index.js';
 import { DEFAULT_PORT } from './local-service.js';
 
 /*

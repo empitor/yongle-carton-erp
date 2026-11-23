@@ -1,6 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 import type { CookieOptions } from 'express';
-import { proxyIngress, type Deployment } from './deployment.js';
+import { proxyIngress, type Deployment } from '../core/index.js';
 
 /**
  * 登录 Cookie 的名字和属性跟入口走，登录写、退出清、每次请求读都按这里：

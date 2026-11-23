@@ -13,7 +13,7 @@ const PRUNE_INTERVAL = MINUTE_MS;
  * - hit：每次提交都计数（成功也算），窗口从第一次算起，到上限就拦；表满了从最早的丢，不让内存无限涨；
  * - failed：只在失败时计数，每失败一次窗口从这次重新算；retryAfter 看还要等多久，forgive 退回一次，cleared 在成功后清掉。
  *   表满了不丢旧的（丢了就等于替猜密码的人清零），新键记不下：调用方先看 full，满了直接拦新来的。
- * 所以失败计数和 hit 计数不能放在同一个实例里：否则刷 hit 能把还没过期的失败计数挤掉（AuthManager 分两个）。
+ * 所以失败计数和 hit 计数不能放在同一个实例里：否则刷 hit 能把还没过期的失败计数挤掉（登录分两个）。
  */
 export class Throttle {
   private items = new Map<string, { count: number; until: number }>();

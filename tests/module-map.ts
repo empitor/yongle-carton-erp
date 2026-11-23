@@ -19,8 +19,9 @@ const business = (names: string[]) => names.map((n) => 'shared/business/' + n + 
 export const modules: Rule[] = [
   // 服务端
   { name: '基础', paths: ['server/core/'], allow: ['共用-基础'] },
+  { name: '账号', paths: ['server/accounts/'], allow: ['基础', '共用-基础'] },
   { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
-  // 系统资料：运行日志、登录记录、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
+  // 系统资料：运行日志、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
   { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
   // 业务主线分四层，只能往下：采购库存 ← 单据流转 ← 删除归档 ← 业务汇总
   {

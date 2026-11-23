@@ -2,12 +2,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { copyFileSync, existsSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { errorMessage } from '../shared/core/index.js';
+import { AuthManager, defaultAccountPath } from './accounts/index.js';
 import {
-  AuthManager,
   acquireLock,
   backupDirectory,
   createFullBackup,
-  defaultAccountPath,
   defaultDbPath,
   restoreFullBackup,
   revertConfigUpgrades,
@@ -43,7 +42,7 @@ async function backup() {
 
 /**
  * 恢复检查和换回都靠各配置库的主人模块加载时登记的“哪个位置是哪个库、支持到第几版”。
- * 基础、AI 接入、消息接入的上面已经引入；助手工具设置、AI 识别工作区的主人只有这里用到，这时才加载
+ * 基础、账号、AI 接入、消息接入的上面已经引入；助手工具设置、AI 识别工作区的主人只有这里用到，这时才加载
  */
 async function loadConfigOwners() {
   await Promise.all([import('./assistant/index.js'), import('./import/index.js')]);

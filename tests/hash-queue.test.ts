@@ -1,9 +1,9 @@
-// 核对密码的那道闸（server/core/hash-queue.ts）：同时算的有上限；普通道先来先算、同一网段有上限；优先道（维护通道、
+// 核对密码的那道闸（server/accounts/hash-queue.ts）：同时算的有上限；普通道先来先算、同一网段有上限；优先道（维护通道、
 // 已登录的人）空出名额先叫、不占普通道名额；道满、超时才说服务器正忙；断开的从队里拿掉。
 // 哈希换成手动放行的，超时用假计时器，不靠真实时间。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { HashQueue, ServerBusyError } from '../server/core/hash-queue.js';
+import { HashQueue, ServerBusyError } from '../server/accounts/hash-queue.js';
 import { SERVER_BUSY_CODE } from '../shared/core/index.js';
 
 /** 手动放行的哈希：started 记谁开始算了，finish(密码) 让它算完 */

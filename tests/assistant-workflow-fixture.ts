@@ -18,7 +18,7 @@ import { imageFixture } from './import-fixtures.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { AiTransport } from '../server/ai/transport.js';
 import { customerSchema, productSchema, today } from '../shared/core/domain.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { actor as baseActor, grant } from './actor-fixture.js';
 
 /** 能识别导入的账号 */

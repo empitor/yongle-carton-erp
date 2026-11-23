@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { count, many, one, rows as tableRows } from '../server/core/index.js';
 import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 import { orderedPurchase, saveDoc } from './receive-fixture.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import type { StockItemView } from '../shared/business/index.js';
 import { registerArrival } from '../server/flow/index.js';
 import { syncReceivedUnits } from '../server/flow/rules/receipt-events.js';

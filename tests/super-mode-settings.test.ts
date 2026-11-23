@@ -4,7 +4,7 @@ import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { z } from 'zod';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { Store } from '../server/core/db.js';
 import { count } from '../server/core/sql.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';

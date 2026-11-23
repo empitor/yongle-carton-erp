@@ -2,7 +2,7 @@
 // 一个客户、一个产品（成品库存期初 stock 只），订单 A 两行同一个产品（各 1000 只），订单 B 一行（1000 只，下单晚 19 天）。
 import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { viewAs } from './read-result.js';
 import { clerk } from './flow-fixture.js';

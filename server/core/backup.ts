@@ -17,8 +17,9 @@ import {
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { APP_VERSION } from '../../shared/core/index.js';
 import { SCHEMA_LATEST, SNAPSHOT_DIRECTORY, stamp } from './schema/index.js';
+import { defaultDbPath } from './db.js';
 import { one } from './sql.js';
-import { clearSessions } from './account-db.js';
+import { specAt, type VersionedSqliteSpec } from './versioned-sqlite-spec.js';
 import { isDatabaseFile, refuseWalBackup, userVersionOf, validateBusinessDatabase, validateConfigDatabase } from './backup-check.js';
 import { readBackupManifest, writeBackupManifest, type BackupFile } from './backup-manifest.js';
 
@@ -47,7 +48,7 @@ function walk(dir: string, files: string[] = []) {
  * 切成回滚日志以后，备份就是一个个独立的文件，校验和恢复都不会往备份目录里写东西。恢复时不收 WAL 模式的副本（refuseWalBackup）。
  * 切换在算哈希之前做，清单里记的是切换以后的文件。程序打开恢复出来的业务库时会重新设成 WAL（schema/pragmas.ts）。
  */
-async function copySqlite(from: string, to: string) {
+async function copySqlite(from: string, to: string, scrubBackup?: VersionedSqliteSpec['scrubBackup']) {
   const db = new DatabaseSync(from, { readOnly: true });
   try {
     await backup(db, to);
@@ -58,6 +59,7 @@ async function copySqlite(from: string, to: string) {
   try {
     const mode = one(copy, journalMode, 'PRAGMA journal_mode=DELETE')?.journal_mode;
     if (mode !== 'delete') throw new Error(`备份副本没能整理成单个文件（日志模式还是 ${mode ?? '未知'}）：${to}`);
+    scrubBackup?.(copy);
   } finally {
     copy.close();
   }
@@ -86,16 +88,10 @@ export async function createFullBackup(options: {
         database = isDatabaseFile(from);
       mkdirSync(dirname(to), { recursive: true });
       if (database) {
-        await copySqlite(from, to);
-        if (path === 'security/users.sqlite') {
-          // 备份恢复应重新登录，已撤销的历史会话不会因恢复而重新生效。
-          const auth = new DatabaseSync(to);
-          try {
-            clearSessions(auth);
-          } finally { auth.close(); }
-        }
-      }
-      else copyFileSync(from, to);
+        // 已打开的库按实际位置认，备份其他数据目录时也按数据目录内的相对位置认登记的库。
+        const spec = specAt(from) ?? specAt(join(dirname(defaultDbPath), path));
+        await copySqlite(from, to, spec?.scrubBackup);
+      } else copyFileSync(from, to);
       files.push({
         path,
         sha256: sha256(to),

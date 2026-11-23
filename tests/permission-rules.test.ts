@@ -14,7 +14,7 @@ import {
   financeOnlyPageAllowed,
   financeOnlyToolAllowed,
 } from '../shared/core/account-scope.js';
-import { accountPermissions } from '../server/core/account-db.js';
+import { accountPermissions } from '../server/accounts/account-db.js';
 import { StoredDataError } from '../server/core/errors.js';
 import { financeActor } from '../server/finance/core.js';
 import { parseAuthState, type AuthState } from '../src/ui/auth-state.js';

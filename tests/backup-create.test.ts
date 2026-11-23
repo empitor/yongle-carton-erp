@@ -15,7 +15,7 @@ import { autoBackupFailure, copyAutomaticBackup, scheduleDailyBackup } from '../
 import { supportedDatabaseVersions, validateBusinessDatabase } from '../server/core/backup-check.js';
 import { APP_VERSION } from '../shared/core/version.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { InboxService } from '../server/inbox/service.js';
 import * as ai from '../server/ai/index.js';
 import * as inbox from '../server/inbox/index.js';
@@ -67,7 +67,7 @@ test('Linux：复制目录和本地备份目录只差大小写算两个目录，
 });
 
 test('各配置库的主人模块加载时登记了默认位置：恢复备份的命令行不打开任何配置库，也认得出备份里的是哪个库', () => {
-  // server/maintenance.ts 恢复整份备份时加载的就是基础和 AI 接入、识别导入（含收件箱）、助手这几个模块
+  // server/maintenance.ts 恢复整份备份时加载基础、账号、AI 接入、识别导入（含收件箱）、助手
   const dir = mkdtempSync(join(tmpdir(), 'erp-config-homes-'));
   try {
     const candidate = join(dir, 'candidate.sqlite');

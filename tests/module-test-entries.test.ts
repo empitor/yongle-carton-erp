@@ -13,6 +13,19 @@ type ModuleTests = { module: string; dir: string; own: { file: string; why: stri
 
 const moduleTests: ModuleTests[] = [
   {
+    module: '账号',
+    dir: 'server/accounts/',
+    own: [
+      { file: 'tests/auth.test.ts', why: '核对各级别的权限发放表，并用可控的密码队列验证登录时的并发变化' },
+      { file: 'tests/auth-throttle.test.ts', why: '用账号内部的构造选项和可控密码队列测试登录限频和密码核对' },
+      { file: 'tests/hash-gate.ts', why: '账号测试的准备代码，用真实哈希函数验证密码队列的调度时序' },
+      { file: 'tests/hash-queue.test.ts', why: '直接测密码队列的优先级、并发上限和正忙错误' },
+      { file: 'tests/permission-rules.test.ts', why: '直接测账号库把存储的角色和权限还原成实际权限' },
+      { file: 'tests/super-admin.test.ts', why: '用可控的密码队列验证进入超级管理员模式时会话变化的处理' },
+      { file: 'tests/versioned-sqlite-backup.test.ts', why: '用账号库内部规格的清理规则验证升级和换回副本都没有会话' },
+    ],
+  },
+  {
     module: '采购库存',
     dir: 'server/operations/',
     own: [
@@ -185,5 +198,7 @@ test('回归样例：引内部文件、export from、require、import() 内部�
   assert.equal(violations(sample, "export async function load(n: string) { return import('../server/finance/' + n); }").length, 0, '和这个模块无关的不报');
   assert.equal(violations(sample, "import { stockLedger } from '../server/operations/index.js';").length, 0);
   assert.equal(violations(sample, "import type { RecordIds } from '../server/operations/ledger/record-scope.js';").length, 1, '只引类型也算');
+  assert.equal(violations(sample, "import { HashQueue } from '../server/accounts/hash-queue.js';").length, 1);
+  assert.equal(violations(sample, "import { AuthManager } from '../server/accounts/index.js';").length, 0);
   assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/ledger/movements.js';").length, 0);
 });

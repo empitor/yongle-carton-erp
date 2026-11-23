@@ -3,7 +3,7 @@
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { AppError, one as oneRow, rows } from '../server/core/index.js';
 import { stockItemBatches } from '../server/flow/index.js';
 import { originsOf } from '../server/finance/costing-origins.js';

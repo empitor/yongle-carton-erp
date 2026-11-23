@@ -9,7 +9,7 @@ import { saveDoc } from './receive-fixture.js';
 import { businessBase, standardRecords } from './business-base-fixture.js';
 import { viewAs } from './read-result.js';
 import type { FlowKind } from '../shared/business/index.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { count } from '../server/core/index.js';
 
 type Base = ReturnType<typeof businessBase>;

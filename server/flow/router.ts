@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import type { Actor, AuthManager, Store } from '../core/index.js';
+import type { Actor, RequestAuth, Store } from '../core/index.js';
 import { AppError, includeArchivedFor, one, requirePermission, route, rows } from '../core/index.js';
 import {
   arrivalRecordsQuerySchema,
@@ -40,7 +40,7 @@ const SOURCE_TYPES: Record<string, string> = {
 /** 路径参数里的单据、库存品、退货单编号 */
 const recordId = (raw: string) => z.coerce.number().int().positive().parse(raw);
 
-function requester(auth: AuthManager | undefined): Who {
+function requester(auth: RequestAuth | undefined): Who {
   return {
     editor(req, write = true) {
       if (!auth) throw new AppError('此业务需要登录身份验证。', 403);
@@ -177,7 +177,7 @@ function documentKindForErrors(router: Router, store: Store) {
   });
 }
 
-export function flowRouter(store: Store, auth?: AuthManager) {
+export function flowRouter(store: Store, auth?: RequestAuth) {
   const router = Router(),
     who = requester(auth);
   const routes: FlowRoutes = { on: route<FlowApi>(router, '/flow'), store, service: new FlowService(store), who };

@@ -5,7 +5,7 @@ import { pageActor } from './actor-fixture.js';
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { AppError, count, one, rows } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { stockItemBatches } from '../server/flow/index.js';

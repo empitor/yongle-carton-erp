@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { createServer, request, type IncomingHttpHeaders, type IncomingMessage, type RequestListener } from 'node:http';
 import { createApp } from '../server/app.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import type { Actor } from '../server/core/actor.js';
 import { permissionNames, userRoles } from '../shared/core/accounts.js';
 import { pageActor } from './actor-fixture.js';

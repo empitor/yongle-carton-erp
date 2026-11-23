@@ -54,7 +54,7 @@ export function apiErrorHandler(error: unknown, req: Request, res: Response, _ne
   if (error instanceof InputError) return res.status(400).json({ message: error.message });
   if (error instanceof AppError) {
     const { details, retryAfterSeconds } = appErrorExtras(error);
-    // 服务器正忙这类：告诉页面等几秒再发（server/core/hash-queue.ts 的 ServerBusyError）
+    // 服务器正忙这类：告诉页面等几秒再发（server/accounts/hash-queue.ts 的 ServerBusyError）
     if (retryAfterSeconds) res.set('Retry-After', String(retryAfterSeconds));
     return res
       .status(error.status)

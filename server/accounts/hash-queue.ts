@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 import { SERVER_BUSY_CODE, SERVER_BUSY_MESSAGE, SERVER_BUSY_RETRY_SECONDS } from '../../shared/core/index.js';
-import { AppError } from './errors.js';
+import { AppError } from '../core/index.js';
 import { scryptAsync } from './password-hash.js';
 
 /**

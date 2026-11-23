@@ -2,7 +2,7 @@ import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { AppError, includeArchivedFor, notFound, pageRows, requirePermission, route } from '../core/index.js';
 import { pagingSchema } from '../../shared/core/index.js';
-import type { Actor, AuthManager, Store } from '../core/index.js';
+import type { Actor, RequestAuth, Store } from '../core/index.js';
 import {
   archivedQuerySchema,
   inventoryMetrics,
@@ -175,7 +175,7 @@ function movementList(flow: FlowService, query: unknown) {
   return { ...listing, totalRecords: flow.ops.movementCount(), metrics: summarizeMovements(totals, items) };
 }
 
-export function stockFlowRouter(store: Store, auth?: AuthManager) {
+export function stockFlowRouter(store: Store, auth?: RequestAuth) {
   const router = Router();
   const routes: Routes = {
     on: route<StockFlowApi>(router),

@@ -15,7 +15,8 @@ const realModel = process.env.UI_CHECK_REAL_MODEL === '1';
 process.env.PORT = String(port);
 // 先设好端口等环境变量再加载服务端代码，所以用 import()；引用模块只走公开入口
 const { createOrderWorkflowFixture } = await import('../../tests/assistant-workflow-fixture.ts');
-const { AuthManager, one, rows } = await import('../../server/core/index.ts');
+const { one, rows } = await import('../../server/core/index.ts');
+const { AuthManager, readLoginRecords } = await import('../../server/accounts/index.ts');
 const { createApp } = await import('../../server/app.ts');
 const { OperationsService, OrderBatchService } = await import('../../server/operations/index.ts');
 const { FlowService, registerArrival } = await import('../../server/flow/index.ts');
@@ -191,7 +192,6 @@ if (!real) {
 const backupRoot = mkdtempSync(join(tmpdir(), 'erp-ui-check-backups-'));
 // 页面用的助手和正式装配（server/index.ts）一样一次给全；提示词表同一张也挂设置页，备份目录是这个实例自己的临时目录
 const { AssistantManager } = await import('../../server/assistant/index.ts');
-const { readLoginRecords } = await import('../../server/system/index.ts');
 const promptModules = f.deps.prompts;
 const assistant = new AssistantManager({
   store: f.store, ai: f.settings, prompts: promptModules, imports: f.imports, execution: f.execution, receiptAi,
@@ -203,7 +203,7 @@ const app = createApp(f.store, { auth, assistant, imports: f.imports, execution:
 const { createServer } = await import('node:http');
 /**
  * 模拟从域名访问（--remote，或请求带转发头）时给登录状态补一个虚构备案号，看页面底部的备案号（scripts/ui-check/flow-filing.mjs）。
- * 真实服务只在部署模式的域名入口带出（server/core/auth-router.ts，tests/deployment.test.ts 守着）；这个实例没开部署模式，在这里补。
+ * 真实服务只在部署模式的域名入口带出（server/accounts/auth-router.ts，tests/deployment.test.ts 守着）；这个实例没开部署模式，在这里补。
  */
 const FAKE_FILING = { icp: '虚构ICP备00000000号' };
 function withFakeFiling(res: import('node:http').ServerResponse) {

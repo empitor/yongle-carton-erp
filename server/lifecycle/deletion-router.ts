@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { isLocalAdministrator, route, type AuthManager, type Store } from '../core/index.js';
+import { isLocalAdministrator, route, type RequestAuth, type Store } from '../core/index.js';
 import type { DeletionApi } from '../../shared/business/index.js';
 import { DatabaseMaintenanceService } from './database-maintenance.js';
 
@@ -12,12 +12,12 @@ const withPassword = z.looseObject({ password: z.unknown().optional() });
  * 删除前自动留恢复快照，写审计。谁能删由 DatabaseMaintenanceService 判断（超级管理员模式可删档案和已确认的单据，
  * 有编辑权限可删还没核对的单据），不走只限本机的维护入口，部署在服务器上从域名访问也能用；不在本机时除了还没核对的单据都要再输本人密码。
  */
-export function deletionRouter(store: Store, auth: AuthManager) {
+export function deletionRouter(store: Store, auth: RequestAuth) {
   const router = Router();
   const on = route<DeletionApi>(router, '/deletions');
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store');
-    // 页面凭证由装配层对所有写接口统一检查（server/http-guards.ts，AuthManager.requireCsrf）
+    // 页面凭证由装配层对所有写接口统一检查（server/http-guards.ts，RequestAuth.requireCsrf）
     next();
   });
   on('POST /deletions/preview', ({ body, req }) => new DatabaseMaintenanceService(store).preview(body, auth.actor(req)));

@@ -2,7 +2,7 @@ import type { AuditSource, Permission, UserRole } from '../../shared/core/index.
 
 /**
  * 登录后的账号（谁在操作）。基础里各文件共用的类型，放在最底下，只被引用、不引用别的文件。
- * 账号库和登录在 auth.ts、account-db.ts；本机最高管理员的标记在 local-administrator.ts；角色的取值在 shared/core/accounts.ts。
+ * 账号库和登录在 server/accounts/auth.ts、account-db.ts；本机最高管理员的标记在 local-administrator.ts；角色的取值在 shared/core/accounts.ts。
  */
 export type Actor = {
   /**

@@ -4,7 +4,7 @@
 import type { Request, Router } from 'express';
 import { z } from 'zod';
 import { AppError, isLocalAdministrator, one, parseStoredJson, route, rows } from '../core/index.js';
-import type { AuthManager } from '../core/index.js';
+import type { RequestAuth } from '../core/index.js';
 import { executeCardBody, type AssistantApi } from '../../shared/assistant/index.js';
 import type { AssistantManager } from './manager.js';
 import { assertCardCurrent, destructivePlan, localOnlyMessage, localOnlyPlan, unconfirmedDeletion } from './plan-rules.js';
@@ -22,7 +22,7 @@ const cardPlan = z.object({ tool: z.string(), args: z.record(z.string(), z.unkno
 const viaProxy = (req: Request) => req.res?.locals.proxyIngress !== false;
 
 /** 确认执行：核对卡片还是这一版、代理入口、本人密码，再交给 previews.ts 的 commit */
-async function executeCard(manager: AssistantManager, auth: AuthManager, req: Request, id: string, body: unknown) {
+async function executeCard(manager: AssistantManager, auth: RequestAuth, req: Request, id: string, body: unknown) {
   const actor = auth.signedIn(req);
   const row = one(
     manager.store.db,
@@ -52,7 +52,7 @@ async function executeCard(manager: AssistantManager, auth: AuthManager, req: Re
   return manager.execute(id, input, auth.actor(req), auth.sessionBinding(req), { proxy, passwordVerified });
 }
 
-export function previewRoutes(router: Router, manager: AssistantManager, auth: AuthManager) {
+export function previewRoutes(router: Router, manager: AssistantManager, auth: RequestAuth) {
   const on = route<AssistantApi>(router, ASSISTANT_MOUNT);
   // 删除确认卡片上改“库存怎么处理”：服务器按新选项重新生成这份方案（新摘要），不执行。
   // 正文由 previews.ts 先核对权限再按 inventoryPolicyBody 的同样规则校验

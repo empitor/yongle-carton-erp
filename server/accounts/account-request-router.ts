@@ -3,8 +3,7 @@ import { Router } from 'express';
 import { ACCOUNT_NOTE_MAX, HOUR_MS, accountApplySchema, passwordForgotSchema, passwordHint } from '../../shared/core/index.js';
 import { accountRows } from './account-db.js';
 import { authRoute, type AuthRoutesHost } from './auth-router.js';
-import { done, refuse } from './route.js';
-import { count, exists, one } from './sql.js';
+import { done, refuse, count, exists, one } from '../core/index.js';
 
 /*
  * 不用登录的两个接口（/api/auth 下，接口表 shared/core/account-api.ts）：申请账号、忘记密码。管理员处理申请在 account-router.ts。

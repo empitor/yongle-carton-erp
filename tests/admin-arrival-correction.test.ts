@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { toolsOf } from './assistant-fixture.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';

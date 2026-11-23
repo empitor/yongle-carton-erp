@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { autoBackupFailure, notFound, route, type AuthManager, type Store } from '../core/index.js';
+import { autoBackupFailure, notFound, route, type RequestAuth, type Store } from '../core/index.js';
 import { today } from '../../shared/core/index.js';
 import type { WorkbenchApi } from '../../shared/business/index.js';
 import { listFields, orderDashboard } from './record-lists.js';
@@ -14,7 +14,7 @@ const recordId = (raw: string) => z.coerce.number().int().positive().parse(raw);
  * 今日、经营概况、订单和采购单的关联记录、任一记录的关联记录与修改历史（挂在 /api 下，接口表 shared/business/workbench-api.ts）。
  * 只取参数、判断权限、调服务。
  */
-export function workbenchRouter(store: Store, auth: AuthManager | undefined) {
+export function workbenchRouter(store: Store, auth: RequestAuth | undefined) {
   const router = Router(),
     on = route<WorkbenchApi>(router);
   on('GET /business/:entity/:id/related', ({ param, req }) => {

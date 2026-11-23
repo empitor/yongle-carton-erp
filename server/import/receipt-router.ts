@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import type { AuthManager } from '../core/index.js';
+import type { RequestAuth } from '../core/index.js';
 import type { ReceiptAi } from './receipt-ai.js';
 import { AppError, requirePermission, route } from '../core/index.js';
 import type { ImportsApi } from '../../shared/import/index.js';
@@ -9,7 +9,7 @@ import type { ImportsApi } from '../../shared/import/index.js';
  * 单独的“上传送货单再识别”那一套去掉了，识别只走 AI 导入的到货类型（/api/ai/imports/:id/arrival/recognize）。
  * 看原件文件（/sources/:id/file）在单据流转的路由里：原件表归单据流转。
  */
-export function receiptSourceRouter(auth?: AuthManager, receiptAi?: ReceiptAi) {
+export function receiptSourceRouter(auth?: RequestAuth, receiptAi?: ReceiptAi) {
   const router = Router();
   const actor = (req: Request) => {
     if (!auth) throw new AppError('此业务需要登录身份验证。', 403);

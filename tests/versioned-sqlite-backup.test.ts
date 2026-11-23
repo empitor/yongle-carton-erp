@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { accountDatabase } from '../server/core/account-db.js';
+import { accountDatabase } from '../server/accounts/account-db.js';
 import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
 import { revertConfigUpgrades } from '../server/core/versioned-sqlite-backup.js';
 import { VersionedSqliteError, type VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';

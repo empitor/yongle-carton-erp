@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { includeArchivedFor, isSuperMode, notFound, requirePermission, route, type AuthManager, type Store } from '../core/index.js';
+import { includeArchivedFor, isSuperMode, notFound, requirePermission, route, type RequestAuth, type Store } from '../core/index.js';
 import { customerList, listFields, orderList, productList } from './record-lists.js';
 import { ORDER_NOT_FOUND, manualWrite } from './service.js';
 import { assertOrderStatusKept, changeOrderStatus } from './order-status.js';
@@ -10,7 +10,7 @@ import { recordStatusActions, type RecordsApi } from '../../shared/business/inde
  * 客户、产品、订单的接口（挂在 /api 下，接口表 shared/business/records-api.ts）：列表、单条、新建、修改，订单的状态动作。
  * 只取参数、判断权限、调服务；页面凭证由装配层对写接口统一检查。六类档案的批量归档、恢复在删除归档（server/lifecycle/lifecycle-router.ts）。
  */
-export function recordsRouter(store: Store, auth?: AuthManager) {
+export function recordsRouter(store: Store, auth?: RequestAuth) {
   const router = Router();
   const on = route<RecordsApi>(router);
   const actorOf = (req: Request) => auth?.actor(req);

@@ -10,10 +10,7 @@ import {
   type Permission,
   type UserRole,
 } from '../../shared/core/index.js';
-import { defaultDbPath } from './db.js';
-import { rows } from './schema/rows.js';
-import { exists, parseStoredJson } from './sql.js';
-import { registerVersionedSqlite, type VersionedSqliteSpec } from './versioned-sqlite-spec.js';
+import { defaultDbPath, rows, exists, parseStoredJson, registerVersionedSqlite, type VersionedSqliteSpec } from '../core/index.js';
 
 /**
  * 账号库（security/users.sqlite）：表结构、默认位置，以及账号级别和权限的对应关系（级别、角色的取值在 shared/core/accounts.ts）。
@@ -66,7 +63,7 @@ export function accountPermissions(role: string, encoded: string): Permission[] 
  * 删掉登录会话（会话是能冒用的凭证）：完整备份的账号库副本、升级前备份、补丁回滚时换下来留存的账号库都不带它，
  * 恢复或换回以后所有人重新登录。副本可能是别的版本，没有这张表就不做。
  */
-export function clearSessions(db: DatabaseSync) {
+function clearSessions(db: DatabaseSync) {
   if (exists(db, "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='auth_sessions'"))
     db.exec('PRAGMA secure_delete=ON; DELETE FROM auth_sessions;');
 }

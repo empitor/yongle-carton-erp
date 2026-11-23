@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { count, many, one } from '../server/core/sql.js';
 import { rows } from '../server/core/schema/rows.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { testImports } from './order-import-fixture.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { clearArchiveNow, deferArchiveCleanup } from '../server/admin/reset-archive.js';

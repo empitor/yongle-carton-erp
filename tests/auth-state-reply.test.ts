@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { Store } from '../server/core/db.js';
 import { parseAuthState } from '../src/ui/auth-state.js';
 import { startHttp, userList } from './http-fixture.js';

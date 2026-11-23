@@ -8,15 +8,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
-import { AuthManager } from '../server/core/auth.js';
-import { levelGrant } from '../server/core/account-db.js';
+import { AuthManager } from '../server/accounts/index.js';
+import { levelGrant } from '../server/accounts/account-db.js';
 import { accountLevels } from '../shared/core/accounts.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { financeOnlyAccount, financeOnlyApiAllowed } from '../shared/core/account-scope.js';
 import { cookieOf, startHttp, stateActor, testAdmin } from './http-fixture.js';
 import { orderBasics } from './stack-fixture.js';
 import { hashGate } from './hash-gate.js';
-import { HashQueue } from '../server/core/hash-queue.js';
+import { HashQueue } from '../server/accounts/hash-queue.js';
 import { count, one } from '../server/core/sql.js';
 import { rows } from '../server/core/schema/rows.js';
 

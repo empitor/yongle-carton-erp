@@ -1,12 +1,13 @@
 // 登录和公开接口的限频：计数规则（纯函数）、访客按网段合并、同一账号跨地址的总上限、验本人密码按账号计。虚构账号。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AuthManager, type AuthOptions } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
+import type { AuthOptions } from '../server/accounts/auth.js';
 import { Store } from '../server/core/db.js';
 import { count } from '../server/core/sql.js';
 import { clientNetwork } from '../server/core/deployment.js';
 import { Throttle } from '../server/core/throttle.js';
-import { HashQueue } from '../server/core/hash-queue.js';
+import { HashQueue } from '../server/accounts/hash-queue.js';
 import { SERVER_BUSY_CODE, SERVER_BUSY_MESSAGE } from '../shared/core/index.js';
 import { hashGate } from './hash-gate.js';
 import { cookieOf, startProxied, testAdmin } from './http-fixture.js';

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import '../server/flow/index.js';
 import { Store } from '../server/core/db.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { z } from 'zod';
 import { cookieOf, startHttp } from './http-fixture.js';
 import { count } from '../server/core/index.js';

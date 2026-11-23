@@ -22,7 +22,7 @@ function settingsAs(who: Parameters<typeof AiSettingsHub>[0]['actor'], hash: str
   }
 }
 
-// 各级别的权限照账号库的 levelGrant（server/core/account-db.ts）
+// 各级别的权限照账号库的 levelGrant（server/accounts/account-db.ts）
 const staff = actor,
   viewer = { ...actor, permissions: grant() },
   finance = { ...actor, permissions: grant('business:edit', 'finance:view', 'finance:edit', 'finance:approve', 'finance:close') },

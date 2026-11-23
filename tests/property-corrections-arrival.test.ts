@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import type { FlowDocView } from '../shared/business/index.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { clerk, flowFixture, localAdmin } from './flow-fixture.js';

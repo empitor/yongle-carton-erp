@@ -4,7 +4,7 @@
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import type { Store } from '../server/core/db.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';

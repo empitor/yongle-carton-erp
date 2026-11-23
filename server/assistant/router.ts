@@ -3,7 +3,7 @@
 // 这里只留收发的不是 JSON 的 5 个：语音识别的录音、朗读的音频流、上传附件的原始字节、下载附件原件、一轮回复的事件流。
 import express, { Router } from 'express';
 import { z } from 'zod';
-import type { AuthManager } from '../core/index.js';
+import type { RequestAuth } from '../core/index.js';
 import type { AssistantManager } from './manager.js';
 import { AppError, openEventStream, watchDisconnect } from '../core/index.js';
 import { AI_HTTP_TIMEOUT_MS } from '../../shared/ai/index.js';
@@ -24,7 +24,7 @@ const speakBody = z.strictObject({
 });
 
 /** 语音输入和朗读（都交给 DeepSeek，密钥只在服务端）：录音进、音频流出，不是 JSON */
-function speechRoutes(router: Router, manager: AssistantManager, auth: AuthManager) {
+function speechRoutes(router: Router, manager: AssistantManager, auth: RequestAuth) {
   // 语音识别：录音在内存里包成 WAV 发给 DeepSeek 识别，不落盘；浏览器断开就取消上游。
   router.post('/transcribe', express.raw({ type: 'application/octet-stream', limit: '3mb' }), async (req, res) => {
     const owner = auth.actor(req);
@@ -51,7 +51,7 @@ function speechRoutes(router: Router, manager: AssistantManager, auth: AuthManag
 }
 
 /** 附件：上传原始字节、下载原件 */
-function attachmentFileRoutes(router: Router, manager: AssistantManager, auth: AuthManager) {
+function attachmentFileRoutes(router: Router, manager: AssistantManager, auth: RequestAuth) {
   router.post('/threads/:id/attachments', express.raw({ type: 'application/octet-stream', limit: '10mb' }), async (req, res) => {
     if (manager.isBusy(req.params.id)) throw new AppError('请先等待或停止当前AI回复，再上传附件。', 409);
     let name: string;
@@ -81,7 +81,7 @@ function attachmentFileRoutes(router: Router, manager: AssistantManager, auth: A
 }
 
 /** 一次回复用事件流推给页面（写法在 server/core/stream.ts）；进度按阶段、正在生成的正文（整段替换）只算最新一条 */
-function chatRoute(router: Router, manager: AssistantManager, auth: AuthManager) {
+function chatRoute(router: Router, manager: AssistantManager, auth: RequestAuth) {
   router.post('/threads/:id/chat', async (req, res) => {
     const id = req.params.id;
     const stream = openEventStream(req, res, {
@@ -109,7 +109,7 @@ function chatRoute(router: Router, manager: AssistantManager, auth: AuthManager)
   });
 }
 
-export function assistantRouter(manager: AssistantManager, auth: AuthManager) {
+export function assistantRouter(manager: AssistantManager, auth: RequestAuth) {
   const router = Router();
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');

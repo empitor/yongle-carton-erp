@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { Store } from '../server/core/db.js';
 import { count, many, one, rows } from '../server/core/index.js';
 import { passwordAllowed, passwordPattern } from '../shared/core/password-policy.js';

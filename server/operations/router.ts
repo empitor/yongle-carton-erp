@@ -1,7 +1,7 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { AppError, includeArchivedFor, route } from '../core/index.js';
-import type { Actor, AuthManager, Store } from '../core/index.js';
+import type { Actor, RequestAuth, Store } from '../core/index.js';
 import { matchesOperationalRecord, operationsListQuerySchema, type OperationsApi } from '../../shared/business/index.js';
 import { OperationsService } from './service.js';
 
@@ -36,7 +36,7 @@ function supplierList(service: OperationsService, include: (archived: unknown) =
   return metrics ? { rows, totalRecords: scoped.length, metrics: null } : rows;
 }
 
-export function operationsRouter(store: Store, auth?: AuthManager) {
+export function operationsRouter(store: Store, auth?: RequestAuth) {
   const router = Router(),
     on = route<OperationsApi>(router),
     service = new OperationsService(store);

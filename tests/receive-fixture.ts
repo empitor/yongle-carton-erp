@@ -1,7 +1,7 @@
 // 测试里按采购明细登记一张到货：换成订货单的行键，走唯一的登记入口 registerArrival（当场入库）。
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { OrderBatchService } from '../server/operations/index.js';
 import { registerArrival } from '../server/flow/index.js';
 import { archiveFlowDocuments } from '../server/flow/index.js';

@@ -17,7 +17,7 @@ import {
 } from '../shared/assistant/assistant-navigation.js';
 import { PluginManagementView } from '../src/assistant/AssistantPlugins.js';
 import { startHttp } from './http-fixture.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { toolCatalog } from '../server/assistant/tool-catalog.js';
 import { actor, grant, superActor } from './actor-fixture.js';
 import { readAs } from './read-result.js';

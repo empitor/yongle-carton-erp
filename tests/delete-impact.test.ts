@@ -16,7 +16,7 @@ import { inventoryOptions } from '../shared/business/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { listingFixture, mergeIntoBatch, orderWithImports } from './delete-fixture.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { actor } from './actor-fixture.js';
 import { must } from './read-result.js';
 

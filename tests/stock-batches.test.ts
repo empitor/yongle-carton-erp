@@ -10,7 +10,7 @@ import { stockBatches, type BatchMovement } from '../shared/business/stock-batch
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { createBusinessService } from '../server/business/service.js';
 import type { Order } from '../shared/core/order-view.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 // 删除引擎要用到各模块登记的删除规则（和 tests/delete-rules.test.ts 一样先加载）
 import '../server/import/index.js';
 

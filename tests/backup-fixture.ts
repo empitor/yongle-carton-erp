@@ -10,7 +10,7 @@ import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
 import { ImportRepository } from '../server/import/repository.js';
 import { createFullBackup } from '../server/core/backup.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { one, readBackupManifest } from '../server/core/index.js';
 import { z } from 'zod';
 

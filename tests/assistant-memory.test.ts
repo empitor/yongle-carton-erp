@@ -13,7 +13,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import type { Actor } from '../server/core/actor.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { pragmaInteger } from '../server/core/sql.js';
 import { errorMessage } from '../shared/core/index.js';
 import { assistantRouter } from '../server/assistant/router.js';

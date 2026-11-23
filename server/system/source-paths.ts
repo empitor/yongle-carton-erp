@@ -35,11 +35,11 @@ const real = (path: string) => (existsSync(path) ? realpathSync.native(path) : r
 export type SourcePath = { absolute: string; path: string };
 
 /**
- * 把调用方给的相对路径（如 server/core/auth.ts）解析成真实路径并核对范围。目录和文件都可以；不存在的报 404。
+ * 把调用方给的相对路径（如 server/accounts/auth.ts）解析成真实路径并核对范围。目录和文件都可以；不存在的报 404。
  */
 export function resolveSourcePath(scope: SourceScope, input: unknown): SourcePath {
   if (typeof input !== 'string' || !input.trim() || input.length > MAX_PATH_CHARS || input.includes('\0'))
-    throw new AppError('请给出程序目录下的相对路径，例如 server/core/auth.ts。');
+    throw new AppError('请给出程序目录下的相对路径，例如 server/accounts/auth.ts。');
   const written = input.trim().replace(/\\/g, '/');
   if (written.startsWith('/') || written.includes(':') || written.startsWith('~'))
     throw refuse('只收程序目录下的相对路径，不收绝对路径、盘符或网络路径。');

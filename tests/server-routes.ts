@@ -3,7 +3,8 @@
 // 给“登记的地址都还在”（功能清单的接口、地址前缀归属）和“写地址都登记在一条业务动作上”这类检查用。
 import express from 'express';
 import { createApp } from '../server/app.js';
-import { AuthManager, ProblemLog } from '../server/core/index.js';
+import { AuthManager } from '../server/accounts/index.js';
+import { ProblemLog } from '../server/core/index.js';
 import { assistantFixture } from './assistant-fixture.js';
 
 type Fn = (...args: unknown[]) => unknown;

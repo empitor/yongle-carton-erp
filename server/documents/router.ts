@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { AuthManager, Store } from '../core/index.js';
+import type { RequestAuth, Store } from '../core/index.js';
 import { AppError, requirePermission, route } from '../core/index.js';
 import {
   documentKinds,
@@ -119,7 +119,7 @@ function exportRoutes({ router, on, service, actor }: Routes) {
   );
 }
 
-export function documentsRouter(store: Store, auth?: AuthManager) {
+export function documentsRouter(store: Store, auth?: RequestAuth) {
   const router = Router();
   const actor = (req: Request, write = false) => {
     if (!auth) throw new AppError('请先登录。', 401);

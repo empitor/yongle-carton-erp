@@ -19,7 +19,7 @@ export function isSuperMode(actor: Actor | null | undefined) {
   );
 }
 /**
- * 这个账号能不能进超级管理员模式：只有超级管理员账号能（server/core/auth.ts 进入模式的路由按同一个字段判断）。
+ * 这个账号能不能进超级管理员模式：只有超级管理员账号能（server/accounts/auth.ts 进入模式的路由按同一个字段判断）。
  * 业务员、只读、财务账号进不了，账号菜单里也没有“系统维护”。
  */
 export function canEnterSuperMode(actor: Actor | null | undefined) {

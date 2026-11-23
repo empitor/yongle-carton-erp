@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { startHttp } from './http-fixture.js';
 import { BotSettings } from '../server/inbox/bots/settings.js';
 import { BotManager, inboxChannelList } from '../server/inbox/bots/manager.js';

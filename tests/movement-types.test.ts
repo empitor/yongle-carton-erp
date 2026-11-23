@@ -19,7 +19,7 @@ import {
   type MovementType,
 } from '../shared/business/movement-filters.js';
 import MovementRecords from '../src/warehouse/MovementRecords.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { businessBase } from './business-base-fixture.js';
 

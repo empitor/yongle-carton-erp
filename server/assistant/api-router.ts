@@ -2,7 +2,7 @@
 // 原始字节、事件流、下载原件这几个在 router.ts，卡片的三个按钮在 preview-router.ts，记忆在 memory-router.ts。
 import type { Router } from 'express';
 import { isSuperMode, one, requireSuperAdminAccount, route, rows } from '../core/index.js';
-import type { Actor, AuthManager } from '../core/index.js';
+import type { Actor, RequestAuth } from '../core/index.js';
 import {
   acknowledgedBody,
   cancelUploadBody,
@@ -16,7 +16,7 @@ export const ASSISTANT_MOUNT = '/assistant';
 const lastExecution = rows.assistant_audit.pick({ state: true }).extend({ at: rows.assistant_audit.shape.created_at });
 
 /** 插件和工具的启停（写助手操作记录）：先核对能不能改、再按 pluginSettingBody、toolSettingBody 校验，都在 tool-registry.ts */
-function toolSettingRoutes(router: Router, manager: AssistantManager, auth: AuthManager) {
+function toolSettingRoutes(router: Router, manager: AssistantManager, auth: RequestAuth) {
   const on = route<AssistantApi>(router, ASSISTANT_MOUNT);
   const logSetting = (actor: Actor, tool: string, body: unknown) =>
     manager.store.db
@@ -55,7 +55,7 @@ function toolSettingRoutes(router: Router, manager: AssistantManager, auth: Auth
 }
 
 /** 会话的新建、打开、清空、删除、停止，附件的撤回上传和删除，页面交回“看一眼”的结果 */
-function threadRoutes(router: Router, manager: AssistantManager, auth: AuthManager) {
+function threadRoutes(router: Router, manager: AssistantManager, auth: RequestAuth) {
   const on = route<AssistantApi>(router, ASSISTANT_MOUNT);
   on('GET /assistant', ({ req }) => manager.state(auth.actor(req)));
   on('POST /assistant/page/results', ({ body, req }) =>
@@ -91,7 +91,7 @@ function threadRoutes(router: Router, manager: AssistantManager, auth: AuthManag
 }
 
 /** 收发 JSON 的地址都在这里注册 */
-export function jsonRoutes(router: Router, manager: AssistantManager, auth: AuthManager) {
+export function jsonRoutes(router: Router, manager: AssistantManager, auth: RequestAuth) {
   threadRoutes(router, manager, auth);
   toolSettingRoutes(router, manager, auth);
 }

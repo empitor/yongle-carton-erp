@@ -4,13 +4,10 @@ import type { z } from 'zod';
 import { DAY_MS, HOUR_MS, MINUTE_MS, loginSchema, passwordHint, setupSchema } from '../../shared/core/index.js';
 import { accountPermissions, accountRows, levelGrant } from './account-db.js';
 import type { AuthRoute, AuthRoutesHost } from './auth-router.js';
-import { proxyIngress } from './deployment.js';
+import { proxyIngress, refuse, type RouteReply, one, LOG_ONCE_MS, retryMinutes } from '../core/index.js';
 import { disconnected, ServerBusyError, type HashLane } from './hash-queue.js';
 import { hashMatches } from './password-hash.js';
-import { refuse, type RouteReply } from './route.js';
 import { sessionCookie } from './session-cookie.js';
-import { one } from './sql.js';
-import { LOG_ONCE_MS, retryMinutes } from './throttle.js';
 
 /*
  * 登录和建首个管理员（/api/auth/login、/api/auth/setup，正文规则在 shared/core/account-input.ts）：
@@ -36,7 +33,7 @@ type Limit = [key: string, limit: number, windowMs: number];
 /** 账号库 users 的一行 */
 type UserRow = z.output<typeof accountRows.user>;
 
-/** 记一条登录记录（不记口令），顺手清掉过期的（诊断里的登录记录读这些，server/system/login-records.ts） */
+/** 记一条登录记录（不记口令），顺手清掉过期的（login-records.ts 读取这些记录）。 */
 function loginEvent(auth: AuthRoutesHost, userId: string | null, action: string) {
   auth.event(userId, action);
   auth.db

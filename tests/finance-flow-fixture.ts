@@ -8,7 +8,7 @@ import { FinanceEventViews } from '../server/finance/event-views.js';
 import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';
 import { count as countRows, many, one, parseStoredJson, rows } from '../server/core/index.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { maker, postDrafts, event } from './finance-fixture.js';
 import { receiveLines } from './receive-fixture.js';
 import { applyCorrection, previewCorrection } from './receive-fixture.js';

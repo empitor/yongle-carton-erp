@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { count } from '../server/core/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { impactRowSchema } from '../shared/business/deletion-request.js';

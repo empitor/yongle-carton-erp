@@ -2,7 +2,7 @@
 // 计划数不能少于已登记的完工数（已入库加待核对入库，取消、撤销的不算）。内存库、虚构数据。
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { AppError } from '../server/core/errors.js';
 import { count } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';

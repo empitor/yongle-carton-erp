@@ -15,7 +15,7 @@ import { today } from '../shared/core/domain.js';
 import { saveDoc, applyCorrection, previewCorrection } from './receive-fixture.js';
 import { z } from 'zod';
 import type { NextFunction, Request, Response } from 'express';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { AppError } from '../server/core/errors.js';
 import { count, one, parseStoredJson, rows } from '../server/core/index.js';
 import type { Actor } from '../server/core/actor.js';

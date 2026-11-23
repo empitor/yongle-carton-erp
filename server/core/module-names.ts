@@ -5,6 +5,7 @@
  */
 export const serverModuleNames = [
   '基础',
+  '账号',
   'AI接入',
   '系统资料',
   '采购库存',

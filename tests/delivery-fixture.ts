@@ -4,7 +4,7 @@ import { viewAs } from './read-result.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { actor } from './actor-fixture.js';
 
 /** 按北京时间算的相对日期 */

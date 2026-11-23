@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { AppError } from '../server/core/errors.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import type { OperationsService } from '../server/operations/index.js';

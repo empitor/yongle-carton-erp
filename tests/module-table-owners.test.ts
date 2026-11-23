@@ -13,7 +13,8 @@ import ts from 'typescript';
 import { all, ownerModule, scriptKind } from './module-map.js';
 
 const tableOwnerList: [module: string, tables: string][] = [
-  ['基础', 'customers products orders order_lines business_audit schema_migrations users auth_events auth_sessions account_requests operation_requests number_sequences record_lifecycle permanent_record_deletions'],
+  ['基础', 'customers products orders order_lines business_audit schema_migrations operation_requests number_sequences record_lifecycle permanent_record_deletions'],
+  ['账号', 'users auth_events auth_sessions account_requests'],
   // 出错记录库（单独的 logs/problems.sqlite，server/core/diagnostics/problem-log.ts）
   ['基础', 'recent_problems'],
   ['采购库存', 'suppliers purchases purchase_lines stock_items stock_movements stock_movement_revisions order_batches order_batch_purchases'],

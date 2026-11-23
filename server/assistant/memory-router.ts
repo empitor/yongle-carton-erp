@@ -4,7 +4,7 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { route } from '../core/index.js';
-import type { AuthManager } from '../core/index.js';
+import type { RequestAuth } from '../core/index.js';
 import { memoryAutoSaveBody, memoryContentBody, type AssistantApi } from '../../shared/assistant/index.js';
 import type { AssistantMemory } from './memory-store.js';
 
@@ -12,7 +12,7 @@ const id = z.coerce.number().int().positive();
 /** 这个 router 挂的位置（在 /api 下） */
 const MEMORY_MOUNT = '/assistant/memory';
 
-export function memoryRouter(memory: AssistantMemory, auth: AuthManager) {
+export function memoryRouter(memory: AssistantMemory, auth: RequestAuth) {
   const router = Router();
   const on = route<AssistantApi>(router, MEMORY_MOUNT);
   const me = (req: Request) => auth.signedIn(req).id;

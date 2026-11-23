@@ -5,21 +5,18 @@ import type { Request } from 'express';
 import { authRouter } from './auth-router.js';
 import { accountRouter } from './account-router.js';
 import { accountRequestRouter } from './account-request-router.js';
-import { LOG_ONCE_MS, retryMinutes, Throttle } from './throttle.js';
-import { AppError } from './errors.js';
-import { openVersionedSqlite } from './versioned-sqlite.js';
+import {
+  AppError, LOG_ONCE_MS, Throttle, canEnterSuperMode, clientNetwork, count, exists,
+  forwardedClient, hasProxyHeaders, isSuperMode, localAdministratorActor, many, one,
+  openVersionedSqlite, proxyIngress, requireSuperModeFor, retryMinutes,
+  type Actor, type Deployment, type RequestAuth,
+} from '../core/index.js';
 import { accountDatabase, accountLevel, accountPermissions, accountRows, permissionList } from './account-db.js';
-import { count, exists, many, one } from './sql.js';
-import { clientNetwork, forwardedClient, hasProxyHeaders, proxyIngress, type Deployment } from './deployment.js';
-import { localAdministratorActor } from './local-administrator.js';
 import { sessionCookie } from './session-cookie.js';
-import { canEnterSuperMode, isSuperMode, requireSuperModeFor } from './permissions.js';
 import { HASH_BYTES, hashMatches } from './password-hash.js';
 import { disconnected, HashQueue, ServerBusyError, type HashLane } from './hash-queue.js';
-import type { Actor } from './actor.js';
 import { AUDIT_SOURCE, DAY_MS, HOUR_MS, PASSWORD_MAX_LENGTH } from '../../shared/core/index.js';
 // 测试里常从这里引 Actor（类型在 actor.ts）
-export type { Actor } from './actor.js';
 type Session = { userId: string; expires: number; superUntil?: number };
 export type AuthOptions = {
   localAdministration?: boolean;
@@ -32,7 +29,7 @@ export type AuthOptions = {
 /** 输错计数表的上限：一条约 200 字节，20 万条约 40MB；满了不丢旧的，新来的登录先拦（见 throttle.ts） */
 const FAILURE_LIMIT = 200_000;
 /** 页面凭证不对时的说法（全站一句） */
-export const CSRF_EXPIRED = '页面凭证已过期，请刷新页面。';
+const CSRF_EXPIRED = '页面凭证已过期，请刷新页面。';
 const { sessionRow, credentialRow, userIdRow, accountListRow, sessionUserRow, requestIdRow, requestListRow } = accountRows;
 /** 临时密码几小时内有效 */
 const TEMPORARY_PASSWORD_HOURS = 24;
@@ -54,7 +51,7 @@ function temporaryPassword() {
   );
   return groups.join('-');
 }
-export class AuthManager {
+export class AuthManager implements RequestAuth {
   readonly db: DatabaseSync;
   readonly csrf = randomBytes(CSRF_BYTES).toString('hex');
   readonly sessions = new Map<string, Session>();

@@ -9,9 +9,8 @@ import {
   type AccountLevel,
 } from '../../shared/core/index.js';
 import { accountRows, levelGrant } from './account-db.js';
-import { AppError } from './errors.js';
+import { AppError, exists, one } from '../core/index.js';
 import { authRoute, type AuthRoute, type AuthRoutesHost } from './auth-router.js';
-import { exists, one } from './sql.js';
 
 /*
  * 管理员管理账号的接口（/api/auth 下，接口表 shared/core/account-api.ts）：账号列表、建号、改级别和停用、发临时密码，

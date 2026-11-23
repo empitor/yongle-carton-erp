@@ -12,7 +12,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { openVersionedSqlite, registeredVersionedSqlite, schemaTableGroups } from '../server/core/index.js';
-// 这几个模块加载时登记各自的配置库规格（基础模块自己的账号库、出错记录库随 core 一起登记）
+// 这几个模块加载时登记各自的配置库规格（出错记录库随 core 一起登记）
+import '../server/accounts/index.js';
 import '../server/ai/index.js';
 import '../server/assistant/index.js';
 import '../server/import/index.js';

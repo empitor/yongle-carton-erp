@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
-import { AuthManager } from '../server/core/auth.js';
+import { AuthManager } from '../server/accounts/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { manageWorkspaces } from '../server/admin/workspace-management.js';

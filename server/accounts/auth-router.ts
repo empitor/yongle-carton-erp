@@ -9,18 +9,14 @@ import {
   type AccountRequestView,
   type AccountView,
 } from '../../shared/core/index.js';
-import type { Actor } from './actor.js';
+import {
+  AppError, canEnterSuperMode, done, isLocalAdministrator, proxyIngress, refuse, route,
+  type Actor, type Deployment, type Throttle,
+} from '../core/index.js';
 import { accountLevel } from './account-db.js';
-import type { Deployment } from './deployment.js';
-import { proxyIngress } from './deployment.js';
-import { AppError } from './errors.js';
-import { isLocalAdministrator } from './local-administrator.js';
-import { canEnterSuperMode } from './permissions.js';
-import type { Throttle } from './throttle.js';
 import type { HashLane } from './hash-queue.js';
 import { sessionCookie } from './session-cookie.js';
 import { loginRoutes } from './login-route.js';
-import { done, refuse, route } from './route.js';
 
 /*
  * 登录相关的接口（/api/auth，接口表 shared/core/account-api.ts）：登录状态、退出、改密码、进出超级管理员模式；登录和首个管理员在 login-route.ts。

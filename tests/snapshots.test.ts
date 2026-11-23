@@ -11,7 +11,7 @@ import fs, { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/auth.js';
+import type { Actor } from '../server/core/index.js';
 import { createBusinessService, manualWrite } from '../server/business/service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
