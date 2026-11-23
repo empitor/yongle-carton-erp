@@ -24,7 +24,7 @@ import {
 /** 登记完工的防重复提交记录种类（人工预览后提交的 production-completion.ts 也按它查办过没有） */
 export const COMPLETION_REQUEST = 'production-completion';
 
-/** 登记完工的结果（结构在 shared/business/flow-results.ts；同一请求号再交时按它核对上次存下的结果） */
+/** 登记完工的结果（结构在 shared/business/flow/flow-results.ts；同一请求号再交时按它核对上次存下的结果） */
 type CompletionResult = z.output<typeof completionResultSchema>;
 type RegisteredRow = CompletionResult['results'][number];
 /** 这次登记的方案：每行的合格、废品和分到的领料，整批的原料，是不是只登记待入库 */

@@ -6,7 +6,7 @@ import { matchesOperationalRecord, operationsListQuerySchema, type OperationsApi
 import { OperationsService } from './service.js';
 
 /*
- * 采购库存的接口（挂在 /api 下，接口表 shared/business/operations-api.ts）：供应商。
+ * 采购库存的接口（挂在 /api 下，接口表 shared/business/operations/operations-api.ts）：供应商。
  * 采购单、库存品和流水、订货单的地址带单据的内容，在单据流转（server/flow/stock-router.ts）。
  * 只取参数、认人、调服务；查询参数和正文进服务前先按 zod 校验。写接口的页面凭证由装配层统一查过。
  */

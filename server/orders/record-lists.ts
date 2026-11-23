@@ -17,7 +17,7 @@ import {
 
 /*
  * 客户、产品、订单列表的读取：按请求参数筛选、分页、算统计。
- * 只读，参数是请求的 query，按 shared/business/record-queries.ts 的规则校验；带不带已归档的由调用方按权限判断好传进来。
+ * 只读，参数是请求的 query，按 shared/business/orders/record-queries.ts 的规则校验；带不带已归档的由调用方按权限判断好传进来。
  */
 
 /** 请求的查询参数（express 给的总是对象）：各字段再按列表的规则校验 */

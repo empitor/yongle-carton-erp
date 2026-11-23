@@ -14,7 +14,7 @@ import { updateDocumentInfo } from './correction/document-info.js';
 import { correctDocument, planCorrection } from './correction/correction.js';
 
 /*
- * 单据流转的接口（挂在 /api/flow 下，接口表 shared/business/flow-api.ts）：只取参数、认人、调服务；查询参数和正文由服务（或这里）先用 zod 校验。
+ * 单据流转的接口（挂在 /api/flow 下，接口表 shared/business/flow/flow-api.ts）：只取参数、认人、调服务；查询参数和正文由服务（或这里）先用 zod 校验。
  * 页面凭证由装配层对写接口统一检查。看送货单原件回的是文件，不在接口表里，照旧用 express 注册。
  */
 

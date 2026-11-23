@@ -9,7 +9,7 @@ import { createBusinessService } from '../server/orders/index.js';
 import { localAdministratorActor, count, type Actor } from '../server/core/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, orderDisplayStatus, productSchema, statuses, uncountedOrderStatuses } from '../shared/core/domain.js';
 import { buildToday } from '../server/overview/workbench.js';
-import { orderNextSteps } from '../shared/business/order-next-step.js';
+import { orderNextSteps } from '../shared/business/index.js';
 import { materialByOrder } from '../server/operations/index.js';
 import { businessFixture, flowFixture, clerk, localAdmin, orderOf, trackedOrderOf } from './flow-fixture.js';
 import { rawInput, stackActor as actor, stackFixture } from './stack-fixture.js';

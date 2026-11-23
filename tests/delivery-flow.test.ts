@@ -5,14 +5,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { orderSchema, today } from '../shared/core/domain.js';
-import { selectedStockUnits } from '../shared/business/warehouse-delivery.js';
-import { flowStatusLabel } from '../shared/business/physical-flow.js';
+import { selectedStockUnits, flowDocumentSchema } from '../shared/business/index.js';
+import { flowStatusLabel } from '../shared/business/flow/physical-flow.js';
 import { Store, one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { flowFixture, clerk, clerk as actor, localAdmin } from './flow-fixture.js';
 import { updateDocumentInfo } from '../server/flow/index.js';
 import { viewAs } from './read-result.js';
-import { flowDocumentSchema } from '../shared/business/index.js';
 
 /** 从库里重读订单：读不到就判失败 */
 function orderOf(store: Store, id: number) {

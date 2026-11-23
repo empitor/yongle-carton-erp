@@ -9,15 +9,17 @@ import { one, rows as tableRows } from '../server/core/index.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 import { PurchaseReturns } from '../server/flow/index.js';
-import type { MovementView } from '../shared/business/index.js';
 import {
+  type MovementView,
   matchesMovement,
   movementFilterSchema,
   movementLabels,
   movementTypeOf,
   movementTypes,
-  type MovementType,
-} from '../shared/business/movement-filters.js';
+} from '../shared/business/index.js';
+import type {
+  MovementType,
+} from '../shared/business/operations/movement-filters.js';
 import MovementRecords from '../src/warehouse/MovementRecords.js';
 import type { Actor } from '../server/core/index.js';
 import { saveDoc } from './receive-fixture.js';

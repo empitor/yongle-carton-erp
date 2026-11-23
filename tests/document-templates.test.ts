@@ -11,7 +11,7 @@ import { AppError, count as countRows, localAdministratorActor } from '../server
 import { sampleDocument } from '../server/documents/sample.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { today } from '../shared/core/domain.js';
-import { UNPRICED_TEXT } from '../shared/business/display-text.js';
+import { UNPRICED_TEXT } from '../shared/business/index.js';
 import { workbenchFixture } from './flow-fixture.js';
 import { toolsOf } from './assistant-fixture.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';

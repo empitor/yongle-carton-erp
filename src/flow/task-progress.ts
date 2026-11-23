@@ -2,7 +2,7 @@ import { quantityString, quantityUnits } from '../../shared/core/index';
 import { taskLeftUnits, type FlowDocView } from '../../shared/business/index';
 
 /**
- * 生产任务进度的显示：完工数、还差多少、能不能登记由服务端视图和 shared/business/task-progress.ts 算，
+ * 生产任务进度的显示：完工数、还差多少、能不能登记由服务端视图和 shared/business/flow/task-progress.ts 算，
  * 这里只把它们写成给人看的话，以及编辑一张待入库的完工单时扣掉它自己。
  */
 

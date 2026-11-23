@@ -1,7 +1,7 @@
 import type { MarksApi } from '../../shared/business/index';
 import { call, readAuthState, request, uploadFile } from '../ui/index';
 
-/** 产品唛头的请求：列出、上传、编辑说明、删掉，和读原件。列出、改、删按接口表（shared/business/mark-api.ts）发。 */
+/** 产品唛头的请求：列出、上传、编辑说明、删掉，和读原件。列出、改、删按接口表（shared/business/sales/mark-api.ts）发。 */
 
 const marks = call<MarksApi>();
 

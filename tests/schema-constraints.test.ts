@@ -9,7 +9,13 @@ import { format } from 'node:util';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 import { assistantMessageRoles, assistantRunStates } from '../server/assistant/conversation.js';
-import { markSourceKinds } from '../shared/business/index.js';
+import {
+  markSourceKinds,
+  purchaseReturnStatuses,
+  movementSourceKinds,
+  purchaseBusinessStatuses,
+  flowStates,
+} from '../shared/business/index.js';
 import {
   Store,
   count,
@@ -32,12 +38,8 @@ import {
   isSha256,
 } from '../server/core/schema/tables/checks.js';
 import * as finance from '../server/finance/base/stored-values.js';
-import { purchaseReturnStatuses } from '../shared/business/flow-results.js';
 import { flowSourceKinds } from '../server/flow/documents/sources.js';
 import { stockMovementActions } from '../server/operations/ledger/ledger.js';
-import { movementSourceKinds } from '../shared/business/movement-filters.js';
-import { purchaseBusinessStatuses } from '../shared/business/operations.js';
-import { flowStates } from '../shared/business/physical-flow.js';
 import { flowKinds, stockKinds } from '../shared/core/index.js';
 import { attachmentKinds } from '../shared/core/assistant-attachments.js';
 import { auditSources } from '../shared/core/audit-sources.js';

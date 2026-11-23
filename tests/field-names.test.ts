@@ -76,7 +76,7 @@ const allowed: Record<string, string> = {
   'server/documents/delivery-form.ts:客户采购订单号': '同上：送货单信息格的键',
   'server/documents/sample.ts:客户采购订单号': '同上：样张信息格的键',
   'server/flow/rules/arrivals.ts:不合格': '“含不合格品”是到货单的验收结果（全部合格 / 含不合格品），不是数量栏目的名字',
-  'shared/business/flow-views.ts:不合格': '同上：验收结果的取值',
+  'shared/business/flow/flow-views.ts:不合格': '同上：验收结果的取值',
   'src/finance/parties/StatementTab.tsx:差异说明': '对账单上和客户账对不上的说明，是财务自己的栏目，不是到货的差异原因',
   'server/core/schema/tables/operations.ts:规格说明': '建表语句里的注释（表结构不在这一轮改，发布后要走升级步骤）',
 };

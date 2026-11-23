@@ -18,7 +18,7 @@ import { promptTable } from './assistant-fixture.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { FlowService } from '../server/flow/index.js';
 import { OperationsService } from '../server/operations/index.js';
-import { recognizedArrivalDraft, arrivalTotals } from '../shared/business/arrival-draft.js';
+import { recognizedArrivalDraft, arrivalTotals } from '../shared/business/index.js';
 import { SseParser } from '../shared/core/sse.js';
 import { receiptResultSchema } from '../shared/import/index.js';
 import { z } from 'zod';

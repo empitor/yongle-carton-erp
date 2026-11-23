@@ -13,12 +13,11 @@ import {
   rows,
   localAdministratorActor,
 } from '../server/core/index.js';
-import { storedScheduleEntrySchema } from '../shared/business/index.js';
+import { storedScheduleEntrySchema, purchaseNextSteps } from '../shared/business/index.js';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { purchaseNextSteps } from '../shared/business/order-next-step.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { flowFixture, clerk } from './flow-fixture.js';
 import { registerArrival } from '../server/flow/index.js';

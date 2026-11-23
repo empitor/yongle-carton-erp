@@ -1,11 +1,11 @@
 // 订单、采购单详情上的状态按钮（src/records/record-action-lists.ts）：什么状态出现哪些按钮。
-// 条件取自 shared/business/record-status.ts 的规则，这里按状态逐个钉住结果。
+// 条件取自 shared/business/operations/record-status.ts 的规则，这里按状态逐个钉住结果。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { orderActions, purchaseActions, type ActionContext, type ActionLists } from '../src/records/record-action-lists.js';
 import type { Order } from '../shared/core/order-view.js';
 import { statuses } from '../shared/core/domain.js';
-import { purchaseBusinessStatuses } from '../shared/business/operations.js';
+import { purchaseBusinessStatuses } from '../shared/business/index.js';
 
 /** 一份不办事的上下文：只看排出来的按钮 */
 function context<R>(row: R, localAdmin = false): ActionContext<R> {

@@ -1,8 +1,7 @@
-// 全站统一的叫法和写法（shared/business/display-text.ts、physical-flow.ts 的 flowStatusText）：同一样东西一个叫法，不猜。纯函数和内存库、虚构数据。
+// 全站统一的叫法和写法（shared/business/operations/display-text.ts、physical-flow.ts 的 flowStatusText）：同一样东西一个叫法，不猜。纯函数和内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { flowStatusText } from '../shared/business/physical-flow.js';
-import { priceText, specLine, taxText } from '../shared/business/display-text.js';
+import { flowStatusText, priceText, specLine, taxText } from '../shared/business/index.js';
 import { centsText } from '../shared/core/display-amount.js';
 import { toolsOf } from './assistant-fixture.js';
 import { flowFixture, clerk } from './flow-fixture.js';

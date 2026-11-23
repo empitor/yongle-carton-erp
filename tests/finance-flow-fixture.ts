@@ -14,7 +14,7 @@ import { receiveLines } from './receive-fixture.js';
 import { applyCorrection, previewCorrection } from './receive-fixture.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { updateDocumentInfo } from '../server/flow/index.js';
-import { lineMoney } from '../shared/business/operations.js';
+import { lineMoney } from '../shared/business/index.js';
 import { businessChanges } from './business-changes-fixture.js';
 
 type FlowBase = ReturnType<(typeof import('./flow-fixture.js'))['flowFixture']>;

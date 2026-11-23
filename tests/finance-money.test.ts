@@ -13,7 +13,7 @@ import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { financeReadTools } from '../shared/finance/finance-tools.js';
 import { entry } from '../server/finance/base/query.js';
 import { documentMoney } from '../server/finance/base/amounts.js';
-import { deliveryLineExact } from '../shared/business/document-value.js';
+import { deliveryLineExact } from '../shared/business/flow/document-value.js';
 import { maker, post } from './finance-fixture.js';
 
 /** 换成元以后的结果按结构认：各项的值留给断言去比（没换的数字、换了的文字都原样拿到） */

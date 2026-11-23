@@ -14,7 +14,7 @@ import type { FlowDocument } from '../shared/business/index.js';
 import { z } from 'zod';
 import { finishedStockOfProduct } from '../server/flow/index.js';
 
-// 各种单据最少的完整内容（库里的单据结构，shared/business/flow-document.ts），测试里只改要看的字段
+// 各种单据最少的完整内容（库里的单据结构，shared/business/flow/flow-document.ts），测试里只改要看的字段
 const date = '2026-10-20';
 const task = (extra: Partial<FlowDocument<'task'>> = {}): FlowDocument<'task'> => ({
   kind: 'task', date, plannedDate: date, notes: '', productId: 1, quantity: '10', unit: '只', orderIds: [], ...extra,

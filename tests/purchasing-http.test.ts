@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { count } from '../server/core/index.js';
-import { stockItemSchema } from '../shared/business/operations.js';
+import { stockItemSchema } from '../shared/business/index.js';
 import { json, password, problem, purchasingFixture, registered } from './purchasing-http-fixture.js';
 
 test('新建采购单：缺价格也能建；待订货的还没有订货单，无从登记到货；写审计', async () => {

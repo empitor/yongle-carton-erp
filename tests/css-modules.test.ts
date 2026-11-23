@@ -231,7 +231,7 @@ test('回归：样式检查拦住往上层写、改别的模块、没人用的�
       ['src/finance/C.tsx', 'export const C = () => <div className="fin-x" />;'],
       ['src/documents/D.tsx', "export const D = (p: string) => <div className={'paper-' + p} />;"],
     ],
-    [['shared/business/E.ts', "export const papers = ['a4'];"]],
+    [['shared/business/operations/E.ts', "export const papers = ['a4'];"]],
   );
   const problems = (f: string, sel: string) => [...moduleProblems(ix, f, sel), layerProblem(ix, f, sel) ?? ''].filter(Boolean);
   const blocked: [file: string, sel: string, expect: string][] = [

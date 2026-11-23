@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { WarehouseDaily } from '../server/flow/index.js';
 import { customerSchema, orderSchema, today } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
-import { flowStatusLabel } from '../shared/business/physical-flow.js';
+import { flowStatusLabel } from '../shared/business/flow/physical-flow.js';
 import type { DeliveryDaily } from '../shared/business/index.js';
 import { allocateShipments } from '../src/warehouse/ReadyToShip.js';
 import { deliverySetup, shift } from './delivery-fixture.js';

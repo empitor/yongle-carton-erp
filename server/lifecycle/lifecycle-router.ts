@@ -4,7 +4,7 @@ import { recordEntities, type LifecycleApi } from '../../shared/business/index.j
 import { changeLifecycle } from './lifecycle.js';
 
 /**
- * 六类档案（客户、产品、订单、供应商、采购单、库存品）的批量归档、恢复（挂在 /api 下，接口表 shared/business/lifecycle-api.ts）：
+ * 六类档案（客户、产品、订单、供应商、采购单、库存品）的批量归档、恢复（挂在 /api 下，接口表 shared/business/lifecycle/lifecycle-api.ts）：
  * POST /api/<档案>/batch，共用一套规则（lifecycle.ts）。只取参数、调服务；页面凭证由装配层对写接口统一检查。
  * 单据的批量归档恢复在单据流转（/api/flow/batch）。
  */

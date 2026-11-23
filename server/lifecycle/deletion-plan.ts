@@ -14,7 +14,7 @@ import { impactList, inventoryFigures } from './deletion-impact.js';
  */
 
 export const quote = (s: string) => '"' + s.replaceAll('"', '""') + '"';
-/** 选了哪些记录（结构在 shared/business/deletion-request.ts，删除接口和助手共用） */
+/** 选了哪些记录（结构在 shared/business/lifecycle/deletion-request.ts，删除接口和助手共用） */
 type Selection = z.output<typeof deletionSelection>;
 
 /** 业务记录的表：删它们记审计、记“删掉的记录”（database-maintenance.ts）；算“有没有独立影响”也看它们 */

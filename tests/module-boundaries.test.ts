@@ -388,28 +388,28 @@ test('回归：分层检查拦住往上引、没登记进层的文件，同层�
   const blocked: [file: string, text: string, to: string][] = [
     ['src/flow/Sample.tsx', "import { RecordPages } from '../records/RecordPages';", 'src/records/RecordPages.tsx'],
     ['src/recordkit/Sample.tsx', "import type { FlowDeskDialogs } from '../flow/FlowDeskDialogs';", 'src/flow/FlowDeskDialogs.tsx'],
-    ['shared/business/operations.ts', "import { noteText } from './physical-flow.js';", 'shared/business/physical-flow.ts'],
-    ['server/operations/sample.ts', "import { sumMoney, flowInput } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
+    ['shared/business/operations/sample.ts', "import { noteText } from '../flow/physical-flow.js';", 'shared/business/flow/physical-flow.ts'],
+    ['server/operations/sample.ts', "import { sumMoney, flowInput } from '../../shared/business/index.js';", 'shared/business/flow/physical-flow.ts'],
     // 模块自己的文件经自己的入口引，也按名字的来源文件算层
-    ['shared/business/operations.ts', "import type { FlowDocument } from './index.js';", 'shared/business/flow-document.ts'],
+    ['shared/business/operations/operations.ts', "import type { FlowDocument } from '../index.js';", 'shared/business/flow/flow-document.ts'],
     // 看不出用了哪一层的：不写名字、动态加载、名字在入口里查不到
     ['server/operations/sample.ts', "import * as business from '../../shared/business/index.js';", 'shared/business/index.ts'],
     ['server/operations/sample.ts', "export const load = () => import('../../shared/business/index.js');", 'shared/business/index.ts'],
     ['server/operations/sample.ts', "import { sumMoney, noSuchName } from '../../shared/business/index.js';", 'shared/business/index.ts'],
     ['server/operations/sample.ts', "export * from '../../shared/business/index.js';", 'shared/business/index.ts'],
     // export { … } from 转出去的也按名字的来源文件算
-    ['server/operations/sample.ts', "export { flowInput } from '../../shared/business/index.js';", 'shared/business/physical-flow.ts'],
+    ['server/operations/sample.ts', "export { flowInput } from '../../shared/business/index.js';", 'shared/business/flow/physical-flow.ts'],
   ];
   for (const [f, text, to] of blocked)
     assert.deepEqual(layerBreaches(f, refsOf(f, text)).map((b) => b.to), [to], f + ' 应拦住：' + text);
   const allowed: [file: string, text: string][] = [
     ['src/records/Sample.tsx', "import { readFlow } from '../flow/flow-api';\nimport { ProductMarks } from '../marks/ProductMarks';"],
     ['src/recordkit/Sample.tsx', "import { ProductMarks } from '../marks/ProductMarks';"],
-    ['shared/business/physical-flow.ts', "import { sumMoney } from './operations.js';"],
-    ['shared/business/physical-flow.ts', "import type { RecordEntity } from './index.js';"],
+    ['shared/business/flow/physical-flow.ts', "import { sumMoney } from '../operations/operations.js';"],
+    ['shared/business/flow/physical-flow.ts', "import type { RecordEntity } from '../index.js';"],
     ['server/finance/sample.ts', "import * as business from '../../shared/business/index.js';"],
     ['server/operations/sample.ts', "export { sumMoney, type RecordEntity } from '../../shared/business/index.js';"],
-    ['shared/business/index.ts', "export { overviewSchema } from './overview.js';"],
+    ['shared/business/index.ts', "export { overviewSchema } from './overview/overview.js';"],
     ['server/flow/sample.ts', "import { purchaseLineAmount, sumMoney } from '../../shared/business/index.js';"],
     ['server/finance/sample.ts', "import { flowDocumentSchema } from '../../shared/business/index.js';"],
   ];

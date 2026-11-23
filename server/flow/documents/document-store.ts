@@ -14,7 +14,7 @@ import { flowDocNames, flowDocumentContent, flowDocumentOfView, type FlowDocumen
  * （server/core/schema/tables/flow.ts），漏写一边当场报错，不会悄悄两边不一样。
  * 给 document 加新的镜像外键列时：这里的 flowColumns、建表的 CHECK、deletion.ts 的镜像登记三处一起加。
  *
- * 写之前按库里的单据结构（shared/business/flow-document.ts）核对一遍：多出、缺了必填的、类型不对的字段当场报错，
+ * 写之前按库里的单据结构（shared/business/flow/flow-document.ts）核对一遍：多出、缺了必填的、类型不对的字段当场报错，
  * 读的时候（read.ts 的 storedContent）按同一份结构再核对。
  */
 

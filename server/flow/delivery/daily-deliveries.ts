@@ -9,7 +9,7 @@ import { shippedByLine } from '../documents/shipped.js';
 import { FlowService } from '../rules/service.js';
 
 /*
- * 仓库台账里的送货单：单据视图加上客户名、订单明细的品名规格和发货进度、每行挂的出库流水（daily.ts 用；结构在 shared/business/flow-views.ts）。
+ * 仓库台账里的送货单：单据视图加上客户名、订单明细的品名规格和发货进度、每行挂的出库流水（daily.ts 用；结构在 shared/business/flow/flow-views.ts）。
  * 订单、库存品、客户、流水都按这批送货单里出现的编号一次批量读，不逐张查。
  */
 

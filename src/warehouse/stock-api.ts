@@ -2,7 +2,7 @@ import type { StockFlowApi } from '../../shared/business/index';
 import { call } from '../ui/index';
 
 /**
- * 库存品和库存流水的请求：库存品编辑窗、出入库 / 盘点窗口、流水详情都走这里（接口表 shared/business/stock-flow-api.ts）。
+ * 库存品和库存流水的请求：库存品编辑窗、出入库 / 盘点窗口、流水详情都走这里（接口表 shared/business/flow/stock-flow-api.ts）。
  * 放在仓库这一层：流水详情在仓库页，库存品窗口（operations）在它上面。库存品列表走 recordkit 的 readCatalog。
  */
 

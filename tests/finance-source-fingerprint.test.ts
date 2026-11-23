@@ -11,8 +11,7 @@ import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, even
 import { flowFinance } from './finance-flow-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { sourceHash, withNumber } from '../server/finance/events/source-fingerprint.js';
-import { flowDocumentContent, flowDocumentSchema } from '../shared/business/flow-document.js';
-import { financeFingerprint } from '../shared/business/finance-source.js';
+import { flowDocumentContent, flowDocumentSchema, financeFingerprint } from '../shared/business/index.js';
 
 /**
  * 财务不读的字段（[单据, 路径, 值]）：说明、经办记录、出库送达、对方单号、原文数量面积、抄来的订单和采购资料、

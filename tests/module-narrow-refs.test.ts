@@ -21,10 +21,10 @@ const narrowRefs: { from: string; to: string; allowed: () => string[]; how: stri
     from: '财务',
     to: '共用-业务',
     allowed: () => [
-      ...declaredExports('shared/business/finance-source.ts'),
+      ...declaredExports('shared/business/flow/finance-source.ts'),
       ...['arrivalLineValue', 'deliveryLineValue', 'priceText', 'sizeText', 'movementSource'],
     ],
-    how: '财务用共用业务只许单据和财务的约定（shared/business/finance-source.ts 的导出）和 arrivalLineValue、deliveryLineValue、priceText、sizeText、movementSource（流水来源编码，按名字引用）：要的东西放进约定，或改由窗口 financeFacts 给数据',
+    how: '财务用共用业务只许单据和财务的约定（shared/business/flow/finance-source.ts 的导出）和 arrivalLineValue、deliveryLineValue、priceText、sizeText、movementSource（流水来源编码，按名字引用）：要的东西放进约定，或改由窗口 financeFacts 给数据',
   },
 ];
 

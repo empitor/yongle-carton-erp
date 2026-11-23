@@ -1,4 +1,4 @@
-// 列表上方的统计（shared/business/business-metrics.ts 和各列表接口的 withMetrics）：逾期、未到齐、面积、档案、区间汇总，和列表同一范围。
+// 列表上方的统计（shared/business/operations/business-metrics.ts 和各列表接口的 withMetrics）：逾期、未到齐、面积、档案、区间汇总，和列表同一范围。
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ import {
   productMetrics,
   productIncomplete,
   summarizeMovements,
-} from '../shared/business/business-metrics.js';
+} from '../shared/business/index.js';
 import { productSchema, today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';

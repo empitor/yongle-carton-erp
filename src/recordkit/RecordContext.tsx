@@ -53,7 +53,7 @@ function RelatedList({ related }: { related: RelatedRecord[] }) {
   );
 }
 
-/** 一条修改改了什么：一项一行“字段：改之前 → 改之后”，排版在 shared/business/record-history.ts，不显示原始数据 */
+/** 一条修改改了什么：一项一行“字段：改之前 → 改之后”，排版在 shared/business/overview/record-history.ts，不显示原始数据 */
 function HistoryChanges({ module, id, entry, refs }: { module: string; id: number; entry: HistoryEntry; refs: HistoryRefs }) {
   const view = historyView({ module, action: entry.action, detail: entry.detail, recordId: id }, refs);
   // 同一个字段名的几行（明细逐行改了几处）并成一项，一行一处

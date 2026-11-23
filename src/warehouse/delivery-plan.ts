@@ -5,7 +5,7 @@ import type { GroupInput, PlanLine } from './DeliveryPlanGroup';
 
 /**
  * 安排送货窗口（DeliveryPlanDialog.tsx）的窗口状态：人删掉、改过的行，每张送货单的输入，交之前的检查和
- * 交给服务端的内容。排法、谁在争、对不上和送不了的原因在共用的 deliveryPlan（shared/business/delivery-plan.ts），
+ * 交给服务端的内容。排法、谁在争、对不上和送不了的原因在共用的 deliveryPlan（shared/business/flow/delivery-plan.ts），
  * 助手 delivery.plan 用的是同一份。只算数据，不引 React、不发请求。
  */
 

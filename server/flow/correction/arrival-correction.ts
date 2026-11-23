@@ -116,7 +116,7 @@ function finish(ctx: Context) {
   };
 }
 
-/** 提交结果里到货多带的（结构在 shared/business/flow-correction-views.ts，同一请求号重发时按它读回）：采购单、库存品是读回的完整视图 */
+/** 提交结果里到货多带的（结构在 shared/business/flow/flow-correction-views.ts，同一请求号重发时按它读回）：采购单、库存品是读回的完整视图 */
 type ArrivalResult = z.output<typeof arrivalCorrectionExtraSchema>;
 
 export const arrivalCorrection: CorrectionKind<'arrival', CorrectionInput, ArrivalPlan['view'], ArrivalPlan['data'], ArrivalResult> = {

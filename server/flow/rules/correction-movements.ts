@@ -17,10 +17,10 @@ import { movement } from './confirm.js';
 /** 能更正的单据：到货、送货、完工（生产任务不动库存、不进财务，不进更正） */
 export type CorrectableKind = Exclude<FlowKind, 'task'>;
 
-/** 每个库存品更正前后（预览和提交结果里的样子，结构在 shared/business/flow-correction-views.ts） */
+/** 每个库存品更正前后（预览和提交结果里的样子，结构在 shared/business/flow/flow-correction-views.ts） */
 type StockImpact = z.output<typeof stockImpactSchema>;
 
-/** 每种更正的预览输入都有的：核对时的版本号、更正原因（shared/business/flow-correction.ts） */
+/** 每种更正的预览输入都有的：核对时的版本号、更正原因（shared/business/flow/flow-correction.ts） */
 export type CorrectionHead = { expectedVersion: number; reason: string };
 
 /** 提交更正的输入：请求号、预览时拿到的摘要，去掉这两项的预览输入（摘要按它算），和提交的原样（请求的摘要按它算） */
@@ -38,7 +38,7 @@ export function commitInput<T extends { requestId: string; previewDigest: string
 /** 一种单据的更正方案（只读）：替代单内容、它的库存变化、预览里种类自己的内容 */
 export type KindPlan<K extends CorrectableKind, V extends object, D> = {
   /**
-   * 替代单内容：按单据格式规整、明细补全，抄下来的快照引用没变的换回原单的（shared/business/flow-snapshot.ts 的 keepSnapshot）；
+   * 替代单内容：按单据格式规整、明细补全，抄下来的快照引用没变的换回原单的（shared/business/flow/flow-snapshot.ts 的 keepSnapshot）；
    * 更正关系和沿用的生命周期记录由核心加
    */
   document: FlowDocument<K>;
@@ -79,7 +79,7 @@ export type CorrectionKind<K extends CorrectableKind, I extends CorrectionHead, 
   name: string;
   /** 能更正的状态的叫法：只能更正有效的…… */
   effective: string;
-  /** 预览输入（shared/business/flow-correction.ts） */
+  /** 预览输入（shared/business/flow/flow-correction.ts） */
   schema: z.ZodType<I>;
   /** 提交输入（commitInput(correctionCommit(预览输入))） */
   commit(raw: unknown): CorrectionCommit<I>;

@@ -9,7 +9,7 @@ import { stockLedger } from '../../operations/index.js';
 const { setPurchaseLineReceived, touchPurchases } = stockLedger;
 
 /**
- * 到货事件：到货单（arrival）读成采购单能用的样子（结构在 shared/business/flow-views.ts），
+ * 到货事件：到货单（arrival）读成采购单能用的样子（结构在 shared/business/flow/flow-views.ts），
  * 以及按它重算采购明细的已到货缓存（purchase_lines.received_units，写由采购库存的 ledger.ts 负责）。
  */
 /** 到货事件就是到货单（arrival）。
@@ -100,7 +100,7 @@ export function effectiveReceiptUnits(events: ReceiptEvent[]) {
         units.set(line.lineId, (units.get(line.lineId) || 0) + quantityUnits(line.quantity));
   return units;
 }
-/** 采购退货的一行（退货单内容里的行号、数量，见 shared/business/purchase-return.ts） */
+/** 采购退货的一行（退货单内容里的行号、数量，见 shared/business/flow/purchase-return.ts） */
 const returnedLine = rows.purchase_returns.pick({ id: true, arrival_id: true }).extend({ line_index: z.number(), quantity: z.string() });
 /**
  * 有效到货数量要扣掉没冲销的采购退货：退回去的货，供应商补货时可以再到货。

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import '../server/lifecycle/index.js';
 import { AppError, Store, count, registerRecordKinds, rememberDeletedRecord } from '../server/core/index.js';
 import { assertRecordKind } from '../server/core/records/kinds/record-kinds.js';
-import { recordEntities } from '../shared/business/operations.js';
+import { recordEntities } from '../shared/business/index.js';
 import { flowKinds } from '../shared/core/index.js';
 import { actor } from './actor-fixture.js';
 

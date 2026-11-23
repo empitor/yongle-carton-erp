@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import type { Actor } from '../server/core/index.js';
 import { count } from '../server/core/index.js';
 import { productSchema } from '../shared/core/domain.js';
-import { flowStatusLabel, matchesFlowStatus } from '../shared/business/physical-flow.js';
+import { matchesFlowStatus } from '../shared/business/index.js';
+import { flowStatusLabel } from '../shared/business/flow/physical-flow.js';
 import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 
 /** flowFixture 加：纸板期初 1000 张；production(良品数, 别的字段) 存一张待核对的完工单（领 80 退 10，报废 5） */

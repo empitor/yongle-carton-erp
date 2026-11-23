@@ -6,11 +6,19 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { costSchema, customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { OperationsService } from '../server/operations/index.js';
-import { dataManagementFieldName, dataManagementModules } from '../shared/business/data-management-modules.js';
+import {
+  dataManagementFieldName,
+  dataManagementModules,
+  purchaseSchema,
+  stockItemSchema,
+  supplierSchema,
+  arrivalSchema,
+  deliverySchema,
+  productionSchema,
+  taskSchema,
+} from '../shared/business/index.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { dataManagementCommand } from '../src/admin/data-api.js';
-import { purchaseSchema, stockItemSchema, supplierSchema } from '../shared/business/operations.js';
-import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../shared/business/physical-flow.js';
 import { userError } from '../shared/core/user-errors.js';
 import { RecordInputError, editableInput, submittedInput, valueAt } from '../src/admin/record-input.js';
 import { buildRefs } from '../src/admin/record-refs.js';

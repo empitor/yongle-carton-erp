@@ -1,4 +1,4 @@
-// 完工单的领料、退料数量写得不对（shared/business/physical-flow.ts 的 productionSchema）：是“输入不对”的校验错误
+// 完工单的领料、退料数量写得不对（shared/business/flow/physical-flow.ts 的 productionSchema）：是“输入不对”的校验错误
 // （服务端回 400，和别的校验一样），不是比较退料和领料时抛出的普通错误（那样服务端回 500）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

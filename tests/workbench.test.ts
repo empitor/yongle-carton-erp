@@ -14,7 +14,7 @@ import { registerArrival } from '../server/flow/index.js';
 import { buildWorkbench, buildToday } from '../server/overview/workbench.js';
 import { relatedBusiness } from '../server/overview/related-business.js';
 import { customerSchema, orderSchema, productSchema, specification } from '../shared/core/domain.js';
-import { deliveryCandidates } from '../shared/business/warehouse-delivery.js';
+import { deliveryCandidates } from '../shared/business/index.js';
 import { workbenchFixture } from './flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
 import { actor } from './actor-fixture.js';

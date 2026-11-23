@@ -182,6 +182,30 @@ const moduleTests: ModuleTests[] = [
       { file: 'tests/record-status.test.ts', why: '直接验证整张保存拦住越过状态动作的变更，assertOrderStatusKept 只由模块自己的路由调用' },
     ],
   },
+  {
+    module: '共用-业务',
+    dir: 'shared/business/',
+    own: [
+      { file: 'tests/arrival-recognition.test.ts', why: '直接测 matchArrivalBatch 遇到不匹配的识别明细时不选订货单' },
+      { file: 'tests/assistant-bulk-planning.test.ts', why: '用内部 planStockDelivery 的分组结果核对助手送货计划的明细' },
+      { file: 'tests/delete-impact.test.ts', why: '直接核对删除清单的内部表名和字段词表' },
+      { file: 'tests/delivery-flow.test.ts', why: '用内部 flowStatusLabel 核对编辑后单独显示的送达状态' },
+      { file: 'tests/delivery-matching.test.ts', why: '直接测内部 planStockDelivery 按客户分配现货的结果' },
+      { file: 'tests/delivery-shipping.test.ts', why: '用内部 flowStatusLabel 核对待送货、送货中、已送达和已撤销的叫法' },
+      { file: 'tests/finance-fingerprint-rename.test.ts', why: '直接用 fingerprintOf 和 fingerprintRules 模拟字段改名，核对指纹' },
+      { file: 'tests/finance-money.test.ts', why: '直接测 deliveryLineExact 的金额精度及数量校验' },
+      { file: 'tests/finance-source-contract.test.ts', why: '对照内部财务归类表、指纹规则和单据内容结构，核对字段一一对应' },
+      { file: 'tests/history-fixture.ts', why: '历史测试夹具用 HistoryView 和 historyFieldLabel 断言视图的栏目中文名' },
+      { file: 'tests/movement-types.test.ts', why: '用内部 MovementType 约束各类流水期望值，确保每种分类都有断言' },
+      { file: 'tests/order-batch-rules.test.ts', why: '直接测 scheduleView 对当日、逾期和排程剩余量的计算' },
+      { file: 'tests/order-edit-cascade.test.ts', why: '用内部 flowStatusLabel 核对改单拆分前后的送达状态' },
+      { file: 'tests/production-flow.test.ts', why: '直接核对 flowStatusLabel 对生产进度和单据状态的叫法' },
+      { file: 'tests/record-history-audit.test.ts', why: '用内部历史视图类型、动作名表及未知提示核对审计动作的显示' },
+      { file: 'tests/record-history-view.test.ts', why: '直接核对内部历史动作名表和未知、无变化时的提示' },
+      { file: 'tests/snapshot-fixture.ts', why: '从内部单据内容和到货明细结构派生快照测试数据' },
+      { file: 'tests/stock-batches.test.ts', why: '按内部 BatchMovement 类型构造计算成品批次用的库存流水' },
+    ],
+  },
 ];
 
 /** 引用方式里算“用代码”的：静态引用、import()、require */
@@ -257,6 +281,13 @@ test('回归样例：引内部文件、export from、require、import() 内部�
   assert.equal(violations(sample, "import { MarkService } from '../server/sales/product-marks.js';").length, 1);
   assert.equal(violations(sample, "import { MarkService } from '../server/sales/index.js';").length, 0);
   assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/ledger/movements.js';").length, 0);
+  const sharedInternal = "import { scheduleView } from '../shared/business/operations/order-batch.js';";
+  const sharedEntry = "import { batchRows } from '../shared/business/index.js';";
+  assert.equal(mayRefer(sharedInternal), true);
+  assert.equal(violations(sample, sharedInternal).length, 1);
+  assert.equal(violations('tests/order-batch-rules.test.ts', sharedInternal).length, 0);
+  assert.equal(mayRefer(sharedEntry), false);
+  assert.equal(violations(sample, sharedEntry).length, 0);
 });
 
 test('基础模块的 Store 走入口，登记的结构测试可以直接验证升级实现', () => {

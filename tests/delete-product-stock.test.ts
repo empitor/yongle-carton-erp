@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { Store, count, localAdministratorActor } from '../server/core/index.js';
 import { AuthManager } from '../server/accounts/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
-import { impactRowSchema } from '../shared/business/deletion-request.js';
+import { impactRowSchema } from '../shared/business/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import './delete-fixture.js';

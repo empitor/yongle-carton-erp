@@ -8,7 +8,7 @@ import { readStockDocument } from './stock-document.js';
 
 /*
  * 库存流水的查询：列表（筛选、分页、关键词）、计数、汇总、修订记录。只读，写流水在 ledger.ts。
- * 流水类型的 SQL 写法和 shared/business/movement-filters.ts 的 movementTypeOf 一一对应。
+ * 流水类型的 SQL 写法和 shared/business/operations/movement-filters.ts 的 movementTypeOf 一一对应。
  */
 
 const movementJoins =
@@ -44,7 +44,7 @@ const COUNT_ALL_REVISIONS_FROM = 500;
 /** 流水列表的顺序：业务日期最新在前，同一天按记录时间、写入顺序最新在前。 */
 const movementOrder = ' ORDER BY m.date DESC,m.created_at DESC,m.rowid DESC';
 /**
- * 流水类型（m 是流水，s 是库存品），与 shared/business/movement-filters.ts 的 movementTypeOf 一一对应：
+ * 流水类型（m 是流水，s 是库存品），与 shared/business/operations/movement-filters.ts 的 movementTypeOf 一一对应：
  * 有来源单据的按来源分，生产单再按库存品和方向分；没有来源单据的才按动作分。
  */
 const movementTypeSql = `CASE

@@ -8,7 +8,7 @@ import { DatabaseMaintenanceService } from './database-maintenance.js';
 const withPassword = z.looseObject({ password: z.unknown().optional() });
 
 /**
- * 业务界面的删除（挂在 /api/deletions 下，接口表 shared/business/deletion-api.ts）：先看影响清单，再按同一范围删除；
+ * 业务界面的删除（挂在 /api/deletions 下，接口表 shared/business/lifecycle/deletion-api.ts）：先看影响清单，再按同一范围删除；
  * 删除前自动留恢复快照，写审计。谁能删由 DatabaseMaintenanceService 判断（超级管理员模式可删档案和已确认的单据，
  * 有编辑权限可删还没核对的单据），不走只限本机的维护入口，部署在服务器上从域名访问也能用；不在本机时除了还没核对的单据都要再输本人密码。
  */

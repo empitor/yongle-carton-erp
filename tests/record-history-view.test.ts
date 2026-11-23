@@ -1,10 +1,11 @@
-// 修改历史怎么显示（shared/business/record-history.ts 的 historyView）：只列变了的项、引用换成名称、状态用界面叫法、
+// 修改历史怎么显示（shared/business/overview/record-history.ts 的 historyView）：只列变了的项、引用换成名称、状态用界面叫法、
 // 认不出的只说一句。纯函数、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { HISTORY_NO_CHANGE, HISTORY_UNKNOWN, historyView } from '../shared/business/record-history.js';
-import { historyActionName, historyActionNames } from '../shared/business/history-fields.js';
+import { historyView, historyActionName } from '../shared/business/index.js';
+import { HISTORY_NO_CHANGE, HISTORY_UNKNOWN } from '../shared/business/overview/record-history.js';
+import { historyActionNames } from '../shared/business/overview/history-fields.js';
 import { assertClean, C, F, GONE, ids, L, O, P, refs, row, S, T } from './history-fixture.js';
 
 const production = (over: Record<string, unknown> = {}) => ({

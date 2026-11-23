@@ -1,7 +1,8 @@
 // 修改历史测试共用（record-history-view、record-history-audit）：给人看的文字检查、虚构的引用编号和名称。
 import assert from 'node:assert/strict';
-import type { HistoryView } from '../shared/business/record-history.js';
-import { historyFieldLabel, type HistoryRefs } from '../shared/business/history-fields.js';
+import type { HistoryView } from '../shared/business/overview/record-history.js';
+import type { HistoryRefs } from '../shared/business/index.js';
+import { historyFieldLabel } from '../shared/business/overview/history-fields.js';
 
 /** 给人看的文字里不能有英文键名、英文值、“草稿”、原始 JSON；尺寸的 mm / cm、面积的 m² 是界面写法，除外 */
 export function assertClean(view: HistoryView, what: string, internalIds: number[] = []) {

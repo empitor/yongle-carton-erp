@@ -15,7 +15,7 @@ const stock = call<StockFlowApi>();
 /** 订单状态词表的第一项：新订单的“待确认” */
 const [PENDING_CONFIRM] = statuses;
 
-/** 列表的查询参数（照服务端的 zod 规则，shared/business/record-queries.ts） */
+/** 列表的查询参数（照服务端的 zod 规则，shared/business/orders/record-queries.ts） */
 export type CustomerListQuery = NonNullable<RecordsApi['GET /customers?withMetrics=1']['query']>;
 export type ProductListQuery = NonNullable<RecordsApi['GET /products?withMetrics=1']['query']>;
 export type OrderListQuery = NonNullable<RecordsApi['GET /orders?withMetrics=1']['query']>;

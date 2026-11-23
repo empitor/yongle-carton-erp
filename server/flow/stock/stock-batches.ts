@@ -6,7 +6,7 @@ import { readStockDocument } from '../../operations/index.js';
 import { storedContent } from '../documents/read.js';
 
 /**
- * 成品库存按“每次完工”分批（只读）。批次和剩余的推算在 shared/business/stock-batches.ts，这里只按编号集合批量取数：
+ * 成品库存按“每次完工”分批（只读）。批次和剩余的推算在 shared/business/flow/stock-batches.ts，这里只按编号集合批量取数：
  * 库存品 1 次、流水 1 次、完工单 1 次、生产任务 1 次、订单和客户 1 次、原材料 1 次（有来源被改成系统维护的流水时
  * 再加修订记录 1 次），和批次多少无关，不逐批查。
  * 放在单据流转：要读完工单、生产任务（单据流转的表），也读库存流水和库存品（采购库存，在下层），订单客户（基础）。
@@ -77,7 +77,7 @@ function movementsOf(store: Store, stockId: number) {
 
 /**
  * 删单据选“库存不动”时流水来源被改成系统维护（server/flow/deletion.ts），改写前的来源在修订记录的 before_document 里。
- * 只在有这种流水时查一次，按编号集合取，每条取最后一次“改写前还挂着单据”的那条修订。只用来配对冲销，见 shared/business/stock-batches.ts
+ * 只在有这种流水时查一次，按编号集合取，每条取最后一次“改写前还挂着单据”的那条修订。只用来配对冲销，见 shared/business/flow/stock-batches.ts
  */
 function restoreSources(store: Store, movements: Movement[]) {
   const maintained = movements.filter((m) => m.sourceKind === 'database-maintenance');
@@ -160,7 +160,7 @@ export function stockItemBatches(store: Store, stockId: number, options: { allDe
   const { docs, tasks } = productionsOf(store, movements);
   const taskOf = (d: Production) => (d.document.taskId === null ? undefined : tasks.get(d.document.taskId));
   // 只有有效（已确认）的完工单算批次；推算送货先扣哪批要用到全部批次的订单。
-  // 已撤销的完工单和有效完工单的生产任务、更正关系用来判断“撤销后重新登记”的顶替（规则在 shared/business/stock-batches.ts）
+  // 已撤销的完工单和有效完工单的生产任务、更正关系用来判断“撤销后重新登记”的顶替（规则在 shared/business/flow/stock-batches.ts）
   const production = new Map<string, { orderIds: number[]; taskId: number | null; correctionOf: string | null }>(),
     reversed = new Map<string, { taskId: number | null }>();
   for (const [key, d] of docs)

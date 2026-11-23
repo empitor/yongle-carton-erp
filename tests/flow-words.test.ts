@@ -1,16 +1,23 @@
-// 单据页不渲染的纯函数（src/flow/flow-words.ts、flow-dates.ts、flow-prefill.ts、lookups.ts、src/ui/quantity-sum.ts、shared/business/task-progress.ts）：
+// 单据页不渲染的纯函数（src/flow/flow-words.ts、flow-dates.ts、flow-prefill.ts、lookups.ts、src/ui/quantity-sum.ts、shared/business/flow/task-progress.ts）：
 // 日期、状态叫法和色调、办完的提示、合计、新建走哪个窗口、要读哪些档案、任务还差多少。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { flowStatusTone } from '../src/flow/FlowDetails.js';
-import { activeDoc, flowStatusChoices, flowStatusText, matchesFlowSaying, matchesFlowStatus } from '../shared/business/index.js';
+import {
+  activeDoc,
+  flowStatusChoices,
+  flowStatusText,
+  matchesFlowSaying,
+  matchesFlowStatus,
+  completableTask,
+  taskLeftUnits,
+} from '../shared/business/index.js';
 import { flowOverdue, shipDate } from '../src/flow/flow-dates.js';
 import { businessStatusTone as warehouseTone } from '../src/recordkit/record-meta.js';
 import { sumByUnit } from '../src/ui/quantity-sum.js';
 import { actionNotice, previewChangedMessage, savedMessage } from '../src/flow/flow-words.js';
 import { flowDocumentFor } from '../src/flow/flow-prefill.js';
 import { lookupNeedKey } from '../src/flow/lookups.js';
-import { completableTask, taskLeftUnits } from '../shared/business/task-progress.js';
 
 test('送货的实际发货日就是出库那天；待送货不是灰字；业务页面不说“冲销”', () => {
   const doc = { kind: 'delivery', status: 'confirmed', date: '2026-11-01', shippedAt: '2026-11-03T02:00:00.000Z' };

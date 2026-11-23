@@ -1,9 +1,17 @@
-// 订货单的规则（shared/business/order-batch.ts，纯函数）：采购明细带上采购单信息、同种纸板合行、到货安排、按采购单先后分到货、今天要到。
+// 订货单的规则（shared/business/operations/order-batch.ts，纯函数）：采购明细带上采购单信息、同种纸板合行、到货安排、按采购单先后分到货、今天要到。
 // 订货单的服务（建批次、改安排、换供应商、删采购单）在 order-batch.test.ts。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { allocateReceipt, batchRowKey, batchRows, dueSegments, purchaseLinesOf, scheduleView, type BatchSourceLine } from '../shared/business/order-batch.js';
+import {
+  allocateReceipt,
+  batchRowKey,
+  batchRows,
+  dueSegments,
+  purchaseLinesOf,
+  type BatchSourceLine,
+} from '../shared/business/index.js';
+import { scheduleView } from '../shared/business/operations/order-batch.js';
 
 /** 合并依据（JSON 文字）拆回各段：名称、规格、尺寸、材质、楞型、单位、计价方式、单价 */
 const keyParts = (key: string) => z.array(z.string()).parse(JSON.parse(key));

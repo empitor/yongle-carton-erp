@@ -13,14 +13,14 @@ import { get, storedDocument } from '../documents/read.js';
  * 改数量这类走更正（correction.ts），整张没发生走撤销；待核对的单据在编辑窗里整张改；已撤销、已取消、已被更正替代、
  * 已归档的不改。财务不受影响：来源指纹不含归“说明”的栏目，版本变了只更新观察记录。
  */
-// 输入的规则（只传要改的那几项，expectedVersion 是打开时的版本）在 shared/business/flow-requests.ts，POST /flow/:id/info 和助手共用。
+// 输入的规则（只传要改的那几项，expectedVersion 是打开时的版本）在 shared/business/flow/flow-requests.ts，POST /flow/:id/info 和助手共用。
 type Field = Exclude<keyof z.infer<typeof documentInfoSchema>, 'expectedVersion'>;
 /** 说明字段（输入里版本号以外的那几项），按输入结构里的先后 */
 const infoFields = documentInfoSchema.keyof().options.filter((k): k is Field => k !== 'expectedVersion');
 /** 这张单据现在的种类、单号、状态、版本 */
 const headRow = rows.flow_documents.pick({ number: true, status: true, version: true }).extend({ kind: z.enum(flowKinds) });
 
-/** 每种已生效单据能改的说明字段：单据表头归“说明”的那些（shared/business/finance-source.ts），生产任务没有 */
+/** 每种已生效单据能改的说明字段：单据表头归“说明”的那些（shared/business/flow/finance-source.ts），生产任务没有 */
 const editable: Partial<Record<FlowKind, readonly Field[]>> = documentInfoFields;
 const labels: Record<Field, string> = { notes: '备注', actualTime: '时间', address: '地址', contact: '联系人', phone: '联系方式', operator: '操作人' };
 /** 库里没写过的说明按空算：时间是 null，别的是空字符串 */
