@@ -142,6 +142,8 @@ export const productSchema = z
     priceCents: money.default(0),
     priceExact: optionalExactPrice,
     customerProductCode: optionalText(100),
+    /** 所属客户；留空是通用产品，所有客户订单都能选；填了的只给这家客户下单用 */
+    customerId: chosenId('客户', true).nullable().optional(),
     /** 附属于哪个产品（比如小箱套在大箱里）。只是显示上归在一起，订单、价格、库存都各算各的；null 是取消附属 */
     parentProductId: chosenId('附属于哪个产品', true).nullable().optional(),
   })
@@ -210,34 +212,56 @@ const orderFields = z.object({
     terms: optionalText(TEXT_MAX.terms),
     roundingPolicy: z.enum(roundingPolicies, { error: '请选择金额结算' }).optional(),
   });
-export const orderSchema = orderFields
-  .refine((v) => v.deliveryDate >= v.orderDate, {
-    message: '交货日期不能早于下单日期',
-    path: ['deliveryDate'],
-  })
-  .superRefine((v, ctx) => {
-    v.lines.forEach((l, i) => {
-      if (l.deliveryDate && l.deliveryDate < v.orderDate)
-        ctx.addIssue({
-          code: 'custom',
-          path: ['lines', i, 'deliveryDate'],
-          message: '分项交期不能早于下单日期',
-        });
-    });
-  })
-  // 算不出合计（某行单价格式不对、超上限）时那一行已经报过了，这两道不再跟着多报
-  .refine((v) => (checkedTotal(v.lines)?.cents ?? 0) <= MAX_ORDER_CENTS, {
-    message: '订单金额超出本版本支持范围',
-    path: ['lines'],
-  })
-  .refine(
-    (v) =>
-      v.roundingPolicy === 'half-up-cent' || checkedTotal(v.lines)?.hasFractionalCent !== true,
-    {
-      message: '精确金额包含不足一分的尾数，请在金额结算里选“' + roundingPolicyLabels['half-up-cent'] + '”',
-      path: ['roundingPolicy'],
-    },
-  );
+const applyOrderRules = <
+  T extends z.ZodType<{
+    orderDate: string;
+    deliveryDate: string;
+    lines: (Parameters<typeof precisionTotal>[0][number] & { deliveryDate?: string })[];
+    roundingPolicy?: (typeof roundingPolicies)[number];
+  }>,
+>(
+  schema: T,
+) =>
+  schema
+    .refine((v) => v.deliveryDate >= v.orderDate, {
+      message: '交货日期不能早于下单日期',
+      path: ['deliveryDate'],
+    })
+    .superRefine((v, ctx) => {
+      v.lines.forEach((l, i) => {
+        if (l.deliveryDate && l.deliveryDate < v.orderDate)
+          ctx.addIssue({
+            code: 'custom',
+            path: ['lines', i, 'deliveryDate'],
+            message: '分项交期不能早于下单日期',
+          });
+      });
+    })
+    // 算不出合计（某行单价格式不对、超上限）时那一行已经报过了，这两道不再跟着多报
+    .refine((v) => (checkedTotal(v.lines)?.cents ?? 0) <= MAX_ORDER_CENTS, {
+      message: '订单金额超出本版本支持范围',
+      path: ['lines'],
+    })
+    .refine(
+      (v) =>
+        v.roundingPolicy === 'half-up-cent' || checkedTotal(v.lines)?.hasFractionalCent !== true,
+      {
+        message: '精确金额包含不足一分的尾数，请在金额结算里选“' + roundingPolicyLabels['half-up-cent'] + '”',
+        path: ['roundingPolicy'],
+      },
+    );
+export const orderSchema = applyOrderRules(orderFields);
+/** 识别导入计划里的订单：新客户或新产品还没入库时编号留空（null），不用假编号占位 */
+const plannedLineSchema = lineSchema.extend({ productId: chosenId('产品').nullable() });
+export const plannedOrderSchema = applyOrderRules(
+  orderFields.extend({
+    customerId: chosenId('客户').nullable(),
+    lines: z
+      .array(plannedLineSchema)
+      .min(1, '至少要有一行明细')
+      .max(MAX_ORDER_LINES, `一张订单最多 ${MAX_ORDER_LINES} 行明细`),
+  }),
+);
 
 /**
  * 库里已存的订单整理成录入内容（数据管理的编辑窗、改订单状态时整张再存一次）：含税口径不在这里核。
@@ -256,9 +280,16 @@ export function storedOrderInput<T extends { taxMode?: string; lines: readonly {
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type OrderInput = z.infer<typeof orderSchema>;
+export type PlannedOrderInput = z.infer<typeof plannedOrderSchema>;
 export type Cost = z.infer<typeof costSchema>;
 export type Customer = CustomerInput & { id: number; version: number; createdAt: string; updatedAt: string };
-export type Product = ProductInput & { id: number; version: number; createdAt: string; updatedAt: string };
+export type Product = ProductInput & {
+  id: number;
+  customerName?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
 export const totalCost = (cost: Cost | null) =>
   cost === null ? null : cost.material + cost.processing + cost.waste + cost.other;
 export const BUSINESS_TIME_ZONE = 'Asia/Shanghai';

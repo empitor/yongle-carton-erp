@@ -1,7 +1,12 @@
 // 客户、产品、订单和明细的删除、初始化规则，由 sales/index.ts 加载时登记。
-import { registerRecordKinds, registerReset, registerTableDeletion } from '../core/index.js';
+import type { Product } from '../../shared/core/index.js';
+import { audit, registerRecordKinds, registerReset, registerTableDeletion, type DeletionRow } from '../core/index.js';
+import { sales } from './records.js';
 
 registerRecordKinds('客户产品订单', ['customers', 'products', 'orders']);
+
+/** 删除客户置空产品归属前先记下修改前的产品，紧接着在 afterUpdate 同一事务里写修改历史审计 */
+const detachedProducts = new WeakMap<DeletionRow, Product>();
 
 registerTableDeletion({
   module: '客户产品订单',
@@ -19,10 +24,34 @@ registerTableDeletion({
       return [order?.number, row.product_name].filter(Boolean).join(' ') || undefined;
     }
   },
-  // 附属于被删产品的别的产品：附属关系是可以为空的外键（products.parent_product_id），删除引擎的通用步骤会把它置空、
-  // 版本号加一（删除前打开着的编辑窗保存时会提示刷新，不会把解除掉的关联又写回去）。这里把修改时间也带上。
+  beforeUpdate(store, _ctx, table, row, values) {
+    if (table !== 'products' || !Object.hasOwn(values, 'customer_id') || values.customer_id !== null) return;
+    const before = sales(store).product(Number(row.id), true);
+    if (before) detachedProducts.set(row, before);
+  },
+  // 附属于被删产品的别的产品（parent_product_id）和被删客户名下的产品（customer_id）：
+  // 删除引擎的通用步骤会把它置空、版本号加一（删除前打开着的编辑窗保存时会提示刷新，不会把解除掉的关联又写回去）。
+  // 这里把修改时间也带上；若置空了所属客户，在同一事务内补写产品的修改历史审计。
   afterUpdate(store, ctx, table, row) {
-    if (table === 'products') store.db.prepare('UPDATE products SET updated_at=? WHERE rowid=?').run(ctx.at, row.__rowid);
+    if (table !== 'products') return;
+    store.db.prepare('UPDATE products SET updated_at=? WHERE rowid=?').run(ctx.at, row.__rowid);
+    const before = detachedProducts.get(row);
+    if (!before) return;
+    detachedProducts.delete(row);
+    const after = sales(store).product(Number(row.id), true);
+    if (!after) return;
+    audit(store, ctx.actor, {
+      action: 'update',
+      entity: 'products',
+      id: after.id,
+      document: {
+        before,
+        after,
+        reason: '删除客户后解除产品归属',
+        trigger: { action: 'delete', entity: 'customers', id: before.customerId, name: before.customerName },
+        requestId: ctx.mark.requestId,
+      },
+    });
   },
   planners: [
     {

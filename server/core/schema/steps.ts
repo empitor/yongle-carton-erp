@@ -116,4 +116,20 @@ export const upgradeSteps: readonly UpgradeStep[] = [
       );
     },
   },
+  {
+    version: 23,
+    name: '产品加所属客户列，并按订单明细回填只给一家客户下过单的产品',
+    // 产品可以不属任何客户（customer_id 可空）。历史上没记过归属，按订单明细反推：
+    // 只给一家客户下过单的（含已归档产品）记到那家；没下过单或给两家以上下过单的留空，由人在界面确认。
+    up: (db) =>
+      db.exec(`ALTER TABLE products ADD COLUMN customer_id INTEGER REFERENCES customers(id);
+        CREATE INDEX products_customer ON products(customer_id);
+        UPDATE products SET customer_id=(
+          SELECT MIN(o.customer_id)
+          FROM order_lines l
+          JOIN orders o ON o.id=l.order_id
+          WHERE l.product_id=products.id
+          HAVING COUNT(DISTINCT o.customer_id)=1
+        );`),
+  },
 ];

@@ -38,6 +38,7 @@ const failureOf = (x: ApiJson): { id: ApiJson | undefined; message: string }[] =
 /** 复制成功时新识别任务的编号（第一条的结果） */
 const forkedId = (first: ApiJson | undefined) =>
   isJsonObject(first) && first.success && isJsonObject(first.result) ? textOf(first.result.id) : '';
+const isSameNameProduct = (e: unknown) => e instanceof Error && 'code' in e && e.code === 'same-name-product';
 
 /**
  * 数据管理里办一件事：新建、保存、归档、恢复、确认、删除识别文件、复制识别文件。
@@ -53,51 +54,45 @@ export function useDataManagementActions(
 ) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
+    [sameName, setSameName] = useState(false),
     [message, setMessage] = useState('');
   const submission = useRef<{ key: string; id: string } | null>(null);
   const workspaceFiles = useSlots().workspaceFiles ?? missingWorkspaceFiles;
   const labelOf = (id: ApiJson | undefined) =>
     recordLabel(records.find((r) => String(r.record.id) === String(id))?.record);
-  function send(action: DataAction, rows: ListedRecord[], patch: Record<string, unknown>): Promise<Outcome> {
+  function send(action: DataAction, rows: ListedRecord[], patch: Record<string, unknown>, confirmDistinct: boolean): Promise<Outcome> {
     const items = rows.map((x) => ({ id: x.record.id, version: x.record.version }));
-    const key = JSON.stringify({ module, action, rows: items, patch });
+    const key = JSON.stringify({ module, action, rows: items, patch, confirmDistinct });
     if (submission.current?.key !== key) submission.current = { key, id: crypto.randomUUID() };
     const requestId = submission.current.id;
     const change = isWorkspaceChange(action);
     if (module === 'workspaces' && change)
       return workspaceFiles.change(change, items.map((i) => ({ id: String(i.id), version: i.version })));
     if (module === 'workspaces')
-      return forkWorkspaces(
-        items.map((i) => ({ id: String(i.id), revision: i.version })),
-        requestId,
-      );
+      return forkWorkspaces(items.map((i) => ({ id: String(i.id), revision: i.version })), requestId);
     // 业务记录的删除打开删除窗（DataManagementEditor 的 remove），不经这里
     if (isWorkspaceOnly(action)) throw new Error('只有识别文件能在这里复制或删除，请刷新后重试。');
     const records = businessRows(rows).map(({ record }) => ({ id: record.id, version: record.version }));
-    return executeCommand(dataManagementCommand({ requestId, module: managedModule(module), action, items: records, patch }));
+    const extra = confirmDistinct ? { confirmDistinct: true } : {};
+    return executeCommand(dataManagementCommand({ requestId, module: managedModule(module), action, items: records, patch, ...extra }));
   }
-  async function act(action: DataAction, rows: ListedRecord[], patch: Record<string, unknown> = {}) {
+  async function act(action: DataAction, rows: ListedRecord[], patch: Record<string, unknown> = {}, confirmDistinct = false) {
     setBusy(true);
     setError('');
+    setSameName(false);
     setMessage('');
     try {
-      const result = await send(action, rows, patch);
+      const result = await send(action, rows, patch, confirmDistinct);
       const failed = result.results.flatMap(failureOf);
       if (failed.length) setError(failed.map((x) => labelOf(x.id) + '：' + x.message).join('；'));
-      setMessage(
-        failed.length
-          ? '部分记录没办成，原因见上面。'
-          : (doneVerb[action] || '已办好') + ' ' + (result.count ?? result.results.length) + ' 条。',
-      );
+      setMessage(failed.length ? '部分记录没办成，原因见上面。' : (doneVerb[action] || '已办好') + ' ' + (result.count ?? result.results.length) + ' 条。');
       const forked = module === 'workspaces' && action === 'fork' ? forkedId(result.results[0]) : '';
-      if (forked) {
-        location.hash = pageHref('ai-import', { workspace: forked });
-        close();
-      }
+      if (forked) { location.hash = pageHref('ai-import', { workspace: forked }); close(); }
       emit('erp-business-changed');
       settle();
       await load();
     } catch (e) {
+      setSameName(isSameNameProduct(e));
       setError(errorMessage(e));
     } finally {
       setBusy(false);
@@ -110,5 +105,5 @@ export function useDataManagementActions(
     emit('erp-business-changed');
     void load();
   };
-  return { busy, error, setError, message, setMessage, act, finished };
+  return { busy, error, sameName, setError, setSameName, message, setMessage, act, finished };
 }

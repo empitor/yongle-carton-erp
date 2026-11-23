@@ -17,7 +17,7 @@ export {
   stockVersions,
   suppliersOfPurchaseLines,
 } from './ledger/lookups.js';
-export { productIdsOfCustomer, stockIdsOfParty } from './ledger/party-links.js';
+export { stockIdsOfParty } from './ledger/party-links.js';
 export { lineOrderId, purchaseOrderLinks } from './ledger/purchase-rows.js';
 export { operationsRouter } from './router.js';
 export { OperationsService } from './service.js';

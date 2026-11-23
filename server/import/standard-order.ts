@@ -2,7 +2,7 @@ import { sales } from '../sales/index.js';
 import type { z } from 'zod';
 import type { Store } from '../core/index.js';
 import { FINISHED_UNIT, finishedUnit, type Product, type ProductInput } from '../../shared/core/index.js';
-import { customerSchema, productSchema, orderSchema } from '../../shared/core/index.js';
+import { customerSchema, orderSchema, plannedOrderSchema, productSchema } from '../../shared/core/index.js';
 import { legacyCents, MAX_PRICE_YUAN, PRICE_DECIMALS } from '../../shared/core/index.js';
 import { evaluateDraft, fieldLabels, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
 import { inspectCurrency } from '../../shared/core/index.js';
@@ -41,8 +41,8 @@ function priceCentsOf(f: DraftLine['fields'], issues: string[]) {
   return 0;
 }
 
-/** 要新建的产品：资料按识别结果填，过不了产品校验的把原因列出来 */
-function planNewProduct(l: DraftLine, priceCents: number, out: Collected) {
+/** 要新建的产品：资料按识别结果填（已有客户直接填所属客户，新客户在导入事务建客户后写入），过不了校验的把原因列出来 */
+function planNewProduct(l: DraftLine, priceCents: number, customerId: number | null, out: Collected) {
   const f = l.fields;
   try {
     const product = productSchema.safeParse({
@@ -50,6 +50,7 @@ function planNewProduct(l: DraftLine, priceCents: number, out: Collected) {
       priceCents,
       priceExact: value(f.unitPrice.value),
       customerProductCode: f.productCode.value || '',
+      customerId,
     });
     if (product.success) {
       out.newProducts.push({ lineId: l.id, input: product.data });
@@ -68,8 +69,33 @@ function planNewProduct(l: DraftLine, priceCents: number, out: Collected) {
   }
 }
 
-/** 一行明细投影成订单明细：单价、单位、产品（已有的核对还在，新建的列计划） */
-function projectLine(store: Store, d: OrderDraft, l: DraftLine, m: Mapping, out: Collected) {
+/** 已有产品检查：确认存在且不属别家客户 */
+function checkExistingProduct(
+  store: Store,
+  productId: number,
+  customer: { id: number | null; name: string },
+  out: Collected,
+) {
+  const existing = sales(store).product(productId);
+  if (!existing) {
+    out.issues.push('关联产品不存在');
+    return;
+  }
+  if (existing.customerId != null && existing.customerId !== customer.id) {
+    const owner = existing.customerName || sales(store).customer(existing.customerId, true)?.name || '其他客户';
+    out.issues.push(`这个产品是 ${owner} 的，要给 ${customer.name || '当前客户'} 用请复制一份`);
+  }
+  out.optionalProducts.push(existing);
+}
+
+/** 一行明细投影成订单明细：单价、单位、产品（已有的核对还在且不属别家客户，新建的列计划） */
+function projectLine(
+  store: Store,
+  d: OrderDraft,
+  l: DraftLine,
+  ctx: { m: Mapping; customer: { id: number | null; name: string }; out: Collected },
+) {
+  const { m, customer, out } = ctx;
   const f = l.fields,
     choice = m?.products[l.id];
   const priceCents = priceCentsOf(f, out.issues);
@@ -77,10 +103,8 @@ function projectLine(store: Store, d: OrderDraft, l: DraftLine, m: Mapping, out:
   // 产品数量单位只有“只”：“个”、没写都按“只”；别的单位要人先换算
   if (finishedUnit(value(f.unit.value)) !== FINISHED_UNIT)
     out.issues.push('第' + (d.lines.indexOf(l) + 1) + '项数量单位是“' + value(f.unit.value) + '”，产品只按“只”算，请换算成只后再导入。');
-  const existing = productId ? sales(store).product(productId) : undefined;
-  if (productId && !existing) out.issues.push('关联产品不存在');
-  if (existing) out.optionalProducts.push(existing);
-  if (choice?.mode === 'new') planNewProduct(l, priceCents, out);
+  if (productId) checkExistingProduct(store, productId, customer, out);
+  if (choice?.mode === 'new') planNewProduct(l, priceCents, customer.id, out);
   else if (!productId) out.issues.push('产品尚未选择：' + (f.productName.value || '未命名'));
   return {
     lineId: l.id,
@@ -147,37 +171,40 @@ export function standardOrderDraft(store: Store, w: ImportWorkspaceView) {
   return w.draft ? projectOrder(store, w.draft, w.mapping) : null;
 }
 
+/** 投影客户：已有的确认存在，新建的按客户结构校验 */
+function projectCustomer(store: Store, d: OrderDraft, m: Mapping, out: Collected) {
+  const id = m?.customer.mode === 'existing' ? m.customer.id : null;
+  const existing = id ? sales(store).customer(id) : undefined;
+  if (id && !existing) out.issues.push('关联客户不存在');
+  const created =
+    m?.customer.mode === 'new'
+      ? customerSchema.safeParse({ name: d.header.buyerName.value, contact: '', phone: '', address: '', notes: '' })
+      : null;
+  if (!id && !created?.success) out.issues.push('客户尚未选择或新客户名称不完整');
+  const name = existing?.name || (created?.success ? created.data.name : value(d.header.buyerName.value));
+  return { id, name, newCustomerPlan: created?.success ? created.data : null };
+}
+
 // 将带来源的识别字段确定性投影为正式业务同名字段。没有内部ID时保留null及新增计划，不编造ID。
 export function projectOrder(store: Store, d: OrderDraft, m: Mapping) {
   const out: Collected = { issues: [], newProducts: [], optionalProducts: [] };
   const currency = inspectCurrency(d.header.currency.value);
-  const customerId = m?.customer.mode === 'existing' ? m.customer.id : null;
-  if (customerId && !sales(store).customer(customerId)) out.issues.push('关联客户不存在');
-  const newCustomer =
-    m?.customer.mode === 'new'
-      ? customerSchema.safeParse({ name: d.header.buyerName.value, contact: '', phone: '', address: '', notes: '' })
-      : null;
-  if (!customerId && !newCustomer?.success) out.issues.push('客户尚未选择或新客户名称不完整');
-  const lines = d.lines.map((l) => projectLine(store, d, l, m, out));
-  const fields = { ...headerFields(d, m, customerId, currency), lines };
-  // 无内部ID时仅用临时正ID验证结构；不会保存或返回这些占位ID为正式关联。
-  // 新建档案也必须在预览前完成整张订单校验，不能等执行时逐个暴露字段错误。
-  const parsed = orderSchema.safeParse({
-    ...fields,
-    customerId: customerId || 1,
-    lines: lines.map((l) => ({ ...l, productId: l.productId || 1 })),
-  });
+  const customer = projectCustomer(store, d, m, out);
+  const lines = d.lines.map((l) => projectLine(store, d, l, { m, customer, out }));
+  const fields = { ...headerFields(d, m, customer.id, currency), lines };
+  // 按待建订单结构（允许新客户/新产品编号留空）完成整单校验，不编造占位编号。
+  const parsed = plannedOrderSchema.safeParse(fields);
   out.issues.push(...orderProblems(parsed.success ? [] : parsed.error.issues, currency.message, d));
   return {
     fields,
-    newCustomerPlan: newCustomer?.success ? newCustomer.data : null,
+    newCustomerPlan: customer.newCustomerPlan,
     newProductPlans: out.newProducts,
     issues: uniqueMessages(out.issues),
     notices: uniqueMessages([
       ...productNotices(out.optionalProducts),
       ...(currency.defaulted && currency.message ? [currency.message] : []),
     ]),
-    validatedInput: parsed.success && customerId && lines.every((l) => l.productId) ? parsed.data : null,
+    validatedInput: parsed.success && customer.id && lines.every((l) => l.productId) ? orderSchema.parse(fields) : null,
     writesEnabled: false as const,
   };
 }

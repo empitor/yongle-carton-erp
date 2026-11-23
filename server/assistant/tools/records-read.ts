@@ -10,7 +10,7 @@ import { purchaseSchema, stockItemSchema, supplierSchema } from '../../../shared
 import { arrivalSchema, taskSchema, productionSchema, deliverySchema } from '../../../shared/business/index.js';
 import { dataManagementTemplate } from '../../../shared/business/index.js';
 import { monthsBefore } from '../../../shared/core/index.js';
-import { productIdsOfCustomer, stockIdsOfParty } from '../../operations/index.js';
+import { stockIdsOfParty } from '../../operations/index.js';
 import { OFFSET_MAX, uuid, positive, requireActor, type ToolContext } from './context.js';
 import { readTool } from './define.js';
 import { recordKindOf, stockKindOf } from '../../../shared/assistant/index.js';
@@ -56,7 +56,7 @@ export const recordReadTools = [
     {
       name: 'records.search',
       description:
-        '查业务记录列表，limit 最多 20，用 offset 翻页；问合计用 records.summarize。默认只查没归档的；用户说要看已归档的才传 lifecycle=archived，lifecycle=all 要超级管理员模式，用户没提归档就不要带。库存余额不受日期筛选。产品的 customerId 是该客户订过的产品，原材料的 supplierId 是从该供应商采购过的。',
+        '查业务记录列表，limit 最多 20，用 offset 翻页；问合计用 records.summarize。默认只查没归档的；要看已归档才传 lifecycle=archived，lifecycle=all 要超级管理员模式，没提归档就不要带。库存余额不受日期筛选。产品和成品的 customerId 是所属客户，原料的 supplierId 是采购过的供应商。',
       schema: searchSchema,
     },
     searchRecords,
@@ -93,6 +93,10 @@ const inputSchemas: Partial<Record<Module, z.ZodType>> = {
 };
 /** describe 给的关联档案怎么填（没写的模块是空的） */
 const dependencies: Partial<Record<Module, Record<string, string>>> = {
+  products: {
+    customerId:
+      '所属客户（可留空作为通用产品）；从订单或客户语境新建产品时填该客户。下过单且已定客户的产品不能改给别的客户，要给别的客户用请新建一份',
+  },
   production_records: {
     finishedStockId:
       '可以不传：保存时按产品对应成品库存（一个产品只有一个，没有就新建、已归档的自动恢复）；传了必须是这个产品的那一个',
@@ -149,15 +153,8 @@ function matchRecords(ctx: ToolContext, actor: Actor, module: Module, filters: R
   const f = checkedFilters(module, filters);
   const includeArchived = f.archived || (!!f.lifecycle && f.lifecycle !== 'active');
   if (includeArchived && f.lifecycle !== 'archived' && !isSuperMode(actor)) throw allRecordsDenied(actor);
-  // 产品、库存品本身不挂客户或供应商：按订单、采购单关联出来，和页面“筛选”同一套
-  const partyIds =
-    module === 'products'
-      ? f.customerId
-        ? productIdsOfCustomer(ctx.store, f.customerId)
-        : null
-      : stockKindOf(module)
-        ? stockIdsOfParty(ctx.store, f)
-        : null;
+  // 库存品按采购单或所属产品关联到供应商、客户；产品直接按记录上的 customerId 筛
+  const partyIds = stockKindOf(module) ? stockIdsOfParty(ctx.store, f) : null;
   return { f, matched: matchingRows(ctx, actor, includeArchived, { module, f, partyIds }) };
 }
 

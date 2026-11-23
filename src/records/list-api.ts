@@ -33,6 +33,8 @@ export const loadPendingConfirm = (size: number) =>
 
 /** 客户、产品详情里的相关订单（不分页，按条件筛） */
 export const loadOrdersWhere = (query: OrdersWhere) => records('GET /orders', { query });
+/** 客户详情里属于这个客户的产品（不分页） */
+export const loadCustomerProducts = (customerId: number) => records('GET /products', { query: { customerId } });
 
 /** 经营概况：按客户、统计日期 */
 export const loadDashboard = (query: DashboardQuery) => workbench('GET /dashboard', { query });

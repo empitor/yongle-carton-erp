@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { AppError } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { resolveImportCustomer } from '../import/index.js';
-import { MAX_DRAFT_OPERATIONS, patchOperationSchema, type DraftOperation, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
+import { MAX_DRAFT_OPERATIONS, patchOperationSchema, productsForCustomer, type DraftOperation, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
 import { prepare, recognize } from './order-import-prepare.js';
 import type { OrderImportState, Task, TaskState, WorkflowContext } from './order-import-state.js';
 
@@ -59,7 +59,7 @@ const matchInput = z.object({
   productCode: z.string().trim().min(1).max(PRODUCT_CODE_MAX).optional(),
   createNew: z.boolean().default(false),
 });
-/** 这一行产品用哪个档案：说了新建就新建；按编号就按主键读；按料号要在全部在用产品里找（料号存在扩展资料里，和候选匹配同一口径） */
+/** 这一行产品用哪个档案：说了新建就新建；按编号按主键读并核对客户归属；按料号在当前客户与未定客户的产品里找 */
 function matchLine(wf: OrderImportState, w: ImportWorkspaceView, task: Task, mapping: ImportMapping, input: z.output<typeof matchInput> & { line: number }) {
   const line = w.draft?.lines[input.line - 1];
   if (!line) throw new AppError('识别结果里没有这一行。');
@@ -68,14 +68,21 @@ function matchLine(wf: OrderImportState, w: ImportWorkspaceView, task: Task, map
     mapping.products[line.id] = { mode: 'new' };
     return;
   }
+  const customerId = mapping.customer.mode === 'existing' ? mapping.customer.id : null;
   const matches = input.productCode
-    ? sales(wf.store).products().filter((p) => p.customerProductCode === input.productCode)
+    ? productsForCustomer(sales(wf.store).products(), customerId).filter((p) => p.customerProductCode === input.productCode)
     : input.productId
       ? sales(wf.store).products(false, [input.productId])
       : [];
   if (matches.length !== 1)
     throw new AppError('产品未唯一匹配，请明确选择档案编号，不能合并相似型号。');
   const p = matches[0];
+  if (p.customerId != null && p.customerId !== customerId) {
+    const owner = p.customerName || sales(wf.store).customer(p.customerId, true)?.name || '其他客户';
+    const target =
+      (customerId ? sales(wf.store).customer(customerId)?.name : w.draft?.header.buyerName.value) || '当前客户';
+    throw new AppError(`这个产品是 ${owner} 的，要给 ${target} 用请复制一份`, 409);
+  }
   mapping.products[line.id] = { mode: 'existing', id: p.id, version: p.version };
 }
 /** 没指定客户、也没说新建：按名称和历史订单找唯一的那位，模糊的说明差异 */

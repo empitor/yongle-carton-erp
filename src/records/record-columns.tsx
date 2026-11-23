@@ -8,7 +8,6 @@ import {
   quantityString,
   today,
   type TrackedOrder,
-  type Product,
 } from '../../shared/core/index';
 import {
   UNPRICED_TEXT,
@@ -92,6 +91,7 @@ export function RecordHead({
       ) : (
         <>
           {sortHead('产品', 'first')}
+          <th>客户</th>
           <th>尺寸</th>
           <th>材质 / 楞型</th>
           <th className="col-low">加工要求</th>
@@ -152,6 +152,7 @@ function StockCells({ row, cell }: CellProps<StockItemView>) {
       <td className="cell-wrap record-tree-cell">
         {cell.familyMark(row)}
         {cell.rowKey(row, row.name)}
+        {row.kind === 'finished' && row.customerName && <span className="sub">{row.customerName}</span>}
         {cell.familyTag(row)}
         {cell.isArchived(row) && archivedTag}
       </td>
@@ -231,7 +232,7 @@ function PartyCells<R extends PartyRow>({ row, cell }: CellProps<R>) {
   );
 }
 
-function ProductCells({ row, cell }: CellProps<Product>) {
+function ProductCells({ row, cell }: CellProps<RecordRowOf['products']>) {
   return (
     <>
       <td className="cell-wrap record-tree-cell">
@@ -239,6 +240,16 @@ function ProductCells({ row, cell }: CellProps<Product>) {
         {cell.rowKey(row, row.name)}
         {cell.familyTag(row)}
         {cell.isArchived(row) ? archivedTag : productIncomplete(row) && <span className="record-state">资料不全</span>}
+      </td>
+      <td className="cell-wrap">
+        {row.customerName ||
+          (row.orderedCustomers?.length ? (
+            <span className="sub" title={'历史上给 ' + row.orderedCustomers.join('、') + ' 下过单'}>
+              没定客户（{row.orderedCustomers.join('、')}）
+            </span>
+          ) : (
+            '—'
+          ))}
       </td>
       <td>{productSize(row) || '—'}</td>
       <td>

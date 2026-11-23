@@ -5,7 +5,7 @@ import { supplierSchema, purchaseSchema, stockItemSchema } from '../../shared/bu
 import { flowInput, type FlowDocView } from '../../shared/business/index.js';
 import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../../shared/business/index.js';
 import type { RecordEntity, dataManagementModules } from '../../shared/business/index.js';
-import { entityRecords, namedDocuments, type EntityRecordOf } from '../overview/index.js';
+import { entityRecords, namedDocuments, orderedProducts, type EntityRecordOf } from '../overview/index.js';
 import type { FlowService } from '../flow/index.js';
 // 数据管理读记录：一个模块的全部记录或选中的几条，每条给列表显示用的 record 和编辑窗用的 input（补上名字、单号、用没用过）。
 
@@ -57,8 +57,12 @@ type RecordOf<M extends ManagedModule> = M extends RecordEntity
 /** 选中的一条：按编号读的 record，和编辑窗用的 input */
 export type Selected<M extends ManagedModule = ManagedModule> = { record: RecordOf<M>; input: InputOf<M> };
 type Usage = NonNullable<ReturnType<FlowService['views']['usage']>>;
-/** 列表显示另补在 record 上的：库存品用没用过；到货单的订货单号和原件文件名（供应商名、客户名补在单据自己的字段上） */
-type Shown = { stock_items: { usage: Usage | null }; arrival: { orderBatchNumber?: string; sourceFileName?: string } };
+/** 列表显示另补在 record 上的：产品下过单没有；库存品用没用过；到货单的订货单号和原件文件名 */
+type Shown = {
+  products: { ordered: boolean };
+  stock_items: { usage: Usage | null };
+  arrival: { orderBatchNumber?: string; sourceFileName?: string };
+};
 /** 列表的一条：显示用的 record（补了 Shown 里的几项），和编辑窗用的 input */
 export type Listed<M extends ManagedModule = ManagedModule> = {
   record: RecordOf<M> & (M extends keyof Shown ? Shown[M] : unknown);
@@ -103,8 +107,13 @@ export class ManagedRecords {
   private businessListed<E extends RecordEntity>(entity: E) {
     const records = entityRecords(this.store, entity, true);
     const usage = entity === 'stock_items' && records.length ? this.flow.views.usages(records.map((r) => r.id)) : undefined;
+    const ordered = entity === 'products' && records.length ? orderedProducts(this.store, records.map((r) => r.id)) : undefined;
     return records.map((record) => ({
-      record: usage ? { ...record, usage: usage.get(record.id) ?? null } : record,
+      record: usage
+        ? { ...record, usage: usage.get(record.id) ?? null }
+        : ordered
+          ? { ...record, ordered: ordered.has(record.id) }
+          : record,
       input: businessInputs[entity](record),
     }));
   }

@@ -23,6 +23,8 @@ const productTemplate = () => ({
   priceCents: 0,
   priceExact: '',
   customerProductCode: '',
+  // 所属客户：留空是通用产品，所有客户订单都能选
+  customerId: null,
   // 附属于哪个产品：默认不关联
   parentProductId: null,
 });

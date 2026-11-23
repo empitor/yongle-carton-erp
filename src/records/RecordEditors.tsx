@@ -133,7 +133,9 @@ export default function RecordEditors({
       )}
       <Suspense fallback={<p role="status">正在打开…</p>}>
         {editor?.kind === 'customers' && <CustomerEditor value={editor.value} close={close} saved={saved} />}
-        {editor?.kind === 'products' && <ProductEditor value={editor.value} close={close} saved={saved} />}
+        {editor?.kind === 'products' && (
+          <ProductEditor value={editor.value} customers={customers} close={close} saved={saved} />
+        )}
         {editor?.kind === 'orders' && (
           <OrderEditor
             loading={loading}

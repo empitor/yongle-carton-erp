@@ -6,6 +6,9 @@ import type { CustomerListQuery, OrderListQuery, ProductListQuery } from './list
  * 订单、客户、产品、归档几页的列表条件：从地址读筛选、拼读列表的查询参数。只算数据，不引 React、不发请求。
  */
 
+/** 产品页“筛选客户”下拉里“没定客户”的取值 */
+export const UNASSIGNED_CUSTOMER = 'none';
+
 /** 这几页由 RecordPages 显示，App 不再给它们画页头 */
 export const recordPages = ['dashboard', 'orders', 'customers', 'products', 'trash'] as const;
 export const isRecordPage = (page: string) => (recordPages as readonly string[]).includes(page);
@@ -29,14 +32,20 @@ export function cleanDateParams(params: URLSearchParams) {
 /** 从地址读列表筛选（订单默认看待处理、不限日期）。地址是人能手改的，不认识的值当作没筛选。 */
 export function readListFilters(hash = location.hash) {
   const params = cleanDateParams(new URLSearchParams(hash.split('?')[1] || ''));
-  const ordersPage = pageIdOf(hash) === 'orders';
+  const pageId = pageIdOf(hash),
+    ordersPage = pageId === 'orders';
   // 订单默认看待处理、不限日期；“全部”（scope=all）不分状态。
   const view: OrderView = ordersPage ? (params.get('scope') === 'all' ? 'current' : 'pending') : 'current';
   // 地址是人能手改的：不认识的状态、客户编号、日期一律当作没筛选，不带去请求，免得服务端的校验原文冒到页面上
   const rawStatus = params.get('status') || '',
     status = isDisplayStatus(rawStatus) ? rawStatus : '',
     rawCustomer = params.get('customerId') || '',
-    customerId = /^[1-9]\d{0,9}$/.test(rawCustomer) ? rawCustomer : '';
+    customerId =
+      pageId === 'products' && params.get('unassigned') === '1'
+        ? UNASSIGNED_CUSTOMER
+        : /^[1-9]\d{0,9}$/.test(rawCustomer)
+          ? rawCustomer
+          : '';
   const raw = params.get('range') || (!ordersPage && view === 'current' ? '2' : 'all');
   const preset: DatePreset = isDatePreset(raw) ? raw : ordersPage ? 'all' : '2';
   const range = presetRange(preset);
@@ -93,7 +102,7 @@ function orderListQuery(o: RecordListState): OrderListQuery {
     trash = o.page === 'trash';
   const pending = orders && !o.archivedView && !(o.superMode && o.allRecordsView) && o.orderView === 'pending';
   return {
-    customerId: trash ? undefined : given(o.customerId),
+    customerId: trash || o.customerId === UNASSIGNED_CUSTOMER ? undefined : given(o.customerId),
     archived: orderArchived(o),
     status: orders && isDisplayStatus(o.status) ? o.status : undefined,
     start: trash ? undefined : given(o.start),
@@ -113,14 +122,16 @@ function partyArchived(o: RecordListState, entity: 'customers' | 'products'): Cu
   return undefined;
 }
 
-/** 产品：本页才带关键词、只看资料不全的、按客户筛 */
+/** 产品：本页才带关键词、只看资料不全的、按客户或“没定客户”筛 */
 function productListQuery(o: RecordListState): ProductListQuery {
-  const products = o.page === 'products';
+  const products = o.page === 'products',
+    unassigned = products && o.customerId === UNASSIGNED_CUSTOMER;
   return {
     archived: partyArchived(o, 'products'),
     q: products ? given(o.search) : undefined,
     incomplete: products && o.productAttention ? '1' : undefined,
-    customerId: products ? given(o.customerId) : undefined,
+    customerId: products && !unassigned ? given(o.customerId) : undefined,
+    unassigned: unassigned ? '1' : undefined,
   };
 }
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import type { ImportMapping, OrderDraft } from '../../shared/import/index.js';
-import { blocksNewProduct, productCandidatesForLine, type CustomerProductSpecs } from '../../shared/import/index.js';
+import { blocksNewProduct, productCandidatesForLine, productsForCustomer } from '../../shared/import/index.js';
 import { MAX_CM_DIMENSION, hasCompleteProductIdentity, productIdentityParts, type Product } from '../../shared/core/index.js';
 import { resolveImportCustomer } from './customer-resolution.js';
 import { productFieldsFromDraft } from './product-input.js';
@@ -52,35 +52,30 @@ function definitionOf(line: OrderDraft['lines'][number]) {
 }
 
 /**
- * 产品没选的按名称、尺寸自动对应：唯一对上用已有档案，有必须确认的候选就停下，什么都没有才计划新建。
- * history 是这位客户以前订过的产品和规格（客户是已有档案时才有），本客户的老产品同名同规格就直接用。
+ * 产品没选的按名称、尺寸自动对应：只在该客户的产品和没定客户的通用产品里找；
+ * 唯一对上用已有档案，有必须确认的候选就停下，什么都没有才计划新建。
  */
 export function autoMapProducts(
   draft: OrderDraft,
   mapping: ImportMapping,
   products: Product[],
-  history?: CustomerProductSpecs,
+  customerId: number | null,
 ) {
+  const eligible = productsForCustomer(products, customerId);
   for (const l of draft.lines) {
     const no = draft.lines.indexOf(l) + 1;
     const definition = definitionOf(l);
     const choice = mapping.products[l.id] ?? { mode: 'pending' };
     const exactProducts = () =>
       hasCompleteProductIdentity(definition)
-        ? products.filter((p) => hasCompleteProductIdentity(p) && productKey(p) === productKey(definition))
+        ? eligible.filter((p) => hasCompleteProductIdentity(p) && productKey(p) === productKey(definition))
         : [];
     if (choice.mode !== 'pending') continue;
     const exact = exactProducts(),
-      candidates = productCandidatesForLine(l, products, history);
-    // 真实订单常不写材质。名称、尺寸都相同又没有冲突的唯一档案就是它，
-    // 比如同一批里前一份刚建的产品，或者每月重复下单的老产品。
+      candidates = productCandidatesForLine(l, eligible, customerId);
+    // 统一按候选规则自动对应：存在单位/规格/属性冲突或无明确单位证据的候选绝不绕过自动采用
     const best = candidates.filter((c) => c.recommended);
-    const same =
-      exact.length === 1 && !best.length
-        ? exact[0]
-        : best.length === 1
-          ? products.find((p) => p.id === best[0].id)
-          : undefined;
+    const same = best.length === 1 ? eligible.find((p) => p.id === best[0].id) : undefined;
     if (same) mapping.products[l.id] = { mode: 'existing', id: same.id, version: same.version };
     else if (exact.length || candidates.some(blocksNewProduct))
       throw new AppError(

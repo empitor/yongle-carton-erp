@@ -47,8 +47,8 @@ export default function DataManagementEditor({
     setBatch(false);
   };
   const actions = useDataManagementActions(module, records, load, settle, close);
-  const { busy, error, setError, setMessage } = actions;
-  // 换模块：收起选择、编辑窗、搜索和提示（setError、setMessage 是状态的设置函数，不会变，只在换模块时跑）
+  const { busy, error, setError, setSameName, setMessage } = actions;
+  // 换模块：收起选择、编辑窗、搜索和提示（setError、setSameName、setMessage 是状态的设置函数，不会变，只在换模块时跑）
   useEffect(() => {
     setSelected([]);
     setInput(null);
@@ -56,8 +56,9 @@ export default function DataManagementEditor({
     setQ('');
     setAsk(null);
     setError('');
+    setSameName(false);
     setMessage('');
-  }, [module, setError, setMessage]);
+  }, [module, setError, setSameName, setMessage]);
   const filtered = records.filter((r) =>
     JSON.stringify([r.record.name, r.record.number, r.record.customerName, r.record.supplierName, r.record.id])
       .toLowerCase()
@@ -77,20 +78,13 @@ export default function DataManagementEditor({
       <LinkedDialogs linked={linked} close={() => setLinked(null)} finished={actions.finished} />
     ) : input ? (
       <EditWindow
-        module={module}
-        editing={editing}
-        input={input}
-        setInput={setInput}
-        busy={busy}
-        error={error}
-        setError={actions.setError}
+        module={module} editing={editing} input={input} setInput={setInput} busy={busy} error={error}
+        sameName={actions.sameName} setError={actions.setError} clearSameName={() => actions.setSameName(false)}
         refs={refs}
-        close={() => {
-          setInput(null);
-          setEditing(null);
-          actions.setError('');
-        }}
-        submit={(patch) => void actions.act(editing ? 'update' : 'create', editing ? [editing] : [], patch)}
+        close={() => { setInput(null); setEditing(null); actions.setError(''); actions.setSameName(false); }}
+        submit={(patch, confirmDistinct) =>
+          void actions.act(editing ? 'update' : 'create', editing ? [editing] : [], patch, confirmDistinct)
+        }
       />
     ) : removing ? (
       <RemoveWorkspacesDialog
@@ -184,7 +178,9 @@ function EditWindow({
   input,
   setInput,
   error,
+  sameName,
   setError,
+  clearSameName,
   submit,
   ...rest
 }: {
@@ -194,13 +190,15 @@ function EditWindow({
   setInput: (input: JsonObject) => void;
   busy: boolean;
   error: string;
+  sameName: boolean;
   setError: (message: string) => void;
+  clearSameName: () => void;
   refs: RecordRefs | null;
   close: () => void;
-  submit: (patch: JsonObject) => void;
+  submit: (patch: JsonObject, confirmDistinct?: boolean) => void;
 }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  function save() {
+  function save(confirmDistinct?: boolean) {
     let patch;
     try {
       patch = submittedInput(module, input, editing?.input);
@@ -212,7 +210,7 @@ function EditWindow({
       return;
     }
     setFieldErrors({});
-    submit(patch);
+    submit(patch, confirmDistinct);
   }
   return (
     <DataManagementRecordDialog
@@ -222,6 +220,7 @@ function EditWindow({
       input={input}
       setInput={(next: JsonObject) => {
         setInput(next);
+        clearSameName();
         setFieldErrors((errors) => {
           const kept = Object.fromEntries(
             Object.entries(errors).filter(([path]) => valueAt(next, path) === valueAt(input, path)),
@@ -230,6 +229,7 @@ function EditWindow({
         });
       }}
       error={error}
+      sameName={sameName}
       fieldErrors={fieldErrors}
       save={save}
     />

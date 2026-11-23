@@ -81,7 +81,7 @@ const keptPhrases = new Map<string, KeptPhrase>([
   ['stock_id', unlinkStock],
   ['stock_item_id', unlinkStock],
   ['product_id', (plan) => '不再对应' + target(plan, 'products')],
-  ['customer_id', (plan) => '不再关联' + target(plan, 'customers')],
+  ['customer_id', (plan, r) => (r.table === 'products' ? '变成没定客户' : '不再关联' + target(plan, 'customers'))],
   ['supplier_id', (plan) => '不再关联' + target(plan, 'suppliers')],
   ['task_id', (plan) => '不再挂' + target(plan, 'flow_documents', 'task')],
   ['source_id', keptAsMaintenance],

@@ -222,8 +222,23 @@ export function StockEditor({
         {conflict && <ConflictHint conflict={conflict} close={close} />}
         {finished ? (
           <>
-            <ProductPicker {...{ form, product, productId, products, used, choose }} />
-            <FinishedSpec form={form} product={product} productId={productId} />
+            <ProductPicker
+              {...{
+                form,
+                product,
+                productId,
+                products,
+                fallbackCustomerName: value?.productId === productId ? value?.customerName : undefined,
+                used,
+                choose,
+              }}
+            />
+            <FinishedSpec
+              form={form}
+              product={product}
+              productId={productId}
+              fallbackCustomerName={value?.productId === productId ? value?.customerName : undefined}
+            />
           </>
         ) : (
           <RawFields form={form} patch={patch} saved={value ?? null} />

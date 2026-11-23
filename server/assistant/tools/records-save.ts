@@ -29,6 +29,7 @@ const saveSchema = z
     id: positive.optional(),
     patch: z.record(z.string(), z.unknown()).optional(),
     items: z.array(z.record(z.string(), z.unknown())).min(2).max(ITEMS_MAX).optional(),
+    confirmDistinct: z.boolean().optional(),
   })
   .refine((v) => (v.items ? !v.patch && !v.id : !!v.patch), '改一条或新建一条传 patch；一次新建几条传 items（不带 id、patch）');
 /** 方案里存的一条保存：哪个模块、哪条（新建没有）、交给保存服务的输入、改了哪些字段、改状态的原因 */
@@ -38,8 +39,16 @@ const saveArgs = z.object({
   input: z.record(z.string(), z.unknown()),
   fields: z.array(z.string()).optional(),
   reason: z.string().optional(),
+  confirmDistinct: z.boolean().optional(),
 });
-type SaveJob = { module: Module; id?: number; input: Record<string, unknown>; fields: readonly string[]; reason?: string };
+type SaveJob = {
+  module: Module;
+  id?: number;
+  input: Record<string, unknown>;
+  fields: readonly string[];
+  reason?: string;
+  confirmDistinct?: boolean;
+};
 
 export const recordSaveTools = [
   planTool({
@@ -122,9 +131,10 @@ function executeSave(ctx: ToolContext, job: SaveJob, actor: Actor, binding: stri
   const { module, id, input } = job;
   const statusChanged = id ? saveStatus(ctx, { ...job, id }, actor, binding) : null;
   if (statusChanged) return statusChanged;
-  if (isWritable(module))
+  if (isWritable(module)) {
+    const body = module === 'products' && job.confirmDistinct ? { ...input, confirmDistinct: true } : input;
     return createBusinessService(ctx.store).execute(
-      id ? { entity: module, action: 'update', id, input } : { entity: module, action: 'create', input },
+      id ? { entity: module, action: 'update', id, input: body } : { entity: module, action: 'create', input: body },
       {
         source: 'reviewed-assistant',
         operatorId: actor.id,
@@ -133,6 +143,7 @@ function executeSave(ctx: ToolContext, job: SaveJob, actor: Actor, binding: stri
         actor,
       },
     );
+  }
   if (module === 'suppliers') return ctx.ops.saveSupplier(input, actor, id);
   if (module === 'purchases') return ctx.flow.stock.savePurchase(input, actor, id);
   const stockKind = stockKindOf(module);
@@ -147,9 +158,15 @@ function executeSave(ctx: ToolContext, job: SaveJob, actor: Actor, binding: stri
  * 一次新建几条同类记录：逐条按新建一条的同一套校验和试算出方案，合成一张卡片；确认时逐条交给同一个保存服务
  * （和页面“安排生产”窗口一次排几种产品一样，每条一张任务），整张卡片在一个事务里，有一条不成就都不建。
  */
-function buildMany(ctx: ToolContext, tool: string, asked: { module: Module; items: Record<string, unknown>[] }, actor: Actor, binding: string): ToolPlan {
-  const { module, items } = asked;
-  const children = items.map((patch) => buildSave(ctx, tool, { module, patch }, actor, binding));
+function buildMany(
+  ctx: ToolContext,
+  tool: string,
+  asked: { module: Module; items: Record<string, unknown>[]; confirmDistinct?: boolean },
+  actor: Actor,
+  binding: string,
+): ToolPlan {
+  const { module, items, confirmDistinct } = asked;
+  const children = items.map((patch) => buildSave(ctx, tool, { module, patch, confirmDistinct }, actor, binding));
   return {
     tool,
     args: { module, items: children.map((c) => c.args) },
@@ -225,15 +242,27 @@ function highRiskOf(module: Module, before: Fields | undefined, input: Record<st
       (fieldList(before?.lines).some((l) => Number(l.shippedQuantity) > 0) || before?.status === '已发货' || input.status === '已发货'))
   );
 }
-function warningsOf(module: Module) {
+function warningsOf(module: Module, confirmDistinct?: boolean) {
   const kind = flowKindOfModule(module);
-  if (kind === 'delivery') return ['保存后是待送货，不扣库存；导出送货单或核对出库时才扣。'];
-  if (kind === 'task') return ['保存后直接下达，不动库存。'];
-  return kind ? ['保存后是待入库，核对入库时才加库存。'] : [];
+  const base = !kind
+    ? []
+    : kind === 'delivery'
+      ? ['保存后是待送货，不扣库存；导出送货单或核对出库时才扣。']
+      : kind === 'task'
+        ? ['保存后直接下达，不动库存。']
+        : ['保存后是待入库，核对入库时才加库存。'];
+  return confirmDistinct ? [...base, '已按“是另一个产品”提交，请核对与现有同名产品的尺寸材质不同后再确认。'] : base;
 }
 
 function buildSave(ctx: ToolContext, tool: string, asked: z.output<typeof saveSchema>, actor: Actor, binding: string): ToolPlan {
-  if (asked.items) return buildMany(ctx, tool, { module: asked.module, items: asked.items }, actor, binding);
+  if (asked.items)
+    return buildMany(
+      ctx,
+      tool,
+      { module: asked.module, items: asked.items, confirmDistinct: asked.confirmDistinct },
+      actor,
+      binding,
+    );
   const { module, id } = asked;
   if (module === 'movements') throw new AppError('库存流水不可直接编辑。');
   // 订单、采购单改状态时一起给的原因（取消必填），不是记录的字段
@@ -248,19 +277,27 @@ function buildSave(ctx: ToolContext, tool: string, asked: z.output<typeof saveSc
   const parsed = parseInput(module, candidate),
     input = { ...parsed, ...(before ? { version: recordVersion(before) } : {}) },
     fields = Object.keys(patch),
+    confirmDistinct = module === 'products' && asked.confirmDistinct === true ? true : undefined,
     after = rehearse(ctx.store.db, () => {
       const unknown = fields.filter((k) => !Object.hasOwn(parsed, k));
       if (unknown.length)
         throw new AppError('不支持的业务字段：' + unknown.join('、') + '。产品加工要求/备注使用requirements，不能写入不存在的字段。');
-      return executeSave(ctx, { module, id, input, fields, reason: statusReason }, actor, binding);
+      return executeSave(ctx, { module, id, input, fields, reason: statusReason, confirmDistinct }, actor, binding);
     });
   return {
     tool,
-    args: { module, id, input, fields, ...(statusReason ? { reason: statusReason } : {}) },
+    args: {
+      module,
+      id,
+      input,
+      fields,
+      ...(statusReason ? { reason: statusReason } : {}),
+      ...(confirmDistinct ? { confirmDistinct: true } : {}),
+    },
     label: (id ? '修改' : '新建') + moduleName(module),
     highRisk: highRiskOf(module, before, input),
     before: before ?? null,
     after,
-    warnings: warningsOf(module),
+    warnings: warningsOf(module, confirmDistinct),
   };
 }

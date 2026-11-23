@@ -1,4 +1,4 @@
-import { sales, assertNewProductAllowed } from '../sales/index.js';
+import { sales, assertNewProductAllowed, productIdentityChanged } from '../sales/index.js';
 import { z } from 'zod';
 import { customerSchema, productSchema, orderSchema, derivedOrderStatuses } from '../../shared/core/index.js';
 import type { Customer, Product, TrackedOrder } from '../../shared/core/index.js';
@@ -62,6 +62,15 @@ const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] 
     return inSavepoint(store.db, () => {
       const previous = sales(store).product(id, context.superAdminMode);
       if (!previous) notFound('记录不存在');
+      // 改所属客户或查重字段时走同一套查重规则并排除自身 id（未动这些字段时不回溯拦截历史遗留档案）
+      const nextLike = {
+        ...product,
+        customerProductCode: product.customerProductCode ?? previous.customerProductCode,
+        dimensionUnit: product.dimensionUnit !== undefined ? product.dimensionUnit : (previous.dimensionUnit ?? null),
+        customerId: product.customerId !== undefined ? product.customerId : (previous.customerId ?? null),
+      };
+      if (productIdentityChanged(previous, nextLike))
+        assertNewProductAllowed(store, nextLike, confirmsDistinct(input), id);
       const saved = sales(store).updateProduct(product, id, version, context.superAdminMode);
       // 产品和它的成品库存在同一个保存点内更新。
       syncFinishedStock(store, previous, saved, context.actor);

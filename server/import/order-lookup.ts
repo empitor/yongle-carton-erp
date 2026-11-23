@@ -2,7 +2,6 @@ import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { many, rows, type Store } from '../core/index.js';
 import type { Order } from '../../shared/core/index.js';
-import type { CustomerProductSpecs } from '../../shared/import/index.js';
 import { looseKey, nameKey } from '../../shared/core/index.js';
 
 /**
@@ -74,19 +73,6 @@ export function duplicateOrderCandidates(
 /** 采购单号完全相同的订单（不含归档），给识别结果页提示“可能重复” */
 export function ordersWithPurchaseOrder(store: Store, purchaseOrder: string): Order[] {
   return sales(store).ordersByIds(orderIds(store, 'SELECT id FROM orders WHERE external_purchase_order=?', purchaseOrder));
-}
-
-/** 这位客户以前的订单（含归档）里订过的产品，和明细上写的规格 */
-export function customerProductSpecs(store: Store, customerId: number): CustomerProductSpecs {
-  const out: Record<number, string[]> = {};
-  const found = many(
-    store.db,
-    z.object({ id: rows.order_lines.shape.product_id, spec: rows.order_lines.shape.specification }),
-    'SELECT DISTINCT l.product_id AS id, l.specification AS spec FROM order_lines l JOIN orders o ON o.id=l.order_id WHERE o.customer_id=?',
-    customerId,
-  );
-  for (const r of found) (out[r.id] ||= []).push(r.spec);
-  return out;
 }
 
 /** 以前的订单里用过这个客户名（名字键相同）的客户编号：这些就是同一位客户的历史身份 */

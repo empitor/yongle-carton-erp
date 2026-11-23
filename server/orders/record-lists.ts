@@ -1,8 +1,7 @@
-import { sales } from '../sales/index.js';
+import { orderedCustomersByProduct, sales } from '../sales/index.js';
 import { trackOrders } from './tracked-orders.js';
 import { z } from 'zod';
 import { pageRows, InputError, type Store } from '../core/index.js';
-import { productIdsOfCustomer } from '../operations/index.js';
 import type { TrackedOrder } from '../../shared/core/index.js';
 import {
   customerQuerySchema,
@@ -49,19 +48,29 @@ export function customerList(store: Store, query: Record<string, unknown>, inclu
 }
 
 /**
- * 产品列表。关键字和产品页同一套（matchesProduct）；withMetrics=1 时再按页面的筛选（只看资料不全、按客户筛）
- * 返回 { rows, totalRecords, metrics }，不带时直接返回数组（下拉用）。
+ * 产品列表。关键字和产品页同一套（matchesProduct）；支持按所属客户或“没定客户”筛；
+ * withMetrics=1 时再按“只看资料不全”筛、为没定客户的产品补上历史下单客户，返回 { rows, totalRecords, metrics }，
+ * 不带时直接返回数组（下拉和客户详情用）。
  */
 export function productList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
   const f = productQuerySchema.parse(query);
   const scoped = listed(sales(store).products(includeArchived), store.archivedIds('products'), f.archived);
   const matched = scoped.filter((row) => matchesProduct(row, f.q ?? ''));
-  if (query.withMetrics !== '1') return matched;
-  // 按客户筛：这个客户下过单的产品（产品本身不挂客户，靠订单明细关联）
-  const ordered = f.customerId ? productIdsOfCustomer(store, f.customerId) : null;
-  const byCustomer = ordered ? matched.filter((row) => ordered.has(row.id)) : matched;
+  const byCustomer =
+    f.unassigned === '1'
+      ? matched.filter((row) => row.customerId == null)
+      : f.customerId
+        ? matched.filter((row) => row.customerId === f.customerId)
+        : matched;
+  if (query.withMetrics !== '1') return byCustomer;
+  const rows = f.incomplete === '1' ? byCustomer.filter(productIncomplete) : byCustomer;
+  const unassignedIds = rows.filter((r) => r.customerId == null).map((r) => r.id);
+  const history = orderedCustomersByProduct(store, unassignedIds);
   return {
-    rows: f.incomplete === '1' ? byCustomer.filter(productIncomplete) : byCustomer,
+    rows: rows.map((row) => {
+      const orderedCustomers = row.customerId == null ? history.get(row.id) : undefined;
+      return orderedCustomers?.length ? { ...row, orderedCustomers } : row;
+    }),
     totalRecords: scoped.length,
     metrics: productMetrics(byCustomer),
   };

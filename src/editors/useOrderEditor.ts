@@ -53,9 +53,44 @@ const initialCosts = (value?: Order): CostDraft => ({
   basis: value?.costs?.basis || '',
 });
 
+/** 多选产品开单时，只有所有带归属客户的产品都指向唯一同一客户才预填；跨客户或都没归属就留空不猜 */
+function uniquePresetCustomer(preset: OrderEditorProps['preset'], products: Product[]) {
+  if (preset?.customerId) return preset.customerId;
+  if (!preset?.productIds?.length) return undefined;
+  const owners = new Set(
+    products
+      .filter((p) => preset.productIds?.includes(p.id) && p.customerId != null)
+      .map((p) => p.customerId),
+  );
+  return owners.size === 1 ? [...owners][0] : undefined;
+}
+
+/** 原订单在未换客户时保留的“明细编号 → 原产品编号”映射（仅用于老订单未动明细的兼容显示） */
+function originalLineProducts(value: Order | undefined, customerId: string) {
+  const map = new Map<number, number>();
+  if (!value || Number(customerId) !== value.customerId) return map;
+  for (const l of value.lines) map.set(l.id, l.productId);
+  return map;
+}
+
+/** 这一行当前选的产品对目标客户是否冲突（原订单未换客户时的未动明细除外） */
+function isCrossCustomerLine(
+  line: OrderLineDraft,
+  nextCustomerId: number | null,
+  products: Product[],
+  kept: ReadonlyMap<number, number>,
+) {
+  if (!nextCustomerId || !line.productId) return false;
+  const pid = Number(line.productId);
+  if (line.id != null && kept.get(line.id) === pid) return false;
+  const p = products.find((x) => x.id === pid);
+  return Boolean(p && p.customerId != null && p.customerId !== nextCustomerId);
+}
+
 /** 窗口里填的内容：表头、明细（行 key 只在页面里记哪一行展开了，不提交）、更多信息、预估成本 */
 function useOrderDraft({ value, preset, products }: OrderEditorProps) {
-  const [customerId, setCustomerId] = useState(String(value?.customerId || (!value && preset?.customerId) || '')),
+  const presetCustomer = !value ? uniquePresetCustomer(preset, products) : undefined;
+  const [customerId, setCustomerId] = useState(String(value?.customerId || presetCustomer || '')),
     [orderDate, setOrderDate] = useState(value?.orderDate || today()),
     [deliveryDate, setDeliveryDate] = useState(value?.deliveryDate || ''),
     [notes, setNotes] = useState(value?.notes || ''),
@@ -113,6 +148,25 @@ const mergeRecords = <T extends { id: number }>(base: T[], added: T[]) => [
   ...added,
 ];
 
+/** 切换客户时把属于别家客户的产品行清空，返回更新后的明细和提示文案 */
+function pruneLinesForCustomer(
+  rows: OrderLineDraft[],
+  nextCid: number | null,
+  products: Product[],
+  kept: ReadonlyMap<number, number>,
+) {
+  const cleared: number[] = [];
+  const nextRows = rows.map((l, i) => {
+    if (!isCrossCustomerLine(l, nextCid, products, kept)) return l;
+    cleared.push(i + 1);
+    return fillProduct(l, undefined, '');
+  });
+  const notice = cleared.length
+    ? `切换客户后已清空第 ${cleared.join('、')} 行（原产品属于其他客户），请重新选择产品。`
+    : '';
+  return { nextRows, notice };
+}
+
 /** 订单编辑窗的状态和动作：填的内容、保存（保存并确认）、快速建档回填。数据怎么算在 order-draft.ts。 */
 export function useOrderEditor(props: OrderEditorProps) {
   const { value, customers, products, saved } = props;
@@ -128,10 +182,26 @@ export function useOrderEditor(props: OrderEditorProps) {
     pending = status === '待确认',
     submitStatus = useRef<OrderInput['status']>(status);
   const save = useAction();
-  const [invalid, setInvalid] = useState('');
+  const [invalid, setInvalid] = useState(''),
+    [customerNotice, setCustomerNotice] = useState('');
+  const keptProducts = originalLineProducts(value, d.customerId);
+  const changeCustomer = (nextId: string) => {
+    d.setCustomerId(nextId);
+    setInvalid('');
+    const { nextRows, notice } = pruneLinesForCustomer(
+      d.lines,
+      nextId ? Number(nextId) : null,
+      availableProducts,
+      originalLineProducts(value, nextId),
+    );
+    d.setLines(nextRows);
+    setCustomerNotice(notice);
+  };
   const submit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setInvalid('');
+    const bad = d.lines.findIndex((l) => isCrossCustomerLine(l, d.customerId ? Number(d.customerId) : null, availableProducts, keptProducts));
+    if (bad >= 0) return setInvalid(`第 ${bad + 1} 行的产品属于其他客户，请重新选择当前客户的产品或通用产品。`);
     void save
       .run(async () => {
         // 已有的待确认订单“保存并确认”：整张保存不改状态，先按原状态保存内容，再走“确认订单”这个动作
@@ -148,24 +218,34 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   const chooseProduct = (index: number, id: string) => {
     const p = availableProducts.find((x) => x.id === Number(id));
+    setCustomerNotice('');
     d.setLines((rows) => rows.map((l, i) => (i === index ? fillProduct(l, p, id) : l)));
   };
   /** 快速新建客户、产品后选进当前订单（产品带出名称、料号、规格和参考单价，和下拉选产品一样） */
   const customerCreated = (record: Customer) => {
     setCreatedCustomers((v) => [...v.filter((x) => x.id !== record.id), record]);
-    d.setCustomerId(String(record.id));
+    changeCustomer(String(record.id));
     setQuickCreate(null);
     emit('erp-business-changed');
   };
   const productCreated = (record: Product) => {
     setCreatedProducts((v) => [...v.filter((x) => x.id !== record.id), record]);
     const line = quickCreate?.line;
-    d.setLines((v) => v.map((l, i) => (i === line ? fillProduct(l, record, String(record.id)) : l)));
+    const orderCustomerId = d.customerId ? Number(d.customerId) : null;
+    if (orderCustomerId != null && record.customerId != null && record.customerId !== orderCustomerId) {
+      setCustomerNotice(
+        '新建的产品“' + record.name + '”属于其他客户，未填入当前订单明细；请选当前客户的产品或通用产品。',
+      );
+    } else {
+      setCustomerNotice('');
+      d.setLines((v) => v.map((l, i) => (i === line ? fillProduct(l, record, String(record.id)) : l)));
+    }
     setQuickCreate(null);
     emit('erp-business-changed');
   };
   return {
     ...d,
+    changeCustomer, keptProducts, customerNotice,
     availableCustomers, availableProducts, quickCreate, setQuickCreate, customerCreated, productCreated,
     status, pending, submitStatus, chooseProduct, submit,
     onInvalid: invalidHandler(d, setInvalid),

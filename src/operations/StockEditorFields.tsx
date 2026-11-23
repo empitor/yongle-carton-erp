@@ -1,4 +1,4 @@
-import { FINISHED_UNIT, RAW_UNIT, specification, type Product, fieldLabel } from '../../shared/core/index';
+import { FINISHED_UNIT, RAW_UNIT, nameWithCustomer, specification, type Product, fieldLabel } from '../../shared/core/index';
 import { sizeText, type StockItemView } from '../../shared/business/index';
 import { Combobox, FormField, FormSection } from '../ui/index';
 import { DimensionFields } from './fields';
@@ -36,15 +36,26 @@ export function ProductPicker(o: {
   product: Product | undefined;
   productId: number | null;
   products: Product[];
+  /** 关联产品已归档不在下拉里时，沿用库存品视图带出的所属客户名 */
+  fallbackCustomerName?: string;
   /** 有没有出入库记录或被单据用过；null 是还没读到 */
   used: boolean | null;
   choose: (productId: string) => void;
 }) {
   // 产品不在下拉里（比如已归档）时，按库存品自己记的（本来就是从产品来的）显示
   const shownProduct = o.product || (o.productId ? o.form : null);
-  const options = o.products.map((p) => ({ value: String(p.id), label: p.name, hint: sizeText(p) || undefined }));
+  const customerName = o.product?.customerName || (o.productId ? o.fallbackCustomerName : undefined);
+  const options = o.products.map((p) => ({
+    value: String(p.id),
+    label: p.name,
+    hint: [p.customerName, sizeText(p)].filter(Boolean).join(' · ') || undefined,
+  }));
   if (o.productId && !o.product)
-    options.unshift({ value: String(o.productId), label: o.form.name, hint: sizeText(o.form) || undefined });
+    options.unshift({
+      value: String(o.productId),
+      label: o.form.name,
+      hint: [customerName, sizeText(o.form)].filter(Boolean).join(' · ') || undefined,
+    });
   return (
     <FormSection title="是什么">
       <FormField
@@ -59,7 +70,7 @@ export function ProductPicker(o: {
       >
         {o.used ? (
           <output className="unit-fixed" aria-label="产品">
-            {o.product?.name || o.form.name}
+            {nameWithCustomer(o.product?.name || o.form.name, customerName)}
           </output>
         ) : (
           <Combobox
@@ -75,7 +86,7 @@ export function ProductPicker(o: {
       </FormField>
       <FormField label="库存品名称">
         <output className="unit-fixed" aria-label="库存品名称">
-          {shownProduct ? shown(shownProduct.name) : '先选产品'}
+          {shownProduct ? nameWithCustomer(shownProduct.name, customerName) : '先选产品'}
         </output>
       </FormField>
       <FormField label="数量单位" hint="成品只按“只”记（“个”就是“只”）">
@@ -88,8 +99,21 @@ export function ProductPicker(o: {
 }
 
 /** 成品的规格：跟着产品，只显示；产品不在下拉里时按库存品自己记的 */
-export function FinishedSpec({ form, product, productId }: { form: StockForm; product: Product | undefined; productId: number | null }) {
+export function FinishedSpec({
+  form,
+  product,
+  productId,
+  fallbackCustomerName,
+}: {
+  form: StockForm;
+  product: Product | undefined;
+  productId: number | null;
+  fallbackCustomerName?: string;
+}) {
   const shownProduct = product || (productId ? form : null);
+  const customerName = product?.customerName || (productId ? fallbackCustomerName : undefined);
+  const rawSpec = product ? specification(product) : productId ? form.specification : '';
+  const specText = [customerName, rawSpec].filter(Boolean).join(' · ');
   return (
     <FormSection title="规格" columns={4}>
       <FormField label="尺寸" span={2}>
@@ -109,7 +133,7 @@ export function FinishedSpec({ form, product, productId }: { form: StockForm; pr
       </FormField>
       <FormField label={fieldLabel('specification')} span="full">
         <output className="unit-fixed" aria-label={fieldLabel('specification')}>
-          {product ? shown(specification(product)) : productId ? shown(form.specification) : '—'}
+          {shown(specText)}
         </output>
       </FormField>
     </FormSection>

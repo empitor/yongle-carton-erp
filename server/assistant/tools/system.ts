@@ -9,6 +9,7 @@ import { toolSpec } from './define.js';
 import { audit } from '../../core/index.js';
 import { BusinessReset } from '../../admin/index.js';
 import { negativeStock } from '../../operations/index.js';
+import { unassignedProducts } from '../../sales/index.js';
 import { businessResetScope } from '../../../shared/admin/index.js';
 import { createFullBackup } from '../../core/index.js';
 import { APP_VERSION, MIB, UNITS_PER_QUANTITY } from '../../../shared/core/index.js';
@@ -24,7 +25,7 @@ export const systemTools = [
   }),
   toolSpec({
     name: 'system.check',
-    description: '数据库体检：完整性、断开的关联、负库存。只读。',
+    description: '数据库体检：完整性、断开的关联、负库存、还没定所属客户的产品。只读。',
     risk: 'read',
     schema: z.strictObject({}),
   }),
@@ -158,26 +159,40 @@ export function systemStatus(tools: SystemDeps) {
   };
 }
 const integrityRow = z.object({ integrity_check: z.string() });
-/** 负库存最多列几个库存品 */
+/** 负库存和没定客户的产品最多各列几个 */
 const NEGATIVE_SHOWN = 20;
+const UNASSIGNED_SHOWN = 20;
+function unassignedNote(item: { name: string; orderedCustomers: string[] }) {
+  if (item.orderedCustomers.length > 1) return item.name + '（给 ' + item.orderedCustomers.join('、') + ' 下过单）';
+  if (item.orderedCustomers.length === 1) return item.name + '（给 ' + item.orderedCustomers[0] + ' 下过单）';
+  return item.name + '（没下过单）';
+}
 /** system.check */
 export function systemCheck(tools: SystemDeps) {
   const db = tools.store.db;
   const integrity = many(db, integrityRow, 'PRAGMA integrity_check').map((r) => r.integrity_check);
   const brokenLinks = countRows(db, 'SELECT COUNT(*) FROM pragma_foreign_key_check');
   const negative = negativeStock(tools.store, NEGATIVE_SHOWN);
+  const unassigned = unassignedProducts(tools.store, UNASSIGNED_SHOWN);
   const problems = [
     ...(integrity.length === 1 && integrity[0] === 'ok' ? [] : ['数据库完整性检查没通过']),
     ...(brokenLinks ? [brokenLinks + ' 处关联断开'] : []),
     ...negative.map((n) => n.name + ' 库存为负：' + n.units / UNITS_PER_QUANTITY + ' ' + n.unit),
   ];
+  const baseMessage = problems.length ? '发现 ' + problems.length + ' 个问题。' : '数据库正常，没有发现问题。';
   return {
     healthy: !problems.length,
     integrity: integrity.slice(0, SHOW_MAX),
     brokenLinks,
     negativeStock: negative.length,
+    unassignedProducts: {
+      total: unassigned.total,
+      items: unassigned.shown.map((item) => ({ ...item, summary: unassignedNote(item) })),
+    },
     problems,
-    message: problems.length ? '发现 ' + problems.length + ' 个问题。' : '数据库正常，没有发现问题。',
+    message: unassigned.total
+      ? baseMessage + ' 另有 ' + unassigned.total + ' 个产品还没定所属客户，可在产品页确认。'
+      : baseMessage,
   };
 }
 /** system.backup */

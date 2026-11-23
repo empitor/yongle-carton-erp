@@ -20,7 +20,7 @@ type SelectRow = { id: number; version: number; number?: string; name?: string }
 type SetView<R> = (row: R | null | ((current: R | null) => R | null)) => void;
 type Edge = RefObject<'first' | 'last' | null>;
 /** 地址里能直接打开的记录种类（订单 order=，其余 record=） */
-const routeEntities: readonly RecordEntity[] = ['orders', 'purchases', 'products', 'stock_items'];
+const routeEntities: readonly RecordEntity[] = ['orders', 'customers', 'purchases', 'products', 'stock_items'];
 /** 按一条读这一类记录（recordkit/record-api.ts 的 readRecord），由列表传进来：读回来的就是列表里那种行 */
 type ReadRow<R> = (id: number | string) => Promise<R>;
 

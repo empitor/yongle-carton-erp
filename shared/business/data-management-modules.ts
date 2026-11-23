@@ -41,6 +41,7 @@ export const dataManagementCommandSchema = z.strictObject({
     .default([]),
   patch: z.record(z.string(), z.unknown()).default({}),
   patches: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+  confirmDistinct: z.boolean().optional(),
   reason: z.string().trim().min(1).max(1000),
 });
 /**

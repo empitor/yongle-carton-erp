@@ -47,7 +47,7 @@ test('每种记录人能改的字段（卡片上一个都不能漏）按参数�
   assert.deepEqual(fields('customers'), [party, []]);
   assert.deepEqual(fields('suppliers'), [party, []]);
   assert.deepEqual(fields('products'), [
-    ['name', 'length', 'width', 'height', 'dimensionUnit', 'dimensionUnitRaw', 'material', 'flute', 'requirements', 'priceCents', 'priceExact', 'customerProductCode', 'parentProductId'],
+    ['name', 'length', 'width', 'height', 'dimensionUnit', 'dimensionUnitRaw', 'material', 'flute', 'requirements', 'priceCents', 'priceExact', 'customerProductCode', 'customerId', 'parentProductId'],
     [],
   ]);
   assert.deepEqual(fields('orders'), [

@@ -14,7 +14,13 @@ import { rejectionText } from './field-rejection.js';
 /** 命令从哪来：数据管理窗口和借它的页面，或者人确认过的助手卡片 */
 export type Origin = 'management-ui' | 'management-assistant';
 /** 保存一条要的：哪个模块、谁办的（数据管理窗口发来的已标上入口）、从哪来，改的时候还有手里的那条（新建没有） */
-type SaveContext = { module: ManagedModule; actor: Actor; origin: Origin; current?: Current };
+type SaveContext = {
+  module: ManagedModule;
+  actor: Actor;
+  origin: Origin;
+  current?: Current;
+  confirmDistinct?: boolean;
+};
 /** 档案和订单走订单服务的保存服务（客户、产品、订单）；供应商走采购库存，采购单、库存品走单据流转的保存入口 */
 const businessWritable = ['customers', 'products', 'orders'] as const;
 const isBusinessWritable = (module: string): module is (typeof businessWritable)[number] =>
@@ -33,7 +39,7 @@ export class ManagedSaves {
    * 只改说明的走说明编辑，动了明细、日期这类的说请用更正（不说成改了算出来的栏目）。最后交给各模块自己的保存
    */
   save(
-    { module, actor, origin, current }: SaveContext,
+    { module, actor, origin, current, confirmDistinct }: SaveContext,
     id: number | undefined,
     input: Record<string, unknown>,
     patch: Record<string, unknown>,
@@ -49,9 +55,10 @@ export class ManagedSaves {
       const info = Object.fromEntries(edits.map((key) => [key, patch[key]]));
       return updateDocumentInfo(this.store, id, { expectedVersion: input.version, ...info }, actor);
     }
-    if (isBusinessWritable(module))
+    if (isBusinessWritable(module)) {
+      const body = module === 'products' && confirmDistinct ? { ...input, confirmDistinct: true } : input;
       return createBusinessService(this.store).execute(
-        id ? { entity: module, action: 'update', id, input } : { entity: module, action: 'create', input },
+        id ? { entity: module, action: 'update', id, input: body } : { entity: module, action: 'create', input: body },
         {
           source: origin === 'management-assistant' ? 'reviewed-assistant' : 'manual-ui',
           ...(origin === 'management-assistant'
@@ -62,6 +69,7 @@ export class ManagedSaves {
           actor,
         },
       );
+    }
     if (module === 'suppliers') return this.ops.saveSupplier(input, actor, id);
     if (module === 'purchases') return this.flow.stock.savePurchase(input, actor, id);
     if (module === 'stock_items') return this.flow.stock.saveItem(input, actor, id);

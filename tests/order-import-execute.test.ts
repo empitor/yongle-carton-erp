@@ -284,13 +284,14 @@ test('同名产品查重：料号相同、同名同尺寸材质的拦下；同�
         mapping: { customer: { mode: 'pending' }, products: { [w.draft.lines[0].id]: { mode: 'new' } }, roundingPolicy: 'exact-cents' },
       });
     };
-    // 已有同名、尺寸不同的产品（归档的也算）
-    const other = sales(f.store).createProduct(
-      productSchema.parse({ name: '原存货名 A', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B' }),
-    );
-    f.store.markArchived('products', other.id, 'fixture');
+    // 同一客户下已有同名、尺寸不同的产品（归档的也算）
     const w = await asNew('same-name');
     assert.ok(w.draft, '有识别结果');
+    const buyer = sales(f.store).createCustomer(customerSchema.parse({ name: w.draft.header.buyerName.value }));
+    const other = sales(f.store).createProduct(
+      productSchema.parse({ name: '原存货名 A', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B', customerId: buyer.id }),
+    );
+    f.store.markArchived('products', other.id, 'fixture');
     const lineId = w.draft.lines[0].id;
     const preview = previewReply.parse(await (await f.preview(w)).json());
     assert.equal(preview.plan.confirmations.length, 1);
@@ -307,9 +308,9 @@ test('同名产品查重：料号相同、同名同尺寸材质的拦下；同�
     assert.equal(blocked.status, 409);
     assert.match(failureReply.parse(await blocked.json()).message, /尺寸、材质都相同的产品/);
 
-    // 人工新建：同名不同尺寸要带 confirmDistinct（新建窗口里确认），料号相同一律不建
+    // 人工新建：同一客户下同名不同尺寸要带 confirmDistinct（新建窗口里确认），料号相同一律不建
     const create = (body: object) =>
-      f.request('/products', { name: '原存货名A', length: 500, width: 400, height: 300, dimensionUnit: 'mm', material: '牛卡', flute: 'B', priceCents: 0, ...body });
+      f.request('/products', { name: '原存货名A', length: 500, width: 400, height: 300, dimensionUnit: 'mm', material: '牛卡', flute: 'B', priceCents: 0, customerId: buyer.id, ...body });
     const ask = await create({});
     assert.equal(ask.status, 409);
     const asked = failureReply.parse(await ask.json());
@@ -317,8 +318,8 @@ test('同名产品查重：料号相同、同名同尺寸材质的拦下；同�
     assert.match(asked.message, /已有同名产品：原存货名 A（400 × 300 × 200 mm/);
     assert.equal((await create({ confirmDistinct: true })).status, 201);
     assert.equal(named().length, 3);
-    sales(f.store).createProduct(productSchema.parse({ name: '虚构料号箱', customerProductCode: 'XG-77' }));
-    const code = await f.request('/products', { name: '完全不同的名字', customerProductCode: 'xg 77', priceCents: 0, confirmDistinct: true });
+    sales(f.store).createProduct(productSchema.parse({ name: '虚构料号箱', customerProductCode: 'XG-77', customerId: buyer.id }));
+    const code = await f.request('/products', { name: '完全不同的名字', customerProductCode: 'xg 77', priceCents: 0, customerId: buyer.id, confirmDistinct: true });
     assert.equal(code.status, 409);
     assert.match(failureReply.parse(await code.json()).message, /客户料号“xg 77”已经用在：虚构料号箱/);
     assert.equal((await create({ length: 300, width: 200, height: 150, confirmDistinct: true })).status, 409, '同名同尺寸材质：确认了也不建');

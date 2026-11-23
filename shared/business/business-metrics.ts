@@ -53,8 +53,11 @@ export function productMetrics(rows: (SpecFields & { archived?: unknown })[]) {
     incomplete: rows.filter(productIncomplete).length,
   };
 }
-export function matchesProduct(row: { name?: MaybeText; material?: MaybeText; flute?: MaybeText; requirements?: MaybeText }, q: string) {
-  return [row.name, row.material, row.flute, row.requirements]
+export function matchesProduct(
+  row: { name?: MaybeText; customerName?: MaybeText; material?: MaybeText; flute?: MaybeText; requirements?: MaybeText },
+  q: string,
+) {
+  return [row.name, row.customerName, row.material, row.flute, row.requirements]
     .join(' ')
     .toLowerCase()
     .includes(q.toLowerCase());
@@ -69,6 +72,9 @@ type PartySearchText = {
 };
 /** 客户、供应商、库存品的关键词搜索要看的文字 */
 type OperationalText = PartySearchText & {
+  number?: MaybeText;
+  customerName?: MaybeText;
+  supplierName?: MaybeText;
   specification?: MaybeText;
   material?: MaybeText;
   flute?: MaybeText;
@@ -80,6 +86,9 @@ type OperationalText = PartySearchText & {
 export function operationalSearchText(row: OperationalText) {
   return [
     row.name,
+    row.number,
+    row.customerName,
+    row.supplierName,
     row.specification,
     row.material,
     row.flute,

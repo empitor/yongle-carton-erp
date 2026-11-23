@@ -36,11 +36,14 @@ export function stockText(item: Pick<StockItem, 'reservedUnits' | 'availableUnit
     : '库存 ' + item.quantity + ' ' + item.unit;
 }
 
-/** 成品名称后面那一小行：客户型号、规格 */
+/** 成品名称后面那一小行：所属客户、客户型号、规格 */
 export const describeStock = (
-  item: Pick<StockItem, 'specification' | 'length' | 'width' | 'height' | 'dimensionUnit'>,
+  item: Pick<StockItem, 'customerName' | 'specification' | 'length' | 'width' | 'height' | 'dimensionUnit'>,
   product: { customerProductCode?: string | null } | undefined,
-) => [product?.customerProductCode, item.specification || sizeText(item) || '规格待补充'].filter(Boolean).join(' · ');
+) =>
+  [item.customerName, product?.customerProductCode, item.specification || sizeText(item) || '规格待补充']
+    .filter(Boolean)
+    .join(' · ');
 
 /** 新加一行：这种成品还没被别的行占用的订单明细只剩一条时直接选上 */
 export function seedLine(choices: Candidate[], item: Pick<StockItem, 'id'>, current: DeliveryEditLine[]): DeliveryEditLine {

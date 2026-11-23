@@ -120,7 +120,12 @@ export class DataManagementService {
   /** 新建一条，审计挂在新记录上 */
   private create(run: Run) {
     const { v, actor, origin } = run;
-    const created = this.saves.save({ module: v.module, actor, origin }, undefined, v.patch, v.patch);
+    const created = this.saves.save(
+      { module: v.module, actor, origin, confirmDistinct: v.confirmDistinct },
+      undefined,
+      v.patch,
+      v.patch,
+    );
     audit(this.store, actor, {
       action: v.action,
       entity: auditEntity(v.module),
@@ -217,7 +222,7 @@ export class DataManagementService {
         ? { lines: orderLinesPriceEdit(patch.lines, before, input) }
         : {};
     return this.saves.save(
-      { module: v.module, actor, origin, current: { input, record: before } },
+      { module: v.module, actor, origin, current: { input, record: before }, confirmDistinct: v.confirmDistinct },
       item.id,
       { ...input, ...patch, ...price, ...lines, version: item.version },
       patch,

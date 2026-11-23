@@ -49,6 +49,7 @@ export function refKind(key: string): RefKind | undefined {
 /** 可以不关联的（选项里有“不关联”）；其余的必须选一个 */
 function optionalRef(module: string, key: string) {
   if (key === 'stockId') return module === 'arrival';
+  if (key === 'customerId') return module === 'products';
   return [
     'customerOrderId',
     'parentProductId',
@@ -153,16 +154,21 @@ export function refOptions(key: string, current: unknown, ctx: FieldContext, lin
 /** 用可搜索选择器的关联字段（订货单只读、送货单原件是下拉，不算） */
 export const wideRef = (key: string) => refKind(key) !== 'batch' && refKind(key) !== 'source';
 
-/** 为什么这一项改不了：返回原因（显示在输入框下面），能改返回 null。value 是这一格所在的那层内容 */
-export function lockedReason(key: string, value: JsonObject, path: string, ctx: FieldContext): string | null {
-  if (ctx.module !== 'stock_items' || path) return null;
-  const record = ctx.record,
-    used =
-      record?.usage === 'moved' ? '已有出入库记录' : record?.usage ? '已被单据或采购明细引用' : '';
+function stockLockedReason(key: string, value: JsonObject, record: ManagedRecord | null): string | null {
+  const used = record?.usage === 'moved' ? '已有出入库记录' : record?.usage ? '已被单据或采购明细引用' : '';
   // 服务端：用过的库存品不能改种类、不能改成品关联的产品（server/operations/service.ts 的 saveItem）
   if (key === 'kind' && used) return used + '，不能改种类';
   if (key === 'productId' && used && record?.productId != null) return used + '，不能改关联的产品';
   if (value.kind === 'finished' && productBoundStockFields.has(key)) return '按关联的产品';
+  return null;
+}
+
+/** 为什么这一项改不了：返回原因（显示在输入框下面），能改返回 null。value 是这一格所在的那层内容 */
+export function lockedReason(key: string, value: JsonObject, path: string, ctx: FieldContext): string | null {
+  if (path) return null;
+  if (ctx.module === 'products' && key === 'customerId' && ctx.record?.ordered && ctx.record?.customerId != null)
+    return '这个产品已经下过单，不能更改所属客户；要给别的客户用请复制一份';
+  if (ctx.module === 'stock_items') return stockLockedReason(key, value, ctx.record);
   return null;
 }
 export const longText = ['notes', 'requirements', 'terms', 'specification', 'productName'];

@@ -46,9 +46,10 @@ export function duplicateCustomers(store: Store, name: string): DuplicateRecord[
   return withArchived(store, 'customers', found);
 }
 
-/** 产品查重要用的资料：名称、料号，以及判断“是不是同一个”的尺寸和材质 */
+/** 产品查重要用的资料：名称、料号、所属客户（只在同一个客户里查，两边都空算同一组），以及尺寸和材质 */
 export type ProductLike = Omit<SpecFields, 'specification'> & {
   name: string;
+  customerId?: number | null;
   customerProductCode?: string | null;
 };
 export type ProductRecord = DuplicateRecord & Omit<ProductLike, 'name'>;
@@ -74,19 +75,25 @@ export function productDuplicates(store: Store, input: ProductLike, exceptId?: n
     code = duplicateKey(input.customerProductCode);
   const empty: ProductDuplicates = { sameCode: [], sameProduct: [], sameName: [] };
   if (!name && !code) return empty;
+  const customerId = input.customerId ?? null;
   const matched = many(
     withKey(store),
     productMatch,
     `SELECT p.id,p.name,p.customer_product_code AS customerProductCode,p.length,p.width,p.height,
       p.dimension_unit AS dimensionUnit,p.material,p.flute
     FROM products p
-    WHERE (?<>'' AND record_duplicate_key(p.name)=?) OR (?<>'' AND record_duplicate_key(p.customer_product_code)=?)
-    ORDER BY p.id LIMIT 50`,
+    WHERE p.customer_id IS ?
+      AND (? IS NULL OR p.id<>?)
+      AND ((?<>'' AND record_duplicate_key(p.name)=?) OR (?<>'' AND record_duplicate_key(p.customer_product_code)=?))
+    ORDER BY p.id`,
+    customerId,
+    exceptId ?? null,
+    exceptId ?? null,
     name,
     name,
     code,
     code,
-  ).filter((r) => r.id !== exceptId);
+  );
   const found: ProductRecord[] = withArchived(store, 'products', matched);
   const same = sizeMaterialKey(input);
   for (const r of found)
@@ -107,8 +114,44 @@ export function describeProduct(p: ProductRecord | (ProductLike & { archived?: b
 const LISTED_PRODUCTS = 5;
 export const describeProducts = (rows: ProductRecord[]) => rows.slice(0, LISTED_PRODUCTS).map(describeProduct).join('；');
 
+/** 改产品时所属客户或查重字段（名称、客户料号、尺寸材质）有没有变 */
+export function productIdentityChanged(before: ProductLike, after: ProductLike) {
+  return (
+    (before.customerId ?? null) !== (after.customerId ?? null) ||
+    duplicateKey(before.name) !== duplicateKey(after.name) ||
+    duplicateKey(before.customerProductCode) !== duplicateKey(after.customerProductCode) ||
+    sizeMaterialKey(before) !== sizeMaterialKey(after)
+  );
+}
+
+/** 同一批计划新建的多个不同产品（key 不同）之间按同一查重规则核对：同客户下料号相同、同名同尺寸材质拦下 */
+export function assertPlannedProductsUnique(items: readonly { key: string; line: number; input: ProductLike }[]) {
+  const unique: { key: string; line: number; input: ProductLike }[] = [];
+  for (const item of items) {
+    if (unique.some((u) => u.key === item.key)) continue;
+    const code = duplicateKey(item.input.customerProductCode);
+    const name = duplicateKey(item.input.name);
+    const sm = sizeMaterialKey(item.input);
+    for (const other of unique) {
+      if (code && duplicateKey(other.input.customerProductCode) === code)
+        throw new AppError(
+          '本单第 ' + item.line + ' 行和第 ' + other.line + ' 行客户料号“' + item.input.customerProductCode + '”相同，不能同时新建两个产品：' + describeProduct(other.input) + '。',
+          409,
+          'duplicate-product',
+        );
+      if (name && duplicateKey(other.input.name) === name && sm !== null && sizeMaterialKey(other.input) === sm)
+        throw new AppError(
+          '本单第 ' + item.line + ' 行和第 ' + other.line + ' 行“' + item.input.name + '”尺寸、材质相同，不能同时新建两个产品：' + describeProduct(other.input) + '。',
+          409,
+          'duplicate-product',
+        );
+    }
+    unique.push(item);
+  }
+}
+
 /**
- * 新建产品前的检查，三个入口同一套：料号相同、同名同尺寸材质的直接拦；
+ * 新建或改产品查重，三个入口同一套：料号相同、同名同尺寸材质的直接拦；
  * 同名不同尺寸材质的，confirmed（人确认过“是另一个产品”）才放行，否则拦下并列出已有的同名产品。
  */
 export function assertNewProductAllowed(store: Store, input: ProductLike, confirmed: boolean, exceptId?: number) {

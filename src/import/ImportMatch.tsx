@@ -1,4 +1,4 @@
-import { REPEAT_ORDER_REASON, blocksNewProduct, productCandidateDetails } from '../../shared/import/index';
+import { blocksNewProduct, productCandidateDetails } from '../../shared/import/index';
 import type { ImportMapping, ImportMatchData } from '../../shared/import/index';
 import { StatusChip, type Tone, loadingText } from '../ui/index';
 import type { useImportMatching } from './useImportMatching';
@@ -21,15 +21,19 @@ export const choiceValue = (c: Choice | CustomerChoice | undefined) =>
 /** 一行产品那一格的状态：标签、颜色、一句说明 */
 function productStatus(
   choice: Choice | undefined,
-  found: { product?: ProductRecord; unavailable: boolean; loaded: boolean; list: Candidate[] },
+  found: { product?: ProductRecord; unavailable: boolean; wrongCustomer: boolean; loaded: boolean; list: Candidate[] },
 ): { tone: Tone; chip: string; text: string } {
-  const { product, unavailable, loaded, list } = found;
+  const { product, unavailable, wrongCustomer, loaded, list } = found;
   if (choice?.mode === 'existing') {
+    if (wrongCustomer && product)
+      return {
+        tone: 'danger',
+        chip: '归属冲突',
+        text: '这个产品是 ' + (product.customerName || '其他客户') + ' 的，请改选当前客户产品或新建',
+      };
     if (unavailable) return { tone: 'danger', chip: '已失效', text: '原产品选择已失效，请重新选择' };
     if (!product) return { tone: 'neutral', chip: '已匹配', text: loadingText('档案') };
-    // 按本客户老产品关联的，先说是这个原因（说明一行放不下时后面会被截掉）
-    const repeat = !!list.find((c) => c.id === product.id)?.reasons.includes(REPEAT_ORDER_REASON);
-    const details = (repeat ? REPEAT_ORDER_REASON + ' · ' : '') + productCandidateDetails(product);
+    const details = productCandidateDetails(product);
     const missing = [!product.material?.trim() ? '材质' : '', !product.flute?.trim() ? '楞型' : ''].filter(Boolean);
     return missing.length
       ? { tone: 'warning', chip: '资料不全', text: details + ' · 缺少' + missing.join('、') + '（允许后补）' }
@@ -101,34 +105,41 @@ function ProductCandidates({
   );
 }
 
-/** 产品下拉：没选过时默认显示唯一推荐的那个 */
+/** 产品下拉：只显示实际已选值，不把未确认的推荐候选伪装成已选 */
 function ProductSelect({
   n,
   choice,
   list,
-  matches,
+  products,
+  allProducts,
+  loaded,
   locked,
   pick,
 }: {
   n: number;
   choice: Choice | undefined;
   list: Candidate[];
-  matches: ImportMatchData | null;
+  products: ProductRecord[];
+  allProducts: ProductRecord[];
+  loaded: boolean;
   locked: boolean;
   pick: (next: Choice) => void;
 }) {
-  const best = list.filter((c) => c.recommended);
   const chosenId = choice?.mode === 'existing' ? choice.id : undefined;
+  const shown =
+    chosenId && !products.some((p) => p.id === chosenId)
+      ? [...allProducts.filter((p) => p.id === chosenId), ...products]
+      : products;
   return (
     <select
       aria-label={'明细' + n + ' 产品匹配'}
-      value={choiceValue(choice) || (best.length === 1 ? String(best[0].id) : '')}
-      disabled={locked || !matches}
-      onChange={(e) => pick(selectChoice(e.target.value, matches?.products || []))}
+      value={choiceValue(choice)}
+      disabled={locked || !loaded}
+      onChange={(e) => pick(selectChoice(e.target.value, shown))}
     >
       <option value="">待确认</option>
       <option value="new">计划创建新产品</option>
-      {matches?.products.map((p) => (
+      {shown.map((p) => (
         <option key={p.id} value={p.id}>
           {chosenId === p.id ? '已选择 · ' : list.some((x) => x.id === p.id) ? '候选 · ' : ''}
           {productCandidateDetails(p)}
@@ -138,11 +149,12 @@ function ProductSelect({
   );
 }
 
-/** 选了已有档案时是哪一个，那份档案还在不在、版本对不对得上（候选还没读到时不算失效） */
-function chosenProduct(choice: Choice | undefined, matches: ImportMatchData | null) {
-  if (choice?.mode !== 'existing') return { product: undefined, unavailable: false };
+/** 选了已有档案时是哪一个，那份档案还在不在、版本对不对得上、是不是属别家客户 */
+function chosenProduct(choice: Choice | undefined, matches: ImportMatchData | null, customerId: number | null) {
+  if (choice?.mode !== 'existing') return { product: undefined, unavailable: false, wrongCustomer: false };
   const product = matches?.products.find((p) => p.id === choice.id);
-  return { product, unavailable: !!matches && (!product || product.version !== choice.version) };
+  const wrongCustomer = Boolean(product && product.customerId != null && product.customerId !== customerId);
+  return { product, unavailable: !!matches && (!product || product.version !== choice.version), wrongCustomer };
 }
 
 /** 一行明细对应哪个产品档案：一个状态标签、一句说明、一个下拉；没定时把候选列出来确认。 */
@@ -157,14 +169,14 @@ export function ProductMatch({
   index: number;
   locked: boolean;
 }) {
-  const { matches, mapping, invalidated, candidates: all } = match;
+  const { matches, customerId, eligibleProducts, mapping, invalidated, candidates: all } = match;
   const n = index + 1,
     choice: Choice | undefined = mapping.products[lineId],
     list = all[lineId] || [];
   const pick = (next: Choice) => match.select({ ...mapping, products: { ...mapping.products, [lineId]: next } }, lineId);
-  const { product, unavailable } = chosenProduct(choice, matches);
+  const { product, unavailable, wrongCustomer } = chosenProduct(choice, matches, customerId);
   const pending = choice?.mode !== 'existing' && choice?.mode !== 'new';
-  const status = productStatus(choice, { product, unavailable, loaded: !!matches, list });
+  const status = productStatus(choice, { product, unavailable, wrongCustomer, loaded: !!matches, list });
   return (
     <div className="aii-match" aria-label={'明细' + n + ' 产品档案匹配'}>
       <div className="aii-match-row">
@@ -173,7 +185,7 @@ export function ProductMatch({
         <span className="aii-match-text" title={status.text}>
           {status.text}
         </span>
-        {unavailable && product && (
+        {unavailable && !wrongCustomer && product && (
           <button
             type="button"
             className="secondary"
@@ -183,7 +195,16 @@ export function ProductMatch({
             重新确认此产品
           </button>
         )}
-        <ProductSelect n={n} choice={choice} list={list} matches={matches} locked={locked} pick={pick} />
+        <ProductSelect
+          n={n}
+          choice={choice}
+          list={list}
+          products={eligibleProducts}
+          allProducts={matches?.products || []}
+          loaded={!!matches}
+          locked={locked}
+          pick={pick}
+        />
       </div>
       {invalidated.products[lineId] && choice?.mode === 'pending' && (
         <small className="aii-match-error" role="alert">

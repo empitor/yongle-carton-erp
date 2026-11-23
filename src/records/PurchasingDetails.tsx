@@ -128,6 +128,15 @@ function StockItemDetails({ row }: { row: StockItemView }) {
       <Section title="规格">
         <Facts
           items={[
+            {
+              label: '客户',
+              value: row.customerId ? (
+                <a href={pageHref('customers', { record: row.customerId })}>{row.customerName || '查看'}</a>
+              ) : (
+                '未指定'
+              ),
+              hidden: row.kind !== 'finished',
+            },
             { label: '尺寸', value: sizeText(row) },
             { label: fieldLabel('specification'), value: row.specification },
             { label: '材质 / 配纸', value: row.material },

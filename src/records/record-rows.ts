@@ -10,7 +10,7 @@ type MaybeListed<T> = T & { archived?: boolean };
 export type RecordRowOf = {
   orders: MaybeListed<TrackedOrder>;
   customers: MaybeListed<Customer>;
-  products: MaybeListed<Product>;
+  products: MaybeListed<Product> & { orderedCustomers?: string[] };
   suppliers: SupplierView;
   purchases: PurchaseView;
   stock_items: StockItemView;

@@ -122,8 +122,6 @@ export type ImportMatchData = {
   customerCandidates: ReturnType<typeof resolveCustomerCandidates>['candidates'];
   productCandidates: Record<string, ProductCandidate[]>;
   duplicateOrders: { id: number; number: string; customerName: string }[];
-  /** 已选（或按名字唯一对上）的客户以前订过的产品和规格；新客户没有 */
-  customerHistory: { customerId: number; specs: CustomerProductSpecs } | null;
 };
 type Line = OrderDraft['lines'][number];
 function lineDimensions(line: Line) {
@@ -136,22 +134,25 @@ function lineDimensions(line: Line) {
     }
   });
   const unit = normalizeDimensionUnit(f.dimensionUnit.value);
-  // A specification is dimension evidence only when all three values and a known unit are explicit.
+  // 规格原文里的三边尺寸：既抓已知单位，也抓无法识别的非空单位后缀（如 in / 英寸），避免把不认得的单位静默吞掉
   const tuple = (f.specification.value || '')
     .normalize('NFKC')
     .trim()
-    .match(
-      /^(\d+(?:\.\d+)?)\s*[×x*]\s*(\d+(?:\.\d+)?)\s*[×x*]\s*(\d+(?:\.\d+)?)\s*(mm|cm|毫米|厘米|公分)?$/i,
-    );
-  const tupleUnit =
-    normalizeDimensionUnit(tuple?.[4]) || (explicit.every((v) => v === null) ? unit : null);
+    .match(/^(\d+(?:\.\d+)?)\s*[×x*]\s*(\d+(?:\.\d+)?)\s*[×x*]\s*(\d+(?:\.\d+)?)\s*([^\d\s×x*]+)?$/i);
+  const rawSpecUnit = (tuple?.[4] || '').trim();
+  const specUnit = normalizeDimensionUnit(rawSpecUnit);
+  const specUnitUnknown = Boolean(rawSpecUnit && !specUnit);
+  const specUnitConflict = Boolean(unit && specUnit && unit !== specUnit);
+  const tupleUnit = specUnit || (!specUnitUnknown && explicit.every((v) => v === null) ? unit : null);
   const tupleValues = tuple ? [tuple[1], tuple[2], tuple[3]].map(Number) : null;
+  const rawTuple =
+    tupleValues && tupleValues.every((n) => dimensionValueSchema.safeParse(n).success) ? tupleValues : null;
   const fromTuple =
-    tupleValues && tupleUnit && tupleValues.every((n) => dimensionValueSchema.safeParse(n).success)
+    rawTuple && tupleUnit
       ? normalizedDimensions({
-          length: tupleValues[0],
-          width: tupleValues[1],
-          height: tupleValues[2],
+          length: rawTuple[0],
+          width: rawTuple[1],
+          height: rawTuple[2],
           dimensionUnit: tupleUnit,
         })
       : null;
@@ -162,7 +163,7 @@ function lineDimensions(line: Line) {
     height: safe[2],
     dimensionUnit: unit,
   });
-  return { unit, values, explicit, fromTuple };
+  return { unit, values, explicit, fromTuple, tupleUnit, rawTuple, specUnitUnknown, specUnitConflict };
 }
 /**
  * 这个候选是否强到必须先确认才能新建。纸箱厂常有尺寸相同、名字不同的产品，光尺寸相同不算，
@@ -177,22 +178,12 @@ export function blocksNewProduct(c: ProductCandidate) {
     (has('尺寸一致') && has('材质一致') && has('楞型一致'))
   );
 }
-/** 这位客户以前订过的产品，和当时订单明细上写的规格：产品编号 → 规格原文（要随识别结果发给页面，所以用普通对象） */
-export type CustomerProductSpecs = Readonly<Record<number, readonly string[]>>;
-/** 按本客户老产品自动关联时写进候选理由，识别结果页靠它说明为什么关联了 */
-export const REPEAT_ORDER_REASON = '本客户以前订过同名同规格';
-/**
- * 本客户老产品：只有这一个必须确认的候选，名称一致、没有冲突（尺寸、材质、楞型、料号写了的都对得上），
- * 这位客户以前订它时的规格和这一行一样，就是它。光名字一样、或者有别的同名相近档案，还是要人选。
- */
-function repeatOrder(c: ProductCandidate, all: ProductCandidate[], line: Line, history?: CustomerProductSpecs) {
-  const spec = specKey(line.fields.specification.value || '');
-  return (
-    all.filter(blocksNewProduct).length === 1 &&
-    c.reasons.includes('名称一致') &&
-    !c.conflicts.length &&
-    !!history?.[c.id]?.some((s) => specKey(s) === spec)
-  );
+/** 某客户订单能选的产品：归这家客户的，以及没定客户的通用产品；新客户（null）只看没定客户的 */
+export function productsForCustomer<T extends { customerId?: number | null }>(
+  products: readonly T[],
+  customerId: number | null | undefined,
+): T[] {
+  return products.filter((p) => p.customerId == null || (customerId != null && p.customerId === customerId));
 }
 type LineFacts = { f: Line['fields']; dims: ReturnType<typeof lineDimensions>; name: string };
 type Notes = { reasons: string[]; conflicts: string[] };
@@ -232,8 +223,14 @@ function unitDimensionsMatch(dims: LineFacts['dims'], values: ReturnType<typeof 
   });
   return dims.values.every((v, i) => v !== null && Number.isFinite(v) && v === values[i]);
 }
-/** 尺寸算不算同一个：单位明确的按换算后比，规格里写全的按规格比，有一边没写单位的比数字 */
-function sizeMatches(dims: LineFacts['dims'], p: Product, known: boolean, notes: Notes) {
+/** 尺寸算不算同一个：单位明确的按换算后比，规格里写全的按规格比，有一边真正缺省无单位且给了明确三边的比数字 */
+function sizeMatches(
+  dims: LineFacts['dims'],
+  p: Product,
+  unitState: { known: boolean; lineUnknown: boolean; productUnknown: boolean },
+  notes: Notes,
+) {
+  const { known, lineUnknown, productUnknown } = unitState;
   const values = normalizedDimensions(p);
   let sameDimensions = dims.unit && known ? unitDimensionsMatch(dims, values, notes) : false;
   if (dims.fromTuple && known) {
@@ -246,24 +243,42 @@ function sizeMatches(dims: LineFacts['dims'], p: Product, known: boolean, notes:
     notes.reasons.push('尺寸一致');
     return true;
   }
-  // 真实订单常有一边没写单位。数字完全一样就算同一个尺寸，不换算。
-  if (dims.unit && known) return false;
+  // 任一边写了无法识别或互相矛盾的单位（如 in / 英寸，或规格与结构化单位不一致），绝不当缺省无单位去纯数字比对
+  if (lineUnknown || productUnknown || dims.specUnitUnknown || dims.specUnitConflict || ((dims.unit || dims.tupleUnit) && known))
+    return false;
   const raw = [p.length, p.width, p.height];
+  // 缺单位时只凭数字一致列为候选，不自动推荐（缺单位不得猜测是 mm 还是 cm）
   const sameDigits = dims.explicit.every(
     (v, i) => typeof v === 'number' && Number.isFinite(v) && v > 0 && v === raw[i],
   );
-  if (sameDigits) notes.reasons.push('尺寸数字一致（有一边没写单位）');
-  return sameDigits;
+  if (sameDigits) {
+    notes.reasons.push('尺寸数字一致（有一边没写单位）');
+    return false;
+  }
+  // 仅规格原文里有三个数字、没拆分长宽高也没写单位：只作为候选提示，不凭它自动推荐
+  if (
+    dims.explicit.every((v) => v === null) &&
+    dims.rawTuple &&
+    dims.rawTuple.every((v, i) => v > 0 && v === raw[i])
+  )
+    notes.reasons.push('规格数字一致（未写单位，需确认）');
+  return false;
 }
-/** 尺寸写法本身的问题：数值无效、单位认不出、有一边没写单位（同名时提醒没换算） */
+/** 尺寸写法本身的问题：数值无效、任一边写了认不出或矛盾的单位、有一边没写单位（同名时提醒没换算） */
 function dimensionWarnings({ f, dims }: LineFacts, p: Product, known: boolean) {
   const conflicts: string[] = [];
+  const lineUnknown = Boolean(f.dimensionUnit.value?.trim() && !dims.unit);
+  const productUnitText = (p.dimensionUnit ?? p.dimensionUnitRaw ?? '').trim();
+  const productUnknown = Boolean(productUnitText && !known);
   if (dims.explicit.some((v) => v !== null && !Number.isFinite(v))) conflicts.push('尺寸数值无效');
-  if (f.dimensionUnit.value && !dims.unit) conflicts.push('尺寸单位待确认');
+  if (lineUnknown) conflicts.push('尺寸单位待确认');
+  if (dims.specUnitUnknown) conflicts.push('规格尺寸单位待确认');
+  if (dims.specUnitConflict) conflicts.push('规格与尺寸单位不一致');
+  if (productUnknown) conflicts.push('档案尺寸单位待确认');
   const unitPending =
     (!dims.unit && dims.explicit.some((v) => v !== null)) ||
-    (!known && normalizedDimensions(p).some((v) => v !== null));
-  return { conflicts, unitPending };
+    (!known && !productUnknown && normalizedDimensions(p).some((v) => v !== null));
+  return { conflicts, unitPending, lineUnknown, productUnknown };
 }
 function attributeNotes(f: Line['fields'], p: Product, notes: Notes) {
   for (const [field, label] of comparedAttributes) {
@@ -285,12 +300,20 @@ function candidateFor(facts: LineFacts, p: Product): ProductCandidate | null {
   const notes: Notes = { reasons: [], conflicts: warn.conflicts };
   if (id.sameName) notes.reasons.push('名称一致');
   if (id.sameCode) notes.reasons.push('客户料号一致（需核对客户归属）');
-  const sameSize = sizeMatches(facts.dims, p, known, notes);
+  const sameSize = sizeMatches(
+    facts.dims,
+    p,
+    { known, lineUnknown: warn.lineUnknown, productUnknown: warn.productUnknown },
+    notes,
+  );
   if (id.contained) notes.reasons.push('名称包含档案名称');
   if (id.close && sameSize) notes.reasons.push('名称很像，请核对是否错别字');
   if (warn.unitPending && id.sameName) notes.reasons.push('尺寸单位待确认，未自动换算');
   attributeNotes(facts.f, p, notes);
-  if (!id.sameName && !id.sameCode && !sameSize && !id.contained) return null;
+  const hasUnitlessDigits =
+    notes.reasons.includes('规格数字一致（未写单位，需确认）') ||
+    notes.reasons.includes('尺寸数字一致（有一边没写单位）');
+  if (!id.sameName && !id.sameCode && !sameSize && !hasUnitlessDigits && !id.contained) return null;
   // 名称包含要确认：“纸箱1”和“纸箱10”、“纸箱”和“纸箱加厚”是不同的货。只差括号里的说明（比如渠道名）才算同一个。
   const sameProduct =
     id.sameName ||
@@ -312,15 +335,16 @@ const byRank = (a: ProductCandidate, b: ProductCandidate) =>
 export function productCandidatesForLine(
   line: Line,
   products: Product[],
-  history?: CustomerProductSpecs,
+  customerId?: number | null,
 ): ProductCandidate[] {
   const facts: LineFacts = {
     f: line.fields,
     dims: lineDimensions(line),
     name: importNameKey(line.fields.productName.value || ''),
   };
+  const scoped = customerId === undefined ? products : productsForCustomer(products, customerId);
   return (
-    products
+    scoped
       .map((p) => candidateFor(facts, p))
       .filter((p) => p !== null)
       // 有完全同名的就只认它，名称包含的退回候选
@@ -329,11 +353,6 @@ export function productCandidatesForLine(
         !p.reasons.includes('名称一致') &&
         all.some((o) => o.recommended && o.reasons.includes('名称一致'))
           ? { ...p, recommended: false }
-          : p,
-      )
-      .map((p, _i, all) =>
-        !all.some((o) => o.recommended) && repeatOrder(p, all, line, history)
-          ? { ...p, recommended: true, reasons: [...p.reasons, REPEAT_ORDER_REASON] }
           : p,
       )
       .sort(byRank)
