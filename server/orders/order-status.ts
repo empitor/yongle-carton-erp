@@ -1,8 +1,9 @@
-import { orderViewSchema, storedOrderInput } from '../../shared/core/index.js';
+import { trackedOrderViewSchema, storedOrderInput } from '../../shared/core/index.js';
 import { orderStatusRules, recordStatusActionNames, recordStatusInputSchema, type RecordStatusAction } from '../../shared/business/index.js';
 import type { Actor, Store } from '../core/index.js';
 import { AppError, audit, onceByRequest, operationRequest, requirePermission } from '../core/index.js';
 import { saveOrderWithProgress } from './service.js';
+import { trackedOrder } from './tracked-orders.js';
 
 /*
  * 订单的状态动作：确认订单、退回待确认、取消订单、恢复为待确认（POST /api/orders/:id/<动作>）。
@@ -20,7 +21,7 @@ export function changeOrderStatus(store: Store, id: number, action: RecordStatus
     request = operationRequest(REQUEST_KIND, v.requestId, actor, { id, action, ...v });
   if (action === 'cancel' && !v.reason) throw new AppError('请填写取消原因。');
   return onceByRequest(store, request, () => {
-    const before = store.order(id);
+    const before = trackedOrder(store, id);
     if (!before) throw new AppError('订单不存在或已归档。', 404);
     if (before.version !== v.expectedVersion) throw new AppError('订单已被修改，请刷新后再操作。', 409);
     if (!rule.from.includes(before.status))
@@ -34,7 +35,7 @@ export function changeOrderStatus(store: Store, id: number, action: RecordStatus
       document: { before, after, ...(v.reason ? { reason: v.reason } : {}) },
     });
     return after;
-  }, orderViewSchema);
+  }, trackedOrderViewSchema);
 }
 
 /** 整张保存（PUT /api/orders/:id）不改状态：带了和现在不一样的状态就拒绝，指到详情里的状态动作 */

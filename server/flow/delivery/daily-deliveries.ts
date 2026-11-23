@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { quantityUnits } from '../../../shared/core/index.js';
+import { lineShippingProgress, quantityUnits } from '../../../shared/core/index.js';
 import type { DeliveryDaily } from '../../../shared/business/index.js';
 import type { Store } from '../../core/index.js';
 import { many, rows } from '../../core/index.js';
 import type { DeliveryLine } from '../documents/base.js';
+import { shippedByLine } from '../documents/shipped.js';
 import { FlowService } from '../rules/service.js';
 
 /*
@@ -64,19 +65,18 @@ function movementGroups(store: Store, deliveryIds: readonly number[]) {
 }
 
 /** 一行送货明细带上订单明细（品名、规格、订购和已发）、库存品（没快照时的品名规格）和挂的出库流水 */
-function lineView(l: DeliveryLine, o: Order | undefined, stock: StockItem | undefined, movements: MovementRow[]) {
+function lineView(l: DeliveryLine, o: Order | undefined, stock: StockItem | undefined, movements: MovementRow[], shipped: ReadonlyMap<number, number>) {
   const ol = o?.lines.find((x) => x.id === l.orderLineId);
+  const progress = ol && lineShippingProgress(ol.quantity, shipped.get(ol.id) ?? 0);
   return {
     ...ol,
+    ...progress,
     ...l,
     orderNumber: l.orderNumber || o?.number,
     productName: l.productName || ol?.productName || stock?.name,
     specification: l.specification || ol?.specification || stock?.specification,
     unit: l.unit || ol?.unit || stock?.unit,
     orderedQuantity: ol?.quantity,
-    shippedQuantity: ol?.shippedQuantity,
-    remainingQuantity: ol?.remainingQuantity,
-    shippingStatus: ol?.shippingStatus,
     movements,
   };
 }
@@ -93,7 +93,9 @@ export function deliveryRecords(
 ): DeliveryDaily<MovementRow>[] {
   const flow = new FlowService(store);
   const deliveries = flow.list('delivery', includeArchived, workbenchDate, flowIds);
-  const orders = new Map(store.ordersByIds(deliveries.flatMap((d) => d.lines.map((l) => l.orderId)), true).map((o) => [o.id, o]));
+  const orderIds = [...new Set(deliveries.flatMap((d) => d.lines.map((l) => l.orderId)))];
+  const orders = new Map(store.ordersByIds(orderIds, true).map((o) => [o.id, o]));
+  const shipped = shippedByLine(store.db, orderIds);
   const stocks = new Map(flow.ops.items(true, deliveries.flatMap((d) => d.lines.map((l) => l.stockId))).map((s) => [s.id, s]));
   const customers = new Map(
     many(
@@ -112,7 +114,7 @@ export function deliveryRecords(
       completed: d.status === 'confirmed',
       pending: d.status === 'draft',
       cancelled: ['cancelled', 'reversed'].includes(d.status),
-      lines: d.lines.map((l, index) => lineView(l, orders.get(l.orderId), stocks.get(l.stockId), perLine ? perLine[index] : [])),
+      lines: d.lines.map((l, index) => lineView(l, orders.get(l.orderId), stocks.get(l.stockId), perLine ? perLine[index] : [], shipped)),
     };
   });
 }

@@ -1,6 +1,6 @@
 import { closedOrder, deliverableOrder, effectiveOrder, quantityString, quantityUnits, safeUnits } from '../core/index.js';
 import { NO_DUE_DATE } from './schedule.js';
-import { lineSpecification, normalizeDimensionUnit, sameSpecification, specificationDifference, type Order } from '../core/index.js';
+import { lineSpecification, normalizeDimensionUnit, sameSpecification, specificationDifference, type TrackedOrder } from '../core/index.js';
 
 /** 比规格要用的库存品资料：规格说明（跟着产品）、长宽高和尺寸单位 */
 type SizedStock = {
@@ -17,14 +17,14 @@ type DeliveryStock = SizedStock & { id: number; productId?: number | null };
 /** 排送货用到的成品库存品：带可用量（扣掉待送货单占的，千分整数），库存品视图里一定有 */
 type PlannedStock = DeliveryStock & { availableUnits: number };
 /**
- * 排送货、排产、订单“下一步”要看的订单明细，字段取自订单视图（shared/core 的 Order）：编号、产品、数量（整数“只”）、
+ * 排送货、排产、订单“下一步”要看的订单明细，字段取自订单视图（shared/core 的 TrackedOrder）：编号、产品、数量（整数“只”）、
  * 还没发的、单位、规格。order-next-step.ts、production-plan.ts 也用它，订单视图改了字段这里一起报错。
  */
-export type OrderLineFacts = Pick<Order['lines'][number], 'id' | 'productId' | 'productName' | 'quantity' | 'remainingQuantity' | 'unit'> & {
+export type OrderLineFacts = Pick<TrackedOrder['lines'][number], 'id' | 'productId' | 'productName' | 'quantity' | 'remainingQuantity' | 'unit'> & {
   specification?: string | null;
 };
 /** 同上，要看的订单字段；列表行另带“已归档”，没写交期的是空 */
-export type OrderFacts<L extends OrderLineFacts = OrderLineFacts> = Pick<Order, 'id' | 'number' | 'customerId' | 'materialProgress'> & {
+export type OrderFacts<L extends OrderLineFacts = OrderLineFacts> = Pick<TrackedOrder, 'id' | 'number' | 'customerId'> & {
   status: string;
   archived?: unknown;
   deliveryDate?: string | null;
@@ -81,7 +81,7 @@ export function deliveryCandidates<L extends OrderLineFacts>(
         .filter(
           (l) =>
             l.productId === stock.productId &&
-            (allowOverdelivery || Number(l.remainingQuantity ?? l.quantity) > 0) &&
+            (allowOverdelivery || l.remainingQuantity > 0) &&
             !specificationMismatch(stock, l),
         )
         .map((line) => ({ orderId: o.id, orderLineId: line.id, orderNumber: o.number, ...line })),
@@ -98,9 +98,6 @@ export function selectedStockUnits(lines: readonly { stockId?: number | null; qu
   }
   return total;
 }
-/** 订单明细还没发的数量（后端给的可能是数字或数量文本），换成千分整数。 */
-const remainingOf = (line: Pick<OrderLineFacts, 'remainingQuantity' | 'quantity'>) =>
-  safeUnits(line.remainingQuantity ?? line.quantity);
 /**
  * 每条订单明细已经排在待送货单上的数量（千分整数）。可用库存已经扣掉了待送货单占的货，
  * 算“还要排多少”时要从订单剩余里减掉这部分，不能再要一遍。orderId 给定时只算这张订单的明细。
@@ -116,8 +113,8 @@ export function pendingByOrderLine(deliveries: readonly (PendingDelivery | null 
   return pending;
 }
 /** 订单明细还要排送货的数量：没发的减去已在待送货单上的。 */
-const openOf = (line: Pick<OrderLineFacts, 'id' | 'remainingQuantity' | 'quantity'>, pending: Map<number, number>) =>
-  Math.max(0, remainingOf(line) - (pending.get(line.id) || 0));
+const openOf = (line: Pick<OrderLineFacts, 'id' | 'remainingQuantity'>, pending: Map<number, number>) =>
+  Math.max(0, safeUnits(line.remainingQuantity) - (pending.get(line.id) || 0));
 /** 成品库存品现在能拿来排送货的数量（千分整数） */
 const freeUnits = (stock: PlannedStock) => Math.max(0, stock.availableUnits);
 /** 把一行送货记到这个客户的送货单上 */
@@ -254,7 +251,7 @@ export function deliveryBlockers(stock: DeliveryStock, orders: OrderFacts[], cus
     if (customerId != null && o.customerId !== customerId) continue;
     if (o.archived || closedOrder(o)) continue;
     for (const l of o.lines) {
-      if (l.productId !== stock.productId || remainingOf(l) <= 0) continue;
+      if (l.productId !== stock.productId || safeUnits(l.remainingQuantity) <= 0) continue;
       const reason = blockReason(stock, o, l);
       if (reason)
         out.push({

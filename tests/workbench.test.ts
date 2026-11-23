@@ -1,5 +1,6 @@
 // 工作台和今日队列（server/business/workbench.ts）：读真实待办、跨日计划和当日实绩，把订单、采购分到逾期、未排产、
 // 待下单、到货待登记；有客户料号的纸箱从完工到部分送货走一遍。内存库、虚构数据。
+import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -115,7 +116,7 @@ test('今日队列把真实记录分到逾期、未排产、待下单和到货�
         [batchOf(dueToday.id), false, '虚构供应商 虚构纸板 还差 100 张'],
       ],
     );
-    const upcomingOrder = store.order(upcoming.id), lateOrder = store.order(late.id);
+    const upcomingOrder = trackedOrder(store, upcoming.id), lateOrder = trackedOrder(store, late.id);
     assert.ok(upcomingOrder);
     assert.ok(lateOrder);
     assert.equal(upcomingOrder.materialProgress, 'pending');
@@ -143,7 +144,7 @@ test('有客户料号的纸箱从整批完工到部分送货：成品规格按�
     assert.ok(stock);
     assert.equal(stock.specification, specification(f.product));
     assert.notEqual(stock.specification, '000123');
-    assert.equal(deliveryCandidates(stock, f.customer.id, f.store.orders()).length, 1);
+    assert.equal(deliveryCandidates(stock, f.customer.id, trackOrders(f.store, f.store.orders())).length, 1);
     const doc = f.flow.save(
       'delivery',
       { date, customerId: f.customer.id, lines: [{ stockId: stock.id, orderId: f.order.id, orderLineId: f.order.lines[0].id, quantity: '40' }] },
@@ -151,7 +152,7 @@ test('有客户料号的纸箱从整批完工到部分送货：成品规格按�
     );
     f.base.check(doc, shipOnDocDate(f.flow, doc.id), actor);
     assert.equal(f.ops.balance(stock.id), 60000);
-    assert.equal(f.store.orders()[0].shippingProgress, '部分发货');
+    assert.equal(trackedOrder(f.store, f.order.id)?.shippingProgress, '部分发货');
     const work = buildWorkbench(f.store, date);
     assert.deepEqual([work.activeTasks, work.productionToday, work.deliveriesToday], [0, 1, 1]);
   } finally {

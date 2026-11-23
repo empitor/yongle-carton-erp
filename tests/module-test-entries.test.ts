@@ -31,7 +31,7 @@ const moduleTests: ModuleTests[] = [
     own: [
       {
         file: 'tests/operations-core.test.ts',
-        why: '测采购库存的内部件：写入共用的 priorRecord、库存品规则 StockItems、流水查询 MovementQueries、成品库存跟着产品的 syncFinishedStock，入口都不导出',
+        why: '测采购库存的内部件：写入共用的 priorRecord、库存品规则 StockItems、流水查询 MovementQueries 和 OperationsRepository，入口不导出',
       },
       { file: 'tests/purchase-save.test.ts', why: '直接测保存采购单的 PurchaseWriter（入口只导出 OperationsService）' },
       { file: 'tests/stock-identity.test.ts', why: '要按类判断查重冲突 StockConflictError，只有测试用，入口不导出' },
@@ -95,11 +95,7 @@ const moduleTests: ModuleTests[] = [
       },
       {
         file: 'tests/flow-totals.test.ts',
-        why: '直接测订单明细已发的合计 shippedByLine、shippedUnits，入口不导出',
-      },
-      {
-        file: 'tests/order-status.test.ts',
-        why: '直接测订单进度的派生（shipped、materialByOrder）和改单核对 orderEditGuard（登记给基础的钩子），入口不导出',
+        why: '直接测订单明细已发的合计 shippedUnits，入口不导出',
       },
       {
         file: 'tests/read-counts.test.ts',

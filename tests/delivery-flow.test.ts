@@ -1,4 +1,5 @@
 // 送货单（server/flow/）：预览和会话、版本绑定，超订单数量，多订单送货，改期，管理员改已出库的送货单。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +16,7 @@ import { flowDocumentSchema } from '../shared/business/index.js';
 
 /** 从库里重读订单：读不到就判失败 */
 function orderOf(store: Store, id: number) {
-  const order = store.order(id);
+  const order = trackedOrder(store, id);
   assert.ok(order, '订单还在');
   return order;
 }

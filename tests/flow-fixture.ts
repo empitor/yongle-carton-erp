@@ -8,6 +8,7 @@ import { specification } from '../shared/core/domain.js';
 import type { Actor } from '../server/core/index.js';
 import type { FlowKind } from '../shared/business/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { trackedOrder } from '../server/orders/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { businessBase, standardRecords } from './business-base-fixture.js';
 
@@ -26,6 +27,12 @@ export const localAdmin = (): Actor =>
 
 export function orderOf(store: Store, id: number, includeArchived = false) {
   const order = store.order(id, includeArchived);
+  assert.ok(order, '测试数据：没有订单 ' + id);
+  return order;
+}
+
+export function trackedOrderOf(store: Store, id: number, includeArchived = false) {
+  const order = trackedOrder(store, id, includeArchived);
   assert.ok(order, '测试数据：没有订单 ' + id);
   return order;
 }

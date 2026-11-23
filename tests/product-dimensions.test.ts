@@ -6,8 +6,6 @@ import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
-// 订单保存要单据流转登记的改单核对、进度规则
-import '../server/flow/index.js';
 import { productSchema } from '../shared/core/domain.js';
 import { stockItemSchema } from '../shared/business/operations.js';
 import {

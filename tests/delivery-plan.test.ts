@@ -8,6 +8,7 @@ const line = (id: number, productId: number, quantity: number, extra: { specific
   productId,
   productName: '虚构箱' + productId,
   quantity,
+  remainingQuantity: quantity,
   unit: '只',
   ...extra,
 });

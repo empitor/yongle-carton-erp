@@ -6,7 +6,7 @@ import { archivedIdsJson, periodOrders } from './period-records.js';
 import { OperationsService, purchaseOrderLinks } from '../operations/index.js';
 import { dueSegments, sumMoney, type FlowDocView, type PurchaseView, type StockItemView } from '../../shared/business/index.js';
 import { flowEntity, flowStatus, movementSource, type FlowKind, type purchaseBusinessStatuses } from '../../shared/business/index.js';
-import { DAY_MS, UNITS_PER_QUANTITY, deliverableOrder, effectiveOrder, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
+import { DAY_MS, UNITS_PER_QUANTITY, type TrackedOrder, deliverableOrder, effectiveOrder, orderDisplayStatus, quantityString } from '../../shared/core/index.js';
 import { orderNextSteps, type NextStep } from '../../shared/business/index.js';
 import { pendingByOrderLine, specificationMismatch } from '../../shared/business/index.js';
 
@@ -70,7 +70,6 @@ const daysBetween = (from: string, to: string) =>
 /** 这个月的第一天（日期是 YYYY-MM-DD） */
 const monthStart = (date: string) => date.slice(0, 'YYYY-MM'.length) + '-01';
 
-type Order = ReturnType<Store['orders']>[number];
 type StockItem = StockItemView;
 type Purchase = PurchaseView;
 type Task = FlowDocView<'task'>;
@@ -114,13 +113,13 @@ const allottedStock = (s: StockItem, availableUnits: number) => ({
 });
 type Stock = { byProduct: Map<number, StockItem[]>; left: Map<number, number>; pendingByLine: Map<number, number> };
 /** 给一张订单分库存：每行按还没发、也没排进待送货单的数量，从这种产品、同单位、规格对得上的库存品里依次拿 */
-function allotOrder(o: Order, { byProduct, left, pendingByLine }: Stock) {
+function allotOrder(o: TrackedOrder, { byProduct, left, pendingByLine }: Stock) {
   const give = new Map<StockItem, number>();
   for (const l of o.lines) {
     const stocks = (byProduct.get(l.productId) || []).filter((i) => i.unit === l.unit);
     let need = Math.max(
       0,
-      Math.round(Number(l.remainingQuantity ?? l.quantity) * UNITS_PER_QUANTITY) - (pendingByLine.get(l.id) || 0),
+      Math.round(Number(l.remainingQuantity) * UNITS_PER_QUANTITY) - (pendingByLine.get(l.id) || 0),
     );
     for (const s of stocks) {
       give.set(s, give.get(s) || 0);
@@ -142,7 +141,7 @@ function allotOrder(o: Order, { byProduct, left, pendingByLine }: Stock) {
  * 对不上，不算“有库存可发”，并给出和订单详情一样的黄色提示。
  * 返回每张订单分到的库存（按订单编号）。
  */
-function allotFinishedStock(active: Order[], finished: StockItem[], pendingDeliveries: FlowDocView<'delivery'>[]) {
+function allotFinishedStock(active: TrackedOrder[], finished: StockItem[], pendingDeliveries: FlowDocView<'delivery'>[]) {
   const stock: Stock = {
     byProduct: new Map(),
     left: new Map(),
@@ -161,7 +160,7 @@ function allotFinishedStock(active: Order[], finished: StockItem[], pendingDeliv
 }
 
 /** 今日把一张订单放进哪一组、该办哪一步（规则见 buildToday 里的说明）。overdue：交期已过。 */
-function todayGroup(o: Order, steps: NextStep[], overdue: boolean): { group: 'ship' | 'schedule' | 'complete'; step: NextStep } | null {
+function todayGroup(o: TrackedOrder, steps: NextStep[], overdue: boolean): { group: 'ship' | 'schedule' | 'complete'; step: NextStep } | null {
   const find = (...kinds: NextStep['kind'][]) => steps.find((x) => kinds.includes(x.kind));
   const ship = find('delivery'),
     // 订单详情里订料排在安排生产前面（先订纸板），这里按同样的先后取
@@ -175,7 +174,7 @@ function todayGroup(o: Order, steps: NextStep[], overdue: boolean): { group: 'sh
 }
 
 /** 今日页列订单的样子 */
-const orderRow = (o: Order) => ({
+const orderRow = (o: TrackedOrder) => ({
   id: o.id,
   number: o.number,
   customerName: o.customerName,
@@ -188,7 +187,7 @@ const orderRow = (o: Order) => ({
 const byDeliveryDate = (a: { deliveryDate: string }, b: { deliveryDate: string }) =>
   a.deliveryDate.localeCompare(b.deliveryDate);
 
-type OrderFacts = { store: Store; flow: FlowService; active: Order[]; tasks: Task[]; purchases: Purchase[]; finished: StockItem[] };
+type OrderFacts = { store: Store; flow: FlowService; active: TrackedOrder[]; tasks: Task[]; purchases: Purchase[]; finished: StockItem[] };
 /**
  * 每张进行中的订单的下一步，和订单详情用同一套规则（orderNextSteps）；成品库存先按交期分好（allotFinishedStock）。
  * 已经有待送货单的不在订单行里重复，送货单另外列。
@@ -213,7 +212,7 @@ type OrderFact = ReturnType<typeof orderFacts>[number];
  * 订单的几份清单。今日按下一步分组，每张单只进一组：有货该发、又是待发货或已发一部分的先发；
  * 要排产或订料的进待排产；逾期还在做的进待完工；其余有货能发的进可送货。
  */
-function orderQueues(facts: OrderFact[], overdue: Order[], date: string) {
+function orderQueues(facts: OrderFact[], overdue: TrackedOrder[], date: string) {
   const overdueIds = new Set(overdue.map((o) => o.id)),
     notOverdue = (f: OrderFact) => !overdueIds.has(f.order.id);
   const todo = facts.flatMap(({ order, steps, mismatches }) => {
@@ -276,7 +275,7 @@ function purchaseQueues(purchases: Purchase[], date: string) {
 }
 
 /** 这个月的订单金额、已出库金额（含已归档的）；历史送货可能没有价格快照，只累计有快照的部分，不猜测金额。 */
-function monthSummary(orders: Order[], deliveryRecords: DeliveryRecord[], date: string) {
+function monthSummary(orders: TrackedOrder[], deliveryRecords: DeliveryRecord[], date: string) {
   const from = monthStart(date);
   return {
     monthOrderCents: orders

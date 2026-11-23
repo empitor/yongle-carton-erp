@@ -1,5 +1,6 @@
 // 已生效单据的说明编辑（server/flow/correction/document-info.ts）：到货改备注、到货时间，送货改备注、地址联系人、实际时间，
 // 完工改批次备注、操作人；不出替代单，库存、流水、金额、财务指纹和财务事件都不动。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -83,7 +84,7 @@ test('送货单：改地址、联系人、联系方式、实际时间、备注�
     assert.deepEqual([r.address, r.contact, r.phone, r.actualTime, r.notes], ['虚构新地址', '虚构收货人', '000-0000', '09:10', '']);
     assert.equal(r.status, 'confirmed');
     assert.deepEqual(f.movements(), moves);
-    assert.equal(f.store.order(f.order.id, true)?.lines[0].shippedQuantity, 10);
+    assert.equal(trackedOrder(f.store, f.order.id, true)?.lines[0].shippedQuantity, 10);
     assert.deepEqual(f.audits(f.delivery.id)[0].before, { address: '虚构旧地址', contact: '', phone: '', actualTime: null });
     assert.throws(() => f.edit(f.delivery.id, { operator: '虚构' }), failsWith(422, /送货单没有“操作人”这一项可改/));
     assert.throws(() => f.edit(f.delivery.id, {}), /请写要改的内容/);

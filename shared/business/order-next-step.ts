@@ -1,4 +1,5 @@
 import { quantityString, safeUnits } from '../core/index.js';
+import type { TrackedOrder } from '../core/index.js';
 import { activeDoc } from './physical-flow.js';
 import { pendingByOrderLine, specificationMismatch, specificationMismatchText, type OrderFacts, type OrderLineFacts } from './warehouse-delivery.js';
 
@@ -39,7 +40,7 @@ export type NextSteps = {
 };
 
 /** 判断下一步要看的订单字段（订单明细的字段见 warehouse-delivery.ts 的 OrderLineFacts） */
-type StepOrder = Pick<OrderFacts, 'id' | 'status' | 'archived' | 'materialProgress'> & { lines?: readonly OrderLineFacts[] };
+type StepOrder = Pick<OrderFacts, 'id' | 'status' | 'archived'> & Pick<TrackedOrder, 'materialProgress'> & { lines?: readonly OrderLineFacts[] };
 /** 关联的生产任务（生产任务视图）：完工、计划数量是数量文本 */
 type StepTask = {
   id: number;
@@ -230,7 +231,7 @@ const purchaseNotes = (purchases: readonly StepPurchase[]) =>
   });
 
 export function orderNextSteps(order: StepOrder, related: StepRelated): NextSteps {
-  const lines = (order.lines || []).map((line) => ({ line, remaining: safeUnits(line.remainingQuantity ?? line.quantity) }));
+  const lines = (order.lines || []).map((line) => ({ line, remaining: safeUnits(line.remainingQuantity) }));
   const settled = settledOrder(order, lines);
   if (settled) return settled;
   const tasks = (related?.tasks || []).filter(activeDoc),

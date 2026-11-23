@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { Customer, Order, Product, customerSchema, orderSchema, pagingSchema, productSchema } from '../core/index.js';
+import type { Customer, TrackedOrder, Product, customerSchema, orderSchema, pagingSchema, productSchema } from '../core/index.js';
 import type { ListResult, orderMetrics, productMetrics } from './business-metrics.js';
 import type { customerQuerySchema, orderQuerySchema, productQuerySchema } from './record-queries.js';
 import type { RecordStatusAction, recordStatusInputSchema } from './record-status.js';
@@ -26,7 +26,7 @@ type OrderBody = z.input<typeof orderSchema>;
 type Versioned<T> = T & { version: number };
 
 type StatusActions = {
-  [A in RecordStatusAction as `POST /orders/:id/${A}`]: { body: z.input<typeof recordStatusInputSchema>; response: Order };
+  [A in RecordStatusAction as `POST /orders/:id/${A}`]: { body: z.input<typeof recordStatusInputSchema>; response: TrackedOrder };
 };
 
 /** 六类档案的批量归档、恢复不在这里，在删除归档的 lifecycle-api.ts */
@@ -44,9 +44,9 @@ export type RecordsApi = StatusActions & {
   'GET /products/:id': { response: Product };
   'POST /products': { body: ProductBody; response: Product };
   'PUT /products/:id': { body: Versioned<ProductBody>; response: Product };
-  'GET /orders': { query?: OrderQuery; response: Listed<Order>[] };
-  'GET /orders?withMetrics=1': { query?: OrderPageQuery; response: ListResult<Listed<Order>, ReturnType<typeof orderMetrics>> };
-  'GET /orders/:id': { response: Order };
-  'POST /orders': { body: OrderBody; response: Order };
-  'PUT /orders/:id': { body: Versioned<OrderBody>; response: Order };
+  'GET /orders': { query?: OrderQuery; response: Listed<TrackedOrder>[] };
+  'GET /orders?withMetrics=1': { query?: OrderPageQuery; response: ListResult<Listed<TrackedOrder>, ReturnType<typeof orderMetrics>> };
+  'GET /orders/:id': { response: TrackedOrder };
+  'POST /orders': { body: OrderBody; response: TrackedOrder };
+  'PUT /orders/:id': { body: Versioned<OrderBody>; response: TrackedOrder };
 };

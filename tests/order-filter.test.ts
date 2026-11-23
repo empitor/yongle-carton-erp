@@ -1,5 +1,6 @@
 // 订单筛选只有一份判断（shared/business/order-filter.ts）：页面订单列表和助手查订单按状态筛出同样的订单，
 // 状态只认页面上的叫法。内存库、虚构数据。
+import { trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
@@ -16,7 +17,7 @@ test('发了一部分、还在生产的订单：按“部分发货”筛得到�
   assert.equal(orderStatusMatches(partly, '部分发货'), true);
   assert.equal(orderStatusMatches(partly, '生产中'), false);
   assert.equal(orderStatusMatches({ status: '已发货', shippingProgress: '已发完' }, '已发货'), true);
-  assert.equal(orderStatusMatches({ status: '已发货' }, undefined), true, '没给状态都算');
+  assert.equal(orderStatusMatches({ status: '已发货', shippingProgress: '已发完' }, undefined), true, '没给状态都算');
 });
 
 test('订单筛选：客户、产品、关键字和状态一起判断', (t) => {
@@ -25,7 +26,7 @@ test('订单筛选：客户、产品、关键字和状态一起判断', (t) => {
   const customer = base.customer(),
     product = base.product();
   base.order(customer, [base.line(product, 10)], { orderDate: '2026-11-01', deliveryDate: '2026-11-20' });
-  const [order] = base.store.orders();
+  const [order] = trackOrders(base.store, base.store.orders());
   const matches = (f: Parameters<typeof orderMatches>[1]) => orderMatches(order, f);
   assert.equal(matches({ customerId: customer.id, productId: product.id, q: product.name, status: '已确认' }), true);
   assert.equal(matches({ customerId: customer.id + 1 }), false);

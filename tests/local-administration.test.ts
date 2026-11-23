@@ -1,5 +1,6 @@
 // 本机管理员（在服务器本机登录的超级管理员）和数据管理：谁算本机管理员、数据管理直接改业务数据的规矩、
 // AI 工作区的管理服务。助手的数据管理命令在 assistant-management-tools.test.ts。虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, scryptSync } from 'node:crypto';
@@ -162,7 +163,7 @@ test('数据管理改已生效的完工单、送货单：改数量、日期被�
     assert.equal(f.ops.movements().length, before);
     assert.deepEqual([f.ops.balance(f.raw.id), f.ops.balance(f.finished.id)], [100000, 760000]);
     assert.equal(f.flow.get(task.id, 'task').completed, '860');
-    assert.equal(f.store.order(f.order.id, true)?.lines[0].shippedQuantity, 100);
+    assert.equal(trackedOrder(f.store, f.order.id, true)?.lines[0].shippedQuantity, 100);
     f.flow.reverse(delivery.id, { version: f.flow.get(delivery.id).version, reason: '虚构发错', acknowledged: true }, f.who);
     assert.throws(() => f.dataManagement.execute(cmd('delivery', 'update', [f.flow.get(delivery.id)], { notes: '虚构' }), f.who, 's'), /已撤销、已取消、已被更正替代的单据不能再改/);
   } finally {

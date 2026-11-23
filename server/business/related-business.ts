@@ -1,3 +1,4 @@
+import { trackOrders } from '../orders/index.js';
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
 import { FlowService, referencingDocuments, WarehouseDaily } from '../flow/index.js';
@@ -28,7 +29,7 @@ function purchaseRelated(store: Store, id: number) {
   return {
     arrivals,
     stocks: views.items(true, purchase.lines.flatMap((l) => (l.stockItemId ? [l.stockItemId] : []))),
-    orders: store.ordersByIds(purchase.orderIds, true),
+    orders: trackOrders(store, store.ordersByIds(purchase.orderIds, true)),
   };
 }
 

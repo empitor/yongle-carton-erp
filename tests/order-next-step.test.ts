@@ -1,5 +1,6 @@
 // 订单和采购单的“下一步”（shared/business/order-next-step.ts）、履约链（order-chain.ts）、订料预填（src/operations/purchase-seed.ts）：
 // 只按已有单据和库存判断。前面是纯函数，后面几条按真实单据算（待送货单占的数量）。全部是虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { orderNextSteps, purchaseNextSteps } from '../shared/business/order-next-step.js';
@@ -51,11 +52,10 @@ test('安排订料：要生产、没关联采购单的订单先订料，再安�
   assert.deepEqual(kinds(order([line(1, 1, 10)], { status: '生产中' }), empty), ['purchase', 'schedule']);
 });
 
-test('安排订料：有有效采购、或服务端说已关联采购时不提示；没有这项事实也不提示', () => {
+test('安排订料：有有效采购、或服务端说已关联采购时不提示', () => {
   const active = { number: 'CG-虚构1', businessStatus: '已订货', arrivalProgress: '未到货' };
   assert.deepEqual(kinds(order([line(1, 1, 10)]), { ...empty, purchases: [active] }), ['schedule']);
   assert.deepEqual(kinds(order([line(1, 1, 10)], { materialProgress: 'pending' }), empty), ['schedule']);
-  assert.deepEqual(kinds(order([line(1, 1, 10)], { materialProgress: undefined }), empty), ['schedule']);
   // 关联记录还没读到（purchases 不是数组）时不猜
   assert.deepEqual(kinds(order([line(1, 1, 10)]), { tasks: [], stocks: [], deliveries: [] }), ['schedule']);
   // 只有已取消或已归档的采购，等于没有关联采购
@@ -175,7 +175,7 @@ test('参考上次：只认同一产品的单产品订单、有效且只有一�
 });
 
 test('下一步：已取消的订单不再给步骤；完工那一步带任务编号，已取消的任务不算排产；有待送货单时先把它送出去；采购没下单、没到齐写进提示', () => {
-  const plain = (lines: NonNullable<StepOrder['lines']>, status = '已确认') => order(lines, { status, materialProgress: undefined });
+  const plain = (lines: NonNullable<StepOrder['lines']>, status = '已确认') => order(lines, { status, materialProgress: 'pending' });
   assert.equal(orderNextSteps(plain([line(1, 1, 10)], '已取消'), empty).done, '订单已取消');
   const task = { id: 5, number: 'SC-1', productId: 1, quantity: '10', completed: '4', unit: '只', status: 'confirmed' };
   assert.deepEqual(orderNextSteps(plain([line(1, 1, 10)]), { ...empty, tasks: [task] }).steps[0].params, { task: '5' });
@@ -198,7 +198,7 @@ test('下一步：已取消的订单不再给步骤；完工那一步带任务�
 });
 
 test('多产品订单里，已经做好且库存够的产品不再提醒排产', () => {
-  const next = orderNextSteps(order([line(1, 1, 100), line(2, 2, 50)], { status: '生产中', materialProgress: undefined }), {
+  const next = orderNextSteps(order([line(1, 1, 100), line(2, 2, 50)], { status: '生产中', materialProgress: 'pending' }), {
     ...empty,
     tasks: [
       { id: 1, number: 'SC-1', productId: 1, quantity: '100', completed: '100', unit: '只', status: 'confirmed' },
@@ -238,7 +238,7 @@ test('待送货单已经占了的数量不算缺口：有待送货单的不再�
       stackActor,
     );
     const steps = (id: number) => {
-      const current = f.store.order(id);
+      const current = trackedOrder(f.store, id);
       assert.ok(current);
       return orderNextSteps(current, relatedBusiness(f.store, 'orders', id)).steps.map((x) => x.kind);
     };
@@ -260,7 +260,7 @@ test('批量安排送货、安排生产扣掉已经排在待送货单上的数�
     f.stockIn('60');
     f.draft('delivery', { customerId: f.customer.id, lines: [{ orderId: o.id, orderLineId: o.lines[0].id, stockId: f.finished.id, quantity: '60' }] });
     const rel = relatedBusiness(f.store, 'orders', o.id);
-    const ord = f.store.order(o.id);
+    const ord = trackedOrder(f.store, o.id);
     assert.ok(ord);
     // 生产：订单 100、待送货 60、可用 0 → 还要做 40
     assert.deepEqual(planProductionForOrders([ord], [rel], f.ops.items()).groups.map((g) => g.suggested), ['40']);
@@ -272,7 +272,7 @@ test('批量安排送货、安排生产扣掉已经排在待送货单上的数�
     // 送货：再入库 200，只再排剩下的 40，不会排到 160
     f.stockIn('200');
     const finished = f.flow.views.items().filter((i) => i.kind === 'finished');
-    const current = f.store.order(o.id);
+    const current = trackedOrder(f.store, o.id);
     assert.ok(current);
     const plan = planOrderDelivery([current], finished, pendingByOrderLine(rel?.deliveries || []));
     assert.deepEqual(plan.groups.flatMap((g) => g.lines.map((l) => l.quantity)), ['40']);

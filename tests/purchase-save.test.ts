@@ -1,5 +1,6 @@
 // 保存采购单和供应商（server/operations/purchases/purchase-save.ts、suppliers）：明细规则、已登记到货后锁定、采购进度、归档供应商的修改。
 // 页面、助手、数据管理共用这一份保存。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -108,7 +109,7 @@ test('采购进度按明细行判断：一行超收盖不住另一行没到', ()
     f.store.db
       .prepare('UPDATE purchase_lines SET received_units=200000 WHERE id=?')
       .run(purchase.lines[0].id);
-    assert.equal(f.store.order(f.order.id)?.materialProgress, 'partial');
+    assert.equal(trackedOrder(f.store, f.order.id)?.materialProgress, 'partial');
   } finally {
     f.store.close();
   }

@@ -1,18 +1,16 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Customer, Order, OrderInput, Product } from '../../shared/core/index.js';
-import { FINISHED_UNIT, UNITS_PER_QUANTITY, finishedUnit, finishedUnitMessage, fulfillmentSummary, legacyCents, orderSchema, precisionTotal, priceFromE4, priceToE4, quantityString, shippingLineStatus, statuses, totalCost } from '../../shared/core/index.js';
+import { FINISHED_UNIT, finishedUnit, finishedUnitMessage, legacyCents, orderSchema, precisionTotal, priceFromE4, priceToE4, statuses, totalCost } from '../../shared/core/index.js';
 import { z } from 'zod';
 import { ConflictError, InputError } from './errors.js';
 import { nextAutoId } from './ids.js';
 import { inSavepoint } from './savepoint.js';
-import { orderRules, type OrderEditGuard } from './order-hooks.js';
 import { chosenExact, given, readBack, type ExistingRecord } from './record-fields.js';
 import { rows } from './schema/rows.js';
 import { many, parseStoredJson } from './sql.js';
 
 /*
- * 订单的读和存（表归基础）：组装订单视图（明细、发货进度、订料进度），保存订单和明细。
- * 发货、订料进度和改已有订单前的核对由单据流转按单据提供（order-hooks.ts）。
+ * 订单的读和存（表归基础）：组装普通订单视图，保存订单和明细。
  * 用到的 Store 能力从参数传进来（Store 在 db.ts 里把自己传进来），这个文件不引用 db.ts。
  */
 
@@ -42,10 +40,7 @@ type StoredLine = z.output<typeof lineRow>;
 /** 成本估算存成 JSON（没估算是 NULL），按订单录入时的同一个结构读回 */
 const storedCosts = orderSchema.shape.costs;
 
-/** 一条明细的视图：发货进度按千分整数相减，再转成最多三位小数的数量（浮点直接相减会得到 1-0.9=0.09999999999999998） */
-function lineView(l: StoredLine, shipped: Map<number, number>) {
-  const shippedUnits = shipped.get(l.id) || 0,
-    plannedUnits = Math.round(l.quantity * UNITS_PER_QUANTITY);
+function lineView(l: StoredLine) {
   return {
     id: l.id,
     productId: l.product_id,
@@ -61,9 +56,6 @@ function lineView(l: StoredLine, shipped: Map<number, number>) {
     ...given('taxRate', l.tax_rate),
     ...given('taxMode', l.tax_mode),
     ...given('deliveryDate', l.delivery_date),
-    shippedQuantity: Number(quantityString(shippedUnits)),
-    remainingQuantity: Number(quantityString(Math.max(0, plannedUnits - shippedUnits))),
-    shippingStatus: shippingLineStatus(plannedUnits, shippedUnits),
   };
 }
 
@@ -96,11 +88,16 @@ function orderHead(r: StoredOrder) {
 const ORDER_SEQUENCE_DIGITS = 4;
 /** 订单上可以不填的附加信息，顺序和保存订单时的列一一对应 */
 const orderExtraKeys = ['externalPurchaseOrder', 'supplierName', 'currency', 'taxRate', 'taxMode', 'terms', 'roundingPolicy'] as const;
-/** 批量组装订单视图：明细、送货、订料各读取一次，查询量不随订单数增长。 */
+/** 按订单编号圈范围的 SQL 条件和参数：不给编号是全部订单 */
+export function orderIdScope(orderIds: readonly number[] | undefined): { predicate: string; params: string[] } {
+  return orderIds === undefined
+    ? { predicate: '', params: [] }
+    : { predicate: 'IN (SELECT value FROM json_each(?))', params: [JSON.stringify(orderIds)] };
+}
+/** 批量组装订单视图：订单头和明细各读取一次。 */
 export function orderViews(ctx: OrderContext, id: number | readonly number[] | undefined, includeArchived: boolean): Order[] {
   const single = typeof id === 'number',
-    predicate = single ? '= ?' : id === undefined ? '' : 'IN (SELECT value FROM json_each(?))',
-    params = single ? [id] : id === undefined ? [] : [JSON.stringify(id)];
+    { predicate, params } = single ? { predicate: '= ?', params: [id] } : orderIdScope(id);
   if (single && !includeArchived && ctx.archived('orders', id)) return [];
   const archived = single || includeArchived ? null : ctx.archivedIds('orders');
   const heads = many(
@@ -116,50 +113,33 @@ export function orderViews(ctx: OrderContext, id: number | readonly number[] | u
     if (group) group.push(l);
     else linesByOrder.set(l.order_id, [l]);
   }
-  // 发货进度、订料进度由单据流转按有效单据算（见 order-hooks.ts）
-  const scope = single ? [id] : id,
-    shipped = orderRules().shipped(ctx.db, scope),
-    material = orderRules().material(ctx.db, scope);
   return heads.map((r): Order => {
     const costs =
       r.cost_estimate === null ? null : parseStoredJson(storedCosts, r.cost_estimate, `orders.cost_estimate（订单 ${r.id}）`);
-    const orderLines = (linesByOrder.get(r.id) || []).map((l) => lineView(l, shipped));
-    const shippingSummary = fulfillmentSummary(
-      orderLines.map((l) => l.shippingStatus),
-      '已发完',
-      '部分发货',
-      '未发货',
-    );
+    const orderLines = (linesByOrder.get(r.id) || []).map(lineView);
     return {
       ...orderHead(r),
       // 精确合计不存：数量 × 四位单价，按明细现算
       totalAmountExact: precisionTotal(orderLines).exact,
       costs,
-      shippingProgress: shippingSummary.progress,
-      shippingSummary,
-      materialProgress: material.get(r.id) || 'none',
       costCents: totalCost(costs),
       lines: orderLines,
     };
   });
 }
-/** 保存订单的目标：改哪张（不给是新建）、能不能用已归档的客户产品和订单、是不是本机管理员的数据维护 */
-export type OrderSaveTarget = { existing?: ExistingRecord; includeArchived?: boolean; databaseMaintenance?: boolean };
-/**
- * 保存订单。改已有订单时，已关联生产、送货记录的订单能不能这样改、明细是原地改还是整批重写，
- * 由单据流转按单据判断（server/flow/order-edit-guard.ts）。
- */
+/** 改单前用调用方给的核对规则校验已补齐名称、单位和价格的明细。 */
+export type OrderEditCheck = (next: Pick<OrderInput, 'customerId' | 'status' | 'lines'>) => void;
+type OrderSaveTarget = { existing?: ExistingRecord; includeArchived?: boolean; checkEdit?: OrderEditCheck };
+
 export function saveOrder(ctx: OrderSaveContext, v: OrderInput, target: OrderSaveTarget = {}): Order {
-  const { existing, includeArchived = false, databaseMaintenance = false } = target;
+  const { existing, includeArchived = false, checkEdit } = target;
   const customer = ctx.customer(v.customerId, includeArchived);
   if (!customer) throw new InputError('客户不存在或已归档，请先恢复客户或重新选择');
   const previous = existing ? ctx.order(existing.id, includeArchived) : undefined;
+  const retainedIds = checkedLineIds(v.lines, previous);
   const lines = savedLines(ctx, v, previous, includeArchived);
   const precise = precisionTotal(lines);
-  // 已有生产、送货记录的订单哪些能改由单据流转判断（不允许的在这里就抛错）
-  const edit: ReturnType<OrderEditGuard> = existing
-    ? orderRules().editGuard(ctx.db, databaseMaintenance)(existing.id, previous, { customerId: v.customerId, status: v.status, lines })
-    : { linked: false };
+  checkEdit?.({ customerId: v.customerId, status: v.status, lines });
   // 订单上的附加信息：这次没给的沿用原来的，都没有就是 NULL（币种只有人民币）
   const extras = orderExtraKeys.map((k) => v[k] ?? previous?.[k] ?? (k === 'currency' ? 'CNY' : null));
   return inSavepoint(ctx.db, () => {
@@ -168,15 +148,25 @@ export function saveOrder(ctx: OrderSaveContext, v: OrderInput, target: OrderSav
     if (existing) {
       id = existing.id;
       updateOrderRow(ctx, existing, { ...row, customerName: previous?.customerId === v.customerId ? previous.customerName : customer.name });
-      removeDroppedLines(ctx, id, previous, lines, edit);
+      removeDroppedLines(ctx, id, previous, retainedIds);
     } else id = insertOrderRow(ctx, { ...row, customerName: customer.name });
-    writeOrderLines(ctx, id, lines, edit.linked);
+    writeOrderLines(ctx, id, lines);
     return readBack(ctx.order(id, includeArchived), '订单');
   });
 }
 
 type LineInput = OrderInput['lines'][number];
 type StoredLineView = Order['lines'][number];
+
+function checkedLineIds(lines: readonly LineInput[], previous: Order | undefined) {
+  const allowed = new Set(previous?.lines.map((line) => line.id)), retained = new Set<number>();
+  for (const { id } of lines) {
+    if (id === undefined) continue;
+    if (!allowed.has(id) || retained.has(id)) throw new InputError('明细编号重复或不属于当前订单。');
+    retained.add(id);
+  }
+  return retained;
+}
 
 /**
  * 明细的名称：这一行换了产品，名称跟着新产品的档案走，不收带过来的旧名称，免得编号和名称指的不是一个东西；
@@ -253,13 +243,11 @@ function updateOrderRow(ctx: OrderSaveContext, existing: ExistingRecord, { v, cu
   if (!r.changes) throw new ConflictError();
 }
 
-/** 改订单时去掉旧明细：没关联单据的整批重写；有关联的按单据流转的判断，只删这次没有的行 */
-function removeDroppedLines(ctx: OrderSaveContext, id: number, previous: Order | undefined, lines: SavedLine[], edit: ReturnType<OrderEditGuard>) {
-  if (!edit.linked) ctx.db.prepare('DELETE FROM order_lines WHERE order_id=?').run(id);
-  else if (edit.removeMissingLines && previous)
-    for (const old of previous.lines)
-      if (!lines.some((l) => l.id === old.id))
-        ctx.db.prepare('DELETE FROM order_lines WHERE id=? AND order_id=?').run(old.id, id);
+/** 只删这次没有带回的原明细。 */
+function removeDroppedLines(ctx: OrderSaveContext, id: number, previous: Order | undefined, retainedIds: ReadonlySet<number>) {
+  for (const old of previous?.lines ?? [])
+    if (!retainedIds.has(old.id))
+      ctx.db.prepare('DELETE FROM order_lines WHERE id=? AND order_id=?').run(old.id, id);
 }
 
 /** 新建订单头，返回编号：订单号里的序号就是真正分到的编号，删掉的订单编号也不复用 */
@@ -290,8 +278,8 @@ function insertOrderRow(ctx: OrderSaveContext, { v, customerName, total, extras,
   );
 }
 
-/** 写明细：已有生产、送货记录的订单，原有明细保留编号原地改；别的明细都是新插入 */
-function writeOrderLines(ctx: OrderSaveContext, id: number, lines: SavedLine[], linked: boolean) {
+/** 原明细保留编号原地改，没有编号的行新插入。 */
+function writeOrderLines(ctx: OrderSaveContext, id: number, lines: SavedLine[]) {
   // unit_price_cents 是由 unit_price_e4 算出来的列，不写；没给的料号、备注、税率、含税口径、交期存 NULL（给了空串的存空串）
   const lineValues = (l: (typeof lines)[number]) => [
     l.productId,
@@ -313,7 +301,7 @@ function writeOrderLines(ctx: OrderSaveContext, id: number, lines: SavedLine[], 
       'UPDATE order_lines SET product_id=?,product_name=?,specification=?,quantity=?,unit=?,unit_price_e4=?,customer_product_code=?,notes=?,tax_rate=?,tax_mode=?,delivery_date=? WHERE id=? AND order_id=?',
     );
   for (const l of lines) {
-    if (linked && l.id) update.run(...lineValues(l), l.id, id);
+    if (l.id !== undefined) update.run(...lineValues(l), l.id, id);
     else insert.run(id, ...lineValues(l));
   }
 }

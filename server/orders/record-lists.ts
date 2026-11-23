@@ -1,7 +1,8 @@
+import { trackOrders } from './tracked-orders.js';
 import { z } from 'zod';
 import { pageRows, InputError, type Store } from '../core/index.js';
 import { productIdsOfCustomer } from '../operations/index.js';
-import type { Order } from '../../shared/core/index.js';
+import type { TrackedOrder } from '../../shared/core/index.js';
 import {
   customerQuerySchema,
   matchesOperationalRecord,
@@ -23,7 +24,7 @@ import {
 export const listFields = (query: unknown) => z.record(z.string(), z.unknown()).parse(query);
 
 /** 订单的筛选：客户、产品、下单日期、显示状态、关键字、待处理/全部/历史（判断和助手同一份 orderMatches） */
-export function filterOrders<T extends Order>(f: z.output<typeof orderQuerySchema>, rows: T[]) {
+export function filterOrders<T extends TrackedOrder>(f: z.output<typeof orderQuerySchema>, rows: T[]) {
   if (f.start && f.end && f.start > f.end) throw new InputError('开始日期不能晚于结束日期');
   const filter = { ...f, retainPending: f.retainPending === '1' };
   return rows.filter((o) => orderMatches(o, filter));
@@ -68,7 +69,7 @@ export function productList(store: Store, query: Record<string, unknown>, includ
 /** 订单列表。withMetrics=1 时分页并带统计（{ rows, filteredRecords, page…, totalRecords, metrics }），不带时直接返回数组 */
 export function orderList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
   const f = orderQuerySchema.parse(query);
-  const scoped = listed(store.orders(includeArchived), store.archivedIds('orders'), f.archived);
+  const scoped = listed(trackOrders(store, store.orders(includeArchived)), store.archivedIds('orders'), f.archived);
   const rows = filterOrders(f, scoped);
   return query.withMetrics === '1'
     ? { ...pageRows(rows, query), totalRecords: scoped.length, metrics: orderMetrics(rows) }

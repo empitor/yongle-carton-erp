@@ -1,7 +1,9 @@
 import type { Store } from '../core/index.js';
+import type { TrackedOrder } from '../../shared/core/index.js';
 import { batchNumbers } from '../operations/index.js';
 import { sourceFileNames, type FlowService } from '../flow/index.js';
 import { businessList, businessRecords } from '../lifecycle/index.js';
+import { trackOrders } from '../orders/index.js';
 import type { FlowDocView, FlowKind, RecordEntity } from '../../shared/business/index.js';
 
 /*
@@ -9,8 +11,16 @@ import type { FlowDocView, FlowKind, RecordEntity } from '../../shared/business/
  * 单据按种类读，补上关联的名称。给了编号只读这几条（按主键批量读），没给读全部。
  */
 
-/** 档案、订单、采购单、库存品：全部或按编号 */
-export function entityRecords<E extends RecordEntity>(store: Store, entity: E, includeArchived: boolean, ids?: readonly number[]) {
+export type EntityRecordOf = {
+  [E in RecordEntity]: E extends 'orders' ? TrackedOrder : ReturnType<typeof businessList<E>>[number];
+};
+/** 档案、带进度的订单、采购单、库存品：全部或按编号 */
+export function entityRecords<E extends RecordEntity>(store: Store, entity: E, includeArchived: boolean, ids?: readonly number[]): EntityRecordOf[E][];
+export function entityRecords(store: Store, entity: RecordEntity, includeArchived: boolean, ids?: readonly number[]) {
+  if (entity === 'orders') {
+    const orders = ids ? store.ordersByIds(ids, includeArchived) : store.orders(includeArchived);
+    return trackOrders(store, orders);
+  }
   return ids ? businessRecords(store, entity, ids, includeArchived) : businessList(store, entity, includeArchived);
 }
 

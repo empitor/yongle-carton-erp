@@ -60,7 +60,7 @@ function LineRow({ pick, item, index, first }: { pick: DeliveryPick; item: Stock
             .filter((c) => c.orderLineId === line.orderLineId || !lines.some((l) => l.orderLineId === c.orderLineId))
             .map((c) => (
               <option key={c.orderLineId} value={c.orderLineId}>
-                {c.orderNumber} · {c.productName} · 待交付 {c.remainingQuantity ?? c.quantity} {c.unit}
+                {c.orderNumber} · {c.productName} · 待交付 {c.remainingQuantity} {c.unit}
               </option>
             ))}
         </select>

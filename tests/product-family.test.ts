@@ -1,6 +1,4 @@
 import { pageActor } from './actor-fixture.js';
-// 产品改了成品库存要跟着改（server/core/db.ts 的 registerProductStockSync），由采购库存模块登记，正式服务启动时一定会加载
-import '../server/operations/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

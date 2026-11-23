@@ -67,9 +67,12 @@ test('订单明细按编号对行：照读到的明细插一行、删一行都�
     let row = listed(f, 'orders', order.id);
     const added = { productId: f.product.id, quantity: 50, unit: '只', unitPriceCents: 100 };
     send(f, 'orders', row.record, { lines: [added, ...row.record.lines] });
-    assert.deepEqual(f.store.order(order.id, true)?.lines.map((l) => l.quantity), [50, 100, 200]);
+    const savedLines = f.store.order(order.id, true)?.lines;
+    assert.ok(savedLines);
+    assert.deepEqual(savedLines.map((l) => l.quantity), [100, 200, 50]);
+    assert.deepEqual(savedLines.slice(0, 2).map((l) => l.id), order.lines.map((l) => l.id));
     row = listed(f, 'orders', order.id);
-    send(f, 'orders', row.record, { lines: row.record.lines.slice(1) });
+    send(f, 'orders', row.record, { lines: row.record.lines.filter((l) => l.id !== savedLines[2].id) });
     assert.deepEqual(f.store.order(order.id, true)?.lines.map((l) => l.quantity), [100, 200]);
     row = listed(f, 'orders', order.id);
     const [first, second] = row.record.lines;

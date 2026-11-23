@@ -11,7 +11,7 @@ import { shippingProgresses } from './fulfillment.js';
 const materialProgresses = ['none', 'pending', 'partial', 'done'] as const;
 const optionalText = z.string().optional();
 
-/** 读出来的订单明细：一定有编号、产品名称和四位小数的精确单价，多带发货数和这一行的发货进度 */
+/** 读出来的订单明细：一定有编号、产品名称和四位小数的精确单价 */
 const orderLineView = z.object({
   id: z.number(),
   productId: z.number(),
@@ -26,9 +26,6 @@ const orderLineView = z.object({
   taxRate: optionalText,
   taxMode: optionalText,
   deliveryDate: optionalText,
-  shippedQuantity: z.number().optional(),
-  remainingQuantity: z.number().optional(),
-  shippingStatus: z.enum(shippingProgresses).optional(),
 });
 
 /** 预估成本（分）和估算依据 */
@@ -40,7 +37,7 @@ const costView = z.object({
   basis: z.string(),
 });
 
-export const orderViewSchema = z.object({
+const orderHeadView = z.object({
   id: z.number(),
   number: z.string(),
   customerId: z.number(),
@@ -63,9 +60,18 @@ export const orderViewSchema = z.object({
   costCents: z.number().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  shippingProgress: z.enum(shippingProgresses).optional(),
-  shippingSummary: z.object({ progress: z.string(), completedLines: z.number(), totalLines: z.number() }).optional(),
-  materialProgress: z.enum(materialProgresses).optional(),
-  lines: z.array(orderLineView),
 });
+const orderViewSchema = orderHeadView.extend({ lines: z.array(orderLineView) });
 export type Order = z.output<typeof orderViewSchema>;
+
+export const trackedOrderViewSchema = orderHeadView.extend({
+  shippingProgress: z.enum(shippingProgresses),
+  shippingSummary: z.object({ progress: z.string(), completedLines: z.number(), totalLines: z.number() }),
+  materialProgress: z.enum(materialProgresses),
+  lines: z.array(orderLineView.extend({
+    shippedQuantity: z.number(),
+    remainingQuantity: z.number(),
+    shippingStatus: z.enum(shippingProgresses),
+  })),
+});
+export type TrackedOrder = z.output<typeof trackedOrderViewSchema>;

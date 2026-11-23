@@ -75,7 +75,7 @@ function shippable(orders: Orders, items: Items) {
         customerName: order.customerName,
         productName: line.productName,
         deliveryDate: line.deliveryDate || order.deliveryDate || '',
-        remaining: String(line.remainingQuantity ?? line.quantity),
+        remaining: String(line.remainingQuantity),
         unit: line.unit,
         stockId: stock.id,
         available: stock.availableUnits,

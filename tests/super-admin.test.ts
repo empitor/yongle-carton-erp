@@ -241,7 +241,8 @@ test('删除客户连带它的订单：影响清单列出整张订单；没带�
     // 删掉的编号不复用
     const newCustomer = f.store.saveCustomer(customerSchema.parse({ name: '删除后新客户' }));
     assert.ok(newCustomer.id > f.customer.id);
-    assert.ok(f.store.saveOrder(orderSchema.parse({ ...f.order, customerId: newCustomer.id })).id > f.order.id);
+    const lines = f.order.lines.map(({ id: _oldLineId, ...line }) => line);
+    assert.ok(f.store.saveOrder(orderSchema.parse({ ...f.order, customerId: newCustomer.id, lines })).id > f.order.id);
     const copy = new Store(f.file);
     assert.equal(copy.customer(f.customer.id, true), undefined);
     assert.equal(copy.order(f.order.id, true), undefined);

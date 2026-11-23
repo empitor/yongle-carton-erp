@@ -4,7 +4,7 @@ export { buildDashboard } from './dashboard.js';
 export { periodOrders } from './period-records.js';
 export { historyRefs } from './history-refs.js';
 export { entityRecords, namedDocuments } from './module-records.js';
-export type { NamedDocument } from './module-records.js';
+export type { EntityRecordOf, NamedDocument } from './module-records.js';
 export { marksRouter } from './mark-router.js';
 export { MarkService } from './product-marks.js';
 export { auditTrail, recordContext } from './record-context.js';

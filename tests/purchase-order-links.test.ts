@@ -1,3 +1,4 @@
+import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -68,7 +69,7 @@ test('一张采购单可以给几张订单订料：明细各自关联订单，�
     [f.a.number, f.b.number],
   );
   for (const order of [f.a, f.b]) {
-    assert.equal(f.store.order(order.id, true)?.materialProgress, 'pending', '订料进度按每行关联的订单算');
+    assert.equal(trackedOrder(f.store, order.id, true)?.materialProgress, 'pending', '订料进度按每行关联的订单算');
     const related = relatedBusiness(f.store, 'orders', order.id);
     assert.deepEqual(related?.purchases.map((p) => p.id), [f.purchase.id]);
   }
@@ -78,8 +79,8 @@ test('一张采购单可以给几张订单订料：明细各自关联订单，�
   assert.deepEqual(storedLinks(f.store, f.purchase.id), [[f.a.id, null], [f.b.id, null]]);
   assert.deepEqual(f.purchase.lines.map((l) => l.customerOrderId), [f.a.id, f.b.id]);
   // 订料进度：按一张订单、按几张订单、全部订单三种读法结果一样
-  assert.deepEqual(f.store.ordersByIds([f.a.id, f.b.id], true).map((o) => o.materialProgress), ['pending', 'pending']);
-  assert.deepEqual(f.store.orders(true).map((o) => o.materialProgress), ['pending', 'pending']);
+  assert.deepEqual(trackOrders(f.store, f.store.ordersByIds([f.a.id, f.b.id], true)).map((o) => o.materialProgress), ['pending', 'pending']);
+  assert.deepEqual(trackOrders(f.store, f.store.orders(true)).map((o) => o.materialProgress), ['pending', 'pending']);
 });
 
 test('采购明细关联的订单是真外键列：JSON 里再存一份、指向不存在的订单都被数据库拒绝；按订单找采购用得上索引', () => {
@@ -203,7 +204,7 @@ test('合并导出订货单时同种纸板合成一行；到货入库流水记�
     [f.a.id, 300_000],
     [f.b.id, 200_000],
   ].sort((x, y) => x[0] - y[0]));
-  for (const order of [f.a, f.b]) assert.equal(f.store.order(order.id, true)?.materialProgress, 'done');
+  for (const order of [f.a, f.b]) assert.equal(trackedOrder(f.store, order.id, true)?.materialProgress, 'done');
 });
 
 test('已有到货后仍可改每行关联的订单，其他内容不动', () => {

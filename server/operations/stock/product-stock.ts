@@ -1,11 +1,13 @@
-// 产品改了名称、尺寸、材质、楞型、加工要求（规格说明由它们拼成），它的成品库存跟着改（登记点见 server/core/db.ts 的 registerProductStockSync）。由本模块的 index.ts 引入。
-import { audit, one, registerProductStockSync, rows } from '../../core/index.js';
+// 产品改了名称、尺寸、材质、楞型、加工要求（规格说明由它们拼成），它的成品库存跟着改。
+import { audit, one, rows, type Actor, type Store } from '../../core/index.js';
+import type { Product } from '../../../shared/core/index.js';
 import { OperationsRepository } from '../ledger/repository.js';
 import { readStockDocument, stockDocumentText } from '../ledger/stock-document.js';
 import { finishedFromProduct } from './stock-items.js';
 
 /** 按产品现在的资料对齐它的成品库存（没有成品库存就不动；跟着产品的几项没变也不动） */
-export const syncFinishedStock: Parameters<typeof registerProductStockSync>[0] = (store, product, actor) => {
+export function syncFinishedStock(store: Store, previous: Product, product: Product, actor?: Actor) {
+  if (productStockFields(previous) === productStockFields(product)) return;
   const row = one(store.db, rows.stock_items.pick({ id: true, name: true, document: true }), 'SELECT id,name,document FROM stock_items WHERE product_id=?', product.id);
   if (!row) return;
   const { name, ...fields } = finishedFromProduct(product),
@@ -34,5 +36,17 @@ export const syncFinishedStock: Parameters<typeof registerProductStockSync>[0] =
         after: repo.items(true, row.id)[0],
       },
     });
-};
-registerProductStockSync(syncFinishedStock);
+}
+
+/** 成品规格说明由产品尺寸、材质、楞型和加工要求拼成。 */
+const productStockFields = (product: Product) =>
+  JSON.stringify([
+    product.name,
+    product.length ?? null,
+    product.width ?? null,
+    product.height ?? null,
+    product.dimensionUnit ?? null,
+    product.material,
+    product.flute,
+    product.requirements,
+  ]);

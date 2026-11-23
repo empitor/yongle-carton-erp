@@ -7,7 +7,7 @@ import { exists } from './sql.js';
 
 /*
  * 产品的保存（表归基础）：参考单价只存一份、这次没给的附加信息沿用原来的、附属关系的核对。
- * 连带改成品库存在 Store.saveProduct（db.ts）；用到的 Store 能力从参数传进来，这个文件不引用 db.ts。
+ * 连带改成品库存在订单服务（server/orders/service.ts）；用到的 Store 能力从参数传进来，这个文件不引用 db.ts。
  */
 
 /** 存产品要用的：库连接和按编号读产品 */

@@ -1,7 +1,7 @@
 // 采购库存的表的删除、初始化规则（server/core/deletion-rules.ts）
 import './deletion.js';
-// 产品改了，成品库存跟着改（登记点在 server/core/db.ts 的 registerProductStockSync）
-import './stock/product-stock.js';
+export { syncFinishedStock } from './stock/product-stock.js';
+export { materialByOrder } from './ledger/material-progress.js';
 export { OrderBatchService } from './batches/batches.js';
 export { readBatchSchedule } from './batches/batch-schedule.js';
 export { stockLedger } from './ledger/ledger.js';

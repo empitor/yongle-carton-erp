@@ -1,4 +1,5 @@
 // 仓库每日记录（server/flow/daily.ts）：到货、送货按日期归属，待入库、待送货和完成分开算。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -89,7 +90,7 @@ test('每日送货按计划日和实际出库日分别归属，分批送货的�
     assert.equal(first.records[0].lines[0].remainingQuantity, 6000);
     assert.equal(first.records[0].lines[0].movements.length, 1);
     f.confirm(f.saveDelivery('6000', { date: '2026-10-30', plannedDate: null }));
-    assert.equal(f.store.orders()[0].shippingProgress, '已发完');
+    assert.equal(trackedOrder(f.store, f.order.id)?.shippingProgress, '已发完');
     assert.equal(f.ops.balance(f.stock.id), 0);
     const secondDay = f.daily.get({ kind: 'delivery', date: '2026-10-30' }).summary;
     assert.ok(secondDay);

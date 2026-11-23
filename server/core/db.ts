@@ -4,16 +4,14 @@ import { resolve } from 'node:path';
 import { APP_VERSION } from '../../shared/core/index.js';
 import type { Customer, CustomerInput, Product, ProductInput, Order, OrderInput } from '../../shared/core/index.js';
 import { priceFromE4, productSchema } from '../../shared/core/index.js';
-import { orderViews, saveOrder } from './orders.js';
+import { orderViews, saveOrder, type OrderEditCheck } from './orders.js';
 import { existingRecord, given, readBack } from './record-fields.js';
 import { rows, type Rows } from './schema/rows.js';
 import { exists, many, one } from './sql.js';
 import { saveProductRecord } from './products.js';
 import { openBusinessDatabase, optimizeDatabase, reclaimSpace } from './schema/index.js';
-import { AppError, ConflictError } from './errors.js';
-import { inSavepoint } from './savepoint.js';
+import { ConflictError } from './errors.js';
 import { assertRecordKind } from './record-kinds.js';
-import type { Actor } from './actor.js';
 
 export const defaultDbPath = resolve(process.env.DB_PATH || 'data/erp.sqlite');
 /** 客户、供应商：库里的一行 → 接口里的往来单位（两张表的列一样；供应商视图在 server/operations/repository.ts 再加归档和采购历史） */
@@ -169,23 +167,11 @@ export class Store {
       );
     return readBack(this.customer(saved, includeArchived), '客户');
   }
-  /**
-   * 保存产品（规则见 products.ts）。改了名称、尺寸、材质、楞型的，它的成品库存在同一个事务里跟着改（见 product-stock-sync.ts），
-   * actor 是改产品的人，成品库存的审计记在他名下。
-   */
-  saveProduct(v: ProductInput, id?: number, version?: number, includeArchived = false, actor?: Actor) {
-    const existing = existingRecord(id, version);
-    return inSavepoint(this.db, () => {
-      const prior = existing ? this.product(existing.id, true) : undefined;
-      const result = saveProductRecord(this, v, { existing, includeArchived });
-      if (prior && existing) {
-        const saved = readBack(this.product(existing.id, true), '产品');
-        if (productStockFields(prior) !== productStockFields(saved)) productStockSync()(this, saved, actor);
-      }
-      return result;
-    });
+  /** 保存产品档案（规则见 products.ts）。 */
+  saveProduct(v: ProductInput, id?: number, version?: number, includeArchived = false) {
+    return saveProductRecord(this, v, { existing: existingRecord(id, version), includeArchived });
   }
-  /** 订单视图（明细、发货进度、订料进度，见 orders.ts） */
+  /** 普通订单视图（订单头和明细，见 orders.ts） */
   orders(includeArchived = false): Order[] {
     return orderViews(this, undefined, includeArchived);
   }
@@ -213,37 +199,8 @@ export class Store {
       .prepare('UPDATE orders SET total_cents=' + total + ',version=version+1,updated_at=? WHERE total_cents<>' + total)
       .run(new Date().toISOString());
   }
-  /** 保存订单（规则见 orders.ts 的 saveOrder）；databaseMaintenance 是本机管理员的数据维护 */
-  saveOrder(v: OrderInput, id?: number, version?: number, includeArchived = false, databaseMaintenance = false): Order {
-    return saveOrder(this, v, { existing: existingRecord(id, version), includeArchived, databaseMaintenance });
+  /** 保存订单（规则见 orders.ts 的 saveOrder），改单核对由调用方传入 */
+  saveOrder(v: OrderInput, id?: number, version?: number, includeArchived = false, checkEdit?: OrderEditCheck): Order {
+    return saveOrder(this, v, { existing: existingRecord(id, version), includeArchived, checkEdit });
   }
 }
-
-/**
- * 一个产品只有一个成品库存，成品库存的名称、尺寸、材质、楞型、规格说明一律取产品的（规格说明由产品的尺寸、
- * 材质、楞型、加工要求拼成）。产品的这几项改了，
- * 它的成品库存要在同一个事务里跟着改（版本号加一、写审计）。产品在基础模块保存（上面的 Store.saveProduct），
- * 成品库存归采购库存模块，基础不能引用它，所以由采购库存加载时登记实现（server/operations/product-stock.ts）。
- * 没登记就报错，不会悄悄跳过。actor 是这次改产品的人，没有登录（只在测试里）时不写审计。
- */
-export type ProductStockSync = (store: Store, product: Product, actor: Actor | undefined) => void;
-let sync: ProductStockSync | null = null;
-export function registerProductStockSync(s: ProductStockSync) {
-  sync = s;
-}
-export function productStockSync(): ProductStockSync {
-  if (!sync) throw new AppError('产品改了要连带改它的成品库存，但采购库存模块没有加载。', 500);
-  return sync;
-}
-/** 成品库存跟着产品的那几项：名称、长宽高和尺寸单位、材质、楞型、加工要求（规格说明由它们拼成） */
-export const productStockFields = (p: Partial<Product>) =>
-  JSON.stringify([
-    p.name ?? '',
-    p.length ?? null,
-    p.width ?? null,
-    p.height ?? null,
-    p.dimensionUnit ?? null,
-    p.material ?? '',
-    p.flute ?? '',
-    p.requirements ?? '',
-  ]);

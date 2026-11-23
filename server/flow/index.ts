@@ -11,6 +11,8 @@ export { PurchaseReturns } from './arrival/returns.js';
 export { flowRouter } from './router.js';
 export { insertSource, updateSourceDocument } from './documents/sources.js';
 export { detachTasks, moveDeliveries, retainDeliveryLines } from './rules/order-edit-cascade.js';
+export { orderEditGuard } from './rules/order-edit-guard.js';
+export { shippedByLine } from './documents/shipped.js';
 export { FlowService } from './rules/service.js';
 export { arrivalHeads, documentVersions, pendingCompletionVersions, referencingDocuments, sourceFileNames } from './documents/document-lookups.js';
 export { finishedStockOfProduct, stockItemBatches } from './stock/stock-batches.js';

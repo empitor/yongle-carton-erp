@@ -1,4 +1,5 @@
 // 删除引擎删记录、归档和恢复、管理员直接改已确认的单据：原表、流水、归档标记、外键都对得上。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -143,7 +144,7 @@ test('已确认生产和送货可直接物理删除并明确保留/重算库存�
     f.del('delivery', delivery, 'recalculate');
     assert.equal(f.flow.list('delivery', true).length, 0);
     assert.equal(f.ops.balance(f.finished.id), 860000);
-    assert.equal(must(f.store.order(f.order.id), '订单').lines[0].shippedQuantity, 0);
+    assert.equal(must(trackedOrder(f.store, f.order.id), '订单').lines[0].shippedQuantity, 0);
     f.del('production', production);
     assert.equal(f.flow.list('production', true).length, 0);
     assert.equal(f.ops.balance(f.finished.id), 860000);

@@ -6,8 +6,10 @@ import { FlowService } from '../flow/index.js';
 import { AppError, count, many, parseStoredJson, rows } from '../core/index.js';
 import { dataManagementModules, flowEntity, flowKinds, flowStatus, isFlowKind, recordEntities } from '../../shared/business/index.js';
 import { purchaseOrderLinks } from '../operations/index.js';
-import { businessRecord, businessRecords } from '../lifecycle/index.js';
+import { businessRecord } from '../lifecycle/index.js';
+import { trackOrders } from '../orders/index.js';
 import { historyRefs } from './history-refs.js';
+import { entityRecords } from './module-records.js';
 
 /** 记录上的修改历史最多列几条（新的在前） */
 const RECORD_HISTORY_LIMIT = 50;
@@ -209,7 +211,7 @@ function addUpstream(store: Store, flow: FlowService, id: number, add: (m: strin
   const parentRecords = new Map(
     parentColumns.map(([column, parent]) => [
       parent,
-      new Map<number, Linkable>(businessRecords(store, parent, valuesOf((r) => r[column]), true).map((r) => [r.id, r])),
+      new Map<number, Linkable>(entityRecords(store, parent, true, valuesOf((r) => r[column])).map((r) => [r.id, r])),
     ]),
   );
   const parentTasks = new Map(flow.list(undefined, true, undefined, valuesOf((r) => r.task_id)).map((task) => [task.id, task]));
@@ -242,7 +244,7 @@ export function recordContext(store: Store, module: string, id: number, who: Act
   const { related, add } = relatedList(module, id);
   const orderIds = relatedOrderIds(store, module, id);
   if (module === 'customers' || module === 'products')
-    for (const order of store.ordersByIds([...orderIds], true)) add('orders', order);
+    for (const order of trackOrders(store, store.ordersByIds([...orderIds], true))) add('orders', order);
   const purchases = relatedPurchases(store, module, id, orderIds);
   for (const p of purchases) add('purchases', p);
   const purchaseIds = new Set(purchases.map((p) => p.id));
@@ -251,7 +253,8 @@ export function recordContext(store: Store, module: string, id: number, who: Act
   for (const d of docs) add(d.kind, d);
   if (physical) addUpstream(store, flow, id, add);
   // 一个任务/送货单可包含多个订单；完整展示扩展影响，不能隐藏共同引用。
-  const orders = new Map(store.ordersByIds([...new Set(docs.flatMap(documentOrderIds))], true).map((o) => [o.id, o]));
+  const orderRows = store.ordersByIds([...new Set(docs.flatMap(documentOrderIds))], true);
+  const orders = new Map(trackOrders(store, orderRows).map((o) => [o.id, o]));
   for (const d of docs)
     for (const orderId of documentOrderIds(d)) {
       const order = orders.get(orderId);

@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { many, rows } from '../server/core/index.js';
 import { orderSchema } from '../shared/core/domain.js';
 import { splitDeliveryFixture } from './maintenance-fixture.js';
-import { orderOf } from './flow-fixture.js';
+import { orderOf, trackedOrderOf } from './flow-fixture.js';
 
 test('管理员改订单去掉一行：只挂这一行的送货单删掉、几行合送的去掉这一行、这种产品的生产任务不再关联它；别的订单的单据不动', () => {
   const f = splitDeliveryFixture();
@@ -137,7 +137,7 @@ test('改订单删掉明细：整张送货单都是被删的行，和只删其�
         assert.deepEqual(f.own(d.id), { out: -100000, back: 0 }, '留下的那一行还记在这张单上');
         assert.deepEqual(f.flow.get(d.id, 'delivery').lines.map((l) => l.quantity), ['100']);
       }
-      const order = orderOf(f.store, a.id);
+      const order = trackedOrderOf(f.store, a.id);
       assert.deepEqual(
         [order.lines.length, order.lines[0].shippedQuantity, order.status],
         wholeDocument ? [1, 0, '已确认'] : [1, 100, '已发货'],

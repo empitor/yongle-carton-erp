@@ -1,4 +1,4 @@
-import { finishedUnit, quantityString, safeUnits, type Order } from '../../shared/core/index';
+import { finishedUnit, quantityString, safeUnits, type TrackedOrder } from '../../shared/core/index';
 import { activeDoc, specificationMismatch, specificationMismatchText, stockByProduct } from '../../shared/business/index';
 
 /**
@@ -27,7 +27,7 @@ type ReasonTask = {
 /** 关联业务里的成品库存品：按产品取，比规格（采购库存的视图进共用以前，只写这里读的几项） */
 type ReasonStock = { productId?: number | null } & Parameters<typeof specificationMismatch>[0];
 /** 订单和明细只读这几项（状态只比“生产中”） */
-type ReasonLine = Pick<Order['lines'][number], 'id' | 'productId' | 'productName' | 'specification' | 'quantity' | 'remainingQuantity' | 'unit'>;
+type ReasonLine = Pick<TrackedOrder['lines'][number], 'id' | 'productId' | 'productName' | 'specification' | 'quantity' | 'remainingQuantity' | 'unit'>;
 type ReasonOrder = { id: number; status: string; archived?: boolean; lines: readonly ReasonLine[] };
 /** 按产品合起来的明细（规格对不上的那一行单独一组）：要做多少、还有没有没发完的 */
 type LineGroup = { productId: number; name: string; unit: string; need: number; open: boolean; mismatch: string };
@@ -48,8 +48,7 @@ function lineGroups(lines: readonly ReasonLine[], stocks: Map<number, ReasonStoc
       key = String(l.productId) + (mismatch ? '|mismatch-' + l.id : ''),
       g = groups.get(key) || { productId: l.productId, name: l.productName, unit, need: 0, open: false, mismatch };
     g.need += safeUnits(l.quantity);
-    // 历史订单发货数量未知的按没发完算，和服务端一致。
-    if (l.remainingQuantity == null || safeUnits(l.remainingQuantity) > 0) g.open = true;
+    if (safeUnits(l.remainingQuantity) > 0) g.open = true;
     groups.set(key, g);
   }
   return groups.values();

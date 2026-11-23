@@ -12,7 +12,7 @@ import { customerSchema } from '../shared/core/domain.js';
 import { flowStatusLabel } from '../shared/business/physical-flow.js';
 import { manualWrite } from './business-base-fixture.js';
 import { splitDeliveryFixture } from './maintenance-fixture.js';
-import { orderOf } from './flow-fixture.js';
+import { orderOf, trackedOrderOf } from './flow-fixture.js';
 
 const tables = ['orders', 'order_lines', 'flow_documents', 'flow_refs', 'stock_movements', 'stock_movement_revisions', 'business_audit'];
 const snapshot = (f: ReturnType<typeof splitDeliveryFixture>) =>
@@ -230,7 +230,7 @@ test('一张送货单发三张订单，其中一张换客户：三张订单的�
     );
     const maxSeq = Math.max(...f.moves().map((m) => Number(m.seq)));
     const orderView = (id: number) => {
-      const o = orderOf(f.store, id);
+      const o = trackedOrderOf(f.store, id);
       return [o.customerId, o.status, o.lines[0].shippedQuantity];
     };
 

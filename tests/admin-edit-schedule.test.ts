@@ -6,7 +6,7 @@ import { today } from '../shared/core/domain.js';
 import { planDate, shiftDate } from '../shared/business/schedule.js';
 import { flowInput } from '../shared/business/physical-flow.js';
 import { saveDoc } from './receive-fixture.js';
-import { flowFixture, localAdmin, clerk, orderOf } from './flow-fixture.js';
+import { flowFixture, localAdmin, clerk, trackedOrderOf } from './flow-fixture.js';
 import { fixture, owner } from './admin-edit-fixture.js';
 import { actor } from './actor-fixture.js';
 
@@ -106,7 +106,7 @@ function checkProductionSchedule(f: ScheduleFixture, { task, product, finished }
 }
 
 function shippedQuantity(f: ScheduleFixture, id: number) {
-  return orderOf(f.store, id).lines[0].shippedQuantity;
+  return trackedOrderOf(f.store, id).lines[0].shippedQuantity;
 }
 
 test('生产与送货排程：未来计划独立于实际、部分生产可改期、完成拒绝改期、确认才产生实绩库存', () => {

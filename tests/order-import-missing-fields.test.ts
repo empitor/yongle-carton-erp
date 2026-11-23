@@ -14,8 +14,6 @@ import { orderSchema, customerSchema, productSchema } from '../shared/core/domai
 import { inspectCurrency } from '../shared/core/currency.js';
 import { docxFixture } from './import-fixtures.js';
 import { importWorkspace, tempDir } from './order-import-fixture.js';
-// 订单保存要单据流转登记的改单核对、进度规则
-import '../server/flow/index.js';
 
 /** 模型替身交回的表：明细的格子要能故意填坏（对象、数字）再交给表的结构校验，所以值是 unknown */
 type Form = { header: Record<string, string | null>; lines: Record<string, unknown>[] };

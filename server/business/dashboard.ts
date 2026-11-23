@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { many, parseStoredJson, rows as tables, type Store } from '../core/index.js';
 import { flowDocumentSchema, flowStatus, purchaseState } from '../../shared/business/index.js';
 import { buildWorkbench } from './workbench.js';
-import { dateSchema, displayOrderStatuses, orderDisplayStatus, today, type Order } from '../../shared/core/index.js';
+import { dateSchema, displayOrderStatuses, orderDisplayStatus, today, type TrackedOrder } from '../../shared/core/index.js';
 import type { Dashboard } from '../../shared/business/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, monthsBefore } from '../../shared/core/index.js';
 import { documentValueCents, sumMoney } from '../../shared/business/index.js';
@@ -10,7 +10,7 @@ import { quantityString } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import type { MovementView, PurchaseView, StockItemView, UnitBalance } from '../../shared/business/index.js';
 import { orderMetrics, orderQuerySchema, productMetrics, pendingPurchase } from '../../shared/business/index.js';
-import { filterOrders } from '../orders/index.js';
+import { filterOrders, trackOrders } from '../orders/index.js';
 import { periodOrders, periodPurchases, type DateRange } from './period-records.js';
 
 /** 经营概况：按订单的筛选条件和统计日期算 */
@@ -85,7 +85,7 @@ function newestFirst<T extends { orderDate: string; id: number }>(list: readonly
 }
 
 /** 最近动态：最近的订单、采购单、库存流水合在一起，日期新的在前 */
-function recentActivity(orders: Order[], purchases: PurchaseView[], movements: MovementView[]): Overview['activity'] {
+function recentActivity(orders: TrackedOrder[], purchases: PurchaseView[], movements: MovementView[]): Overview['activity'] {
   return [
     ...orders.map((o) => ({
       id: 'order-' + o.id,
@@ -124,7 +124,7 @@ function recentActivity(orders: Order[], purchases: PurchaseView[], movements: M
 }
 
 /** 订单概况：区间里的（含几张已归档的）、全部没归档的待办和逾期，以及算作历史的 */
-function orderOverview(inRange: Order[], all: Order[], date: string, archived: number): Overview['orders'] {
+function orderOverview(inRange: TrackedOrder[], all: TrackedOrder[], date: string, archived: number): Overview['orders'] {
   return {
     total: inRange.length,
     archived,
@@ -177,10 +177,10 @@ function inventoryOverview(items: StockItemView[]): Overview['inventory'] {
 }
 
 /** 区间里有效的订单（不算待确认、已取消）的数量、金额、估算成本和利润、按状态的张数（各含几张已归档的） */
-function orderFigures(rows: Order[], date: string, archived: (o: Order) => boolean) {
+function orderFigures(rows: TrackedOrder[], date: string, archived: (o: TrackedOrder) => boolean) {
   const valid = rows.filter(effectiveOrder),
     costed = valid.filter((o) => o.costCents !== null);
-  const sum = (items: Order[], key: 'totalCents' | 'costCents') => items.reduce((n, o) => n + (o[key] || 0), 0);
+  const sum = (items: TrackedOrder[], key: 'totalCents' | 'costCents') => items.reduce((n, o) => n + (o[key] || 0), 0);
   return {
     count: valid.length,
     amountCents: sum(valid, 'totalCents'),
@@ -205,14 +205,14 @@ function orderFigures(rows: Order[], date: string, archived: (o: Order) => boole
  */
 export function buildDashboard(
   store: Store,
-  rows: Order[],
+  rows: TrackedOrder[],
   range: DateRange,
   date = today(),
-  options: { allOrders?: Order[]; workbench?: boolean } = {},
+  options: { allOrders?: TrackedOrder[]; workbench?: boolean } = {},
 ): Dashboard {
-  const allOrders = options.allOrders ?? store.orders(),
+  const allOrders = options.allOrders ?? trackOrders(store, store.orders()),
     currentIds = new Set(allOrders.map((o) => o.id)),
-    archived = (o: Order) => !currentIds.has(o.id);
+    archived = (o: TrackedOrder) => !currentIds.has(o.id);
   const views = new FlowService(store).views,
     periodPurchase = periodPurchases(store, range);
   const inRange = (value: string) => (!range.start || value >= range.start) && (!range.end || value <= range.end);

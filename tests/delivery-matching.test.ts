@@ -1,3 +1,4 @@
+import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lineSpecification, orderSchema, productSchema, sameSpecification, specification, specificationDifference, today } from '../shared/core/domain.js';
@@ -10,7 +11,7 @@ import { buildToday } from '../server/business/workbench.js';
 import { formatStockSize } from '../shared/business/operations.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { actor } from './actor-fixture.js';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, manualWrite } from './business-base-fixture.js';
 
 /**
  * 和用户本机遇到的一样：订单明细规格只写了产品名称、没写数量单位；成品库存按“只”，规格是尺寸+材质+楞型。
@@ -40,18 +41,18 @@ test('订单规格只写了产品名称时不拿它和库存规格比对；写�
   assert.equal(lineSpecification({ specification: '虚构纸箱A_1', productName: '虚构纸箱A—1' }), '', '判断照抄品名时下划线、破折号也不算差别');
   assert.equal(lineSpecification({ specification: '虚构纸箱A-300x200x150 五层', productName: '虚构纸箱A-300x200x150' }), '虚构纸箱A-300x200x150 五层');
   const f = setup('只');
-  assert.equal(deliveryCandidates(f.item(), f.customer.id, f.store.orders()).length, 1, '产品、单位一致就能送');
+  assert.equal(deliveryCandidates(f.item(), f.customer.id, trackOrders(f.store, f.store.orders())).length, 1, '产品、单位一致就能送');
   const g = setup('只', '400×300×200 五层');
-  assert.equal(deliveryCandidates(g.item(), g.customer.id, g.store.orders()).length, 0, '尺寸不同的规格不混着发');
-  assert.equal(deliveryBlockers(g.item(), g.store.orders())[0].kind, 'spec');
+  assert.equal(deliveryCandidates(g.item(), g.customer.id, trackOrders(g.store, g.store.orders())).length, 0, '尺寸不同的规格不混着发');
+  assert.equal(deliveryBlockers(g.item(), trackOrders(g.store, g.store.orders()))[0].kind, 'spec');
 });
 
 test('订单没写单位就是“只”：读出来是只，直接能排送货、能确认发货', () => {
   const f = setup();
   assert.equal(f.store.order(f.order.id)?.lines[0].unit, '只', '老订单没写单位按“只”读');
-  assert.equal(deliveryCandidates(f.item(), f.customer.id, f.store.orders()).length, 1);
-  assert.equal(deliveryBlockers(f.item(), f.store.orders()).length, 0, '不再报“没写单位”');
-  const [plan] = planStockDelivery([f.item()], f.store.orders(), f.customer.id);
+  assert.equal(deliveryCandidates(f.item(), f.customer.id, trackOrders(f.store, f.store.orders())).length, 1);
+  assert.equal(deliveryBlockers(f.item(), trackOrders(f.store, f.store.orders())).length, 0, '不再报“没写单位”');
+  const [plan] = planStockDelivery([f.item()], trackOrders(f.store, f.store.orders()), f.customer.id);
   assert.deepEqual(plan.lines.map((l) => l.quantity), ['1000']);
   const draft = f.flow.save('delivery', { date: '2026-11-10', plannedDate: '2026-11-10', customerId: f.customer.id, address: '', contact: '', phone: '', lines: plan.lines, notes: '' }, actor);
   const done = f.check(draft);
@@ -96,7 +97,7 @@ test('“个”就是“只”：订单、库存品、生产任务写“个”�
 
 test('排产按“只”算，只扣这个产品的成品库存；已有任务在做的不再排', async () => {
   const { planProductionForOrders } = await import('../shared/business/production-plan.js');
-  const order = { id: 1, number: '虚构单1', status: '已确认', lines: [{ id: 1, productId: 9, productName: '虚构箱', quantity: 1000, unit: '只' }] };
+  const order = { id: 1, number: '虚构单1', status: '已确认', lines: [{ id: 1, productId: 9, productName: '虚构箱', quantity: 1000, remainingQuantity: 1000, unit: '只' }] };
   const items = [
     { kind: 'finished', productId: 9, unit: '只', availableUnits: quantityUnits('300') },
     { kind: 'finished', productId: 10, unit: '只', availableUnits: quantityUnits('50') },
@@ -152,7 +153,7 @@ test('只有长宽的产品（隔板、垫片）也比规格：订单写的长�
     );
     assert.equal(deliver(right).status, 'draft');
     const reread = (id: number) => {
-      const o = store.order(id);
+      const o = trackedOrder(store, id);
       assert.ok(o, '订单还在');
       return o;
     };
@@ -199,7 +200,7 @@ test('按订单排送货：规格对不上被拦下的行只在“对不上”�
     customerId: 1,
     status: '已确认',
     deliveryDate: '2026-11-20',
-    lines: [{ id: 11, productId: 1, productName: '虚构彩箱', specification, quantity: 1000, unit: '只' }],
+    lines: [{ id: 11, productId: 1, productName: '虚构彩箱', specification, quantity: 1000, remainingQuantity: 1000, unit: '只' }],
   });
   const blocked = planOrderDelivery([order('260×110×240')], [stock]);
   assert.deepEqual([blocked.groups.length, blocked.missing.length], [0, 0], '规格对不上：不排，也不说成没有库存');
@@ -218,6 +219,7 @@ test('订单下一步：规格和产品现在的对不上的明细，不算“�
     customerId: 1,
     status: '已确认',
     deliveryDate: '2026-11-20',
+    materialProgress: 'none' as const,
     lines: [
       { id: 11, productId: 1, productName: '虚构彩箱', specification, quantity: 100, remainingQuantity: 100, unit: '只' },
       { id: 12, productId: 2, productName: '虚构外箱', specification: '300*200*150', quantity: 100, remainingQuantity: 100, unit: '只' },
@@ -257,6 +259,7 @@ test('订单详情“生产任务都已完工，订单还没做齐”：规格�
     customerId: 1,
     status: '生产中',
     deliveryDate: '2026-11-20',
+    materialProgress: 'none' as const,
     lines: [
       { id: 11, productId: 2, productName: '虚构五金箱', specification: '300*200*150', quantity: 100, remainingQuantity: 0, unit: '只' },
       { id: 12, productId: 1, productName: '虚构彩箱', specification, quantity: 100, remainingQuantity: 100, unit: '只' },
@@ -336,7 +339,7 @@ test('今日页“待排产”只排还要做的产品：只剩规格对不上�
     // 彩箱的长改成 270：两张订单的彩箱明细（260×110×240）都和产品现在的对不上
     const current = store.product(color.id, true);
     assert.ok(current, '彩箱产品还在');
-    store.saveProduct(productSchema.parse({ ...current, length: 270 }), color.id, current.version);
+    manualWrite(store, { entity: 'products', action: 'update', id: color.id, input: { ...current, length: 270 } }, actor);
     const view = buildToday(store, day);
     const row = (id: number) => view.todo.find((r) => r.id === id);
     // 只剩对不上的那一行：不进任何待办分组（不给“安排生产”），进“要核对订单”
@@ -377,7 +380,7 @@ test('今日页和订单下一步、送货同一个规格判断：规格对不�
     assert.ok(ids(today.ready).includes(f.order.id));
     assert.ok(today.todo.some((r) => r.id === f.order.id && r.group === 'ship'));
     // 提示和订单详情“下一步”同一句
-    const wrongOrder = f.store.order(wrong.id);
+    const wrongOrder = trackedOrder(f.store, wrong.id);
     assert.ok(wrongOrder);
     const steps = orderNextSteps(wrongOrder, { tasks: [], stocks: [f.item()], deliveries: [], purchases: [] });
     assert.deepEqual(ids(today.specMismatch), [wrong.id]);

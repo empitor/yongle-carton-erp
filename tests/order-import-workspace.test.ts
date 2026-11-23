@@ -9,8 +9,6 @@ import { Store } from '../server/core/db.js';
 import { AppError, count } from '../server/core/index.js';
 import { docxFixture, imageFixture } from './import-fixtures.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
-// 订单保存要单据流转登记的改单核对、进度规则
-import '../server/flow/index.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { filledForm, fixture, holdModel, importWorkspace, recognized, tempDir, testImports } from './order-import-fixture.js';
 import { httpError } from './fake-deepseek.js';

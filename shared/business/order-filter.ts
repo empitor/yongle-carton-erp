@@ -1,4 +1,4 @@
-import { orderDisplayStatus, orderInView, type displayOrderStatuses, type Order, type OrderView } from '../core/index.js';
+import { orderDisplayStatus, orderInView, type displayOrderStatuses, type Order, type TrackedOrder, type OrderView } from '../core/index.js';
 
 /*
  * 页面订单列表和经营概况经 server/orders/record-lists.ts 筛选；助手查订单（records.search、records.summarize）也用这里的判断。
@@ -13,7 +13,7 @@ type OrderRange = { view?: OrderView; start?: string; end?: string; retainPendin
 type OrderFilter = OrderRange & { customerId?: number; productId?: number; status?: OrderStatusFilter; q?: string };
 
 /** 订单的显示状态是不是这个（没给状态就都算） */
-export const orderStatusMatches = (order: Pick<Order, 'status' | 'shippingProgress'>, status: string | undefined) =>
+export const orderStatusMatches = (order: Pick<TrackedOrder, 'status' | 'shippingProgress'>, status: string | undefined) =>
   !status || orderDisplayStatus(order) === status;
 
 /** 订单在不在这个范围里（按订单自己的视图规则：已结束的才进历史，待处理不含已结束的） */
@@ -23,7 +23,7 @@ export const orderInRange = (order: Pick<Order, 'orderDate' | 'status'>, range: 
 const orderText = (order: Order) => [order.number, order.customerName, ...order.lines.map((l) => l.productName)].join(' ').toLowerCase();
 
 /** 订单合不合筛选条件：客户、产品、范围、状态、关键字 */
-export function orderMatches(order: Order, f: OrderFilter) {
+export function orderMatches(order: TrackedOrder, f: OrderFilter) {
   return (
     (!f.customerId || order.customerId === f.customerId) &&
     (!f.productId || order.lines.some((l) => l.productId === f.productId)) &&

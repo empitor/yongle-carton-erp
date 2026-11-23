@@ -3,6 +3,7 @@
 // 关联页面上已识别的工作区见 assistant-order-attach.test.ts。假 DeepSeek、临时目录、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { trackedOrderOf } from './flow-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { AssistantOrderWorkflow } from '../server/assistant/order-workflow.js';
 import { InboxService } from '../server/inbox/service.js';
@@ -90,7 +91,7 @@ test('聊天附件识别→跨轮改同一份→确认导入；用量计入这�
     assert.equal(reloaded.view(f.thread.id, actor).activeId, task.id);
     assert.equal(reloaded.view(f.thread.id, actor).tasks[0].state, 'imported');
     const real = await reloaded.call('order_import.get', {}, f.ctx());
-    assert.deepEqual(at(real, 'order', 'lines'), order.lines);
+    assert.deepEqual(at(real, 'order', 'lines'), trackedOrderOf(f.store, order.id).lines);
     assert(at(real, 'previewIsHistorical'));
     assert.equal(at(real, 'task', 'preview'), undefined);
   } finally {

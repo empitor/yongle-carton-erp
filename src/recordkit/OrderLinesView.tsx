@@ -1,4 +1,4 @@
-import { effectiveOrder, plainPrice, precisionTotal, priceFromCents, type Order } from '../../shared/core/index';
+import { effectiveOrder, plainPrice, precisionTotal, priceFromCents, type TrackedOrder } from '../../shared/core/index';
 import { taxText } from '../../shared/business/index';
 import { displayAmount } from '../../shared/core/index';
 import { finishedUnit } from '../../shared/core/index';
@@ -7,7 +7,7 @@ import { nestByFamily } from '../../shared/business/index';
 /** 订单明细在详情、编辑窗、导出里都叫这个名字。 */
 export const ORDER_LINES_TITLE = '订单明细';
 
-type OrderLine = Order['lines'][number];
+type OrderLine = TrackedOrder['lines'][number];
 /** 产品名下面那行小字要的几项（订单明细、导入核对的明细都有，可能空着） */
 type LineExtra = {
   specification?: string | null;

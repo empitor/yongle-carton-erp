@@ -10,12 +10,10 @@ import { count, type Actor } from '../server/core/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, orderDisplayStatus, productSchema, statuses, uncountedOrderStatuses } from '../shared/core/domain.js';
 import { buildToday } from '../server/business/workbench.js';
 import { orderNextSteps } from '../shared/business/order-next-step.js';
-import { shippedByLine, shippedUnits } from '../server/flow/documents/shipped.js';
-import { materialByOrder } from '../server/flow/rules/order-progress.js';
-import { orderEditGuard } from '../server/flow/rules/order-edit-guard.js';
-import { businessFixture, flowFixture, clerk, localAdmin, orderOf } from './flow-fixture.js';
+import { materialByOrder } from '../server/operations/index.js';
+import { businessFixture, flowFixture, clerk, localAdmin, orderOf, trackedOrderOf } from './flow-fixture.js';
 import { rawInput, stackActor as actor, stackFixture } from './stack-fixture.js';
-import { correctDocument, planCorrection } from '../server/flow/index.js';
+import { correctDocument, orderEditGuard, planCorrection } from '../server/flow/index.js';
 import { superActor } from './actor-fixture.js';
 
 /** flowFixture 加纸板 100 张；make(订单, 数量) 安排一张任务并全部完工入库 */
@@ -44,7 +42,7 @@ test('分批做分批发：今天做一半发一半是部分发货，明天做�
   const f = businessFixture();
   const date = '2026-10-27';
   try {
-    const order = () => orderOf(f.store, f.order.id);
+    const order = () => trackedOrderOf(f.store, f.order.id);
     const shown = () => orderDisplayStatus(order());
     const today = () => buildToday(f.store, date);
     const has = (rows: readonly { id: number }[]) => rows.some((o) => o.id === f.order.id);
@@ -93,7 +91,7 @@ test('订单逐行算未发、部分发货、已发完：待送货、取消、�
       return s;
     });
     const order = f.order(0, { lines: products.map((p, i) => ({ productId: p.id, quantity: [1000, 2000, 500][i], unit: '只', unitPriceCents: 100 })) });
-    const current = () => orderOf(f.store, order.id);
+    const current = () => trackedOrderOf(f.store, order.id);
     const delivery = (entries: [number, string][]) =>
       f.draft('delivery', {
         customerId: f.customer.id,
@@ -121,7 +119,7 @@ test('订单逐行算未发、部分发货、已发完：待送货、取消、�
     assert.deepEqual([current().shippingProgress, current().shippingSummary?.completedLines], ['已发完', 3]);
     f.flow.reverse(done.id, { version: done.version, reason: '撤销发货', acknowledged: true }, clerk);
     assert.deepEqual(current().lines.map((l) => l.shippedQuantity), [0, 1500, 500], '撤销的不算');
-    const plain = f.order(100);
+    const plain = trackedOrderOf(f.store, f.order(100).id);
     assert.deepEqual([plain.lines[0].shippedQuantity, plain.shippingProgress], [0, '未发货']);
   } finally {
     f.store.close();
@@ -136,7 +134,7 @@ test('同产品两行各 100，只做了 100：不算做完，要提醒再排 10
     assert.equal(orderOf(f.store, o.id).status, '生产中');
     assert.ok(f.unscheduled(o.id));
     const related = { tasks: f.flow.list('task'), stocks: f.flow.views.items(), deliveries: [], purchases: [] };
-    const current = f.store.order(o.id);
+    const current = trackedOrderOf(f.store, o.id);
     assert.ok(current);
     const schedule = orderNextSteps(current, related).steps.filter((s) => s.kind === 'schedule');
     assert.equal(schedule.length, 1, '同一产品只提醒一次');
@@ -229,7 +227,7 @@ test('谁都不能手工设置派生状态（本机管理员也不能）；有�
   try {
     const o = f.order([f.line(f.pa)]),
       update = (status: string, who: Actor) => {
-        const current = orderOf(f.store, o.id);
+        const current = trackedOrderOf(f.store, o.id);
         return createBusinessService(f.store).execute(
           { entity: 'orders', action: 'update', id: String(o.id), input: { ...current, status, version: current.version } },
           { source: 'manual-ui', operatorId: who.id, actor: who },
@@ -246,45 +244,33 @@ test('谁都不能手工设置派生状态（本机管理员也不能）；有�
   }
 });
 
-test('已发数量、订料进度、改单核对：直接调单据流转的几个函数，和订单视图一致', () => {
+test('已发数量、订料进度、改单核对：按有效单据算，改单核对只负责拦截', () => {
   const f = businessFixture();
   try {
     const lineId = f.order.lines[0].id;
-    assert.deepEqual([...shippedByLine(f.store.db, [f.order.id])], [], '还没送货');
     assert.equal(materialByOrder(f.store.db, [f.order.id]).has(f.order.id), false, '没关联采购的订单不在结果里');
-    // 没关联单据的订单：随便改，明细整批重写
-    const guard = orderEditGuard(f.store.db),
-      previous = orderOf(f.store, f.order.id, true);
-    assert.deepEqual(guard(f.order.id, previous, { customerId: 999, status: '已确认', lines: [] }), { linked: false });
+    const previous = orderOf(f.store, f.order.id, true);
+    assert.equal(orderEditGuard(f.store.db, previous), undefined, '没有关联单据不限制改单');
 
     f.arrival('100');
     const t = f.task('600');
     f.production(t.id, '600');
     f.confirm('delivery', { customerId: f.customer.id, lines: [{ orderId: f.order.id, orderLineId: lineId, stockId: f.finished.id, quantity: '400' }] });
-    assert.equal(shippedByLine(f.store.db, [f.order.id]).get(lineId), 400_000);
-    assert.equal(shippedByLine(f.store.db, undefined).get(lineId), 400_000, '不给编号是全部订单');
-    assert.equal(shippedUnits(f.store.db, lineId), 400_000);
-    assert.equal(shippedUnits(f.store.db, undefined), 0, '还没保存的新明细没有送货');
-    const view = orderOf(f.store, f.order.id, true);
+    const view = trackedOrderOf(f.store, f.order.id, true);
     assert.deepEqual([view.lines[0].shippedQuantity, view.lines[0].remainingQuantity, view.shippingProgress], [400, 600, '部分发货']);
 
-    const now = orderOf(f.store, f.order.id, true),
-      next = (change: Partial<{ customerId: number; status: string; quantity: number }>) => ({
+    const guard = orderEditGuard(f.store.db, view);
+    assert.ok(guard);
+    const now = view,
+      next = (change: Partial<{ customerId: number; status: typeof now.status; quantity: number }>) => ({
         customerId: change.customerId ?? now.customerId,
         status: change.status ?? now.status,
         lines: now.lines.map((l) => ({ ...l, unit: l.unit ?? '只', quantity: change.quantity ?? l.quantity })),
       });
     // 有生产、送货记录：普通修改不能改数量、不能改状态；不改这些的照常保存，明细原地改
-    assert.throws(() => guard(f.order.id, now, next({ quantity: 2000 })), /不能改变客户、产品明细、规格、数量或单位/);
-    assert.throws(() => guard(f.order.id, now, next({ status: '已确认' })), /状态由实际交付进度维护/);
-    assert.deepEqual(guard(f.order.id, now, next({})), { linked: true });
-    // 本机管理员的数据维护：明细编号要是这张单的
-    const maintenance = orderEditGuard(f.store.db, true);
-    assert.throws(
-      () => maintenance(f.order.id, now, { ...next({}), lines: [{ ...now.lines[0], unit: '只', id: 99999 }] }),
-      /明细编号重复或不属于当前订单/,
-    );
-    assert.deepEqual(maintenance(f.order.id, now, next({ status: '待确认' })), { linked: true, removeMissingLines: true });
+    assert.throws(() => guard(next({ quantity: 2000 })), /不能改变客户、产品明细、规格、数量或单位/);
+    assert.throws(() => guard(next({ status: '已确认' })), /状态由实际交付进度维护/);
+    assert.doesNotThrow(() => guard(next({})));
     // 本机管理员把已出库的订单改成待确认：保存后按全部单据重算（做了 600、要 1000，还在生产中），不停在待确认
     createBusinessService(f.store).execute(
       { entity: 'orders', action: 'update', id: f.order.id, input: { ...now, status: '待确认' } },

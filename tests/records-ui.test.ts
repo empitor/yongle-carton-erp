@@ -14,7 +14,7 @@ import { batchAfterSave } from '../src/operations/OrderBatchDialog.js';
 import OrderEditor from '../src/editors/OrderEditor.js';
 import { finishInboxOrder, inboxOrderSource } from '../src/import/InboxOrderDialog.js';
 import { productSchema, today } from '../shared/core/domain.js';
-import { orderViewSchema } from '../shared/core/order-view.js';
+import { trackedOrderViewSchema } from '../shared/core/index.js';
 import TodayRow from '../src/records/TodayRow.js';
 import { daysLate, specCheckOrders, todayGroups } from '../src/records/today-groups.js';
 import { archivedRoute, readListFilters, recordListQueries } from '../src/records/record-filters.js';
@@ -182,9 +182,9 @@ test('收件箱建订单：已处理收件不再重复调用标记，沿用订�
 });
 
 test('订单编辑窗：有一项单价超上限算不出金额时，合计显示“—”并说明是哪一项，不显示 0.00', () => {
-  const line = { productId: 1, productName: '虚构外箱', unit: '只', specification: '', notes: '' };
+  const line = { productId: 1, productName: '虚构外箱', unit: '只', specification: '', notes: '', shippedQuantity: 0, shippingStatus: '未发货' };
   // 读出来的订单视图要的其余几项（编号、客户名、合计、时间）照样填上，编辑窗按明细自己算合计
-  const value = orderViewSchema.parse({
+  const value = trackedOrderViewSchema.parse({
     id: 1,
     number: 'SO-虚构-1',
     version: 1,
@@ -193,6 +193,9 @@ test('订单编辑窗：有一项单价超上限算不出金额时，合计显�
     orderDate: '2026-11-01',
     deliveryDate: '2026-11-20',
     status: '待确认',
+    shippingProgress: '未发货',
+    shippingSummary: { progress: '未发货', completedLines: 0, totalLines: 2 },
+    materialProgress: 'none',
     notes: '',
     costs: null,
     totalCents: 0,
@@ -200,8 +203,8 @@ test('订单编辑窗：有一项单价超上限算不出金额时，合计显�
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
     lines: [
-      { ...line, id: 11, quantity: 100, unitPriceExact: '1.5', unitPriceCents: 150 },
-      { ...line, id: 12, quantity: 10, unitPriceExact: '2000000', unitPriceCents: 200000000 },
+      { ...line, id: 11, quantity: 100, remainingQuantity: 100, unitPriceExact: '1.5', unitPriceCents: 150 },
+      { ...line, id: 12, quantity: 10, remainingQuantity: 10, unitPriceExact: '2000000', unitPriceCents: 200000000 },
     ],
   });
   const html = renderToStaticMarkup(h(OrderEditor, { customers: [], products: [], close: () => {}, saved: () => {}, value }));

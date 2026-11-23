@@ -8,7 +8,7 @@ import {
   quantityString,
   today,
   type Customer,
-  type Order,
+  type TrackedOrder,
   type Product,
 } from '../../shared/core/index';
 import {
@@ -176,13 +176,13 @@ function StockCells({ row, cell }: CellProps<StockItemView>) {
 }
 
 /** 订单各单位的合计数量（产品只有“只”，按单位分开写是为了不把不同单位加在一起） */
-function unitTotals(lines: Order['lines']) {
+function unitTotals(lines: TrackedOrder['lines']) {
   const groups = new Map<string, number>();
   for (const l of lines) groups.set(finishedUnit(l.unit), (groups.get(finishedUnit(l.unit)) || 0) + l.quantity);
   return [...groups];
 }
 
-function OrderCells({ row, cell }: CellProps<Order>) {
+function OrderCells({ row, cell }: CellProps<TrackedOrder>) {
   return (
     <>
       <td className="record-no">{cell.rowKey(row, row.number)}</td>

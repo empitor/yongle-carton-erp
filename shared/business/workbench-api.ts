@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ApiJson, Order } from '../core/index.js';
+import type { ApiJson, TrackedOrder } from '../core/index.js';
 import type { HistoryRefs } from './history-fields.js';
 import type { FlowDocView } from './flow-document.js';
 import type { ProductMark } from './mark-api.js';
@@ -21,8 +21,8 @@ type TodayOrder = {
   customerName: string;
   deliveryDate: string;
   status: string;
-  shippingProgress: Order['shippingProgress'];
-  materialProgress: Order['materialProgress'];
+  shippingProgress: TrackedOrder['shippingProgress'];
+  materialProgress: TrackedOrder['materialProgress'];
   summary: string;
 };
 type LateOrder = TodayOrder & { lateDays: number };
@@ -71,7 +71,7 @@ type OrderRelated = {
   production: (Pick<Task, 'id' | 'productId' | 'unit' | 'completed' | 'progress' | 'number'> & { planned: Task['quantity'] })[];
 };
 /** 采购单详情里的关联业务：到货记录（仓库台账的到货单，server/flow/daily.ts 的 recordsFor）、库存品、关联订单 */
-type PurchaseRelated = { arrivals: ArrivalDaily[]; stocks: StockItemView[]; orders: Order[] };
+type PurchaseRelated = { arrivals: ArrivalDaily[]; stocks: StockItemView[]; orders: TrackedOrder[] };
 
 /** “关联记录”里的一条；view 只给界面算显示状态用 */
 type RelatedRecord = {

@@ -7,8 +7,6 @@ import BusinessRecords from '../src/records/BusinessRecords.js';
 import OrderLinesView from '../src/recordkit/OrderLinesView.js';
 import { productPrice } from '../src/records/PartyProductDetails.js';
 import { Store } from '../server/core/db.js';
-// 订单视图的发货、订料进度和改单核对由单据流转提供（server/core/order-hooks.ts），读写订单要加载它
-import '../server/flow/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 
 test('明细换了产品：名称跟着新产品的档案走，不收补丁里带的旧名称；产品没换时照旧用给的名称', () => {
@@ -27,6 +25,7 @@ test('明细换了产品：名称跟着新产品的档案走，不收补丁里�
       }),
     );
     assert.equal(order.lines[0].productName, '客户叫法A', '新建时给的名称照收');
+    const lineId = order.lines[0].id;
     // 产品没换：给的名称照收
     order = s.saveOrder(
       orderSchema.parse({ ...order, lines: [{ ...order.lines[0], productName: '客户新叫法A' }] }),
@@ -34,6 +33,7 @@ test('明细换了产品：名称跟着新产品的档案走，不收补丁里�
       order.version,
     );
     assert.equal(order.lines[0].productName, '客户新叫法A');
+    assert.equal(order.lines[0].id, lineId, '没有关联单据也保留原明细编号');
     // 换成产品 B，补丁里还带着 A 的名称：名称改成 B 的档案名
     order = s.saveOrder(
       orderSchema.parse({ ...order, lines: [{ ...order.lines[0], productId: b.id }] }),
@@ -42,6 +42,28 @@ test('明细换了产品：名称跟着新产品的档案走，不收补丁里�
     );
     assert.equal(order.lines[0].productId, b.id);
     assert.equal(order.lines[0].productName, '虚构箱B');
+  } finally {
+    s.close();
+  }
+});
+
+test('订单拒收重复、外来明细编号，保存失败后原明细不变', () => {
+  const s = new Store(':memory:');
+  try {
+    const c = s.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
+    const p = s.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
+    const input = orderSchema.parse({
+      customerId: c.id, orderDate: '2026-10-01', deliveryDate: '2026-10-25', status: '已确认',
+      lines: [{ productId: p.id, quantity: 10, unitPriceCents: 130 }],
+    });
+    const order = s.saveOrder(input), other = s.saveOrder(input);
+    const line = order.lines[0], foreign = other.lines[0];
+    const invalid = /明细编号重复或不属于当前订单/;
+    assert.throws(() => s.saveOrder({ ...input, lines: [foreign] }), invalid);
+    for (const lines of [[line, line], [line, foreign]])
+      assert.throws(() => s.saveOrder({ ...input, lines }, order.id, order.version), invalid);
+    assert.deepEqual(s.order(order.id), order);
+    assert.deepEqual(s.orders().map((o) => o.id), [other.id, order.id]);
   } finally {
     s.close();
   }
@@ -70,7 +92,7 @@ test('明细的名称、规格、备注原样存回（长名称、多行）；�
 });
 
 test('订单明细的显示：列表只写首项和件数，详情逐行写规格和备注；单价按全站写法，产品参考单价没定过的不写 0', () => {
-  const line = { id: 11, productId: 1, productName: '独立产品名', specification: '300×200mm', notes: '防潮包装', quantity: 10, unit: '只', unitPriceCents: 130, unitPriceExact: '1.3000' },
+  const line = { id: 11, productId: 1, productName: '独立产品名', specification: '300×200mm', notes: '防潮包装', quantity: 10, unit: '只', unitPriceCents: 130, unitPriceExact: '1.3000', shippedQuantity: 0, remainingQuantity: 10, shippingStatus: '未发货' as const },
     row = {
       id: 1,
       version: 1,
@@ -79,6 +101,9 @@ test('订单明细的显示：列表只写首项和件数，详情逐行写规�
       orderDate: '2026-10-25',
       deliveryDate: '2026-11-01',
       status: '待确认' as const,
+      shippingProgress: '未发货' as const,
+      shippingSummary: { progress: '未发货', completedLines: 0, totalLines: 2 },
+      materialProgress: 'none' as const,
       totalCents: 2600,
       customerId: 1,
       notes: '',

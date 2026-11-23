@@ -1,4 +1,5 @@
 // 生产任务和完工单（server/flow/）：进度、领料、预览失效、撤销完工、取消剩余、选错任务的提示。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -96,7 +97,7 @@ test('撤销完工要超级管理员模式；成品已经送出去、不够扣�
     const d = f.confirm('delivery', { customerId: f.customer.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: f.finished.id, quantity: '40' }] });
     assert.throws(() => reverse(prod.id, localAdmin()), /撤销要扣回.*不够扣。这批库存已经被后面的业务用掉了/);
     reverse(d.id, localAdmin());
-    const shipped = f.store.order(order.id);
+    const shipped = trackedOrder(f.store, order.id);
     assert.ok(shipped);
     assert.equal(shipped.lines[0].shippedQuantity, 0);
     reverse(prod.id, localAdmin());
@@ -171,7 +172,7 @@ test('同一种纸板做两种产品：各入各的成品库存，一张送货�
     });
     assert.deepEqual([f.ops.balance(f.finished.id), f.ops.balance(stock2.id)], [80000, 0]);
     assert.equal(f.store.order(order2.id)?.status, '已发货');
-    assert.equal(f.store.order(order.id)?.lines[0].remainingQuantity, 80);
+    assert.equal(trackedOrder(f.store, order.id)?.lines[0].remainingQuantity, 80);
   } finally {
     f.store.close();
   }

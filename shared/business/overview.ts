@@ -1,4 +1,4 @@
-import type { Order } from '../core/index.js';
+import type { TrackedOrder } from '../core/index.js';
 import type { MovementView } from './stock-flow-views.js';
 export type UnitBalance = { unit: string; quantity: string; itemCount: number };
 type BusinessOverview = {
@@ -84,5 +84,5 @@ export type Dashboard = {
   overdueCount: number;
   /** 所选日期的订单按状态分：count 含已归档的，archived 是其中已归档的张数 */
   byStatus: { status: string; count: number; archived: number }[];
-  recentOrders: Order[];
+  recentOrders: TrackedOrder[];
 };

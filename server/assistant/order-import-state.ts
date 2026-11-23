@@ -8,6 +8,7 @@ import type { AssistantAttachments } from './attachments.js';
 import { one, parseStoredJson, requirePermission } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import { matchDraft } from '../import/index.js';
+import { trackedOrder } from '../orders/index.js';
 import { orderDraftSchema, type OrderDraft } from '../../shared/import/index.js';
 import type { AssistantAttachment } from '../../shared/core/index.js';
 import type { ProviderTokenUsage } from '../ai/index.js';
@@ -175,7 +176,7 @@ export abstract class OrderImportState {
     const w = this.imports.get(task.workspaceId),
       matches = matchDraft(this.store, w),
       imported = w.imported && !w.imported.historical ? w.imported : null,
-      order = imported ? this.store.order(imported.orderId, true) : undefined;
+      order = imported ? trackedOrder(this.store, imported.orderId, true) : undefined;
     task.observed = { revision: w.revision, draft: structuredClone(w.draft) };
     const state = this.state(ctx.threadId, ctx.actor);
     const saved = state.tasks.find((t) => t.id === task.id);

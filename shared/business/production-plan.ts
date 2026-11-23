@@ -55,7 +55,7 @@ function ownProducts(order: PlanOrder, pending: ReadonlyMap<number, number>) {
     const unit = l.unit,
       key = String(l.productId) + '|' + String(unit),
       g = own.get(key) || { productId: l.productId, name: l.productName, unit, remaining: 0 };
-    const left = Math.max(0, safeUnits(l.remainingQuantity ?? l.quantity));
+    const left = Math.max(0, safeUnits(l.remainingQuantity));
     if (left > 0) unshipped = true;
     g.remaining += Math.max(0, left - (pending.get(Number(l.id)) || 0));
     own.set(key, g);

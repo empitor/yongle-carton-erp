@@ -3,8 +3,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
-// 订单视图的发货、订料进度和改单核对由单据流转提供（server/core/order-hooks.ts），读写订单要加载它
-import '../server/flow/index.js';
 import { lineSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { count, one, rows } from '../server/core/index.js';
 import { legacyCents, precisionTotal, priceFromE4, priceToE4 } from '../shared/core/precision.js';

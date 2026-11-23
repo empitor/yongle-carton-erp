@@ -1,5 +1,6 @@
 // 更正送货单测试的底子（delivery-correction*.test.ts）：内存库、虚构数据。
 // 一个客户、一个产品（成品库存期初 stock 只），订单 A 两行同一个产品（各 1000 只），订单 B 一行（1000 只，下单晚 19 天）。
+import { trackedOrder } from '../server/orders/index.js';
 import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
 import type { Actor } from '../server/core/index.js';
@@ -56,7 +57,7 @@ export function deliveryCorrectionSetup(t: TestContext, stock = '1000') {
   const balance = () => ops.balance(item.id);
   /** 某条订单明细的已发（只） */
   const shipped = (o: { id: number }, i: number) => {
-    const current = store.order(o.id, true);
+    const current = trackedOrder(store, o.id, true);
     if (!current) throw new Error('测试数据：没有订单 ' + o.id);
     return current.lines[i].shippedQuantity;
   };

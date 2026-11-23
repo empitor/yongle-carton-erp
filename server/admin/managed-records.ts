@@ -5,15 +5,14 @@ import { supplierSchema, purchaseSchema, stockItemSchema } from '../../shared/bu
 import { flowKinds, flowInput, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
 import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../../shared/business/index.js';
 import type { RecordEntity, dataManagementModules } from '../../shared/business/index.js';
-import type { businessRecords } from '../lifecycle/index.js';
-import { entityRecords, namedDocuments } from '../business/index.js';
+import { entityRecords, namedDocuments, type EntityRecordOf } from '../business/index.js';
 import type { FlowService } from '../flow/index.js';
 // 数据管理读记录：一个模块的全部记录或选中的几条，每条给列表显示用的 record 和编辑窗用的 input（补上名字、单号、用没用过）。
 
 /** 数据管理的模块：档案、订单、采购单、库存品和四种单据 */
 export type ManagedModule = (typeof dataManagementModules)[number];
-/** 档案、订单、采购单、库存品的一行（删除归档的 businessRecords 按类型给的） */
-type BusinessRecord<E extends RecordEntity> = ReturnType<typeof businessRecords<E>>[number];
+/** 档案、订单、采购单、库存品的一行 */
+type BusinessRecord<E extends RecordEntity> = EntityRecordOf[E];
 /** 档案、订单、采购单、库存品按各自的保存校验整理成编辑窗的内容；单据用 flowInput */
 export const recordSchemas = {
   customers: customerSchema,

@@ -10,7 +10,7 @@ import { createApp } from '../server/app.js';
 import { specification, today } from '../shared/core/domain.js';
 import { listen, testProblems } from './http-fixture.js';
 import { z } from 'zod';
-import { orderViewSchema } from '../shared/core/order-view.js';
+import { trackedOrderViewSchema } from '../shared/core/index.js';
 
 const customer = { name: '测试客户（虚构）', contact: '测试', phone: '', address: '测试地址', notes: '' };
 const product = { name: '测试纸箱', length: 300, width: 200, height: 100, material: '测试配纸', flute: 'B 楞', requirements: '粘箱', priceCents: 123 };
@@ -21,7 +21,7 @@ const customerView = z.looseObject({ ...stamped, name: z.string() });
 const size = z.number().nullish(),
   text = z.string().nullish();
 const productView = z.looseObject({ ...stamped, name: z.string(), priceCents: z.number().nullish(), length: size, width: size, height: size, dimensionUnit: text, material: text, flute: text });
-const orderView = orderViewSchema.loose();
+const orderView = trackedOrderViewSchema.loose();
 const cents = z.number();
 const dashboardView = z.looseObject({ count: z.number(), amountCents: cents, estimatedCostCents: cents, estimatedProfitCents: cents, deliveredCents: cents, uncostedCount: z.number() });
 const list = z.array(z.unknown());

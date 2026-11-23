@@ -1,5 +1,6 @@
 // 库存品（server/operations/stock-items.ts、product-stock.ts、ledger.ts）：用过的不能改种类和关联产品，成品跟着产品，0 数量不记流水。
 // 内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -33,8 +34,8 @@ function fixture() {
     assert.ok(found);
     return found;
   };
-  const orderRow = (id: number): Order => {
-    const found = f.store.order(id);
+  const orderRow = (id: number) => {
+    const found = trackedOrder(f.store, id);
     assert.ok(found);
     return found;
   };

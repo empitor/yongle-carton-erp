@@ -6,7 +6,7 @@ import { businessActor, priorRecord } from '../server/operations/ledger/write-ba
 import { StockItems, finishedFromProduct } from '../server/operations/stock/stock-items.js';
 import { MovementQueries } from '../server/operations/ledger/movements.js';
 import { OperationsRepository } from '../server/operations/ledger/repository.js';
-import { syncFinishedStock } from '../server/operations/stock/product-stock.js';
+import { syncFinishedStock } from '../server/operations/index.js';
 
 test('写入共用的两件事：要业务编辑权限、改记录前核对版本', () => {
   const f = flowFixture();
@@ -43,7 +43,7 @@ test('库存流水查询按库存品计数和列出；成品库存跟着产品�
     assert.equal(moves.movementCount({ itemId: f.finished.id }), 1);
     assert.equal(moves.movements({ itemId: f.finished.id })[0].delta, '20');
     assert.deepEqual(moves.movementRevisions('不存在的流水'), []);
-    syncFinishedStock(f.store, { ...f.product, name: '虚构产品改名' }, clerk);
+    syncFinishedStock(f.store, f.product, { ...f.product, name: '虚构产品改名' }, clerk);
     assert.equal(f.ops.items(true, f.finished.id)[0].name, '虚构产品改名');
   } finally {
     f.store.close();

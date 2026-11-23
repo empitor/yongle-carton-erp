@@ -1,3 +1,4 @@
+import { trackOrders } from '../../orders/index.js';
 // 助手工具：安排送货、安排生产的只读试算（delivery.plan、production.plan）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
@@ -41,11 +42,12 @@ export const planningTools = [
 function deliverySources(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema>) {
   if (v.stockIds) {
     const items = ctx.flow.views.items(false, v.stockIds).filter((i) => i.kind === 'finished');
-    const orders = ctx.store.ordersByIds(orderIdsOfProducts(ctx.store, [...new Set(items.map((s) => Number(s.productId)).filter(Boolean))]));
+    const productIds = [...new Set(items.map((s) => Number(s.productId)).filter(Boolean))];
+    const orders = trackOrders(ctx.store, ctx.store.ordersByIds(orderIdsOfProducts(ctx.store, productIds)));
     return { items, orders };
   }
   // 结构上的检查保证二者有一个
-  const orders = ctx.store.ordersByIds(v.orderIds ?? fail(PICK_ONE));
+  const orders = trackOrders(ctx.store, ctx.store.ordersByIds(v.orderIds ?? fail(PICK_ONE)));
   const productIds = [...new Set(orders.flatMap((o) => o.lines.map((l) => Number(l.productId))))];
   return { items: ctx.flow.views.items(false, finishedIdsOfProducts(ctx.store, productIds)).filter((i) => i.kind === 'finished'), orders };
 }
@@ -89,7 +91,7 @@ function planDelivery(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema>, 
 
 function planProduction(ctx: ToolContext, v: z.output<typeof productionPlanSchema>, who: Actor | null | undefined) {
   requireActor(who);
-  const orders = ctx.store.ordersByIds(v.orderIds),
+  const orders = trackOrders(ctx.store, ctx.store.ordersByIds(v.orderIds)),
     related = orders.map((o) => relatedBusiness(ctx.store, 'orders', o.id));
   const plan = planProductionForOrders(orders, related, ctx.flow.views.items());
   return {

@@ -8,8 +8,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { Store } from '../../server/core/db.js';
 import { acquireLock } from '../../server/core/lock.js';
 import { snapshotBeforeDestructive } from '../../server/core/snapshots.js';
-// 订单视图的发货、订料进度和改单核对由单据流转提供（server/core/order-hooks.ts），读写订单要加载它
-import '../../server/flow/index.js';
 import { SCHEMA_LATEST } from '../../server/core/schema/index.js';
 import { snapshotForUpgrade } from '../../server/core/schema/upgrade.js';
 import { readBackupManifest } from '../../server/core/backup-manifest.js';

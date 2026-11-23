@@ -3,13 +3,13 @@
 // 有效送货之和、订单状态由有效送货派生；会出负库存、超订单、没改、重复明细、挂到已发完订单的被拒（且只因为这些），
 // 被拒库里不变；预览和执行一致、防重复、旧版本被拒（property-corrections-fixture.ts）；原样留下的行沿用出库时的
 // 材质楞型，新加、换挂的行按产品现在的。改成别的样子再改回原样，一切回到第一次更正之前。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import type { Actor } from '../server/core/index.js';
 import type { FlowDocView } from '../shared/business/index.js';
-import { productSchema } from '../shared/core/domain.js';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, manualWrite } from './business-base-fixture.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { clerk, localAdmin } from './flow-fixture.js';
 import { ofKind } from './receive-fixture.js';
@@ -121,7 +121,7 @@ const keptBase = (d: Delivery, l: Line) => {
 };
 /** 每条订单明细的已发（千分整数） */
 const shippedNow = (f: Setup) =>
-  new Map(f.orders.flatMap((o) => (f.store.order(o.id, true)?.lines ?? []).map((l) => [l.id ?? 0, units(l.shippedQuantity)])));
+  new Map(f.orders.flatMap((o) => (trackedOrder(f.store, o.id, true)?.lines ?? []).map((l) => [l.id ?? 0, units(l.shippedQuantity)])));
 
 /** 一张送货按内容：每个成品库存出多少（负数）、每条订单明细发多少 */
 function contribution(lines: readonly { stockId: number; orderLineId: number; quantity: string }[]) {
@@ -197,7 +197,7 @@ function remat(f: Setup, product: number, m: number) {
   f.current[product] = { ...f.current[product], ...MATERIALS[m] };
   const id = f.products[product].id,
     version = f.store.product(id)?.version ?? assert.fail('测试数据：没有产品 ' + id);
-  f.store.saveProduct(productSchema.parse(f.current[product]), id, version);
+  manualWrite(f.store, { entity: 'products', action: 'update', id, input: { ...f.current[product], version } }, null);
 }
 
 function step(f: Setup, op: Op) {

@@ -105,7 +105,7 @@ export function overOrderLines<L extends Pick<PlanLine, 'orderId' | 'orderLineId
   const byId = new Map(orders.map((o) => [o.id, o]));
   return lines.filter((l) => {
     const line = byId.get(l.orderId)?.lines.find((x) => x.id === l.orderLineId);
-    const left = safeUnits(line?.remainingQuantity ?? line?.quantity ?? '0') - (pending.get(l.orderLineId) || 0);
+    const left = (line ? safeUnits(line.remainingQuantity) : 0) - (pending.get(l.orderLineId) || 0);
     return safeUnits(l.quantity) > left;
   });
 }

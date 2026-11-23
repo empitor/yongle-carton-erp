@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { exists, requireLocalAdministrator, type Actor, type Store } from '../core/index.js';
 import { detachTasks, FlowService, moveDeliveries, referencingDocuments, retainDeliveryLines } from '../flow/index.js';
 import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from '../lifecycle/index.js';
-import type { Order } from '../../shared/core/index.js';
+import type { Order, TrackedOrder } from '../../shared/core/index.js';
 import type { FlowDocView } from '../../shared/business/index.js';
 
 type Delivery = FlowDocView<'delivery'>;
@@ -42,14 +42,14 @@ function deleteWholeDelivery(engine: DatabaseMaintenanceService, d: Delivery, ac
 }
 
 /** 订单改好之后：生产任务、送货单跟着订单的新明细和新客户改，最后重算这张订单的生产、发货进度。 */
-export function alignOrder(store: Store, before: Order, after: Order, actor: Actor) {
+export function alignOrder(store: Store, before: TrackedOrder, after: Order, actor: Actor) {
   const flow = new FlowService(store);
   const detachedTask = detachTasks(store, flow, after);
   if (before.customerId !== after.customerId) moveDeliveries(store, { flow, after, actor });
   if (
     detachedTask ||
     exists(store.db, 'SELECT 1 FROM flow_refs WHERE order_id=?', after.id) ||
-    before.lines.some((l) => l.shippedQuantity !== undefined && l.shippedQuantity > 0)
+    before.lines.some((l) => l.shippedQuantity > 0)
   )
     flow.refreshOrderProgress([after.id]);
 }

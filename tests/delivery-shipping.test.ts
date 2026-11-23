@@ -1,5 +1,6 @@
 // 送货出库和送达（server/flow/、server/documents/）：导出送货单就是出库，确认送达只记送达，撤销送货加回库存。
 // 出库日期的规则见 delivery-ship-date.test.ts。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -31,7 +32,7 @@ test('安排送货后是待送货；导出送货单完整交付后出库扣库�
   assert.ok(shipped.shippedAt);
   assert.equal(flowStatusLabel(shipped), '送货中');
   assert.equal(f.balance(), 400_000, '导出出库时扣库存');
-  assert.equal(f.store.order(f.order.id)?.lines[0].remainingQuantity, 400, '算进订单已发');
+  assert.equal(trackedOrder(f.store, f.order.id)?.lines[0].remainingQuantity, 400, '算进订单已发');
   // 再导出一次不重复出库
   const again = await exportShip(f, f.delivery.id, shipped.version);
   f.docs.delivered(again.exportId, actor);
@@ -75,12 +76,12 @@ test('确认送达：不填日期按北京时间记今天，不能晚于今天�
 test('送货发错发重了：普通业务账号（不进超级管理员模式）也能撤销，库存加回、订单已发减回，单据保留为已撤销', (t) => {
   const f = deliverySetup(t);
   const shipped = f.ship(f.delivery.id);
-  assert.equal(f.store.order(f.order.id)?.lines[0].remainingQuantity, 400);
+  assert.equal(trackedOrder(f.store, f.order.id)?.lines[0].remainingQuantity, 400);
   assert.throws(() => f.flow.reverse(f.delivery.id, { version: shipped.version, reason: '', acknowledged: true }, actor), '要写原因');
   const undone = f.flow.reverse(f.delivery.id, { version: shipped.version, reason: '虚构：同一批货发了两次', acknowledged: true }, actor);
   assert.deepEqual([undone.status, undone.reversal?.reason, flowStatusLabel(undone)], ['reversed', '虚构：同一批货发了两次', '已撤销']);
   assert.equal(f.balance(), 1000_000, '库存加回');
-  assert.equal(f.store.order(f.order.id)?.lines[0].remainingQuantity, 1000, '订单已发减回');
+  assert.equal(trackedOrder(f.store, f.order.id)?.lines[0].remainingQuantity, 1000, '订单已发减回');
   const trail = oneRow(f.store.db, rows.business_audit.pick({ source: true }), "SELECT source FROM business_audit WHERE action='reverse'");
   assert.ok(trail, '记了撤销的审计');
   assert.equal(trail.source, AUDIT_SOURCE.page, '在页面上撤销，来源记页面');

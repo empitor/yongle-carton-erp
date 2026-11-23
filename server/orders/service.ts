@@ -1,19 +1,21 @@
 import { z } from 'zod';
 import { customerSchema, productSchema, orderSchema, derivedOrderStatuses } from '../../shared/core/index.js';
-import type { Customer, Order, Product } from '../../shared/core/index.js';
+import type { Customer, Product, TrackedOrder } from '../../shared/core/index.js';
 import { Store, InputError, assertNewProductAllowed, exists, notFound } from '../core/index.js';
 import { validAssistantGrant } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
-import { FlowService } from '../flow/index.js';
+import { FlowService, orderEditGuard } from '../flow/index.js';
+import { syncFinishedStock } from '../operations/index.js';
 import { audit, inSavepoint, isSuperMode } from '../core/index.js';
 import { TakenSnapshot } from '../lifecycle/index.js';
 import type { Actor } from '../core/index.js';
+import { trackOrders, trackedOrder } from './tracked-orders.js';
 
 const writableEntities = ['customers', 'products', 'orders'] as const;
 type WritableEntity = (typeof writableEntities)[number];
 /** 每类记录保存后回的 */
-type Saved = { customers: Customer; products: Product; orders: Order };
+type Saved = { customers: Customer; products: Product; orders: TrackedOrder };
 export type BusinessCommand<E extends WritableEntity = WritableEntity> =
   | { entity: E; action: 'create'; input: unknown }
   | { entity: E; action: 'update'; id: unknown; input: unknown };
@@ -31,7 +33,7 @@ export class BusinessAccessError extends Error {}
 /** 按编号找不到订单时的说法（保存、读一张订单都用它） */
 export const ORDER_NOT_FOUND = '订单不存在';
 /** 读一张订单（含已归档的）：调用前已核对过存在，读不到按“订单不存在”报 */
-const savedOrder = (store: Store, id: number) => store.order(id, true) ?? notFound(ORDER_NOT_FOUND);
+const savedOrder = (store: Store, id: number) => trackedOrder(store, id, true) ?? notFound(ORDER_NOT_FOUND);
 
 /** 校验过的一次保存：新建没有 id 和 version */
 type SaveJob = { action: 'create' | 'update'; id?: number; version?: number; input: unknown; context: WriteContext };
@@ -47,14 +49,23 @@ const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] 
     const product = productSchema.parse(input);
     // 新建前查重（三个入口同一套，server/core/duplicate-records.ts）：已有同名、尺寸或材质不同的，
     // 要在新建窗口里确认“是另一个产品”（confirmDistinct）才建
-    if (action === 'create') assertNewProductAllowed(store, product, confirmsDistinct(input));
-    // 改了名称、尺寸、材质、楞型的，它的成品库存跟着改，审计记在改产品的人名下
-    return store.saveProduct(product, id, version, context.superAdminMode, context.actor);
+    if (action === 'create') {
+      assertNewProductAllowed(store, product, confirmsDistinct(input));
+      return store.saveProduct(product);
+    }
+    return inSavepoint(store.db, () => {
+      const previous = id === undefined ? undefined : store.product(id, context.superAdminMode);
+      if (!previous) notFound('记录不存在');
+      const saved = store.saveProduct(product, id, version, context.superAdminMode);
+      // 产品和它的成品库存在同一个保存点内更新。
+      syncFinishedStock(store, previous, saved, context.actor);
+      return saved;
+    });
   },
   orders: saveOrderCommand,
 };
 
-function saveOrderCommand(store: Store, { input: raw, id, version, context }: SaveJob): Order {
+function saveOrderCommand(store: Store, { input: raw, id, version, context }: SaveJob): TrackedOrder {
   // 生产中/待发货/已发货只由任务和送货单派生（AGENTS.md“订单状态”），谁都不能手工改成这些状态，
   // 本机管理员也一样，否则会绕过实物流转
   {
@@ -77,7 +88,8 @@ function saveOrderCommand(store: Store, { input: raw, id, version, context }: Sa
       input = orderSchema.parse(raw);
     return inSavepoint(store.db, () => {
       prepareOrderEdit(store, before, input.lines, actor, snapshot);
-      const updated = store.saveOrder(input, orderId, savedOrder(store, orderId).version, true, true);
+      const current = store.order(orderId, true) ?? notFound(ORDER_NOT_FOUND);
+      const updated = store.saveOrder(input, orderId, current.version, true);
       alignOrder(store, before, updated, actor);
       // 全库重算到货数、库存余额和订单金额（这三步不分范围）；传空数组是因为这张订单的生产、发货进度
       // alignOrder 已经按需重算过，这里不再重算任何订单的进度
@@ -136,10 +148,12 @@ export function saveOrderWithProgress(
   includeArchived?: boolean,
 ) {
   return inSavepoint(store.db, () => {
-    const saved = store.saveOrder(input, id, version, includeArchived);
+    const previous = id === undefined ? undefined : store.order(id, includeArchived);
+    const checkEdit = previous && orderEditGuard(store.db, previous);
+    const saved = store.saveOrder(input, id, version, includeArchived, checkEdit);
     const linked = exists(store.db, 'SELECT 1 FROM flow_refs WHERE order_id=? LIMIT 1', saved.id);
     if (linked) new FlowService(store).refreshOrderProgress([saved.id], true);
-    return linked ? savedOrder(store, saved.id) : saved;
+    return linked ? savedOrder(store, saved.id) : trackOrders(store, [saved])[0];
   });
 }
 
@@ -155,7 +169,7 @@ export function manualWrite<E extends WritableEntity>(store: Store, command: Bus
         ? store.customer(id, elevated)
         : command.entity === 'products'
           ? store.product(id, elevated)
-          : store.order(id, elevated)
+          : trackedOrder(store, id, elevated)
       : null;
   return inSavepoint(store.db, () => {
     const result = createBusinessService(store).execute(command, {

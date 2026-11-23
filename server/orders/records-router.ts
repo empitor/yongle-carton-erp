@@ -4,6 +4,7 @@ import { includeArchivedFor, isSuperMode, notFound, requirePermission, route, ty
 import { customerList, listFields, orderList, productList } from './record-lists.js';
 import { ORDER_NOT_FOUND, manualWrite } from './service.js';
 import { assertOrderStatusKept, changeOrderStatus } from './order-status.js';
+import { trackedOrder } from './tracked-orders.js';
 import { recordStatusActions, type RecordsApi } from '../../shared/business/index.js';
 
 /*
@@ -48,7 +49,7 @@ export function recordsRouter(store: Store, auth?: RequestAuth) {
     const { fields, includeArchived } = listQuery(req, query);
     return orderList(store, fields, includeArchived);
   });
-  on('GET /orders/:id', ({ param, req }) => store.order(recordId(param('id')), elevated(req)) ?? notFound(ORDER_NOT_FOUND));
+  on('GET /orders/:id', ({ param, req }) => trackedOrder(store, recordId(param('id')), elevated(req)) ?? notFound(ORDER_NOT_FOUND));
   on('POST /orders', ({ body, req }) => manualWrite(store, { entity: 'orders', action: 'create', input: body }, editor(req)), created);
   on('PUT /orders/:id', ({ param, body, req }) => {
     assertOrderStatusKept(store, recordId(param('id')), body, elevated(req));

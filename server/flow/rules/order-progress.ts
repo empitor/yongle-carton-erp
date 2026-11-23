@@ -1,57 +1,22 @@
-import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { AppError, many, registerOrderRules, rows, type MaterialProgress } from '../../core/index.js';
-import { orderScope, shippedByLine } from '../documents/shipped.js';
+import { AppError, many, rows } from '../../core/index.js';
+import { shippedByLine } from '../documents/shipped.js';
 import { effectiveOrder, quantityUnits } from '../../../shared/core/index.js';
-import type { FlowDocView, purchaseBusinessStatuses } from '../../../shared/business/index.js';
+import type { FlowDocView } from '../../../shared/business/index.js';
 import { stockLedger } from '../../operations/index.js';
 import { syncReceivedUnits } from './receipt-events.js';
 import type { FlowCommands } from '../documents/base.js';
-import { orderEditGuard } from './order-edit-guard.js';
 
 const { rebalanceMovements } = stockLedger;
-/** 采购单的“已取消”（SQL 里由它拼，不写字面值） */
-const CANCELLED: (typeof purchaseBusinessStatuses)[number] = '已取消';
 
 /*
  * 订单的生产中、待发货、已发货由有效单据派生（AGENTS.md“订单状态”）：按生产任务、完工、送货重算订单状态，
  * 管理员改了单据、档案或删了记录以后连同已到货、库存结余、订单合计一起重算。
- * 订单视图里的发货进度、订料进度也在这里算，加载时登记给基础的 Store（server/core/order-hooks.ts）。
  */
 
 type Task = FlowDocView<'task'>;
 /** 一张任务挂了几张单时顺着找关联订单，最多找这么多张（防止一圈圈连下去读太多） */
 const MAX_LINKED_ORDERS = 50;
-/** 每张订单的采购明细里还没到齐的、到过货的行数 */
-const materialRow = z.object({ id: z.number(), open: z.number(), touched: z.number() });
-
-/** 每张订单的订料进度：按有效采购明细的到货算 */
-export function materialByOrder(db: DatabaseSync, orderIds: readonly number[] | undefined) {
-  const { predicate, params } = orderScope(orderIds);
-  const material = new Map<number, MaterialProgress>();
-  for (const row of many(
-    db,
-    materialRow,
-    // 张、公斤不能相加，一行超收也不能盖住另一行没到，所以按明细行数。
-    // 每行算在它自己关联的订单上，没有就跟采购单头走（一张采购单可以给几张订单订料）。
-    // 只看一部分订单时，先按两个外键列（都有索引）圈出相关的采购单，不扫全部明细；范围条件因此出现三次
-    "SELECT * FROM (SELECT COALESCE(l.customer_order_id,p.customer_order_id) AS id,SUM(l.received_units<l.quantity_units) AS open,SUM(l.received_units>0) AS touched FROM purchases p JOIN purchase_lines l ON l.purchase_id=p.id WHERE p.status!='" + CANCELLED + "'" +
-      (predicate
-        ? ' AND p.id IN (SELECT id FROM purchases WHERE customer_order_id ' +
-          predicate +
-          ' UNION SELECT purchase_id FROM purchase_lines WHERE customer_order_id ' +
-          predicate +
-          ')'
-        : '') +
-      ' GROUP BY 1) WHERE id IS NOT NULL' +
-      (predicate ? ' AND id ' + predicate : ''),
-    ...params,
-    ...params,
-    ...params,
-  ))
-    material.set(row.id, !row.open ? 'done' : row.touched ? 'partial' : 'pending');
-  return material;
-}
 /**
  * 按有效单据重算这几张订单的状态（生产中、待发货、已发货）。onlyChanged：状态没变就不动订单。
  */
@@ -167,6 +132,3 @@ export function refreshOrderProgress(flow: FlowCommands, ids?: number[], onlyCha
     onlyChanged,
   );
 }
-
-// 订单视图（Store.order 等）的发货、订料进度和改单核对由单据流转提供
-registerOrderRules({ shipped: shippedByLine, material: materialByOrder, editGuard: orderEditGuard });

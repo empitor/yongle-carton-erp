@@ -1,3 +1,4 @@
+import { trackOrders } from '../server/orders/index.js';
 import { z } from 'zod';
 import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
@@ -57,7 +58,7 @@ test('按交期先后把成品排满：先给交期早的甲，剩下给乙；�
     // 和人工窗口同一份算法
     const items = f.base.flow.views.items().filter((i) => i.kind === 'finished');
     assert.deepEqual(
-      planStockDelivery(items.filter((i) => i.id === f.stock.id), fx.store.orders()).map((g) => g.lines),
+      planStockDelivery(items.filter((i) => i.id === f.stock.id), trackOrders(fx.store, fx.store.orders())).map((g) => g.lines),
       plan.groups.map((g) => g.lines.map(({ orderNumber, productName, unit, ...l }) => l)),
     );
   } finally {

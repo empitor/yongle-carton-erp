@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { matchesOperationalRecord, matchesProduct, orderMetrics, productIncomplete, productMetrics, type Listed, type RecordEntity } from '../../shared/business/index';
-import { errorMessage, type Customer, type Order, type Product, type RecordSort } from '../../shared/core/index';
+import { errorMessage, type Customer, type TrackedOrder, type Product, type RecordSort } from '../../shared/core/index';
 import { useResettingPage, useBusinessRevision, LIST_PAGE_SIZE } from '../ui/index';
 import { isRecordPage, recordListQueries } from './record-filters';
 import { loadCustomers, loadOrders, loadProducts } from './list-api';
@@ -53,7 +53,7 @@ function useListData(props: Props, filters: ListFilters, paging: OrderPaging) {
   const { orderPage, orderSort, orderSignature } = paging;
   const [customers, setCustomers] = useState<Listed<Customer>[]>([]),
     [products, setProducts] = useState<Listed<Product>[]>([]),
-    [orders, setOrders] = useState<Listed<Order>[]>([]);
+    [orders, setOrders] = useState<Listed<TrackedOrder>[]>([]);
   // 第一次读完以前，页面下面说一句“正在连接”
   const [busy, setBusy] = useState(true),
     [error, setError] = useState(''),

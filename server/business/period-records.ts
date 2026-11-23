@@ -1,3 +1,4 @@
+import { trackOrders } from '../orders/index.js';
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
@@ -33,7 +34,10 @@ function archivedInRange(store: Store, table: 'orders' | 'purchases', range: Dat
 
 /** 订单：current 是全部没归档的，archived 是这段时间里已归档的 */
 export function periodOrders(store: Store, range: DateRange) {
-  return { current: store.orders(), archived: store.ordersByIds(archivedInRange(store, 'orders', range), true) };
+  const current = store.orders();
+  const archived = store.ordersByIds(archivedInRange(store, 'orders', range), true);
+  const tracked = trackOrders(store, [...current, ...archived]);
+  return { current: tracked.slice(0, current.length), archived: tracked.slice(current.length) };
 }
 
 /** 采购单：current 是全部没归档的，archived 是这段时间里已归档的 */

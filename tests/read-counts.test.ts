@@ -1,4 +1,5 @@
 // 读取只读用到的记录：查询走索引、按编号读、语句条数不随数据量增长。只看语句和查询计划，不比快慢。
+import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { pageActor } from './actor-fixture.js';
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -189,9 +190,13 @@ test('读一张订单、读全部订单：语句条数不随订单量增长，�
         insertRef.run(Number(insertFlow.run('SH-' + i, document).lastInsertRowid), i, line, f.fa.id);
       }
       db.exec('COMMIT');
-      const one = sqlOf(f.store, () => assert.equal(f.store.order(1)?.lines[0].shippedQuantity, 1)).seen;
+      const one = sqlOf(f.store, () => assert.equal(trackedOrder(f.store, 1)?.lines[0].shippedQuantity, 1)).seen;
       for (const sql of one) assert.doesNotMatch(planOf(f.store, sql), /SCAN (flow_documents|flow_refs|order_lines)\b/, sql);
-      const all = sqlOf(f.store, () => assert.equal(f.store.orders().length, n)).seen;
+      const ordinary = sqlOf(f.store, () => f.store.orders());
+      assert.equal(ordinary.result.length, n);
+      assert.equal(ordinary.seen.some((sql) => /flow_documents|purchases|purchase_lines/.test(sql)), false);
+      const all = sqlOf(f.store, () => assert.equal(trackOrders(f.store, ordinary.result).length, n)).seen;
+      assert.equal(all.length, 2, '一批订单只查一次送货、一次订料');
       assert.deepEqual(f.store.ordersByIds([1, n], true).map((o) => o.id).sort((a, b) => a - b), [1, n]);
       return [one.length, all.length];
     } finally {

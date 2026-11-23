@@ -1,11 +1,22 @@
+import { quantityString, UNITS_PER_QUANTITY } from './quantity.js';
+
 /** 发货进度的三种说法（订单整体、每行明细都用） */
 export const shippingProgresses = ['未发货', '部分发货', '已发完'] as const;
 export type ShippingProgress = (typeof shippingProgresses)[number];
 export function arrivalLineStatus(planned: number, received: number) {
   return received >= planned ? '已到齐' : received > 0 ? '部分到货' : '未到货';
 }
-export function shippingLineStatus(planned: number, shipped: number): ShippingProgress {
+function shippingLineStatus(planned: number, shipped: number): ShippingProgress {
   return shipped >= planned ? '已发完' : shipped > 0 ? '部分发货' : '未发货';
+}
+/** 按千分整数计算剩余数，避免用小数直接相减。 */
+export function lineShippingProgress(quantity: number, shipped: number) {
+  const planned = Math.round(quantity * UNITS_PER_QUANTITY);
+  return {
+    shippedQuantity: Number(quantityString(shipped)),
+    remainingQuantity: Number(quantityString(Math.max(0, planned - shipped))),
+    shippingStatus: shippingLineStatus(planned, shipped),
+  };
 }
 // 仅由后端在读取真实有效单据后调用；界面、报表及工具直接使用返回结果。
 /** 进度的取值就是传进来的三种说法（S 按这三个推，不按 states 推，states 是 any 时进度也不会变成 any） */

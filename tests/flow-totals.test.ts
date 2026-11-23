@@ -1,10 +1,12 @@
 // 只做合计的几处读法：订单明细已发（server/flow/documents/shipped.ts）、生产任务的完工进度（server/flow/documents/read.ts）。
 // 守的是结果：送货单、完工单各种状态混在一起时，每条订单明细已发多少、每张任务完工到哪，一个数都不能变。
+import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { orderSchema } from '../shared/core/domain.js';
 import { finishedStockOfProduct } from '../server/flow/index.js';
-import { shippedByLine, shippedUnits } from '../server/flow/documents/shipped.js';
+import { shippedByLine } from '../server/flow/index.js';
+import { shippedUnits } from '../server/flow/documents/shipped.js';
 import { businessFixture } from './flow-fixture.js';
 import { saveDoc } from './receive-fixture.js';
 
@@ -77,7 +79,7 @@ test('订单明细已发：只算已出库的送货单；按订单圈出的送�
     assert.equal(shippedUnits(db, lineA, both.id), 12000);
     assert.equal(shippedUnits(db, lineB), 20000);
     assert.equal(shippedUnits(db, undefined), 0);
-    assert.equal(f.store.order(f.order.id)?.lines[0]?.shippedQuantity, 42);
+    assert.equal(trackedOrder(f.store, f.order.id)?.lines[0]?.shippedQuantity, 42);
   } finally {
     f.store.close();
   }

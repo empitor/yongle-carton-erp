@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { arrivalLineStatus, Order } from '../core/index.js';
+import type { arrivalLineStatus, TrackedOrder } from '../core/index.js';
 import { flowContentSchema, type FlowDocuments, type FlowDocView } from './flow-document.js';
 import { receiptHeadSchema, receiptLineSchema } from './stock-flow-views.js';
 
@@ -59,7 +59,7 @@ export type ArrivalDaily<M = MovementJson> = ArrivalRecord<M> & {
   pending: boolean;
 };
 
-type OrderLine = Order['lines'][number];
+type OrderLine = TrackedOrder['lines'][number];
 type DeliveryLine = FlowDocuments['delivery']['lines'][number];
 /** 台账送货单一行另带的：订单号、品名、规格、单位（单据里没快照的取订单明细或库存品）、订单明细的订购和发货、配给这一行的流水 */
 type DeliveryLineExtra<M> = Partial<Pick<DeliveryLine, 'orderNumber' | 'productName' | 'specification' | 'unit'>> &

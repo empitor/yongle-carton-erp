@@ -1,5 +1,5 @@
 import type { PurchaseView, RecordEntity, StockItemView, SupplierView } from '../../shared/business/index';
-import type { Customer, Order, Product } from '../../shared/core/index';
+import type { Customer, TrackedOrder, Product } from '../../shared/core/index';
 
 /**
  * 档案、订单、采购单、库存品列表和详情里的一条，按记录种类：列表读到的带“已归档”标记，
@@ -8,7 +8,7 @@ import type { Customer, Order, Product } from '../../shared/core/index';
  */
 type MaybeListed<T> = T & { archived?: boolean };
 export type RecordRowOf = {
-  orders: MaybeListed<Order>;
+  orders: MaybeListed<TrackedOrder>;
   customers: MaybeListed<Customer>;
   products: MaybeListed<Product>;
   suppliers: SupplierView;

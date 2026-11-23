@@ -14,6 +14,7 @@ import { defaultTemplateColumns } from '../shared/documents/index.js';
 import { orderSchema, productSchema, specification } from '../shared/core/domain.js';
 import { localAdmin, workbenchFixture } from './flow-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
+import { manualWrite } from './business-base-fixture.js';
 import { actor } from './actor-fixture.js';
 
 /**
@@ -76,7 +77,7 @@ const lastTwo = (rows: string[][]) => rows.map((r) => r.slice(-2));
 const remake = (store: Store, id: number, patch: { material: string; flute: string }) => {
   const p = store.product(id, true);
   assert.ok(p, '虚构产品在');
-  store.saveProduct(productSchema.parse({ ...p, ...patch }), id, p.version);
+  manualWrite(store, { entity: 'products', action: 'update', id, input: { ...p, ...patch } }, actor);
 };
 
 test('送货单核对出库：明细按产品补上材质、楞型存进单据，产品没填的存空；待送货时还没有', (t) => {

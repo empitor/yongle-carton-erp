@@ -1,5 +1,6 @@
 // 助手出的库存类卡片（核对到货、完工、送货、冲销、删除、出入库、登记到货、采购退货）：人点了确认才写，
 // 走的是和页面同一个事务服务，权限、库存不足、幂等照旧。内存库、虚构数据。
+import { trackedOrder } from '../server/orders/index.js';
 import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,10 +74,10 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
     const shipped = flow.get(delivery.id, 'delivery');
     assert.deepEqual([shipped.date, shipped.plannedDate], [today(), '2026-10-25']);
     assert.equal(ops.balance(finished.id), 20000);
-    assert.equal(f.store.order(order.id)?.lines[0].shippedQuantity, 30);
+    assert.equal(trackedOrder(f.store, order.id)?.lines[0].shippedQuantity, 30);
     await confirm('flow.propose_reversal', { id: delivery.id, reason: '人工核对后撤销错误送货' });
     assert.equal(ops.balance(finished.id), 50000);
-    const reversed = f.store.order(order.id);
+    const reversed = trackedOrder(f.store, order.id);
     assert.ok(reversed, '订单还在');
     assert.equal(reversed.lines[0].shippedQuantity, 0);
     const unused = base.product({ name: '可永久删除的虚构空档案' });

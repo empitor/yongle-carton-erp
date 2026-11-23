@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { quantityText, quantityUnits } from '../../../shared/core/index.js';
-import { many, rows } from '../../core/index.js';
+import { many, orderIdScope, rows } from '../../core/index.js';
 
 /* 订单明细已经出库多少：只算已确认的送货单（订单状态派生、订单视图、改单核对、送货核对都用这里） */
 
@@ -14,18 +14,12 @@ const shippedLines =
   "SELECT flow_documents.id AS id,json_extract(l.value,'$.orderLineId') AS orderLineId,json_extract(l.value,'$.quantity') AS quantity" +
   " FROM flow_documents, json_each(flow_documents.document,'$.lines') l WHERE flow_documents.kind='delivery' AND flow_documents.status='confirmed'";
 
-/** 按订单编号圈范围的 SQL 条件和参数：不给编号是全部订单 */
-export function orderScope(orderIds: readonly number[] | undefined) {
-  return orderIds === undefined
-    ? { predicate: '', params: [] as string[] }
-    : { predicate: 'IN (SELECT value FROM json_each(?))', params: [JSON.stringify(orderIds)] };
-}
 /**
  * 每条订单明细的有效已发数量（千分单位）：只算已确认的送货单；指定订单时经 flow_refs 索引只读相关送货单
  * （圈出来的送货单里别的订单的行也一起算进结果）。
  */
 export function shippedByLine(db: DatabaseSync, orderIds: readonly number[] | undefined) {
-  const { predicate, params } = orderScope(orderIds);
+  const { predicate, params } = orderIdScope(orderIds);
   const shipped = new Map<number, number>();
   for (const l of many(
     db,
