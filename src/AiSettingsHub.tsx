@@ -1,4 +1,5 @@
-import { aiSettingsTab, businessSettingsTab } from '../shared/assistant/index';
+import { businessSettingsTab } from '../shared/assistant/index';
+import { pageHref, pageParams } from '../shared/core/index';
 import { useEffect, useState } from 'react';
 import { AiSettingsPage, ChannelSettings, PromptSettingsPage } from './admin/index';
 import type { AuthState } from './ui/index';
@@ -12,16 +13,15 @@ import { settingsTabsOf } from './app-shell';
  * 插件与工具是开发和排查用的，归在最后的“高级”页签；链接参数仍是 tab=tools。
  */
 export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState['actor']> }) {
-  const read = () =>
-    location.hash.includes('tab=channels') ? 'channels' : aiSettingsTab(location.hash);
+  const read = () => pageParams('ai-settings', location.hash).tab ?? 'api';
   const [hashTab, setTab] = useState(read);
   const [promptKind, setPromptKind] = useState(() =>
-    location.hash.includes('assistant=1') ? 'assistant' : 'sales-order',
+    pageParams('ai-settings', location.hash).assistant ? 'assistant' : 'sales-order',
   );
   useEffect(() => {
     const update = () => {
       setTab(read());
-      if (location.hash.includes('assistant=1')) setPromptKind('assistant');
+      if (pageParams('ai-settings', location.hash).assistant) setPromptKind('assistant');
     };
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
@@ -47,7 +47,7 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
             role="tab"
             className={tab === key ? 'selected' : ''}
             aria-selected={tab === key}
-            onClick={() => (location.hash = 'ai-settings?tab=' + key)}
+            onClick={() => (location.hash = pageHref('ai-settings', { tab: key }))}
           >
             {label}
           </button>

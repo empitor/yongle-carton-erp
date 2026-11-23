@@ -1,8 +1,8 @@
 import type { z } from 'zod';
-import type { DeletionGraph, DeletionRow as Row } from '../core/index.js';
+import { type DeletionGraph, type DeletionRow as Row } from '../core/index.js';
 import { deletionLabel } from '../core/index.js';
-import { flowEntity, flowEntityPrefix, flowKinds, flowNames, movementSource, type impactRowSchema } from '../../shared/business/index.js';
-import { quantityString } from '../../shared/core/index.js';
+import { flowEntity, flowEntityPrefix, flowNames, movementSource, type impactRowSchema } from '../../shared/business/index.js';
+import { quantityString, flowKinds } from '../../shared/core/index.js';
 import type { InventoryEffectInput } from './deletion-summary.js';
 
 /*

@@ -1,8 +1,8 @@
 import type { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { many, rows } from '../../core/index.js';
-import type { FlowDocument, FlowDocuments, FlowDocView, FlowKind, stockImpactSchema } from '../../../shared/business/index.js';
-import { MAX_STOCK_UNITS, quantityString, today } from '../../../shared/core/index.js';
+import type { FlowDocument, FlowDocuments, FlowDocView, stockImpactSchema } from '../../../shared/business/index.js';
+import { MAX_STOCK_UNITS, quantityString, today, type FlowKind } from '../../../shared/core/index.js';
 import { fail, type FlowCommands, type StockChange } from '../documents/base.js';
 import { movement } from './confirm.js';
 

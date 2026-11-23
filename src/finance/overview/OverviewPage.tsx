@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { pageHref, pageTitle } from '../../../shared/core/index';
 import { FormMessage, DetailPanel, Hint, PageHeading, yuan, loadingText, DataTable, col, mon } from '../../ui/index';
 import { SourceDetail, SourceActions, sourceHeader } from '../SourceDetail';
 import { useEnable } from '../enable';
@@ -6,7 +7,6 @@ import { overviewTodos } from './todos';
 import DrillSection, { type Drill, type DrillRow } from './DrillSection';
 import TrendSection from './TrendSection';
 import AccountingSection from './AccountingSection';
-import { financePageTitles } from '../page-titles';
 import { FinSection, PeriodInput } from '../layout';
 import { FIN_TABLE } from '../table';
 import { exportHref, useFinPerms, useFinRead, type FinData } from '../fin-api';
@@ -223,11 +223,11 @@ export default function OverviewPage() {
   return (
     <div className="fin-page">
       <PageHeading
-        title={financePageTitles['finance']}
+        title={pageTitle('finance')}
         primary={
           enable.action ||
           (enable.enabled && perms.edit && m && m.missingTax > 0
-            ? { label: '补税率（' + m.missingTax + '）', href: '#finance-flow?missing=1' }
+            ? { label: '补税率（' + m.missingTax + '）', href: pageHref('finance-flow', { missing: true }) }
             : null)
         }
         more={[

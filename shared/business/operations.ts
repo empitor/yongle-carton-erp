@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PRICE_DECIMALS, RAW_UNIT, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
+import { PRICE_DECIMALS, RAW_UNIT, UNITS_PER_YUAN, positiveQuantity, quantityText, quantityUnits, stockKinds, type StockKind } from '../core/index.js';
 import { chosenId, dateSchema, exactPriceSchema, customerSchema, fieldLabel } from '../core/index.js';
 import { cmLimitIssue, dimensionUnitSchema, priceBases, dimensionValueSchema, specification, withinCmLimit } from '../core/index.js';
 import { MONEY_DECIMALS, NOTE_MAX_LENGTH, SQUARE_METRE_SHIFT, UNIT_MAX_LENGTH } from './limits.js';
@@ -19,9 +19,8 @@ export type RecordEntity = (typeof recordEntities)[number];
 export const purchaseStatuses = ['待订货', '已订货', '部分到货', '全部到货', '已取消'] as const;
 export const purchaseBusinessStatuses = ['待订货', '已订货', '已取消'] as const;
 export const arrivalProgresses = ['未到货', '部分到货', '全部到货'] as const;
-export const stockKinds = ['raw', 'finished'] as const;
 /** 库存品种类的叫法（下拉、修改历史、选择器小字都用这一份；仓库和页面另叫“原材料库存”“成品库存”） */
-export const stockKindNames: Record<(typeof stockKinds)[number], string> = { raw: '原材料', finished: '成品' };
+export const stockKindNames: Record<StockKind, string> = { raw: '原材料', finished: '成品' };
 export function lineMoney(quantity: string, price: string | null) {
   if (price === null) return null;
   const [a, b = ''] = price.split('.');

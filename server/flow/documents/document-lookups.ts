@@ -1,7 +1,8 @@
+import type { FlowKind } from '../../../shared/core/index.js';
 import { z } from 'zod';
 import type { Store } from '../../core/index.js';
 import { many, rows } from '../../core/index.js';
-import { flowEntityPrefix, flowStatus, type FlowKind } from '../../../shared/business/index.js';
+import { flowEntityPrefix, flowStatus } from '../../../shared/business/index.js';
 
 /*
  * 单据流转的轻量只读：按编号或条件只取关联编号、版本号、单号等，不组装单据视图。

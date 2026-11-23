@@ -1,5 +1,5 @@
-import { flowStatusText, isFlowKind, purchaseState, specLine, stockKindNames } from '../../shared/business/index';
-import { orderDisplayStatus, type ApiJson } from '../../shared/core/index';
+import { flowStatusText, purchaseState, specLine, stockKindNames } from '../../shared/business/index';
+import { orderDisplayStatus, type ApiJson, isFlowKind } from '../../shared/core/index';
 import { isJsonList, isJsonObject, textOf, type JsonObject, type ManagedModule } from './record-types';
 // 数据管理列表和编辑窗里记录怎么叫：状态、单号或名称、关联字段的候选。
 /** 可搜索选择器的一项：label 是名称或单号，hint 是名称后面的小字（规格、客户、日期这类能认出来的信息） */

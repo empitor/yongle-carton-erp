@@ -1,9 +1,9 @@
+import { pageTitle } from '../../../shared/core/index';
 import { PageHeading, Segmented } from '../../ui/index';
 import AccountsTab from './AccountsTab';
 import DocumentsTab from './DocumentsTab';
 import InvoicesTab from './InvoicesTab';
 import NotesTab from './NotesTab';
-import { financePageTitles } from '../page-titles';
 import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, useTab } from '../page-state';
 
@@ -18,15 +18,15 @@ const tabs = [
   ['invoices', '发票'],
 ] as const;
 /** 页签里某一节的名字 → 它所在的页签：地址写 tab=<节名> 时打开那个页签并滚到那一节（站内链接、界面检查脚本都这样跳） */
-const sectionTabs: Record<string, string> = { bank: 'accounts', matching: 'invoices', tax: 'invoices' };
+const sectionTabs = { bank: 'accounts', matching: 'invoices', tax: 'invoices' } as const;
 
 export default function CashPage() {
-  const [picked, setTab, requested] = useTab('documents', sectionTabs);
+  const [picked, setTab, requested] = useTab('finance-cash', 'documents', sectionTabs);
   const tab = tabs.some(([k]) => k === picked) ? picked : 'documents';
   useFocusSection(requested, Object.keys(sectionTabs));
   const head = (props: HeadProps) => (
     <>
-      <PageHeading title={financePageTitles['finance-cash']} {...props} />
+      <PageHeading title={pageTitle('finance-cash')} {...props} />
       <SubBar>
         <Segmented className="fin-segmented" label="资金发票分类" value={tab} onChange={setTab} options={tabs} />
       </SubBar>

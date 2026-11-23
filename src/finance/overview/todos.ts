@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { pageHref } from '../../../shared/core/index';
 import { yuan } from '../../ui/index';
 import type { FinData } from '../fin-api';
 
@@ -26,7 +27,7 @@ function overdueTodos(summary: TodoSources['summary']) {
     key: 'overdue-' + o.kind,
     label: o.kind === 'receivable' ? '逾期没收的客户欠款' : '逾期没付的供应商货款',
     value: o.count + ' 笔 · ' + yuan(o.amount) + ' 元',
-    href: '#finance-ar?tab=soon',
+    href: pageHref('finance-ar', { tab: 'soon' }),
     tone: 'warning' as const,
   }));
 }
@@ -45,7 +46,7 @@ export function overviewTodos({ report, summary, soon, discounts, perms, enabled
       key: 'tax',
       label: '待补税率的单据',
       value: missingTax + ' 张',
-      href: perms.edit && enabled ? '#finance-flow?missing=1' : undefined,
+      href: perms.edit && enabled ? pageHref('finance-flow', { missing: true }) : undefined,
       tone: 'warning',
     },
     {
@@ -61,14 +62,14 @@ export function overviewTodos({ report, summary, soon, discounts, perms, enabled
       key: 'events',
       label: '记账前要处理的单据',
       value: events + ' 张',
-      href: perms.edit ? '#finance-ledger?tab=events' : undefined,
+      href: perms.edit ? pageHref('finance-ledger', { tab: 'events' }) : undefined,
     },
     {
       count: pendingApproval,
       key: 'approve',
       label: '待审核凭证',
       value: pendingApproval + ' 张',
-      href: perms.approve ? '#finance-ledger' : undefined,
+      href: perms.approve ? pageHref('finance-ledger') : undefined,
     },
     ...overdueTodos(summary),
     {
@@ -76,14 +77,14 @@ export function overviewTodos({ report, summary, soon, discounts, perms, enabled
       key: 'soon',
       label: '7 天内到期或已逾期',
       value: dueSoon + ' 笔',
-      href: '#finance-ar?tab=soon',
+      href: pageHref('finance-ar', { tab: 'soon' }),
     },
     {
       count: discountable,
       key: 'discount',
       label: '现在结清能拿优惠的单子',
       value: discountable + ' 笔',
-      href: '#finance-ar?tab=discount',
+      href: pageHref('finance-ar', { tab: 'discount' }),
     },
   ];
   return items.filter((item) => item.count > 0).map(({ count: _count, ...todo }) => todo);

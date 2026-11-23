@@ -1,7 +1,8 @@
+import type { FlowKind } from '../../../shared/core/index.js';
 import { z } from 'zod';
 import type { Actor, Store } from '../../core/index.js';
 import { AppError, nextAutoId, one, rows } from '../../core/index.js';
-import { flowDocNames, flowDocumentContent, flowDocumentOfView, type FlowDocument, type FlowDocView, type FlowKind } from '../../../shared/business/index.js';
+import { flowDocNames, flowDocumentContent, flowDocumentOfView, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
 
 /*
  * 单据表（flow_documents）的写入都在这个文件。别处只剩 deletion.ts 里登记给删除引擎和初始化的语句，

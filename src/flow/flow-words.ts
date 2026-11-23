@@ -1,4 +1,5 @@
-import { flowDocNames, flowNames, type FlowKind } from '../../shared/business/index';
+import type { FlowKind } from '../../shared/core/index';
+import { flowDocNames, flowNames } from '../../shared/business/index';
 
 /**
  * 单据（生产任务、完工、到货、送货）给人看的固定说法：单据页、仓库页、各处弹出的单据窗口共用这一份，
@@ -71,13 +72,6 @@ export const infoSavedMessage = (kind: CorrectableKind, result: { number: string
   result.changed
     ? flowDocNames[kind] + ' ' + result.number + ' 已保存，库存' + (kind === 'production' ? '' : '和金额') + '没有变。'
     : '内容没有变化。';
-/** 单据详情的链接（单据页、仓库页同一套地址） */
-export const flowDocHref = (kind: string, id: number) =>
-  (kind === 'delivery'
-    ? '#warehouse?kind=finished&deliveries=1&doc='
-    : kind === 'arrival'
-      ? '#warehouse?arrivals=1&doc='
-      : '#production?' + (kind === 'production' ? 'view=production&' : '') + 'doc=') + id;
 
 /**
  * 单据保存后的提示：kind 是这张单据的类型，pageKind 是所在页面的类型（生产任务页里登记的完工要说去完工记录核对）。

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { dateSchema, quantityText } from '../core/index.js';
+import { dateSchema, quantityText, type FlowKind } from '../core/index.js';
 import { reversalRecordSchema } from './stock-flow-views.js';
-import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema, type FlowKind } from './physical-flow.js';
+import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema } from './physical-flow.js';
 
 /*
  * 库里的单据：flow_documents.document 这一列 JSON。等于录入规则（physical-flow.ts）整理出来的内容，加上服务端写进去的字段

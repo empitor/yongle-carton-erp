@@ -1,5 +1,6 @@
+import type { FlowKind } from '../../shared/core/index';
 import { orderNextSteps, purchaseNextSteps } from '../../shared/business/index';
-import type { FlowKind, NextStep, NextSteps, RecordEntity } from '../../shared/business/index';
+import type { NextStep, NextSteps, RecordEntity } from '../../shared/business/index';
 import type { RecordRowOf } from './record-rows';
 
 type StepData = Parameters<typeof orderNextSteps>[1];

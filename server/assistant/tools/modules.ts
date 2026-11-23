@@ -3,9 +3,10 @@
 // module-records.ts 读（和数据管理同一份，单据补好关联的名称），这里只加助手筛选要用的几项（归档标记、关联的客户）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import type { FlowDocView, FlowKind, StockItemView } from '../../../shared/business/index.js';
+import { flowDocHref, pageHref, type FlowKind } from '../../../shared/core/index.js';
+import type { FlowDocView, StockItemView } from '../../../shared/business/index.js';
 import { flowEntityPrefix } from '../../../shared/business/index.js';
-import { assistantModules, flowKindOfModule, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
+import { assistantModules, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
 import { entityRecords, namedDocuments, type NamedDocument } from '../../business/index.js';
 import { movementScope, suppliersOfPurchaseLines } from '../../operations/index.js';
 import { requireActor, type ToolContext } from './context.js';
@@ -183,12 +184,26 @@ export function recordRow(ctx: ToolContext, module: Module, actor: Actor, archiv
 /** 记录在页面上的链接要用的几项 */
 type Linkable = { id: number | string; archived?: boolean; name?: string; number?: string; receiptRecordId?: string };
 export function recordLink(module: Module, row: Linkable) {
-  if (module === 'arrivals') return '#warehouse?arrivals=1&receipt=' + encodeURIComponent(row.receiptRecordId || 'flow-' + row.id);
-  const archivedTail = row.archived ? '&archived=1' : '';
-  if (module === 'deliveries') return '#warehouse?kind=finished&deliveries=1&doc=' + row.id + archivedTail;
-  if (flowKindOfModule(module)) return '#production?doc=' + row.id + archivedTail;
-  if (module === 'movements') return '#warehouse?flow=1';
-  const stockKind = stockKindOf(module);
-  if (stockKind) return '#warehouse?kind=' + stockKind + '&q=' + encodeURIComponent(String(row.name)) + archivedTail;
-  return '#' + module + '?q=' + encodeURIComponent(String(row.number || row.name)) + archivedTail;
+  switch (module) {
+    case 'arrivals':
+      return pageHref('warehouse', { arrivals: true, receipt: row.receiptRecordId || 'flow-' + row.id });
+    case 'deliveries':
+      return flowDocHref('delivery', Number(row.id), row.archived);
+    case 'production_tasks':
+      return flowDocHref('task', Number(row.id), row.archived);
+    case 'production_records':
+      return flowDocHref('production', Number(row.id), row.archived);
+    case 'movements':
+      return pageHref('warehouse', { flow: true });
+    case 'raw_inventory':
+      return pageHref('warehouse', { kind: 'raw', q: String(row.name), archived: row.archived });
+    case 'finished_inventory':
+      return pageHref('warehouse', { kind: 'finished', q: String(row.name), archived: row.archived });
+    case 'customers':
+    case 'products':
+    case 'orders':
+    case 'suppliers':
+    case 'purchases':
+      return pageHref(module, { q: String(row.number || row.name), archived: row.archived });
+  }
 }

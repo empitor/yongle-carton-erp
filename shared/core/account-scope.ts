@@ -1,4 +1,5 @@
 import type { Permission } from './accounts.js';
+import { isFinancePage } from './pages.js';
 
 /**
  * 纯财务账号（目前就是“出纳”级别）：有财务权限、没有业务编辑权限、不是超级管理员。
@@ -40,5 +41,5 @@ export function financeOnlyToolAllowed(name: string) {
 
 /** 纯财务账号能打开的页面。 */
 export function financeOnlyPageAllowed(page: string) {
-  return page.startsWith('finance') || page === 'guide';
+  return isFinancePage(page) || page === 'guide';
 }

@@ -7,8 +7,8 @@ import { MarkService } from '../business/index.js';
 import type { ReceiptAi } from '../import/index.js';
 import type { AssistantAttachments } from './attachments.js';
 import type { WorkflowContext } from './order-import-state.js';
-import { AppError } from '../core/index.js';
-import { audit } from '../core/index.js';
+import { AppError, audit } from '../core/index.js';
+import { pageHref } from '../../shared/core/index.js';
 import { InboxService } from '../inbox/index.js';
 import { prepareArrivalRecognition } from '../import/index.js';
 import { resetPreview, systemBackup, systemCheck, systemStatus, systemTools, type BackupSettings } from './tools/system.js';
@@ -169,7 +169,7 @@ export class AssistantExtraTools {
         workspaceId,
         fileName: workspace.fileName,
         recognized: result.result,
-        url: '#ai-import?workspace=' + workspaceId,
+        url: pageHref('ai-import', { workspace: workspaceId }),
         message: '到货单识别完成，还没有入库。',
         next: '查到对应采购单，把识别内容告诉用户；用户说了验收结果再登记。',
       };

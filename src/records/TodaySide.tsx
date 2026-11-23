@@ -1,4 +1,5 @@
 import type { WorkbenchApi } from '../../shared/business/index';
+import { pageHref } from '../../shared/core/index';
 import { yuan, type Slots } from '../ui/index';
 
 type Today = WorkbenchApi['GET /business/today']['response'];
@@ -31,19 +32,19 @@ export default function TodaySide({
             {schedule.arrivals.map((r) => (
               <li key={'a' + r.id}>
                 <b className={r.overdue ? 'td-late' : undefined}>{r.overdue ? '逾期' : '到货'}</b>
-                <a href="#warehouse?arrivals=1">{r.overdue ? r.label.replace(/^逾期\s*/, '') : r.label}</a>
+                <a href={pageHref('warehouse', { arrivals: true })}>{r.overdue ? r.label.replace(/^逾期\s*/, '') : r.label}</a>
               </li>
             ))}
             {schedule.tasks.map((r) => (
               <li key={'t' + r.id}>
                 <b>生产</b>
-                <a href="#production">{r.label}</a>
+                <a href={pageHref('production')}>{r.label}</a>
               </li>
             ))}
             {schedule.deliveries.map((r) => (
               <li key={'d' + r.id}>
                 <b>送货</b>
-                <a href="#warehouse?deliveries=1&kind=finished">{r.label}</a>
+                <a href={pageHref('warehouse', { deliveries: true, kind: 'finished' })}>{r.label}</a>
               </li>
             ))}
           </ul>
@@ -60,7 +61,7 @@ export default function TodaySide({
             {dueRows.map((d) => (
               <li key={d.id + ':' + d.installment_id}>
                 <b>{d.kind === 'receivable' ? '应收' : '应付'}</b>
-                <a href="#finance-ar?tab=soon">
+                <a href={pageHref('finance-ar', { tab: 'soon' })}>
                   {d.party_name} {yuan(d.balance)} 元
                 </a>
                 <small className={Number(d.days_to_due) < 0 ? 'td-late' : ''}>
@@ -83,7 +84,7 @@ export default function TodaySide({
           <ul className="td-list">
             {zeroStock.map((i) => (
               <li key={i.id}>
-                <a href={'#warehouse?kind=raw&q=' + encodeURIComponent(i.name)}>{i.name}</a>
+                <a href={pageHref('warehouse', { kind: 'raw', q: i.name })}>{i.name}</a>
                 {i.onOrder !== '0' && <small>在途 {i.onOrder}</small>}
               </li>
             ))}

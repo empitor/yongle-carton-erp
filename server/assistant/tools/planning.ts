@@ -2,7 +2,7 @@ import { trackOrders } from '../../orders/index.js';
 // 助手工具：安排送货、安排生产的只读试算（delivery.plan、production.plan）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
-import { quantityString } from '../../../shared/core/index.js';
+import { pageHref, quantityString } from '../../../shared/core/index.js';
 import { finishedIdsOfProducts, orderIdsOfProducts } from '../../operations/index.js';
 import { deliveryPlan, pendingByOrderLine, planProductionForOrders } from '../../../shared/business/index.js';
 import { relatedBusiness } from '../../business/index.js';
@@ -85,7 +85,7 @@ function planDelivery(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema>, 
     // 订单在等却对不上的原因（规格不一致、订单待确认）
     blockers: plan.blockers.map(({ orderVersion: _version, ...b }) => b),
     skipped: [...plan.skipped, ...plan.idle.map(({ stock, reason }) => ({ stockId: stock.id, name: stock.name, reason }))],
-    url: v.stockIds ? '#warehouse?kind=finished' : '#orders',
+    url: v.stockIds ? pageHref('warehouse', { kind: 'finished' }) : pageHref('orders'),
   };
 }
 
@@ -106,6 +106,6 @@ function planProduction(ctx: ToolContext, v: z.output<typeof productionPlanSchem
       suggested: g.suggested,
     })),
     skipped: plan.skipped,
-    url: '#orders',
+    url: pageHref('orders'),
   };
 }

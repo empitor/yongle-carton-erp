@@ -1,7 +1,7 @@
 import type { Actor } from '../../core/index.js';
 import { AppError, isLocalAdministrator } from '../../core/index.js';
-import { FINISHED_UNIT, RAW_UNIT, UNITS_PER_QUANTITY, deliverableOrder, finishedUnitMessage, rawUnitMessage, today, quantityUnits, quantityString, MAX_STOCK_UNITS } from '../../../shared/core/index.js';
-import { arrivalSchema, flowInput, type FlowDocument, type FlowDocView, type FlowKind } from '../../../shared/business/index.js';
+import { FINISHED_UNIT, RAW_UNIT, UNITS_PER_QUANTITY, deliverableOrder, finishedUnitMessage, rawUnitMessage, today, quantityUnits, quantityString, MAX_STOCK_UNITS, type FlowKind } from '../../../shared/core/index.js';
+import { arrivalSchema, flowInput, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
 import { fail, taskOf } from '../documents/base.js';
 import type { ArrivalLine, Check, DeliveryLine, FlowCheck, FlowCommands, StockChange, StockItemRow } from '../documents/base.js';
 import { checkArrival } from './validate-arrival.js';

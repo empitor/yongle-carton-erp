@@ -1,7 +1,8 @@
+import { flowKinds, type FlowKind } from '../../../shared/core/index.js';
 import { z } from 'zod';
-import type { Actor, Store } from '../../core/index.js';
+import { type Actor, type Store } from '../../core/index.js';
 import { AppError, audit, inSavepoint, one, requirePermission, rows } from '../../core/index.js';
-import { documentInfoFields, documentInfoSchema, flowDocNames, flowKinds, pendingLabels, type FlowKind } from '../../../shared/business/index.js';
+import { documentInfoFields, documentInfoSchema, flowDocNames, pendingLabels } from '../../../shared/business/index.js';
 import { writeFlowDocument } from '../documents/document-store.js';
 import { get, storedDocument } from '../documents/read.js';
 

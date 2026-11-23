@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DetailPanel, ActionBar, Facts, Hint, Section, yuan, notify, useAction } from '../../ui/index';
-import { today } from '../../../shared/core/index';
+import { pageHref, today } from '../../../shared/core/index';
 import { useFinPerms, useFinRead, type FinData } from '../fin-api';
 import { FormDialog } from '../FormDialog';
 import { FinStatusChip } from '../status';
@@ -89,7 +89,7 @@ function EventFacts({ row }: { row: EventRow }) {
           {
             label: '凭证',
             value: row.voucher_id ? (
-              <a href={'#finance-ledger?voucher=' + row.voucher_id}>查看凭证</a>
+              <a href={pageHref('finance-ledger', { voucher: row.voucher_id })}>查看凭证</a>
             ) : (
               '还没生成'
             ),
@@ -97,7 +97,7 @@ function EventFacts({ row }: { row: EventRow }) {
           },
           {
             label: '原来那张凭证',
-            value: <a href={'#finance-ledger?voucher=' + row.previous_voucher_id}>查看凭证</a>,
+            value: <a href={pageHref('finance-ledger', { voucher: row.previous_voucher_id ?? undefined })}>查看凭证</a>,
             hidden: !!row.voucher_id || !row.previous_voucher_id,
           },
         ]}
@@ -212,7 +212,7 @@ export default function EventPanel({
               },
               {
                 label: '去台账补税率',
-                href: '#finance-flow?missing=1',
+                href: pageHref('finance-flow', { missing: true }),
                 hidden: row.status !== 'info_pending',
               },
               {

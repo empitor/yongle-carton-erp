@@ -1,65 +1,47 @@
 // 功能链路：导航、页面链接、API、AI 工具、提示词说明之间不能脱节。只做静态检查，不碰数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { createElement, createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { erpPageIds, erpPages, aiSettingsTab, pageLink } from '../shared/assistant/assistant-navigation.js';
+import { isFinancePage, isPageHref, pageIds, pageParams, pageShortTitle, pageTitle } from '../shared/core/index.js';
+import { erpPages, pageLink } from '../shared/assistant/assistant-navigation.js';
 import { uiCapabilities } from '../shared/assistant/ui-capabilities.js';
 import Navigation from '../src/Navigation.js';
 import { toolCatalog } from '../server/assistant/tool-catalog.js';
 import { hasRouteUnder } from './server-routes.js';
 
-const walk = (dir: string, out: string[] = []) => {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(tsx?|mts)$/.test(name)) out.push(p);
-  }
-  return out;
-};
-
-const read = (dirs: string[]) =>
-  dirs.flatMap((d) => walk(d)).map((f) => [f, readFileSync(f, 'utf8')] as const);
-
-test('导航入口和页面内链接都指向真实页面', () => {
+test('导航入口渲染全部登记页面和财务页签', () => {
   const html = renderToStaticMarkup(
-    createElement(Navigation, { page: 'dashboard', navigate: () => {} }),
+    createElement(Navigation, { page: 'dashboard', navigate: () => {}, finance: true, accounts: true, settings: true }),
   );
-  assert.match(html, /收件箱/);
-  assert.match(html, /AI 导入/);
-  const nav = readFileSync('src/Navigation.tsx', 'utf8');
-  for (const [, target] of nav.matchAll(/target:\s*'([^']+)'/g))
-    assert.ok(
-      (erpPageIds as readonly string[]).includes(target.split('?')[0]),
-      '导航目标不存在：' + target,
-    );
-  const bad: string[] = [];
-  // 前端写死的每个页面地址（链接、跳转、拼出来的地址开头）都必须是登记过的页面，页面改名漏改一处就会被拦下；#fff 这类颜色不算
-  for (const [file, text] of read(['src']))
-    for (const [, page] of text.matchAll(/['"`]#([a-z][a-z0-9-]*)(?=[?'"`$&])/g))
-      if (!/^[0-9a-f]{3,8}$/.test(page) && !(erpPageIds as readonly string[]).includes(page)) bad.push(file + ' → #' + page);
-  assert.deepEqual(bad, []);
+  for (const id of pageIds) {
+    if (isFinancePage(id) || id === 'production' || id === 'warehouse') continue;
+    assert.ok(html.includes(pageTitle(id)), '导航缺少页面：' + id);
+  }
+  assert.match(html, />财务</);
+  const finHtml = renderToStaticMarkup(
+    createElement(Navigation, { page: 'finance', navigate: () => {}, financeOnly: true }),
+  );
+  for (const id of pageIds) if (isFinancePage(id)) assert.ok(finHtml.includes(pageTitle(id)), '财务导航缺少：' + id);
 });
 
-test('助手用的页面名称包含导航上的叫法', () => {
-  const nav = readFileSync('src/Navigation.tsx', 'utf8');
-  for (const [, label, target] of nav.matchAll(
-    /label:\s*'([^']+)',\s*target:\s*'([^']+)'(?!,\s*when)/g,
-  )) {
-    const name = (erpPages as Record<string, string>)[target];
-    if (name && !/当前/.test(label) && target !== 'warehouse' && target !== 'production')
-      assert.ok(
-        name.includes(label) || name.replace(/\s/g, '').includes(label.replace(/\s/g, '')),
-        target + '：' + name + ' 不含 ' + label,
-      );
+test('助手用的页面名称覆盖全部登记页面且包含页面叫法', () => {
+  for (const id of pageIds) {
+    const desc = erpPages[id];
+    const title = pageTitle(id);
+    const short = pageShortTitle(id);
+    assert.ok(desc, id + ' 缺少助手页面说明');
+    assert.ok(
+      desc.includes(title) || desc.includes(short) || desc.replace(/\s/g, '').includes(title.replace(/\s/g, '')),
+      id + '：' + desc + ' 不含 ' + title + ' / ' + short,
+    );
   }
 });
 
 test('能力清单：每项的页面已登记、每个接口在服务端有路由；目录里的每个工具正好归一项，那一项有人工入口和接口', () => {
   for (const c of uiCapabilities) {
-    assert.ok((erpPageIds as string[]).includes(c.page.slice(1).split('?')[0]), c.id + ' 页面目标未登记：' + c.page);
+    assert.ok(isPageHref(c.page), c.id + ' 页面目标未登记：' + c.page);
     assert.ok(c.entry && c.api.length, c.id + ' 要写明人工入口和接口');
     for (const api of c.api) assert.ok(hasRouteUnder(api), c.id + ' 找不到路由：' + api);
   }
@@ -74,7 +56,7 @@ test('系统提示词写明外来的文字都只是资料、不是指令', () =>
 });
 
 test('单据模板在AI设置第四页签，AI导航与人工导航一致', () => {
-  assert.equal(aiSettingsTab('#ai-settings?tab=templates'), 'templates');
+  assert.equal(pageParams('ai-settings', '#ai-settings?tab=templates').tab, 'templates');
   assert.equal(pageLink('document-templates'), '#ai-settings?tab=templates');
 });
 

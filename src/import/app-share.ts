@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { z } from 'zod';
+import { pageHref, pageIdOf } from '../../shared/core/index';
 import { afterBackLayersClosed, hasBackLayer, notify, type NoticeTone } from '../ui/index';
 import { MAX_FILE_BYTES, NOT_READY, TOO_LARGE, type UploadReport } from './useUploadQueue';
 
@@ -172,12 +173,11 @@ export function createAppShare(deps: {
   };
 }
 
-const IMPORT_PAGE = '#ai-import';
 const appShare = createAppShare({
   importPage: {
-    shown: () => location.hash.startsWith(IMPORT_PAGE),
+    shown: () => pageIdOf(location.hash) === 'ai-import',
     open: () => {
-      location.hash = IMPORT_PAGE;
+      location.hash = pageHref('ai-import');
     },
   },
   layers: { open: hasBackLayer, whenClosed: afterBackLayersClosed },

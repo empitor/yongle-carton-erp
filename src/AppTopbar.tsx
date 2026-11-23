@@ -77,7 +77,7 @@ export default function AppTopbar({
               <div className="top-new-menu" role="menu" onClick={() => setNewMenu(false)}>
                 {/* 和 Ctrl+K 搜索面板的“操作”同一份清单、同一套叫法 */}
                 {createActions.map((a) => (
-                  <MenuItem key={a.target} href={'#' + a.target}>
+                  <MenuItem key={a.target} href={a.target}>
                     {a.label}
                   </MenuItem>
                 ))}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { pageHref } from '../../../shared/core/index';
 import { FormMessage, ListSummary, Hint, yuan, Segmented, DataTable, col, mon, type Col } from '../../ui/index';
 import { snapshotKinds } from '../../../shared/finance/index';
 import { FinSection, PeriodInput, type HeadFn } from '../layout';
@@ -77,7 +78,7 @@ export function Readiness({ period }: { period: string }) {
 /** 点报表一行：打开这一行第一个科目这个月的明细账 */
 const drill = (r: BalanceLine | ProfitLine) => {
   const d = r.drill[0];
-  if (d) location.hash = '#finance-ledger?tab=books&account=' + d.account;
+  if (d) location.hash = pageHref('finance-ledger', { tab: 'books', account: d.account });
 };
 const balanceCols: Col<BalanceLine>[] = [col('name', '项目'), mon('opening', '年初 / 期初'), mon('amount', '期末')];
 const profitCols: Col<ProfitLine>[] = [col('name', '项目'), mon('amount', '本月'), mon('ytd', '本年累计')];
@@ -205,7 +206,7 @@ export function ReportsTab({ head, period, setPeriod, initial }: TabProps & { in
         children: <PeriodInput value={period} onChange={setPeriod} />,
         primary:
           readiness.data && !ready && readiness.data.count > 0 && perms.edit
-            ? { label: '补税率（' + readiness.data.count + '）', href: '#finance-flow?missing=1' }
+            ? { label: '补税率（' + readiness.data.count + '）', href: pageHref('finance-flow', { missing: true }) }
             : null,
         more: ready
           ? [

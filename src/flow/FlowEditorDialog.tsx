@@ -1,6 +1,6 @@
+import type { FlowKind } from '../../shared/core/index';
 import type { Dispatch, SetStateAction } from 'react';
 import { ManagementDialog, Loading } from '../ui/index';
-import { type FlowKind } from '../../shared/business/index';
 import { EditorFooter, FormMessage } from '../ui/index';
 import { FlowEditor } from './FlowEditor';
 import type { FlowEditing } from './flow-prefill';

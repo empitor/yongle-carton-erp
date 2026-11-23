@@ -1,5 +1,5 @@
 // 登录页和账号菜单的请求：建第一个管理员、登录、申请账号、忘记密码、改自己的密码、退出登录。
-import { userError, type AccountApi } from '../shared/core/index';
+import { pageHref, userError, type AccountApi } from '../shared/core/index';
 import { call, readJson, request, retryWhenBusy, serviceUnavailable, textField } from './ui/index';
 
 const account = call<AccountApi>();
@@ -33,6 +33,6 @@ export const changePassword = (current: string, password: string) =>
 /** 退出当前账号。下一个登录的人可能没有当前页面的权限，所以回到首页。 */
 export async function signOut() {
   await account('POST /auth/logout', { body: {} });
-  history.replaceState(null, '', '#dashboard');
+  history.replaceState(null, '', pageHref('dashboard'));
   location.reload();
 }

@@ -1,5 +1,6 @@
+import { isPageHref } from '../../shared/core/index';
 import { ExportFileCard } from '../documents/index';
-import { exportFileSchema, isErpNavigation, readSpeaker, speakerNames, type JsonView } from '../../shared/assistant/index';
+import { exportFileSchema, readSpeaker, speakerNames, type JsonView } from '../../shared/assistant/index';
 import { AttachmentCards } from './AttachmentCards';
 import { attachmentSlots, remoteCopyNote } from './attachment-slots';
 import { InterimParts, SourceList } from './AssistantTrail';
@@ -78,7 +79,7 @@ export function MessageItem(props: MessageItemProps) {
       {m.exports?.map((file, i) => <ExportedFile key={i} file={file} />)}
       {!!m.attachments?.length && <MessageAttachments {...props} attachments={m.attachments} />}
       {m.links
-        ?.filter((l) => isErpNavigation(l.url))
+        ?.filter((l) => isPageHref(l.url))
         .map((l, i) => (
           <a className="ga-record-link" key={i} href={l.url}>
             {l.label} ↗

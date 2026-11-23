@@ -1,4 +1,4 @@
-import { FINISHED_UNIT, finishedUnit } from '../../shared/core/index';
+import { FINISHED_UNIT, finishedUnit, flowDocHref, pageHref } from '../../shared/core/index';
 import {
   flowStatusText,
   type ArrivalDaily,
@@ -174,7 +174,7 @@ function ProductionDetails({ d, data, person }: { d: FlowDocView<'production'>; 
           items={[
             {
               label: '生产任务',
-              value: d.taskId ? <a href={'#production?doc=' + d.taskId}>{task?.number || '查看任务'}</a> : '不挂任务的完工',
+              value: d.taskId ? <a href={flowDocHref('task', d.taskId)}>{task?.number || '查看任务'}</a> : '不挂任务的完工',
             },
             { label: '完工日期', value: d.date },
             {
@@ -209,7 +209,7 @@ function orderLinks(ids: number[], data: DetailData) {
     ? ids.map((id, i) => (
         <span key={id}>
           {i > 0 && '、'}
-          <a href={'#orders?order=' + id}>{data.orders?.find((o) => o.id === id)?.number || '订单'}</a>
+          <a href={pageHref('orders', { order: id })}>{data.orders?.find((o) => o.id === id)?.number || '订单'}</a>
         </span>
       ))
     : null;

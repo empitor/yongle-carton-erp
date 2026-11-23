@@ -1,5 +1,5 @@
+import { isFlowKind } from '../../shared/core/index';
 import { MenuItem, MoreMenu, SelectAll, SelectRow, StatusChip } from '../ui/index';
-import { isFlowKind } from '../../shared/business/index';
 import { recordLabel, recordStatus } from './record-refs';
 import { textOf, type DataAction, type ListedRecord } from './record-types';
 

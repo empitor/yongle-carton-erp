@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import type { arrivalLineStatus } from '../core/index.js';
+import type { arrivalLineStatus, FlowKind } from '../core/index.js';
 import { flowContentSchema, flowViewSchema } from './flow-document.js';
 import { receiptEventSchema } from './flow-views.js';
 import { arrivalProgresses, purchaseBusinessStatuses } from './operations.js';
 import { purchaseViewSchema, receiptLineSchema, stockItemViewSchema } from './stock-flow-views.js';
-import { arrivalLineSchema, type FlowKind } from './physical-flow.js';
+import { arrivalLineSchema } from './physical-flow.js';
 
 /*
  * 更正到货单、送货单、完工单的预览（server/flow/correction.ts 的 planCorrection，POST /flow/:id/correction-preview）：

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { flowDocumentSchema, type FlowDocument } from '../shared/business/flow-document.js';
 import { keepSnapshot } from '../shared/business/flow-snapshot.js';
 import { lineMoney } from '../shared/business/index.js';
-import { flowKinds, type FlowKind } from '../shared/business/physical-flow.js';
+import { flowKinds, type FlowKind } from '../shared/core/index.js';
 import { assertSnapshots, markedContent, snapshotFields } from './snapshot-fixture.js';
 
 const date = '2026-11-01';

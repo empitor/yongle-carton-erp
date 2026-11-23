@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ArchiveResult, Empty, recordArchiveInputSchema } from '../core/index.js';
+import type { ArchiveResult, Empty, recordArchiveInputSchema, FlowKind } from '../core/index.js';
 import type {
   arrivalCorrectionPreviewSchema,
   correctionCommit,
@@ -33,7 +33,7 @@ import type {
 } from './flow-requests.js';
 import type { CompletionPreview, ReturnableLine, completionResultSchema, flowScheduledSchema, purchaseReturnViewSchema } from './flow-results.js';
 import type { ArrivalRecord, FlowPreview, WarehouseDailyResult } from './flow-views.js';
-import type { arrivalSchema, deliverySchema, flowScheduleSchema, FlowKind, productionSchema, taskSchema } from './physical-flow.js';
+import type { arrivalSchema, deliverySchema, flowScheduleSchema, productionSchema, taskSchema } from './physical-flow.js';
 import type { productionCompletionSchema } from './production-completion.js';
 import type { purchaseReturnSchema } from './purchase-return.js';
 import type { StockBatchesResponse } from './stock-batches.js';

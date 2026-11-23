@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { matchesOperationalRecord, type SupplierView } from '../../shared/business/index';
+import { pageHref } from '../../shared/core/index';
 import { FilterRow, ListToolbar, PageHeading } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
 import OperationsSummary from './OperationsSummary';
@@ -40,9 +41,10 @@ export default function SuppliersPage({ recycle = false }: { recycle?: boolean }
       (!historyFilter || (historyFilter === 'with') === r.purchaseHistory.length > 0),
   );
   const changeScope = (next: string) => {
-    p.setScope(scopeOf(next));
+    const scope = scopeOf(next);
+    p.setScope(scope);
     p.setAll(false);
-    if (!recycle) history.replaceState(null, '', '#suppliers' + (next === 'all' ? '' : '?scope=' + next));
+    if (!recycle) history.replaceState(null, '', pageHref('suppliers', { scope: scope === 'archived' ? 'archived' : undefined }));
   };
   const shownError = error || ops.error;
   return (

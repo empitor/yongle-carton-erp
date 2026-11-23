@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { hashParams } from '../ui/index';
-import { today } from '../../shared/core/index';
+import { pageParams, today, withPageTab, type PageTab, type TabbedPageId } from '../../shared/core/index';
 
 /* 财务各页的页面状态：看哪个月（这次打开里记住）、哪个页签（写进地址），和地址写的那一节滚到眼前。 */
 
@@ -21,25 +20,24 @@ export function usePeriod() {
  * sectionTabs：页签里某一节的名字 → 它所在的页签（例如 held → items），地址写节名也能打开那个页签；
  * 第三项返回地址里原来写的名字，页面用它滚到对应的那一节。
  */
-export function useTab(first: string, sectionTabs: Record<string, string> = {}) {
-  const raw = () => hashParams().get('tab') || first;
-  const [requested, set] = useState(raw);
+export function useTab<P extends TabbedPageId>(
+  page: P,
+  first: PageTab<P>,
+  sectionTabs: Partial<Record<PageTab<P>, PageTab<P>>> = {},
+) {
+  const [requested, set] = useState<PageTab<P>>(() => pageParams(page, location.hash).tab ?? first);
   // 必须只注册一次：App 处理同一事件时会同步重渲染，每次渲染都重新注册的话，
   // 这个监听会在派发途中被移除，页签就跟不上地址了。
   useEffect(() => {
-    const listener = () =>
-      set(hashParams().get('tab') || first);
+    const listener = () => set(pageParams(page, location.hash).tab ?? first);
     window.addEventListener('hashchange', listener);
     return () => window.removeEventListener('hashchange', listener);
-  }, [first]);
+  }, [page, first]);
   const tab = sectionTabs[requested] ?? requested;
   return [
     tab,
-    (next: string) => {
-      const [base, query] = location.hash.split('?');
-      const params = new URLSearchParams(query || '');
-      params.set('tab', next);
-      history.replaceState(null, '', base + '?' + params);
+    (next: PageTab<P>) => {
+      history.replaceState(null, '', withPageTab(page, location.hash, next));
       set(next);
     },
     requested,

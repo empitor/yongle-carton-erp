@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { pageHref } from '../../shared/core/index';
 import { reportPageProblem } from './problem-report';
 
 /**
@@ -23,7 +24,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
         <p>别的页面不受影响。可以重新加载这一页，或者先去别的页面；问题一直出现请把下面这句话告诉管理员。</p>
         <p className="page-error-detail">{this.state.error.message}</p>
         <div className="page-error-actions">
-          <button type="button" className="secondary" onClick={() => (location.hash = '#dashboard')}>
+          <button type="button" className="secondary" onClick={() => (location.hash = pageHref('dashboard'))}>
             回到今日
           </button>
           <button type="button" className="primary" onClick={() => location.reload()}>

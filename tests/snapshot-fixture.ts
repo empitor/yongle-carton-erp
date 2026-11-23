@@ -8,8 +8,8 @@ import type { Actor, Store } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { storedDocument } from '../server/flow/documents/read.js';
 import { flowContentSchema, lifecycleFields, type FlowDocument } from '../shared/business/flow-document.js';
-import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema, type FlowKind } from '../shared/business/physical-flow.js';
-import { isRecord } from '../shared/core/index.js';
+import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../shared/business/physical-flow.js';
+import { isRecord, type FlowKind } from '../shared/core/index.js';
 import { businessChanges } from './business-changes-fixture.js';
 
 type Shape = Record<string, z.ZodType>;

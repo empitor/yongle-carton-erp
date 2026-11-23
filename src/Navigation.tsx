@@ -27,108 +27,107 @@ import {
   SlidersHorizontal,
   UserCog,
 } from 'lucide-react';
+import {
+  financePageIds,
+  isFinancePage,
+  pageHref,
+  pageTitle,
+  pagesInGroup,
+  productionViews,
+  warehouseViews,
+  type PageGroup,
+  type PageId,
+} from '../shared/core/index';
 
 type NavEntry = {
+  page: PageId;
   label: string;
-  target: string;
+  href: string;
   icon: LucideIcon;
-  /** 页面相同时用查询参数区分入口；不带条件的入口是该页的默认项。 */
-  when?: (params: URLSearchParams) => boolean;
+  /** 页面相同时按地址参数区分高亮；不带条件的入口按页面编号匹配。 */
+  active?: (route: string) => boolean;
 };
+
+const pageIcons: Record<PageId, LucideIcon> = {
+  dashboard: CalendarCheck,
+  inbox: Inbox,
+  'ai-import': FileUp,
+  orders: ClipboardList,
+  customers: Users,
+  products: Package,
+  purchases: ShoppingCart,
+  suppliers: Building2,
+  production: Factory,
+  warehouse: Warehouse,
+  finance: Landmark,
+  'finance-flow': ListChecks,
+  'finance-ar': HandCoins,
+  'finance-cash': Wallet,
+  'finance-costs': Receipt,
+  'finance-ledger': BookOpen,
+  'finance-reports': FileBarChart,
+  'finance-settings': SlidersHorizontal,
+  accounts: UserCog,
+  'ai-settings': Settings,
+  trash: Archive,
+  guide: CircleHelp,
+};
+const productionIcons: Record<(typeof productionViews)[number]['id'], LucideIcon> = {
+  task: Factory,
+  production: CheckSquare,
+};
+const warehouseIcons: Record<(typeof warehouseViews)[number]['id'], LucideIcon> = {
+  stock: Warehouse,
+  arrivals: PackagePlus,
+  deliveries: Truck,
+  flow: ArrowLeftRight,
+};
+
+const pageEntry = (page: PageId): NavEntry => ({
+  page,
+  label: pageTitle(page),
+  href: pageHref(page),
+  icon: pageIcons[page],
+});
+const groupEntries = (group: PageGroup): NavEntry[] => pagesInGroup(group).map(pageEntry);
+
 const groups: { title?: string; items: NavEntry[] }[] = [
-  {
-    items: [
-      { label: '今日', target: 'dashboard', icon: CalendarCheck },
-      { label: '收件箱', target: 'inbox', icon: Inbox },
-      { label: 'AI 导入', target: 'ai-import', icon: FileUp },
-    ],
-  },
-  {
-    title: '销售',
-    items: [
-      { label: '订单', target: 'orders', icon: ClipboardList },
-      { label: '客户', target: 'customers', icon: Users },
-      { label: '产品', target: 'products', icon: Package },
-    ],
-  },
-  {
-    title: '采购',
-    items: [
-      { label: '采购单', target: 'purchases', icon: ShoppingCart },
-      { label: '供应商', target: 'suppliers', icon: Building2 },
-    ],
-  },
+  { items: groupEntries('工作台') },
+  { title: '销售', items: groupEntries('销售') },
+  { title: '采购', items: groupEntries('采购') },
   {
     title: '生产',
-    items: [
-      {
-        label: '生产任务',
-        target: 'production',
-        icon: Factory,
-        when: (p) => p.get('view') !== 'production',
-      },
-      {
-        label: '完工记录',
-        target: 'production?view=production',
-        icon: CheckSquare,
-        when: (p) => p.get('view') === 'production',
-      },
-    ],
+    items: productionViews.map((v) => ({
+      page: 'production',
+      label: v.label,
+      href: v.href,
+      icon: productionIcons[v.id],
+      active: v.active,
+    })),
   },
   {
     title: '仓储',
-    items: [
-      {
-        label: '库存',
-        target: 'warehouse',
-        icon: Warehouse,
-        when: (p) =>
-          !['arrivals', 'deliveries', 'flow'].some((k) => p.get(k) === '1'),
-      },
-      {
-        label: '到货',
-        target: 'warehouse?arrivals=1',
-        icon: PackagePlus,
-        when: (p) => p.get('arrivals') === '1',
-      },
-      {
-        label: '送货',
-        target: 'warehouse?deliveries=1&kind=finished',
-        icon: Truck,
-        when: (p) => p.get('deliveries') === '1',
-      },
-      {
-        label: '流水',
-        target: 'warehouse?flow=1',
-        icon: ArrowLeftRight,
-        when: (p) => p.get('flow') === '1',
-      },
-    ],
+    items: warehouseViews.map((v) => ({
+      page: 'warehouse',
+      label: v.label,
+      href: v.href,
+      icon: warehouseIcons[v.id],
+      active: v.active,
+    })),
   },
 ];
 /** 只给有财务权限的账号看。 */
-const financeGroup: { title?: string; items: NavEntry[] } = {
+const financeGroup: { title: string; items: NavEntry[] } = {
   title: '财务',
-  items: [
-    { label: '财务概览', target: 'finance', icon: Landmark },
-    { label: '月度台账', target: 'finance-flow', icon: ListChecks },
-    { label: '应收应付', target: 'finance-ar', icon: HandCoins },
-    { label: '资金发票', target: 'finance-cash', icon: Wallet },
-    { label: '费用资产工资', target: 'finance-costs', icon: Receipt },
-    { label: '凭证账簿', target: 'finance-ledger', icon: BookOpen },
-    { label: '报表结账', target: 'finance-reports', icon: FileBarChart },
-    { label: '财务设置', target: 'finance-settings', icon: SlidersHorizontal },
-  ],
+  items: financePageIds.map(pageEntry),
 };
 /** 有财务权限的业务账号：侧栏只放一个“财务”，进去用页签切换。 */
-const financeEntry: NavEntry = { label: '财务', target: 'finance', icon: Landmark };
+const financeEntry: NavEntry = { page: 'finance', label: '财务', href: pageHref('finance'), icon: Landmark };
 /** 只给管理员看。 */
-const accountsEntry: NavEntry = { label: '账号管理', target: 'accounts', icon: UserCog };
-const footer: NavEntry[] = [
-  { label: '设置', target: 'ai-settings', icon: Settings },
-  { label: '归档', target: 'trash', icon: Archive },
-  { label: '使用说明', target: 'guide', icon: CircleHelp },
-];
+const accountsEntry: NavEntry = pageEntry('accounts');
+const footer: NavEntry[] = pagesInGroup('系统')
+  .filter((id) => id !== 'accounts')
+  .map(pageEntry);
 
 export default function Navigation({
   page,
@@ -155,31 +154,24 @@ export default function Navigation({
   settings?: boolean;
   accountRequests?: number;
 }) {
-  const params = new URLSearchParams(route.split('?')[1] || '');
   const item = (entry: NavEntry) => {
     const selected =
       entry === financeEntry
-        ? page.startsWith('finance')
-        : entry.target.split('?')[0] === page && (entry.when ? entry.when(params) : true);
+        ? isFinancePage(page)
+        : entry.page === page && (entry.active ? entry.active(route) : true);
     const Icon = entry.icon;
     return (
       <button
-        key={entry.target}
+        key={entry.href}
         className={'erp-nav-item' + (selected ? ' selected' : '')}
         aria-current={selected ? 'page' : undefined}
-        onClick={() => navigate(entry.target)}
+        onClick={() => navigate(entry.href)}
       >
         <Icon size={16} />
         {entry.label}
-        {entry.target === 'inbox' && inboxCount > 0 && (
-          <span className="nav-count">{inboxCount}</span>
-        )}
-        {entry.target === 'ai-import' && importCount > 0 && (
-          <span className="nav-count ai">{importCount}</span>
-        )}
-        {entry.target === 'accounts' && accountRequests > 0 && (
-          <span className="nav-count">{accountRequests}</span>
-        )}
+        {entry.page === 'inbox' && inboxCount > 0 && <span className="nav-count">{inboxCount}</span>}
+        {entry.page === 'ai-import' && importCount > 0 && <span className="nav-count ai">{importCount}</span>}
+        {entry.page === 'accounts' && accountRequests > 0 && <span className="nav-count">{accountRequests}</span>}
       </button>
     );
   };
@@ -192,7 +184,7 @@ export default function Navigation({
             {financeGroup.items.map(item)}
           </div>
         </nav>
-        <div className="nav-footer">{footer.filter((e) => e.target === 'guide').map(item)}</div>
+        <div className="nav-footer">{footer.filter((e) => e.page === 'guide').map(item)}</div>
       </>
     );
   return (
@@ -209,7 +201,7 @@ export default function Navigation({
       </nav>
       <div className="nav-footer">
         {accounts && item(accountsEntry)}
-        {footer.filter((e) => settings || e.target !== 'ai-settings').map(item)}
+        {footer.filter((e) => settings || e.page !== 'ai-settings').map(item)}
       </div>
     </>
   );

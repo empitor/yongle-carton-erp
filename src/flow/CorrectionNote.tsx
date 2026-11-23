@@ -1,10 +1,10 @@
+import { flowDocHref, type FlowKind } from '../../shared/core/index';
 import type { FlowDocView } from '../../shared/business/index';
 import { Hint, useLoad } from '../ui/index';
 import { readFlow } from './flow-api';
-import { flowDocHref } from './flow-words';
 
 /** 更正链上另一张单据的链接：单据上只记着编号（id），单号读那张单据 */
-function DocLink({ id, kind }: { id: number; kind: string }) {
+function DocLink({ id, kind }: { id: number; kind: FlowKind }) {
   const { data } = useLoad('flow:' + id, () => readFlow(id));
   return <a href={flowDocHref(kind, id)}>{data?.number || '查看单据'}</a>;
 }

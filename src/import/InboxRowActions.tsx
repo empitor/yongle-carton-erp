@@ -1,3 +1,4 @@
+import { pageHref } from '../../shared/core/index';
 import { ActionBar, type RecordAction } from '../ui/index';
 import { importable } from './InboxDetail';
 import type { ConvertedKind, InboxItem, InboxStatus } from '../../shared/import/index';
@@ -25,7 +26,7 @@ export default function InboxRowActions({
   const hidden = !canEdit;
   if (row.status !== 'pending')
     return row.convertedKind && row.convertedRef ? (
-      <ActionBar primary={[{ label: '查看导入任务', href: '#ai-import?workspace=' + row.convertedRef }]} />
+      <ActionBar primary={[{ label: '查看导入任务', href: pageHref('ai-import', { workspace: row.convertedRef }) }]} />
     ) : (
       <ActionBar
         secondary={[

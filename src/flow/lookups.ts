@@ -1,4 +1,5 @@
-import type { FlowDocView, FlowKind } from '../../shared/business/index';
+import type { FlowKind } from '../../shared/core/index';
+import type { FlowDocView } from '../../shared/business/index';
 
 /** 单据页（生产任务、完工、到货、送货）读档案的规则：列表只读当前单据，编辑窗、详情真正要用时才读。 */
 export const title = (kind: FlowKind) =>

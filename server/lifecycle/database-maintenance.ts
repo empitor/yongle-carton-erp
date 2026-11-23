@@ -1,5 +1,6 @@
+import { flowKinds } from '../../shared/core/index.js';
 import { z } from 'zod';
-import type { Store } from '../core/index.js';
+import { type Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { exists, isLocalAdministrator, one, rows } from '../core/index.js';
 import { AppError, assertPreviewCurrent } from '../core/index.js';
@@ -12,7 +13,7 @@ import { businessTables, planDeletion, quote } from './deletion-plan.js';
 import { recomputeAfterFlowDeletion } from '../flow/index.js';
 import { snapshotBeforeDestructive } from '../core/index.js';
 import { onceByRequest, operationRequest, replayRequest, requestDone } from '../core/index.js';
-import { deletionRequestSchema, deletionResultSchema, deletionSelection, flowEntity, flowKinds, flowStatus } from '../../shared/business/index.js';
+import { deletionRequestSchema, deletionResultSchema, deletionSelection, flowEntity, flowStatus } from '../../shared/business/index.js';
 
 const DELETE_REQUEST = 'database-delete';
 /** 删之前按 rowid 取整行记进审计：哪张表都有可能，按“列名 → 值”读 */

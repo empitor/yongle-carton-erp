@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { isPageHref, pageHref } from '../../shared/core/index';
 import {
-  isErpNavigation,
   pageObserveSchema,
   pageResultBody,
   type PageObserveOptions,
@@ -82,7 +82,7 @@ export function observeErpPage(raw: PageObserveOptions = {}): PageSnapshot {
   const rowLimit = options.limit ?? (options.mode === 'full' ? 32 : 5);
   const textLimit = textLimits[options.mode];
   const result: PageSnapshot = {
-    route: isErpNavigation(location.hash) ? location.hash : '#dashboard',
+    route: isPageHref(location.hash) ? location.hash : pageHref('dashboard'),
     capturedAt: new Date().toISOString(),
     title: compact(
       shown('h1,h2')

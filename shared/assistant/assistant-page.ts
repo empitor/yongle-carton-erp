@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isErpNavigation } from './assistant-navigation.js';
+import { isPageHref } from '../core/index.js';
 // 看页面用 page.observe：只看不动（标题、正文、表格、弹窗、提示、当前选中的记录）。
 // 打开页面用 ui.open；点击、填写、滚动都没有：每件事都有直接的业务命令。
 
@@ -37,7 +37,7 @@ export const pageObserveSchema = z.strictObject({
 });
 export type PageObserveOptions = z.input<typeof pageObserveSchema>;
 export const pageSnapshotSchema = z.strictObject({
-  route: z.string().max(PAGE_LIMITS.routeChars).refine(isErpNavigation),
+  route: z.string().max(PAGE_LIMITS.routeChars).refine(isPageHref),
   capturedAt: z.string().max(PAGE_LIMITS.capturedAtChars),
   title: z.string().max(PAGE_LIMITS.labelChars),
   text: z.string().max(PAGE_LIMITS.textChars),

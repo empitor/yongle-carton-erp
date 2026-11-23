@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { pageHref } from '../../../shared/core/index';
 import { FormMessage, useConfirm, Hint, StatusChip, notify, useAction } from '../../ui/index';
 import OpeningChanges from './OpeningChanges';
 import { ExportLink } from '../layout';
@@ -89,7 +90,7 @@ function JobButtons({ step: s, canAct, busy, run }: { step: JobsStep; canAct: bo
             {canAct &&
               (kind === 'costing' ? (
                 // 重做成本可能要重新填手工流水的金额，到成本页的窗口里做
-                <a className="button" href="#finance-costs?tab=costing">
+                <a className="button" href={pageHref('finance-costs', { tab: 'costing' })}>
                   重做成本
                 </a>
               ) : (
@@ -104,7 +105,7 @@ function JobButtons({ step: s, canAct, busy, run }: { step: JobsStep; canAct: bo
         {s.missing.map((job) =>
           job === 'costing' ? (
             // 成本可能要先填期初和手工流水的金额，统一到成本页的窗口里算
-            <a key={job} className="button" href="#finance-costs?tab=costing">
+            <a key={job} className="button" href={pageHref('finance-costs', { tab: 'costing' })}>
               {jobNames[job]}
             </a>
           ) : (
@@ -141,9 +142,9 @@ function stepAction(
   if (s.ok) return null;
   // 要处理的不只“可记账”（有差异、待补税率、待算成本……），落到业务单据页的“全部”
   if (s.key === 'events')
-    return perms.edit || perms.close ? <a href="#finance-ledger?tab=events&status=all">去处理</a> : null;
-  if (s.key === 'vouchers') return perms.edit || perms.approve ? <a href="#finance-ledger">去记账</a> : null;
-  if (s.key === 'bank') return perms.cash ? <a href="#finance-cash?tab=bank">去匹配</a> : null;
+    return perms.edit || perms.close ? <a href={pageHref('finance-ledger', { tab: 'events', status: 'all' })}>去处理</a> : null;
+  if (s.key === 'vouchers') return perms.edit || perms.approve ? <a href={pageHref('finance-ledger')}>去记账</a> : null;
+  if (s.key === 'bank') return perms.cash ? <a href={pageHref('finance-cash', { tab: 'bank' })}>去匹配</a> : null;
   if (s.key === 'profit' && 'annualNext' in s && canAct)
     return (
       <button

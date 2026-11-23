@@ -13,7 +13,7 @@ export { UNPRICED_TEXT, amountText, priceText, sizeText, specLine, taxText } fro
 export { ARRIVAL_HISTORY_TITLE, arrivalProgressText, purchaseState, purchaseStatusLabel, purchaseStatusOptions, recordNames } from './labels.js';
 export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementSource, movementSourceKinds, movementTypeLabel, movementTypeOf, movementTypes } from './movement-filters.js';
 export type { MovementFilters } from './movement-filters.js';
-export { arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineAmount, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, sheetArea, stockItemSchema, stockKindNames, stockKinds, sumMoney, supplierSchema } from './operations.js';
+export { arrivalProgresses, formatStockSize, lineMoney, movementSchema, purchaseBusinessStatuses, purchaseLineAmount, purchaseLineDocumentSchema, purchaseSchema, purchaseStatuses, recordEntities, requiredPurchaseSize, sheetArea, stockItemSchema, stockKindNames, sumMoney, supplierSchema } from './operations.js';
 export type { ArrivalItem } from './operations.js';
 export type { RecordEntity } from './operations.js';
 export { allocateReceipt, batchProgress, batchReceiveSchema, batchRowKey, batchRows, batchScheduleSchema, defaultSchedule, dueSegments, scheduleEntrySchema, scheduleText, toScheduleEntries } from './order-batch.js';
@@ -30,8 +30,7 @@ export { keepSnapshot } from './flow-snapshot.js';
 export type { FlowDocument, FlowDocuments, FlowDocView, FlowRow } from './flow-document.js';
 export { documentInfoFields, financeFingerprint, financeSourceSchemas, toFinanceSource } from './finance-source.js';
 export type { FinanceSource } from './finance-source.js';
-export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowKinds, flowNames, flowScheduleSchema, flowStates, flowStatusText, matchesFlowSaying, isFlowKind, pendingLabels, storedFlowStatusName, productionSchema, taskSchema } from './physical-flow.js';
-export type { FlowKind } from './physical-flow.js';
+export { arrivalSchema, deliverySchema, flowDocNames, flowInput, flowNames, flowScheduleSchema, flowStates, flowStatusText, matchesFlowSaying, pendingLabels, storedFlowStatusName, productionSchema, taskSchema } from './physical-flow.js';
 export { activeDoc, flowStatusChoices, matchesFlowStatus } from './physical-flow.js';
 export { flowEntity, flowEntityPrefix, flowStatus } from './physical-flow.js';
 export { descendantIds, nestByFamily } from './product-family.js';

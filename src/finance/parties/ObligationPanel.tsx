@@ -1,3 +1,4 @@
+import { pageHref } from '../../../shared/core/index';
 import {
   DetailPanel,
   ActionBar,
@@ -143,7 +144,7 @@ function ObligationFacts({ kind, row }: { kind: Kind; row: ObligationRow }) {
           {
             label: '凭证',
             value: row.voucher_id ? (
-              <a href={'#finance-ledger?voucher=' + row.voucher_id}>
+              <a href={pageHref('finance-ledger', { voucher: row.voucher_id })}>
                 {reversal ? '查看红字凭证' : '查看凭证'}
               </a>
             ) : (

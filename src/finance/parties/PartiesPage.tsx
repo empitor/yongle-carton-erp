@@ -1,3 +1,4 @@
+import { pageTitle } from '../../../shared/core/index';
 import { PageHeading, Segmented } from '../../ui/index';
 import { useState } from 'react';
 import { DueTab } from './DueTab';
@@ -5,7 +6,6 @@ import ObligationsTab from './ObligationsTab';
 import StatementTab from './StatementTab';
 import TermsTab from './TermsTab';
 import type { Kind } from './shared';
-import { financePageTitles } from '../page-titles';
 import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, useTab } from '../page-state';
 
@@ -20,23 +20,23 @@ const tabs = [
   ['terms', '账期'],
 ] as const;
 /** 页签里某一节的名字 → 它所在的页签：地址写 tab=<节名> 时打开那个页签并滚到那一节（站内链接、界面检查脚本都这样跳） */
-const sectionTabs: Record<string, string> = {
+const sectionTabs = {
   held: 'items',
   aging: 'items',
   plan: 'soon',
   discount: 'soon',
   deposits: 'terms',
   interest: 'terms',
-};
+} as const;
 
 export default function PartiesPage() {
-  const [picked, setTab, requested] = useTab('items', sectionTabs);
+  const [picked, setTab, requested] = useTab('finance-ar', 'items', sectionTabs);
   const tab = tabs.some(([k]) => k === picked) ? picked : 'items';
   const [kind, setKind] = useState<Kind>('receivable');
   useFocusSection(requested, Object.keys(sectionTabs));
   const head = (props: HeadProps) => (
     <>
-      <PageHeading title={financePageTitles['finance-ar']} {...props} />
+      <PageHeading title={pageTitle('finance-ar')} {...props} />
       <SubBar
         side={
           <Segmented className="fin-segmented"

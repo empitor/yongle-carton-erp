@@ -1,6 +1,7 @@
+import { stockKinds } from '../core/index.js';
 import { z } from 'zod';
 import { SEARCH_MAX_LENGTH } from './limits.js';
-import { purchaseStatuses, stockKinds } from './operations.js';
+import { purchaseStatuses } from './operations.js';
 
 /*
  * 采购库存的接口收的查询参数和正文（服务端 server/operations/router.ts 先按这里校验，接口表 operations-api.ts 照它的输入写）。

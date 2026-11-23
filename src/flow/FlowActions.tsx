@@ -1,3 +1,4 @@
+import { pageHref } from '../../shared/core/index';
 import { ActionBar, type RecordAction } from '../ui/index';
 import { allWaitingReview } from '../../shared/business/index';
 import { cancelLabel, correctLabel, isCorrectable, undoLabel } from './flow-words';
@@ -91,7 +92,7 @@ function taskButtons<D extends ActionDoc>(b: Bar<D>, doc: TaskDoc, openTask: boo
             label: '核对入库',
             hidden: !ctx.canEdit,
             title: '剩下的数量都已登记完工，到完工记录里逐张核对入库',
-            href: '#production?view=production&pending=1',
+            href: pageHref('production', { view: 'production', pending: true }),
           },
     );
     b.secondary.push(b.schedule);

@@ -3,7 +3,7 @@
  * 页面删除窗口、助手核对区的按钮（src/recordkit/deletion-impact.ts）和助手删除卡片的标题
  * （server/assistant/tools/records-lifecycle.ts）都用这里，数字都是同一份删除预览列出的条数。叫法在 deletion-words.ts。
  */
-import { flowKinds, isFlowKind, type FlowKind } from './physical-flow.js';
+import { flowKinds, isFlowKind, type FlowKind } from '../core/index.js';
 import { recordNames } from './labels.js';
 import { deletionMeasure as measure, deletionTableLabel, stockWord } from './deletion-words.js';
 

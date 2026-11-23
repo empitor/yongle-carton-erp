@@ -2,8 +2,7 @@ import { flowNames, type MovementView } from '../../shared/business/index';
 import { DetailPanel, beijingTime, useLoad, Loading } from '../ui/index';
 import { ActionBar, Facts, Hint, Section, StatusChip, type Tone } from '../ui/index';
 import { movementTypeLabel, movementTypeOf } from '../../shared/business/index';
-import { quantityString } from '../../shared/core/index';
-import { flowDocHref } from '../flow/flow-words';
+import { flowDocHref, isFlowKind, pageHref, quantityString } from '../../shared/core/index';
 import { readMovementRevisions } from './stock-api';
 
 /** 算流水类型要看的几项（流水行、或只带方向的汇总行） */
@@ -29,14 +28,14 @@ export const signedQuantity = (units: number) => (units < 0 ? '-' : units > 0 ? 
  */
 function movementLinks(m: MovementView): MovementLink[] {
   return [
-    ...(m.flowNumber && m.flowKind
+    ...(m.flowNumber && isFlowKind(m.flowKind)
       ? [{ href: flowDocHref(m.flowKind, Number(m.source_id)), label: m.flowNumber, kind: flowKindName[m.flowKind] || '业务单据' }]
       : []),
     ...(m.purchaseNumber
-      ? [{ href: '#purchases?q=' + encodeURIComponent(m.purchaseNumber), label: m.purchaseNumber, kind: '采购单' }]
+      ? [{ href: pageHref('purchases', { q: m.purchaseNumber }), label: m.purchaseNumber, kind: '采购单' }]
       : []),
     ...(m.customerOrderNumber
-      ? [{ href: '#orders?q=' + encodeURIComponent(m.customerOrderNumber), label: m.customerOrderNumber, kind: '客户订单' }]
+      ? [{ href: pageHref('orders', { q: m.customerOrderNumber }), label: m.customerOrderNumber, kind: '客户订单' }]
       : []),
   ];
 }
@@ -99,7 +98,7 @@ type Props = { m: MovementView; close: () => void; previous: () => void; next: (
 export default function MovementDetail({ m, close, previous, next }: Props) {
   const quantity = m.direction + m.delta + ' ' + m.unit;
   const links = movementLinks(m);
-  const flowHref = m.flowNumber && m.flowKind ? flowDocHref(m.flowKind, Number(m.source_id)) : null;
+  const flowHref = m.flowNumber && isFlowKind(m.flowKind) ? flowDocHref(m.flowKind, Number(m.source_id)) : null;
   return (
     <DetailPanel
       kicker={'出入库流水 · ' + (m.kind === 'raw' ? '原材料' : '成品')}

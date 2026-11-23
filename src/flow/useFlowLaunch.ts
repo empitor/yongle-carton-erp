@@ -1,5 +1,6 @@
+import type { FlowKind } from '../../shared/core/index';
 import { useEffect, useRef } from 'react';
-import type { FlowDocView, FlowKind } from '../../shared/business/index';
+import type { FlowDocView } from '../../shared/business/index';
 import { readOnlyNotice, notify } from '../ui/index';
 import type { FlowDesk } from './useFlowDesk';
 

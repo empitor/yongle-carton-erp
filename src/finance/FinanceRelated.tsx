@@ -1,3 +1,4 @@
+import { pageHref } from '../../shared/core/index';
 import { Section, StatusChip, yuan } from '../ui/index';
 import { useFinPerms, useFinRead, type FinData } from './fin-api';
 import { FinStatusChip, RedInk } from './status';
@@ -45,7 +46,7 @@ export default function FinanceRelated({
   );
   if (!can || !shown.length) return null;
   return (
-    <Section title="财务" extra={<a href="#finance-ar">到应收应付查看</a>}>
+    <Section title="财务" extra={<a href={pageHref('finance-ar')}>到应收应付查看</a>}>
       <div className="table-wrap">
         <table>
           <thead>

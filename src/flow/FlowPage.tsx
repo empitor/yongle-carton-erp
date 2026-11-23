@@ -1,5 +1,6 @@
+import type { FlowKind } from '../../shared/core/index';
 import { Suspense, lazy, useState } from 'react';
-import type { FlowKind, FlowDocView as DocView } from '../../shared/business/index';
+import type { FlowDocView as DocView } from '../../shared/business/index';
 import { DateFilter, FormMessage, LIST_PAGE_SIZE, ListToolbar, Pagination, loadingText, stepper } from '../ui/index';
 import FlowPageHeading from './FlowPageHeading';
 import FlowSelectionBar from './FlowSelectionBar';

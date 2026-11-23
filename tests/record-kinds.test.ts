@@ -6,7 +6,7 @@ import '../server/lifecycle/index.js';
 import { AppError, Store, count, registerRecordKinds, rememberDeletedRecord } from '../server/core/index.js';
 import { assertRecordKind } from '../server/core/record-kinds.js';
 import { recordEntities } from '../shared/business/operations.js';
-import { flowKinds } from '../shared/business/physical-flow.js';
+import { flowKinds } from '../shared/core/index.js';
 import { actor } from './actor-fixture.js';
 
 const unknown = '虚构的记录种类';

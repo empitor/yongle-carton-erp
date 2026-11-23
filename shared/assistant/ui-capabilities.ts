@@ -1,18 +1,20 @@
+import { pageHref } from '../core/index.js';
+
 /** 用户业务能力与真实人工入口。技术编排不单独生成业务按钮。新增工具必须纳入覆盖检查。 */
 export const uiCapabilities = [
-  { id: 'finance-summary', name: '财务概览', page: '#finance', entry: '侧栏财务→概览：按月对照理论盈亏（送货单减到货单）和实际盈亏（实收减实付），蓝色金额点开看明细；“需要处理”只列不为零的事；主按钮按状态是“启用财务”或“补税率”；记账口径一节在页面下方', api: ['/api/finance/summary', '/api/finance/monthly-report'], tools: ['finance.summary'], kind: 'business' },
-  { id: 'finance-flow', name: '月度台账', page: '#finance-flow', entry: '财务→月度台账：当月每一条接单、送货、到货、收付；主按钮“补税率”（勾选后补选中的，不勾选按单位补），详情里能打开原单、单张补，不改原单', api: ['/api/finance/monthly-ledger', '/api/finance/tax-completion/batch'], tools: ['finance.monthly'], kind: 'business' },
-  { id: 'finance-ar', name: '应收应付', page: '#finance-ar', entry: '财务→应收应付（应收 / 应付切换在页签右边）：欠款明细（按单位、逐笔、账龄）、到期和计划（到期提醒、现结优惠、收付计划）、对账单、账期（账期、保证金、压款利息）', api: ['/api/finance/obligations', '/api/finance/held', '/api/finance/party-terms'], tools: ['finance.receivables', 'finance.payables'], kind: 'business' },
-  { id: 'finance-cash', name: '资金发票', page: '#finance-cash', entry: '财务→资金发票：收付款（新建、确认、核销，撤销在“更多”）、账户和流水（资金账户、银行流水导入和匹配）、票据、发票（含开票对比、税务底稿）', api: ['/api/finance/cash/accounts', '/api/finance/invoices'], tools: ['finance.invoices', 'finance.cash'], kind: 'business' },
-  { id: 'finance-costs', name: '费用资产工资', page: '#finance-costs', entry: '财务→费用资产工资：费用报销（员工借还款在“更多”）、固定资产（计提折旧先确认）、工资（导入 → 计提 → 发放）、成本毛利', api: ['/api/finance/expenses', '/api/finance/assets', '/api/finance/payroll', '/api/finance/costing'], tools: [], kind: 'business' },
-  { id: 'finance-ledger', name: '凭证账簿', page: '#finance-ledger', entry: '财务→凭证账簿：凭证（主按钮按状态推进提交、审核、记账，都先确认；已记账只能红字冲销）、业务单据（生成凭证）、账簿；记账模板、修改记录在“更多”', api: ['/api/finance/vouchers', '/api/finance/books'], tools: ['finance.ledger'], kind: 'business' },
-  { id: 'finance-reports', name: '报表结账', page: '#finance-reports', entry: '财务→报表结账：正式报表（三张表切换，缺资料时先提示补完）、结账（含试算平衡、会计期间，各步先确认）；预算在“更多”；管理看板并入财务概览', api: ['/api/finance/reports/readiness', '/api/finance/closing'], tools: ['finance.reports'], kind: 'business' },
-  { id: 'finance-settings', name: '财务设置', page: '#finance-settings', entry: '财务→设置：启用月份和期初、税率、科目（点行看详情再编辑）；会计期间在报表结账→结账', api: ['/api/finance/settings', '/api/finance/accounts'], tools: [], kind: 'business' },
-  { id: 'marks', name: '产品唛头', page: '#products', entry: '产品详情里的唛头：看、上传、删除', api: ['/api/products/:id/marks', '/api/marks/:id/file'], tools: ['marks.list', 'marks.add', 'marks.remove'], kind: 'business' },
+  { id: 'finance-summary', name: '财务概览', page: pageHref('finance'), entry: '侧栏财务→概览：按月对照理论盈亏（送货单减到货单）和实际盈亏（实收减实付），蓝色金额点开看明细；“需要处理”只列不为零的事；主按钮按状态是“启用财务”或“补税率”；记账口径一节在页面下方', api: ['/api/finance/summary', '/api/finance/monthly-report'], tools: ['finance.summary'], kind: 'business' },
+  { id: 'finance-flow', name: '月度台账', page: pageHref('finance-flow'), entry: '财务→月度台账：当月每一条接单、送货、到货、收付；主按钮“补税率”（勾选后补选中的，不勾选按单位补），详情里能打开原单、单张补，不改原单', api: ['/api/finance/monthly-ledger', '/api/finance/tax-completion/batch'], tools: ['finance.monthly'], kind: 'business' },
+  { id: 'finance-ar', name: '应收应付', page: pageHref('finance-ar'), entry: '财务→应收应付（应收 / 应付切换在页签右边）：欠款明细（按单位、逐笔、账龄）、到期和计划（到期提醒、现结优惠、收付计划）、对账单、账期（账期、保证金、压款利息）', api: ['/api/finance/obligations', '/api/finance/held', '/api/finance/party-terms'], tools: ['finance.receivables', 'finance.payables'], kind: 'business' },
+  { id: 'finance-cash', name: '资金发票', page: pageHref('finance-cash'), entry: '财务→资金发票：收付款（新建、确认、核销，撤销在“更多”）、账户和流水（资金账户、银行流水导入和匹配）、票据、发票（含开票对比、税务底稿）', api: ['/api/finance/cash/accounts', '/api/finance/invoices'], tools: ['finance.invoices', 'finance.cash'], kind: 'business' },
+  { id: 'finance-costs', name: '费用资产工资', page: pageHref('finance-costs'), entry: '财务→费用资产工资：费用报销（员工借还款在“更多”）、固定资产（计提折旧先确认）、工资（导入 → 计提 → 发放）、成本毛利', api: ['/api/finance/expenses', '/api/finance/assets', '/api/finance/payroll', '/api/finance/costing'], tools: [], kind: 'business' },
+  { id: 'finance-ledger', name: '凭证账簿', page: pageHref('finance-ledger'), entry: '财务→凭证账簿：凭证（主按钮按状态推进提交、审核、记账，都先确认；已记账只能红字冲销）、业务单据（生成凭证）、账簿；记账模板、修改记录在“更多”', api: ['/api/finance/vouchers', '/api/finance/books'], tools: ['finance.ledger'], kind: 'business' },
+  { id: 'finance-reports', name: '报表结账', page: pageHref('finance-reports'), entry: '财务→报表结账：正式报表（三张表切换，缺资料时先提示补完）、结账（含试算平衡、会计期间，各步先确认）；预算在“更多”；管理看板并入财务概览', api: ['/api/finance/reports/readiness', '/api/finance/closing'], tools: ['finance.reports'], kind: 'business' },
+  { id: 'finance-settings', name: '财务设置', page: pageHref('finance-settings'), entry: '财务→设置：启用月份和期初、税率、科目（点行看详情再编辑）；会计期间在报表结账→结账', api: ['/api/finance/settings', '/api/finance/accounts'], tools: [], kind: 'business' },
+  { id: 'marks', name: '产品唛头', page: pageHref('products'), entry: '产品详情里的唛头：看、上传、删除', api: ['/api/products/:id/marks', '/api/marks/:id/file'], tools: ['marks.list', 'marks.add', 'marks.remove'], kind: 'business' },
   {
     id: 'inbox',
     name: '收件箱',
-    page: '#inbox',
+    page: pageHref('inbox'),
     entry: '外来消息和文件一条条显示，可转订单、转到货、标记已处理或忽略；可手动上传和粘贴；企业微信、飞书、钉钉机器人在设置→消息接入连接',
     api: ['/api/inbox', '/api/inbox/channels', '/api/inbox/bots', '/api/inbox/upload', '/api/inbox/:id/convert', '/api/inbox/:id/status'],
     tools: ['inbox.list', 'inbox.add', 'inbox.set_status', 'order_import.from_inbox'],
@@ -21,7 +23,7 @@ export const uiCapabilities = [
   {
     id: 'records',
     name: '客户、产品、供应商及订单维护',
-    page: '#orders',
+    page: pageHref('orders'),
     entry: '客户/产品/供应商/销售/采购列表的新建、查看、编辑、归档、恢复及删除、批量删除（超级管理员模式，本机最高管理员以外要输本人密码）',
     api: [
       '/api/customers',
@@ -45,7 +47,7 @@ export const uiCapabilities = [
   {
     id: 'inventory',
     name: '原材料、成品与库存流水',
-    page: '#warehouse',
+    page: pageHref('warehouse'),
     entry: '库存页（原材料 / 成品切换）“更多 → 新建库存品”；库存品详情主按钮安排订料或安排送货，“出入库 / 盘点”，“最近流水 · 查看全部”；成品库存详情的“批次”一节每次完工一批，批里“写备注 / 编辑备注”补写或修改批次备注（和完工单的“编辑”改的是同一处）；流水页筛选及按产品汇总',
     api: ['/api/warehouse/items', '/api/warehouse/items/:id/move', '/api/warehouse/movements', '/api/flow/stock-batches/:id'],
     tools: ['inventory.propose_movement', 'inventory.batches'],
@@ -54,7 +56,7 @@ export const uiCapabilities = [
   {
     id: 'bulk-planning',
     name: '多选批量开单（安排生产、合并送货、生成采购单）',
-    page: '#orders',
+    page: pageHref('orders'),
     entry: '订单列表勾选后底部操作条：主操作“安排送货”，次要“安排生产”，“更多”里“安排订料”；成品库存勾选“安排送货”；产品勾选和产品详情“安排生产”（不关联订单，备货）和“新建订单”并列；原材料勾选“安排订料”；客户、产品、供应商、原材料详情的主按钮“新建订单 / 新建采购单 / 安排订料”带出这条记录',
     api: ['/api/flow/task', '/api/flow/delivery', '/api/purchases'],
     tools: ['delivery.plan', 'production.plan'],
@@ -63,7 +65,7 @@ export const uiCapabilities = [
   {
     id: 'order-batch',
     name: '订货单与待到货',
-    page: '#purchases',
+    page: pageHref('purchases'),
     entry: '采购单列表勾选同一家供应商的采购单点“导出订货单”看合并后的行；采购单详情的订货单一节“编辑到货安排”；到货页“待到货”里按订货单登记到货并入库',
     api: [
       '/api/order-batches/draft',
@@ -78,7 +80,7 @@ export const uiCapabilities = [
   {
     id: 'arrival',
     name: '到货验收及数量更正',
-    page: '#warehouse?arrivals=1',
+    page: pageHref('warehouse', { arrivals: true }),
     entry: '到货页：待到货每行“登记到货”，页头“AI 识别送货单”，“更多”里“没有订货单的到货”（不挂采购单的货）；到货详情核对入库、采购退货，已入库的“编辑”只改备注和到货时间，“更多”里更正到货单、撤销这次到货',
     api: [
       '/api/flow/arrival-records',
@@ -101,7 +103,7 @@ export const uiCapabilities = [
   {
     id: 'flow',
     name: '生产、送货与日期排程',
-    page: '#production',
+    page: pageHref('production'),
     entry: '生产任务（安排即下达；“登记完工”一个窗口登记即入库，“更多”里“先登记，稍后核对入库”在同一个窗口存成待入库，之后逐张核对入库）；送货：可发货勾选或页头“安排送货”（待送货）、导出送货单出库（送货中）、确认送达，取消和撤销在“更多”；业务界面把冲销叫撤销；已出库的送货单、已入库的完工单详情“编辑”只改备注地址这类说明，“更多”里更正送货单、更正完工单（改数量，撤销原单另出一张）',
     api: [
       '/api/flow',
@@ -132,7 +134,7 @@ export const uiCapabilities = [
   {
     id: 'documents',
     name: '采购订货单、送货单与模板',
-    page: '#ai-settings?tab=templates',
+    page: pageHref('ai-settings', { tab: 'templates' }),
     entry:
       '采购单详情主按钮“导出订货单”（一个导出窗：预览、只导出文件在里面）、送货单详情“导出送货单”；设置→单据模板；Word 排版和表格预览、普通 Word / Excel',
     api: [
@@ -150,7 +152,7 @@ export const uiCapabilities = [
   {
     id: 'imports',
     name: '订单识别、匹配与正式导入',
-    page: '#ai-import',
+    page: pageHref('ai-import'),
     entry:
       '上传、识别、编辑识别结果、档案匹配、逐份/批量完整预览及正式导入、重试、撤回识别结果的修改；聊天工作区可原地打开',
     api: [
@@ -176,7 +178,7 @@ export const uiCapabilities = [
   {
     id: 'management',
     name: '本机管理员数据与工作区管理',
-    page: '#guide',
+    page: pageHref('guide'),
     entry:
       '右上角账号菜单→数据管理（在服务器本机）或系统维护（从域名访问）；业务关联/修改历史；复制、归档/恢复/删除；初始化在数据管理底部折叠；系统状态、体检和手动备份由助手提供',
     api: [
@@ -202,7 +204,7 @@ export const uiCapabilities = [
   {
     id: 'prompts',
     name: 'AI设置、提示词及插件',
-    page: '#ai-settings',
+    page: pageHref('ai-settings'),
     entry:
       '设置：API 配置（填 DeepSeek 密钥，保存并测试）、提示词（保存并启用；提示词全员共用）、单据模板、消息接入、高级（插件与工具启停、诊断）；除了单据模板都只有超级管理员账号看得到，改要进超级管理员模式',
     // 高级页读 /api/assistant/plugins，整组启停在它下面，单个工具启停是 /api/assistant/tools/settings
@@ -213,7 +215,7 @@ export const uiCapabilities = [
   {
     id: 'overview',
     name: '经营概览与业务导航',
-    page: '#dashboard',
+    page: pageHref('dashboard'),
     entry: '今日页“经营概况”切换：日期筛选、采购/库存/销售汇总及业务记录链接',
     api: ['/api/dashboard'],
     tools: ['overview.get', 'ui.open'],
@@ -222,7 +224,7 @@ export const uiCapabilities = [
   {
     id: 'assistant',
     name: '聊天附件与长期任务',
-    page: '#ai-settings',
+    page: pageHref('ai-settings'),
     entry: '小甬小勒附件预览/下载；面板“更多”里清空会话、删除会话；文件理解为AI能力',
     api: ['/api/assistant/threads'],
     tools: ['chat.list', 'chat.delete'],
@@ -231,7 +233,7 @@ export const uiCapabilities = [
   {
     id: 'speech',
     name: '语音输入与朗读',
-    page: '#ai-settings',
+    page: pageHref('ai-settings'),
     entry: '小甬小勒输入框旁的麦克风：录音交给 DeepSeek 识别，文字只填进输入框、不自动发送；每条回复旁的“读出来”由 DeepSeek 朗读；都要先在 设置 → API 配置 填 DeepSeek 密钥，没有本机兜底',
     api: ['/api/assistant/transcribe', '/api/assistant/speak'],
     tools: [],
@@ -240,7 +242,7 @@ export const uiCapabilities = [
   {
     id: 'memory',
     name: '长期记忆',
-    page: '#ai-settings',
+    page: pageHref('ai-settings'),
     entry: '小甬小勒窗口“更多 → 记忆”：每个账号只看到自己的记忆，能看记了什么、什么时候记的，手动加一条、改、删、清空，关掉或打开自动记忆；助手记住时回复里有一行“已记住”，旁边能一键忘掉',
     api: ['/api/assistant/memory'],
     tools: ['memory.search', 'memory.save', 'memory.update', 'memory.forget', 'memory.auto'],
@@ -249,7 +251,7 @@ export const uiCapabilities = [
   {
     id: 'accounts',
     name: '账号与登录',
-    page: '#accounts',
+    page: pageHref('accounts'),
     entry: '登录页的登录、申请账号、忘记密码；右上角账号菜单的修改密码、退出登录、超级管理员模式；账号管理页新建账号、审批申请、重置密码、停用（只给有账号管理权限的）',
     api: ['/api/auth/login', '/api/auth/users', '/api/auth/requests'],
     tools: [],
@@ -258,7 +260,7 @@ export const uiCapabilities = [
   {
     id: 'troubleshooting',
     name: '排查问题（只读）',
-    page: '#guide',
+    page: pageHref('guide'),
     entry:
       '人在这些地方看同一份数据：记录详情“更多”里的关联记录与修改历史、设置→API 配置的测试连接和 AI 导入的识别失败记录、账号管理、单据详情里的导出、使用说明页；按人按时间的修改记录、后台排队、设置汇总、最近出错、登录记录、运行日志和程序代码（只读）只有助手能一次查齐，后四样里登录记录、日志、代码只给超级管理员',
     api: ['/api/business/:module/:id/context', '/api/ai/settings', '/api/ai/imports/diagnostics', '/api/auth/users', '/api/documents/:id'],
@@ -281,7 +283,7 @@ export const uiCapabilities = [
   {
     id: 'web',
     name: '联网查资料',
-    page: '#ai-settings',
+    page: pageHref('ai-settings'),
     entry: '小甬小勒联网搜索、读公开网页（走 DeepSeek 的搜索和抓取接口，要先在 设置 → API 配置 填密钥）；人在自己的浏览器里查，没有单独的页面',
     api: ['/api/ai/settings'],
     tools: ['web.search', 'web.read'],
@@ -290,7 +292,7 @@ export const uiCapabilities = [
   {
     id: 'technical',
     name: '页面观察与交互核验',
-    page: '#guide',
+    page: pageHref('guide'),
     entry: '复用当前业务界面控件与原服务核验；页面快照、坐标和步骤绑定是技术机制，不另设业务按钮',
     api: ['/api/assistant/page/results'],
     tools: ['page.observe'],

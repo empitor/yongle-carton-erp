@@ -1,11 +1,11 @@
 // 只管：记录的修改历史和关联记录（history.records）。按记录查和界面“关联记录与修改历史”窗口是同一个函数（recordContext），
 // 按人、按时间段查用 auditTrail，只给超级管理员。返回的键都是中文，修改内容按修改历史那一套写成中文（historyView）。
 import { z } from 'zod';
-import type { Actor } from '../../core/index.js';
+import { type Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { auditTrail, recordContext } from '../../business/index.js';
-import { DAY_MS, dateSchema } from '../../../shared/core/index.js';
-import { dataManagementModules, flowEntityPrefix, flowStatusText, historyActionName, isFlowKind, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
+import { DAY_MS, dateSchema, isFlowKind } from '../../../shared/core/index.js';
+import { dataManagementModules, flowEntityPrefix, flowStatusText, historyActionName, historyView, recordNames, type HistoryRefs } from '../../../shared/business/index.js';
 import { clip, paging, positive, requireSuperAdmin, SHORT_TEXT_CHARS, type ToolContext } from './context.js';
 import { readTool } from './define.js';
 

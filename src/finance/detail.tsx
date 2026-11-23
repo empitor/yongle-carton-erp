@@ -1,3 +1,4 @@
+import { pageHref } from '../../shared/core/index';
 import { Progress, yuan } from '../ui/index';
 import { Status } from './status';
 
@@ -19,7 +20,7 @@ export function VoucherLinks({ vouchers }: { vouchers: readonly VoucherLink[] })
     <ul className="record-links">
       {vouchers.map((v) => (
         <li key={v.id}>
-          <a href={'#finance-ledger?voucher=' + v.id}>{v.period + ' 第 ' + v.number + ' 号'}</a>
+          <a href={pageHref('finance-ledger', { voucher: v.id })}>{v.period + ' 第 ' + v.number + ' 号'}</a>
           <small>
             <Status value={v.status} />
           </small>

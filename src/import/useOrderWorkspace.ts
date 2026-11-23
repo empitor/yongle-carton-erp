@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { emit, listen, hashParams } from '../ui/index';
+import { emit, listen } from '../ui/index';
 import type { AiProgress } from '../../shared/ai/index';
-import { errorMessage } from '../../shared/core/index';
+import { errorMessage, pageHref, pageIdOf, pageParams } from '../../shared/core/index';
 import type { ImportList, ImportWorkspaceView as Workspace, OrderDraft } from '../../shared/import/index';
 import { draftOperations, withFieldValue } from './draft-edits';
 import { taskRunning, type FileMode } from './fileStatus';
@@ -24,13 +24,12 @@ const without = <T,>(map: Record<string, T>, ...ids: string[]) => {
   for (const id of ids) delete next[id];
   return next;
 };
-const hashWorkspace = () => hashParams().get('workspace');
+const hashWorkspace = () => pageParams('ai-import', location.hash).workspace ?? null;
 /** 地址里记下当前文件（助手按地址知道用户正在看哪份识别文件） */
 function markInHash(id: string) {
-  if (location.hash.split('?')[0] !== '#ai-import') return;
-  const params = hashParams();
-  params.set('workspace', id);
-  history.replaceState(null, '', '#ai-import?' + params.toString());
+  if (pageIdOf(location.hash) !== 'ai-import') return;
+  const current = pageParams('ai-import', location.hash);
+  history.replaceState(null, '', pageHref('ai-import', { ...current, workspace: id }));
 }
 
 /** 页面上的状态，和交给 workspace-actions 办事用的 ctx（只建一次，里面的引用和设值函数不变） */

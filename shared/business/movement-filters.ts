@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from '../core/index.js';
-import { stockKinds } from './operations.js';
+import { dateSchema, stockKinds } from '../core/index.js';
 import { presetRange, type DatePreset } from '../core/index.js';
 import { SEARCH_MAX_LENGTH } from './limits.js';
 import type { MaybeText } from './display-text.js';

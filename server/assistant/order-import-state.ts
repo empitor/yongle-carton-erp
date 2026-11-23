@@ -10,7 +10,7 @@ import { AppError } from '../core/index.js';
 import { matchDraft } from '../import/index.js';
 import { trackedOrder } from '../orders/index.js';
 import { orderDraftSchema, type OrderDraft } from '../../shared/import/index.js';
-import type { AssistantAttachment } from '../../shared/core/index.js';
+import { pageHref, type AssistantAttachment } from '../../shared/core/index.js';
 import type { ProviderTokenUsage } from '../ai/index.js';
 
 /** 识别结果给助手看时，客户、产品候选各最多列几个 */
@@ -166,7 +166,7 @@ export abstract class OrderImportState {
   notify(ctx: WorkflowContext, task: Task, navigate = false) {
     ctx.emit('effect', {
       type: navigate ? 'navigate' : 'workspace',
-      url: '#ai-import?workspace=' + task.workspaceId,
+      url: pageHref('ai-import', { workspace: task.workspaceId }),
       workspaceId: task.workspaceId,
       taskId: task.id,
       state: task.state,
@@ -214,7 +214,7 @@ export abstract class OrderImportState {
           Object.entries(matches.productCandidates).map(([id, c]) => [id, c.slice(0, CANDIDATES_SHOWN)]),
         ),
       },
-      url: '#ai-import?workspace=' + w.id,
+      url: pageHref('ai-import', { workspace: w.id }),
       message:
         task.state === 'imported'
           ? '该订单已正式导入，未重复创建。'

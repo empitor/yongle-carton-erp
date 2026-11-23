@@ -1,6 +1,6 @@
 import { sheetArea, purchaseLineAmount } from '../../shared/business/index';
 import { amountText, priceText, specLine } from '../../shared/business/index';
-import { finishedUnit, type SpecFields, fieldShort } from '../../shared/core/index';
+import { finishedUnit, pageHref, type SpecFields, fieldShort } from '../../shared/core/index';
 import { Section } from '../ui/index';
 
 /**
@@ -82,8 +82,8 @@ const amountOf = (l: ArrivalLineRow) => amountText(l.amount != null && l.amount 
 
 /** 采购单的链接：有采购单编号的按编号打开，只有单号的按单号搜；没挂采购单（单号是空的）没有链接 */
 function purchaseHref(purchaseId: number | null | undefined, purchaseNumber: string | null | undefined) {
-  if (purchaseId) return '#purchases?record=' + purchaseId;
-  return purchaseNumber ? '#purchases?q=' + encodeURIComponent(purchaseNumber) : null;
+  if (purchaseId) return pageHref('purchases', { record: purchaseId });
+  return purchaseNumber ? pageHref('purchases', { q: purchaseNumber }) : null;
 }
 
 /** 纸板下面一行：对应的采购单和到货进度；没挂采购单的写“无采购单” */
@@ -209,7 +209,7 @@ export function DeliveryLines({
                   </td>
                   <td>
                     {orderNumber ? (
-                      <a href={l.orderId ? '#orders?order=' + l.orderId : '#orders?q=' + encodeURIComponent(orderNumber)}>
+                      <a href={l.orderId ? pageHref('orders', { order: l.orderId }) : pageHref('orders', { q: orderNumber })}>
                         {orderNumber}
                       </a>
                     ) : (

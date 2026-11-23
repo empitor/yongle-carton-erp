@@ -1,7 +1,8 @@
+import type { FlowKind } from '../../../shared/core/index.js';
 import type { Actor, Store } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import type { OperationsService } from '../../operations/index.js';
-import type { FlowDocument, FlowDocuments, FlowDocView, FlowKind, FlowPreview, StockItemBaseView } from '../../../shared/business/index.js';
+import type { FlowDocument, FlowDocuments, FlowDocView, FlowPreview, StockItemBaseView } from '../../../shared/business/index.js';
 
 /*
  * 单据流转最底下的一层：各文件共用的 fail、FlowCommands 和核对用的类型。这个文件不引用单据流转的任何别的文件。

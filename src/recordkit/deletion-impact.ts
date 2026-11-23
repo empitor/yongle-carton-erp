@@ -1,17 +1,5 @@
-import {
-  deletionListedRow as listedRow,
-  deletionMeasure as measure,
-  deletionModuleTable as tableOf,
-  deletionSummaryLabel as summaryLabel,
-  deletionTableLabel as tableLabel,
-  deletionTally as tally,
-  flowKinds,
-  flowNames,
-  movementWord,
-  recordNames,
-  stockWord,
-  type DeletionImpactRow,
-} from '../../shared/business/index';
+import { flowKinds } from '../../shared/core/index';
+import { deletionListedRow as listedRow, deletionMeasure as measure, deletionModuleTable as tableOf, deletionSummaryLabel as summaryLabel, deletionTableLabel as tableLabel, deletionTally as tally, flowNames, movementWord, recordNames, stockWord, type DeletionImpactRow } from '../../shared/business/index';
 
 /**
  * 删除影响清单怎么给人看（页面删除窗口和助手的删除确认卡片共用，组件在 DeletionImpact.tsx）。

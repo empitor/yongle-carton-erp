@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type SubmitEvent } from 'react';
 import { z } from 'zod';
-import { errorMessage, type Product } from '../../shared/core/index';
-import { stockKinds, type StockItemView } from '../../shared/business/index';
+import { errorMessage, pageHref, type Product, stockKinds } from '../../shared/core/index';
+import { type StockItemView } from '../../shared/business/index';
 import { EditorFooter, FormMessage, Hint, ManagementDialog, textField } from '../ui/index';
 import { readProductStock, readStockItem, saveStockItem } from '../warehouse/stock-api';
 import { blankStock } from './purchase-seed';
@@ -14,7 +14,7 @@ type Existing = { stockId: number; name: string; kind: StockItemView['kind']; ar
 /** 选的产品已经有成品库存（不是正在编辑的这一个） */
 type Conflict = Existing & { productName: string };
 
-const existingHref = (e: Existing) => '#warehouse?kind=' + e.kind + '&record=' + e.stockId;
+const existingHref = (e: Existing) => pageHref('warehouse', { kind: e.kind, record: e.stockId });
 
 /** 保存时撞上已有的库存品：服务端 409、code 是 stock-exists，details 带着已有那个的编号、名称、种类、是否归档 */
 const stockConflict = z.object({

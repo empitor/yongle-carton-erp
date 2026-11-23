@@ -3,9 +3,10 @@
  * 撤销冲回过的到货、已撤销的到货单、盘点流水编号、流水最大行号、成品送货出库量。
  * 到货“记没记过账”是财务的判断：财务算出不计成本的到货单编号（exclude），这里只按编号去掉它们的入库和冲回流水。
  */
+import { stockKinds, type FlowKind } from '../../../shared/core/index.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { flowEntityPrefix, flowStatus, movementSource, movementSourceKinds, stockKinds, type FlowKind } from '../../../shared/business/index.js';
+import { flowEntityPrefix, flowStatus, movementSource, movementSourceKinds } from '../../../shared/business/index.js';
 import { count, many, rows } from '../../core/index.js';
 
 /** SQL 里写的流水来源（stock_movements.source_kind）：只收 movementSourceKinds 里有的 */

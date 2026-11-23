@@ -1,7 +1,8 @@
+import type { FlowKind } from '../../shared/core/index.js';
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, reviewedAssistantGrant } from '../core/index.js';
-import { dataManagementNoCreate, documentInfoFields, flowDocNames, flowInput, type FlowKind } from '../../shared/business/index.js';
+import { dataManagementNoCreate, documentInfoFields, flowDocNames, flowInput } from '../../shared/business/index.js';
 import { createBusinessService } from '../orders/index.js';
 import type { OperationsService } from '../operations/index.js';
 import { updateDocumentInfo, type FlowService } from '../flow/index.js';

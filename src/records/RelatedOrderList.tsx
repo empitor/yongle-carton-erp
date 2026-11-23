@@ -1,7 +1,7 @@
 import { FormMessage, Loading, Section, StatusChip, useLoad } from '../ui/index';
 import { loadOrdersWhere, type OrdersWhere } from './list-api';
 import Chain from './Chain';
-import { orderDisplayStatus } from '../../shared/core/index';
+import { orderDisplayStatus, pageHref } from '../../shared/core/index';
 import { businessStatusTone } from '../recordkit/record-meta';
 
 const SHOWN = 20;
@@ -42,7 +42,7 @@ export default function RelatedOrderList({
         <ul className="sales-order-links">
           {orders.slice(0, SHOWN).map((o) => (
             <li key={o.id}>
-              <a href={'#orders?order=' + o.id}>{o.number}</a>
+              <a href={pageHref('orders', { order: o.id })}>{o.number}</a>
               <small>交期 {o.deliveryDate}</small>
               <Chain order={o} />
               <StatusChip tone={businessStatusTone(orderDisplayStatus(o))}>

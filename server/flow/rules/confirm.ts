@@ -1,7 +1,7 @@
 import type { Actor } from '../../core/index.js';
 import { assertPreviewCurrent, audit, exists, onceByRequest, one, operationRequest, requirePermission, rows } from '../../core/index.js';
-import { MAX_STOCK_UNITS, today } from '../../../shared/core/index.js';
-import { flowConfirmSchema, flowViewSchema, type FlowDocument, type FlowDocView, type FlowKind } from '../../../shared/business/index.js';
+import { MAX_STOCK_UNITS, today, type FlowKind } from '../../../shared/core/index.js';
+import { flowConfirmSchema, flowViewSchema, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
 import { stockLedger } from '../../operations/index.js';
 import { fail, newItemOf, taskOf, type FlowCommands } from '../documents/base.js';
 import { touchFlowDocument, writeFlowDocument } from '../documents/document-store.js';

@@ -8,7 +8,7 @@ import { SEND_NOTE } from './ImportDialog';
 import ReviewIssues from './ReviewIssues';
 import { useArrivalDraft } from './useArrivalDraft';
 import type { useOrderWorkspace } from './useOrderWorkspace';
-import { fieldShort } from '../../shared/core/index';
+import { fieldShort, flowDocHref } from '../../shared/core/index';
 
 const fieldset = { border: 0, padding: 0, margin: 0, minWidth: 0 };
 type Arrival = ReturnType<typeof useArrivalDraft>;
@@ -59,7 +59,7 @@ function ArrivalSummary({ a, confirmed }: { a: Arrival; confirmed: boolean }) {
 function ArrivalPrimary({ a }: { a: Arrival }) {
   if (a.doc?.status === 'confirmed')
     return (
-      <a className="aii-done-link" href={'#warehouse?arrivals=1&doc=' + a.doc.id}>
+      <a className="aii-done-link" href={flowDocHref('arrival', a.doc.id)}>
         <ShieldCheck size={14} />
         已入库 {a.doc.number}
       </a>

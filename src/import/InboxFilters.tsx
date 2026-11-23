@@ -1,3 +1,4 @@
+import { pageHref } from '../../shared/core/index';
 import type { InboxChannelOption, InboxStatus } from '../../shared/import/index';
 import { ListToolbar } from '../ui/index';
 import type { useInboxList } from './useInboxList';
@@ -55,7 +56,7 @@ export function ChannelNote({ channels, isAdmin }: { channels: InboxChannelOptio
       {isAdmin && (
         <>
           {' '}
-          <a href="#ai-settings?tab=channels">去设置</a>
+          <a href={pageHref('ai-settings', { tab: 'channels' })}>去设置</a>
         </>
       )}
     </p>

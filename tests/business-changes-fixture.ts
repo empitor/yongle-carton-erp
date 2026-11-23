@@ -4,6 +4,7 @@
 // 业务改了表，只改这一个文件。
 // 删除规则（单据、采购退货；库存流水、库存品）在单据流转、采购库存各自的 deletion.ts 里登记：
 // 测试引这两个模块都走入口（tests/module-test-entries.test.ts），入口加载时就登记了
+import type { FlowKind } from '../shared/core/index.js';
 import '../server/flow/index.js';
 import { stockLedger } from '../server/operations/index.js';
 import type { SQLOutputValue } from 'node:sqlite';
@@ -11,7 +12,7 @@ import type { Actor, DeletionContext, Store } from '../server/core/index.js';
 import { deletionRemove, deletionUpdate, nextAutoId, one, rows } from '../server/core/index.js';
 import { flowColumns, writeFlowDocument } from '../server/flow/documents/document-store.js';
 import { documentOf, storedDocument } from '../server/flow/documents/read.js';
-import { flowDocumentContent, flowDocumentSchema, type FlowKind } from '../shared/business/index.js';
+import { flowDocumentContent, flowDocumentSchema } from '../shared/business/index.js';
 import { actor as defaultActor } from './actor-fixture.js';
 
 /** 造单据时内容里决定镜像列的几项（计划日、送达、订货单、更正关系；单据表的镜像列由 flowColumns 从这些算） */

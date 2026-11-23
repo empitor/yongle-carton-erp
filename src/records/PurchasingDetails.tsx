@@ -5,7 +5,7 @@ import { purchaseState, sizeText, type PurchaseView, type StockItemView, type Su
 import RelatedBusiness from './RelatedBusiness';
 import { Facts, FormMessage, Hint, Loading, Section, StatusChip, useLoad } from '../ui/index';
 import { movementType } from '../warehouse/MovementDetail';
-import { quantityString, fieldLabel } from '../../shared/core/index';
+import { pageHref, quantityString, fieldLabel } from '../../shared/core/index';
 import { businessStatusTone, useAgentRecord } from '../recordkit/record-meta';
 import { loadMovements } from './list-api';
 import { PurchaseDetails, type PurchaseReceipt } from './PurchaseDetails';
@@ -29,7 +29,7 @@ function SupplierDetails({ row }: { row: SupplierView }) {
         title={'采购单 · ' + history.length}
         extra={
           history.length > 0 ? (
-            <a className="pur-more-link" href={'#purchases?q=' + encodeURIComponent(row.name) + '&scope=all'}>
+            <a className="pur-more-link" href={pageHref('purchases', { q: row.name, scope: 'all' })}>
               全部采购单
             </a>
           ) : undefined
@@ -39,7 +39,7 @@ function SupplierDetails({ row }: { row: SupplierView }) {
           <ul className="rb-docs">
             {history.map((p) => (
               <li key={p.id}>
-                <a href={'#purchases?record=' + p.id}>{p.number}</a>
+                <a href={pageHref('purchases', { record: p.id })}>{p.number}</a>
                 <StatusChip tone={businessStatusTone(purchaseState(p))}>{purchaseState(p)}</StatusChip>
                 <small>{p.orderDate}</small>
               </li>
@@ -67,7 +67,10 @@ function RecentMovements({ row }: { row: StockItemView }) {
       title={'最近流水' + (rows ? ' · ' + total : '')}
       extra={
         total > 0 ? (
-          <a className="pur-more-link" href={'#warehouse?flow=1&kind=' + row.kind + '&item=' + row.id}>
+          <a
+            className="pur-more-link"
+            href={pageHref('warehouse', { flow: true, kind: row.kind === 'finished' ? 'finished' : 'raw', item: row.id })}
+          >
             查看全部
           </a>
         ) : undefined

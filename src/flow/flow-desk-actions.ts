@@ -1,7 +1,7 @@
 import { useRef, useState, type RefObject } from 'react';
 import { ZodError } from 'zod';
-import { flowInput, planDate, type FlowDocView, type FlowKind } from '../../shared/business/index';
-import { errorMessage, userError } from '../../shared/core/index';
+import { flowInput, planDate, type FlowDocView } from '../../shared/business/index';
+import { errorMessage, userError, type FlowKind } from '../../shared/core/index';
 import { lifecycleOutcome } from '../recordkit/lifecycle';
 import type { FlowUndoing } from './desk-windows';
 import {

@@ -1,9 +1,9 @@
-import { FINISHED_UNIT, RAW_UNIT } from '../core/index.js';
+import { FINISHED_UNIT, RAW_UNIT, isFlowKind } from '../core/index.js';
 import { centsText, isRecord, orderDisplayStatus, plainPrice } from '../core/index.js';
 import { dataManagementFieldName } from './data-management-modules.js';
 import { UNPRICED_TEXT, priceText, sizeText } from './display-text.js';
 import { purchaseState } from './labels.js';
-import { flowStatusText, isFlowKind } from './physical-flow.js';
+import { flowStatusText } from './physical-flow.js';
 import {
   codeNames,
   historyFieldLabel,

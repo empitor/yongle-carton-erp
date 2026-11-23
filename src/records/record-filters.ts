@@ -1,4 +1,4 @@
-import { dateSchema, displayOrderStatuses, presetRange } from '../../shared/core/index';
+import { datePresets, dateSchema, displayOrderStatuses, pageIdOf, presetRange } from '../../shared/core/index';
 import type { DatePreset, OrderView, RecordSort } from '../../shared/core/index';
 import type { CustomerListQuery, OrderListQuery, ProductListQuery } from './list-api';
 
@@ -13,7 +13,6 @@ export const isRecordPage = (page: string) => (recordPages as readonly string[])
 type DisplayOrderStatus = (typeof displayOrderStatuses)[number];
 const isDisplayStatus = (value: string): value is DisplayOrderStatus =>
   (displayOrderStatuses as readonly string[]).includes(value);
-const datePresets = ['1', '2', '3', 'all', 'custom'] as const satisfies readonly DatePreset[];
 const isDatePreset = (value: string): value is DatePreset => (datePresets as readonly string[]).includes(value);
 
 /**
@@ -30,7 +29,7 @@ export function cleanDateParams(params: URLSearchParams) {
 /** 从地址读列表筛选（订单默认看待处理、不限日期）。地址是人能手改的，不认识的值当作没筛选。 */
 export function readListFilters(hash = location.hash) {
   const params = cleanDateParams(new URLSearchParams(hash.split('?')[1] || ''));
-  const ordersPage = hash.split('?')[0] === '#orders';
+  const ordersPage = pageIdOf(hash) === 'orders';
   // 订单默认看待处理、不限日期；“全部”（scope=all）不分状态。
   const view: OrderView = ordersPage ? (params.get('scope') === 'all' ? 'current' : 'pending') : 'current';
   // 地址是人能手改的：不认识的状态、客户编号、日期一律当作没筛选，不带去请求，免得服务端的校验原文冒到页面上

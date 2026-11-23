@@ -1,3 +1,4 @@
+import { pageTitle } from '../../../shared/core/index';
 import { PageHeading, Segmented } from '../../ui/index';
 import { NeedEnable, useEnable } from '../enable';
 import EventsTab from './EventsTab';
@@ -5,7 +6,6 @@ import VouchersTab from './VouchersTab';
 import BooksTab from './BooksTab';
 import TemplatesTab from './TemplatesTab';
 import AuditTab from './AuditTab';
-import { financePageTitles } from '../page-titles';
 import { SubBar, type HeadProps } from '../layout';
 import { useFinPerms } from '../fin-api';
 import { useTab } from '../page-state';
@@ -16,10 +16,10 @@ const tabs = [
   ['events', '业务单据'],
   ['books', '账簿'],
 ] as const;
-const extraTabs: Record<string, string> = { templates: '记账模板', audit: '修改记录' };
+const extraTabs = { templates: '记账模板', audit: '修改记录' } as const;
 
 export default function LedgerPage() {
-  const [picked, setTab] = useTab('vouchers');
+  const [picked, setTab] = useTab('finance-ledger', 'vouchers');
   const perms = useFinPerms();
   const enable = useEnable();
   // 修改记录只给财务负责人，别人打开回到凭证
@@ -29,11 +29,11 @@ export default function LedgerPage() {
     (picked === 'audit' && perms.close)
       ? picked
       : 'vouchers';
-  const options = extraTabs[tab] ? [...tabs, [tab, extraTabs[tab]] as const] : tabs;
+  const options = tab === 'templates' || tab === 'audit' ? [...tabs, [tab, extraTabs[tab]] as const] : tabs;
   const head = (props: HeadProps) => (
     <>
       <PageHeading
-        title={financePageTitles['finance-ledger']}
+        title={pageTitle('finance-ledger')}
         {...props}
         more={[
           ...(props.more || []),
@@ -49,7 +49,7 @@ export default function LedgerPage() {
   if (enable.known && !enable.enabled)
     return (
       <div className="fin-page">
-        <PageHeading title={financePageTitles['finance-ledger']} primary={enable.action} />
+        <PageHeading title={pageTitle('finance-ledger')} primary={enable.action} />
         <NeedEnable what="做凭证、看账簿" canEnable={enable.canEnable} />
         {enable.dialog}
       </div>

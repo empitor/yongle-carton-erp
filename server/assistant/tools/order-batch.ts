@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { OrderBatchService } from '../../operations/index.js';
 import { registerArrival } from '../../flow/index.js';
-import { dateSchema, quantityText, quantityString } from '../../../shared/core/index.js';
+import { dateSchema, pageHref, quantityText, quantityString } from '../../../shared/core/index.js';
 import type { ToolPlan } from '../plan-rules.js';
 import { uuid, fail, idAndInput, positive, requireActor, type ToolContext } from './context.js';
 import { planTool, readTool } from './define.js';
@@ -47,7 +47,7 @@ export const orderBatchTools = [
     (ctx, v, who) => {
       requireActor(who);
       // 和到货页“待到货”同一个口径（views.openBatches：先在库里按供应商、采购单和还没到齐圈出来再组装，带到货单）
-      return { batches: ctx.flow.views.openBatches(v).map(aiBatch), url: '#warehouse?arrivals=1' };
+      return { batches: ctx.flow.views.openBatches(v).map(aiBatch), url: pageHref('warehouse', { arrivals: true }) };
     },
   ),
   readTool(
@@ -148,7 +148,7 @@ export function aiBatch(b: BatchSource) {
       })),
     })),
     ...(b.arrivals ? { arrivals: b.arrivals } : {}),
-    url: '#warehouse?arrivals=1',
+    url: pageHref('warehouse', { arrivals: true }),
   };
 }
 /** 助手传的是行号：换成订货单里的行键，再交给和人工同一个服务。 */

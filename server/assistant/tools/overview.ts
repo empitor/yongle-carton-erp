@@ -2,11 +2,9 @@
 import { z } from 'zod';
 import { requirePermission, requireSuperAdminAccount } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
-import { dateSchema, today } from '../../../shared/core/index.js';
-import { monthsBefore } from '../../../shared/core/index.js';
+import { dateSchema, financeOnlyAccount, financeOnlyPageAllowed, isFinancePage, monthsBefore, pageHref, today } from '../../../shared/core/index.js';
 import { buildDashboard, periodOrders } from '../../business/index.js';
-import { adminSettingsLink, navigationTargets, financePageTargets, pageLink } from '../../../shared/assistant/index.js';
-import { financeOnlyAccount, financeOnlyPageAllowed } from '../../../shared/core/index.js';
+import { adminSettingsLink, navigationTargets, pageLink } from '../../../shared/assistant/index.js';
 import { MONTHS_MAX, positive, requireActor } from './context.js';
 import { readTool, toolSpec } from './define.js';
 import { moduleSchema } from './modules.js';
@@ -44,7 +42,7 @@ export const overviewTools = [
       const actor = requireActor(who);
       const target = v.module;
       if (!target) throw new AppError('请指定一个有效页面目标。');
-      if (Object.hasOwn(financePageTargets, target)) {
+      if (isFinancePage(target)) {
         requirePermission(actor, 'finance:view');
         return { url: pageLink(target, v.q), page: target };
       }
@@ -78,7 +76,7 @@ export const overviewTools = [
       const { current, archived } = periodOrders(ctx.store, range),
         rows = [...current, ...archived].filter((r) => (!range.start || r.orderDate >= range.start) && (!range.end || r.orderDate <= range.end));
       // AI 概览要工作台汇总，这里明确要求；没归档的订单已读过，直接传入，不再读一遍。
-      return { ...buildDashboard(ctx.store, rows, range, today(), { allOrders: current, workbench: true }), url: '#dashboard' };
+      return { ...buildDashboard(ctx.store, rows, range, today(), { allOrders: current, workbench: true }), url: pageHref('dashboard') };
     },
   ),
 ];

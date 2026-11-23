@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { flowDocHref, pageHref } from '../../shared/core/index';
 import { FormMessage, Hint, Loading, Section, StatusChip } from '../ui/index';
 import { canEditBusiness, emit, notify, useAuthState, useLoad } from '../ui/index';
 import type { StockBatchView, StockItemView } from '../../shared/business/index';
@@ -15,7 +16,7 @@ function BatchOrders({ orders }: { orders: StockBatchView['orders'] }) {
     <ul className="pur-batch-list">
       {orders.map((o) => (
         <li key={o.id} className="pur-batch-order">
-          <a href={'#orders?order=' + o.id}>{o.number}</a> <span>{o.customerName}</span>
+          <a href={pageHref('orders', { order: o.id })}>{o.number}</a> <span>{o.customerName}</span>
         </li>
       ))}
     </ul>
@@ -69,7 +70,7 @@ function blockRows(batch: StockBatchView, edit?: () => void): BlockRow[] {
   if (batch.taskId)
     rows.push({
       label: '生产任务',
-      value: <a href={'#production?doc=' + batch.taskId}>{batch.taskNumber}</a>,
+      value: <a href={flowDocHref('task', batch.taskId)}>{batch.taskNumber}</a>,
     });
   if (batch.orders.length) rows.push({ label: '订单', value: <BatchOrders orders={batch.orders} /> });
   if (batch.materials.length)
@@ -97,7 +98,7 @@ function BatchHeader({ batch, unit }: { batch: StockBatchView; unit: string }) {
             <span className="pur-batch-dot" aria-hidden="true">
               ·
             </span>
-            <a className="pur-batch-number" href={'#production?view=production&doc=' + batch.documentId}>
+            <a className="pur-batch-number" href={flowDocHref('production', batch.documentId)}>
               {batch.number}
             </a>
           </>

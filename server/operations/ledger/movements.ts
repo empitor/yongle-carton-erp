@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import type { Store } from '../../core/index.js';
+import { type Store } from '../../core/index.js';
 import { clampPage, count, many, parseStoredJson, rows } from '../../core/index.js';
-import { formatStockSize, matchesMovement, movementColumnsSchema, movementSource, stockKinds, type MovementFilters } from '../../../shared/business/index.js';
+import { formatStockSize, matchesMovement, movementColumnsSchema, movementSource, type MovementFilters } from '../../../shared/business/index.js';
 import type { MovementBaseView, MovementRevision } from '../../../shared/business/index.js';
-import { quantityString } from '../../../shared/core/index.js';
+import { quantityString, stockKinds } from '../../../shared/core/index.js';
 import { readStockDocument } from './stock-document.js';
 
 /*

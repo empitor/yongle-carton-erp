@@ -1,15 +1,11 @@
 import { z } from 'zod';
-import { FINISHED_UNIT, finishedUnit, rawUnit } from '../core/index.js';
+import { FINISHED_UNIT, finishedUnit, isFlowKind, rawUnit, type FlowKind } from '../core/index.js';
 import { chosenId, dateSchema, exactPriceSchema, fieldLabel } from '../core/index.js';
 import { arrivalItemSchema, arrivalPriceBasisSchema, noteText } from './operations.js';
 import { positiveQuantity, quantityText, quantityUnits } from '../core/index.js';
 import { inspectionFields } from './arrival.js';
 import { arrivalTimeSchema } from './schedule.js';
 import { UNIT_MAX_LENGTH } from './limits.js';
-export const flowKinds = ['arrival', 'task', 'production', 'delivery'] as const;
-export type FlowKind = (typeof flowKinds)[number];
-/** 是不是四种单据之一（到货、生产任务、完工、送货） */
-export const isFlowKind = (kind: string): kind is FlowKind => flowKinds.some((k) => k === kind);
 /** 单据的名字：全站一个说法（详情头部、窗口标题、流水来源、关联单据、“关联与历史”都用它） */
 export const flowNames: Record<FlowKind, string> = {
   arrival: '到货单',

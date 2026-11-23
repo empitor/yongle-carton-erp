@@ -1,6 +1,6 @@
 import { orderStatusRules, productIncomplete, purchaseStatusRules } from '../../shared/business/index';
 import type { NextStep, NextSteps, RecordStatusAction } from '../../shared/business/index';
-import type { Order, Product } from '../../shared/core/index';
+import { pageHref, type Order, type Product } from '../../shared/core/index';
 import type { RecordAction } from '../ui/index';
 import { newOrderFrom, newPurchaseFrom } from '../recordkit/launch';
 import { orderStepDialog, type RecordDialog } from './order-step';
@@ -106,7 +106,7 @@ export function purchaseActions(c: ActionContext<PurchaseRow>): ActionLists {
     steps.push({ label: '登记到货', onClick: () => c.setDialog({ type: 'receive', purchaseId: row.id }) });
   if (status === '已订货') {
     extra.push({ label: '重新导出订货单', onClick: orderSheet });
-    extra.push({ label: '到货记录', href: '#warehouse?arrivals=1&purchase=' + row.id });
+    extra.push({ label: '到货记录', href: pageHref('warehouse', { arrivals: true, purchase: row.id }) });
   }
   if (allowed('revert') && !received)
     extra.push({ label: '退回待订货', disabled: working, onClick: () => c.saveStatus('revert', '采购单 ' + row.number + ' 已退回待订货。') });

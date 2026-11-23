@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { LoaderCircle, Upload, X } from 'lucide-react';
+import { pageHref } from '../../shared/core/index';
 import type { AiStatus } from '../../shared/ai/index';
 import { ORIGINAL_MAX_MB, originalFormats } from '../../shared/import/index';
 import { Hint, MenuItem, MoreMenu } from '../ui/index';
@@ -138,7 +139,7 @@ export function ImportBanners({
           {settingsLink && (
             <>
               {' '}
-              <a href="#ai-settings?tab=api">去设置</a>
+              <a href={pageHref('ai-settings', { tab: 'api' })}>去设置</a>
             </>
           )}
         </Hint>

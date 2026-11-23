@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
-import { displayAmount, errorMessage, finishedUnit, today, type Order } from '../../shared/core/index';
+import { displayAmount, errorMessage, finishedUnit, pageHref, today, type Order } from '../../shared/core/index';
 import type { FlowDocView, NextStep } from '../../shared/business/index';
 import { yuan, notify, beijingTime, canEditBusiness, useAuthState, useAction, ConfirmDialog, Facts, emit, FormMessage, Loading } from '../ui/index';
 import { BatchReceiveButton, OrderBatchButton } from '../operations/BatchCard';
@@ -62,7 +62,7 @@ function ConfirmOrderDialog({ order, close }: { order: Order; close: () => void 
     <ConfirmDialog
       title={'确认订单 ' + order.number}
       subtitle={
-        <a className="td-detail-link" href={'#orders?order=' + order.id}>
+        <a className="td-detail-link" href={pageHref('orders', { order: order.id })}>
           查看订单详情
         </a>
       }
@@ -119,7 +119,7 @@ export default function TodayQueue() {
     setActionError('');
     const next = orderStepDialog(orderId, step);
     if (next) setDialog(next);
-    else location.hash = '#orders?order=' + orderId;
+    else location.hash = pageHref('orders', { order: orderId });
   };
   const openExport = async (row: TodayRowData, id: number) => {
     setResolving(row.key);
@@ -195,7 +195,7 @@ export default function TodayQueue() {
         <div>
           本月发货 <strong>¥{displayAmount(s.monthShippedAmount)}</strong>
         </div>
-        <a className={overdueCount ? 'is-warn' : ''} href="#orders?view=pending&range=all">
+        <a className={overdueCount ? 'is-warn' : ''} href={pageHref('orders', { view: 'pending', range: 'all' })}>
           逾期未发货 <strong>{overdueCount}</strong>
         </a>
       </div>
@@ -208,7 +208,7 @@ export default function TodayQueue() {
             <section className="td-group td-done">
               <p>今天没有要处理的事。</p>
               {canEdit && (
-                <a className="button-link secondary" href="#orders?create=1">
+                <a className="button-link secondary" href={pageHref('orders', { create: true })}>
                   新建订单
                 </a>
               )}

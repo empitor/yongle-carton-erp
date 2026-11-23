@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import type { DatePreset } from '../../shared/core/index';
-import { Segmented, DateFilter, FormMessage, Loading, useBusinessRevision, hashParams, useLoad } from '../ui/index';
+import { pageHref, pageParams, presetRange, type DatePreset } from '../../shared/core/index';
+import { Segmented, DateFilter, FormMessage, Loading, useBusinessRevision, useLoad } from '../ui/index';
 import { loadDashboard } from './list-api';
 import TodayQueue from './TodayQueue';
 import BusinessOverview from './BusinessOverview';
 import { readListFilters } from './record-filters';
-import { presetRange } from '../../shared/core/index';
 
 const views = ['todo', 'overview'] as const;
 type View = (typeof views)[number];
 const isView = (value: string): value is View => (views as readonly string[]).includes(value);
 /** 地址里带 view=overview 时直接打开经营概况；切换只改地址不触发重新读取。 */
 const initialView = (): View =>
-  hashParams().get('view') === 'overview' ? 'overview' : 'todo';
+  pageParams('dashboard', location.hash).view === 'overview' ? 'overview' : 'todo';
 
 /**
  * 今日：默认只放待办（自己读，不等经营概况）；经营数字在同一页的“经营概况”里，切过去才读，不另开页面。
@@ -21,10 +20,8 @@ export default function DashboardPage() {
   const [view, setView] = useState<View>(initialView);
   const choose = (next: View) => {
     setView(next);
-    const params = hashParams();
-    if (next === 'overview') params.set('view', 'overview');
-    else params.delete('view');
-    history.replaceState(null, '', '#dashboard' + (params.size ? '?' + params : ''));
+    const current = pageParams('dashboard', location.hash);
+    history.replaceState(null, '', pageHref('dashboard', { ...current, view: next === 'overview' ? 'overview' : undefined }));
   };
   return (
     <div className="td-page">

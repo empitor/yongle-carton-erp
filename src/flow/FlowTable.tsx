@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { planDate, type FlowDocView, type FlowKind } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, finishedUnit, fieldLabel } from '../../shared/core/index';
+import { planDate, type FlowDocView } from '../../shared/business/index';
+import { FINISHED_UNIT, RAW_UNIT, finishedUnit, fieldLabel, type FlowKind } from '../../shared/core/index';
 import { DataTable, type Col } from '../ui/index';
 import { FlowStatus } from './FlowDetails';
 import { shipDate } from './flow-dates';

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { pageHref, pageTitle } from '../shared/core/index';
 import { readCatalog } from './recordkit/index';
 import { useBackLayer, loadingText } from './ui/index';
 import { catalogItems, searched, type PaletteItem as Item } from './palette-items';
@@ -7,15 +8,15 @@ import { catalogItems, searched, type PaletteItem as Item } from './palette-item
  * financeOnly：纯财务账号不显示。都要业务编辑权限，只读账号不显示。
  */
 export const createActions: { label: string; target: string; keywords: string }[] = [
-  { label: '新建订单', target: 'orders?create=1', keywords: '新建 订单 下单' },
-  { label: '新建采购单', target: 'purchases?create=1', keywords: '新建 采购 订货 订料' },
-  { label: '安排生产', target: 'production?create=1', keywords: '安排 生产 任务 排产' },
-  { label: 'AI 导入', target: 'ai-import', keywords: '上传 导入 识别 客户订单 送货单 唛头' },
+  { label: '新建订单', target: pageHref('orders', { create: true }), keywords: '新建 订单 下单' },
+  { label: '新建采购单', target: pageHref('purchases', { create: true }), keywords: '新建 采购 订货 订料' },
+  { label: '安排生产', target: pageHref('production', { create: true }), keywords: '安排 生产 任务 排产' },
+  { label: pageTitle('ai-import'), target: pageHref('ai-import'), keywords: '上传 导入 识别 客户订单 送货单 唛头' },
 ];
 const actions: Item[] = [
   ...createActions.map((a) => ({ group: '操作', ...a })),
-  { group: '操作', label: '安排送货', target: 'warehouse?deliveries=1&kind=finished', keywords: '送货 发货 出库' },
-  { group: '操作', label: '登记到货', target: 'warehouse?arrivals=1', keywords: '到货 收货 入库' },
+  { group: '操作', label: '安排送货', target: pageHref('warehouse', { deliveries: true, kind: 'finished' }), keywords: '送货 发货 出库' },
+  { group: '操作', label: '登记到货', target: pageHref('warehouse', { arrivals: true }), keywords: '到货 收货 入库' },
 ];
 const MAX_PER_GROUP = 8;
 

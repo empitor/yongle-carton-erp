@@ -1,8 +1,9 @@
+import type { FlowKind } from '../../shared/core/index';
 import { flowOverdue, isOpen } from './flow-dates';
 import { completableTask } from '../../shared/business/index';
 import { title } from './lookups';
 import type { FlowDesk } from './useFlowDesk';
-import type { FlowDocView, FlowKind } from '../../shared/business/index';
+import type { FlowDocView } from '../../shared/business/index';
 import { ListSummary, PageHeading } from '../ui/index';
 
 /**

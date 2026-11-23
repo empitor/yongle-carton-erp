@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { inventoryMetrics, matchesOperationalRecord, type StockItemView } from '../../shared/business/index';
+import { pageHref } from '../../shared/core/index';
 import { FilterRow, ListToolbar, PageHeading, useLoad, type RecordAction } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
 import { readCatalog } from '../recordkit/catalog-api';
@@ -109,7 +110,7 @@ export default function StockPage({ recycle = false }: { recycle?: boolean }) {
     setStockParty('');
     setZeroOnly(false);
     p.setSearch('');
-    if (!recycle) history.replaceState(null, '', '#warehouse?kind=' + next);
+    if (!recycle) history.replaceState(null, '', pageHref('warehouse', { kind: next }));
   };
   const clearFilters = () => {
     setStockParty('');

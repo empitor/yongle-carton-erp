@@ -1,5 +1,5 @@
-import { movementTypes, purchaseStatuses, stockKinds, type OperationsApi, type RecordsApi, type StockFlowApi, type WorkbenchApi } from '../../shared/business/index';
-import { statuses, type RecordSort } from '../../shared/core/index';
+import { movementTypes, purchaseStatuses, type OperationsApi, type RecordsApi, type StockFlowApi, type WorkbenchApi } from '../../shared/business/index';
+import { statuses, type RecordSort, stockKinds } from '../../shared/core/index';
 import { call } from '../ui/index';
 
 /**

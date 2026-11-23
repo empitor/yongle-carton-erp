@@ -2,9 +2,9 @@ import { z } from 'zod';
 import type { Actor } from '../core/index.js';
 import type { Store } from '../core/index.js';
 import { AppError, changeArchive, exists, many, recordArchiveTarget } from '../core/index.js';
-import type { FlowKind, RecordEntity, purchaseBusinessStatuses } from '../../shared/business/index.js';
+import type { RecordEntity, purchaseBusinessStatuses } from '../../shared/business/index.js';
 import { flowStatus } from '../../shared/business/index.js';
-import { deliverableOrder, type ArchiveResult } from '../../shared/core/index.js';
+import { deliverableOrder, type ArchiveResult, type FlowKind } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import { businessRecord, type BusinessRecordOf } from './records.js';
 

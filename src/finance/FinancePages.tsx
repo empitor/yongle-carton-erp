@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { financePageIds, pageHref, pageTitle } from '../../shared/core/index';
 import { ErrorBoundary } from '../ui/index';
 import OverviewPage from './overview/OverviewPage';
 import FlowLedgerPage from './flow/FlowLedgerPage';
@@ -8,7 +9,6 @@ import CostsPage from './costs/CostsPage';
 import LedgerPage from './ledger/LedgerPage';
 import ReportsPage from './reports/ReportsPage';
 import SettingsPage from './settings/SettingsPage';
-import { financePageTitles } from './page-titles';
 
 
 /** 财务页面之间的页签：电脑一行排开，手机横向滑动、不折行，当前页自动滑到看得见的位置。 */
@@ -25,14 +25,14 @@ function FinanceNav({ page }: { page: string }) {
   return (
     <nav className="fin-nav" aria-label="财务页面">
       <div className="fin-nav-track" ref={track}>
-        {Object.entries(financePageTitles).map(([key, label]) => (
+        {financePageIds.map((key) => (
           <a
             key={key}
-            href={'#' + key}
+            href={pageHref(key)}
             className={page === key ? 'selected' : undefined}
             aria-current={page === key ? 'page' : undefined}
           >
-            {label}
+            {pageTitle(key)}
           </a>
         ))}
       </div>

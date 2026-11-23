@@ -1,6 +1,6 @@
 import BatchCard from '../operations/BatchCard';
 import { ARRIVAL_HISTORY_TITLE, UNPRICED_TEXT, formatStockSize, priceText, type PurchaseView } from '../../shared/business/index';
-import { displayAmount, quantityString, fieldShort } from '../../shared/core/index';
+import { displayAmount, pageHref, quantityString, fieldShort } from '../../shared/core/index';
 import { ReceiptHistory } from '../flow/FulfillmentDetails';
 import { Facts, Progress, Section } from '../ui/index';
 import { useAgentRecord } from '../recordkit/record-meta';
@@ -78,13 +78,13 @@ function linkedOrders(row: PurchaseView) {
         {row.customerOrders.map((o, i) => (
           <span key={o.id}>
             {i > 0 && '、'}
-            <a href={'#orders?order=' + o.id}>{o.number}</a>
+            <a href={pageHref('orders', { order: o.id })}>{o.number}</a>
           </span>
         ))}
       </>
     );
   if (row.customerOrderId)
-    return <a href={'#orders?order=' + row.customerOrderId}>{row.customerOrderNumber || '查看订单'}</a>;
+    return <a href={pageHref('orders', { order: row.customerOrderId })}>{row.customerOrderNumber || '查看订单'}</a>;
   return '独立采购';
 }
 

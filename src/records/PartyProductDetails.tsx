@@ -1,7 +1,7 @@
 import { Facts, Hint, Section } from '../ui/index';
 import ContactSection from '../recordkit/ContactSection';
 import ProductMarks from '../marks/ProductMarks';
-import { formatDimensions, dimensionKeys, normalizeDimensionUnit, plainPrice, priceFromCents } from '../../shared/core/index';
+import { formatDimensions, dimensionKeys, normalizeDimensionUnit, pageHref, plainPrice, priceFromCents } from '../../shared/core/index';
 import RelatedOrderList from './RelatedOrderList';
 import { useRecordContext } from '../recordkit/record-meta';
 import { useProductFamily } from '../recordkit/useProductFamily';
@@ -19,7 +19,7 @@ export function CustomerDetail({ row }: { row: RecordRowOf['customers'] }) {
       <RelatedOrderList
         key={'c' + row.id}
         query={{ customerId: row.id }}
-        moreHref={'#orders?customerId=' + row.id + '&scope=all'}
+        moreHref={pageHref('orders', { customerId: row.id, scope: 'all' })}
         moreLabel="全部订单"
       />
     </div>
@@ -71,7 +71,7 @@ export function ProductDetail({ row }: { row: RecordRowOf['products'] }) {
             { label: '尺寸', value: productSize(row) },
             {
               label: '附属于',
-              value: parentId ? <a href={'#products?record=' + parentId}>{family.nameOf(parentId) || '查看'}</a> : null,
+              value: parentId ? <a href={pageHref('products', { record: parentId })}>{family.nameOf(parentId) || '查看'}</a> : null,
               hidden: !parentId,
             },
             { label: '客户料号', value: row.customerProductCode },
@@ -91,7 +91,7 @@ export function ProductDetail({ row }: { row: RecordRowOf['products'] }) {
                   className={'record-tree-branch' + (i === children.length - 1 ? ' is-last' : '')}
                   aria-hidden="true"
                 />
-                <a href={'#products?record=' + c.id}>{c.name}</a>
+                <a href={pageHref('products', { record: c.id })}>{c.name}</a>
               </li>
             ))}
           </ul>

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { DataTable, Pagination, StatusChip, type Col } from '../ui/index';
+import { flowDocHref, isFlowKind } from '../../shared/core/index';
 import type { MovementSummary, MovementView } from '../../shared/business/index';
 import { movementTypeLabel } from '../../shared/business/index';
-import { flowDocHref } from '../flow/flow-words';
 import MovementDetail, { movementTone } from './MovementDetail';
 
 type MovementsView = 'details' | 'summary';
@@ -14,7 +14,7 @@ function MovementSource({ m }: { m: MovementView }) {
   if (!m.flowNumber && !m.purchaseNumber && !m.customerOrderNumber) return <span className="sub">未关联单据</span>;
   return (
     <>
-      {m.flowNumber && m.flowKind && <a href={flowDocHref(m.flowKind, Number(m.source_id))}>{m.flowNumber}</a>}
+      {m.flowNumber && isFlowKind(m.flowKind) && <a href={flowDocHref(m.flowKind, Number(m.source_id))}>{m.flowNumber}</a>}
       {m.purchaseNumber && <span> {m.purchaseNumber}</span>}
       {m.customerOrderNumber && <span> {m.customerOrderNumber}</span>}
     </>

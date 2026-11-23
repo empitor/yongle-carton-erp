@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Actor } from '../../core/index.js';
 import { AppError, requireSuperModeFor } from '../../core/index.js';
+import { pageHref } from '../../../shared/core/index.js';
 import { arrivalQuerySchema } from '../../../shared/business/index.js';
 import { PurchaseReturns } from '../../flow/index.js';
 import { purchaseReturnSchema, returnReversalSchema } from '../../../shared/business/index.js';
@@ -32,7 +33,7 @@ export const arrivalTools = [
     },
     (ctx, v, who) => {
       requireActor(who);
-      return { records: ctx.flow.arrivalRecords(v), url: '#warehouse?arrivals=1' };
+      return { records: ctx.flow.arrivalRecords(v), url: pageHref('warehouse', { arrivals: true }) };
     },
   ),
   readTool(
@@ -110,7 +111,7 @@ function returnable(ctx: ToolContext, arrivalId: number) {
       reason: x.reason,
       lines: x.lines,
     })),
-    url: '#warehouse?arrivals=1',
+    url: pageHref('warehouse', { arrivals: true }),
   };
 }
 

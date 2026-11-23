@@ -1,7 +1,7 @@
 // 确认卡片上一行行字怎么写（card-summary.ts 用）：动的是哪条（叫法加单号或名称）、单据每行品名数量、
 // 库存从多少变成多少、订货单的到货安排和登记到货、新建记录的标题和一行摘要。
-import { flowDocNames, flowKinds, recordNames } from '../../../shared/business/index.js';
-import { fieldLabel, fieldShort, quantityString } from '../../../shared/core/index.js';
+import { flowDocNames, recordNames } from '../../../shared/business/index.js';
+import { fieldLabel, fieldShort, quantityString, flowKinds } from '../../../shared/core/index.js';
 import { type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
 import { assistantModules } from '../../../shared/assistant/index.js';

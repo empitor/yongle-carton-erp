@@ -1,8 +1,8 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { deliverBusinessFile } from '../documents/index';
 import { emit, type FileSaver } from '../ui/index';
-import { errorMessage } from '../../shared/core/index';
-import { isErpNavigation, readSpeaker, type AssistantSpeaker, type InterimSaid } from '../../shared/assistant/index';
+import { errorMessage, isPageHref } from '../../shared/core/index';
+import { readSpeaker, type AssistantSpeaker, type InterimSaid } from '../../shared/assistant/index';
 import { executePageCommand, observeErpPage } from './assistant-page';
 import { replyFollowUps, type ChatEventHandlers } from './chat-stream';
 import type { ChatEffect } from './chat-events';
@@ -51,7 +51,7 @@ function applyEffect(d: ChatEffect, v: Pick<ReplyView, 'setError' | 'saveFile'>)
   if (d.workspaceId) emit('erp-ai-workspace-changed', { workspaceId: d.workspaceId });
   if (d.type === 'business') emit('erp-business-changed');
   if (d.module === 'workspaces') emit('erp-ai-workspace-list-changed');
-  if (d.type === 'navigate' && isErpNavigation(d.url)) location.hash = d.url;
+  if (d.type === 'navigate' && isPageHref(d.url)) location.hash = d.url;
 }
 
 /** 收回复时要改的界面状态（useAssistantChat 的设置函数） */

@@ -1,5 +1,6 @@
 import { GripHorizontal, Plus, X } from 'lucide-react';
 import { MenuItem, MoreMenu } from '../ui/index';
+import { pageHref } from '../../shared/core/index';
 import { assistantManagementHash, type AssistantSpeaker } from '../../shared/assistant/index';
 import { assistantDisplayName, saveLauncherIsFloating } from './assistant-launcher';
 import type { AssistantPanelMode } from './floating-assistant';
@@ -117,7 +118,7 @@ export default function AssistantHeader({
           {superAdmin && (
             <MenuItem
               onClick={() => {
-                location.hash = 'ai-settings?tab=prompts&assistant=1';
+                location.hash = pageHref('ai-settings', { tab: 'prompts', assistant: true });
               }}
             >
               管理提示词

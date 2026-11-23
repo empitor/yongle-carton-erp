@@ -1,22 +1,9 @@
 // 只管：records.search、records.summarize 的筛选——能用的筛选键（给模型看的参数结构和执行时的校验同一份），
 // 和按筛选条件挑记录：各模块共用的条件读记录上的字段，订单、采购单、单据各自的状态、待办、日期范围用各自的类型。
 import { z } from 'zod';
-import type { Actor } from '../../core/index.js';
-import { ISO_DATE_LENGTH, dateSchema, deliverableOrder, displayOrderStatuses, orderViews, shippingProgresses } from '../../../shared/core/index.js';
-import {
-  SEARCH_MAX_LENGTH,
-  arrivalProgresses,
-  arrivalProgressText,
-  matchesFlowSaying,
-  matchesFlowStatus,
-  orderInRange,
-  orderStatusMatches,
-  pendingPurchase,
-  purchaseBusinessStatuses,
-  purchaseState,
-  stockKinds,
-  type FlowKind,
-} from '../../../shared/business/index.js';
+import { type Actor } from '../../core/index.js';
+import { ISO_DATE_LENGTH, dateSchema, deliverableOrder, displayOrderStatuses, orderViews, shippingProgresses, stockKinds, type FlowKind } from '../../../shared/core/index.js';
+import { SEARCH_MAX_LENGTH, arrivalProgresses, arrivalProgressText, matchesFlowSaying, matchesFlowStatus, orderInRange, orderStatusMatches, pendingPurchase, purchaseBusinessStatuses, purchaseState } from '../../../shared/business/index.js';
 import { MONTHS_MAX, fieldList, isFields, positive, type Fields, type ToolContext } from './context.js';
 import { stockKindOf } from '../../../shared/assistant/index.js';
 import { recordRows, type Module, type ModuleRows } from './modules.js';

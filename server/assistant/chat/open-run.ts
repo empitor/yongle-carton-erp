@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { AppError, exists, inSavepoint, one, parseStoredJson, rows } from '../../core/index.js';
 import type { Actor } from '../../core/index.js';
 import type { AssistantAttachment } from '../../../shared/core/index.js';
-import { financeOnlyAccount } from '../../../shared/core/index.js';
+import { financeOnlyAccount, pageParams } from '../../../shared/core/index.js';
 import { AgentExecutionBudget } from '../budget.js';
 import type { WorkflowContext } from '../order-import-state.js';
 import { parseChatInput, type ChatInput } from './input.js';
@@ -156,10 +156,7 @@ function startRunRecord(svc: ChatServices, id: string, actor: Actor, input: Chat
 }
 
 /** 从识别导入页进来时，那份工作区的编号 */
-const sourceWorkspaceId = (input: ChatInput) =>
-  input.context?.page.startsWith('#ai-import?')
-    ? new URLSearchParams(input.context.page.split('?')[1]).get('workspace') || undefined
-    : undefined;
+const sourceWorkspaceId = (input: ChatInput) => pageParams('ai-import', input.context?.page ?? '').workspace;
 
 /** 出纳只看财务：页面上选中的业务记录不预读进提示词（页面报的记录种类都是业务记录）。 */
 function selectedRecord(svc: ChatServices, input: ChatInput, actor: Actor): unknown {

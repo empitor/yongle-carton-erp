@@ -1,8 +1,8 @@
+import { isFlowKind } from '../../shared/core/index';
 import type { ComponentProps } from 'react';
 import { CorrectionDialog, DocumentInfoDialog, correctLabel, infoSavedMessage, isCorrectable } from '../flow/index';
 import { MovementDialog } from '../operations/index';
 import { DatabaseDeleteDialog } from '../recordkit/index';
-import { isFlowKind } from '../../shared/business/index';
 import { businessRows, isManagedModule, textOf, type ListedRecord, type ManagedModule, type ManagedRecord } from './record-types';
 
 /** 已生效的到货、送货、完工单“编辑”窗口要的内容；更正哪种单据；出入库 / 盘点窗口要的库存品 */

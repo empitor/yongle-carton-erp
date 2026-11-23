@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { PageHeading, SelectionBar, yuan, hashParams, col, type Col } from '../../ui/index';
+import { pageParams, pageTitle } from '../../../shared/core/index';
+import { PageHeading, SelectionBar, yuan, col, type Col } from '../../ui/index';
 import { missingAmountName } from '../../../shared/finance/index';
 import { useEnable } from '../enable';
 import TaxBatchDialog from './TaxBatchDialog';
-import { financePageTitles } from '../page-titles';
 import { PeriodInput } from '../layout';
 import { FinList } from '../table';
 import { FlowStatus } from '../status';
@@ -25,7 +25,7 @@ import {
 } from './FlowLedgerParts';
 
 /** 地址带 missing=1（从别处点“补税率”进来）时只看待补税率的 */
-const missingInHash = () => hashParams().get('missing') === '1';
+const missingInHash = () => pageParams('finance-flow', location.hash).missing;
 
 const ledgerColumns: Col<SourceRow>[] = [
   col('date', '日期'),
@@ -97,7 +97,7 @@ export default function FlowLedgerPage() {
   return (
     <div className="fin-page">
       <PageHeading
-        title={financePageTitles['finance-flow']}
+        title={pageTitle('finance-flow')}
         primary={primary}
         more={[{ label: '导出台账', href: exportHref('/monthly-ledger/export', query), download: true }]}
       >

@@ -1,6 +1,7 @@
+import { isFlowKind } from '../../shared/core/index';
 import { useState } from 'react';
 import { RotateCcw, Trash2 } from 'lucide-react';
-import { dataManagementFieldName, isFlowKind } from '../../shared/business/index';
+import { dataManagementFieldName } from '../../shared/business/index';
 import type { DataAction, ListedRecord } from './record-types';
 
 /**

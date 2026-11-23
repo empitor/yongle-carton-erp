@@ -1,6 +1,6 @@
 import { codeNames, purchaseStatusLabel } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, fieldTable, orderTaxModes, statuses, type FieldTable } from '../../shared/core/index';
-import { flowStates, isFlowKind, pendingLabels, storedFlowStatusName } from '../../shared/business/index';
+import { FINISHED_UNIT, RAW_UNIT, fieldTable, orderTaxModes, statuses, type FieldTable, isFlowKind } from '../../shared/core/index';
+import { flowStates, pendingLabels, storedFlowStatusName } from '../../shared/business/index';
 import { purchaseBusinessStatuses } from '../../shared/business/index';
 import type { RecordRefs, RefOption } from './record-refs';
 import type { JsonObject, ManagedRecord } from './record-types';

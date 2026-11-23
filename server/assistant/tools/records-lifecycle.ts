@@ -1,18 +1,8 @@
 // 只管：记录的去留——单条、批量归档和恢复，删除（records.delete，一次一条或几条），以及删除方案换“库存怎么处理”。
-import {
-  DELETION_MAX_RECORDS,
-  deletionHeadline,
-  deletionModuleTable,
-  deletionSelection,
-  flowKinds,
-  impactRowSchema,
-  inventoryPolicies,
-  type DeletionImpactRow,
-  type RecordEntity,
-} from '../../../shared/business/index.js';
+import { DELETION_MAX_RECORDS, deletionHeadline, deletionModuleTable, deletionSelection, impactRowSchema, inventoryPolicies, type DeletionImpactRow, type RecordEntity } from '../../../shared/business/index.js';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import type { Actor } from '../../core/index.js';
+import { type Actor } from '../../core/index.js';
 import { requirePermission } from '../../core/index.js';
 import { archivedOrConflict, businessRecords, changeLifecycle } from '../../lifecycle/index.js';
 import { archiveFlowDocuments } from '../../flow/index.js';
@@ -20,7 +10,7 @@ import { AppError } from '../../core/index.js';
 import { DatabaseMaintenanceService } from '../../lifecycle/index.js';
 import { recordEntities } from '../../../shared/business/index.js';
 import { flowKindOfModule, moduleName, recordKindOf } from '../../../shared/assistant/index.js';
-import { recordArchiveInputSchema } from '../../../shared/core/index.js';
+import { recordArchiveInputSchema, flowKinds } from '../../../shared/core/index.js';
 import type { ToolPlan } from '../plan-rules.js';
 import { positive, type ToolContext } from './context.js';
 import { planTool } from './define.js';

@@ -1,15 +1,6 @@
 import { useState } from 'react';
-import {
-  initialMovementRange,
-  matchesMovement,
-  movementLabels,
-  movementTypes,
-  stockKinds,
-  type MovementSummary,
-  type MovementView,
-  type StockItemView,
-} from '../../shared/business/index';
-import { presetRange, type DatePreset } from '../../shared/core/index';
+import { initialMovementRange, matchesMovement, movementLabels, movementTypes, type MovementSummary, type MovementView, type StockItemView } from '../../shared/business/index';
+import { presetRange, type DatePreset, stockKinds } from '../../shared/core/index';
 import { PageHeading, useResettingPage, DateFilter, hashParams, LIST_PAGE_SIZE, ListToolbar, FilterRow } from '../ui/index';
 import MovementRecords from '../warehouse/MovementRecords';
 import { loadMovements, loadStockItems } from './list-api';

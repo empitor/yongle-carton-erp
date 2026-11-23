@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import type { Dashboard } from '../../shared/business/index';
 import type { UnitBalance } from '../../shared/business/index';
 import { yuan } from '../ui/index';
-import { displayAmount as exactMoney, monthsBefore, today, fieldTitle } from '../../shared/core/index';
+import { displayAmount as exactMoney, displayOrderStatuses, monthsBefore, pageHref, today, fieldTitle } from '../../shared/core/index';
 
 type OverviewData = Dashboard['overview'];
 
@@ -45,8 +45,9 @@ const units = (groups: UnitBalance[], empty = '暂无库存') =>
   );
 
 /** 订单：总数、有效金额、待完成和逾期（实时）、状态分布、送货金额和预估毛利 */
-function OrdersSection({ data, orders }: { data: Dashboard; orders: string }) {
-  const v = data.overview;
+function OrdersSection({ data, range }: { data: Dashboard; range: { range: 'custom'; start?: string; end?: string } }) {
+  const v = data.overview,
+    orders = pageHref('orders', range);
   return (
     <section className="bo-section">
       <header>
@@ -63,13 +64,13 @@ function OrdersSection({ data, orders }: { data: Dashboard; orders: string }) {
         {metric(orders, '订单总数', v.orders.total, ['包含待确认和已取消', archivedNote(v.orders.archived)].filter(Boolean).join('；'))}
         {metric(orders, '有效订单金额', '¥' + yuan(data.amountCents), '不含待确认、已取消', 'bo-accent')}
         {metric(
-          '#orders?view=pending&range=all',
+          pageHref('orders', { view: 'pending', range: 'all' }),
           '待完成订单 · 实时',
           v.orders.pendingAll,
           `所选日期内 ${v.orders.pendingInRange} 张，更早没完成的也算在内`,
         )}
         {metric(
-          '#orders?view=pending&range=all',
+          pageHref('orders', { view: 'pending', range: 'all' }),
           '逾期未发货 · 实时',
           v.orders.overdueAll,
           '按交货日期算，不含待确认',
@@ -79,7 +80,10 @@ function OrdersSection({ data, orders }: { data: Dashboard; orders: string }) {
       <div className="bo-order-bottom">
         <div className="bo-status-chart" aria-label="所选日期订单状态分布">
           {data.byStatus.map((s) => (
-            <a key={s.status} href={orders + '&status=' + encodeURIComponent(s.status)}>
+            <a
+              key={s.status}
+              href={pageHref('orders', { ...range, status: displayOrderStatuses.find((x) => x === s.status) })}
+            >
               <span>{s.status}</span>
               <i>
                 <b
@@ -110,7 +114,7 @@ function OrdersSection({ data, orders }: { data: Dashboard; orders: string }) {
           <small>
             只算 {data.costedCount} 张已核算成本的订单，另有 {data.uncostedCount} 张待核算；不是净利润或会计收入。
           </small>
-          <a href={'#orders?scope=all&range=custom&end=' + monthsBefore(today(), 2)}>两个月前已完结的订单 {v.orders.history} 张</a>
+          <a href={pageHref('orders', { scope: 'all', range: 'custom', end: monthsBefore(today(), 2) })}>两个月前已完结的订单 {v.orders.history} 张</a>
         </div>
       </div>
     </section>
@@ -151,8 +155,8 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
           '所选日期内的到货单，按入库数量和单据上的单价算，不另加税' +
             (v.purchases.arrivalUncomputed ? `；${v.purchases.arrivalUncomputed} 张算不出金额（缺单价、数量或尺寸），未计入` : ''),
         )}
-        {metric('#purchases?pending=1', '待到货采购单 · 实时', v.purchases.pendingAll, '包含待订货、待到货和部分到货')}
-        <a className="bo-metric" href="#purchases?pending=1">
+        {metric(pageHref('purchases', { pending: true }), '待到货采购单 · 实时', v.purchases.pendingAll, '包含待订货、待到货和部分到货')}
+        <a className="bo-metric" href={pageHref('purchases', { pending: true })}>
           <span>
             剩余待到货 · 实时
             <ArrowUpRight size={15} />
@@ -175,7 +179,7 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
             {v.purchases.recent.map((p) => (
               <tr key={p.id}>
                 <td>
-                  <a href={'#purchases?record=' + p.id}>
+                  <a href={pageHref('purchases', { record: p.id })}>
                     <strong>{p.number}</strong>
                   </a>
                   <span className="sub">{p.supplierName}</span>
@@ -192,7 +196,7 @@ function PurchasesSection({ v, purchases }: { v: OverviewData; purchases: string
                 <td colSpan={4}>
                   <div className="records-empty">
                     <strong>所选日期没有采购单</strong>
-                    <a href="#purchases">查看采购单</a>
+                    <a href={pageHref('purchases')}>查看采购单</a>
                   </div>
                 </td>
               </tr>
@@ -214,12 +218,12 @@ function InventorySection({ v }: { v: OverviewData }) {
           <h2>库存</h2>
           <span>实时余额，不受日期影响</span>
         </div>
-        <a href="#warehouse">
+        <a href={pageHref('warehouse')}>
           查看库存 <ArrowUpRight size={15} />
         </a>
       </header>
       <div className="bo-inventory-grid">
-        <a className="bo-stock" href="#warehouse?kind=raw">
+        <a className="bo-stock" href={pageHref('warehouse', { kind: 'raw' })}>
           <div>
             <Layers size={21} />
             <h3>原材料</h3>
@@ -228,7 +232,7 @@ function InventorySection({ v }: { v: OverviewData }) {
           {units(v.inventory.raw)}
           <small>外购瓦楞纸板；不同单位分别统计</small>
         </a>
-        <a className="bo-stock" href="#warehouse?kind=finished">
+        <a className="bo-stock" href={pageHref('warehouse', { kind: 'finished' })}>
           <div>
             <Package size={21} />
             <h3>成品</h3>
@@ -237,7 +241,7 @@ function InventorySection({ v }: { v: OverviewData }) {
           {units(v.inventory.finished)}
           <small>加工完成的纸箱；余额按出入库流水计算</small>
         </a>
-        <a className="bo-stock bo-stock-alert" href="#warehouse?zero=1">
+        <a className="bo-stock bo-stock-alert" href={pageHref('warehouse', { zero: true })}>
           <div>
             <AlertTriangle size={20} />
             <h3>零库存</h3>
@@ -262,13 +266,13 @@ function ProductStrip({ v }: { v: OverviewData }) {
         <h2>产品</h2>
         <p>当前有效的产品档案</p>
       </div>
-      <a href="#products">
+      <a href={pageHref('products')}>
         <strong>{v.products.total}</strong>
         <span>
           产品总数 <ArrowUpRight size={14} />
         </span>
       </a>
-      <a href="#products">
+      <a href={pageHref('products')}>
         <strong>{v.products.incomplete}</strong>
         <span>
           尺寸或配纸资料待补 <ArrowUpRight size={14} />
@@ -287,11 +291,11 @@ function RecentMovements({ v }: { v: OverviewData }) {
           <h2>最近出入库</h2>
           <span>所选日期内，最多 8 条</span>
         </div>
-        <a href="#warehouse?flow=1">查看流水</a>
+        <a href={pageHref('warehouse', { flow: true })}>查看流水</a>
       </header>
       <div className="bo-movements">
         {v.movements.map((m) => (
-          <a key={m.id} href={'#warehouse?flow=1&kind=' + m.kind}>
+          <a key={m.id} href={pageHref('warehouse', { flow: true, kind: m.kind })}>
             <div>
               <strong>{m.itemName}</strong>
               <span>
@@ -354,17 +358,15 @@ function RecentActivity({ v }: { v: OverviewData }) {
 /** 经营概况：这段时间的接单、发货、采购、库存和流水（数据由今日页切到“经营概况”时读）。 */
 export default function Overview({ data, rangeFilter }: { data: Dashboard; rangeFilter?: ReactNode }) {
   const v = data.overview,
-    range = new URLSearchParams({ range: 'custom' });
-  if (v.range.start) range.set('start', v.range.start);
-  if (v.range.end) range.set('end', v.range.end);
+    range = { range: 'custom' as const, start: v.range.start || undefined, end: v.range.end || undefined };
   return (
     <div className="business-overview td-overview">
       {rangeFilter}
       <p className="td-scope">
         订单按下单日期、采购按采购日期、出入库按业务日期统计，已归档的也算；标“实时”的数字、库存和产品不受日期影响，实时的数字和最近的记录不算已归档的。
       </p>
-      <OrdersSection data={data} orders={'#orders?' + range} />
-      <PurchasesSection v={v} purchases={'#purchases?' + range} />
+      <OrdersSection data={data} range={range} />
+      <PurchasesSection v={v} purchases={pageHref('purchases', range)} />
       <InventorySection v={v} />
       <ProductStrip v={v} />
       <div className="bo-bottom-grid">

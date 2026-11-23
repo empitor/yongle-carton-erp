@@ -1,12 +1,12 @@
 // 单据流转测试的公共底子（都是内存库、虚构数据，档案按 business-base-fixture 建）：flowFixture 一个客户、产品、供应商、纸板和成品库存；
 // businessFixture 再带一张订单和到货、安排生产、完工的写法；workbenchFixture 是工作台和单据样张用的有料号产品。
+import type { FlowKind } from '../shared/core/index.js';
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { specification } from '../shared/core/domain.js';
 import type { Actor } from '../server/core/index.js';
-import type { FlowKind } from '../shared/business/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { saveDoc } from './receive-fixture.js';

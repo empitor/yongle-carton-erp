@@ -1,6 +1,6 @@
 import { ManagementDialog, Loading } from '../ui/index';
-import type { FlowKind, FlowPreview } from '../../shared/business/index';
-import { quantityString } from '../../shared/core/index';
+import type { FlowPreview } from '../../shared/business/index';
+import { quantityString, type FlowKind } from '../../shared/core/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { Hint, Section } from '../ui/index';
 import type { CatalogLists } from '../recordkit/catalog-api';

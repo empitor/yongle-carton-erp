@@ -4,7 +4,8 @@
  * 影响清单（src/recordkit/deletion-impact.ts）都从这里取，前端不再自己维护一张。
  * 每行记录的名字由表的主人登记（各模块的 deletion.ts）。
  */
-import { flowNames, isFlowKind } from './physical-flow.js';
+import { isFlowKind } from '../core/index.js';
+import { flowNames } from './physical-flow.js';
 
 /** 删的是单据（到货、生产任务、完工、送货）；别的是档案（客户、供应商、产品、订单、采购单、库存品） */
 export const deletesDocuments = (module: string) => isFlowKind(module);

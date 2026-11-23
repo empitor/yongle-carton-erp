@@ -1,8 +1,8 @@
 import type { z } from 'zod';
-import type { Store } from '../core/index.js';
-import { customerSchema, productSchema, orderSchema, storedOrderInput } from '../../shared/core/index.js';
+import { type Store } from '../core/index.js';
+import { customerSchema, productSchema, orderSchema, storedOrderInput, flowKinds, type FlowKind } from '../../shared/core/index.js';
 import { supplierSchema, purchaseSchema, stockItemSchema } from '../../shared/business/index.js';
-import { flowKinds, flowInput, type FlowDocView, type FlowKind } from '../../shared/business/index.js';
+import { flowInput, type FlowDocView } from '../../shared/business/index.js';
 import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../../shared/business/index.js';
 import type { RecordEntity, dataManagementModules } from '../../shared/business/index.js';
 import { entityRecords, namedDocuments, type EntityRecordOf } from '../business/index.js';

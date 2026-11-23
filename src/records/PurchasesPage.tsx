@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Plus } from 'lucide-react';
-import { presetRange, type DatePreset, type RecordSort } from '../../shared/core/index';
+import { pageHref, presetRange, type DatePreset, type RecordSort } from '../../shared/core/index';
 import { matchesPurchase, purchaseStatuses, purchaseStatusOptions } from '../../shared/business/index';
 import { PageHeading, readOnlyNotice, useResettingPage, notify, DateFilter, hashParams, ListToolbar, FilterRow } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
@@ -148,7 +148,12 @@ export default function PurchasesPage({ recycle = false }: { recycle?: boolean }
     const scope = scopes.find((s) => s.value === next);
     if (scope) p.setScope(scope.value);
     p.setAll(false);
-    if (!recycle) history.replaceState(null, '', '#purchases' + (next === 'pending' ? '' : '?scope=' + next));
+    if (!recycle)
+      history.replaceState(
+        null,
+        '',
+        pageHref('purchases', { scope: scope && scope.value !== 'pending' ? scope.value : undefined }),
+      );
   };
   const clearFilters = () => {
     setStatus('');

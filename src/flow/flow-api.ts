@@ -1,7 +1,7 @@
-import type { FlowApi, FlowKind, FlowPreview, flowUndoActions } from '../../shared/business/index';
+import type { FlowApi, FlowPreview, flowUndoActions } from '../../shared/business/index';
 import type { LifecycleAction } from '../recordkit/lifecycle';
 import { call } from '../ui/index';
-import { PREVIEW_CHANGED_CODE } from '../../shared/core/index';
+import { PREVIEW_CHANGED_CODE, type FlowKind } from '../../shared/core/index';
 import { previewChangedMessage } from './flow-words';
 
 /**

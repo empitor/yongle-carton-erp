@@ -1,9 +1,9 @@
+import { pageTitle } from '../../../shared/core/index';
 import { PageHeading, Segmented } from '../../ui/index';
 import { NeedEnable, useEnable } from '../enable';
 import { ReportsTab } from './FormalReports';
 import ClosingPage from './ClosingPage';
 import BudgetTab from './BudgetTab';
-import { financePageTitles } from '../page-titles';
 import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, usePeriod, useTab } from '../page-state';
 
@@ -17,16 +17,16 @@ const tabs = [
 ] as const;
 
 /** 页签里某一节的名字 → 它所在的页签：地址写 tab=<节名> 时打开那个页签并滚到那一节（站内链接、界面检查脚本都这样跳） */
-const sectionTabs: Record<string, string> = {
+const sectionTabs = {
   balance: 'reports',
   profit: 'reports',
   cashflow: 'reports',
   trial: 'closing',
   periods: 'closing',
-};
+} as const;
 
 export default function ReportsPage() {
-  const [picked, setTab, requested] = useTab('reports', sectionTabs);
+  const [picked, setTab, requested] = useTab('finance-reports', 'reports', sectionTabs);
   const [period, setPeriod] = usePeriod();
   const enable = useEnable();
   const tab = tabs.some(([k]) => k === picked) || picked === 'budget' ? picked : 'reports';
@@ -35,7 +35,7 @@ export default function ReportsPage() {
   const head = (props: HeadProps) => (
     <>
       <PageHeading
-        title={financePageTitles['finance-reports']}
+        title={pageTitle('finance-reports')}
         {...props}
         more={[
           ...(props.more || []),
@@ -50,7 +50,7 @@ export default function ReportsPage() {
   if (enable.known && !enable.enabled)
     return (
       <div className="fin-page">
-        <PageHeading title={financePageTitles['finance-reports']} primary={enable.action} />
+        <PageHeading title={pageTitle('finance-reports')} primary={enable.action} />
         <NeedEnable what="出正式报表和结账" canEnable={enable.canEnable} />
         {enable.dialog}
       </div>

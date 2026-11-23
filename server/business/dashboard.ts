@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { many, parseStoredJson, rows as tables, type Store } from '../core/index.js';
 import { flowDocumentSchema, flowStatus, purchaseState } from '../../shared/business/index.js';
 import { buildWorkbench } from './workbench.js';
-import { dateSchema, displayOrderStatuses, orderDisplayStatus, today, type TrackedOrder } from '../../shared/core/index.js';
+import { dateSchema, displayOrderStatuses, orderDisplayStatus, pageHref, today, type TrackedOrder } from '../../shared/core/index.js';
 import type { Dashboard } from '../../shared/business/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, monthsBefore } from '../../shared/core/index.js';
 import { documentValueCents, sumMoney } from '../../shared/business/index.js';
@@ -95,7 +95,7 @@ function recentActivity(orders: TrackedOrder[], purchases: PurchaseView[], movem
       detail: [o.customerName, orderDisplayStatus(o), orderDisplayStatus(o) === '部分发货' ? '' : o.shippingProgress]
         .filter(Boolean)
         .join(' · '),
-      target: '#orders?order=' + o.id,
+      target: pageHref('orders', { order: o.id }),
       category: '订单',
       recordedAt: o.createdAt,
     })),
@@ -104,7 +104,7 @@ function recentActivity(orders: TrackedOrder[], purchases: PurchaseView[], movem
       date: p.orderDate,
       title: p.number,
       detail: p.supplierName + ' · ' + purchaseState(p),
-      target: '#purchases?record=' + p.id,
+      target: pageHref('purchases', { record: p.id }),
       category: '采购单',
       recordedAt: p.createdAt,
     })),
@@ -113,7 +113,7 @@ function recentActivity(orders: TrackedOrder[], purchases: PurchaseView[], movem
       date: String(m.date),
       title: m.itemName,
       detail: m.direction + m.delta + ' ' + m.unit + ' · ' + m.actor_name,
-      target: '#warehouse?kind=' + m.kind + '&flow=1',
+      target: pageHref('warehouse', { kind: m.kind, flow: true }),
       category: '库存流水',
       recordedAt: String(m.created_at),
     })),

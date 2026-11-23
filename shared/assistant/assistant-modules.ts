@@ -1,4 +1,5 @@
-import { flowKinds, type dataManagementModules, type FlowKind, type stockKinds } from '../business/index.js';
+import { flowKinds, pageHref, type FlowKind, type stockKinds } from '../core/index.js';
+import type { dataManagementModules } from '../business/index.js';
 
 /*
  * 助手的模块名（records.* 的 module，raw_inventory 这一套）和全站记录种类的对照：只在这里写一次。
@@ -34,13 +35,13 @@ const moduleTable: Record<AssistantModule, ModuleEntry> = {
   orders: { name: '订单', record: 'orders' },
   suppliers: { name: '供应商', record: 'suppliers' },
   purchases: { name: '采购单', record: 'purchases' },
-  raw_inventory: { name: '原材料库存', record: 'stock_items', stockKind: 'raw', page: '#warehouse?kind=raw' },
-  finished_inventory: { name: '成品库存', record: 'stock_items', stockKind: 'finished', page: '#warehouse?kind=finished' },
-  arrivals: { name: '到货', record: 'arrival', page: '#warehouse?arrivals=1' },
-  production_tasks: { name: '生产任务', record: 'task', page: '#production' },
-  production_records: { name: '完工记录', record: 'production', page: '#production?view=production' },
-  deliveries: { name: '送货', record: 'delivery', page: '#warehouse?kind=finished&deliveries=1' },
-  movements: { name: '流水', record: 'movements', page: '#warehouse?flow=1' },
+  raw_inventory: { name: '原材料库存', record: 'stock_items', stockKind: 'raw', page: pageHref('warehouse', { kind: 'raw' }) },
+  finished_inventory: { name: '成品库存', record: 'stock_items', stockKind: 'finished', page: pageHref('warehouse', { kind: 'finished' }) },
+  arrivals: { name: '到货', record: 'arrival', page: pageHref('warehouse', { arrivals: true }) },
+  production_tasks: { name: '生产任务', record: 'task', page: pageHref('production') },
+  production_records: { name: '完工记录', record: 'production', page: pageHref('production', { view: 'production' }) },
+  deliveries: { name: '送货', record: 'delivery', page: pageHref('warehouse', { kind: 'finished', deliveries: true }) },
+  movements: { name: '流水', record: 'movements', page: pageHref('warehouse', { flow: true }) },
 };
 
 export const isAssistantModule = (v: unknown): v is AssistantModule => assistantModules.some((m) => m === v);

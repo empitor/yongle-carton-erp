@@ -1,8 +1,9 @@
 // 单据流转的表在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。由本模块的 index.ts 引入。
-import type { Store } from '../core/index.js';
+import { flowKinds } from '../../shared/core/index.js';
+import { type Store } from '../core/index.js';
 import type { DeletionRow } from '../core/index.js';
 import { registerRecordKinds, registerReset, registerTableDeletion } from '../core/index.js';
-import { flowDocumentContent, flowKinds, type FlowDocument } from '../../shared/business/index.js';
+import { flowDocumentContent, type FlowDocument } from '../../shared/business/index.js';
 import { documentOf, storedDocuments } from './documents/read.js';
 import { readReturnDocument } from './documents/return-document.js';
 import { FlowService } from './rules/service.js';

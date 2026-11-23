@@ -1,6 +1,5 @@
-import { RAW_UNIT } from '../../shared/core/index';
+import { flowDocHref, quantityString, quantityUnits, RAW_UNIT } from '../../shared/core/index';
 import { flowStatusText, specLine, type FlowDocView } from '../../shared/business/index';
-import { quantityString, quantityUnits } from '../../shared/core/index';
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { businessStatusTone } from '../recordkit/record-meta';
 import { netQuantity as netUsed } from '../recordkit/quantity';
@@ -46,7 +45,7 @@ export function TaskProduction({ task, data }: { task: Pick<FlowDocView<'task'>,
               {records.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <a className="nowrap" href={'#production?view=production&doc=' + p.id}>
+                    <a className="nowrap" href={flowDocHref('production', p.id)}>
                       {p.number}
                     </a>
                     <small>

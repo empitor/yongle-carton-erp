@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
  * tabs 为真时按页签读（tablist、aria-selected），切换的是同一块内容的不同视图；否则是一组按下状态的按钮（aria-pressed）。
  * className 加在外框上（例如财务的 fin-segmented、工具栏里的 list-toolbar-scope）。
  */
-export default function Segmented({
+export default function Segmented<T extends string = string>({
   options,
   value,
   onChange,
@@ -13,9 +13,9 @@ export default function Segmented({
   tabs = false,
   className,
 }: {
-  options: readonly (readonly [string, ReactNode])[];
-  value: string;
-  onChange: (v: string) => void;
+  options: readonly (readonly [T, ReactNode])[];
+  value: T;
+  onChange: (v: T) => void;
   label: string;
   tabs?: boolean;
   className?: string;

@@ -6,7 +6,7 @@
 // 对不上（识别结果、档案之后被改了）就拒绝，要重新出卡片。
 import { createHash } from 'node:crypto';
 import { AppError, failureMessage, requirePermission } from '../core/index.js';
-import { FINISHED_UNIT, fieldLabel, linePriceExact, plainPrice } from '../../shared/core/index.js';
+import { FINISHED_UNIT, fieldLabel, linePriceExact, pageHref, plainPrice } from '../../shared/core/index.js';
 import { prepare } from './order-import-prepare.js';
 import { attach } from './order-import-intake.js';
 import type { ImportPreview, OrderImportState, Task, WorkflowContext } from './order-import-state.js';
@@ -202,13 +202,14 @@ async function importOne(wf: OrderImportState, ctx: WorkflowContext, item: Impor
   task.result = { orderId: order.id, orderNumber: order.number };
   task.error = undefined;
   wf.save(ctx, state);
-  ctx.emit('effect', { type: 'business', url: '#orders?order=' + order.id, workspaceId: item.workspaceId });
+  const orderUrl = pageHref('orders', { order: order.id });
+  ctx.emit('effect', { type: 'business', url: orderUrl, workspaceId: item.workspaceId });
   return {
     workspaceId: item.workspaceId,
     fileName: item.fileName,
     success: true,
     order: { id: order.id, number: order.number, customerName: order.customerName },
-    url: '#orders?order=' + order.id,
+    url: orderUrl,
     message: '已导入，订单 ' + order.number + '，客户 ' + order.customerName + '，' + order.lines.length + ' 行。',
   };
 }

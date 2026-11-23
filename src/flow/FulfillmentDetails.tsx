@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flowDocHref } from '../../shared/core/index';
 import { ARRIVAL_HISTORY_TITLE, type PurchaseView } from '../../shared/business/index';
 import { businessStatusTone } from '../recordkit/record-meta';
 import { Section, StatusChip } from '../ui/index';
@@ -106,7 +107,7 @@ export function ReceiptHistory({ row, lineId, correct }: Props) {
                 {r.effective && correct ? (
                   <button onClick={() => correct(r)}>更正到货单</button>
                 ) : (
-                  <a href={'#warehouse?arrivals=1&doc=' + r.flowId}>查看单据</a>
+                  <a href={flowDocHref('arrival', r.flowId)}>查看单据</a>
                 )}
               </td>
             </tr>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Undo2, Save, ShieldCheck } from 'lucide-react';
-import { errorMessage } from '../../shared/core/index';
+import { errorMessage, pageHref } from '../../shared/core/index';
 import type {
   DraftEvaluation,
   ImportPreview,
@@ -28,7 +28,7 @@ function HistoryHint({ w }: { w: Workspace }) {
       {h.permanentlyDeleted ? '（已永久删除，可以重新导入）' : h.archived ? '（已归档）' : '（当前有效）'}
       。重新识别不受影响，导入时会再查一次重复。
       {!h.permanentlyDeleted && (
-        <a href={h.archived ? '#orders?archived=1' : '#orders?order=' + h.orderId}>
+        <a href={h.archived ? pageHref('orders', { archived: true }) : pageHref('orders', { order: h.orderId })}>
           {h.archived ? '去归档里查看' : '查看原订单'}
         </a>
       )}
@@ -76,7 +76,7 @@ function ImportButton({
     return <small className="aii-footer-hint">正式订单 {imported.orderNumber} 已永久删除，不能恢复</small>;
   if (imported)
     return (
-      <a className="aii-done-link" href={imported.archived ? '#orders?archived=1' : '#orders?order=' + imported.orderId}>
+      <a className="aii-done-link" href={imported.archived ? pageHref('orders', { archived: true }) : pageHref('orders', { order: imported.orderId })}>
         <ShieldCheck size={14} />
         查看订单 {imported.orderNumber}
         {imported.archived ? '（已归档）' : ''}

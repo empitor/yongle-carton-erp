@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { errorMessage } from '../../shared/core/index';
+import { errorMessage, pageHref } from '../../shared/core/index';
 import { FormMessage, ManagementDialog } from '../ui/index';
 import { RecordInputError, editableInput, submittedInput, valueAt } from './record-input';
 import type { RecordRefs } from './record-refs';
@@ -164,7 +164,7 @@ export default function DataManagementEditor({
           remove={(r) => remove([r])}
           extra={(r) => linkedExtra(module, r).map((x) => ({ label: x.label, run: () => setLinked(x.linked) }))}
           openWorkspace={(id) => {
-            location.hash = '#ai-import?workspace=' + id;
+            location.hash = pageHref('ai-import', { workspace: id });
             close();
           }}
         />

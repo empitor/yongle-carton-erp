@@ -10,6 +10,7 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
+import { pageHref, pageShortTitle, productionViews, warehouseViews, type PageId } from '../../shared/core/index';
 import { YlSpirits } from '../assistant/index';
 import { useIsPhone } from '../ui/index';
 import { emit } from '../ui/index';
@@ -82,17 +83,17 @@ export function MobileTabBar({
   /** 出纳这类纯财务账号：底部换成财务入口。 */
   financeOnly?: boolean;
 }) {
-  const tab = (target: string, label: string, Icon: LucideIcon, pages: string[]) => {
-    const selected = pages.includes(page);
+  const tab = (target: PageId, Icon: LucideIcon) => {
+    const selected = target === page;
     return (
       <button
         type="button"
         className={'mobile-tab' + (selected ? ' selected' : '')}
         aria-current={selected ? 'page' : undefined}
-        onClick={() => navigate(target)}
+        onClick={() => navigate(pageHref(target))}
       >
         <Icon size={20} aria-hidden="true" />
-        {label}
+        {pageShortTitle(target)}
       </button>
     );
   };
@@ -111,34 +112,23 @@ export function MobileTabBar({
   if (financeOnly)
     return (
       <nav className="mobile-tabbar" aria-label="手机底部导航">
-        {tab('finance', '概览', Landmark, ['finance'])}
-        {tab('finance-ar', '应收应付', HandCoins, ['finance-ar'])}
+        {tab('finance', Landmark)}
+        {tab('finance-ar', HandCoins)}
         {assistant}
-        {tab('finance-cash', '资金', Wallet, ['finance-cash'])}
-        {tab('finance-ledger', '凭证', BookOpen, ['finance-ledger'])}
+        {tab('finance-cash', Wallet)}
+        {tab('finance-ledger', BookOpen)}
       </nav>
     );
   return (
     <nav className="mobile-tabbar" aria-label="手机底部导航">
-      {tab('dashboard', '今日', CalendarCheck, ['dashboard'])}
-      {tab('orders', '订单', ClipboardList, ['orders'])}
+      {tab('dashboard', CalendarCheck)}
+      {tab('orders', ClipboardList)}
       {assistant}
-      {tab('production', '生产', Factory, ['production'])}
-      {tab('warehouse', '仓库', Warehouse, ['warehouse'])}
+      {tab('production', Factory)}
+      {tab('warehouse', Warehouse)}
     </nav>
   );
 }
-
-const warehouseViews = [
-  ['warehouse', '库存', (p: URLSearchParams) => !['arrivals', 'deliveries', 'flow'].some((k) => p.get(k) === '1')],
-  ['warehouse?arrivals=1', '到货', (p: URLSearchParams) => p.get('arrivals') === '1'],
-  ['warehouse?deliveries=1&kind=finished', '送货', (p: URLSearchParams) => p.get('deliveries') === '1'],
-  ['warehouse?flow=1', '流水', (p: URLSearchParams) => p.get('flow') === '1'],
-] as const;
-const productionViews = [
-  ['production', '生产任务', (p: URLSearchParams) => p.get('view') !== 'production'],
-  ['production?view=production', '完工记录', (p: URLSearchParams) => p.get('view') === 'production'],
-] as const;
 
 /** 仓库、生产在电脑上靠左侧导航切换，手机上放到页面顶部。 */
 export function MobileSubNav({
@@ -152,17 +142,16 @@ export function MobileSubNav({
 }) {
   const views = page === 'warehouse' ? warehouseViews : page === 'production' ? productionViews : null;
   if (!views) return null;
-  const params = new URLSearchParams(route.split('?')[1] || '');
   return (
     <nav className="mobile-subnav" aria-label="页面切换">
-      {views.map(([target, label, active]) => (
+      {views.map((v) => (
         <button
-          key={target}
+          key={v.href}
           type="button"
-          className={active(params) ? 'selected' : ''}
-          onClick={() => navigate(target)}
+          className={v.active(route) ? 'selected' : ''}
+          onClick={() => navigate(v.href)}
         >
-          {label}
+          {v.label}
         </button>
       ))}
     </nav>

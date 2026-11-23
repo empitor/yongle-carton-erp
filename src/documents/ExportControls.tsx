@@ -1,4 +1,5 @@
 import { Download, Eye } from 'lucide-react';
+import { pageHref } from '../../shared/core/index';
 import { MenuItem, MoreMenu } from '../ui/index';
 import type { DocumentExportStatus, DocumentFormat } from '../../shared/documents/index';
 import { ExportFileCard, afterSaved } from './export-file';
@@ -20,7 +21,7 @@ export function ExportHeader({ status }: { status?: string }) {
   return (
     <header>
       <p className="adm-export-hint">{exportHint(status)}</p>
-      <a className="adm-export-link" href="#ai-settings?tab=templates">
+      <a className="adm-export-link" href={pageHref('ai-settings', { tab: 'templates' })}>
         模板设置
       </a>
     </header>

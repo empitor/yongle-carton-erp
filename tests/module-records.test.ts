@@ -14,8 +14,8 @@ import { namedDocuments } from '../server/business/index.js';
 import { DataManagementService } from '../server/admin/index.js';
 import { insertSource } from '../server/flow/index.js';
 import { assistantModules, moduleOfRecord, recordKindOf, stockKindOf } from '../shared/assistant/index.js';
-import { dataManagementModules, stockKinds } from '../shared/business/index.js';
-import { productSchema } from '../shared/core/index.js';
+import { dataManagementModules } from '../shared/business/index.js';
+import { productSchema, stockKinds } from '../shared/core/index.js';
 
 const got = { record: z.looseObject({}), url: z.string() };
 

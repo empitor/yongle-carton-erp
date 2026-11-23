@@ -3,9 +3,8 @@
 import { z } from 'zod';
 import { AppError } from '../core/index.js';
 import type { FlowService } from '../flow/index.js';
-import { flowKinds } from '../../shared/business/index.js';
 import { isAssistantModule, recordKindOf } from '../../shared/assistant/index.js';
-import { isRecord } from '../../shared/core/index.js';
+import { isRecord, flowKinds } from '../../shared/core/index.js';
 import { asList, field } from './chat/result-fields.js';
 
 export type ToolPlan = {

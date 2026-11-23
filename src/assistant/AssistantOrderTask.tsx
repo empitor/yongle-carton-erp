@@ -1,4 +1,4 @@
-import { finishedUnit, linePrice, currencyName } from '../../shared/core/index';
+import { finishedUnit, linePrice, currencyName, pageHref } from '../../shared/core/index';
 import { amountText, specLine } from '../../shared/business/index';
 import type { ThreadView } from '../../shared/assistant/index';
 import { importedOrderOf, previewPlanOf, type PreviewPlan } from './order-task-view';
@@ -93,9 +93,9 @@ export default function AssistantOrderTask({ workflow }: { workflow: ThreadView[
         <strong>{task.fileName}</strong>
         <span>{labels[task.state] || task.state}</span>
       </div>
-      <a href={'#ai-import?workspace=' + task.workspaceId}>查看识别结果与进度</a>
+      <a href={pageHref('ai-import', { workspace: task.workspaceId })}>查看识别结果与进度</a>
       {task.focusLine && <span>当前产品：第{task.focusLine}行</span>}
-      {imported && <a href={'#orders?order=' + imported.orderId}>正式订单 {imported.orderNumber}</a>}
+      {imported && <a href={pageHref('orders', { order: imported.orderId })}>正式订单 {imported.orderNumber}</a>}
       {task.error && <p role="status">{task.error}</p>}
       {plan && task.state !== 'imported' && <ImportPreview plan={plan} />}
     </section>

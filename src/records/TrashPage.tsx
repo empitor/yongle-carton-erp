@@ -1,5 +1,6 @@
+import { isFlowKind, type FlowKind } from '../../shared/core/index';
 import { lazy } from 'react';
-import { isFlowKind, recordEntities, type FlowKind, type RecordEntity } from '../../shared/business/index';
+import { recordEntities, type RecordEntity } from '../../shared/business/index';
 import KindRecords from './KindRecords';
 import type { RecordEditor } from './RecordEditors';
 import type { RecordLists } from './useRecordLists';

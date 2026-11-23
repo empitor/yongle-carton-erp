@@ -1,12 +1,12 @@
 import { ManagementDialog, beijingTime, useLoad } from '../ui/index';
 import { readRecordContext } from './record-api';
-import { dataManagementNames, flowKinds, type WorkbenchApi } from '../../shared/business/index';
+import { dataManagementNames, type WorkbenchApi } from '../../shared/business/index';
 import { EditorFooter, FormMessage } from '../ui/index';
 import { Facts, Hint, Section, StatusChip } from '../ui/index';
 import { historyActionName, historyView, type HistoryRefs } from '../../shared/business/index';
 import { businessStatusTone } from './record-meta';
 import { purchaseState } from '../../shared/business/index';
-import { orderDisplayStatus } from '../../shared/core/index';
+import { orderDisplayStatus, flowKinds } from '../../shared/core/index';
 import { flowStatusText } from '../../shared/business/index';
 
 type RecordContextView = WorkbenchApi['GET /business/:module/:id/context']['response'];

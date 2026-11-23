@@ -1,8 +1,8 @@
-import { isRecord } from '../core/index.js';
+import { isRecord, isFlowKind } from '../core/index.js';
 import { historyFieldLabel, type HistoryRefs } from './history-fields.js';
 import { blank, EMPTY, labelOf, linesText, orderRefName, statusOf, unitOf, valueText, withUnit, type Ctx, type Row } from './history-text.js';
 import { purchaseStatusLabel } from './labels.js';
-import { flowStatusText, isFlowKind } from './physical-flow.js';
+import { flowStatusText } from './physical-flow.js';
 import { changeItem, contents, recordChanges, type HistoryItem } from './record-changes.js';
 
 /**

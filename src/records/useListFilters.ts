@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { DatePreset, OrderView } from '../../shared/core/index';
+import { pageHref, type DatePreset, type OrderView } from '../../shared/core/index';
 import { hashParams } from '../ui/index';
 import { archivedRoute, readListFilters } from './record-filters';
 
@@ -44,8 +44,13 @@ export function useListFilters(page: string, superMode: boolean) {
   const changeScope = (scope: string) => {
     setAllRecordsView(false);
     setArchivedView(scope === 'archived');
-    if (page === 'orders') setOrderView(scope === 'pending' ? 'pending' : 'current');
-    history.replaceState(null, '', '#' + page + (scope === (page === 'orders' ? 'pending' : 'all') ? '' : '?scope=' + scope));
+    if (page === 'orders') {
+      setOrderView(scope === 'pending' ? 'pending' : 'current');
+      const next = scope === 'all' || scope === 'archived' ? scope : undefined;
+      history.replaceState(null, '', pageHref('orders', { scope: next }));
+    } else if (page === 'customers' || page === 'products') {
+      history.replaceState(null, '', pageHref(page, { scope: scope === 'archived' ? 'archived' : undefined }));
+    }
   };
   const orderFilterCount =
     (customerId ? 1 : 0) + (status ? 1 : 0) + (datePreset !== 'all' ? 1 : 0) + (allRecordsView ? 1 : 0);

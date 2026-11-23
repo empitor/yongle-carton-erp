@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { errorMessage, type ApiJson } from '../../shared/core/index';
+import { errorMessage, pageHref, type ApiJson } from '../../shared/core/index';
 import { emit, useSlots } from '../ui/index';
 import { dataManagementCommand, executeCommand, forkWorkspaces } from './data-api';
 import { recordLabel } from './record-refs';
@@ -91,7 +91,7 @@ export function useDataManagementActions(
       );
       const forked = module === 'workspaces' && action === 'fork' ? forkedId(result.results[0]) : '';
       if (forked) {
-        location.hash = '#ai-import?workspace=' + forked;
+        location.hash = pageHref('ai-import', { workspace: forked });
         close();
       }
       emit('erp-business-changed');

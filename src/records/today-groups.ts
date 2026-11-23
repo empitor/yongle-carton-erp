@@ -1,5 +1,5 @@
 import type { NextStep, WorkbenchApi } from '../../shared/business/index';
-import { DAY_MS, type Order } from '../../shared/core/index';
+import { DAY_MS, flowDocHref, pageHref, type Order } from '../../shared/core/index';
 import type { Slots } from '../ui/index';
 
 /**
@@ -117,7 +117,7 @@ const orderRow = (o: TodayOrderRow, today: string, prefix = 'o'): TodayRowData =
   status: o.status,
   late: o.lateDays || undefined,
   due: o.deliveryDate,
-  href: '#orders?order=' + o.id,
+  href: pageHref('orders', { order: o.id }),
 });
 // 进了分组的订单有明细规格对不上（比如另一项能先发），提示挂在那一行下面
 const hinted = (row: TodayRowData, o: TodayOrderRow): TodayRowData => (o.mismatches?.length ? { ...row, hints: o.mismatches } : row);
@@ -148,7 +148,7 @@ function shipRows(data: TodayData, today: string) {
       status: '待送货',
       late: daysLate(d.plannedDate, today) || undefined,
       due: d.plannedDate,
-      href: '#warehouse?kind=finished&deliveries=1&doc=' + d.id,
+      href: flowDocHref('delivery', d.id),
       action: { kind: 'export', label: '导出送货单', deliveryId: d.id },
     }),
   );
@@ -162,14 +162,14 @@ function purchaseGroups(data: TodayData, today: string): TodayGroup[] {
       id: 'toOrder',
       title: '待订货',
       total: data.toOrder.length,
-      all: '#purchases?businessStatus=' + encodeURIComponent('待订货'),
+      all: pageHref('purchases', { businessStatus: '待订货' }),
       rows: data.toOrder.map(
         (p): TodayRowData => ({
           key: 'p' + p.id,
           number: p.number,
           main: p.supplierName + ' · ' + p.summary,
           note: p.expectedDate ? '要求 ' + shortDate(p.expectedDate, today) : undefined,
-          href: '#purchases?record=' + p.id,
+          href: pageHref('purchases', { record: p.id }),
           action: { kind: 'orderSheet', label: '导出订货单', purchaseId: p.id },
         }),
       ),
@@ -184,7 +184,7 @@ function purchaseGroups(data: TodayData, today: string): TodayGroup[] {
           main: p.supplierName + ' · ' + p.summary,
           note: '预计 ' + shortDate(p.expectedDate, today),
           late: daysLate(p.expectedDate, today) || undefined,
-          href: '#purchases?record=' + p.id,
+          href: pageHref('purchases', { record: p.id }),
           action: { kind: 'receive', label: '登记到货', purchaseId: p.id },
         }),
       ),
@@ -198,16 +198,16 @@ function inboxGroup(mail: Mail, imports: readonly AiFile[], aiNote?: (w: AiFile)
     id: 'inbox',
     title: '收件箱',
     total: mail.total + imports.length,
-    all: mail.total > mail.rows.length ? '#inbox' : undefined,
-    extra: imports.length > TODAY_SHOWN ? { href: '#ai-import', text: 'AI 导入 ' + imports.length + ' 份' } : undefined,
+    all: mail.total > mail.rows.length ? pageHref('inbox') : undefined,
+    extra: imports.length > TODAY_SHOWN ? { href: pageHref('ai-import'), text: 'AI 导入 ' + imports.length + ' 份' } : undefined,
     rows: [
       ...mail.rows.map(
         (m): TodayRowData => ({
           key: 'm' + m.id,
           main: m.fileName || m.text || '（无内容）',
           note: m.senderName || (m.channel === 'manual' ? '手动添加' : undefined),
-          href: '#inbox?item=' + m.id,
-          action: { kind: 'link', label: '查看', href: '#inbox?item=' + m.id },
+          href: pageHref('inbox', { item: m.id }),
+          action: { kind: 'link', label: '查看', href: pageHref('inbox', { item: m.id }) },
         }),
       ),
       ...imports.map(
@@ -216,8 +216,8 @@ function inboxGroup(mail: Mail, imports: readonly AiFile[], aiNote?: (w: AiFile)
           main: w.fileName,
           note: aiNote ? aiNote(w) : '',
           ai: true,
-          href: '#ai-import?workspace=' + w.id,
-          action: { kind: 'link', label: recognized(w) ? '核对' : '识别', href: '#ai-import?workspace=' + w.id },
+          href: pageHref('ai-import', { workspace: w.id }),
+          action: { kind: 'link', label: recognized(w) ? '核对' : '识别', href: pageHref('ai-import', { workspace: w.id }) },
         }),
       ),
     ],
@@ -242,7 +242,7 @@ export function todayGroups(input: {
       id: 'confirm',
       title: '待确认',
       total: pendingConfirm?.total ?? 0,
-      all: '#orders?view=pending&range=all&status=' + encodeURIComponent('待确认'),
+      all: pageHref('orders', { view: 'pending', range: 'all', status: '待确认' }),
       rows: (pendingConfirm?.rows || []).map((o) => ({
         ...orderRow(o, today, 'c'),
         status: undefined,
@@ -260,7 +260,7 @@ export function todayGroups(input: {
         .map((o): TodayRowData => ({
           ...orderRow(o, today, 's'),
           hints: o.mismatches,
-          action: { kind: 'link', label: '打开订单', href: '#orders?order=' + o.id },
+          action: { kind: 'link', label: '打开订单', href: pageHref('orders', { order: o.id }) },
         }))
         .sort(byUrgency),
     },

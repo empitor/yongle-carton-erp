@@ -5,17 +5,8 @@ import type { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
-import { plainPrice } from '../../../shared/core/index.js';
-import {
-  UNPRICED_TEXT,
-  arrivalCorrectionPreviewSchema,
-  deliveryCorrectionPreviewSchema,
-  deliveryCorrectionViewSchema,
-  flowDocNames,
-  productionCorrectionPreviewSchema,
-  productionCorrectionViewSchema,
-  type FlowKind,
-} from '../../../shared/business/index.js';
+import { plainPrice, type FlowKind } from '../../../shared/core/index.js';
+import { UNPRICED_TEXT, arrivalCorrectionPreviewSchema, deliveryCorrectionPreviewSchema, deliveryCorrectionViewSchema, flowDocNames, productionCorrectionPreviewSchema, productionCorrectionViewSchema } from '../../../shared/business/index.js';
 import { correctDocument, planCorrection } from '../../flow/index.js';
 import type { ToolPlan } from '../plan-rules.js';
 import { idAndInput, positive, type ToolContext } from './context.js';

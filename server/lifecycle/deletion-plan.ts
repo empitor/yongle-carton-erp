@@ -1,10 +1,11 @@
+import { flowKinds } from '../../shared/core/index.js';
 import { z } from 'zod';
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
-import type { Store } from '../core/index.js';
+import { type Store } from '../core/index.js';
 import { AppError, many, one, parseStoredJson, previewDigest } from '../core/index.js';
 import { deletionColumns, deletionMirror, deletionPlanners, requireDeletionTables, requireRecordDeletionHook } from '../core/index.js';
 import type { DeletionGraph, DeletionRow as Row } from '../core/index.js';
-import { deletionSelection, flowDocumentContent, flowDocumentSchema, flowKinds } from '../../shared/business/index.js';
+import { deletionSelection, flowDocumentContent, flowDocumentSchema } from '../../shared/business/index.js';
 import { impactList, inventoryFigures } from './deletion-impact.js';
 
 /*

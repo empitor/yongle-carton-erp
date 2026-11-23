@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { flowStatusText, purchaseState, recordNames, specLine, type FlowKind } from '../../shared/business/index';
+import { flowStatusText, purchaseState, recordNames, specLine } from '../../shared/business/index';
+import { pageHref, type FlowKind } from '../../shared/core/index';
 import { StatusChip } from '../ui/index';
 import { businessStatusTone } from '../recordkit/record-meta';
 import type { RelatedData } from './useRelatedData';
@@ -106,7 +107,7 @@ export function OrderDocs({ data, open }: { data: OrderRelated; open: OpenDoc })
           const state = purchaseState(p);
           return (
             <li key={p.id}>
-              <a href={'#purchases?record=' + p.id}>{p.number}</a>
+              <a href={pageHref('purchases', { record: p.id })}>{p.number}</a>
               <StatusChip tone={businessStatusTone(state)}>{state}</StatusChip>
               <span className="rb-doc-extra">{p.supplierName}</span>
               <small>{p.orderDate}</small>
@@ -126,7 +127,7 @@ export function PurchaseDocs({ data, open }: { data: PurchaseRelated; open: Open
       <LinkGroup title={recordNames.orders} count={data.orders.length}>
         {data.orders.map((o) => (
           <li key={o.id}>
-            <a href={'#orders?order=' + o.id}>{o.number}</a>
+            <a href={pageHref('orders', { order: o.id })}>{o.number}</a>
             <span className="rb-doc-extra">{o.customerName}</span>
             <small>{o.deliveryDate ? '交期 ' + o.deliveryDate : ''}</small>
           </li>
@@ -148,7 +149,7 @@ export function StockList({ stocks, title }: { stocks: OrderRelated['stocks']; t
       <ul className="rb-docs">
         {stocks.map((s) => (
           <li key={s.id}>
-            <a href={'#warehouse?kind=' + s.kind + '&q=' + encodeURIComponent(s.name)}>{s.name}</a>
+            <a href={pageHref('warehouse', { kind: s.kind === 'finished' ? 'finished' : 'raw', q: s.name })}>{s.name}</a>
             <span className="rb-doc-extra">{specLine(s)}</span>
             <small>
               {s.quantity} {s.unit}

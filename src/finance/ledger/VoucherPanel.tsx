@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { pageHref } from '../../../shared/core/index';
 import { DetailPanel, ActionBar, Facts, FormMessage, Hint, Section, yuan, useConfirm, notify, useAction, Loading, loadingText } from '../../ui/index';
 import { useAccountNames } from '../editor';
 import VoucherDialogs from './VoucherDialogs';
@@ -56,7 +57,7 @@ function VoucherHints(props: { data: VoucherDetail; linked: boolean; source: str
         // 已经被红字冲销的原凭证不用再处理，指向冲它的那张
         <Hint>
           这张已被{' '}
-          <a href={'#finance-ledger?voucher=' + data.reversedBy.id}>
+          <a href={pageHref('finance-ledger', { voucher: data.reversedBy.id })}>
             {data.reversedBy.period + ' 第 ' + data.reversedBy.number + ' 号'}
           </a>{' '}
           红字冲销{data.reversedBy.status === 'posted' ? '' : '（红字凭证还没记账）'}，不用再处理。
@@ -243,7 +244,7 @@ export default function VoucherPanel({
             {
               label: '冲销的是',
               value: data.original ? (
-                <a href={'#finance-ledger?voucher=' + data.original.id}>
+                <a href={pageHref('finance-ledger', { voucher: data.original.id })}>
                   {data.original.period + ' 第 ' + data.original.number + ' 号'}
                 </a>
               ) : (

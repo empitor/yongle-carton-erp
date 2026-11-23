@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageIdOf, pages, type PageId } from '../../shared/core/index';
 
 export type FloatingPoint = { x: number; y: number };
 export type FloatingSize = { width: number; height: number };
@@ -55,33 +56,18 @@ export function readAssistantPanelMode(storage: Pick<Storage, 'getItem'>): Assis
     return 'docked';
   }
 }
-/** 顶部显示当前页面和正在看的记录，说明助手回答时参考的上下文。 */
-const assistantPageNames: Record<string, string> = {
-  dashboard: '今日',
-  inbox: '收件箱',
-  'ai-import': 'AI 导入',
-  orders: '订单',
-  customers: '客户',
-  products: '产品',
+/** 顶部显示当前页面和正在看的记录（页名从全站页面表派生，少数用更短的说法），说明助手回答时参考的上下文。 */
+const assistantPageShort: Partial<Record<PageId, string>> = {
   purchases: '采购',
-  suppliers: '供应商',
   production: '生产',
-  warehouse: '仓储',
-  trash: '归档',
-  accounts: '账号管理',
-  'ai-settings': '设置',
-  guide: '使用说明',
   finance: '财务',
-  'finance-flow': '财务 · 月度台账',
-  'finance-ar': '财务 · 应收应付',
-  'finance-cash': '财务 · 资金发票',
-  'finance-costs': '财务 · 费用资产工资',
-  'finance-ledger': '财务 · 凭证账簿',
-  'finance-reports': '财务 · 报表结账',
   'finance-settings': '财务 · 设置',
 };
 export function assistantPageLabel(hash: string, record?: string | null) {
-  const name = assistantPageNames[hash.replace(/^#/, '').split('?')[0] || 'dashboard'];
+  const id = hash ? pageIdOf(hash) : 'dashboard';
+  if (!id) return '';
+  const meta = pages[id];
+  const name = assistantPageShort[id] ?? (meta.group === '财务' ? '财务 · ' + meta.title : meta.title);
   return [name, record].filter(Boolean).join(' · ');
 }
 const margin = 8;

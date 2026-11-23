@@ -1,5 +1,6 @@
+import type { FlowKind } from '../../shared/core/index';
 import { SelectionBar } from '../ui/index';
-import type { FlowDocView, FlowKind } from '../../shared/business/index';
+import type { FlowDocView } from '../../shared/business/index';
 import { completableTask } from '../../shared/business/index';
 import type { FlowDesk } from './useFlowDesk';
 

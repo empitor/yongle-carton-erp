@@ -1,6 +1,6 @@
 import { Suspense, useState } from 'react';
 import { AlertCircle, Check, Info } from 'lucide-react';
-import { APP_VERSION, financeOnlyAccount } from '../shared/core/index';
+import { APP_VERSION, financeOnlyAccount, isFinancePage, pageHref, pageTitle } from '../shared/core/index';
 import { BrandLogo, canEditBusiness, canViewFinance, ErrorBoundary, FormMessage, PageHeading, useAuthState, useBackLayer, type AuthState } from './ui/index';
 import { useAppHome } from './app-bridge';
 import { FilingLine } from './FilingLine';
@@ -29,7 +29,6 @@ import {
   homePage,
   ownHeading,
   pageAllowed,
-  pageNames,
   settingsTabsOf,
   useHashPage,
   useNavCounts,
@@ -73,14 +72,14 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
   // 安卓 App 的返回键：手机侧边菜单开着先关菜单；没有弹层时回首页
   useBackLayer(() => setMenu(false), { active: menu });
   const home = homePage(financeOnly);
-  useAppHome(page === home, () => navigate(home));
+  useAppHome(page === home, () => navigate(pageHref(home)));
   // 安卓 App 分享来的文件：这个账号进不了 AI 导入就回绝
   useAppShareAccount(pageAllowed('ai-import', financeOnly));
   const recordPage = (recordPages as readonly string[]).includes(page);
   return (
     <div className="shell">
       <aside className={menu ? 'sidebar open' : 'sidebar'}>
-        <a className="brand" href="#dashboard" title="宁波甬勒包装制品有限公司">
+        <a className="brand" href={pageHref('dashboard')} title="宁波甬勒包装制品有限公司">
           <BrandLogo size={28} />
           <span className="brand-name">甬勒包装</span>
         </a>
@@ -116,12 +115,12 @@ function Shell({ auth, actor }: { auth: AuthState; actor: NonNullable<AuthState[
             auth={auth}
             financeOnly={financeOnly}
             canCreate={canCreate}
-            title={pageNames[page]}
+            title={pageTitle(page)}
             notify={notify}
           />
           <ErrorBoundary key={page}>
             <Suspense fallback={<p role="status">正在打开页面…</p>}>
-              {!recordPage && !ownHeading(page) && <PageHeading title={pageNames[page]} />}
+              {!recordPage && !ownHeading(page) && <PageHeading title={pageTitle(page)} />}
               {notice && <Toast notice={notice} />}
 
               <CurrentPage page={page} routeKey={routeKey} finance={finance} actor={actor} pending={auth.pendingRequests || 0} />
@@ -177,7 +176,7 @@ function CurrentPage({
   if (page === 'inbox') return <InboxPage />;
   if (page === 'accounts')
     return <AccountManagement selfId={actor.id} isAdmin={actor.role === 'super_admin'} pending={pending} />;
-  if (page.startsWith('finance'))
+  if (isFinancePage(page))
     return finance ? (
       <FinancePages page={page} />
     ) : (

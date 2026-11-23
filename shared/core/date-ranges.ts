@@ -1,5 +1,6 @@
 import { ISO_DATE_LENGTH, closedOrder, today } from './domain.js';
-export type DatePreset = '1' | '2' | '3' | 'all' | 'custom';
+export const datePresets = ['1', '2', '3', 'all', 'custom'] as const;
+export type DatePreset = (typeof datePresets)[number];
 /** 订单列表的范围：全部（current）、待处理（pending）、历史（history） */
 export const orderViews = ['current', 'pending', 'history'] as const;
 export type OrderView = (typeof orderViews)[number];

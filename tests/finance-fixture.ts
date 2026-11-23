@@ -1,4 +1,5 @@
 // 财务测试共用的搭建（只用内存库、虚构数据）：账号、启用财务、记账、直接插单据、找事件和往来、收付款、发票、红冲重做
+import type { FlowKind } from '../shared/core/index.js';
 import { pageActor } from './actor-fixture.js';
 import { Store } from '../server/core/db.js';
 import { FinanceSettings } from '../server/finance/settings.js';
@@ -10,7 +11,6 @@ import { businessBase } from './business-base-fixture.js';
 import { FinanceSettlements } from '../server/finance/settlements.js';
 import { FinanceReports } from '../server/finance/reports.js';
 import { FinanceClosing } from '../server/finance/closing.js';
-import type { FlowKind } from '../shared/business/index.js';
 import { businessChanges, type MirroredFields } from './business-changes-fixture.js';
 import { FinanceDue } from '../server/finance/due.js';
 import { FinanceEventHandling } from '../server/finance/event-handling.js';

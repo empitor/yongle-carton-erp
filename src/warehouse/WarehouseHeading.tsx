@@ -1,4 +1,5 @@
 import { FileUp } from 'lucide-react';
+import { pageHref } from '../../shared/core/index';
 import { ListSummary, PageHeading } from '../ui/index';
 import type { OrderBatch } from './order-batch-api';
 import { statusOf, warehouseOverdue, type WarehouseKind, type WarehouseRecord } from './warehouse-list';
@@ -41,7 +42,7 @@ export default function WarehouseHeading({ kind, records, batches, canEdit, open
         arrival && {
           label: 'AI 识别送货单',
           icon: <FileUp size={15} aria-hidden="true" />,
-          onClick: () => (location.hash = '#ai-import?mode=arrival'),
+          onClick: () => (location.hash = pageHref('ai-import', { mode: 'arrival' })),
         }
       }
       moreLabel="到货的其他操作"

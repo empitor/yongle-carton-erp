@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { FlowDocView, FlowKind } from '../../shared/business/index';
-import { errorMessage } from '../../shared/core/index';
+import type { FlowDocView } from '../../shared/business/index';
+import { errorMessage, type FlowKind } from '../../shared/core/index';
 import { canEditBusiness, emit, notify as bottomNotice, useAuthState, hashParams } from '../ui/index';
 import type { FlowActionContext } from './FlowActions';
 import { useDeskWindows } from './desk-windows';

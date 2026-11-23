@@ -1,58 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { erpPageIds, businessSettingsTab } from '../shared/assistant/index';
-import { financeOnlyPageAllowed } from '../shared/core/index';
+import { businessSettingsTab } from '../shared/assistant/index';
+import {
+  financeOnlyPageAllowed,
+  isFinancePage,
+  pageHref,
+  pageIdOf,
+  type PageId,
+  type SettingsTab,
+} from '../shared/core/index';
 import { aiFilesService, inboxService } from './import/index';
 import { canEditBusiness, listen, readNotice, refreshOnReturn, type AuthState, type NoticeDetail, type NoticeTone } from './ui/index';
 
 /* 外壳（App）的几件事：地址栏上的页面、导航角标、底部提示、快捷键、换账号后重新加载。 */
 
-export type Page = (typeof erpPageIds)[number];
+export type Page = PageId;
 
-/** 页头的标题 */
-export const pageNames: Record<Page, string> = {
-  dashboard: '今日',
-  orders: '订单',
-  customers: '客户',
-  products: '产品',
-  guide: '使用说明',
-  accounts: '账号管理',
-  finance: '财务概览',
-  'finance-flow': '月度台账',
-  'finance-ar': '应收应付',
-  'finance-cash': '资金发票',
-  'finance-costs': '费用资产工资',
-  'finance-ledger': '凭证账簿',
-  'finance-reports': '报表结账',
-  'finance-settings': '财务设置',
-  'ai-settings': '设置',
-  'ai-import': 'AI 导入',
-  inbox: '收件箱',
-  trash: '归档',
-  suppliers: '供应商',
-  purchases: '采购单',
-  warehouse: '仓储',
-  production: '生产管理',
-};
 /** 自己画页头的页面（财务各页、采购库存、生产、收件箱、账号管理），App 不再给它们画 */
 export const ownHeading = (page: Page) =>
-  page.startsWith('finance') || ['suppliers', 'purchases', 'warehouse', 'production', 'inbox', 'accounts'].includes(page);
+  isFinancePage(page) || ['suppliers', 'purchases', 'warehouse', 'production', 'inbox', 'accounts'].includes(page);
 
 /** 导航上的数字（收件箱、AI 导入）多久自己重新取一次：别的设备、别的人改了，这边最多晚这么久看到 */
 const NAV_COUNTS_INTERVAL_MS = 15_000;
 
-const validHashPage = (hash: string): Page | null => {
-  const id = hash.slice(1).split('?')[0];
-  return erpPageIds.find((page) => page === id) ?? null;
-};
-
-const hashPage = (): Page => validHashPage(location.hash) ?? 'dashboard';
+const hashPage = (): Page => pageIdOf(location.hash) ?? 'dashboard';
 
 /** 登录后的首页：纯财务账号是财务概览，其余是“今日” */
 export const homePage = (financeOnly: boolean): Page => (financeOnly ? 'finance' : 'dashboard');
 /** 这个账号能不能打开这一页：出纳这类纯财务账号只看财务页面 */
 export const pageAllowed = (page: Page, financeOnly: boolean) => !financeOnly || financeOnlyPageAllowed(page);
 
-const settingsTabs: [string, string][] = [
+const settingsTabs: readonly (readonly [SettingsTab, string])[] = [
   ['api', 'API 配置'],
   ['prompts', '提示词'],
   ['templates', '单据模板'],
@@ -85,11 +62,12 @@ export function useHashPage(financeOnly: boolean) {
   }, []);
   // 地址里不是哪一页、或这个账号打不开这一页（纯财务账号只看财务页面）：换到这个账号的首页
   useEffect(() => {
-    if (!(routeKey && !validHashPage(routeKey)) && pageAllowed(page, financeOnly)) return;
-    const target = homePage(financeOnly);
-    history.replaceState(null, '', '#' + target);
+    if (!(routeKey && !pageIdOf(routeKey)) && pageAllowed(page, financeOnly)) return;
+    const target = homePage(financeOnly),
+      href = pageHref(target);
+    history.replaceState(null, '', href);
     setPage(target);
-    setRouteKey('#' + target);
+    setRouteKey(href);
   }, [financeOnly, page, routeKey]);
   // 切换页面时回到顶部（编辑窗由 RecordPages 自己关）
   useEffect(() => {

@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { dateSchema, previewDigestSchema, today } from '../core/index.js';
+import { dateSchema, previewDigestSchema, today, flowKinds } from '../core/index.js';
 import { arrivalTimeSchema } from './schedule.js';
 import { noteText } from './operations.js';
-import { flowKinds, operatorText } from './physical-flow.js';
+import { operatorText } from './physical-flow.js';
 import { productionCompletionSchema } from './production-completion.js';
 import { purchaseReturnSchema } from './purchase-return.js';
 

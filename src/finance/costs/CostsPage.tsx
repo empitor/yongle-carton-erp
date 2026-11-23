@@ -1,10 +1,10 @@
+import { pageTitle } from '../../../shared/core/index';
 import { PageHeading, Segmented } from '../../ui/index';
 import { NeedEnable, useEnable } from '../enable';
 import ExpensesTab from './ExpensesTab';
 import AssetsTab from './AssetsTab';
 import PayrollTab from './PayrollTab';
 import CostingTab from './CostingTab';
-import { financePageTitles } from '../page-titles';
 import { SubBar, type HeadProps } from '../layout';
 import { useFocusSection, useTab } from '../page-state';
 
@@ -16,17 +16,17 @@ const tabs = [
   ['costing', '成本毛利'],
 ] as const;
 /** 页签里某一节的名字 → 它所在的页签：地址写 tab=<节名> 时打开那个页签并滚到那一节（站内链接、界面检查脚本都这样跳） */
-const sectionTabs: Record<string, string> = { margin: 'costing' };
+const sectionTabs = { margin: 'costing' } as const;
 
 export default function CostsPage() {
-  const [picked, setTab, requested] = useTab('expenses', sectionTabs);
+  const [picked, setTab, requested] = useTab('finance-costs', 'expenses', sectionTabs);
   const tab = tabs.some(([k]) => k === picked) ? picked : 'expenses';
   const enable = useEnable();
   useFocusSection(requested, Object.keys(sectionTabs));
   const head = (props: HeadProps) => (
     <>
       <PageHeading
-        title={financePageTitles['finance-costs']}
+        title={pageTitle('finance-costs')}
         {...props}
         // 没启用时这几页都记不了账：主按钮只给“启用财务”（没权限的就不放）
         primary={enable.known && !enable.enabled ? enable.action : props.primary}

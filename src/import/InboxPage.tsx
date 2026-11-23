@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Plus, Upload } from 'lucide-react';
+import { pageHref } from '../../shared/core/index';
 import { canEditBusiness, useAuthState, notify, LIST_PAGE_SIZE, stepper, useAction, emit, FormMessage } from '../ui/index';
 import { DetailPanel } from '../ui/index';
 import { PageHeading, Pagination } from '../ui/index';
@@ -31,7 +32,7 @@ export default function InboxPage() {
     run(async () => {
       const result = await convertInboxItem(row, kind);
       changed();
-      location.hash = '#ai-import?workspace=' + result.workspaceId;
+      location.hash = pageHref('ai-import', { workspace: result.workspaceId });
     });
   /** 改处理状态：办完在页面底部提示一句。 */
   const setRowStatus = (row: InboxItem, next: Status, message: string) =>
@@ -117,7 +118,7 @@ export default function InboxPage() {
           }
           close={() => {
             setSelected(null);
-            if (list.linked) history.replaceState(null, '', '#inbox');
+            if (list.linked) history.replaceState(null, '', pageHref('inbox'));
           }}
           {...stepper(rows, (r) => r.id, selected?.id, setSelected)}
         >

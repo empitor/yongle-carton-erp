@@ -1,10 +1,10 @@
 import type { Store } from '../core/index.js';
-import type { TrackedOrder } from '../../shared/core/index.js';
+import type { TrackedOrder, FlowKind } from '../../shared/core/index.js';
 import { batchNumbers } from '../operations/index.js';
 import { sourceFileNames, type FlowService } from '../flow/index.js';
 import { businessList, businessRecords } from '../lifecycle/index.js';
 import { trackOrders } from '../orders/index.js';
-import type { FlowDocView, FlowKind, RecordEntity } from '../../shared/business/index.js';
+import type { FlowDocView, RecordEntity } from '../../shared/business/index.js';
 
 /*
  * 按模块读记录（数据管理的列表和助手查记录同一份）：档案、订单、采购单、库存品按删除归档按类型读的；

@@ -1,4 +1,4 @@
-import type { FlowKind } from '../../shared/business/index';
+import type { FlowKind } from '../../shared/core/index';
 import { FormField, FormSection } from '../ui/index';
 import TaskForm, { type TaskEditing, type TaskFormData } from './TaskForm';
 import ProductionForm, { type ProductionEditing, type ProductionFormData } from './ProductionForm';

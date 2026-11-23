@@ -1,6 +1,7 @@
+import type { FlowKind } from '../../shared/core/index';
 import { useState, lazy, Suspense, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import type { FlowKind, NextSteps } from '../../shared/business/index';
+import type { NextSteps } from '../../shared/business/index';
 import { canEditBusiness, useAuthState, FinanceRelatedSlot, Hint, Section, Loading } from '../ui/index';
 import { MarkCards } from '../marks/ProductMarks';
 import { useRelatedData, type Related, type RelatedData } from './useRelatedData';

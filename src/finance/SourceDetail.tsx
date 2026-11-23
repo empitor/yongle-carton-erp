@@ -1,5 +1,5 @@
 import { useAuthState, ActionBar, Facts, Hint, Section, StatusChip, type RecordAction, yuan } from '../ui/index';
-import { financeOnlyAccount, plainPrice } from '../../shared/core/index';
+import { financeOnlyAccount, flowDocHref, pageHref, pageIdOf, plainPrice } from '../../shared/core/index';
 import { missingAmountName } from '../../shared/finance/index';
 import { documentName, metricNames, sourceMonthName } from './labels';
 import { chipTones, flowStatus } from './status';
@@ -19,7 +19,7 @@ export function sourceHeader(row: SourceRow) {
 /** 打开收付款单（财务资金页） */
 const cashLink = (cashId: number) => ({
   label: '打开收付款单',
-  href: '#finance-cash?tab=documents&cash=' + cashId,
+  href: pageHref('finance-cash', { tab: 'documents', cash: cashId }),
 });
 
 /**
@@ -29,20 +29,23 @@ const cashLink = (cashId: number) => ({
 function sourceLink(row: SourceRow, business: boolean): { label: string; href: string } | null {
   const detail = readSourceDetail(row.detail);
   const sourceId = row.source_id ?? '';
-  if (row.metric === 'ordered')
-    return business && sourceId ? { label: '打开订单', href: '#orders?order=' + sourceId } : null;
+  if (row.metric === 'ordered') {
+    const id = Number(sourceId);
+    return business && Number.isSafeInteger(id) && id > 0 ? { label: '打开订单', href: pageHref('orders', { order: id }) } : null;
+  }
   const receivable = ['theoreticalIncome', 'actualIncome', 'discountExpense'].includes(row.metric);
   if (business && sourceId) return businessDocLink(receivable ? 'delivery' : 'arrival', sourceId);
   if (detail.cashId) return cashLink(detail.cashId);
-  if (detail.voucherId) return { label: '打开凭证', href: '#finance-ledger?voucher=' + detail.voucherId };
+  if (detail.voucherId) return { label: '打开凭证', href: pageHref('finance-ledger', { voucher: detail.voucherId }) };
   return null;
 }
 
 /** 打开送货单、到货单（业务页面的地址）；别的来源没有单据页面 */
 export function businessDocLink(kind: unknown, id: unknown): { label: string; href: string } | null {
-  const doc = encodeURIComponent(String(id));
-  if (kind === 'delivery') return { label: '打开送货单', href: '#warehouse?kind=finished&deliveries=1&doc=' + doc };
-  if (kind === 'arrival') return { label: '打开到货单', href: '#warehouse?arrivals=1&doc=' + doc };
+  const doc = Number(id);
+  if (!Number.isSafeInteger(doc) || doc <= 0) return null;
+  if (kind === 'delivery') return { label: '打开送货单', href: flowDocHref('delivery', doc) };
+  if (kind === 'arrival') return { label: '打开到货单', href: flowDocHref('arrival', doc) };
   return null;
 }
 
@@ -56,7 +59,7 @@ export function useBusinessAccount() {
 export function SourceActions({ row, primary }: { row: SourceRow; primary?: RecordAction | null }) {
   const link = sourceLink(row, useBusinessAccount());
   const { cashId } = readSourceDetail(row.detail);
-  const cash = cashId && link?.href.startsWith('#finance-cash') !== true ? cashLink(cashId) : null;
+  const cash = cashId && pageIdOf(link?.href ?? '') !== 'finance-cash' ? cashLink(cashId) : null;
   return (
     <ActionBar
       primary={primary ? [primary] : []}

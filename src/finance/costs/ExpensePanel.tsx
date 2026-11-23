@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DetailPanel, ActionBar, Facts, Hint, Section, notify, useAction } from '../../ui/index';
-import { today } from '../../../shared/core/index';
+import { pageHref, today } from '../../../shared/core/index';
 import { useAccountNames } from '../editor';
 import { useSourceVoucher } from '../source-voucher';
 import { FinStatusChip } from '../status';
@@ -85,7 +85,7 @@ export default function ExpensePanel({
               { label: '日期', value: row.date },
               {
                 label: '凭证',
-                value: <a href={'#finance-ledger?voucher=' + row.voucher_id}>查看凭证</a>,
+                value: <a href={pageHref('finance-ledger', { voucher: row.voucher_id ?? undefined })}>查看凭证</a>,
                 hidden: !row.voucher_id,
               },
               {

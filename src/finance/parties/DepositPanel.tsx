@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DetailPanel, ActionBar, Facts, Hint, Section, yuan } from '../../ui/index';
-import { today } from '../../../shared/core/index';
+import { pageHref, today } from '../../../shared/core/index';
 import { financeRecordNames } from '../../../shared/finance/index';
 import { SourceVoucherButton, useSourceVoucher } from '../source-voucher';
 import { voucherStateNames } from '../labels';
@@ -157,7 +157,7 @@ export default function DepositPanel({
               { label: '余额', value: yuan(current.balance) + ' 元' },
               {
                 label: '凭证',
-                value: <a href={'#finance-ledger?voucher=' + current.voucher_id}>查看凭证</a>,
+                value: <a href={pageHref('finance-ledger', { voucher: current.voucher_id ?? undefined })}>查看凭证</a>,
                 hidden: !current.voucher_id,
               },
               { label: '说明', value: current.description, wide: true },

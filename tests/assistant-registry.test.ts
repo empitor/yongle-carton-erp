@@ -14,7 +14,8 @@ import { sessionTools } from '../server/assistant/tools/session.js';
 import { orderImportTools } from '../server/assistant/tools/order-import.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { pragmaInteger } from '../server/core/sql.js';
-import { erpPageIds, isErpNavigation, pageLink } from '../shared/assistant/assistant-navigation.js';
+import { isPageHref, pageIds } from '../shared/core/index.js';
+import { pageLink } from '../shared/assistant/assistant-navigation.js';
 import { assistantFixture } from './assistant-fixture.js';
 import { actor, grant, superActor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
@@ -147,13 +148,13 @@ test('ui.open 能开全部页面（财务页要财务权限）；不是本系统
   const f = assistantFixture();
   try {
     const finance = { ...actor, permissions: grant(...actor.permissions, 'finance:view') };
-    for (const page of erpPageIds) {
+    for (const page of pageIds) {
       assert.equal(readAs(f.manager.tools.read('ui.open', { module: page }, finance), {}).url, pageLink(page));
       if (page.startsWith('finance')) assert.throws(() => f.manager.tools.read('ui.open', { module: page }, actor), /权限/);
       else assert.equal(readAs(f.manager.tools.read('ui.open', { module: page }, actor), {}).url, pageLink(page));
     }
     for (const url of ['https://example.com', '#unknown', '#orders\n#products', '#orders#trash', 'javascript:alert(1)'])
-      assert(!isErpNavigation(url), url);
+      assert(!isPageHref(url), url);
   } finally {
     f.close();
   }

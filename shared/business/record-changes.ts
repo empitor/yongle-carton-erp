@@ -1,4 +1,4 @@
-import { isRecord } from '../core/index.js';
+import { isRecord, isFlowKind } from '../core/index.js';
 import { dataManagementFieldName } from './data-management-modules.js';
 import {
   historyFieldLabel,
@@ -10,7 +10,6 @@ import {
   type HistoryRefs,
 } from './history-fields.js';
 import { blank, EMPTY, labelOf, lineName, linesText, rowSize, statusOf, valueText, type Ctx, type Editable, type Row } from './history-text.js';
-import { isFlowKind } from './physical-flow.js';
 
 /*
  * 两份记录比出“字段：改之前 → 改之后”（修改历史、助手确认卡片），和新建时列出主要内容。

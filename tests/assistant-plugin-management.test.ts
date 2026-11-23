@@ -10,11 +10,8 @@ import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { assistantFixture } from './assistant-fixture.js';
 import { count } from '../server/core/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import {
-  aiSettingsTab,
-  assistantManagementHash,
-  pageLink,
-} from '../shared/assistant/assistant-navigation.js';
+import { pageParams } from '../shared/core/index.js';
+import { assistantManagementHash, pageLink } from '../shared/assistant/assistant-navigation.js';
 import { PluginManagementView } from '../src/assistant/AssistantPlugins.js';
 import { startHttp } from './http-fixture.js';
 import { AuthManager } from '../server/accounts/index.js';
@@ -32,11 +29,11 @@ const listedTool = z.looseObject({ name: z.string(), usable: z.boolean() });
 
 test('工具管理在 AI 设置的工具页签：助手按名字打开设置里的页签', () => {
   assert.equal(assistantManagementHash, '#ai-settings?tab=tools');
-  assert.equal(aiSettingsTab(assistantManagementHash), 'tools');
+  assert.equal(pageParams('ai-settings', assistantManagementHash).tab, 'tools');
   assert.equal(pageLink('ai-plugins'), assistantManagementHash);
   assert.equal(pageLink('ai-prompts'), '#ai-settings?tab=prompts');
-  assert.equal(aiSettingsTab('#ai-settings?tab=api'), 'api');
-  assert.equal(aiSettingsTab('#ai-settings?tab=prompts&assistant=1'), 'prompts');
+  assert.equal(pageParams('ai-settings', '#ai-settings?tab=api').tab, 'api');
+  assert.equal(pageParams('ai-settings', '#ai-settings?tab=prompts&assistant=1').tab, 'prompts');
 });
 
 test('启停只有超级管理员能改；整组停用保留单个工具的开关，重开后照旧；模型看不到、执行端也拒绝停用的工具', async () => {
