@@ -54,7 +54,7 @@ export type { StockBatchesResponse, StockBatchView } from './stock-batches.js';
 export { deliveryBlockers, deliveryCandidates, pendingByOrderLine, planOrderDelivery, selectedStockUnits, specificationMismatch, specificationMismatchText, stockByProduct } from './warehouse-delivery.js';
 export { deliveryPlan, openOrder, overOrderLines } from './delivery-plan.js';
 export type { PlanPreset } from './delivery-plan.js';
-export type { Listed, RecordsApi } from './records-api.js';
+export type { Listed, ProductDetailRecord, ProductListRow, RecordsApi } from './records-api.js';
 export { customerQuerySchema, orderQuerySchema, productQuerySchema } from './record-queries.js';
 export { orderInRange, orderMatches, orderStatusMatches } from './order-filter.js';
 export { DELETION_MAX_RECORDS, deletionRequestSchema, deletionResultSchema, deletionSelection, impactRowSchema, inventoryPolicies } from './deletion-request.js';

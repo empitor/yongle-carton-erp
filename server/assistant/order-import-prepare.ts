@@ -41,13 +41,21 @@ function reuseCustomer(wf: OrderImportState, ctx: WorkflowContext, state: Workfl
   mapping.customer = { mode: 'existing', id: c.id, version: c.version };
   return true;
 }
-/** 要新建的产品：同任务已正式建档、完整身份完全相同的只有一个，就用它（相似、不完整的仍询问）。改了返回 true */
+/** 要新建的产品：同任务已正式建档、完整身份完全相同且归属不冲突的只有一个，就用它（相似、不完整的仍询问）。改了返回 true */
 function reuseProducts(wf: OrderImportState, w: ImportWorkspaceView, mapping: ImportMapping, created: number[]) {
+  const customerId = mapping.customer.mode === 'existing' ? mapping.customer.id : null;
   let changed = false;
   for (const line of w.draft?.lines || [])
     if (mapping.products[line.id]?.mode === 'new') {
       const definition = productFieldsFromDraft(line.fields);
-      const exact = sales(wf.store).products().filter((p) => created.includes(p.id) && sameProductInBatch(p, definition));
+      const exact = sales(wf.store)
+        .products()
+        .filter(
+          (p) =>
+            created.includes(p.id) &&
+            (p.customerId == null || (customerId !== null && p.customerId === customerId)) &&
+            sameProductInBatch(p, definition),
+        );
       if (exact.length === 1) {
         mapping.products[line.id] = { mode: 'existing', id: exact[0].id, version: exact[0].version };
         changed = true;

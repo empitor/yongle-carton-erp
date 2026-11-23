@@ -13,7 +13,11 @@ const totalRow = z.object({ n: z.number() });
 const stockTotalRow = z.object({ id: z.number(), n: z.number() });
 /** 采购单的“已订货”（SQL 里由它拼，不写字面值） */
 const ORDERED: (typeof purchaseBusinessStatuses)[number] = '已订货';
-const stockRow = rows.stock_items.extend({ kind: z.enum(stockKinds) });
+const stockRow = rows.stock_items.extend({
+  kind: z.enum(stockKinds),
+  customer_id: rows.products.shape.customer_id,
+  customer_name: rows.customers.shape.name.nullable(),
+});
 
 /** 一个库存品的基本视图：库里的一行加上结余、在途（千分整数），archived 是否已归档；已安排、可用由单据流转补 */
 function stockItemView(r: z.output<typeof stockRow>, n: { balance: number; onOrder: number; archived: boolean }): StockItemBaseView {
@@ -24,6 +28,8 @@ function stockItemView(r: z.output<typeof stockRow>, n: { balance: number; onOrd
     kind: r.kind,
     unit: r.unit,
     productId: r.product_id,
+    ...(r.customer_id !== null ? { customerId: r.customer_id } : {}),
+    ...(r.customer_name !== null ? { customerName: r.customer_name } : {}),
     version: r.version,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -133,7 +139,14 @@ export class OperationsRepository {
         ).map((r) => [r.id, r.n]),
       ),
       onOrder = this.onOrderUnits(ids);
-    return many(this.store.db, stockRow, 'SELECT * FROM stock_items' + (predicate ? ' WHERE id ' + predicate : '') + ' ORDER BY id DESC', ...params)
+    return many(
+      this.store.db,
+      stockRow,
+      'SELECT s.*,p.customer_id,c.name AS customer_name FROM stock_items s LEFT JOIN products p ON p.id=s.product_id LEFT JOIN customers c ON c.id=p.customer_id' +
+        (predicate ? ' WHERE s.id ' + predicate : '') +
+        ' ORDER BY s.id DESC',
+      ...params,
+    )
       .filter((r) => include || !archived.has(r.id))
       .map((r) =>
         stockItemView(r, {

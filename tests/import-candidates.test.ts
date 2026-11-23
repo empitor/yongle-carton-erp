@@ -11,6 +11,7 @@ import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { blankField, draftLineFieldsSchema, lineFields, type LineField, type OrderDraft } from '../shared/import/order-draft.js';
 import { draftFromForm, orderFormSchema } from '../shared/import/order-form.js';
 import { resolveImportCustomer } from '../server/import/customer-resolution.js';
+import { autoMapProducts } from '../server/import/import-automap.js';
 import { standardOrderDraft } from '../server/import/standard-order.js';
 import { sameProductInBatch } from '../shared/core/product-details.js';
 import { workflowAnalysis } from './assistant-workflow-fixture.js';
@@ -217,32 +218,40 @@ test('名字里的数字不同就不算相近', () => {
   assert.equal(resolveCustomerCandidates(list, '虚构纸箱1厂有限公司').state, 'resolved');
 });
 
-test('本客户老产品：唯一同名候选、以前订过同规格就直接用；多个同名、规格或材质对不上、别的客户订过都还要问', () => {
-  const line = (spec: string, material: string | null = null) => {
+test('产品候选按客户归属筛选：只列当前客户产品和没定客户的通用产品，不列别家客户的产品', () => {
+  const line = (name: string) => {
     const fields = draftFromForm(orderFormSchema.parse(workflowAnalysis())).lines[0];
-    fields.productName.value = '虚构老箱';
-    fields.specification.value = spec;
-    fields.material.value = material;
+    setFields(fields, {
+      productName: name,
+      specification: '300×200×150 mm',
+      length: '300',
+      width: '200',
+      height: '150',
+      dimensionUnit: 'mm',
+      material: '牛卡',
+      flute: 'B',
+    });
     return { id: randomUUID(), fields };
   };
-  const old = productRecord(1, { name: '虚构老箱', material: '牛卡', flute: '' });
-  const history = { 1: ['40x30x20'] };
-  const pick = (l: Line, products: Parameters<typeof productCandidatesForLine>[1], h?: Record<number, string[]>) => {
-    const result = productCandidatesForLine(l, products, h).find((c) => c.id === 1);
-    assert.ok(result);
-    return result;
-  };
-  assert.equal(pick(line('40×30×20'), [old]).recommended, false, '没有本客户的记录还要问');
-  assert.equal(pick(line('40×30×20'), [old], history).recommended, true, '同名、以前订过同规格');
-  assert.equal(pick(line('40×30×20', '牛卡'), [old], history).recommended, true, '材质也一样');
-  assert.equal(pick(line('40×30×20', '白卡'), [old], history).recommended, false, '材质不一样');
-  assert.equal(pick(line('50×30×20'), [old], history).recommended, false, '规格不一样');
-  assert.equal(pick(line('40×30×20'), [old], { 2: ['40x30x20'] }).recommended, false, '订过的是别的产品');
-  const twin = { ...old, id: 2 };
-  assert.equal(
-    productCandidatesForLine(line('40×30×20'), [old, twin], history).filter((c) => c.recommended).length,
-    0,
-    '两个同名档案要人选',
+  const shared = { name: '虚构纸箱', length: 300, width: 200, height: 150, dimensionUnit: 'mm' as const, material: '牛卡', flute: 'B' };
+  const ofA = productRecord(1, { ...shared, customerId: 10 });
+  const ofB = productRecord(2, { ...shared, customerId: 20 });
+  const generic = productRecord(3, { ...shared, customerId: null });
+  const all = [ofA, ofB, generic];
+  assert.deepEqual(
+    productCandidatesForLine(line('虚构纸箱'), all, 10).map((c) => c.id),
+    [1, 3],
+    '客户 10 只看到自己的产品和未定客户的产品',
+  );
+  assert.deepEqual(
+    productCandidatesForLine(line('虚构纸箱'), all, 20).map((c) => c.id),
+    [2, 3],
+    '客户 20 看不到客户 10 的产品',
+  );
+  assert.deepEqual(
+    productCandidatesForLine(line('虚构纸箱'), all, null).map((c) => c.id),
+    [3],
+    '新客户只看到未定客户的通用产品',
   );
 });
 
@@ -279,16 +288,62 @@ test('名称相近的产品：同名同数字并入，名称包含并入，错�
   const auto = (l: Line) => productCandidatesForLine(l, products).filter((c) => c.recommended).map((c) => c.id);
   const blocks = (l: Line) => productCandidatesForLine(l, products).filter(blocksNewProduct).map((c) => c.id);
   assert.deepEqual(auto(line('虚构方形箱', ['62', '26', '9'], 'cm', '另一种写法')), [1], '加工要求不同');
-  assert.deepEqual(auto(line('虚构方形箱', ['62', '26', '9'], null)), [1], '这次没写单位');
-  assert.deepEqual(auto(line('虚构外箱（双瓦楞）（电商）', ['71', '41', '44'], null)), [2], '都没写单位');
-  assert.deepEqual(auto(line('虚构外箱（双瓦楞）（电商）', ['71', '41', '44'], 'cm')), [2], '这次写了单位');
-  assert.deepEqual(auto(line('虚构外箱（双瓦楞）', ['71', '41', '44'], null)), [2], '少了后缀');
+  assert.deepEqual(auto(line('虚构方形箱', ['62', '26', '9'], null)), [], '拆分出三边但没写单位：绝不猜自动推荐');
+  assert.deepEqual(blocks(line('虚构方形箱', ['62', '26', '9'], null)), [1], '没写单位仍列候选并拦新建');
+  assert.deepEqual(auto(line('虚构外箱（双瓦楞）（电商）', ['71', '41', '44'], null)), [], '两边都没写单位不自动推荐');
+  assert.deepEqual(blocks(line('虚构外箱（双瓦楞）（电商）', ['71', '41', '44'], null)), [2], '两边都没写单位仍列候选');
+  assert.deepEqual(auto(line('虚构外箱（双瓦楞）（电商）', ['71', '41', '44'], 'cm')), [], '档案没写单位不自动推荐');
+  assert.deepEqual(auto(line('虚构外箱（双瓦楞）', ['71', '41', '44'], null)), [], '少了后缀且无单位不自动推荐');
   assert.deepEqual(auto(line('虚构彩箱甲（电商）', ['59', '36', '8'], 'cm')), [3], '同名优先，同尺寸的另一款不算');
   assert.deepEqual(auto(line('虚构方形相', ['62', '26', '9'], 'cm')), [], '错别字不自动');
   assert.deepEqual(blocks(line('虚构方形相', ['62', '26', '9'], 'cm')), [1], '错别字要问');
   assert.deepEqual(auto(line('虚构方形箱', ['70', '26', '9'], 'cm')), [], '同名不同尺寸不并');
   assert.deepEqual(blocks(line('另一款纸箱', ['59', '36', '8'], 'cm')), [], '同尺寸不同名可以新建');
   assert.deepEqual(auto(line('虚构方形箱', ['620', '260', '90'], 'mm')), [1], '换算后相同');
+  // 规格原文与不可识别/矛盾单位：明确单位相符才推荐；档案或规格写了认不出的单位（如 in）或两处单位矛盾必须标冲突且绝不推荐，autoMap 也不能绕过
+  const specOnly: Line = {
+    id: 'spec-only',
+    fields: draftFromForm(orderFormSchema.parse(workflowAnalysis())).lines[0],
+  };
+  const mmBox = productRecord(5, { name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm' });
+  const unitless = productCandidatesForLine(specOnly, [mmBox])[0];
+  assert.equal(unitless?.recommended, false, '只写无单位规格不能凭数字自动推荐');
+  assert.ok(unitless?.reasons.includes('规格数字一致（未写单位，需确认）'), '无单位规格数字相同时作为候选提示');
+
+  const withMm: Line = structuredClone(specOnly);
+  withMm.fields.specification.value = '30×20×15 mm';
+  const mmSmall = productRecord(6, { name: '聊天纸箱甲', length: 30, width: 20, height: 15, dimensionUnit: 'mm', material: 'B=B', flute: 'B' });
+  const inchSmall = productRecord(7, { name: '聊天纸箱甲', length: 30, width: 20, height: 15, dimensionUnit: null, dimensionUnitRaw: 'in' });
+  assert.equal(productCandidatesForLine(withMm, [mmSmall])[0]?.recommended, true, '明确单位相符自动推荐');
+  const inchCand = productCandidatesForLine(withMm, [inchSmall])[0];
+  assert.equal(inchCand?.recommended, false, 'mm 与档案不可识别单位 in 绝不能自动推荐');
+  assert.ok(inchCand?.conflicts.includes('档案尺寸单位待确认'), '档案不可识别单位必须记入冲突');
+
+  // 原文 30×20×15 in 同时识别出结构化 30/20/15 mm：必须标冲突，且服务端 autoMapProducts 也不能凭完整身份绕过冲突自动采用
+  const conflictDraft = draft();
+  conflictDraft.lines = [conflictDraft.lines[0]];
+  setFields(conflictDraft.lines[0].fields, {
+    productName: '聊天纸箱甲',
+    specification: '30×20×15 in',
+    length: '30',
+    width: '20',
+    height: '15',
+    dimensionUnit: 'mm',
+    material: 'B=B',
+    flute: 'B',
+  });
+  const specConflict = productCandidatesForLine(conflictDraft.lines[0], [mmSmall])[0];
+  assert.equal(specConflict?.recommended, false, '原文写 in 而结构化写 mm 不能自动推荐');
+  assert.ok(specConflict?.conflicts.includes('规格尺寸单位待确认'), '原文不可识别单位记入冲突');
+  assert.throws(
+    () => autoMapProducts(conflictDraft, emptyImportMapping(conflictDraft), [mmSmall], null),
+    /已找到产品候选/,
+    '服务端 autoMapProducts 不能绕过候选冲突自动采用完整身份档案',
+  );
+  conflictDraft.lines[0].fields.specification.value = '30×20×15 cm';
+  const unitMismatch = productCandidatesForLine(conflictDraft.lines[0], [mmSmall])[0];
+  assert.equal(unitMismatch?.recommended, false, '原文 cm 与结构化 mm 矛盾不能自动推荐');
+  assert.ok(unitMismatch?.conflicts.includes('规格与尺寸单位不一致'), '两处单位矛盾记入冲突');
 });
 
 test('同一批导入里的两行：名称尺寸相同、其他不冲突才算同一个产品，加工要求不同不算冲突；缺单位、缺尺寸不猜', () => {

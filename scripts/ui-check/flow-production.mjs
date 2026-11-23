@@ -48,9 +48,10 @@ await step('附属品', async () => {
   if (!children.some((t) => t.includes('五金配件箱 小'))) fail('“五金配件箱 大”详情里没有列出附属品：' + children.join(' | '));
   await open('#warehouse?kind=finished');
   const stock = await treeNames();
-  const at = stock.indexOf('五金配件箱 大');
+  const at = stock.findIndex((t) => t.startsWith('五金配件箱 大'));
   if (at < 0 || !/^[├└] 五金配件箱 小/.test(stock[at + 1] || '')) fail('成品库存里附属品没有挂在主产品下面：' + stock.join(' | '));
-  else ok('成品库存附属品挂在主产品下面');
+  else if (!stock[at].includes('虚构海曙五金制品厂')) fail('成品库存产品名后没有带出所属客户名：' + stock[at]);
+  else ok('成品库存附属品挂在主产品下面并带出所属客户名');
 });
 
 await step('筛选', async () => {

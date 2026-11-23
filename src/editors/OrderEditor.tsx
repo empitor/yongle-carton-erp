@@ -88,7 +88,7 @@ function OrderHead({ e, value }: { e: Editor; value: OrderEditorProps['value'] }
           placeholder="搜索客户"
           value={String(e.customerId || '')}
           options={e.availableCustomers.map((c) => ({ value: String(c.id), label: c.name, hint: c.contact, keywords: c.phone }))}
-          onChange={e.setCustomerId}
+          onChange={e.changeCustomer}
         />
       </FormField>
       <FormField label="下单日期" required>
@@ -129,9 +129,12 @@ function OrderLinesSection({ e }: { e: Editor }) {
         </button>
       }
     >
+      {e.customerNotice && <FormMessage tone="warning">{e.customerNotice}</FormMessage>}
       <OrderLines
         lines={e.lines}
         products={e.availableProducts}
+        customerId={e.customerId ? Number(e.customerId) : null}
+        keptProducts={e.keptProducts}
         orderDate={e.orderDate}
         open={e.open}
         toggle={(k) => e.setOpen((v) => (v.includes(k) ? v.filter((x) => x !== k) : [...v, k]))}
@@ -200,7 +203,14 @@ export default function OrderEditor(props: OrderEditorProps) {
       {e.quickCreate?.kind === 'customer' && (
         <CustomerEditor close={() => e.setQuickCreate(null)} saved={e.customerCreated} />
       )}
-      {e.quickCreate?.kind === 'product' && <ProductEditor close={() => e.setQuickCreate(null)} saved={e.productCreated} />}
+      {e.quickCreate?.kind === 'product' && (
+        <ProductEditor
+          defaultCustomerId={e.customerId ? Number(e.customerId) : undefined}
+          customers={e.availableCustomers}
+          close={() => e.setQuickCreate(null)}
+          saved={e.productCreated}
+        />
+      )}
     </ManagementDialog>
   );
 }

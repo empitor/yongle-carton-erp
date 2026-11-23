@@ -1,4 +1,4 @@
-import { sales, assertNewProductAllowed, describeProduct, duplicateCustomers, type DuplicateRecord } from '../sales/index.js';
+import { sales, assertNewProductAllowed, assertPlannedProductsUnique, describeProduct, duplicateCustomers, type DuplicateRecord } from '../sales/index.js';
 import { createHash } from 'node:crypto';
 import type { Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
@@ -16,17 +16,17 @@ import {
   customerSchema,
   duplicateKey,
   linePriceExact,
-  orderSchema,
+  plannedOrderSchema,
   productSchema,
   uniqueMessages,
   type Order,
-  type OrderInput,
+  type PlannedOrderInput,
   type Product,
 } from '../../shared/core/index.js';
 import { autoMapCustomer, autoMapProducts, productKey } from './import-automap.js';
 import { projectOrder } from './standard-order.js';
 import { findFileImports, findOwnImport } from './import-records.js';
-import { compareKey, customerProductSpecs, duplicateOrderCandidates, type CustomerRef } from './order-lookup.js';
+import { compareKey, duplicateOrderCandidates, type CustomerRef } from './order-lookup.js';
 import { resolveImportCustomer } from './customer-resolution.js';
 import { blocksNewProduct, productCandidatesForLine } from '../../shared/import/index.js';
 
@@ -36,8 +36,8 @@ import { blocksNewProduct, productCandidatesForLine } from '../../shared/import/
  */
 // 计划、客户和产品用哪个档案、同名要确认的行，这几种类型在 shared/import/import-plan.ts（导入预览窗也按它显示）
 /** 订单指纹要用的几样：新订单（导入计划里的）和已有订单都有 */
-type FingerprintOrder = Pick<OrderInput, 'externalPurchaseOrder' | 'orderDate' | 'deliveryDate'> & {
-  lines: Pick<OrderInput['lines'][number], 'productName' | 'specification' | 'quantity' | 'unit' | 'unitPriceExact' | 'unitPriceCents'>[];
+type FingerprintOrder = Pick<PlannedOrderInput, 'externalPurchaseOrder' | 'orderDate' | 'deliveryDate'> & {
+  lines: Pick<PlannedOrderInput['lines'][number], 'productName' | 'specification' | 'quantity' | 'unit' | 'unitPriceExact' | 'unitPriceCents'>[];
 };
 
 /** 提示里最多列几个同名档案 */
@@ -79,7 +79,7 @@ function samePurchaseOrder(customer: CustomerPlanRef, order: FingerprintOrder, o
   );
 }
 /** 已有订单里和这张重复的第一张（含归档）：同一采购单号，或者内容指纹相同 */
-function duplicateOrder(store: Store, customer: CustomerPlanRef, order: OrderInput, signature: string) {
+function duplicateOrder(store: Store, customer: CustomerPlanRef, order: PlannedOrderInput, signature: string) {
   return duplicateOrderCandidates(store, customerRef(customer), order).find(
     (o) =>
       samePurchaseOrder(customer, order, o) ||
@@ -87,7 +87,7 @@ function duplicateOrder(store: Store, customer: CustomerPlanRef, order: OrderInp
   );
 }
 /** 执行时再查一次：同一客户、同一采购单号的已有订单 */
-export function purchaseOrderTaken(store: Store, customer: CustomerPlanRef, order: OrderInput) {
+export function purchaseOrderTaken(store: Store, customer: CustomerPlanRef, order: PlannedOrderInput) {
   return (
     !!order.externalPurchaseOrder &&
     duplicateOrderCandidates(store, customerRef(customer), order).some((o) => samePurchaseOrder(customer, order, o))
@@ -150,14 +150,28 @@ export function checkReferences(store: Store, customer: CustomerPlanRef, product
     if (same.length)
       throw new AppError('已有同名客户（' + names(same) + '），请选择已有档案或先恢复，不能再新建一份。', 409);
   }
-  for (const p of products)
+  const customerId = customer.mode === 'existing' ? customer.id : null;
+  const plannedNew: { key: string; line: number; input: Product['customerId'] extends never ? never : (ProductPlanRef & { mode: 'new' })['input'] }[] = [];
+  for (let i = 0; i < products.length; i++) {
+    const p = products[i];
     if (p.mode === 'existing') {
       const found = sales(store).product(p.id);
       if (!found || found.version !== p.version) throw new AppError(PRODUCT_CHANGED, 409);
+      if (found.customerId != null && found.customerId !== customerId) {
+        const owner = found.customerName || sales(store).customer(found.customerId, true)?.name || '其他客户';
+        throw new AppError(`这个产品是 ${owner} 的，要给 ${customer.name} 用请复制一份`, 409);
+      }
     } else {
-      const found = assertNewProductAllowed(store, p.input, true);
-      if (found.sameName.length) sameName.set(products.indexOf(p), found.sameName.map(describeProduct));
+      plannedNew.push({ key: p.key, line: i + 1, input: { ...p.input, customerId } });
+      if (customerId !== null) {
+        // 新建的产品归当前订单客户，只在这一家客户下查重；新客户还没入库，库里不会有属于它的旧产品
+        const found = assertNewProductAllowed(store, { ...p.input, customerId }, true);
+        if (found.sameName.length) sameName.set(i, found.sameName.map(describeProduct));
+      }
     }
+  }
+  // 同一张订单里多行计划新建不同产品时，彼此之间也按同一查重规则核对（料号相同或同名同尺寸材质拦下；完全相同 key 的仍合并只建一次）
+  assertPlannedProductsUnique(plannedNew);
   return sameName;
 }
 
@@ -223,7 +237,7 @@ function customerPlan(store: Store, mapping: ImportMapping, name: string, projec
 function productPlan(
   store: Store,
   line: OrderDraft['lines'][number],
-  context: { mapping: ImportMapping; projection: Projection; products: Product[] },
+  context: { mapping: ImportMapping; projection: Projection; products: Product[]; customerId: number | null },
 ): ProductPlanRef {
   const choice = context.mapping.products[line.id];
   if (choice.mode === 'existing') {
@@ -236,16 +250,16 @@ function productPlan(
   return {
     mode: 'new',
     key: productKey(planned.input),
-    input: productSchema.parse(planned.input),
+    input: productSchema.parse({ ...planned.input, customerId: context.customerId }),
     // 新建的产品一定有名称（过了产品校验），取原件上的写法
     name: line.fields.productName.value ?? planned.input.name,
     lineId: line.id,
-    similar: productCandidatesForLine(line, context.products)
+    similar: productCandidatesForLine(line, context.products, context.customerId)
       .filter(blocksNewProduct)
       .flatMap((c) => context.products.filter((p) => p.id === c.id).map((p) => describeProduct(p))),
   };
 }
-/** 生成导入计划。产品候选要和全部产品比相似度（按名称、尺寸打分），这里读一次全部在用的产品。 */
+/** 生成导入计划。产品候选要和当前客户及未定客户的在用产品比相似度（按名称、尺寸打分）。 */
 export function importPlan(store: Store, w: ImportWorkspaceView): Plan {
   assertImportable(store, w);
   const draft = w.draft;
@@ -254,21 +268,21 @@ export function importPlan(store: Store, w: ImportWorkspaceView): Plan {
   assertMappingCurrent(w, draft, mapping);
   const name = draft.header.buyerName.value || '';
   autoMapCustomer(store, mapping, name);
-  const history = mapping.customer.mode === 'existing' ? customerProductSpecs(store, mapping.customer.id) : undefined;
+  const customerId = mapping.customer.mode === 'existing' ? mapping.customer.id : null;
   const products = sales(store).products();
-  autoMapProducts(draft, mapping, products, history);
+  autoMapProducts(draft, mapping, products, customerId);
   const projection = projectOrder(store, draft, mapping);
   if (projection.issues.length) throw new AppError(projection.issues.join('；'));
   const customer = customerPlan(store, mapping, name, projection);
-  const refs = draft.lines.map((l) => productPlan(store, l, { mapping, projection, products }));
+  const refs = draft.lines.map((l) => productPlan(store, l, { mapping, projection, products, customerId }));
   const confirmations = sameNameConfirmations(refs, checkReferences(store, customer, refs));
-  // 使用临时正ID只验证结构，正式ID将在同一个数据库事务中建立。
-  const order = orderSchema.parse({
+  // 新客户、新产品尚未入库，编号留空（null），不填占位编号；正式编号在同一个数据库事务中先建客户、再建产品写入。
+  const order = plannedOrderSchema.parse({
     ...projection.fields,
-    customerId: customer.mode === 'existing' ? customer.id : 1,
+    customerId: customer.mode === 'existing' ? customer.id : null,
     lines: projection.fields.lines.map((l, i) => {
       const ref = refs[i];
-      return { ...l, productId: ref.mode === 'existing' ? ref.id : 1 };
+      return { ...l, productId: ref.mode === 'existing' ? ref.id : null };
     }),
   });
   const signature = fingerprint(customer.mode === 'existing' ? 'customer:' + customer.id : customer.name, order);

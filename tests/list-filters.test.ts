@@ -23,7 +23,7 @@ import { Pagination, TableRegion } from '../src/ui/ListLayout.js';
 import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
 import { pageRows } from '../server/core/paging.js';
 import { toolsOf } from './assistant-fixture.js';
-import { productIdsOfCustomer, stockIdsOfParty } from '../server/operations/index.js';
+import { stockIdsOfParty } from '../server/operations/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { receiveLines } from './receive-fixture.js';
 import type { StockItemBaseView } from '../shared/business/index.js';
@@ -33,16 +33,16 @@ import { catalogItems } from '../src/palette-items.js';
 const actor = pageActor({ id: 'ui', name: '虚构操作员', permissions: ['business:edit'] });
 
 /**
- * 产品按客户、库存按客户/供应商筛选：产品和库存品本身不挂往来单位，
- * 靠订单明细、采购单关联出来；页面接口和助手查询是同一套。全部虚构数据。
+ * 产品按所属客户、库存按客户/供应商筛选：产品和成品库存按 products.customer_id 关联，
+ * 原材料按采购单关联；页面接口和助手查询是同一套。全部虚构数据。
  */
 function fixture() {
   const base = businessBase(assistantActor),
     { store, ops } = base;
   const a = base.customer({ name: '虚构甲客户' }),
     b = base.customer({ name: '虚构乙客户' });
-  const boxA = base.product({ name: '虚构甲箱' }),
-    boxB = base.product({ name: '虚构乙箱' }),
+  const boxA = base.product({ name: '虚构甲箱', customerId: a.id }),
+    boxB = base.product({ name: '虚构乙箱', customerId: b.id }),
     idle = base.product({ name: '虚构没人订的箱' });
   const order = (customerId: number, product: { id: number; name: string }) =>
     sales(store).saveOrder(
@@ -340,10 +340,9 @@ test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿
   }
 });
 
-test('客户订过的产品、从供应商采购过的原材料、客户产品的成品库存', (t) => {
+test('从供应商采购过的原材料、客户产品的成品库存', (t) => {
   const f = fixture();
   t.after(() => f.store.close());
-  assert.deepEqual([...productIdsOfCustomer(f.store, f.a.id)], [f.boxA.id]);
   assert.deepEqual([...(stockIdsOfParty(f.store, { customerId: f.b.id }) ?? [])], [f.finishedB.id]);
   assert.deepEqual([...(stockIdsOfParty(f.store, { supplierId: f.s1.id }) ?? [])], [f.board1.id]);
   assert.equal(stockIdsOfParty(f.store, {}), null, '没有筛选条件时不过滤');
@@ -359,7 +358,8 @@ test('产品、库存列表接口按客户和供应商筛', async () => {
   };
   try {
     assert.deepEqual(await names('/products?withMetrics=1&customerId=' + f.a.id), ['虚构甲箱']);
-    assert.equal((await names('/products?withMetrics=1')).length, 3, '不选客户时全部产品，包括没人订过的');
+    assert.deepEqual(await names('/products?withMetrics=1&unassigned=1'), ['虚构没人订的箱']);
+    assert.equal((await names('/products?withMetrics=1')).length, 3, '不选客户时全部产品，包括未指定客户的');
     assert.deepEqual(await names('/warehouse/items?withMetrics=1&kind=finished&customerId=' + f.b.id), ['虚构乙箱']);
     assert.deepEqual(await names('/warehouse/items?withMetrics=1&kind=raw&supplierId=' + f.s2.id), ['虚构纸板二']);
     assert.equal((await names('/warehouse/items?withMetrics=1&kind=raw')).length, 2);
@@ -425,9 +425,17 @@ test('客户、产品、订单列表和手工保存：直接调订单服务的�
     const shipped = orderList(f.store, { status: '已发货' }, false);
     assert.ok(Array.isArray(shipped) && shipped.length === 0, '不带 withMetrics 直接返回数组');
     assert.throws(() => orderList(f.store, { start: '2026-12-01', end: '2026-01-01' }, false), /开始日期不能晚于结束日期/);
+    const unassigned = productList(f.store, { withMetrics: '1', unassigned: '1' }, false);
+    assert.ok(!Array.isArray(unassigned));
+    assert.deepEqual(unassigned.rows.map((p) => p.id), [f.product.id], '未定客户的产品按 unassigned=1 筛出来');
+    const assigned = manualWrite(
+      f.store,
+      { entity: 'products', action: 'update', id: f.product.id, input: { ...f.product, customerId: f.customer.id } },
+      f.actor,
+    );
     const products = productList(f.store, { withMetrics: '1', customerId: String(f.customer.id) }, false);
     assert.ok(!Array.isArray(products));
-    assert.deepEqual(products.rows.map((p) => p.id), [f.product.id], '按客户筛：这个客户下过单的产品');
+    assert.deepEqual(products.rows.map((p) => p.id), [assigned.id], '按所属客户筛产品');
     const customers = customerList(f.store, { q: '不存在的名字' }, false);
     assert.ok(Array.isArray(customers) && customers.length === 0);
     assert.equal(orderDashboard(f.store, { start: '2026-10-01', end: '2026-10-31' }).count, 1);

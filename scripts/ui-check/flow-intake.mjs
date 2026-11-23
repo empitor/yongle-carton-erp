@@ -98,7 +98,8 @@ await step('AI 导入改一格后导入订单', async () => {
   await page.goto(BASE + '#ai-import?workspace=' + workspace.id);
   const quantity = page.getByLabel('明细1 数量', { exact: true });
   await quantity.waitFor({ timeout: 10000 });
-  // 第 1 行数量 100 → 120：导入时先存下这处修改，合计 120×1.2345 + 100×1.2345 = 148.14 + 123.45
+  // 第 1 行规格没写单位（300×200×150），不猜自动匹配，由人确认候选；数量 100 → 120：导入时先存下修改，合计 120×1.2345 + 100×1.2345 = 148.14 + 123.45
+  await page.getByRole('button', { name: '明细1 确认产品候选 聊天纸箱甲', exact: true }).click();
   await quantity.fill('120');
   await page.getByRole('button', { name: '导入订单', exact: true }).first().click();
   await dialog().waitFor();
@@ -111,10 +112,27 @@ await step('AI 导入改一格后导入订单', async () => {
   await link.waitFor({ timeout: 8000 });
   const after = await api('/api/orders');
   const order = after.find((o) => !before.some((b) => b.id === o.id));
+  const products = await api('/api/products');
+  const clicked = products.find((p) => p.name === '聊天纸箱甲' && p.customerName === '聊天验收客户');
   await shot('导入之后');
   if (!order) fail('导入后订单列表没有多一张');
-  else if (order.customerName !== '聊天验收客户' || order.totalCents !== 27159 || order.lines.length !== 2 || order.lines[0].quantity !== 120)
-    fail('导入的订单不对：' + JSON.stringify({ customer: order.customerName, total: order.totalCents, lines: order.lines.map((l) => [l.productName, l.quantity]) }));
+  else if (
+    order.customerName !== '聊天验收客户' ||
+    order.totalCents !== 27159 ||
+    order.lines.length !== 2 ||
+    order.lines[0].quantity !== 120 ||
+    !clicked ||
+    order.lines[0].productId !== clicked.id
+  )
+    fail(
+      '导入的订单不对：' +
+        JSON.stringify({
+          customer: order.customerName,
+          total: order.totalCents,
+          expectedProductId: clicked?.id,
+          lines: order.lines.map((l) => [l.productId, l.productName, l.quantity]),
+        }),
+    );
   else if (!(await link.innerText()).includes(order.number)) fail('导入后“查看订单”不是这张：' + (await link.innerText()));
   else ok('AI 导入改一格后导入订单 ' + order.number + '：合计 271.59，两行，第 1 行 120 只');
 });

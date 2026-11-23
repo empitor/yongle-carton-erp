@@ -3,7 +3,7 @@ import { ManagementDialog, Loading } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { createFlow } from '../flow/flow-api';
 import { deliveryPlan, openOrder, pendingByOrderLine, type PlanPreset } from '../../shared/business/index';
-import { errorMessage, userError } from '../../shared/core/index';
+import { errorMessage, nameWithCustomer, userError } from '../../shared/core/index';
 import DeliveryBlockers from '../flow/DeliveryBlockers';
 import { emit } from '../ui/index';
 import { readCatalog } from '../recordkit/catalog-api';
@@ -142,7 +142,10 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
               change={(patch) => setInputs((x) => ({ ...x, [g.customerId]: { ...x[g.customerId], ...patch } }))}
               over={look.overOf(g.lines)}
               locked={busy || !!created.current[g.customerId]}
-              stockName={(id) => data.items.find((i) => i.id === id)?.name || '库存品'}
+              stockName={(id) => {
+                const item = data.items.find((i) => i.id === id);
+                return item ? nameWithCustomer(item.name, item.kind === 'finished' ? item.customerName : undefined) : '库存品';
+              }}
               lineInfo={look.lineInfo}
               setQuantity={(k, q) => setEdits((x) => ({ ...x, [k]: q }))}
               remove={(k) => setRemoved((r) => [...r, k])}

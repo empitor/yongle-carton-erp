@@ -11,6 +11,10 @@ import type { RecordStatusAction, recordStatusInputSchema } from './record-statu
 
 /** 列表里的一行：多带“已归档”标记 */
 export type Listed<T> = T & { archived: boolean };
+/** 产品列表行（带指标接口）：没定客户但历史上给客户下过单的，顺带列出来提醒人在编辑窗定客户 */
+export type ProductListRow = Listed<Product> & { orderedCustomers?: string[] };
+/** 单条产品详情：带上是否已下过单（编辑窗据此锁住已定客户的下拉）和没定客户时给哪些客户下过单 */
+export type ProductDetailRecord = Product & { ordered?: boolean; orderedCustomers?: string[] };
 
 type CustomerQuery = z.input<typeof customerQuerySchema>;
 type ProductQuery = z.input<typeof productQuerySchema>;
@@ -39,9 +43,9 @@ export type RecordsApi = StatusActions & {
   'GET /products': { query?: ProductQuery; response: Listed<Product>[] };
   'GET /products?withMetrics=1': {
     query?: ProductQuery;
-    response: { rows: Listed<Product>[]; totalRecords: number; metrics: ReturnType<typeof productMetrics> };
+    response: { rows: ProductListRow[]; totalRecords: number; metrics: ReturnType<typeof productMetrics> };
   };
-  'GET /products/:id': { response: Product };
+  'GET /products/:id': { response: ProductDetailRecord };
   'POST /products': { body: ProductBody; response: Product };
   'PUT /products/:id': { body: Versioned<ProductBody>; response: Product };
   'GET /orders': { query?: OrderQuery; response: Listed<TrackedOrder>[] };

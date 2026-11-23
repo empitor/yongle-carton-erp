@@ -18,6 +18,9 @@ export const stockItemHead = {
   kind: z.enum(stockKinds),
   unit: z.string(),
   productId: z.number().nullable(),
+  /** 成品库存对应产品的所属客户；原材料或未定客户的产品不带这两项 */
+  customerId: z.number().optional(),
+  customerName: z.string().optional(),
   version: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),

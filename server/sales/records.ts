@@ -5,11 +5,14 @@ import { orderViews, saveOrder, type OrderEditCheck } from './orders.js';
 import { saveProductRecord } from './products.js';
 import { existingRecord, given, readBack } from './record-fields.js';
 
-/** 产品的一行：尺寸单位只有 mm、cm（建表有 CHECK），按产品录入规则的同一个取值校验 */
-const productRow = rows.products.extend({ dimension_unit: productSchema.shape.dimensionUnit.unwrap() });
+/** 产品的一行：尺寸单位只有 mm、cm（建表有 CHECK），按产品录入规则的同一个取值校验，附带所属客户名称 */
+const productRow = rows.products.extend({
+  dimension_unit: productSchema.shape.dimensionUnit.unwrap(),
+  customer_name: rows.customers.shape.name.nullable(),
+});
 /**
  * 产品：库里的一行 → 接口里的产品。参考单价库里只存一份 price_e4（万分之一元的整数，没定价是 NULL），
- * price_cents 是由它算出来的列。没给过的单位原文、客户料号、附属关系库里是 NULL，读出来不带这个键。
+ * price_cents 是由它算出来的列。没给过的单位原文、客户料号、所属客户、附属关系库里是 NULL，读出来不带这个键。
  */
 function productView(r: z.output<typeof productRow>): Product {
   return {
@@ -24,6 +27,8 @@ function productView(r: z.output<typeof productRow>): Product {
     flute: r.flute,
     requirements: r.requirements,
     ...given('customerProductCode', r.customer_product_code),
+    ...given('customerId', r.customer_id),
+    ...given('customerName', r.customer_name),
     ...given('parentProductId', r.parent_product_id),
     // 没定价：分给 0，不带 priceExact；0 元是 priceExact='0.0000'
     priceCents: r.price_cents ?? 0,
@@ -34,7 +39,8 @@ function productView(r: z.output<typeof productRow>): Product {
   };
 }
 /** 按编号筛（ids 给了才筛）：编号作为 JSON 数组绑定 */
-const idFilter = (ids: readonly number[] | undefined) => (ids ? ' WHERE id IN (SELECT value FROM json_each(?))' : '');
+const idFilter = (ids: readonly number[] | undefined, column = 'id') =>
+  ids ? ` WHERE ${column} IN (SELECT value FROM json_each(?))` : '';
 const idParams = (ids: readonly number[] | undefined) => (ids ? [JSON.stringify(ids)] : []);
 class SalesRecords {
   constructor(private readonly store: Store) {}
@@ -50,7 +56,14 @@ class SalesRecords {
   }
   products(includeArchived = false, ids?: readonly number[]): Product[] {
     const archived = includeArchived ? null : this.store.archivedIds('products');
-    return many(this.db, productRow, 'SELECT * FROM products' + idFilter(ids) + ' ORDER BY id DESC', ...idParams(ids))
+    return many(
+      this.db,
+      productRow,
+      'SELECT p.*,c.name AS customer_name FROM products p LEFT JOIN customers c ON c.id=p.customer_id' +
+        idFilter(ids, 'p.id') +
+        ' ORDER BY p.id DESC',
+      ...idParams(ids),
+    )
       .filter((r) => !archived?.has(r.id))
       .map(productView);
   }
@@ -61,7 +74,12 @@ class SalesRecords {
   }
   product(id: number, includeArchived = false): Product | undefined {
     if (!includeArchived && this.store.archived('products', id)) return undefined;
-    const row = one(this.db, productRow, 'SELECT * FROM products WHERE id=?', id);
+    const row = one(
+      this.db,
+      productRow,
+      'SELECT p.*,c.name AS customer_name FROM products p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.id=?',
+      id,
+    );
     return row && productView(row);
   }
   createCustomer(v: CustomerInput) {
@@ -92,7 +110,7 @@ class SalesRecords {
     return saveProductRecord(this.productSaveContext(), v, { existing: { id, version }, includeArchived });
   }
   private productSaveContext() {
-    return { db: this.db, product: this.product.bind(this) };
+    return { db: this.db, customer: this.customer.bind(this), product: this.product.bind(this) };
   }
   /** 普通订单视图（订单头和明细，见 orders.ts） */
   orders(includeArchived = false): Order[] {

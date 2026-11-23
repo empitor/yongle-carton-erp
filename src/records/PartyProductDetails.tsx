@@ -1,21 +1,60 @@
-import { Facts, Hint, Section } from '../ui/index';
+import { Facts, FormMessage, Hint, Loading, Section, useLoad } from '../ui/index';
 import ContactSection from '../recordkit/ContactSection';
 import ProductMarks from '../marks/ProductMarks';
 import { formatDimensions, dimensionKeys, normalizeDimensionUnit, pageHref, plainPrice, priceFromCents } from '../../shared/core/index';
 import RelatedOrderList from './RelatedOrderList';
+import { loadCustomerProducts } from './list-api';
 import { useRecordContext } from '../recordkit/record-meta';
 import { useProductFamily } from '../recordkit/useProductFamily';
 import type { RecordRowOf } from './record-rows';
 
 type Sized = Parameters<typeof formatDimensions>[0];
 type Priced = { priceExact?: string | null; priceCents?: number | null };
+const PRODUCTS_SHOWN = 20;
 
-/** 客户详情：怎么联系，后面是这个客户的订单。 */
+/** 客户详情里的“产品”一节：列出属于这家客户的产品，点开看详情，多的时候点“全部产品”跳产品页 */
+function CustomerProductList({ customerId }: { customerId: number }) {
+  const loaded = useLoad(String(customerId), () => loadCustomerProducts(customerId));
+  const products = loaded.loading || loaded.error ? null : loaded.data,
+    error = loaded.loading ? '' : loaded.error;
+  return (
+    <Section
+      title={'产品' + (products ? ' ' + products.length : '')}
+      extra={
+        products && products.length > 0 ? (
+          <a className="sales-section-link" href={pageHref('products', { customerId })}>
+            全部产品
+          </a>
+        ) : undefined
+      }
+    >
+      {error ? (
+        <FormMessage>{error}</FormMessage>
+      ) : !products ? (
+        <Loading what="产品" />
+      ) : !products.length ? (
+        <p className="sales-muted">还没有指定给这家客户的产品。</p>
+      ) : (
+        <ul className="sales-order-links">
+          {products.slice(0, PRODUCTS_SHOWN).map((p) => (
+            <li key={p.id}>
+              <a href={pageHref('products', { record: p.id })}>{p.name}</a>
+              <small>{[productSize(p), p.material, p.flute].filter(Boolean).join(' / ') || '规格待补充'}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+/** 客户详情：怎么联系，后面是这个客户的产品和订单。 */
 export function CustomerDetail({ row }: { row: RecordRowOf['customers'] }) {
   useRecordContext('customers', row.id, row.name);
   return (
     <div data-agent-module="customers" data-agent-record={row.id} data-agent-label={row.name}>
       <ContactSection row={row} />
+      <CustomerProductList key={'cp' + row.id} customerId={row.id} />
       <RelatedOrderList
         key={'c' + row.id}
         query={{ customerId: row.id }}
@@ -65,9 +104,22 @@ export function ProductDetail({ row }: { row: RecordRowOf['products'] }) {
       {missing.length > 0 && (
         <Hint tone="warning">资料不全，还缺{missing.join('、')}。不影响下单，补全后排产和订料更准。</Hint>
       )}
+      {row.customerId == null && !!row.orderedCustomers?.length && (
+        <Hint tone="warning">
+          还没定所属客户，历史上给 {row.orderedCustomers.join('、')} 下过单；点“编辑”选定客户后只出现在该客户的订单里。
+        </Hint>
+      )}
       <Section title="规格">
         <Facts
           items={[
+            {
+              label: '客户',
+              value: row.customerId ? (
+                <a href={pageHref('customers', { record: row.customerId })}>{row.customerName || '查看'}</a>
+              ) : (
+                '未指定（所有客户都能选）'
+              ),
+            },
             { label: '尺寸', value: productSize(row) },
             {
               label: '附属于',

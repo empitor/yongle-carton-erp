@@ -1,4 +1,4 @@
-import { sales } from '../sales/index.js';
+import { orderedCustomersByProduct, productHasOrders, sales } from '../sales/index.js';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { includeArchivedFor, isSuperMode, notFound, requirePermission, route, type RequestAuth, type Store } from '../core/index.js';
@@ -36,7 +36,13 @@ export function recordsRouter(store: Store, auth?: RequestAuth) {
     return productList(store, fields, includeArchived);
   });
   on('GET /customers/:id', ({ param, req }) => sales(store).customer(recordId(param('id')), elevated(req)) ?? notFound('客户不存在'));
-  on('GET /products/:id', ({ param, req }) => sales(store).product(recordId(param('id')), elevated(req)) ?? notFound('产品不存在'));
+  on('GET /products/:id', ({ param, req }) => {
+    const id = recordId(param('id'));
+    const product = sales(store).product(id, elevated(req)) ?? notFound('产品不存在');
+    const ordered = productHasOrders(store, id);
+    const orderedCustomers = product.customerId == null ? orderedCustomersByProduct(store, [id]).get(id) : undefined;
+    return { ...product, ordered, ...(orderedCustomers?.length ? { orderedCustomers } : {}) };
+  });
   on('POST /customers', ({ body, req }) => manualWrite(store, { entity: 'customers', action: 'create', input: body }, editor(req)), created);
   on('POST /products', ({ body, req }) => manualWrite(store, { entity: 'products', action: 'create', input: body }, editor(req)), created);
   on('PUT /customers/:id', ({ param, body, req }) =>

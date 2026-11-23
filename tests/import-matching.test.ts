@@ -1,12 +1,12 @@
 // 识别导入的对应和正式导入走流程：编辑后选择按项失效、刷新保留、预览只复用已有档案、相近产品要人确认、归档的不能导。
 // 候选规则本身在 import-candidates.test.ts。
 import { sales } from '../server/sales/index.js';
-import { REPEAT_ORDER_REASON, emptyImportMapping, productCandidatesForLine } from '../shared/import/import-matching.js';
+import { emptyImportMapping, productCandidatesForLine } from '../shared/import/import-matching.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { orderSchema, productSchema } from '../shared/core/domain.js';
+import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { lineFields, type LineField, type OrderDraft } from '../shared/import/order-draft.js';
 import { draftFromForm, orderFormSchema } from '../shared/import/order-form.js';
 import { matchDraft } from '../server/import/matching.js';
@@ -179,66 +179,60 @@ test('匹配保存失败保留原草稿；完整预览与正式导入只复用�
   }
 });
 
-test('本客户以前订过的同名同规格产品，正式预览直接关联，不再逐个确认', async () => {
+test('识别匹配按客户筛候选，选别家客户产品被拦；新建产品归当前客户且导入计划不编造占位编号', async () => {
   const f = createOrderWorkflowFixture();
   try {
     const w = await recognized(f);
     const c = sales(f.store).customers()[0];
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构别家客户' }));
     const recognizedDraft = requiredDraft(w);
-    const products = recognizedDraft.lines.map((l) =>
-      sales(f.store).createProduct(productSchema.parse({ name: l.fields.productName.value })),
-    );
-    await assert.rejects(
-      f.execution.preview(w.id, { expectedRevision: w.revision }, actor),
-      /已找到产品候选/,
-      '只有名字一样、没订过，还是要问',
-    );
-    sales(f.store).saveOrder(
-      orderSchema.parse({
-        customerId: c.id,
-        orderDate: '2026-01-05',
-        deliveryDate: '2026-01-20',
-        status: '已确认',
-        lines: recognizedDraft.lines.map((l, i) => ({
-          productId: products[i].id,
-          specification: l.fields.specification.value,
-          quantity: 10,
-          unitPriceCents: 100,
-          unit: '只',
-        })),
+    const otherProduct = sales(f.store).createProduct(
+      productSchema.parse({
+        name: recognizedDraft.lines[0].fields.productName.value,
+        length: 300,
+        width: 200,
+        height: 150,
+        dimensionUnit: 'mm',
+        customerId: other.id,
       }),
     );
     const matched = matchDraft(f.store, w);
-    assert(recognizedDraft.lines.every((l) => matched.productCandidates[l.id][0].recommended));
-    // 识别结果页拿同一份客户历史、用同一个规则算，和正式预览结论一样
-    assert.equal(matched.customerHistory?.customerId, c.id);
-    assert.ok(matched.customerHistory);
-    for (const l of recognizedDraft.lines) {
-      const local = productCandidatesForLine(l, matched.products, matched.customerHistory.specs);
-      assert.deepEqual(local, matched.productCandidates[l.id]);
-      assert(local[0].reasons.includes(REPEAT_ORDER_REASON));
-    }
-    const preview = await f.execution.preview(w.id, { expectedRevision: w.revision }, actor);
-    assert.deepEqual(
-      preview.plan.products.map((p) => {
-        assert.ok(p.mode === 'existing');
-        return [p.mode, p.id];
-      }),
-      products.map((p) => ['existing', p.id]),
+    assert.deepEqual(matched.productCandidates[recognizedDraft.lines[0].id], [], '别家客户的产品不进候选');
+    // 强行把别家客户的产品选到当前客户的识别映射上：投影和预览都拦下
+    const wrongMapping = emptyImportMapping(recognizedDraft);
+    wrongMapping.customer = { mode: 'existing', id: c.id, version: c.version };
+    wrongMapping.products[recognizedDraft.lines[0].id] = { mode: 'existing', id: otherProduct.id, version: otherProduct.version };
+    wrongMapping.products[recognizedDraft.lines[1].id] = { mode: 'new' };
+    const wrongProjected = standardOrderDraft(f.store, { ...w, mapping: wrongMapping });
+    assert.ok(wrongProjected?.issues.some((x) => x.includes('这个产品是 虚构别家客户 的')));
+    const badW = f.imports.mapping(w.id, { expectedRevision: w.revision, mapping: wrongMapping }, actor);
+    await assert.rejects(
+      f.execution.preview(badW.id, { expectedRevision: badW.revision }, actor),
+      /这个产品是 虚构别家客户 的/,
     );
-    assert.equal(sales(f.store).products().length, 2);
-    // 已关联的老产品看档案里的资料：档案全的不提示“资料可后续补充”“尺寸单位待确认”
+    // 已关联的同客户完整产品不提示“资料可后续补充”“尺寸单位待确认”
     const full = sales(f.store).createProduct(
-      productSchema.parse({ name: '虚构资料全的箱', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'BC' }),
+      productSchema.parse({
+        name: '虚构资料全的箱',
+        length: 300,
+        width: 200,
+        height: 150,
+        dimensionUnit: 'mm',
+        material: 'K=A',
+        flute: 'BC',
+        customerId: c.id,
+      }),
     );
     const fullMapping = emptyImportMapping(recognizedDraft);
     fullMapping.customer = { mode: 'existing', id: c.id, version: c.version };
     for (const l of recognizedDraft.lines) fullMapping.products[l.id] = { mode: 'existing', id: full.id, version: full.version };
-    const standard = standardOrderDraft(f.store, { ...w, mapping: fullMapping });
+    const standard = standardOrderDraft(f.store, { ...badW, mapping: fullMapping });
     assert.ok(standard);
     assert.deepEqual(standard.notices.filter((s) => /可后续补充|尺寸单位待确认/.test(s)), []);
-    assert.ok(w.evaluation);
-    assert.equal(w.evaluation.issues.some((i) => /可后续补充|尺寸单位待确认/.test(i.message)), false, '识别结果不按原件的字另算一遍');
+    assert.equal(
+      productCandidatesForLine(recognizedDraft.lines[0], [otherProduct, full], c.id).every((x) => x.id !== otherProduct.id),
+      true,
+    );
   } finally {
     f.close();
   }
@@ -249,8 +243,8 @@ test('选了新建的照办，不要求“用户原话说过”：方案列出�
   try {
     let w = await recognized(f);
     const c = sales(f.store).customers()[0];
-    const old = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', material: 'K=A', flute: 'BC' }));
-    const stopped = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B' }));
+    const old = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', material: 'K=A', flute: 'BC', customerId: c.id }));
+    const stopped = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B', customerId: c.id }));
     f.store.markArchived('products', stopped.id, 'fixture');
     const recognizedDraft = requiredDraft(w);
     const mapping = emptyImportMapping(recognizedDraft);

@@ -17,8 +17,13 @@ const listQuery = {
 };
 
 export const customerQuerySchema = z.object(listQuery);
-/** 产品：只看资料不全的、按客户（这个客户下过单的产品）筛 */
-export const productQuerySchema = z.object({ ...listQuery, incomplete: flag.optional(), customerId: recordId.optional() });
+/** 产品：只看资料不全的、按所属客户筛、或只看没定客户的 */
+export const productQuerySchema = z.object({
+  ...listQuery,
+  incomplete: flag.optional(),
+  customerId: recordId.optional(),
+  unassigned: flag.optional(),
+});
 /** 订单：客户、产品、下单日期、显示状态、关键字、全部/待处理/历史，历史里是否留着没办完的 */
 export const orderQuerySchema = z.object({
   ...listQuery,

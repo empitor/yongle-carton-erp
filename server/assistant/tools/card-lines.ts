@@ -1,7 +1,7 @@
 // 确认卡片上一行行字怎么写（card-summary.ts 用）：动的是哪条（叫法加单号或名称）、单据每行品名数量、
 // 库存从多少变成多少、订货单的到货安排和登记到货、新建记录的标题和一行摘要。
 import { flowDocNames, recordNames } from '../../../shared/business/index.js';
-import { fieldLabel, fieldShort, quantityString, flowKinds } from '../../../shared/core/index.js';
+import { fieldLabel, fieldShort, nameWithCustomer, quantityString, flowKinds } from '../../../shared/core/index.js';
 import { type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
 import { assistantModules } from '../../../shared/assistant/index.js';
@@ -21,11 +21,15 @@ export const flowKindOf = (module: string) => flowKinds.find((k) => k === module
 const INBOX_TITLE_CHARS = 20;
 const partyOf = (row: Obj) => row.customerName || row.supplierName || '';
 const inParens = (v: unknown) => (v ? '（' + v + '）' : '');
+const customerText = (row: Obj) => (typeof row.customerName === 'string' ? row.customerName : undefined);
 const titles: Record<string, (row: Obj) => string> = {
   purchase_return: (row) => '采购退货 ' + row.number,
   order_batch: (row) => '订货单 ' + (row.number || row.id) + inParens(row.supplierName),
   inbox: (row) => '收件 ' + (row.fileName || row.senderName || String(row.text || '').slice(0, INBOX_TITLE_CHARS) || row.id),
-  stock_items: (row) => (row.kind === 'raw' ? '原材料 ' : '成品库存 ') + row.name,
+  products: (row) => recordNames.products + ' ' + nameWithCustomer(String(row.name || row.id), customerText(row)),
+  stock_items: (row) =>
+    (row.kind === 'raw' ? '原材料 ' : '成品库存 ') +
+    nameWithCustomer(String(row.name || row.id), row.kind === 'finished' ? customerText(row) : undefined),
   orders: (row) => recordNames.orders + ' ' + row.number + inParens(partyOf(row)),
   purchases: (row) => recordNames.purchases + ' ' + row.number + inParens(partyOf(row)),
 };
@@ -62,12 +66,13 @@ export function stockLines(ctx: ToolContext, moves: { item: number; delta: numbe
   return moves
     .filter((m) => m.delta)
     .map((m) => {
-      const item = ctx.ops.items(true, m.item)[0] || { name: '库存品', unit: '' },
+      const item = ctx.ops.items(true, m.item)[0] || { name: '库存品', unit: '', kind: 'raw' as const, customerName: undefined },
+        labelName = nameWithCustomer(item.name, item.kind === 'finished' ? item.customerName : undefined),
         before = ctx.ops.balance(m.item),
         unit = item.unit ? ' ' + item.unit : '';
       return {
         label: '库存',
-        value: item.name + '：' + quantityString(before) + unit + ' → ' + quantityString(before + m.delta) + unit + '（' + (m.delta > 0 ? '加 ' : '减 ') + quantityString(Math.abs(m.delta)) + unit + '）',
+        value: labelName + '：' + quantityString(before) + unit + ' → ' + quantityString(before + m.delta) + unit + '（' + (m.delta > 0 ? '加 ' : '减 ') + quantityString(Math.abs(m.delta)) + unit + '）',
       };
     });
 }

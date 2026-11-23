@@ -142,12 +142,15 @@ const pageReaders = {
     end: isoDate(p.get('end')),
   }),
   customers: (p: URLSearchParams) => ({
+    record: posInt(p.get('record')),
     q: text(p.get('q')),
     scope: readSimpleScope(p.get('scope')),
     archived: flag(p.get('archived')),
   }),
   products: (p: URLSearchParams) => ({
     record: posInt(p.get('record')),
+    customerId: posInt(p.get('customerId')),
+    unassigned: flag(p.get('unassigned')),
     q: text(p.get('q')),
     scope: readSimpleScope(p.get('scope')),
     archived: flag(p.get('archived')),

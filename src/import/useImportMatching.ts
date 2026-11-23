@@ -7,8 +7,8 @@ import {
   invalidateImportMapping,
   productCandidatesForLine,
   productMatchKey,
+  productsForCustomer,
   resolveCustomerCandidates,
-  type CustomerProductSpecs,
   type ImportMapping,
   type ImportMatchData,
   type ImportWorkspaceView,
@@ -119,12 +119,12 @@ function useCustomerResolution(matches: ImportMatchData | null, draft: OrderDraf
   }, [matches, buyer, savedBuyer, revision]);
 }
 
-/** 每行产品的候选档案（按行缓存：这一行的名称尺寸、档案、本客户老产品都没变就不重算） */
-function useCandidates(draft: OrderDraft, matches: ImportMatchData | null, history: CustomerProductSpecs | undefined) {
+/** 每行产品的候选档案（按行缓存：这一行的名称尺寸、档案、当前客户都没变就不重算） */
+function useCandidates(draft: OrderDraft, matches: ImportMatchData | null, customerId: number | null) {
   const cache = useRef(
     new Map<
       string,
-      { key: string; products: ImportMatchData['products']; history: CustomerProductSpecs | undefined; value: Candidates }
+      { key: string; products: ImportMatchData['products']; customerId: number | null; value: Candidates }
     >(),
   );
   return useMemo(
@@ -134,14 +134,14 @@ function useCandidates(draft: OrderDraft, matches: ImportMatchData | null, histo
           const products = matches?.products || [],
             key = productMatchKey(l),
             cached = cache.current.get(l.id);
-          if (cached?.key === key && cached.products === products && cached.history === history)
+          if (cached?.key === key && cached.products === products && cached.customerId === customerId)
             return [l.id, cached.value];
-          const value = productCandidatesForLine(l, products, history);
-          cache.current.set(l.id, { key, products, history, value });
+          const value = productCandidatesForLine(l, products, customerId);
+          cache.current.set(l.id, { key, products, customerId, value });
           return [l.id, value];
         }),
       ),
-    [draft, matches, history],
+    [draft, matches, customerId],
   );
 }
 
@@ -187,11 +187,12 @@ function useAutoChoose(
   }, [candidates, matches, lines, mappingRef, invalidRef, productTouched, update, setSaveState]);
 }
 
-/** 还有没处理完的：被作废的、客户对不上唯一一个、选的档案已经变了、有行不能新建又没选 */
+/** 还有没处理完的：被作废的、客户对不上唯一一个、选的档案已经变了或属别家客户、有行不能新建又没选 */
 function unresolvedOf(
   state: Pick<MappingState, 'mapping' | 'invalidated'>,
   found: { matches: ImportMatchData | null; customer: CustomerResolution | null; candidates: Record<string, Candidates> },
   lines: OrderDraft['lines'],
+  customerId: number | null,
 ) {
   const { mapping, invalidated } = state,
     { matches, customer, candidates } = found,
@@ -202,10 +203,11 @@ function unresolvedOf(
     (chosen.mode === 'pending' && customer?.state === 'ambiguous') ||
     (!!matches && chosen.mode === 'existing' && !matches.customers.some((c) => c.id === chosen.id && c.version === chosen.version)) ||
     (!!matches &&
-      Object.values(mapping.products).some(
-        (choice) =>
-          choice.mode === 'existing' && !matches.products.some((p) => p.id === choice.id && p.version === choice.version),
-      )) ||
+      Object.values(mapping.products).some((choice) => {
+        if (choice.mode !== 'existing') return false;
+        const p = matches.products.find((x) => x.id === choice.id && x.version === choice.version);
+        return !p || (p.customerId != null && p.customerId !== customerId);
+      })) ||
     lines.some(
       (l) =>
         (!mapping.products[l.id] || mapping.products[l.id].mode === 'pending') && candidates[l.id]?.some(blocksNewProduct),
@@ -269,33 +271,50 @@ export function useImportMatching(
     productTouched = useRef(new Set<string>());
   const save = useMappingSave(state, workspace, draft, onSave);
   const customerResolution = useCustomerResolution(matches, draft, workspace);
-  // 本客户老产品按当前选的客户算（没选就是按名字唯一对上的那位）；换了客户，以前订过的就不算
+  // 产品候选只列当前选定客户的产品和没定客户的通用产品；新客户只看没定客户的
   const customerId =
     mapping.customer.mode === 'existing'
       ? mapping.customer.id
-      : customerResolution?.state === 'resolved'
-        ? customerResolution.customer.id
-        : undefined;
-  const history =
-    customerId !== undefined && matches?.customerHistory?.customerId === customerId ? matches.customerHistory.specs : undefined;
-  const candidates = useCandidates(draft, matches, history);
+      : mapping.customer.mode === 'new'
+        ? null
+        : customerResolution?.state === 'resolved'
+          ? customerResolution.customer.id
+          : null;
+  const eligibleProducts = useMemo(
+    () => (matches ? productsForCustomer(matches.products, customerId) : []),
+    [matches, customerId],
+  );
+  const candidates = useCandidates(draft, matches, customerId);
   const found = { matches, customer: customerResolution, candidates };
   useAutoChoose(state, found, draft.lines, { customer: customerTouched, products: productTouched });
   const select = (next: ImportMapping, kind: 'customer' | string) => {
     const notices = structuredClone(invalidRef.current);
+    const updated = structuredClone(next);
     if (kind === 'customer') {
       customerTouched.current = true;
       delete notices.customer;
+      const nextCid = updated.customer.mode === 'existing' ? updated.customer.id : null;
+      if (matches)
+        for (const [lineId, choice] of Object.entries(updated.products)) {
+          if (choice.mode !== 'existing') continue;
+          const p = matches.products.find((x) => x.id === choice.id);
+          if (p && p.customerId != null && p.customerId !== nextCid) {
+            updated.products[lineId] = { mode: 'pending' };
+            notices.products[lineId] = '已更换客户，原产品属于其他客户，请重新选择';
+          }
+        }
     } else {
       productTouched.current.add(kind);
       delete notices.products[kind];
     }
-    state.update(next, notices);
+    state.update(updated, notices);
     state.setSaveState('idle');
     state.setSaveError('');
   };
   return {
     matches,
+    customerId,
+    eligibleProducts,
     readError,
     mapping,
     invalidated: state.invalidated,
@@ -306,6 +325,6 @@ export function useImportMatching(
     saveState: state.saveState,
     saveError: state.saveError,
     dirty: JSON.stringify(mapping) !== JSON.stringify(normalized(workspace.mapping, draft)),
-    unresolved: unresolvedOf(state, found, draft.lines),
+    unresolved: unresolvedOf(state, found, draft.lines, customerId),
   };
 }

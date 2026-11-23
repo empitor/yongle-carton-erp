@@ -1,4 +1,4 @@
-import type { CustomerInput, OrderInput, ProductInput } from '../core/index.js';
+import type { CustomerInput, PlannedOrderInput, ProductInput } from '../core/index.js';
 
 /*
  * 正式导入的计划和回执（服务端 server/import/import-plan.ts 生成、import-execution.ts 执行；导入预览窗、批量导入窗按它显示）。
@@ -16,7 +16,7 @@ export type Plan = {
   source: { id: string; hash: string; fileName: string; revision: number };
   customer: CustomerPlanRef;
   products: ProductPlanRef[];
-  order: OrderInput;
+  order: PlannedOrderInput;
   fingerprint: string;
   /** 订单金额合计（原币，精确小数）；明细数量单价有缺时算不出来是 null（这种识别结果过不了导入前的核对） */
   total: string | null;

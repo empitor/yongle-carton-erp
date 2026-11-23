@@ -72,6 +72,7 @@ const derivedNames: Record<string, string> = {
   onOrder: '在途数量',
   onOrderUnits: '在途数量（系统换算）',
   usage: '用没用过',
+  ordered: '是否已下过单',
   hasProduction: '有没有完工',
   actualStartDate: '实际开工日期',
   actualCompletionDate: '实际完工日期',

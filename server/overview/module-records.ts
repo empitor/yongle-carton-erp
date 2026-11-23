@@ -1,4 +1,4 @@
-import { sales } from '../sales/index.js';
+import { orderedProductIds, sales } from '../sales/index.js';
 import type { Store } from '../core/index.js';
 import type { TrackedOrder, FlowKind } from '../../shared/core/index.js';
 import { batchNumbers } from '../operations/index.js';
@@ -23,6 +23,11 @@ export function entityRecords(store: Store, entity: RecordEntity, includeArchive
     return trackOrders(store, orders);
   }
   return ids ? businessRecords(store, entity, ids, includeArchived) : businessList(store, entity, includeArchived);
+}
+
+/** 批量查这批产品里哪些下过订单（数据管理据此在编辑窗锁住已定客户的下拉） */
+export function orderedProducts(store: Store, productIds: readonly number[]) {
+  return orderedProductIds(store, productIds);
 }
 
 /** 单据上补的名称：产品名（生产任务、完工）、客户名（送货）、供应商名、订货单号和原件文件名（到货） */

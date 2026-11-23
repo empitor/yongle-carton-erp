@@ -1,4 +1,4 @@
-import { sales } from '../sales/index.js';
+import { sales, assertNewProductAllowed } from '../sales/index.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, open, rename } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -152,7 +152,9 @@ export class ImportExecutionService {
         if (p.mode === 'existing') return p.id;
         const cached = cache.get(p.key);
         if (cached !== undefined) return cached;
-        const product = sales(this.store).createProduct(productSchema.parse(p.input));
+        const nextInput = productSchema.parse({ ...p.input, customerId });
+        assertNewProductAllowed(this.store, nextInput, true);
+        const product = sales(this.store).createProduct(nextInput);
         cache.set(p.key, product.id);
         created.push({ entity: 'products', id: product.id });
         return product.id;

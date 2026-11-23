@@ -53,8 +53,11 @@ export function productMetrics(rows: (SpecFields & { archived?: unknown })[]) {
     incomplete: rows.filter(productIncomplete).length,
   };
 }
-export function matchesProduct(row: { name?: MaybeText; material?: MaybeText; flute?: MaybeText; requirements?: MaybeText }, q: string) {
-  return [row.name, row.material, row.flute, row.requirements]
+export function matchesProduct(
+  row: { name?: MaybeText; customerName?: MaybeText; material?: MaybeText; flute?: MaybeText; requirements?: MaybeText },
+  q: string,
+) {
+  return [row.name, row.customerName, row.material, row.flute, row.requirements]
     .join(' ')
     .toLowerCase()
     .includes(q.toLowerCase());
@@ -63,6 +66,7 @@ export function matchesProduct(row: { name?: MaybeText; material?: MaybeText; fl
 type OperationalText = {
   name?: MaybeText;
   number?: MaybeText;
+  customerName?: MaybeText;
   supplierName?: MaybeText;
   specification?: MaybeText;
   material?: MaybeText;
@@ -81,6 +85,7 @@ export function operationalSearchText(row: OperationalText) {
   return [
     row.name,
     row.number,
+    row.customerName,
     row.supplierName,
     row.specification,
     row.material,

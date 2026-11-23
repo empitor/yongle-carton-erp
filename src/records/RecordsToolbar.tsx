@@ -1,5 +1,6 @@
 import { displayOrderStatuses } from '../../shared/core/index';
 import type { RecordLists } from './useRecordLists';
+import { UNASSIGNED_CUSTOMER } from './record-filters';
 import { DateFilter, FilterRow, ListToolbar } from '../ui/index';
 
 /**
@@ -20,6 +21,7 @@ export default function RecordsToolbar({
     <FilterRow label="客户">
       <select aria-label="筛选客户" value={l.customerId} onChange={(e) => l.setCustomerId(e.target.value)}>
         <option value="">全部客户</option>
+        {page === 'products' && <option value={UNASSIGNED_CUSTOMER}>没定客户</option>}
         {l.customers.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
@@ -44,7 +46,7 @@ export default function RecordsToolbar({
           ? '搜索单号、客户、产品'
           : page === 'customers'
             ? '搜索客户、联系人、电话、地址'
-            : '搜索产品名称、材质、楞型'
+            : '搜索产品名称、客户、材质、楞型'
       }
       scopes={
         page === 'orders'

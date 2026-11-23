@@ -139,7 +139,11 @@ export function productActions(c: ActionContext<Product>): ActionLists {
   const { row } = c;
   // 看到某个产品库存少了，没有订单也能先排生产备货；和“新建订单”并列高亮
   const produce = { label: '安排生产', onClick: () => c.setDialog({ type: 'task', products: [row] }) };
-  const order = { label: '新建订单', emphasis: true, onClick: () => newOrderFrom({ productIds: [row.id] }) };
+  const order = {
+    label: '新建订单',
+    emphasis: true,
+    onClick: () => newOrderFrom({ customerId: row.customerId ?? undefined, productIds: [row.id] }),
+  };
   return productIncomplete(row)
     ? { steps: [{ label: '补全资料', onClick: c.onEdit }, produce, { ...order, emphasis: false }], extra: [], danger: [], leadEdit: false }
     : { steps: [produce, order], extra: [], danger: [], leadEdit: true };

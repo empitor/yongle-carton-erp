@@ -42,17 +42,18 @@ export function specWithoutMaterial(row: {
     .join(' / ');
 }
 
-/** 库存品的那一行：规格说明里已经写了材质、楞型的不再接一遍；“现存 1050 只”整段不断行，单位不单独掉到下一行 */
+/** 库存品的那一行：成品先带出所属客户名；规格说明里已经写了材质、楞型的不再接一遍；“现存 1050 只”整段不断行 */
 function stockSubtitle(row: StockItemView): ReactNode {
   const spec = specLine({
       ...row,
       material: inSpec(row, row.material) ? null : row.material,
       flute: inSpec(row, row.flute) ? null : row.flute,
     }),
+    head = join([row.kind === 'finished' ? row.customerName : undefined, spec]),
     stock = ['现存', row.quantity, row.unit].filter((v) => v != null && v !== '').join(' ');
   return (
     <>
-      {spec && spec + ' · '}
+      {head && head + ' · '}
       <span className="nowrap">{stock}</span>
     </>
   );
@@ -71,7 +72,7 @@ const headers: { [E in RecordEntity]: Header<RecordRowOf[E]> } = {
   suppliers: { kicker: () => '供应商', subtitle: (row) => join([row.contact, row.phone]), status: () => '' },
   products: {
     kicker: () => '产品',
-    subtitle: (row) => join([productSize(row), row.material, row.flute]),
+    subtitle: (row) => join([row.customerName, productSize(row), row.material, row.flute]),
     status: (row) => (productIncomplete(row) ? '资料不全' : ''),
   },
   purchases: {

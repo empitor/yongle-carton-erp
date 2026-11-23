@@ -19,6 +19,7 @@ export default function DataManagementRecordDialog({
   setInput,
   busy,
   error,
+  sameName = false,
   fieldErrors = {},
   refs,
   save,
@@ -32,11 +33,13 @@ export default function DataManagementRecordDialog({
   setInput: (v: JsonObject) => void;
   busy: boolean;
   error: string;
+  /** 服务端提示同客户已有同名不同规格产品，需人确认“是另一个产品” */
+  sameName?: boolean;
   /** 没法提交的那几格（按字段路径，如“costs.material”）：原因写在那一格下面 */
   fieldErrors?: Record<string, string>;
   /** 关联字段的候选（客户、产品、订单……），还在读是 null */
   refs: RecordRefs | null;
-  save: () => void;
+  save: (confirmDistinct?: boolean) => void;
   close: () => void;
 }) {
   // 每点一次保存加一：同一句报错再出现一次也要再滚过去
@@ -78,11 +81,11 @@ export default function DataManagementRecordDialog({
             disabled={busy}
             onClick={() => {
               setAttempt((n) => n + 1);
-              save();
+              save(sameName);
             }}
           >
             <Save size={14} aria-hidden="true" />
-            {busy ? '正在保存…' : '保存' + dataManagementNames[module]}
+            {busy ? '正在保存…' : sameName ? '确认是另一个产品，继续保存' : '保存' + dataManagementNames[module]}
           </button>
         </EditorFooter>
       }

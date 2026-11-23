@@ -362,9 +362,10 @@ test('order-import-prepare：已有识别结果时 recognize 不再调模型，�
 test('order-import-card：卡片上客户和每行产品都写明用已有档案还是新建，新建的下面列出相近的已有档案（照导入方案给的列）', async () => {
   const { f, w, wf, ctx } = await setup();
   try {
+    const buyer = sales(f.store).customers()[0];
     const old = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm' }));
-    // 和第 2 行同名、尺寸不同的老产品：第 2 行要新建时它是“相近的已有档案”
-    sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱乙', length: 210, width: 150, height: 100, dimensionUnit: 'mm' }));
+    // 和第 2 行同名、尺寸不同的老产品（同一客户下）：第 2 行要新建时它是“已有同名的产品”
+    sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱乙', length: 210, width: 150, height: 100, dimensionUnit: 'mm', customerId: buyer.id }));
     await attach(wf, { workspaceId: w.id }, ctx());
     await onTask(wf, 'order_import.match', {}, ctx());
     await onTask(wf, 'order_import.match', { line: 1, productId: old.id }, ctx());

@@ -20,6 +20,7 @@ export const recordLifecycles = ['active', 'archived', 'all'] as const;
 const filterShape = {
   q: z.string().max(SEARCH_MAX_LENGTH).optional(),
   customerId: positive.optional(),
+  unassigned: z.boolean().optional().describe('产品专用：只看还没定所属客户的产品'),
   supplierId: positive.optional(),
   productId: positive.optional(),
   stockId: positive.optional(),
@@ -57,7 +58,7 @@ type Specific = { status: boolean; pending: boolean | null; inView: boolean | nu
 const statusFields = (r: Fields, status: string) =>
   r.status === status || r.shippingProgress === status || r.arrivalProgress === status || r.businessStatus === status;
 const generic = (r: Fields, f: RecordFilters): Specific => ({ status: !!f.status && statusFields(r, f.status), pending: null, inView: null });
-/** 筛选的现场：模块、筛选条件、按订单或采购单关联出来的产品或库存品编号（没有是 null） */
+/** 筛选的现场：模块、筛选条件、按所属产品或采购单关联出来的库存品编号（没有是 null） */
 export type FilterScope = { module: Module; f: RecordFilters; partyIds: Set<number> | null };
 
 const isInventory = (module: Module) => !!stockKindOf(module);
@@ -75,10 +76,11 @@ function textMatch(r: Fields, q: string) {
     .toLowerCase()
     .includes(q);
 }
-/** 客户、供应商：产品、库存品按订单和采购单关联出来，别的看记录上的编号 */
+/** 客户、供应商：库存品按所属产品或采购单关联出来，别的看记录上的编号；产品支持 unassigned=true 只看没定客户的 */
 function partyMatch(r: Fields, s: FilterScope) {
-  const { f, partyIds } = s;
+  const { f, partyIds, module } = s;
   if (partyIds) return partyIds.has(Number(r.id));
+  if (module === 'products' && f.unassigned && r.customerId != null) return false;
   const customerIds = Array.isArray(r.customerIds) ? r.customerIds : [];
   return (
     (!f.customerId || r.customerId === f.customerId || customerIds.includes(f.customerId)) &&

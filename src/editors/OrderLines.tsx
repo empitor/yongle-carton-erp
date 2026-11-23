@@ -197,9 +197,18 @@ function OrderLineExtras({ l, i, orderDate, expanded, change }: LineProps) {
  * 本单名称、客户料号、分项交期、税费和备注收在每行下面的展开行里；
  * 展开行一直在页面上（只是隐藏），必填检查照常生效，没填好时会自动展开。
  */
+const productOption = (p: Product): Option => ({
+  value: String(p.id),
+  label: p.name,
+  hint: [p.customerName, p.material, p.flute].filter(Boolean).join(' / '),
+  keywords: p.customerProductCode,
+});
+
 export default function OrderLines({
   lines,
   products,
+  customerId,
+  keptProducts,
   orderDate,
   open,
   toggle,
@@ -210,6 +219,8 @@ export default function OrderLines({
 }: {
   lines: OrderLineDraft[];
   products: Product[];
+  customerId: number | null;
+  keptProducts: ReadonlyMap<number, number>;
   orderDate: string;
   open: string[];
   toggle: (key: string) => void;
@@ -218,12 +229,17 @@ export default function OrderLines({
   quick: (index: number) => void;
   remove: (index: number) => void;
 }) {
-  const options = products.map((p) => ({
-    value: String(p.id),
-    label: p.name,
-    hint: [p.material, p.flute].filter(Boolean).join(' / '),
-    keywords: p.customerProductCode,
-  }));
+  // 选了客户后，下拉只列该客户的产品和没定客户的通用产品；仅老订单未换客户时的原明细保留原产品供显示
+  const scoped = customerId
+    ? products.filter((p) => p.customerId == null || p.customerId === customerId)
+    : products;
+  const baseOptions = scoped.map(productOption);
+  const optionsFor = (l: OrderLineDraft) => {
+    if (!customerId || !l.productId || l.id == null || keptProducts.get(l.id) !== Number(l.productId)) return baseOptions;
+    if (baseOptions.some((o) => o.value === l.productId)) return baseOptions;
+    const kept = products.find((p) => String(p.id) === l.productId);
+    return kept ? [productOption(kept), ...baseOptions] : baseOptions;
+  };
   return (
     <div className="line-table sales-line-table">
       <table>
@@ -241,7 +257,7 @@ export default function OrderLines({
           const line: LineProps = {
             l,
             i,
-            options,
+            options: optionsFor(l),
             products,
             orderDate,
             expanded: open.includes(l.key),

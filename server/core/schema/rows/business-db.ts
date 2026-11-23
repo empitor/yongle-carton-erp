@@ -41,6 +41,7 @@ export const businessRows = {
     created_at: z.string(),
     updated_at: z.string(),
     requirements: z.string(),
+    customer_id: z.number().nullable(),
   }),
   orders: z.object({
     id: z.number(),

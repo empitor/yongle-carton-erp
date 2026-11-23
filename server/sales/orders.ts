@@ -130,7 +130,7 @@ export function saveOrder(ctx: OrderSaveContext, v: OrderInput, target: OrderSav
   if (!customer) throw new InputError('客户不存在或已归档，请先恢复客户或重新选择');
   const previous = existing ? ctx.order(existing.id, includeArchived) : undefined;
   const retainedIds = checkedLineIds(v.lines, previous);
-  const lines = savedLines(ctx, v, previous, includeArchived);
+  const lines = savedLines(ctx, v, customer, previous, includeArchived);
   const precise = precisionTotal(lines);
   checkEdit?.({ customerId: v.customerId, status: v.status, lines });
   // 订单上的附加信息：这次没给的沿用原来的，都没有就是 NULL（币种只有人民币）
@@ -194,12 +194,24 @@ function carriedLineFields(l: LineInput, old: StoredLineView | undefined) {
   };
 }
 
-/** 这次要存的明细：产品、名称、单位、单价按规则定下来（产品不存在、单位不对、单价对不上就拒收） */
-function savedLines(ctx: OrderSaveContext, v: OrderInput, previous: Order | undefined, includeArchived: boolean) {
+/** 这次要存的明细：产品、归属客户、名称、单位、单价按规则定下来（产品不存在、属别家客户、单位不对、单价对不上就拒收） */
+function savedLines(
+  ctx: OrderSaveContext,
+  v: OrderInput,
+  customer: Customer,
+  previous: Order | undefined,
+  includeArchived: boolean,
+) {
   return v.lines.map((l) => {
     const p = ctx.product(l.productId, includeArchived);
     if (!p) throw new InputError('产品不存在或已归档，请先恢复产品或重新选择');
     const old = previous?.lines.find((x) => x.id === l.id && x.productId === l.productId);
+    // 新加或换了产品的明细（或订单换了客户）要核对产品归属；老订单里没动的已有明细不拦
+    const unchanged = !!old && previous?.customerId === v.customerId;
+    if (!unchanged && p.customerId != null && p.customerId !== v.customerId) {
+      const owner = p.customerName || ctx.customer(p.customerId, true)?.name || '其他客户';
+      throw new InputError(`这个产品是 ${owner} 的，要给 ${customer.name} 用请复制一份`);
+    }
     const productName = lineName(l, previous, old, p.name);
     // 产品数量单位只有“只”：“个”、没写、pcs 都存成“只”，别的一律拒收
     const unit = finishedUnit(l.unit ?? old?.unit);

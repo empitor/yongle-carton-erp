@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { fieldLabel } from './field-names.js';
 export type DimensionUnit = 'mm' | 'cm';
+/** 名称后带所属客户：只有客户名非空时才带括号（成品库存、产品修改卡片、送货安排等共用） */
+export function nameWithCustomer(name: string, customerName?: string | null) {
+  const who = customerName?.trim();
+  return who ? name + '（' + who + '）' : name;
+}
 /** 尺寸单位的叫法：选择、说单位本身时写全“毫米（mm）”；跟在尺寸数值后面照旧写 mm、cm */
 export const dimensionUnitNames: Record<DimensionUnit, string> = { mm: '毫米（mm）', cm: '厘米（cm）' };
 /** 规格字段：规格说明、长宽高和尺寸单位、材质、楞型（都可以没写）。产品、纸板、订货单行、查重都用这一组。 */

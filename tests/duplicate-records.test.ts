@@ -73,6 +73,45 @@ test('产品查重三条：料号相同一律拦；同名同尺寸材质拦；�
   }
 });
 
+test('产品查重只在同一个客户里查：不同客户允许同名同尺寸、同料号；两边都没定客户算同一组', () => {
+  const store = new Store(':memory:');
+  try {
+    const a = sales(store).createCustomer(customerSchema.parse({ name: '虚构甲客户' })),
+      b = sales(store).createCustomer(customerSchema.parse({ name: '虚构乙客户' }));
+    sales(store).createProduct(
+      productSchema.parse({ name: '虚构通用箱', ...box, customerProductCode: 'CODE-1', customerId: a.id }),
+    );
+    // 同一客户下同料号、同名同尺寸材质拦下
+    assert.throws(
+      () => assertNewProductAllowed(store, { name: '别的名字', customerProductCode: 'CODE-1', customerId: a.id }, true),
+      /客户料号/,
+    );
+    assert.throws(
+      () => assertNewProductAllowed(store, { name: '虚构通用箱', ...box, customerId: a.id }, true),
+      /尺寸、材质都相同的产品/,
+    );
+    // 不同客户（或未定客户）完全允许同名同尺寸材质、同料号
+    assert.deepEqual(productDuplicates(store, { name: '虚构通用箱', ...box, customerProductCode: 'CODE-1', customerId: b.id }), {
+      sameCode: [],
+      sameProduct: [],
+      sameName: [],
+    });
+    assert.deepEqual(productDuplicates(store, { name: '虚构通用箱', ...box, customerProductCode: 'CODE-1', customerId: null }), {
+      sameCode: [],
+      sameProduct: [],
+      sameName: [],
+    });
+    // 两边都没定客户（NULL）算同一组
+    sales(store).createProduct(productSchema.parse({ name: '虚构无主箱', ...box, customerProductCode: 'NULL-1' }));
+    assert.throws(
+      () => assertNewProductAllowed(store, { name: '虚构无主箱', ...box, customerId: null }, true),
+      /尺寸、材质都相同的产品/,
+    );
+  } finally {
+    store.close();
+  }
+});
+
 test('同一张订单两行新建同名产品：资料完全一样的合成一个、不用确认；资料不一样的各自确认', () => {
   const store = new Store(':memory:');
   try {

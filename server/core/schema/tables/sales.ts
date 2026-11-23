@@ -40,10 +40,12 @@ CREATE TABLE products(
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   requirements TEXT NOT NULL DEFAULT '',
+  customer_id INTEGER REFERENCES customers(id),
   CHECK(dimension_unit IS NULL OR dimension_unit='mm' OR (COALESCE(length,0)<=1000 AND COALESCE(width,0)<=1000 AND COALESCE(height,0)<=1000)),
   CHECK(parent_product_id IS NULL OR parent_product_id<>id)
 ) STRICT;
 CREATE INDEX products_parent ON products(parent_product_id) WHERE parent_product_id IS NOT NULL;
+CREATE INDEX products_customer ON products(customer_id);
 
 -- 订单。total_cents 是按明细算出来存着的合计（分）；精确到万分之一元的合计不存，读的时候按明细现算。
 -- 只收人民币；附加信息（客户采购单号、原件上的供应方、税率、含税口径、合同条件、尾数规则）从没给过的是 NULL，
