@@ -1,4 +1,4 @@
-// 产品唛头资料（业务汇总自己的表）的删除、初始化规则（server/core/deletion-rules.ts）
+// 产品唛头资料（业务总览自己的表）的删除、初始化规则（server/core/deletion-rules.ts）
 import './marks-deletion.js';
 export { buildDashboard } from './dashboard.js';
 export { periodOrders } from './period-records.js';

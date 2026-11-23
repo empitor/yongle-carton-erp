@@ -1,4 +1,4 @@
-// 库存流水的查询（server/operations/movements.ts、router.ts 的流水列表，server/business/dashboard.ts 的最近流水）：
+// 库存流水的查询（server/operations/movements.ts、router.ts 的流水列表，server/overview/dashboard.ts 的最近流水）：
 // 关键词查名称、算出来的规格、材质、备注（不分大小写）、采购单号；日期范围、分页、计数、汇总；接口的统计带上有匹配流水的库存品。
 // 期望值都按下面的虚构数据手算写死。内存库、虚构数据。
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
-import { buildDashboard } from '../server/business/dashboard.js';
+import { buildDashboard } from '../server/overview/dashboard.js';
 import type { MovementFilters } from '../shared/business/index.js';
 import { pageActor } from './actor-fixture.js';
 import { listen, testProblems } from './http-fixture.js';

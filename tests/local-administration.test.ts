@@ -16,7 +16,7 @@ import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { manageWorkspaces } from '../server/admin/workspace-management.js';
 import { FlowService } from '../server/flow/index.js';
-import { recordContext } from '../server/business/record-context.js';
+import { recordContext } from '../server/overview/record-context.js';
 import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { historyActionName } from '../shared/business/history-fields.js';

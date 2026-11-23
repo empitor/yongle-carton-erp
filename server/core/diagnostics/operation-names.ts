@@ -59,7 +59,7 @@ const resources: [string, string][] = [
   ['/auth/users', '账号'],
   ['/auth/requests', '账号申请'],
   ['/auth', '登录状态'],
-  ['/business', '业务汇总'],
+  ['/business', '业务总览'],
   ['/dashboard', '经营概览'],
   ['/customers', '客户'],
   ['/products', '产品'],

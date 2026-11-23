@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { Store } from '../server/core/db.js';
 import { businessBase } from './business-base-fixture.js';
 import { FlowService } from '../server/flow/index.js';
-import { buildDashboard } from '../server/business/dashboard.js';
+import { buildDashboard } from '../server/overview/dashboard.js';
 import { toolsOf } from './assistant-fixture.js';
 import { planCorrection } from '../server/flow/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';

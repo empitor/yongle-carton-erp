@@ -11,7 +11,7 @@ import type { StockItemView } from '../shared/business/index.js';
 import { registerArrival } from '../server/flow/index.js';
 import { syncReceivedUnits } from '../server/flow/rules/receipt-events.js';
 import { viewAs } from './read-result.js';
-import { buildDashboard } from '../server/business/dashboard.js';
+import { buildDashboard } from '../server/overview/dashboard.js';
 
 function fixture(lines?: (string | [StockItemView, string])[]) {
   const f = flowFixture();

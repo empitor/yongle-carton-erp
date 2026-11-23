@@ -10,10 +10,10 @@ import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { count, many, resetCounts, resetParticipants, rows } from '../server/core/index.js';
 import { AssistantAttachments } from '../server/assistant/attachments.js';
-// 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务汇总加载时登记（server/core/deletion-rules.ts）
+// 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务总览加载时登记（server/core/deletion-rules.ts）
 import '../server/finance/index.js';
 import '../server/import/index.js';
-import '../server/business/index.js';
+import '../server/overview/index.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { financePermissions } from '../shared/core/accounts.js';
@@ -388,7 +388,7 @@ test('初始化的范围：每张表要么由所属模块登记清空，要么�
       .all()
       .map((r) => String(r.name));
     const cleared = new Set(
-      resetParticipants(['业务汇总', '识别导入', '单据流转', '采购库存', '单据导出', '基础'], true).flatMap((r) => Object.keys(resetCounts(store, r))),
+      resetParticipants(['业务总览', '识别导入', '单据流转', '采购库存', '单据导出', '基础'], true).flatMap((r) => Object.keys(resetCounts(store, r))),
     );
     assert.deepEqual(all.filter((t) => !cleared.has(t) && !kept[t]), [], '没登记清空、也没写明保留的表');
     assert.deepEqual([...cleared].filter((t) => !all.includes(t)), [], '登记清空的表都在库里');

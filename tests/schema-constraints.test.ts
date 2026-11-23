@@ -121,7 +121,7 @@ function enumOwners(): Record<string, readonly string[]> {
     // 单据导出
     'document_exports.record_kind': documentExportSchema.shape.kind.options,
     'document_exports.format': documentExportSchema.shape.format.options,
-    // 业务汇总
+    // 业务总览
     'product_marks.source_kind': markSourceKinds,
     // 识别导入
     'inbox_items.channel': inboxChannels,

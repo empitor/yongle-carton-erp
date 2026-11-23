@@ -1,6 +1,6 @@
 // 数据管理保存时读出来才有的栏目（已发数量、金额、单号这类系统算出来的）：照读到的记录原样带回来不算错，
 // 改了值、或带了记录里根本没有的栏目才拦，报错一律中文（server/admin/input-fields.ts、field-rejection.ts）。
-// 助手 records.get 读到的订单、采购单是业务汇总的记录，单据是单据视图（明细和数据管理列表的 record 同一份），这里用后者代替。
+// 助手 records.get 读到的订单、采购单是业务总览的记录，单据是单据视图（明细和数据管理列表的 record 同一份），这里用后者代替。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { inputSchemas, type ManagedModule } from '../server/admin/managed-records.js';

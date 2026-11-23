@@ -5,7 +5,7 @@ import { supplierSchema, purchaseSchema, stockItemSchema } from '../../shared/bu
 import { flowInput, type FlowDocView } from '../../shared/business/index.js';
 import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../../shared/business/index.js';
 import type { RecordEntity, dataManagementModules } from '../../shared/business/index.js';
-import { entityRecords, namedDocuments, type EntityRecordOf } from '../business/index.js';
+import { entityRecords, namedDocuments, type EntityRecordOf } from '../overview/index.js';
 import type { FlowService } from '../flow/index.js';
 // 数据管理读记录：一个模块的全部记录或选中的几条，每条给列表显示用的 record 和编辑窗用的 input（补上名字、单号、用没用过）。
 
@@ -109,7 +109,7 @@ export class ManagedRecords {
     }));
   }
   /**
-   * 单据列表：业务汇总按模块读记录的那一份（namedDocuments），补上关联的名称——待入库、已取消的到货单和待送货的送货单
+   * 单据列表：业务总览按模块读记录的那一份（namedDocuments），补上关联的名称——待入库、已取消的到货单和待送货的送货单
    * document 里还没记名字（确认时才写），按档案补；到货单另补订货单号和原件文件名。只补显示用的 record，单据内容（input）和库里都不改。
    */
   private flowDisplayed(kind: FlowKind): FlowDocView[] {

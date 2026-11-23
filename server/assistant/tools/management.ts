@@ -5,7 +5,7 @@ import { manageWorkspaces, DataManagementService } from '../../admin/index.js';
 import { assistantManagementSchema } from '../../../shared/assistant/index.js';
 import { withDimensionConversion } from '../management-dimensions.js';
 import { requireLocalAdministrator } from '../../core/index.js';
-import { recordContext } from '../../business/index.js';
+import { recordContext } from '../../overview/index.js';
 import { deletionSelection } from '../../../shared/business/index.js';
 import { DatabaseMaintenanceService } from '../../lifecycle/index.js';
 import { BusinessReset } from '../../admin/index.js';

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requirePermission, requireSuperAdminAccount } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { dateSchema, financeOnlyAccount, financeOnlyPageAllowed, isFinancePage, monthsBefore, pageHref, today } from '../../../shared/core/index.js';
-import { buildDashboard, periodOrders } from '../../business/index.js';
+import { buildDashboard, periodOrders } from '../../overview/index.js';
 import { adminSettingsLink, navigationTargets, pageLink } from '../../../shared/assistant/index.js';
 import { MONTHS_MAX, positive, requireActor } from './context.js';
 import { readTool, toolSpec } from './define.js';

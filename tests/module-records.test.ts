@@ -1,4 +1,4 @@
-// 按模块读记录只有一份（server/business/module-records.ts）：数据管理的列表和助手查记录补的名称一样——
+// 按模块读记录只有一份（server/overview/module-records.ts）：数据管理的列表和助手查记录补的名称一样——
 // 单据上记了名字的用记的，没记的按档案补；到货单另补订货单号和原件文件名。助手的模块名和全站记录种类的对照只有一份
 // （shared/assistant/assistant-modules.ts），页面报全站记录种类，助手换成自己的模块。内存库、虚构数据。
 import { test } from 'node:test';
@@ -10,7 +10,7 @@ import { businessBase } from './business-base-fixture.js';
 import { toolsOf } from './assistant-fixture.js';
 import { readAs, must } from './read-result.js';
 import { receiveLines } from './receive-fixture.js';
-import { namedDocuments } from '../server/business/index.js';
+import { namedDocuments } from '../server/overview/index.js';
 import { DataManagementService } from '../server/admin/index.js';
 import { insertSource } from '../server/flow/index.js';
 import { assistantModules, moduleOfRecord, recordKindOf, stockKindOf } from '../shared/assistant/index.js';

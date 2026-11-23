@@ -5,7 +5,7 @@ import type { Actor } from '../../core/index.js';
 import { pageHref, quantityString } from '../../../shared/core/index.js';
 import { finishedIdsOfProducts, orderIdsOfProducts } from '../../operations/index.js';
 import { deliveryPlan, pendingByOrderLine, planProductionForOrders } from '../../../shared/business/index.js';
-import { relatedBusiness } from '../../business/index.js';
+import { relatedBusiness } from '../../overview/index.js';
 import { fail, positive, requireActor, type ToolContext } from './context.js';
 import { readTool } from './define.js';
 

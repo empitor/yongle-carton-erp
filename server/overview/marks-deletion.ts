@@ -1,10 +1,10 @@
-// 产品唛头资料（业务汇总的表）在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。
-// 由本模块的 index.ts 引入，加载业务汇总时就登记（删除引擎不点模块名，按表查登记）。
+// 产品唛头资料（业务总览的表）在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。
+// 由本模块的 index.ts 引入，加载业务总览时就登记（删除引擎不点模块名，按表查登记）。
 import { registerReset, registerTableDeletion } from '../core/index.js';
 import { textOf } from '../lifecycle/index.js';
 
 registerTableDeletion({
-  module: '业务汇总',
+  module: '业务总览',
   statements: {
     product_marks: { update: 'UPDATE product_marks SET', remove: 'DELETE FROM product_marks WHERE rowid=?' },
     mark_files: { update: 'UPDATE mark_files SET', remove: 'DELETE FROM mark_files WHERE rowid=?' },
@@ -36,7 +36,7 @@ registerTableDeletion({
 });
 
 registerReset({
-  module: '业务汇总',
+  module: '业务总览',
   order: 10,
   statements: [
     'DELETE FROM product_marks',

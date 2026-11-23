@@ -9,7 +9,7 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { updateDocumentInfo } from '../server/flow/index.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
-import { recordContext } from '../server/business/record-context.js';
+import { recordContext } from '../server/overview/record-context.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { businessBase } from './business-base-fixture.js';
@@ -90,7 +90,7 @@ function callArgs(text: string, from: number) {
   return args;
 }
 const literals = (expr: string) => [...expr.matchAll(/'([^']*)'/g)].map((m) => m[1]);
-/** 修改历史只查这几类记录（server/business/record-context.ts：六类业务档案和 flow_ 开头的四类单据） */
+/** 修改历史只查这几类记录（server/overview/record-context.ts：六类业务档案和 flow_ 开头的四类单据） */
 const historyEntities = new Set(['customers', 'products', 'orders', 'suppliers', 'purchases', 'stock_items']);
 const shownEntity = (expr: string) =>
   /\bflowEntity\(/.test(expr) || (!/^'[^']*'$/.test(expr) && !literals(expr).length)

@@ -4,7 +4,7 @@
 // 改后的样子、库存怎么变，都在回滚点里按确认时同一个执行函数试一遍再读出来，不另算一套。
 // 动的是哪几条在 card-targets.ts，每一行怎么写在 card-lines.ts。
 import type { Actor } from '../../core/index.js';
-import { historyRefs } from '../../business/index.js';
+import { historyRefs } from '../../overview/index.js';
 import { arrivalSchema, cardChanges, cardContents, deliverySchema, productionSchema, purchaseSchema, stockItemSchema, supplierSchema, taskSchema } from '../../../shared/business/index.js';
 import { customerSchema, isRecord, orderSchema, productSchema } from '../../../shared/core/index.js';
 import { planModule, type Obj, type ToolPlan } from '../plan-rules.js';

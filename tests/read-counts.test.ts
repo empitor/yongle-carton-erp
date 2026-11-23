@@ -23,8 +23,8 @@ import { DataManagementService } from '../server/admin/data-management-service.j
 import { ManualProductionCompletion } from '../server/flow/production/production-completion.js';
 import { ProductionCompletion } from '../server/flow/index.js';
 import { must } from './read-result.js';
-import { buildToday } from '../server/business/workbench.js';
-import { orderDashboard } from '../server/business/dashboard.js';
+import { buildToday } from '../server/overview/workbench.js';
+import { orderDashboard } from '../server/overview/dashboard.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 
 const actor: Actor = pageActor({ id: 'perf-operator', name: '虚构测试操作员', permissions: ['business:edit'] });

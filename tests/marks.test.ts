@@ -10,7 +10,7 @@ import { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
 import { startHttp } from './http-fixture.js';
 import { fixtureOwner } from './flow-fixture.js';
-import { MarkService } from '../server/business/product-marks.js';
+import { MarkService } from '../server/overview/product-marks.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { productSchema } from '../shared/core/domain.js';
 import { superActor as fixtureSuperActor } from './actor-fixture.js';

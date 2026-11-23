@@ -1,6 +1,6 @@
 // 财务数据在完整备份和初始化里的处理：备份保留附件字节，初始化碰到已结账期间要重新预览（虚构数据、临时目录和内存库）
 // 加载业务、财务、识别导入、单据导出模块：初始化要它们登记的清空规则
-import '../server/business/index.js';
+import '../server/overview/index.js';
 import '../server/finance/index.js';
 import '../server/import/index.js';
 import '../server/documents/index.js';

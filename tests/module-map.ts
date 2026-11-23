@@ -23,7 +23,7 @@ export const modules: Rule[] = [
   { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
   // 系统资料：运行日志、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
   { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
-  // 业务主线只能往下：采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务汇总
+  // 业务主线只能往下：采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览
   {
     name: '采购库存',
     paths: ['server/operations/'],
@@ -52,7 +52,7 @@ export const modules: Rule[] = [
   },
   { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
   { name: '订单服务', paths: ['server/orders/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
-  { name: '业务汇总', paths: ['server/business/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '共用-基础', '共用-业务'] },
+  { name: '业务总览', paths: ['server/overview/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '共用-基础', '共用-业务'] },
   // 财务用单据流转只许经只读窗口 financeFacts（module-narrow-refs.test.ts）
   { name: '财务', paths: ['server/finance/'], allow: ['基础', '单据流转', '共用-基础', '共用-业务', '共用-财务'] },
   {
@@ -69,12 +69,12 @@ export const modules: Rule[] = [
     name: '数据管理',
     paths: ['server/admin/'],
     // 识别导入只引类型：识别导入的管理对象由装配传进来
-    allow: ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '业务汇总', '识别导入', '共用-基础', '共用-业务', '共用-管理'],
+    allow: ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览', '识别导入', '共用-基础', '共用-业务', '共用-管理'],
   },
   {
     name: '助手',
     paths: ['server/assistant/'],
-    allow: ['基础', 'AI接入', '系统资料', '采购库存', '单据流转', '删除归档', '订单服务', '业务汇总', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
+    allow: ['基础', 'AI接入', '系统资料', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
   },
   // 服务端根目录只放启动、装配和命令行入口，可以引用全部（只算根目录的文件，新建的子目录要登记进上面的模块）
   { name: '装配', paths: ['server/'], allow: ['*'] },
@@ -113,7 +113,7 @@ export const modules: Rule[] = [
         paths: business(['records-api', 'record-queries', 'order-filter', 'product-family']),
       },
       {
-        name: '业务汇总',
+        name: '业务总览',
         paths: business([
           'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
           'history-fields', 'history-text', 'record-history', 'record-changes', 'data-management-templates',

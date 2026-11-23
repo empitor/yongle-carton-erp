@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /*
- * 产品唛头资料（product_marks）的取值和改、删收的正文：服务端 server/business/product-marks.ts 按它校验，
+ * 产品唛头资料（product_marks）的取值和改、删收的正文：服务端 server/overview/product-marks.ts 按它校验，
  * 接口表 mark-api.ts 照它写类型。
  */
 

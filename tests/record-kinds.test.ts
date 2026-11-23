@@ -33,7 +33,7 @@ test('没登记的记录种类：归档标记和墓碑都写不进去，库里�
 });
 
 test('同一种记录只能由一个模块登记：别的模块再登记报错', () => {
-  assert.throws(() => registerRecordKinds('业务汇总', ['customers']), /已由基础登记/);
+  assert.throws(() => registerRecordKinds('业务总览', ['customers']), /已由基础登记/);
   assert.throws(() => registerRecordKinds('删除归档', ['flow_task']), /已由单据流转登记/);
   assert.doesNotThrow(() => registerRecordKinds('采购库存', ['suppliers']), '同一个模块重复登记自己的不报错');
 });

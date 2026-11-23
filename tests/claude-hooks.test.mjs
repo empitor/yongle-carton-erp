@@ -98,7 +98,7 @@ test('命令行：正常开发命令不误拦', () => {
     'npx vite build --outDir C:/Temp/erp-build --emptyOutDir',
     'npm run test:ui',
     'git status',
-    'git diff -- server/business/database-maintenance.ts',
+    'git diff -- server/overview/database-maintenance.ts',
     'grep -rn ZhixuERP server/',
     'ls src/data/ tests/fixtures/',
     'node -e "console.log(process.env.LOCALAPPDATA)"',

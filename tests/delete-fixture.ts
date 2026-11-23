@@ -4,9 +4,9 @@ import { Store } from '../server/core/db.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 // 删除时识别导入按登记的规则配合（server/core/deletion-rules.ts），正式服务启动时都会加载
 import '../server/import/index.js';
-// 唛头表（product_marks、mark_files）的删除规则在加载业务汇总时登记（server/business/index.ts 引 marks-deletion.ts），
-// 删除引擎不引业务汇总；不先加载，单独跑删产品的测试会报“product_marks 没有登记删除规则”
-import '../server/business/index.js';
+// 唛头表（product_marks、mark_files）的删除规则在加载业务总览时登记（server/overview/index.ts 引 marks-deletion.ts），
+// 删除引擎不引业务总览；不先加载，单独跑删产品的测试会报“product_marks 没有登记删除规则”
+import '../server/overview/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { z } from 'zod';
 import { one, parseStoredJson, rows } from '../server/core/index.js';
