@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceOverview } from '../server/finance/overview.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { FinanceStatements } from '../server/finance/statements.js';
-import { FinanceEventViews } from '../server/finance/event-views.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceAllocations } from '../server/finance/allocations.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceOverview } from '../server/finance/reports/overview.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { FinanceStatements } from '../server/finance/parties/statements.js';
+import { FinanceEventViews } from '../server/finance/events/event-views.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceAllocations } from '../server/finance/cash/allocations.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, obligation, obligationRow, funds, ledgerBalance, subledger, pairViews, suggestedFor, reverseSource } from './finance-fixture.js';
 
 /**

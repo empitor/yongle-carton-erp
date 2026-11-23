@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { buildDashboard } from '../server/overview/dashboard.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
 import { PurchaseReturns } from '../server/flow/index.js';
 import { maker, physical, deliveryDoc } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
@@ -15,7 +15,7 @@ import { archiveDoc } from './receive-fixture.js';
 import { buildToday } from '../server/overview/workbench.js';
 import { orderDashboard } from '../server/overview/dashboard.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
-import { readSnapshot } from '../server/finance/source-snapshot.js';
+import { readSnapshot } from '../server/finance/events/source-snapshot.js';
 import { quantityUnits } from '../shared/core/index.js';
 
 test('同一批单据（部分送货、上个月的送货、撤销的送货、更正过的到货、退货）：经营概况的送货金额、到货金额等于财务同月的理论收入、理论支出', async () => {

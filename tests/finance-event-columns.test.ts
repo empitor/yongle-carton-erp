@@ -1,4 +1,4 @@
-// 财务事件从快照取出来的几列（往来单位、单号、理论金额、缺税率）只由 server/finance/event-columns.ts 和快照一起写：
+// 财务事件从快照取出来的几列（往来单位、单号、理论金额、缺税率）只由 server/finance/events/event-columns.ts 和快照一起写：
 // 别的文件的 SQL 不许写 snapshot 和这几列；各种写法造出来的事件、第 21 步升级回填的旧事件，列都等于 eventColumns(快照) 算出来的值。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,15 +9,15 @@ import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { many, rows } from '../server/core/index.js';
 import { upgradeSchema, upgradeSteps } from '../server/core/schema/index.js';
-import { eventColumns } from '../server/finance/event-columns.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { readSnapshot } from '../server/finance/source-snapshot.js';
+import { eventColumns } from '../server/finance/events/event-columns.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { readSnapshot } from '../server/finance/events/source-snapshot.js';
 import { deliveryDoc, arrivalDoc, event, maker, newSettings, physical, postDrafts, setDoc } from './finance-fixture.js';
 import { all } from './module-map.js';
 
-const OWNER = 'server/finance/event-columns.ts';
+const OWNER = 'server/finance/events/event-columns.ts';
 /** 快照和从快照取出来的列 */
 const guarded = new Set(['snapshot', 'party_kind', 'party_id', 'party_name', 'source_number', 'theoretical_cents', 'missing_tax']);
 /** 表名：可带库名前缀（main.），可带引号、方括号、反引号 */

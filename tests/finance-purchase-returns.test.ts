@@ -4,10 +4,10 @@ import { test } from 'node:test';
 import { bill as invoiceInput, maker, postDrafts, supervisor } from './finance-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceCosting } from '../server/finance/costing.js';
-import { adjacentPeriod } from '../server/finance/periods.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceCosting } from '../server/finance/costing/costing.js';
+import { adjacentPeriod } from '../server/finance/base/periods.js';
 import { count } from '../server/core/index.js';
 
 test('采购退货（未到票）：按退货后的数量到票，暂估自动全部转回，应付和成本以发票为准', () => {

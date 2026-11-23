@@ -4,7 +4,7 @@
 // 财务按它算 sha256（sourceHash），和写死的比。纯函数、虚构数据。走正式读法，底数和 0.9.0 的算法一致。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { sourceHash } from '../server/finance/source-fingerprint.js';
+import { sourceHash } from '../server/finance/events/source-fingerprint.js';
 import { financeFacts } from '../server/flow/index.js';
 import {
   arrivalFull,

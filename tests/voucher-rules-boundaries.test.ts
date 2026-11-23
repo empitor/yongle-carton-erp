@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { pageActor } from './actor-fixture.js';
 import { approver, maker, newSettings, post } from './finance-fixture.js';
 

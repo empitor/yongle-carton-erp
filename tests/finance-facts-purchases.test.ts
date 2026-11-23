@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 import { StoredDataError, count } from '../server/core/index.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { ReturnEstimates } from '../server/finance/return-estimates.js';
-import { catchUp } from '../server/finance/catch-up.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { ReturnEstimates } from '../server/finance/events/return-estimates.js';
+import { catchUp } from '../server/finance/events/catch-up.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { quietLog } from './finance-catch-up-fixture.js';
 import { financeFacts } from '../server/flow/index.js';
 import { actor } from './actor-fixture.js';

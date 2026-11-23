@@ -38,7 +38,7 @@ const toolInternalRefs: { from: string; to: string; why: string }[] = [
     'shared/core/precision.ts',
     'shared/core/quantity.ts',
     'shared/core/units.ts',
-    'server/finance/amounts.ts',
+    'server/finance/base/amounts.ts',
     'server/core/permissions.ts',
     'shared/core/account-scope.ts',
   ].map((to) => ({

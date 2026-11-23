@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceInvoices } from '../server/finance/invoices.js';
-import { FinanceInvoiceMatching } from '../server/finance/invoice-matching.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceInvoices } from '../server/finance/cash/invoices.js';
+import { FinanceInvoiceMatching } from '../server/finance/cash/invoice-matching.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligationRow, ledgerBalance, bill, arrived, confirmBlue, confirmRed, rawObligation, funds } from './finance-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
-import { assertInvoiceableObligation, reissueCapacity } from '../server/finance/invoice-rules.js';
+import { assertInvoiceableObligation, reissueCapacity } from '../server/finance/cash/invoice-rules.js';
 import { one, rows } from '../server/core/index.js';
 
 /** 单据当前财务事件名下那笔往来的编号（这些测试里每张单据只有一笔） */

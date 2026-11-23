@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { FinanceDepositsInterest } from '../server/finance/deposits-interest.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { FinanceDepositsInterest } from '../server/finance/parties/deposits-interest.js';
 import { physical, deliveryDoc, funds, maker, newSettings, postDrafts, event, obligation, booked } from './finance-fixture.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { overdueInterest } from '../server/finance/terms.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { overdueInterest } from '../server/finance/parties/terms.js';
 import { many, one, rows } from '../server/core/index.js';
 
 /** 月度台账里没有单号的财务记录那一行的明细：叫法、日期、金额（交给拼单号的函数） */

@@ -6,16 +6,16 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
-import { FinanceAllocations } from '../server/finance/allocations.js';
-import { FinanceMargin } from '../server/finance/margin.js';
+import { FinanceAllocations } from '../server/finance/cash/allocations.js';
+import { FinanceMargin } from '../server/finance/costing/margin.js';
 import { maker, newSettings, physical, deliveryDoc, postDrafts, reverseSource, eventsStep, ledgerBalance, subledger, obligation, funds, confirmBlue, confirmRed, unbalancedVouchers } from './finance-fixture.js';
-import { FinanceSettings } from '../server/finance/settings.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
 import { businessChanges } from './business-changes-fixture.js';
 
 /** 财务从 2026-01 启用；删掉单据后同步一次，返回这张单据最后那条事件 */

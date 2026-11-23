@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ProblemLog, count } from '../server/core/index.js';
-import { catchUp } from '../server/finance/catch-up.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { catchUp } from '../server/finance/events/catch-up.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { pageActor } from './actor-fixture.js';
 import { returnFixture } from './finance-costing-fixture.js';
 import { catchUpProblems, quietLog, totalChanges, watchBegins } from './finance-catch-up-fixture.js';

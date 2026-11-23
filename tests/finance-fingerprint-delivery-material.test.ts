@@ -2,7 +2,7 @@
 // 只改这两项指纹不变；数量变了指纹照样变。纯函数、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sourceHash } from '../server/finance/source-fingerprint.js';
+import { sourceHash } from '../server/finance/events/source-fingerprint.js';
 import { financeFingerprint } from '../shared/business/finance-source.js';
 
 const source = { status: 'confirmed', date: '2026-10-27' };

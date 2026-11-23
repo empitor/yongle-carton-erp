@@ -1,20 +1,20 @@
 // 对账测试的固定种子：内存库、虚构客户供应商产品、启用财务、资金账户和账期（全部是虚构数据）
 import { Store } from '../server/core/db.js';
-import { FinanceBooks } from '../server/finance/books.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceCosting } from '../server/finance/costing.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceExpenses } from '../server/finance/expenses.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceReports } from '../server/finance/reports.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceSettlements } from '../server/finance/settlements.js';
-import { FinanceDepositsInterest } from '../server/finance/deposits-interest.js';
+import { FinanceBooks } from '../server/finance/ledger/books.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceCosting } from '../server/finance/costing/costing.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceExpenses } from '../server/finance/expenses/expenses.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceReports } from '../server/finance/reports/reports.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceSettlements } from '../server/finance/cash/settlements.js';
+import { FinanceDepositsInterest } from '../server/finance/parties/deposits-interest.js';
 import { approver, postDrafts, supervisor } from './finance-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
-import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
+import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
 import { one, rows } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
 

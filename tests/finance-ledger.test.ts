@@ -5,14 +5,14 @@ import { cookieOf, startHttp, testProblems } from './http-fixture.js';
 import { financeRouter } from '../server/finance/router.js';
 import { Store } from '../server/core/db.js';
 import { one, rows } from '../server/core/index.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceSettings } from '../server/finance/settings.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
 import { maker, newSettings, post, physical, deliveryDoc, booked } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceBooks } from '../server/finance/books.js';
-import { FinanceAuditLog } from '../server/finance/audit-log.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceBooks } from '../server/finance/ledger/books.js';
+import { FinanceAuditLog } from '../server/finance/base/audit-log.js';
 
 const voucher = {
   requestId: 'voucher',
@@ -202,7 +202,7 @@ test('HTTP 财务路由拒绝无财务权限的账号和已记账凭证修改、
 test('财务状态都有中文名：库里各表存的状态值都在页面和导出共用的词表里，不露英文（核销撤销后的 revoked 等）', async () => {
   const { financeStatusName, voucherStatusName } = await import('../shared/finance/labels.js');
   const { invoiceStates, noteStatusName } = await import('../src/finance/cash/shared.js');
-  const stored = await import('../server/finance/stored-values.js');
+  const stored = await import('../server/finance/base/stored-values.js');
   const shownWithStatus = [
     ...stored.periodStatuses,
     ...stored.voucherStatuses,
@@ -227,7 +227,7 @@ test('财务状态都有中文名：库里各表存的状态值都在页面和�
 
 test('凭证面板的来源用中文叫法加单号：每种生成凭证的财务功能都有中文名，不露出内部代码', async () => {
   const { voucherModuleNames, voucherSourceText, eventSourceNames } = await import('../src/finance/labels.js');
-  const { voucherModuleSources, eventSourceKinds } = await import('../server/finance/stored-values.js');
+  const { voucherModuleSources, eventSourceKinds } = await import('../server/finance/base/stored-values.js');
   assert.deepEqual(Object.keys(voucherModuleNames).sort(), [...voucherModuleSources].sort());
   assert.deepEqual(Object.keys(eventSourceNames).sort(), [...eventSourceKinds].sort());
   assert.equal(voucherSourceText({ source_kind: 'delivery', source_id: '12', number: 'SH-20261027-00012' }), '送货 SH-20261027-00012');

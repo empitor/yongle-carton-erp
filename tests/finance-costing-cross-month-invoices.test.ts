@@ -2,10 +2,10 @@
 // （全部是虚构数据，只用内存库）。没到票的情形见 finance-costing-cross-month.test.ts
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { FinanceInvoices } from '../server/finance/invoices.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
-import { FinanceInvoiceMatching } from '../server/finance/invoice-matching.js';
-import { FinanceEvents } from '../server/finance/events.js';
+import { FinanceInvoices } from '../server/finance/cash/invoices.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
+import { FinanceInvoiceMatching } from '../server/finance/cash/invoice-matching.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
 import { randomUUID } from 'node:crypto';
 import { bill } from './finance-fixture.js';
 import { maker, fixture } from './finance-costing-fixture.js';

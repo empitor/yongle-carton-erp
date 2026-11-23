@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { ProblemLog, many } from '../server/core/index.js';
-import { FinanceParties } from '../server/finance/parties.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
 import { cookieOf, startHttp } from './http-fixture.js';
 import { deliveryDoc, event, maker, newSettings, physical } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';

@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceOverview } from '../server/finance/overview.js';
-import { FinanceDue } from '../server/finance/due.js';
-import { FinanceStatements } from '../server/finance/statements.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceOverview } from '../server/finance/reports/overview.js';
+import { FinanceDue } from '../server/finance/parties/due.js';
+import { FinanceStatements } from '../server/finance/parties/statements.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, funds, reverseSource } from './finance-fixture.js';
 import { businessBase } from './business-base-fixture.js';
 

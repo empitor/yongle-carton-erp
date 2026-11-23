@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { SCHEMA_LATEST } from '../server/core/schema/index.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceTemplates } from '../server/finance/template.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceTemplates } from '../server/finance/base/template.js';
 import { financePermissions } from '../shared/core/accounts.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { entry } from '../server/finance/query.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { entry } from '../server/finance/base/query.js';
 import { maker, newSettings, post } from './finance-fixture.js';
 import { count, type Actor } from '../server/core/index.js';
 import { z } from 'zod';
@@ -134,7 +134,7 @@ test('财务设置的变更历史：新库没有预置行；每次保存、启�
 test('启用财务：应收、应付、预收、预付按单位填期初就行，科目合计系统加出来，往来跟着建好', async () => {
   const { customerSchema } = await import('../shared/core/domain.js');
   const { OperationsService } = await import('../server/operations/index.js');
-  const { FinanceParties } = await import('../server/finance/parties.js');
+  const { FinanceParties } = await import('../server/finance/parties/parties.js');
   const store = new Store(':memory:');
   try {
     sales(store).createCustomer(customerSchema.parse({ name: '虚构客户甲' }));

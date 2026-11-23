@@ -14,8 +14,8 @@ import { AssistantAttachments } from '../server/assistant/attachments.js';
 // 初始化时各模块清自己的表，删除时各模块配合（server/core/deletion-rules.ts）。
 import '../server/finance/index.js';
 import '../server/import/index.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceEvents } from '../server/finance/events.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
 import { financePermissions } from '../shared/core/accounts.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
@@ -25,7 +25,7 @@ import { InboxService } from '../server/inbox/service.js';
 import { BotSettings } from '../server/inbox/bots/settings.js';
 import { imageFixture } from './import-fixtures.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
-import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
+import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { readAs } from './read-result.js';
 

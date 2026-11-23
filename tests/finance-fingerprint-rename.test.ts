@@ -3,7 +3,7 @@
 // 四种来源各改几个（含明细、纸板资料、领料里的栏目，和这几个外层栏目本身）；样张先走正式的读法（storedContent）。纯函数、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { sourceHash } from '../server/finance/source-fingerprint.js';
+import { sourceHash } from '../server/finance/events/source-fingerprint.js';
 import { fingerprintOf, fingerprintRules } from '../shared/business/finance-source.js';
 import { isRecord } from '../shared/core/index.js';
 import {

@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { one, rows } from '../server/core/index.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceOverview } from '../server/finance/overview.js';
-import { FinanceStatements } from '../server/finance/statements.js';
-import { FinanceEventViews } from '../server/finance/event-views.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceOverview } from '../server/finance/reports/overview.js';
+import { FinanceStatements } from '../server/finance/parties/statements.js';
+import { FinanceEventViews } from '../server/finance/events/event-views.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { maker, subledger } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 

@@ -8,11 +8,11 @@ import { centsText as sharedCentsText } from '../shared/core/index.js';
 import { financeAmountsInYuan, readFinanceTool, financeMoneyFields } from '../server/finance/assistant.js';
 import { displayAmount } from '../shared/core/display-amount.js';
 import { Store } from '../server/core/db.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { financeReadTools } from '../shared/finance/finance-tools.js';
-import { entry } from '../server/finance/query.js';
-import { documentMoney } from '../server/finance/amounts.js';
+import { entry } from '../server/finance/base/query.js';
+import { documentMoney } from '../server/finance/base/amounts.js';
 import { deliveryLineExact } from '../shared/business/document-value.js';
 import { maker, post } from './finance-fixture.js';
 

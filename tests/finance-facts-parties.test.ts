@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { AppError, one } from '../server/core/index.js';
-import { requirePartyName } from '../server/finance/core.js';
+import { requirePartyName } from '../server/finance/base/core.js';
 import { financeFacts } from '../server/flow/index.js';
 import { actor } from './actor-fixture.js';
 import { businessBase } from './business-base-fixture.js';

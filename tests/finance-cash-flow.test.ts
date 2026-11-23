@@ -2,17 +2,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceInvoices } from '../server/finance/invoices.js';
-import { FinanceDue } from '../server/finance/due.js';
-import { FinanceStatements } from '../server/finance/statements.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceAllocations } from '../server/finance/allocations.js';
-import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceInvoices } from '../server/finance/cash/invoices.js';
+import { FinanceDue } from '../server/finance/parties/due.js';
+import { FinanceStatements } from '../server/finance/parties/statements.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceAllocations } from '../server/finance/cash/allocations.js';
+import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligation, obligationRow, funds, bill, ledgerBalance, subledger, invoicedPayable } from './finance-fixture.js';
-import { cashEntries, type CashRow } from '../server/finance/cash-posting.js';
+import { cashEntries, type CashRow } from '../server/finance/cash/cash-posting.js';
 import { count, one, rows } from '../server/core/index.js';
 
 const versionOf = (s: Store, id: number) => Number(obligationRow(s, id).version);

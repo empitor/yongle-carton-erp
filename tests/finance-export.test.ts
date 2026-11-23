@@ -5,12 +5,12 @@ import { test } from 'node:test';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
 import type { Store } from '../server/core/db.js';
-import { FinanceAssets } from '../server/finance/assets.js';
-import { FinanceBank } from '../server/finance/bank.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceSettlements } from '../server/finance/settlements.js';
+import { FinanceAssets } from '../server/finance/expenses/assets.js';
+import { FinanceBank } from '../server/finance/cash/bank.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceSettlements } from '../server/finance/cash/settlements.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
+import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
 import { maker, period, request, workbook, findRow, checkLayout, fixture, prepare, next } from './finance-http-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 

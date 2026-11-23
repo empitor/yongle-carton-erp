@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { FinanceEvents } from '../server/finance/events.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
 import { maker, fixture } from './finance-costing-fixture.js';
 
 test('上月送货本月冲销：按原销售成本冲回，借库存商品贷主营业务成本', () => {

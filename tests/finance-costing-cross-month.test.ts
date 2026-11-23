@@ -7,8 +7,8 @@ import { FlowService } from '../server/flow/index.js';
 import { PurchaseReturns } from '../server/flow/index.js';
 import { setDoc, supervisor } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceEventViews } from '../server/finance/event-views.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceEventViews } from '../server/finance/events/event-views.js';
 import { maker, fixture } from './finance-costing-fixture.js';
 
 type Costing = ReturnType<typeof fixture>;
