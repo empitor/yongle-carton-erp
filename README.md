@@ -69,7 +69,7 @@ node scripts/ui-check/preview.mjs
 
 1. 本页。
 2. [文档目录](docs/README.md)：每份文档讲什么、按什么顺序读。
-3. `AGENTS.md`：改代码的硬规则和怎么验证。用 Claude Code 干活的补充说明在 `CLAUDE.md` 和 `.claude/`（子智能体须知、审查员、技能、保护真实数据的钩子）。
+3. `AGENTS.md`：改代码的硬规则和怎么验证。给智能体（Claude Code、Codex、Antigravity）共用的环境都在 `.claude/`（子智能体须知、审查员、技能、保护真实数据的钩子）；`CLAUDE.md` 是 Claude Code 专用说明，`.agents/`、`.codex/` 只放指向 `.claude/` 的指路配置。
 4. [架构说明](docs/架构说明.md)：总览、数据怎么走、模块、目录、一次请求怎么走；各机制在 `docs/架构/` 下各一份，从它末尾“别的在哪份”进。
 
 根目录每个文件、文件夹是干什么的，看 GitHub 文件列表右边的备注（清单在 `scripts/root-notes.mjs`，每次发布重新标一遍）。

@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/protect-real-data.mjs\"",
+            "commandWindows": "[Console]::OutputEncoding = [Text.Encoding]::UTF8; node \"$(git rev-parse --show-toplevel)/.claude/hooks/protect-real-data.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/file-size-reminder.mjs\"",
+            "commandWindows": "[Console]::OutputEncoding = [Text.Encoding]::UTF8; node \"$(git rev-parse --show-toplevel)/.claude/hooks/file-size-reminder.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

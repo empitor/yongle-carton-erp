@@ -10,7 +10,9 @@ import { pathToFileURL } from 'node:url';
 
 /** 根目录的每一项和它的作用（一句话，GitHub 列表里放得下） */
 export const rootNotes = {
-  '.claude': '给 Claude Code 的项目配置：子智能体须知、审查员、技能、保护真实数据的钩子',
+  '.agents': 'Antigravity 的指路配置（钩子和技能，内容都在 .claude/）',
+  '.claude': '三家智能体共用的环境：须知、审查员、技能、保护真实数据的钩子',
+  '.codex': 'Codex 的钩子入口和命令审批规则，对应 .claude/ 的共用脚本和审批清单',
   '.env.example': '环境变量示例（不填密钥，密钥在网页设置里填）',
   '.gitattributes': '换行规则：脚本和结构快照固定换行，检出后校验才对得上',
   '.gitignore': '不进仓库的东西：数据、备份、密钥、安装包、缓存',

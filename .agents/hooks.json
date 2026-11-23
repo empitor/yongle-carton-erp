@@ -1,0 +1,16 @@
+{
+  "protect-real-data": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ../.claude/hooks/protect-real-data.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

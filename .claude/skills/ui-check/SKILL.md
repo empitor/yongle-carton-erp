@@ -15,7 +15,7 @@ AGENTS.md 要求界面改动在真实浏览器里看过才算完成。用下面�
 | 模拟服务器上从域名访问（没有本机管理员，删除要超级管理员模式再输密码等） | `node scripts/ui-check/preview.mjs --remote` | http://127.0.0.1:3198 |
 | 再起一个 | 上面任一条加 `--port <端口>` | 自定 |
 
-- 用 Bash 的 `run_in_background` 起，等输出 `READY` 那一行或接口 `/api/auth/state` 能连上再继续。
+- 在后台起（Claude Code 用 Bash 工具的 `run_in_background`，别的工具用各自跑后台命令的办法），等输出 `READY` 那一行或接口 `/api/auth/state` 能连上再继续。
 - 数据是 `scripts/ui-check/server.mts` 造的虚构数据，账号也在那里（虚构管理员、虚构业务员、虚构出纳、只读的虚构只读），每次启动都是全新的。
 - 前端源码改了会自动重建，刷新页面即可；**改了 server/、shared/ 要重启预览**，否则会报“接口不存在”或看到旧行为。
 - 做过的操作会改掉预览里的数据（比如库存被送货用掉），要干净数据就重启。
@@ -43,14 +43,14 @@ node scripts/ui-check/shot.mjs "#warehouse?kind=finished" "#orders" --user 虚�
 ```
 
 - 默认连 3199、用虚构管理员；加 `--remote` 连 3198，`--port <端口>` 连别的实例，`--mobile` 用手机尺寸，`--full` 截整页，`--out 目录` 指定保存位置。
-- 它打印截图路径、页面上的报错和控制台错误；用 Read 打开截图亲眼看。
+- 它打印截图路径、页面上的报错和控制台错误；打开截图亲眼看（Claude Code 用 Read 工具，别的工具用各自看图片的办法）。
 - 要点按钮、填表、走完一条流程，就在草稿目录写个小脚本，复用 `scripts/ui-check/lib.mjs` 的 `openChrome`、`login`、`go`（先设 `UI_CHECK_PORT`，再动态 import lib.mjs）。按钮用 `getByRole('button', { name })` 找，弹窗用 `[role="dialog"][aria-modal="true"]`。打开助手用 `openAssistant`（等助手代码挂上页面再按，直接按 Ctrl+J 可能被吞）；等页面提示用 `notice(page, 文字)`（只认新出现的）；控制台报错用 `checkConsole` 记成问题，不只打印。
 - 看深色：主题跟随系统只在打开页面时定一次，换了深浅要**重新载入页面**再截，不然截到的还是浅色。
 - 从域名访问的实例（`--remote`）上，管理员改账号、AI 设置、提示词、消息接入、工具开关前要先进超级管理员模式（页面顶上的按钮或账号菜单“系统维护”，密码是虚构管理员的）。
 
 ## 给用户看
 
-用户要亲眼看时，用内置浏览器：`preview_start` 选 `.claude/launch.json` 里的 `ui-preview`、`ui-preview-remote` 或 `ui-preview-real-model`。浏览器面板被隐藏或卡住时，回到无头截图。
+用户要亲眼看时，用工具自带的浏览器：Claude Code 的内置浏览器用 `preview_start`，选 `.claude/launch.json` 里的 `ui-preview`、`ui-preview-remote` 或 `ui-preview-real-model`（它自己起实例）；别的工具先照上面起好实例，用自带的浏览器打开上表的地址，没有内置浏览器的把地址告诉用户自己打开。浏览器面板被隐藏或卡住时，回到无头截图。
 
 ## 收尾
 
