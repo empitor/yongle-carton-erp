@@ -9,7 +9,7 @@ import { messageText } from './fake-deepseek.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
 import { AppError } from '../server/core/errors.js';
 import { count } from '../server/core/index.js';
-import { MarkService } from '../server/business/product-marks.js';
+import { MarkService } from '../server/overview/product-marks.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { updateDocumentInfo } from '../server/flow/index.js';

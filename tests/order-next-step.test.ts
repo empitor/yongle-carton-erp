@@ -7,8 +7,8 @@ import { orderNextSteps, purchaseNextSteps } from '../shared/business/order-next
 import { orderChain } from '../shared/business/order-chain.js';
 import { planOrderDelivery, pendingByOrderLine } from '../shared/business/warehouse-delivery.js';
 import { planProductionForOrders } from '../shared/business/production-plan.js';
-import { relatedBusiness } from '../server/business/related-business.js';
-import { buildToday } from '../server/business/workbench.js';
+import { relatedBusiness } from '../server/overview/related-business.js';
+import { buildToday } from '../server/overview/workbench.js';
 import {
   boardReference,
   previousSingleProductOrder,

@@ -7,7 +7,7 @@ import { orderNextSteps } from '../shared/business/order-next-step.js';
 import { productionHint, productionReasons } from '../src/records/order-production.js';
 import { finishedStockByProduct } from '../src/recordkit/stock-lookup.js';
 import { netQuantity } from '../src/recordkit/quantity.js';
-import { buildToday } from '../server/business/workbench.js';
+import { buildToday } from '../server/overview/workbench.js';
 import { formatStockSize } from '../shared/business/operations.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { actor } from './actor-fixture.js';

@@ -4,7 +4,7 @@ import type { Actor } from '../../core/index.js';
 import { canEnterSuperMode } from '../../core/index.js';
 import { BusinessDocuments, listExports } from '../../documents/index.js';
 import { DocumentTemplateSettings } from '../../documents/index.js';
-import { MarkService } from '../../business/index.js';
+import { MarkService } from '../../overview/index.js';
 import { InboxService } from '../../inbox/index.js';
 import type { ToolPlan } from '../plan-rules.js';
 import { paging, uuid, positive, requireActor, type ToolContext } from './context.js';

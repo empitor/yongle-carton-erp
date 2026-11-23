@@ -56,7 +56,7 @@ type StepTask = {
 type StepStock = Parameters<typeof specificationMismatch>[0] & { productId?: number | null; availableUnits?: unknown };
 type StepDelivery = NonNullable<Parameters<typeof pendingByOrderLine>[0][number]> & { id: number; number: string };
 type StepPurchase = { number: string; archived?: unknown; businessStatus?: string | null; arrivalProgress?: string | null };
-/** 订单的关联业务（server/business/related-business.ts）；还没读到时为空 */
+/** 订单的关联业务（server/overview/related-business.ts）；还没读到时为空 */
 type StepRelated = {
   tasks?: readonly StepTask[];
   stocks?: readonly StepStock[];

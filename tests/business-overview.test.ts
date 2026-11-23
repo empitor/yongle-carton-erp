@@ -1,4 +1,4 @@
-// 经营概览和订单的日期视图（server/business/dashboard.ts、shared/core/date-ranges.ts）：按自然月算范围，
+// 经营概览和订单的日期视图（server/overview/dashboard.ts、shared/core/date-ranges.ts）：按自然月算范围，
 // 历史未完成的订单留在当前视图，概览的数字来自订单、采购、流水，查询不改数据；采购列表的组合查询用同一套数据。
 // 工作台和今日队列见 workbench.test.ts。
 import { pageActor } from './actor-fixture.js';
@@ -10,7 +10,7 @@ import { listen, testProblems } from './http-fixture.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { monthsBefore, presetRange, orderInView } from '../shared/core/date-ranges.js';
-import { buildDashboard } from '../server/business/dashboard.js';
+import { buildDashboard } from '../server/overview/dashboard.js';
 import { displayAmount } from '../shared/core/display-amount.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { receiveLines } from './receive-fixture.js';

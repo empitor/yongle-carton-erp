@@ -9,7 +9,7 @@ import { recordStatusActionNames } from './record-status.js';
  * 每种动作的叫法，以及字段中文名和审计里引用到的编号。
  */
 
-/** 审计里引用别的记录的编号，按表批量换成名称或单号（服务端 server/business/history-refs.ts 查好一起给界面） */
+/** 审计里引用别的记录的编号，按表批量换成名称或单号（服务端 server/overview/history-refs.ts 查好一起给界面） */
 type HistoryRefTable = 'customers' | 'suppliers' | 'products' | 'stock_items' | 'orders' | 'flow';
 export type HistoryRefs = Partial<Record<HistoryRefTable, Record<string, { name: string; unit?: string }>>>;
 

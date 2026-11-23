@@ -19,7 +19,7 @@ export type ResetBy = 'page' | 'assistant';
 type ResetImports = Pick<ImportManager, 'deleteAllWorkspaces' | 'clearArchive'>;
 /** 清业务数据必须有这几个模块各自清自己的表（server/core/deletion-rules.ts 的 registerReset；别的模块登记了也一起清），连财务一起清再加财务 */
 const businessModules = [
-  '业务汇总',
+  '业务总览',
   '识别导入',
   '单据流转',
   '采购库存',

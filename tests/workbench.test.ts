@@ -1,4 +1,4 @@
-// 工作台和今日队列（server/business/workbench.ts）：读真实待办、跨日计划和当日实绩，把订单、采购分到逾期、未排产、
+// 工作台和今日队列（server/overview/workbench.ts）：读真实待办、跨日计划和当日实绩，把订单、采购分到逾期、未排产、
 // 待下单、到货待登记；有客户料号的纸箱从完工到部分送货走一遍。内存库、虚构数据。
 import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
@@ -10,8 +10,8 @@ import { OrderBatchService } from '../server/operations/index.js';
 import { ManualProductionCompletion } from '../server/flow/production/production-completion.js';
 import { WarehouseDaily } from '../server/flow/index.js';
 import { registerArrival } from '../server/flow/index.js';
-import { buildWorkbench, buildToday } from '../server/business/workbench.js';
-import { relatedBusiness } from '../server/business/related-business.js';
+import { buildWorkbench, buildToday } from '../server/overview/workbench.js';
+import { relatedBusiness } from '../server/overview/related-business.js';
 import { customerSchema, orderSchema, productSchema, specification } from '../shared/core/domain.js';
 import { deliveryCandidates } from '../shared/business/warehouse-delivery.js';
 import { workbenchFixture } from './flow-fixture.js';

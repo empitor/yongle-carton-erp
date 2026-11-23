@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { OrderBatchService, purchaseOrderLinks, stockLedger } from '../server/operations/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { relatedBusiness } from '../server/business/related-business.js';
+import { relatedBusiness } from '../server/overview/related-business.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 // 删订单要识别导入配合（给导入记录打标记），加载时登记
 import '../server/import/index.js';

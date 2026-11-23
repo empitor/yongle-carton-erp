@@ -20,7 +20,7 @@ const tableOwnerList: [module: string, tables: string][] = [
   ['采购库存', 'suppliers purchases purchase_lines stock_items stock_movements stock_movement_revisions order_batches order_batch_purchases'],
   // flow_ 开头的都归单据流转
   ['单据流转', 'purchase_returns'],
-  ['业务汇总', 'product_marks mark_files'],
+  ['业务总览', 'product_marks mark_files'],
   ['识别导入', 'import_executions inbox_files inbox_items workspaces recognition_failures bots'],
   // 导出记录（文件内容和交付状态）、单据模板设置；订货批次的 export_id 指向导出记录，采购库存只存编号不读这张表
   ['单据导出', 'document_exports document_template_settings'],
@@ -86,7 +86,7 @@ const singleWriterTables: Record<string, string[]> = {
  * 读它的文件登记在这里，写明读来做什么；新增读审计的地方会被下面的测试拦下。
  */
 const auditReaders: { file: string; why: string }[] = [
-  { file: 'server/business/record-context.ts', why: '记录的修改历史，展示' },
+  { file: 'server/overview/record-context.ts', why: '记录的修改历史，展示' },
   { file: 'server/finance/audit-log.ts', why: '财务操作记录页，展示和筛选' },
   { file: 'server/admin/reset-archive.ts', why: '初始化后确认自己刚写的那条审计已经提交，再删原件归档；技术用途' },
 ];

@@ -10,7 +10,7 @@ import type { PurchaseView, StockItemView } from './stock-flow-views.js';
 import type { orderQuerySchema } from './record-queries.js';
 
 /*
- * 今日、经营概况、订单和采购单的关联业务、任一记录的关联记录与修改历史的接口表（服务端 server/business/workbench-router.ts，
+ * 今日、经营概况、订单和采购单的关联业务、任一记录的关联记录与修改历史的接口表（服务端 server/overview/workbench-router.ts，
  * 挂在 /api 下；前端 src/records/list-api.ts、src/recordkit/record-api.ts）。表的写法见 shared/core/api-table.ts。
  */
 
@@ -35,7 +35,7 @@ type TodoOrder = LateOrder & {
 type TodayPurchase = { id: number; number: string; supplierName: string; expectedDate: string | null; summary: string };
 type Labeled<Id> = { id: Id; label: string };
 
-/** 今日页（服务端 server/business/workbench.ts 的 buildToday，另加自动备份失败的时间） */
+/** 今日页（服务端 server/overview/workbench.ts 的 buildToday，另加自动备份失败的时间） */
 type Today = {
   date: string;
   summary: { monthOrderCents: number; monthShippedAmount: string };

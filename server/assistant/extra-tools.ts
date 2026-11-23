@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import type { ImportManager } from '../import/index.js';
-import { MarkService } from '../business/index.js';
+import { MarkService } from '../overview/index.js';
 import type { ReceiptAi } from '../import/index.js';
 import type { AssistantAttachments } from './attachments.js';
 import type { WorkflowContext } from './order-import-state.js';

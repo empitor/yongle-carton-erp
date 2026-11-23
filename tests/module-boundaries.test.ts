@@ -437,16 +437,16 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     ['server/import/parse-worker.mjs', "import '../flow/rules/service.ts';", '→ server/flow/rules/service.ts'],
     ['server/operations/service.ts', "const target = '../flow/rules/service.js';\nexport const load = () => import(target);", '（采购库存）→ server/flow/rules/service.ts'],
     ['server/operations/service.ts', 'export const load = (p: string) => import(p);', '的目标看不出来'],
-    ['server/business/sample.ts', "const m = require('../flow/rules/service.js');", '→ server/flow/rules/service.ts（require）'],
-    ['server/business/sample.ts', "export const w = new URL('../import/manager.ts', import.meta.url);", '→ server/import/manager.ts（url）'],
-    ['server/business/sample.ts', 'export const w = (name: string) => new URL(name, import.meta.url);', '的目标看不出来'],
+    ['server/overview/sample.ts', "const m = require('../flow/rules/service.js');", '→ server/flow/rules/service.ts（require）'],
+    ['server/overview/sample.ts', "export const w = new URL('../import/manager.ts', import.meta.url);", '→ server/import/manager.ts（url）'],
+    ['server/overview/sample.ts', 'export const w = (name: string) => new URL(name, import.meta.url);', '的目标看不出来'],
     // 带 ? 后缀（Vite 的 ?no-inline、?raw）去掉后缀再认文件，越界照样拦
-    ['server/business/sample.ts', "export const w = new URL('../import/manager.ts?no-inline', import.meta.url);", '→ server/import/manager.ts（url）'],
-    ['server/business/sample.ts', "import text from '../flow/rules/service.ts?raw';", '→ server/flow/rules/service.ts'],
-    ['server/business/sample.ts', "import '../../scripts/runtime-control.mjs';", '（模块外的文件）'],
-    ['server/business/sample.ts', "import './no-such-file.js';", '找不到'],
+    ['server/overview/sample.ts', "export const w = new URL('../import/manager.ts?no-inline', import.meta.url);", '→ server/import/manager.ts（url）'],
+    ['server/overview/sample.ts', "import text from '../flow/rules/service.ts?raw';", '→ server/flow/rules/service.ts'],
+    ['server/overview/sample.ts', "import '../../scripts/runtime-control.mjs';", '（模块外的文件）'],
+    ['server/overview/sample.ts', "import './no-such-file.js';", '找不到'],
     // 同名参数遮住了常量：不能把参数当成那个常量算
-    ['server/business/sample.ts', "const p = '../flow/index.js';\nexport const load = (p: string) => import(p);", '的目标看不出来'],
+    ['server/overview/sample.ts', "const p = '../flow/index.js';\nexport const load = (p: string) => import(p);", '的目标看不出来'],
     // createRequire 换了名字、require.resolve 也算
     ['scripts/sample.mjs', "const req = createRequire(import.meta.url);\nreq('../server/flow/rules/service.ts');", '（单据流转 的内部文件）'],
     ['scripts/sample.mjs', "require.resolve('../server/core/db.ts');", '（基础 的内部文件）'],
@@ -465,8 +465,8 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
   for (const [f, text, expect] of blocked)
     assert.ok(codeCheck(f, text).some((x) => x.includes(expect)), f + ' 应拦住：' + text + '\n实际：' + JSON.stringify(codeCheck(f, text)));
   const allowed: [file: string, text: string][] = [
-    ['server/business/sample.ts', "import { FlowService } from '../flow/index.js';\nexport const m = () => import('../flow/index.js');"],
-    ['server/business/sample.ts', "import fs from 'node:fs';\nexport const x = () => import('xlsx');\nconst y = require('express');"],
+    ['server/overview/sample.ts', "import { FlowService } from '../flow/index.js';\nexport const m = () => import('../flow/index.js');"],
+    ['server/overview/sample.ts', "import fs from 'node:fs';\nexport const x = () => import('xlsx');\nconst y = require('express');"],
     ['server/import/sample.ts', "new URL('./manager.ts', import.meta.url);"],
     ['server/import/sample.ts', "const worker = './manager.ts';\nnew URL(worker, import.meta.url);"],
     ['server/import/sample.ts', "new URL('./manager.ts?no-inline', import.meta.url);"],

@@ -2,7 +2,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import { pageProblemRouter, proxyIngress, requirePermission, requireSuperAdminAccount, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
 import { userManualRouter } from './system/index.js';
 import { operationsRouter } from './operations/index.js';
-import { marksRouter, workbenchRouter } from './business/index.js';
+import { marksRouter, workbenchRouter } from './overview/index.js';
 import { recordsRouter } from './orders/index.js';
 import { installRequestGuards } from './http-guards.js';
 import { apiErrorHandler } from './http-errors.js';
@@ -105,7 +105,7 @@ export function createApp(store: Store, options: AppOptions) {
   const app = express();
   installRequestGuards(app, options);
   healthRoute(app, options.deployment);
-  // 业务汇总：今日、概况、关联记录
+  // 业务总览：今日、概况、关联记录
   app.use('/api', workbenchRouter(store, options.auth));
   // 新增核对身份仅服务于导入准备，不改变既有业务或AI设置的访问策略。
   if (options.auth) app.use('/api/auth', options.auth.router());

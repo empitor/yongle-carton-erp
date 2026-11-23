@@ -1,5 +1,5 @@
 // 只管：按业务模块读记录——取列表 recordRows、按编号取一条 recordRow、记录在页面上的链接 recordLink（页面报的记录种类和助手模块的换算在 page-record.ts）。
-// 模块名单、中文名和全站记录种类的对照在 shared/assistant/assistant-modules.ts；档案、库存品和单据按业务汇总的
+// 模块名单、中文名和全站记录种类的对照在 shared/assistant/assistant-modules.ts；档案、库存品和单据按业务总览的
 // module-records.ts 读（和数据管理同一份，单据补好关联的名称），这里只加助手筛选要用的几项（归档标记、关联的客户）。
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
@@ -7,7 +7,7 @@ import { flowDocHref, pageHref, type FlowKind } from '../../../shared/core/index
 import type { FlowDocView, StockItemView } from '../../../shared/business/index.js';
 import { flowEntityPrefix } from '../../../shared/business/index.js';
 import { assistantModules, stockKindOf, type AssistantModule } from '../../../shared/assistant/index.js';
-import { entityRecords, namedDocuments, type NamedDocument } from '../../business/index.js';
+import { entityRecords, namedDocuments, type NamedDocument } from '../../overview/index.js';
 import { movementScope, suppliersOfPurchaseLines } from '../../operations/index.js';
 import { requireActor, type ToolContext } from './context.js';
 

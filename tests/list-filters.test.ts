@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { orderDashboard } from '../server/business/dashboard.js';
+import { orderDashboard } from '../server/overview/dashboard.js';
 import { customerList, orderList, productList } from '../server/orders/record-lists.js';
 import { businessFixture } from './flow-fixture.js';
 import { createElement as h } from 'react';

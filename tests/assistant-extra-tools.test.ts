@@ -21,7 +21,7 @@ import type { WorkflowContext } from '../server/assistant/order-import-state.js'
 import { field } from '../server/assistant/chat/result-fields.js';
 import { documentInboxTools } from '../server/assistant/tools/documents-inbox.js';
 import { resetPreview, systemBackup, systemCheck, systemStatus } from '../server/assistant/tools/system.js';
-import { MarkService } from '../server/business/product-marks.js';
+import { MarkService } from '../server/overview/product-marks.js';
 import { productSchema } from '../shared/core/domain.js';
 import type { AssistantAttachment } from '../shared/core/index.js';
 import { actor } from './actor-fixture.js';

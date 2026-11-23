@@ -15,7 +15,7 @@ import { batchArrivals, documentNumbers, purchaseArrivals, referencedStock, rese
 
 /*
  * 采购单、库存品、订货单、流水的完整视图：采购库存的基本视图加上单据的事实（stock-facts.ts）。
- * 接口的回答（stock-router.ts）、业务汇总、助手、数据管理、单据导出要带单据内容的都读这里。
+ * 接口的回答（stock-router.ts）、业务总览、助手、数据管理、单据导出要带单据内容的都读这里。
  * 补进去的栏目按原来回答的顺序插（库存品的已安排在结余和在途之间、订货单的到货单在行和进度之间、流水的单号在订单号和修订次数之间），
  * 接口回答的栏目顺序不变。
  */
