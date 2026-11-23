@@ -6,16 +6,21 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { backupDirectory, configDirectory, defaultDbPath } from '../server/core/index.js';
+import {
+  backupDirectory,
+  configDirectory,
+  defaultDbPath,
+  type Actor,
+  type AppError,
+  redactSecrets,
+  ProblemLog,
+  readRecentProblems,
+} from '../server/core/index.js';
 import { programSource } from '../server/system/paths.js';
 import { AuthManager } from '../server/accounts/index.js';
-import type { Actor } from '../server/core/index.js';
-import type { AppError } from '../server/core/errors.js';
-import { redactSecrets } from '../server/core/diagnostics/redact.js';
 import { RunLog, captureProcessOutput, readRunLog, searchRunLog } from '../server/system/run-log.js';
 import { readProgramSource, searchProgramSource } from '../server/system/source-reader.js';
 import { resolveSourcePath, type SourceScope } from '../server/system/source-paths.js';
-import { ProblemLog, readRecentProblems } from '../server/core/diagnostics/problem-log.js';
 import { readLoginRecords } from '../server/accounts/index.js';
 
 const boss: Actor = pageActor({ id: 'a1', name: '虚构管理员', permissions: [], role: 'super_admin' });

@@ -2,7 +2,7 @@
 // 已结账期间的凭证不能往前走，红冲日期可以和原凭证同一天，资金科目要标现金流量。内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { pageActor } from './actor-fixture.js';
 import { approver, maker, newSettings, post } from './finance-fixture.js';

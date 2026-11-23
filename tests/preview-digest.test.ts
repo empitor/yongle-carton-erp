@@ -1,9 +1,9 @@
-// 预览摘要的公共件（server/core/preview-digest.ts）：同样内容摘要相同、内容变了摘要变、字段顺序无关；对不上抛同一种错。
+// 预览摘要的公共件（server/core/storage/preview-digest.ts）：同样内容摘要相同、内容变了摘要变、字段顺序无关；对不上抛同一种错。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PREVIEW_CHANGED, assertPreviewCurrent, previewDigest } from '../server/core/preview-digest.js';
+import { PREVIEW_CHANGED } from '../server/core/storage/preview-digest.js';
 import { previewDigestSchema } from '../shared/core/index.js';
-import { AppError } from '../server/core/errors.js';
+import { assertPreviewCurrent, previewDigest, AppError } from '../server/core/index.js';
 
 test('预览摘要：同样内容相同，字段先后（各层）不算，数组先后和值都算；格式是 64 位十六进制', () => {
   const a = { id: 1, lines: [{ stockId: 2, delta: '+5' }, { stockId: 3, delta: '-1' }], doc: { version: 4, notes: '虚构' } };

@@ -34,7 +34,7 @@ const contentDisposition = (name: string) =>
 
 /**
  * 机器人凭据只有超级管理员账号能看，改要先进超级管理员模式（偷到登录状态的人不能换掉凭据）；
- * 拒绝的说法和类别跟全站一致（server/core/permissions.ts）。设置里有应用编号，和 AI 设置一样不让浏览器和代理缓存。
+ * 拒绝的说法和类别跟全站一致（server/core/http/permissions.ts）。设置里有应用编号，和 AI 设置一样不让浏览器和代理缓存。
  */
 function botRoutes({ router, on, store, auth, bots, actor }: InboxRoutes) {
   const botAdmin = (req: Request, change = false) => {

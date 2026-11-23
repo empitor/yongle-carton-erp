@@ -2,10 +2,8 @@
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
-import { viaEntry } from '../server/core/audit.js';
+import { Store, viaEntry, ConflictError, InputError } from '../server/core/index.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
-import { ConflictError, InputError } from '../server/core/errors.js';
 import { InboxService } from '../server/inbox/service.js';
 import { INBOX_KEEP_DAYS, purgeOldInbox } from '../server/inbox/retention.js';
 import { startHttp } from './http-fixture.js';

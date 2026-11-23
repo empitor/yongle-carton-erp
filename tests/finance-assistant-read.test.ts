@@ -4,7 +4,7 @@ import { quietLog } from './finance-catch-up-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { readFinanceTool } from '../server/finance/assistant.js';
 import { financeReadTools, financeToolDescriptions } from '../shared/finance/finance-tools.js';
 

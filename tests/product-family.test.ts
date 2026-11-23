@@ -3,9 +3,8 @@ import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import { Store, localAdministratorActor } from '../server/core/index.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { productSchema } from '../shared/core/domain.js';
 import { descendantIds, nestByFamily } from '../shared/business/product-family.js';
 

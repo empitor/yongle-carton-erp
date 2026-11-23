@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import type { Store } from '../server/core/db.js';
+import type { Store } from '../server/core/index.js';
 import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
 import { quantityUnits } from '../shared/core/index.js';
 import { businessChanges } from './business-changes-fixture.js';

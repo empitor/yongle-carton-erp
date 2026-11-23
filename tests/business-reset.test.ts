@@ -5,19 +5,25 @@ import { pageActor, actor as assistantActor, superActor as assistantSuperActor }
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/index.js';
+import {
+  Store,
+  type Actor,
+  count,
+  many,
+  resetCounts,
+  resetParticipants,
+  rows,
+  localAdministratorActor,
+} from '../server/core/index.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
-import { count, many, resetCounts, resetParticipants, rows } from '../server/core/index.js';
 import { AssistantAttachments } from '../server/assistant/attachments.js';
-// 初始化时各模块清自己的表，删除时各模块配合（server/core/deletion-rules.ts）。
+// 初始化时各模块清自己的表，删除时各模块配合（server/core/records/deletion-rules.ts）。
 import '../server/finance/index.js';
 import '../server/import/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { financePermissions } from '../shared/core/accounts.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { AssistantExtraTools } from '../server/assistant/extra-tools.js';
 import { businessBase } from './business-base-fixture.js';
 import { assistantDeps, assistantFixture, makeSettings, toolsOf } from './assistant-fixture.js';

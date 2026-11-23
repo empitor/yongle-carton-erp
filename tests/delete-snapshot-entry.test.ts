@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import * as business from '../server/overview/index.js';
 import * as orders from '../server/orders/index.js';
 import { DatabaseMaintenanceService, TakenSnapshot, deleteAfterSnapshot } from '../server/lifecycle/index.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { fixture } from './maintenance-fixture.js';
 
 test('删除归档入口交出去的删除引擎只有 delete 一个删除方法（先拍快照），订单服务和业务总览的入口都不转交不另拍快照的删除和快照凭证', () => {

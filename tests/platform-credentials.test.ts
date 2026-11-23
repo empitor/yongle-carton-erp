@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { aesProtector, initializeCredentialProtection, linuxMasterKey, windowsProtector } from '../server/ai/credential-store.js';
 import { AiConnectionError } from '../server/ai/errors.js';
-import { configDirectory } from '../server/core/config-paths.js';
+import { configDirectory } from '../server/core/index.js';
 
 test('凭据目录按平台选择，Windows保持旧路径，Linux遵守XDG且覆盖项必须绝对路径', () => {
   assert.equal(configDirectory('win32', { LOCALAPPDATA: 'C:\\VirtualLocal' }, 'C:\\VirtualUser'), 'C:\\VirtualLocal\\ZhixuERP');

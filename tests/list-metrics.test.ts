@@ -3,7 +3,7 @@ import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
@@ -330,7 +330,7 @@ test('归档的产品在统计里按停用算；没开登录看已归档的要�
     const disabled = readAs(await get('/products?withMetrics=1&archived=1'), { rows: z.array(z.unknown()), metrics: z.object({ enabled: z.number() }) });
     assert.equal(disabled.metrics.enabled, 0);
     assert.equal(disabled.rows.length, 1);
-    // 没开登录就认不出账号：看已归档的和全站别的要超级管理员模式的事一样，说请先登录（server/core/permissions.ts）
+    // 没开登录就认不出账号：看已归档的和全站别的要超级管理员模式的事一样，说请先登录（server/core/http/permissions.ts）
     assert.equal((await fetch(base + '/products?withMetrics=1&archived=all')).status, 401);
   } finally {
     await server.close();

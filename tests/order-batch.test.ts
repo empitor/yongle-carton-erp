@@ -4,14 +4,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
-import { AppError, count, one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
+import {
+  Store,
+  AppError,
+  count,
+  one as oneRow,
+  parseStoredJson,
+  rows,
+  localAdministratorActor,
+} from '../server/core/index.js';
 import { storedScheduleEntrySchema } from '../shared/business/index.js';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { purchaseNextSteps } from '../shared/business/order-next-step.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { flowFixture, clerk } from './flow-fixture.js';

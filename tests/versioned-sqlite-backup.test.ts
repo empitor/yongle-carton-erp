@@ -1,4 +1,4 @@
-// 配置库的升级前备份和补丁回滚时的换回（server/core/versioned-sqlite-backup.ts）：拿到写锁以后、第一步之前做好；
+// 配置库的升级前备份和补丁回滚时的换回（server/core/backup/versioned-sqlite-backup.ts）：拿到写锁以后、第一步之前做好；
 // 每个版本对留最新一份、最多 3 个版本对；账号库的备份和换下来的库里都没有登录会话；备份做不成就不升级；
 // 换回只动比程序新的库，换下来的留着，位置算不出来、旁边有附属文件的报出来。只用虚构数据。
 import { test } from 'node:test';
@@ -6,9 +6,12 @@ import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { accountDatabase } from '../server/accounts/account-db.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
-import { revertConfigUpgrades } from '../server/core/versioned-sqlite-backup.js';
-import { VersionedSqliteError, type VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';
+import {
+  openVersionedSqlite,
+  revertConfigUpgrades,
+  VersionedSqliteError,
+  type VersionedSqliteSpec,
+} from '../server/core/index.js';
 import {
   configWorkspace,
   noteSteps,

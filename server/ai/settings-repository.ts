@@ -19,7 +19,7 @@ const documentSchema = z.strictObject({
 export type SettingsDocument = z.infer<typeof documentSchema>;
 /**
  * AI 设置库（配置目录下的 ai/settings.sqlite）：一行 JSON。基线是 0.9.0 的第 2 版，只放 DOCUMENT_FORMAT 格式的文档；
- * 0.8.4 记的是第 1 版（多套预设），比基线旧，打开时删掉重建。以后改结构在 steps 加一步（规矩见 server/core/versioned-sqlite-spec.ts 开头）。
+ * 0.8.4 记的是第 1 版（多套预设），比基线旧，打开时删掉重建。以后改结构在 steps 加一步（规矩见 server/core/backup/versioned-sqlite-spec.ts 开头）。
  */
 const settingsDatabase = {
   label: 'AI 设置库',

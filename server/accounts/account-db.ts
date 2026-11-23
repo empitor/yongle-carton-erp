@@ -70,7 +70,7 @@ function clearSessions(db: DatabaseSync) {
 
 /**
  * 账号库的结构，基线是 0.9.0 的第 1 版。0.8.4 留下的（没记版本）打开时删掉重建，程序回到“首次使用、建立管理员”；
- * 以后改结构在 steps 加一步，账号留着（规矩见 server/core/versioned-sqlite-spec.ts 开头）。
+ * 以后改结构在 steps 加一步，账号留着（规矩见 server/core/backup/versioned-sqlite-spec.ts 开头）。
  * auth_sessions 是部署模式的登录会话（本机模式不用，表照样建）。
  */
 export const accountDatabase: VersionedSqliteSpec = {

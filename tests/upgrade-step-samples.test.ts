@@ -13,7 +13,7 @@
 // 测试从第 20 版快照（tests/fixtures/schema-v20.sql）建一个内存库，先跑完前面的步骤，写进 before，只跑这一步，再逐表比 after。
 // 步骤没有样例、样例对应的步骤不存在、样例写法不对，都会失败。
 //
-// 配置库（规格里的 steps，规矩见 server/core/versioned-sqlite-spec.ts 开头）一样，样例放在按短名分的子目录里：
+// 配置库（规格里的 steps，规矩见 server/core/backup/versioned-sqlite-spec.ts 开头）一样，样例放在按短名分的子目录里：
 // tests/fixtures/upgrade-samples/<短名>/v<版本号>.json（短名见 scripts/config-db-dump.ts 的 configDbKeys），写法同上；
 // 从这个库的基线快照（tests/fixtures/config-db/）建临时文件开始跑。不认识的短名目录也会失败。
 import assert from 'node:assert/strict';
@@ -24,8 +24,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { upgradeSchema, upgradeSteps, type UpgradeStep } from '../server/core/schema/index.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
-import type { VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';
+import { openVersionedSqlite, type VersionedSqliteSpec } from '../server/core/index.js';
 import { CONFIG_BASELINE_DIRECTORY, configDatabases, configDbKeys } from '../scripts/config-db-dump.js';
 import { configWorkspace, notesBaseline, notesSpec, quietLog, runSql } from './config-db-fixture.js';
 

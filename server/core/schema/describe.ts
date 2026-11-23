@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { many, one, pragmaInteger } from '../sql.js';
+import { many, one, pragmaInteger } from '../storage/sqlite/sql.js';
 import { seededTables } from './create.js';
 
 type Row = Record<string, unknown>;

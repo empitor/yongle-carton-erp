@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { describeSchema } from '../server/core/schema/index.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
-import { checkedSteps, latestOf, type VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';
+import { openVersionedSqlite, type VersionedSqliteSpec } from '../server/core/index.js';
+import { checkedSteps, latestOf } from '../server/core/backup/versioned-sqlite-spec.js';
 import { CONFIG_BASELINE_DIRECTORY, configDatabases, configDbKeys, dumpConfigBaseline } from '../scripts/config-db-dump.js';
 import { configWorkspace, notesBaseline, notesSpec, quietLog, runSql, snapshotNames, userVersion } from './config-db-fixture.js';
 
@@ -26,7 +26,7 @@ const BASELINE_SHA256: Readonly<Record<string, string>> = {
   'prompts-v2.sql': '7a230aa70db3df3109afd787fe1f102209aea20fa449a1bdf43035b75a5f8d6b',
 };
 const HELP =
-  '基线快照定下以后不许改：要改结构请在规格的 steps 里加升级步骤（规矩见 server/core/versioned-sqlite-spec.ts 开头）；' +
+  '基线快照定下以后不许改：要改结构请在规格的 steps 里加升级步骤（规矩见 server/core/backup/versioned-sqlite-spec.ts 开头）；' +
   '新加配置库：在 scripts/config-db-dump.ts 登记短名，运行 npm run schema:dump 导出快照，再把 sha256 登记在 tests/config-db-evolution.test.ts';
 const stored = (file: string) => readFileSync(join(CONFIG_BASELINE_DIRECTORY, file), 'utf8').replaceAll('\r\n', '\n');
 
@@ -77,7 +77,7 @@ test('账号库的会话表还叫 auth_sessions：补丁回滚时旧程序靠这
   assert.ok(accounts);
   assert.ok(
     freshTables(accounts.spec).includes('auth_sessions'),
-    '会话表的表名和“删光就是清空会话”的做法不许改（server/core/versioned-sqlite-spec.ts 开头）',
+    '会话表的表名和“删光就是清空会话”的做法不许改（server/core/backup/versioned-sqlite-spec.ts 开头）',
   );
 });
 

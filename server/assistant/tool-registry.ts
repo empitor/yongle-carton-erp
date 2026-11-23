@@ -19,7 +19,7 @@ export const defaultAssistantToolsPath = () =>
 /**
  * 助手工具设置库（ai-tools/tools.sqlite）：工具和插件的启停；第 2 版起还放按账号的助手设置（account-settings.ts）
  * 和长期记忆（memory-store.ts），不进业务库，业务数据初始化不会清掉它们。基线是 0.9.0 的第 2 版：0.8.4 留下的（没记版本）
- * 打开时删掉重建；以后改结构在 steps 加一步，长期记忆和设置留着（规矩见 server/core/versioned-sqlite-spec.ts 开头）。
+ * 打开时删掉重建；以后改结构在 steps 加一步，长期记忆和设置留着（规矩见 server/core/backup/versioned-sqlite-spec.ts 开头）。
  */
 const toolSettingsDatabase = {
   label: '助手工具设置库',

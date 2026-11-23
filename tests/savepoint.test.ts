@@ -1,8 +1,8 @@
-// 写入用的保存点（server/core/savepoint.ts）：办完提交、出错整段回滚再抛、嵌套各管各的，预演不管成败都撤回
+// 写入用的保存点（server/core/storage/savepoint.ts）：办完提交、出错整段回滚再抛、嵌套各管各的，预演不管成败都撤回
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
-import { ASYNC_JOB, inSavepoint, rehearse } from '../server/core/savepoint.js';
+import { Store, inSavepoint, rehearse } from '../server/core/index.js';
+import { ASYNC_JOB } from '../server/core/storage/savepoint.js';
 
 const setup = () => {
   const store = new Store(':memory:');

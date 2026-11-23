@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import ts from 'typescript';
 import { all, scriptKind } from './module-map.js';
-import { rows } from '../server/core/schema/rows.js';
+import { rows } from '../server/core/index.js';
 import { fieldName, fieldTables } from '../shared/core/index.js';
 
 /** 退掉的旧说法 → 现在的叫法。文字里出现这段就算（这些说法不会是别的词的一部分） */

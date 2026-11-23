@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { OperationsService } from '../server/operations/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor } from '../server/core/index.js';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
 import { imageFixture } from './import-fixtures.js';

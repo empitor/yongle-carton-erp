@@ -3,8 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { AppError } from '../server/core/errors.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { AppError, localAdministratorActor } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { setup } from './delete-fixture.js';
 import { actor } from './actor-fixture.js';

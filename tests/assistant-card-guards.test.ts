@@ -3,8 +3,7 @@
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { StoredDataError } from '../server/core/errors.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { StoredDataError, localAdministratorActor } from '../server/core/index.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { PROMISE_REFUSED } from '../server/assistant/tools/card-rehearsal.js';
 import { withCard } from '../server/assistant/tools/card-summary.js';

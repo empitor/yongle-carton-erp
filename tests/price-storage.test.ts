@@ -3,9 +3,8 @@
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
+import { Store, count, one, rows } from '../server/core/index.js';
 import { lineSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { count, one, rows } from '../server/core/index.js';
 import { legacyCents, precisionTotal, priceFromE4, priceToE4 } from '../shared/core/precision.js';
 
 const priceList = ['1.3000', '8.7800', '0.1700'],

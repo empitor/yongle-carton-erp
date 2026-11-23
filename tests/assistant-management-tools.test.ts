@@ -5,7 +5,7 @@ import { pageActor, superActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { localAdministratorActor, isLocalAdministrator } from '../server/core/local-administrator.js';
+import { localAdministratorActor, isLocalAdministrator, Store, AppError } from '../server/core/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { assistantFixture, autoConfirmAssistant, ctxOf } from './assistant-fixture.js';
 import { createOrderWorkflowFixture } from './assistant-workflow-fixture.js';
@@ -13,8 +13,6 @@ import { imageFixture } from './import-fixtures.js';
 import { fixture } from './maintenance-fixture.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
-import { AppError } from '../server/core/errors.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { readAs } from './read-result.js';
 

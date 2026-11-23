@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor } from '../server/core/index.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { editableFields } from '../server/assistant/tools/card-summary.js';

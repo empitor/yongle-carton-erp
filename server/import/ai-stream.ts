@@ -5,7 +5,7 @@ import { AiConnectionError } from '../ai/index.js';
 import { AI_HTTP_TIMEOUT_MS, type AiProgress } from '../../shared/ai/index.js';
 
 /**
- * 调模型的请求怎么回：stream=false 等结果回 JSON；stream=true 用事件流（写法在 server/core/stream.ts），
+ * 调模型的请求怎么回：stream=false 等结果回 JSON；stream=true 用事件流（写法在 server/core/http/stream.ts），
  * 先推一条“连接中”，进度按阶段节流，最后推 result 或 error。连接断了（页面关掉、取消）调 abort 停掉模型调用。
  * 识别导入的几条识别地址都用它。
  */

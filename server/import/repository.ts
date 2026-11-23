@@ -41,7 +41,7 @@ type Task = NonNullable<ImportWorkspaceView['task']>;
 const LIST_LIMIT = 200;
 /**
  * AI 识别工作区库（ai-imports/workspaces.sqlite）的结构，基线是 0.9.0 的第 3 版；表结构或工作区里存的字段变了，
- * 在 steps 加一步（规矩见 server/core/versioned-sqlite-spec.ts 开头），识别到一半的工作留着。
+ * 在 steps 加一步（规矩见 server/core/backup/versioned-sqlite-spec.ts 开头），识别到一半的工作留着。
  * 工作区按编号引用客户、产品、到货单；0.9.0 的业务库从空库开始、编号重新排，
  * 以前留下的工作区会对到别的档案上：0.8.4 留下的（没记版本）比基线旧，按配置库的统一规则打开时删掉重建。
  * 同一原件可以建多个识别任务：file_hash 只建普通索引，不唯一。

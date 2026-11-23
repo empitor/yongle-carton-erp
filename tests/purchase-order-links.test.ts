@@ -3,15 +3,13 @@ import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import { Store, localAdministratorActor, one, parseStoredJson, rows } from '../server/core/index.js';
 import { OrderBatchService, purchaseOrderLinks, stockLedger } from '../server/operations/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { relatedBusiness } from '../server/overview/related-business.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 // 删订单要识别导入配合（给导入记录打标记），加载时登记
 import '../server/import/index.js';
 import { registerArrival } from '../server/flow/index.js';
-import { one, parseStoredJson, rows } from '../server/core/index.js';
 import { purchaseLineDocumentSchema } from '../shared/business/index.js';
 import { actor, superActor } from './actor-fixture.js';
 import { businessBase } from './business-base-fixture.js';

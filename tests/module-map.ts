@@ -18,7 +18,22 @@ const business = (names: string[]) => names.map((n) => 'shared/business/' + n + 
 // allow 和实际用到的一致（module-boundaries 有测试查）：新用到一个模块就在这里加上，不再用了就删掉，架构图跟着改。
 export const modules: Rule[] = [
   // 服务端
-  { name: '基础', paths: ['server/core/'], allow: ['共用-基础'] },
+  {
+    name: '基础',
+    paths: ['server/core/'],
+    allow: ['共用-基础'],
+    layers: [
+      { name: '请求和报错', paths: ['server/core/http/'] },
+      { name: '文件校验', paths: ['server/core/files/'] },
+      { name: 'SQLite 基础', paths: ['server/core/storage/sqlite/'] },
+      { name: '业务库结构', paths: ['server/core/schema/'] },
+      { name: '记录种类登记', paths: ['server/core/records/kinds/'] },
+      { name: '业务库存储', paths: ['server/core/storage/'] },
+      { name: '记录维护', paths: ['server/core/records/'] },
+      { name: '备份和配置库', paths: ['server/core/backup/'] },
+      { name: '出错记录', paths: ['server/core/diagnostics/'] },
+    ],
+  },
   { name: '账号', paths: ['server/accounts/'], allow: ['基础', '共用-基础'] },
   { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
   // 系统资料：运行日志、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）

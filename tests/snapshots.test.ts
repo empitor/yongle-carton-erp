@@ -1,5 +1,5 @@
 // 删除、初始化、维护改写、删对话前的恢复快照：事务里也能拍、没写入时复用、改坏或删掉就重拍、保留策略；拍不成就整体不做。
-// 初始化时各模块清自己的表、删除时各模块配合：要先加载识别导入、财务和单据导出模块让它们登记（server/core/deletion-rules.ts），正式服务启动时都会加载
+// 初始化时各模块清自己的表、删除时各模块配合：要先加载识别导入、财务和单据导出模块让它们登记（server/core/records/deletion-rules.ts），正式服务启动时都会加载
 import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import '../server/import/index.js';
@@ -11,14 +11,17 @@ import { randomUUID } from 'node:crypto';
 import fs, { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/index.js';
+import {
+  Store,
+  type Actor,
+  localAdministratorActor,
+  snapshotBeforeDestructive,
+} from '../server/core/index.js';
 import { createBusinessService } from '../server/orders/index.js';
 import { manualWrite } from './business-base-fixture.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
-import { snapshotBeforeDestructive, pruneSnapshots, snapshotTime } from '../server/core/snapshots.js';
+import { pruneSnapshots, snapshotTime } from '../server/core/backup/snapshots.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { DatabaseSync } from 'node:sqlite';

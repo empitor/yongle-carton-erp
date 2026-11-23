@@ -7,7 +7,7 @@ import { bpText, percentOf, percentToBp } from '../src/finance/percent.js';
 import { centsText as sharedCentsText } from '../shared/core/index.js';
 import { financeAmountsInYuan, readFinanceTool, financeMoneyFields } from '../server/finance/assistant.js';
 import { displayAmount } from '../shared/core/display-amount.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { financeReadTools } from '../shared/finance/finance-tools.js';

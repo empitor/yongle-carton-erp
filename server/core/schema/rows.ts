@@ -6,7 +6,7 @@ import { configRows } from './rows/config-db.js';
 
 /**
  * 每张表的行结构，按表名取（rows.customers）。别名、联表、聚合在调用处用 rows.x.pick({…}).extend({…}) 组；
- * 读库用 server/core/sql.ts 的 one、many。
+ * 读库用 server/core/storage/sqlite/sql.ts 的 one、many。
  */
 export const rows = { ...businessRows, ...financeRows, ...configRows };
 /** 每张表一行的类型：Rows['customers'] */

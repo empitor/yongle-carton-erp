@@ -3,7 +3,7 @@
 import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceInvoices } from '../server/finance/cash/invoices.js';

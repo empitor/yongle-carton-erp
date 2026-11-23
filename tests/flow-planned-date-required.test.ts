@@ -3,7 +3,7 @@
 // 内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { accepts, rejects } from './schema-fixture.js';
 import { flowFixture } from './flow-fixture.js';
 

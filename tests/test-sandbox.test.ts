@@ -4,10 +4,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative } from 'node:path';
-import { defaultDbPath } from '../server/core/db.js';
-import { backupDirectory, configDirectory } from '../server/core/config-paths.js';
+import {
+  defaultDbPath,
+  backupDirectory,
+  configDirectory,
+  defaultProblemLogPath,
+} from '../server/core/index.js';
 import { defaultAccountPath } from '../server/accounts/index.js';
-import { defaultProblemLogPath } from '../server/core/index.js';
 import { defaultAiSettingsPath, defaultPromptSettingsPath } from '../server/ai/index.js';
 import { defaultAssistantToolsPath } from '../server/assistant/index.js';
 import { defaultWorkspaceDirectory } from '../server/import/index.js';

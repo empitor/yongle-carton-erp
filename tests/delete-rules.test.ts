@@ -1,22 +1,29 @@
-// 删除时各模块按登记的规则配合（server/core/deletion-rules.ts）：删除引擎只调登记的规则，表由它的主人写；
+// 删除时各模块按登记的规则配合（server/core/records/deletion-rules.ts）：删除引擎只调登记的规则，表由它的主人写；
 // 没登记的表宁可拒绝。编号、单号删了不复用；合并订货单删一张时订货单跟着改。删产品连带成品库存在 delete-product-stock.test.ts。
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import {
+  Store,
+  localAdministratorActor,
+  requireRecordDeletionHook,
+  resetClear,
+  resetParticipants,
+  AppError,
+  count,
+  many,
+  one,
+  rows,
+} from '../server/core/index.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { deletionImpactView } from '../src/recordkit/deletion-impact.js';
 import { OrderBatchService } from '../server/operations/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { InboxService } from '../server/inbox/service.js';
 import type { InboxIncoming } from '../shared/import/inbox.js';
-import { requireRecordDeletionHook, resetClear, resetParticipants } from '../server/core/deletion-rules.js';
-import { AppError } from '../server/core/errors.js';
 import { listingFixture, mergeIntoBatch, orderWithImports, setup } from './delete-fixture.js';
 import { z } from 'zod';
-import { count, many, one, rows } from '../server/core/index.js';
 import { actor, superActor } from './actor-fixture.js';
 import { must } from './read-result.js';
 

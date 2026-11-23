@@ -7,8 +7,7 @@ import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import { Readable } from 'node:stream';
 import { defaultDocumentTemplates, templateSchema, purchaseColumns, deliveryColumns, templateColumnsAreDefault, resetTemplateColumns, templateSettingsSchema, templateHeaderText, type DocumentColumn, type DocumentTemplate } from '../shared/documents/document-templates.js';
-import { AppError } from '../server/core/errors.js';
-import { count as countRows } from '../server/core/sql.js';
+import { AppError, count as countRows, localAdministratorActor } from '../server/core/index.js';
 import { sampleDocument } from '../server/documents/sample.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { today } from '../shared/core/domain.js';
@@ -19,7 +18,6 @@ import { DocumentTemplateSettings } from '../server/documents/settings.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import '../server/import/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { FlowService } from '../server/flow/index.js';
 import { actor } from './actor-fixture.js';
 

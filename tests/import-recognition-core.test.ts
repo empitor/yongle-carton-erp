@@ -199,7 +199,7 @@ test('工作区目录启动修复：正在删的目录里，库里还在的搬�
 test('识别地址的回法只有一处（ai-stream.ts）：不推送回 JSON；推送先报连接中、再给结果或中文错误；正常结束不算断开', async () => {
   const express = (await import('express')).default;
   const { replyAi, aiFailureMessage } = await import('../server/import/ai-stream.js');
-  const { AppError } = await import('../server/core/errors.js');
+  const { AppError } = await import('../server/core/index.js');
   let aborted = 0;
   const app = express();
   app.use(express.json());

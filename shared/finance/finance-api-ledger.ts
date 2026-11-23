@@ -11,7 +11,7 @@ import type {
 } from './finance.js';
 import type { Body, Page } from './finance-api-shapes.js';
 
-/** 按 server/core/paging.ts 分页的列表：第几页（不给回全部）、每页几条、排序 */
+/** 按 server/core/http/paging.ts 分页的列表：第几页（不给回全部）、每页几条、排序 */
 type CorePaging = z.input<typeof pagingSchema>;
 
 /** 凭证头（fin_vouchers 整行，照 server/finance/voucher-read.ts）：状态是 draft、pending、approved、posted、void 之一 */

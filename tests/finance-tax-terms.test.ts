@@ -1,7 +1,7 @@
 // 待补税率的收付核销和批量补税、税率来源、账期和分期、现结优惠（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceReports, FinanceInfoPending } from '../server/finance/reports/reports.js';

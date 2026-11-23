@@ -1,4 +1,4 @@
-// 单据导出的表的初始化规则（server/core/deletion-rules.ts）
+// 单据导出的表的初始化规则（server/core/records/deletion-rules.ts）
 import './deletion.js';
 export { documentsRouter } from './router.js';
 export { BusinessDocuments } from './service.js';

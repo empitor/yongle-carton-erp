@@ -1,4 +1,4 @@
-// 单据流转的表的删除、初始化规则（server/core/deletion-rules.ts）
+// 单据流转的表的删除、初始化规则（server/core/records/deletion-rules.ts）
 import './deletion.js';
 export { recomputeAfterFlowDeletion } from './deletion.js';
 export { archiveFlowDocuments } from './documents/archive.js';

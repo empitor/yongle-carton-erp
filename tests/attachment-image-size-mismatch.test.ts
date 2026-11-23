@@ -1,9 +1,9 @@
-// 附件图片的检查（server/core/attachment-validation.ts 的 checkImage）：解码出来的宽高和文件头一致、或者正好对调
+// 附件图片的检查（server/core/files/attachment-validation.ts 的 checkImage）：解码出来的宽高和文件头一致、或者正好对调
 // （手机竖拍带方向标记的照片）都收；别的不一致报“尺寸与文件头不一致”，解码不了报“图像内容损坏”。图都是脚本现造的。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCanvas } from '@napi-rs/canvas';
-import { validateAttachment } from '../server/core/attachment-validation.js';
+import { validateAttachment } from '../server/core/index.js';
 
 /**
  * 现造一张 4×3 的 JPEG，在开头插一段 EXIF，方向标记写成“顺时针转 90°”（6），像手机竖拍的照片：

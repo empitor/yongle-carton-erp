@@ -1,7 +1,7 @@
 // 来源凭证作废后重新生成、红字凭证和原凭证互指（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, count, one, rows } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
@@ -11,7 +11,6 @@ import { bookingDate } from '../server/finance/base/periods.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligation, obligationRow, funds, ledgerBalance, subledger, reverseSource, eventsStep, unbalancedVouchers } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { FinanceDue } from '../server/finance/parties/due.js';
-import { count, one, rows } from '../server/core/index.js';
 
 /** 1 月已结账（只在内存库里直接标记）以后补录一张 1 月 20 日的送货单，客户账期 30 天 */
 function lateDelivery(doc: Record<string, unknown> = deliveryDoc('1')) {

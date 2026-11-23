@@ -2,8 +2,7 @@
 // 走保存入口（单据流转的 FlowService.stock、采购库存的 OperationsService），内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AppError } from '../server/core/errors.js';
-import { count } from '../server/core/index.js';
+import { AppError, count } from '../server/core/index.js';
 import { actor } from './actor-fixture.js';
 import { businessBase, standardRecords } from './business-base-fixture.js';
 

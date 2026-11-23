@@ -3,7 +3,7 @@ import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';

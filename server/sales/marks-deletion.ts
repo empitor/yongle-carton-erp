@@ -1,4 +1,4 @@
-// 产品唛头资料（客户产品订单的表）在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。
+// 产品唛头资料（客户产品订单的表）在删除、初始化时怎么处理（登记接口见 server/core/records/deletion-rules.ts）。
 // 由本模块的 index.ts 引入，加载客户产品订单时就登记（删除引擎不点模块名，按表查登记）。
 import { registerReset, registerTableDeletion, textOf } from '../core/index.js';
 

@@ -21,7 +21,7 @@ import type { AuditSource } from './audit-sources.js';
  * 登录、建首个管理员、申请、忘记密码、退出被拒时只回 { message }（不带 code），退出的页面凭证不对只回 403 状态码。
  */
 
-/** 页面看到的登录账号：服务端的 Actor（server/core/actor.ts）原样发出，本机管理员的标记是符号属性，不进 JSON */
+/** 页面看到的登录账号：服务端的 Actor（server/core/http/actor.ts）原样发出，本机管理员的标记是符号属性，不进 JSON */
 type SessionActor = {
   source: AuditSource;
   id: string;

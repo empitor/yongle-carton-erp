@@ -46,7 +46,7 @@ export function archiveWorkspace(store: WorkspaceStore, id: string, revision: nu
   return store.get(id);
 }
 /**
- * 归档、恢复走全站同一份做法（server/core/archive.ts 的 changeArchive）；这里只给识别文件存在哪、怎么打标记：
+ * 归档、恢复走全站同一份做法（server/core/records/archive.ts 的 changeArchive）；这里只给识别文件存在哪、怎么打标记：
  * 编号是 UUID，版本是工作区的 revision（从 0 起），审计记在工作区自己的修改记录里。
  */
 export function workspaceArchiveTarget(store: WorkspaceStore): ArchiveTarget<string, Workspace> {

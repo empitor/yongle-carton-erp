@@ -37,7 +37,7 @@ const tableOwner = (t: string) =>
     : tableOwnerMap.get(t) ??
       (t.startsWith('fin_') ? '财务' : t.startsWith('flow_') ? '单据流转' : t.startsWith('assistant_') ? '助手' : undefined);
 
-// 删除记录、初始化也不例外：各模块登记自己的删除、初始化规则（server/core/deletion-rules.ts），
+// 删除记录、初始化也不例外：各模块登记自己的删除、初始化规则（server/core/records/deletion-rules.ts），
 // 删除引擎、初始化只调登记的规则
 const tableWriteExceptions: { path: string; why: string }[] = [
   {
@@ -364,8 +364,8 @@ test('回归：SQL 读写检查不分大小写，认得出带引号的表名、�
   assert.deepEqual(sqlCheck('server/core/schema/steps.ts', "db.exec('update purchases set version=1')"), []);
   assert.deepEqual(sqlCheck('server/core/schema/tables/sample.ts', "export const t = 'CREATE TABLE fin_sample(id INTEGER PRIMARY KEY); INSERT INTO fin_settings(id) VALUES(1);'"), []);
   // 数据库连接（Store）不整个文件免查：运行时只能写基础自己的表，按表名拼出来的写入也拦
-  assert.ok(sqlCheck('server/core/db.ts', "db.exec('update purchases set version=1')").length, 'Store 写采购库存的表');
-  assert.ok(sqlCheck('server/core/db.ts', "db.prepare('INSERT OR REPLACE INTO ' + table + ' VALUES(?,?)')").length, 'Store 按表名写');
+  assert.ok(sqlCheck('server/core/storage/db.ts', "db.exec('update purchases set version=1')").length, 'Store 写采购库存的表');
+  assert.ok(sqlCheck('server/core/storage/db.ts', "db.prepare('INSERT OR REPLACE INTO ' + table + ' VALUES(?,?)')").length, 'Store 按表名写');
   assert.deepEqual(sqlCheck('server/sales/records.ts', "db.prepare('UPDATE orders SET version=version+1 WHERE id=?')"), []);
   // 删除和初始化不例外：删除引擎、初始化按表名写、写别的模块的表都拦（要调各模块登记的规则）
   assert.ok(sqlCheck('server/lifecycle/database-maintenance.ts', "db.prepare('UPDATE ' + quote(t) + ' SET a=1')").length, '删除引擎按表名写');

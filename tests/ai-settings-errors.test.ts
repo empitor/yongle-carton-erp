@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { createApp } from '../server/app.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { listen, testProblems } from './http-fixture.js';
 import { fakeDeepSeek, testProtector } from './fake-deepseek.js';
 

@@ -259,7 +259,7 @@ export class PurchaseReturns {
   }
 
   reverse(who: Actor | null | undefined, rawId: unknown, raw: unknown) {
-    // 撤销退货要超级管理员模式：进不了模式的账号直接说没有权限，没进的超级管理员提示去“系统维护”（server/core/permissions.ts）
+    // 撤销退货要超级管理员模式：进不了模式的账号直接说没有权限，没进的超级管理员提示去“系统维护”（server/core/http/permissions.ts）
     const actor = requireSuperModeFor(requirePermission(who, 'business:edit'), '撤销采购退货');
     const id = z.coerce.number().int().positive().parse(rawId);
     const v = returnReversalSchema.parse(raw);

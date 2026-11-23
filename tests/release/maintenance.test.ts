@@ -6,12 +6,14 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
-import { Store } from '../../server/core/db.js';
-import { acquireLock } from '../../server/core/lock.js';
-import { snapshotBeforeDestructive } from '../../server/core/snapshots.js';
+import {
+  Store,
+  acquireLock,
+  snapshotBeforeDestructive,
+  readBackupManifest,
+} from '../../server/core/index.js';
 import { SCHEMA_LATEST } from '../../server/core/schema/index.js';
 import { snapshotForUpgrade } from '../../server/core/schema/upgrade.js';
-import { readBackupManifest } from '../../server/core/backup-manifest.js';
 import { alterBackupDatabase, versionOf } from '../backup-fixture.js';
 
 /** 在临时目录里起命令行维护脚本（server/maintenance.ts）；env 把业务库、备份目录这些指进临时目录 */

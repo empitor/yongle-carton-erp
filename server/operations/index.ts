@@ -1,4 +1,4 @@
-// 采购库存的表的删除、初始化规则（server/core/deletion-rules.ts）
+// 采购库存的表的删除、初始化规则（server/core/records/deletion-rules.ts）
 import './deletion.js';
 export { syncFinishedStock } from './stock/product-stock.js';
 export { materialByOrder } from './ledger/material-progress.js';

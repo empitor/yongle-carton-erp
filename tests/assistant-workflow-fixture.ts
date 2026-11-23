@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { Store } from '../server/core/db.js';
+import { Store, type Actor } from '../server/core/index.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import type { AgentOptions } from '../server/assistant/chat/agent-config.js';
 import type { ImportManager } from '../server/import/manager.js';
@@ -19,7 +19,6 @@ import { imageFixture } from './import-fixtures.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { AiTransport } from '../server/ai/transport.js';
 import { customerSchema, productSchema, today } from '../shared/core/domain.js';
-import type { Actor } from '../server/core/index.js';
 import { actor as baseActor, grant } from './actor-fixture.js';
 
 /** 能识别导入的账号 */

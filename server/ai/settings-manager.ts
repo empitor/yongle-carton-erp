@@ -77,7 +77,7 @@ export class AiSettingsManager {
     this.retryDelay = options.retryDelay;
     const file = options.file || ':memory:';
     try {
-      // 0.8.4 留下的第 1 版库在打开时已经删掉重建（server/core/versioned-sqlite.ts）；读到的不合格式就报错，不覆盖
+      // 0.8.4 留下的第 1 版库在打开时已经删掉重建（server/core/backup/versioned-sqlite.ts）；读到的不合格式就报错，不覆盖
       this.repository = new SettingsRepository(file);
       const loaded = this.repository.load();
       if (!loaded) this.repository.save(this.document);

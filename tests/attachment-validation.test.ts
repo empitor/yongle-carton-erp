@@ -1,7 +1,7 @@
-// 上传附件、外发前的安全检查（server/core/attachment-validation.ts）。纯函数、虚构文件。
+// 上传附件、外发前的安全检查（server/core/files/attachment-validation.ts）。纯函数、虚构文件。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateAttachment } from '../server/core/attachment-validation.js';
+import { validateAttachment } from '../server/core/index.js';
 import { imageFixture, docxFixture, pdfFixture, xlsxFixture, zipFixture } from './import-fixtures.js';
 
 test('附件名带路径、类型不支持、内容和扩展名对不上、损坏、二进制或非 UTF-8 当文字、超大、带 XML 实体、带脚本的 PDF 都拒收', async () => {

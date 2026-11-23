@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import BusinessRecords from '../src/records/BusinessRecords.js';
 import OrderLinesView from '../src/recordkit/OrderLinesView.js';
 import { productPrice } from '../src/records/PartyProductDetails.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 
 test('明细换了产品：名称跟着新产品的档案走，不收补丁里带的旧名称；产品没换时照旧用给的名称', () => {

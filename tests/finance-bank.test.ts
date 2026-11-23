@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceBank } from '../server/finance/cash/bank.js';
 import { bankWorkbook } from '../server/finance/reports/exports.js';
 import { FinanceInvoices } from '../server/finance/cash/invoices.js';

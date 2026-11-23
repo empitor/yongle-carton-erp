@@ -2,7 +2,7 @@
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { createBusinessService, BusinessAccessError } from '../server/orders/index.js';
 
 test('助手来源没有确认凭据时业务服务拒绝写入，模型伪造人工来源也不能改变上下文', () => {

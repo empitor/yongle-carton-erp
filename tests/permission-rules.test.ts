@@ -1,4 +1,4 @@
-// 按账号判断能不能做（server/core/permissions.ts、shared/core/account-scope.ts、权限名单 shared/core/accounts.ts）：纯函数，虚构账号。
+// 按账号判断能不能做（server/core/http/permissions.ts、shared/core/account-scope.ts、权限名单 shared/core/accounts.ts）：纯函数，虚构账号。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -7,7 +7,8 @@ import {
   requirePermission,
   requireSuperModeFor,
   superModeDenied,
-} from '../server/core/permissions.js';
+  StoredDataError,
+} from '../server/core/index.js';
 import {
   financeOnlyAccount,
   financeOnlyApiAllowed,
@@ -15,7 +16,6 @@ import {
   financeOnlyToolAllowed,
 } from '../shared/core/account-scope.js';
 import { accountPermissions } from '../server/accounts/account-db.js';
-import { StoredDataError } from '../server/core/errors.js';
 import { financeActor } from '../server/finance/base/core.js';
 import { parseAuthState, type AuthState } from '../src/ui/auth-state.js';
 import { grant, pageActor } from './actor-fixture.js';

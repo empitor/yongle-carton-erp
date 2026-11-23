@@ -41,6 +41,7 @@ export function configDatabases() {
 }
 
 const objectRow = z.object({ sql: z.string() });
+// 快照头也参与基线比对，原文保留。规格现位于 server/core/backup/versioned-sqlite-spec.ts。
 const header = (spec: Spec) => `-- ${spec.label}第 ${spec.baseline} 版（基线）的结构快照：在一个全新的空文件上整份执行，建出来的就是这一版的库。
 -- 用途：tests/config-db-evolution.test.ts 拿它当“从基线一路升级上来”的起点，核对升级上来的库和程序新建的库结构完全一样；
 -- tests/upgrade-step-samples.test.ts 从它开始跑每一步的数据样例。

@@ -2,7 +2,7 @@
 // 页面直接显示现结优惠、利息、保证金，不再自己解析存的文字（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { maker, newSettings } from './finance-fixture.js';
 

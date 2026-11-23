@@ -2,9 +2,7 @@
 // （拒了库里不变；办了就核对预览和执行一致、同一请求号重发不重复、版本不对被拒）。内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/index.js';
-import { AppError } from '../server/core/errors.js';
+import { type Store, type Actor, AppError } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import type { OperationsService } from '../server/operations/index.js';
 import type { FlowService } from '../server/flow/index.js';

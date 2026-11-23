@@ -3,8 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import { AppError, count, one as oneRow, rows } from '../server/core/index.js';
+import { Store, AppError, count, one as oneRow, rows } from '../server/core/index.js';
 import { OperationsService, OrderBatchService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { BusinessDocuments } from '../server/documents/service.js';

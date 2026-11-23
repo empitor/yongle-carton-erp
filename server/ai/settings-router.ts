@@ -34,7 +34,7 @@ export function aiSettingsRouter(manager: AiSettingsManager, actorOf?: (req: Req
   const on = route<AiSettingsApi>(router, MOUNT);
   if (actorOf)
     router.use((req, _res, next) => {
-      // 拒绝的说法和类别跟全站一致（server/core/permissions.ts），拒绝时抛错交全站的出错回答
+      // 拒绝的说法和类别跟全站一致（server/core/http/permissions.ts），拒绝时抛错交全站的出错回答
       const who = actorOf(req);
       if (req.method === 'GET') requireSuperAdminAccount(who, '查看 AI 设置');
       else if (checksOnly.has(req.path)) requireSuperAdminAccount(who, '修改 AI 设置');

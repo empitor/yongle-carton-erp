@@ -4,12 +4,11 @@ import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, SchemaError, count } from '../server/core/index.js';
 import {
   SCHEMA_APPLICATION_ID,
   SCHEMA_BASELINE,
   SCHEMA_LATEST,
-  SchemaError,
   createSchema,
   describeSchema,
   expectedSchemaFingerprint,
@@ -21,7 +20,6 @@ import {
   type UpgradeStep,
 } from '../server/core/schema/index.js';
 import { APP_VERSION } from '../shared/core/version.js';
-import { count } from '../server/core/sql.js';
 import { one, quiet, rowsOf, versions, workspace } from './schema-fixture.js';
 
 /** 程序新建的库的版本记录：第 20 版到当前版本各一行（建表已经是当前结构，新库不跑升级步骤） */

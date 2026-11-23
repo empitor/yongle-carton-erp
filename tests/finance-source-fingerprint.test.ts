@@ -3,7 +3,7 @@ import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { customerSchema } from '../shared/core/domain.js';
-import { Store } from '../server/core/db.js';
+import { Store, count } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceEventViews } from '../server/finance/events/event-views.js';
 import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
@@ -13,7 +13,6 @@ import { businessChanges } from './business-changes-fixture.js';
 import { sourceHash, withNumber } from '../server/finance/events/source-fingerprint.js';
 import { flowDocumentContent, flowDocumentSchema } from '../shared/business/flow-document.js';
 import { financeFingerprint } from '../shared/business/finance-source.js';
-import { count } from '../server/core/index.js';
 
 /**
  * 财务不读的字段（[单据, 路径, 值]）：说明、经办记录、出库送达、对方单号、原文数量面积、抄来的订单和采购资料、

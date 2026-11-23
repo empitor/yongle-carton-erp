@@ -27,7 +27,7 @@ type DeletionRequest = z.output<typeof deletionRequestSchema>;
 type CheckedDeletion = { actor: Actor; v: DeletionRequest; request: ReturnType<typeof deleteRequest> };
 /**
  * 删除引擎（受控数据库维护）：删除不是归档/冲销。这里管谁能删、预览和真删；删哪些、解除哪些引用在 deletion-plan.ts 算，
- * 由数据库外键和各模块登记的删除规则决定（server/core/deletion-rules.ts）；改、删每一行都交给表的主人写，这里不直接写别的模块的表。
+ * 由数据库外键和各模块登记的删除规则决定（server/core/records/deletion-rules.ts）；改、删每一行都交给表的主人写，这里不直接写别的模块的表。
  * 影响清单怎么显示、库存说明要的数在 deletion-impact.ts；管理员改订单时由订单服务的 order-edit-cascade.ts 调用删除引擎。
  */
 export class DatabaseMaintenanceService {
@@ -56,7 +56,7 @@ export class DatabaseMaintenanceService {
     if (draftsOnly)
       throw new AppError('删除还没核对的单据要有业务编辑权限，当前账号没有这个权限。', 403, 'permission');
     // 其余要超级管理员模式：进不了模式的账号（业务员、只读、财务）直接说没有权限，不叫人去系统维护；
-    // 没进模式的超级管理员提示去“系统维护”进入。分法和类别见 server/core/permissions.ts 的 superModeDenied
+    // 没进模式的超级管理员提示去“系统维护”进入。分法和类别见 server/core/http/permissions.ts 的 superModeDenied
     throw flowModule
       ? superModeDenied(who, '删除已核对的单据', {
           permission: who.permissions.includes('business:edit') ? '还没核对的单据可以直接删' : undefined,

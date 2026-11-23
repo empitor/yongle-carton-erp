@@ -88,7 +88,7 @@ function readRoutes({ on, store, service, who }: FlowRoutes) {
       q = flowListQuerySchema.parse(query);
     // status=draft：只读还没核对的单据（安排送货时扣掉已排的数量用），不组装全部
     const ids = q.status === 'draft' ? service.draftIds(q.kind) : undefined;
-    // 带不带已归档的：和档案列表同一个判断（server/core/permissions.ts 的 includeArchivedFor）
+    // 带不带已归档的：和档案列表同一个判断（server/core/http/permissions.ts 的 includeArchivedFor）
     return service.list(q.kind, includeArchivedFor(viewer, q.archived), undefined, ids).filter((d) => q.archived !== '1' || d.archived);
   });
   // 成品库存按每次完工分批（只读）：和库存流水一样，登录就能看。depleted=all 取全部已发完的批次，默认只给最近 20 个
@@ -114,7 +114,7 @@ function readRoutes({ on, store, service, who }: FlowRoutes) {
 function saveRoutes({ on, store, service, who }: FlowRoutes) {
   on('POST /flow/production-completion/preview', ({ body, req }) => new ManualProductionCompletion(store).preview(body, who.editor(req)));
   on('POST /flow/production-completion/execute', ({ body, req }) => new ManualProductionCompletion(store).execute(body, who.editor(req)));
-  // 归档、恢复（批量）：和档案同一份做法，逐条返回结果（archive.ts → server/core/archive.ts）
+  // 归档、恢复（批量）：和档案同一份做法，逐条返回结果（archive.ts → server/core/records/archive.ts）
   on('POST /flow/batch', ({ body, req }) => archiveFlowDocuments(service, body, who.editor(req)));
   on(
     'POST /flow/:kind',

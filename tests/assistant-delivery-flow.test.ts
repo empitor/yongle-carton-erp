@@ -7,7 +7,7 @@ import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { assistantFixture, autoConfirmAssistant, lastCard, toolsOf } from './assistant-fixture.js';
-import type { Store } from '../server/core/db.js';
+import type { Store } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { actor } from './actor-fixture.js';
 import { readAs } from './read-result.js';

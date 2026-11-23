@@ -2,7 +2,7 @@
 import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import { startHttp } from './http-fixture.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { AssistantManager } from '../server/assistant/manager.js';
 import { assistantDeps } from './assistant-fixture.js';
 import { fakeAiSettings } from './fake-deepseek.js';

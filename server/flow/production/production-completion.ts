@@ -97,7 +97,7 @@ export class ManualProductionCompletion {
    *   以及这些产品的成品库存（一个产品只有一个；新建、归档、恢复都算变化）；
    * - 上面生产任务、产品、订单、采购单、库存品的归档标记（列表按它过滤）。
    * 任何一条记录的版本、状态、种类、单位、产品关联、归档有变化，或者范围里多了、少了记录，摘要就对不上。
-   * 别的单据、库存品、订单变了不影响这次完工的结果，不再要求重新预览。算法和比对用公共件（server/core/preview-digest.ts）。
+   * 别的单据、库存品、订单变了不影响这次完工的结果，不再要求重新预览。算法和比对用公共件（server/core/storage/preview-digest.ts）。
    */
   private digest(input: CompletionInput) {
     const db = this.store.db,

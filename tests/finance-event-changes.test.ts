@@ -1,7 +1,7 @@
 // 财务事件详情里的“改了什么”（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { eventChanges } from '../server/finance/events/event-changes.js';
 import { FinanceEventViews } from '../server/finance/events/event-views.js';

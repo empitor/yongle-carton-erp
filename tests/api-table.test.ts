@@ -1,12 +1,11 @@
-// 接口表的两头：服务端 route()（server/core/route.ts）、前端 call()（src/ui/call.ts）。
+// 接口表的两头：服务端 route()（server/core/http/route.ts）、前端 call()（src/ui/call.ts）。
 // 运行时的行为（状态码、路径参数、查询参数、正文、返回）用真实的 express 和替身 fetch 测；
 // 类型对不上必须编译不过的写法写在文件末尾、用 @ts-expect-error 标着，由 npm run typecheck 守：哪天那一行能编译了，tsc 报“没用上的 @ts-expect-error”。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { z } from 'zod';
-import { AppError, notFound, route } from '../server/core/index.js';
-import { refuse } from '../server/core/route.js';
+import { AppError, notFound, route, refuse } from '../server/core/index.js';
 import { apiErrorHandler } from '../server/http-errors.js';
 import { call } from '../src/ui/call.js';
 import { signedOutMessage } from '../src/ui/http.js';

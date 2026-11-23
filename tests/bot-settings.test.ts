@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { AuthManager } from '../server/accounts/index.js';
 import { startHttp } from './http-fixture.js';
 import { BotSettings } from '../server/inbox/bots/settings.js';
@@ -170,7 +170,7 @@ test('接口：只有管理员能看和改，要 CSRF，不回显 Secret，审�
     };
     const staffRead = await fetch(base + '/inbox/bots', { headers: staffHeaders });
     assert.equal(staffRead.status, 403);
-    // 拒绝的说法和类别跟全站一致（server/core/permissions.ts 的 superModeDenied）
+    // 拒绝的说法和类别跟全站一致（server/core/http/permissions.ts 的 superModeDenied）
     assert.deepEqual(await staffRead.json(), { message: '设置机器人要用超级管理员账号，当前账号没有这个权限。', code: 'permission' });
     const fields = { appId: 'fictional-bot', secret: SECRET, enabled: true };
     assert.equal((await post(staffHeaders, 'wecom_bot', fields)).status, 403);

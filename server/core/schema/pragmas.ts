@@ -1,30 +1,14 @@
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import { MIB } from '../../../shared/core/index.js';
-import { pragmaInteger } from '../sql.js';
+import { applySessionPragmas } from '../storage/sqlite/connection.js';
+import { pragmaInteger } from '../storage/sqlite/sql.js';
 import { SCHEMA_APPLICATION_ID } from './version.js';
 
-const BUSY_TIMEOUT_MS = 5000;
 /** 页缓存 64MB（负数表示按 KB 算）。默认只有 2MB，全量余额这类查询会反复读盘。 */
 const CACHE_SIZE_KB = 65536;
 /** -wal 文件在检查点之后最多留 64MB，初始化、永久删除这类大事务撑大的会缩回来。 */
 const JOURNAL_SIZE_LIMIT_MB = 64;
 const JOURNAL_SIZE_LIMIT = JOURNAL_SIZE_LIMIT_MB * MIB;
-
-/** 不写文件的连接设置：等锁的时间和外键检查。判断库的状态之前就可以设，被拒绝的库不会因此改动。 */
-export function applySessionPragmas(db: DatabaseSync) {
-  db.exec(`PRAGMA busy_timeout=${BUSY_TIMEOUT_MS}; PRAGMA foreign_keys=ON;`);
-}
-
-/** 用只读连接读一个库文件，读完就关：被拒绝的库连 WAL 都不会被合并，文件内容一个字节不变。 */
-export function readOnlyDatabase<T>(path: string, read: (db: DatabaseSync) => T): T {
-  const db = new DatabaseSync(path, { readOnly: true });
-  try {
-    applySessionPragmas(db);
-    return read(db);
-  } finally {
-    db.close();
-  }
-}
 
 /**
  * 建库时设一次、写进文件里的设置，在建第一张表之前、事务之外执行。顺序不能换：
@@ -69,7 +53,7 @@ export function optimizeDatabase(db: DatabaseSync, allTables = false) {
 /**
  * 把删掉数据后空出来的空间还给磁盘，返回还了多少页。
  * 建库时设的是 auto_vacuum=INCREMENTAL：删除只把页记成空闲，文件不会自己变小，要有人跑这一句才还。
- * 作为每日清理的一项跑（server/index.ts 装配，定时见 server/core/cleanup.ts）。还完做一次不等人的检查点：WAL 模式下文件要到检查点才真的变小。
+ * 作为每日清理的一项跑（server/index.ts 装配，定时见 server/core/backup/cleanup.ts）。还完做一次不等人的检查点：WAL 模式下文件要到检查点才真的变小。
  * 正开着事务时不做，留到下一次（事务里做会混进别人的事务）；内存库、没有空闲页的库直接返回 0。
  * 失败不影响业务，也返回 0。
  */

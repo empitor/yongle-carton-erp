@@ -7,8 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { configDirectory } from '../server/core/config-paths.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
+import { configDirectory, openVersionedSqlite } from '../server/core/index.js';
 import { quietLog } from './config-db-fixture.js';
 import { patchLogic, patchRollback, projectRoot, type RollbackContext, type RollbackIo, type SchemaState } from './patch-scripts-fixture.js';
 

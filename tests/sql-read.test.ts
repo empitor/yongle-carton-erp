@@ -1,12 +1,20 @@
-// 读库的小函数（server/core/sql.ts）：查出来的行按结构校验，写错的别名、没写成可空的 LEFT JOIN、库里不合结构的值
+// 读库的小函数（server/core/storage/sqlite/sql.ts）：查出来的行按结构校验，写错的别名、没写成可空的 LEFT JOIN、库里不合结构的值
 // 跑到就抛 StoredDataError（记日志、经出错处理回 500），不当成“用户填错了”。
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { after, mock, test } from 'node:test';
 import { z } from 'zod';
-import { STORED_DATA_MESSAGE } from '../server/core/errors.js';
-import { Store, count, exists, many, one, parseStoredJson, rows } from '../server/core/index.js';
-import { StoredDataError } from '../server/core/errors.js';
+import { STORED_DATA_MESSAGE } from '../server/core/http/errors.js';
+import {
+  Store,
+  count,
+  exists,
+  many,
+  one,
+  parseStoredJson,
+  rows,
+  StoredDataError,
+} from '../server/core/index.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 

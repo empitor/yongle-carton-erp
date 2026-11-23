@@ -10,7 +10,7 @@ export const userRoles = ['admin', 'super_admin'] as const;
 export type UserRole = (typeof userRoles)[number];
 
 /**
- * 账号的全部权限名（账号库 users.permissions 只存这几个，各级别有哪几项见 server/core/account-db.ts 的 levelGrant）。
+ * 账号的全部权限名（账号库 users.permissions 只存这几个，各级别有哪几项见 server/accounts/account-db.ts 的 levelGrant）。
  * 查权限（requirePermission、financeActor、登录状态里的 permissions）只收这里的名字，写错编译不过。超级管理员默认带全部财务权限。
  */
 export const permissionNames = [
@@ -27,7 +27,7 @@ export type Permission = (typeof permissionNames)[number];
 export type FinancePermission = Extract<Permission, `finance:${string}`>;
 export const financePermissions = permissionNames.filter((p): p is FinancePermission => p.startsWith('finance:'));
 
-/** 账号级别：建号、改级别时选的，库里存成角色和权限（server/core/account-db.ts 的 levelGrant 对应、accountLevel 认回） */
+/** 账号级别：建号、改级别时选的，库里存成角色和权限（server/accounts/account-db.ts 的 levelGrant 对应、accountLevel 认回） */
 export const accountLevels = ['admin', 'staff', 'viewer', 'finance', 'cashier'] as const;
 export type AccountLevel = (typeof accountLevels)[number];
 /** 级别的叫法：账号页、右上角、助手查账号（accounts.list）都用这一份 */

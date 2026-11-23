@@ -1,5 +1,5 @@
 /**
- * 审计来源：一次写入从哪个入口进来，只有这四种。入口把它标在操作的账号上（server/core/actor.ts 的 source），
+ * 审计来源：一次写入从哪个入口进来，只有这四种。入口把它标在操作的账号上（server/core/http/actor.ts 的 source），
  * 服务照账号记审计，自己不写来源；同一个服务被页面、助手、数据管理共用时，记下来的来源分得清是哪边来的。
  * 建表里 business_audit.source 的枚举和这里一致（tests/schema-constraints.test.ts 守着）。
  */

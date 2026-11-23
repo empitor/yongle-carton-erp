@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { SQLOutputValue } from 'node:sqlite';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor } from '../server/core/index.js';
 import { cardChanges, dataManagementFieldName } from '../shared/business/index.js';
 import type { HistoryRefs } from '../shared/business/index.js';
 import type { ToolPlan } from '../server/assistant/plan-rules.js';

@@ -5,7 +5,7 @@ import { textField, trustedReply } from './read-body';
 const lostError = (message: string) => Object.assign(new TypeError(message), { code: 'network' });
 
 /**
- * 读服务器推来的事件流（服务端写法在 server/core/stream.ts），返回 result 事件的内容。
+ * 读服务器推来的事件流（服务端写法在 server/core/http/stream.ts），返回 result 事件的内容。
  * 一条事件跨几块到达也能拼起来；心跳（`:` 开头的注释行）跳过；每条事件的 data 按 JSON 解析后交给 onEvent（如实是 unknown，
  * 调用方按事件种类自己认）。result 的类型由调用方给，前端不做运行时校验（read-body.ts 的 trustedReply）。
  * error 事件交给 onEvent 之后抛出服务器给的说明（带 code）。响应里没有正文、读到一半网断了、读完没收到 result，

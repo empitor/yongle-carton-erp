@@ -1,8 +1,7 @@
 // 红字冲销成对看：逐笔、按单位、到期、账龄、可核销口径一致（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { one, rows } from '../server/core/index.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';

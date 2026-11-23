@@ -12,8 +12,8 @@ import { toolCatalog, toolDefinitions } from '../server/assistant/tool-catalog.j
 import { pageToolDefinitions } from '../server/assistant/tools/page.js';
 import { sessionTools } from '../server/assistant/tools/session.js';
 import { orderImportTools } from '../server/assistant/tools/order-import.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { pragmaInteger } from '../server/core/sql.js';
+import { localAdministratorActor } from '../server/core/index.js';
+import { pragmaInteger } from '../server/core/storage/sqlite/sql.js';
 import { isPageHref, pageIds } from '../shared/core/index.js';
 import { pageLink } from '../shared/assistant/assistant-navigation.js';
 import { assistantFixture } from './assistant-fixture.js';

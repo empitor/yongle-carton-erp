@@ -31,7 +31,7 @@ function activePreset(state: PromptState): PromptPreset {
 /**
  * 提示词库（ai-prompts 下每个模块一个文件）：prompt_settings 一行 JSON，用 PRAGMA user_version 记结构版本。
  * 基线是 0.9.0 的第 2 版：比它旧的（0.8.4 留下的）打开时删掉、按当前默认重建；以后改结构在 steps 加一步，改过的提示词留着；
- * 比程序新的拒绝打开（规矩见 server/core/versioned-sqlite-spec.ts 开头）。
+ * 比程序新的拒绝打开（规矩见 server/core/backup/versioned-sqlite-spec.ts 开头）。
  * 默认文字变了不用改版本：没改过的默认在打开时自动换新（prompt-defaults.ts）。
  */
 const promptDatabase = {

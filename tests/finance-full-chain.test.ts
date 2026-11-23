@@ -1,8 +1,7 @@
 // 虚构制造业全链路：计价、费用、工资、折旧、三张报表、按顺序结账（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { one, rows } from '../server/core/index.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';

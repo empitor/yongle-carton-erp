@@ -7,13 +7,20 @@ import { tmpdir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { Store, defaultDbPath } from '../server/core/db.js';
-import { checkVersionedSqlite } from '../server/core/versioned-sqlite.js';
+import {
+  Store,
+  defaultDbPath,
+  createFullBackup,
+  restoreFullBackup,
+  readBackupManifest,
+  autoBackupFailure,
+  scheduleDailyBackup,
+  validateBusinessDatabase,
+} from '../server/core/index.js';
+import { checkVersionedSqlite } from '../server/core/backup/versioned-sqlite.js';
 import { promptModules } from '../shared/ai/index.js';
-import { createFullBackup, restoreFullBackup } from '../server/core/backup.js';
-import { readBackupManifest } from '../server/core/backup-manifest.js';
-import { autoBackupFailure, copyAutomaticBackup, scheduleDailyBackup } from '../server/core/backup-auto.js';
-import { supportedDatabaseVersions, validateBusinessDatabase } from '../server/core/backup-check.js';
+import { copyAutomaticBackup } from '../server/core/backup/backup-auto.js';
+import { supportedDatabaseVersions } from '../server/core/backup/backup-check.js';
 import { APP_VERSION } from '../shared/core/version.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { AuthManager } from '../server/accounts/index.js';

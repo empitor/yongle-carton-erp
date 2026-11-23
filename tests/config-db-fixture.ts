@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { TestContext } from 'node:test';
 import { SNAPSHOT_DIRECTORY, type UpgradeStep } from '../server/core/schema/index.js';
-import type { VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';
+import type { VersionedSqliteSpec } from '../server/core/index.js';
 
 export const sha256 = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex');
 

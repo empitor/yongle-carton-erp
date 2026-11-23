@@ -5,12 +5,9 @@ import { z } from 'zod';
 import { createServer, request, type IncomingHttpHeaders, type IncomingMessage, type RequestListener } from 'node:http';
 import { createApp } from '../server/app.js';
 import { AuthManager } from '../server/accounts/index.js';
-import type { Actor } from '../server/core/actor.js';
+import { type Actor, type Store, readDeployment, type Deployment, ProblemLog } from '../server/core/index.js';
 import { permissionNames, userRoles } from '../shared/core/accounts.js';
 import { pageActor } from './actor-fixture.js';
-import type { Store } from '../server/core/db.js';
-import { readDeployment, type Deployment } from '../server/core/deployment.js';
-import { ProblemLog } from '../server/core/index.js';
 
 /** createApp 的选项；出错记录不给时夹具给一个内存库（testProblems），服务关掉时一起关 */
 export type AppOptions = Omit<Parameters<typeof createApp>[1], 'problems'> & { problems?: ProblemLog };

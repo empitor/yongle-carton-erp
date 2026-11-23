@@ -81,7 +81,7 @@ export function samePrice(a: unknown, b: unknown) {
 }
 /**
  * 改价时补丁的意思（产品参考价、订单明细单价同一条规则；数据管理直接编辑、助手改记录共用）。
- * 改之前先由这里判断，再交给保存（server/core/db.ts 的 chosenExact）；两处的规则是一套：
+ * 改之前先由这里判断，再交给保存（server/sales/record-fields.ts 的 chosenExact）；两处的规则是一套：
  * - 'clear'：精确价点名清空（null、空串；整条记录带回来时把这个键删掉也算，见 exactDropped），“分”没动：
  *   清空价格。产品存成没定价（NULL，不是 0 元）；订单明细单价必填，调用方拒收并提示填写单价。
  * - 'cents'：按“分”存，带回来的旧精确价作废（不然精确价优先，会把新改的分盖掉）。包括：

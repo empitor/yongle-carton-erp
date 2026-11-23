@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 
 const projectRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -18,7 +18,7 @@ function serverFiles(dir = join(projectRoot, 'server'), found: string[] = []) {
 }
 
 test('建表、改表、删表语句只出现在 server/core/schema/ 和各配置库自己的建表文件里', () => {
-  // 配置库各是单独的 SQLite 文件，建表语句和升级步骤留在主人模块的规格文件里，用 server/core/versioned-sqlite.ts 各管各的版本
+  // 配置库各是单独的 SQLite 文件，建表语句和升级步骤留在主人模块的规格文件里，用 server/core/backup/versioned-sqlite.ts 各管各的版本
   const configDatabases: Record<string, string> = {
     'server/accounts/account-db.ts': '账号库 security/users.sqlite',
     'server/core/diagnostics/problem-log.ts': '出错记录库 logs/problems.sqlite',

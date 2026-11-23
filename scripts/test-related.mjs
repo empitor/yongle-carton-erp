@@ -1,12 +1,12 @@
 // 只跑和改动有关的测试：改代码过程中用，收尾再跑一次完整的 npm test。
 // 用法：
 //   npm run test:related                    看 git 里改过、新加的文件
-//   npm run test:related -- server/core/db.ts    指定文件
+//   npm run test:related -- server/core/storage/db.ts    指定文件
 //   npm run test:related -- --list          只列出会跑哪些测试，不跑
 //   npm run test:related -- --depth 3       放宽“有关”的范围（默认 2）
 // “有关”指测试 import 的文件、或这些文件再 import 的文件（默认两层；模块的 index.ts、pages.ts 只是转一手，不算一层）里有改动的文件，
 // 或者测试里按路径读了它（检查源码写法的测试），或者改的就是测试本身。
-// 两层以外也可能受影响（比如 server/core/db.ts 几乎人人间接在用），所以收尾必须跑完整的 npm test。
+// 两层以外也可能受影响（比如 server/core/storage/db.ts 几乎人人间接在用），所以收尾必须跑完整的 npm test。
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';

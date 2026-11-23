@@ -16,7 +16,7 @@ import { FinanceEvents } from '../server/finance/events/events.js';
 import { financePermissions } from '../shared/core/accounts.js';
 import { startHttp } from './http-fixture.js';
 import { z } from 'zod';
-import { AppError } from '../server/core/errors.js';
+import { AppError } from '../server/core/index.js';
 
 /** 抛的是给人看的业务错误：状态码对；给了规则的，说明也要对得上 */
 const failsWith = (status: number, pattern?: RegExp) => (e: unknown) =>

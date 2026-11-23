@@ -6,7 +6,7 @@ import { crc32 } from 'node:zlib';
 import { buffer } from 'node:stream/consumers';
 import yauzl from 'yauzl';
 import { z } from 'zod';
-import type { Store } from '../server/core/db.js';
+import type { Store } from '../server/core/index.js';
 import { FinanceAssets } from '../server/finance/expenses/assets.js';
 import { FinanceClosing } from '../server/finance/reports/closing.js';
 import { FinanceCosting } from '../server/finance/costing/costing.js';

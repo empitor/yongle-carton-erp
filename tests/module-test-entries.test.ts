@@ -13,6 +13,44 @@ type ModuleTests = { module: string; dir: string; own: { file: string; why: stri
 
 const moduleTests: ModuleTests[] = [
   {
+    module: '基础',
+    dir: 'server/core/',
+    own: [
+      { file: 'tests/assistant-attachments.test.ts', why: '核对附件跨重启后，业务库版本仍等于结构登记的 SCHEMA_LATEST' },
+      { file: 'tests/assistant-memory.test.ts', why: '用 pragmaInteger 读虚构记忆库迁移后的 user_version' },
+      { file: 'tests/assistant-registry.test.ts', why: '用 pragmaInteger 核对升级前后工具设置库的 user_version' },
+      { file: 'tests/backup-create.test.ts', why: '直接测自动备份复制、版本分类和备份清单的支持版本信息' },
+      { file: 'tests/backup-restore.test.ts', why: '按恢复器的 supportedDatabaseVersions 核对传回的版本支持范围' },
+      { file: 'tests/bot-wecom.test.ts', why: '核对机器人回复和基础约束错误共用 CONSTRAINT_MESSAGE' },
+      { file: 'tests/config-db-evolution.test.ts', why: '直接核对配置库步骤、当前版本及从基线升级和新建的结构' },
+      { file: 'tests/config-db-fixture.ts', why: '配置库升级夹具用 UpgradeStep 构造步骤，并按 SNAPSHOT_DIRECTORY 查备份' },
+      { file: 'tests/diagnostics-records.test.ts', why: '直接测出错记录的分类、调用栈清理和操作名称提取' },
+      { file: 'tests/finance-backup-reset.test.ts', why: '将完整备份恢复后的业务库版本和结构登记的 SCHEMA_LATEST 比对' },
+      { file: 'tests/finance-closing.test.ts', why: '从 SNAPSHOT_DIRECTORY 核对替换工资时生成的快照数' },
+      { file: 'tests/finance-event-columns.test.ts', why: '用真实 upgradeSteps 升至指定旧版，验证财务事件列后续升级' },
+      { file: 'tests/finance-settings.test.ts', why: '核对带预置科目的新库有结构登记的 SCHEMA_LATEST 迁移记录' },
+      { file: 'tests/module-names.test.ts', why: '直接比对规则登记用的 serverModuleNames 和模块表' },
+      { file: 'tests/operation-requests.test.ts', why: '用 runCleanup 实跑清理，按内部保留期、冲突提示和 PRAGMA 读数核对结果' },
+      { file: 'tests/preview-digest.test.ts', why: '直接核对预览陈旧错误的 PREVIEW_CHANGED 提示' },
+      { file: 'tests/record-kinds.test.ts', why: '直接测基础登记对未知归档和墓碑种类的拒绝 assertRecordKind' },
+      { file: 'tests/release/maintenance.test.ts', why: '调用 snapshotForUpgrade 用真实命名和版本范围造升级前快照，验证维护命令' },
+      { file: 'tests/release/patch-and-package.test.ts', why: '用 supportedDatabaseVersions 核对补丁和整包所支持的数据库版本' },
+      { file: 'tests/savepoint.test.ts', why: '直接核对保存点回滚异步作业时的 ASYNC_JOB 提示' },
+      { file: 'tests/schema-constraints.test.ts', why: '直接测建表用的 CHECK 表达式，并核对各入口共用的约束错误提示' },
+      { file: 'tests/schema-create.test.ts', why: '直接测业务库建表、连接拒绝和结构指纹' },
+      { file: 'tests/schema-evolution.test.ts', why: '从基线直接运行编号步骤，比对升级后的结构、版本和自增行为' },
+      { file: 'tests/schema-fixture.ts', why: '业务库测试准备代码用 openBusinessDatabase 传入自定义 UpgradeStep 制造旧版和异常库' },
+      { file: 'tests/schema-refusals.test.ts', why: '直接测拒绝打开的库、结构检测及升级前快照失败' },
+      { file: 'tests/schema-upgrade.test.ts', why: '直接测升级执行器、快照、事务回滚和提交前结构检测' },
+      { file: 'tests/snapshots.test.ts', why: '直接验证快照时间解析和 pruneSnapshots 的保留规则' },
+      { file: 'tests/sql-read.test.ts', why: '直接核对脏行读失败时的 STORED_DATA_MESSAGE' },
+      { file: 'tests/stream-reply.test.ts', why: '用 stream 内部心跳和推送间隔驱动虚构时钟' },
+      { file: 'tests/upgrade-step-samples.test.ts', why: '直接运行真实 upgradeSteps 核对升级前后的数据样例' },
+      { file: 'tests/versioned-sqlite-upgrade.test.ts', why: '按 SNAPSHOT_DIRECTORY 检查配置库失败升级留下的快照' },
+      { file: 'tests/versioned-sqlite.test.ts', why: '直接测版本分类 checkVersionedSqlite 和配置库位置解析 resolveHomes' },
+    ],
+  },
+  {
     module: '账号',
     dir: 'server/accounts/',
     own: [
@@ -216,4 +254,12 @@ test('回归样例：引内部文件、export from、require、import() 内部�
   assert.equal(violations(sample, "import { MarkService } from '../server/sales/product-marks.js';").length, 1);
   assert.equal(violations(sample, "import { MarkService } from '../server/sales/index.js';").length, 0);
   assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/ledger/movements.js';").length, 0);
+});
+
+test('基础模块的 Store 走入口，登记的结构测试可以直接验证升级实现', () => {
+  const sample = 'tests/虚构样例.test.ts';
+  assert.equal(violations(sample, "import { Store } from '../server/core/storage/db.js';").length, 1);
+  assert.equal(violations(sample, "import { Store } from '../server/core/index.js';").length, 0);
+  assert.equal(violations(sample, "import { upgradeSteps } from '../server/core/schema/index.js';").length, 1);
+  assert.equal(violations('tests/schema-upgrade.test.ts', "import { upgradeSteps } from '../server/core/schema/index.js';").length, 0);
 });

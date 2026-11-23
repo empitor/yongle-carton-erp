@@ -5,7 +5,7 @@ import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { OrderBatchService } from '../server/operations/index.js';
 import { ManualProductionCompletion } from '../server/flow/production/production-completion.js';

@@ -5,7 +5,7 @@ import type { FlowCommands } from './base.js';
 import { touchFlowDocument } from './document-store.js';
 
 /*
- * 单据的归档、恢复：做法和说法和档案同一份（server/core/archive.ts），这里只给单据“什么时候不能归档”。
+ * 单据的归档、恢复：做法和说法和档案同一份（server/core/records/archive.ts），这里只给单据“什么时候不能归档”。
  * 批量地址是 POST /api/flow/batch（router.ts）。
  */
 function target(flow: FlowCommands) {

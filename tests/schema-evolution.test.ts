@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import {
   SCHEMA_APPLICATION_ID,
   SCHEMA_BASELINE,

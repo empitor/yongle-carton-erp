@@ -12,7 +12,7 @@ import { shipOnDocDate } from './ship-date.js';
 import { BusinessDocuments } from '../server/documents/service.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
 import { specification } from '../shared/core/domain.js';
-import { count } from '../server/core/sql.js';
+import { count } from '../server/core/index.js';
 import { actor } from './actor-fixture.js';
 
 test('采购Word和Excel完整多行、可容纳中文规格、原单位尺寸和精度可读回，标题与打印布局合法', async () => {

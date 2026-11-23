@@ -1,6 +1,6 @@
 // “假装业务变了”：财务测试要的业务单据、库存流水、采购退货、库存品的改动都从这里造（虚构数据、内存库）。
 // 写入走表主人自己的写法：单据经 server/flow/documents/document-store.ts，流水修订经采购库存入口的 stockLedger，
-// 删除走删除规则登记的语句（server/core/deletion-rules.ts）。没有现成写法、只能写 SQL 的几处都在这个文件里，各自写明为什么。
+// 删除走删除规则登记的语句（server/core/records/deletion-rules.ts）。没有现成写法、只能写 SQL 的几处都在这个文件里，各自写明为什么。
 // 业务改了表，只改这一个文件。
 // 删除规则（单据、采购退货；库存流水、库存品）在单据流转、采购库存各自的 deletion.ts 里登记：
 // 测试引这两个模块都走入口（tests/module-test-entries.test.ts），入口加载时就登记了

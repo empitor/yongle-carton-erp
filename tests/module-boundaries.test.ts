@@ -26,7 +26,7 @@ const outsideRefs: { from: string; to: string; why: string }[] = [
 const toolInternalRefs: { from: string; to: string; why: string }[] = [
   {
     from: 'eslint.config.js',
-    to: 'server/core/sql.ts',
+    to: 'server/core/storage/sqlite/sql.ts',
     why: '“服务端不许直接读库”这条代码检查按路径放过读库函数自己所在的文件（它就是规定的唯一入口）；配置里写的是文件路径，没有引用它的代码',
   },
   ...['src/admin/settings-api.ts', 'src/import/workspace-api.ts', 'src/assistant/useAssistantChat.ts'].map((to) => ({
@@ -39,7 +39,7 @@ const toolInternalRefs: { from: string; to: string; why: string }[] = [
     'shared/core/quantity.ts',
     'shared/core/units.ts',
     'server/finance/base/amounts.ts',
-    'server/core/permissions.ts',
+    'server/core/http/permissions.ts',
     'shared/core/account-scope.ts',
   ].map((to) => ({
     from: 'stryker.config.mjs',
@@ -449,7 +449,7 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     ['server/overview/sample.ts', "const p = '../flow/index.js';\nexport const load = (p: string) => import(p);", '的目标看不出来'],
     // createRequire 换了名字、require.resolve 也算
     ['scripts/sample.mjs', "const req = createRequire(import.meta.url);\nreq('../server/flow/rules/service.ts');", '（单据流转 的内部文件）'],
-    ['scripts/sample.mjs', "require.resolve('../server/core/db.ts');", '（基础 的内部文件）'],
+    ['scripts/sample.mjs', "require.resolve('../server/core/storage/db.ts');", '（基础 的内部文件）'],
     // 登记过的工具才放行：别的脚本引同一个内部文件照样拦
     ['scripts/linux/verify-package.mjs', "await import('../../server/inbox/service.ts');", '（识别导入 的内部文件）'],
     ['src/records/Sample.tsx', "import '../finance/finance.css';", '（别的模块的样式、资源）'],
@@ -457,7 +457,7 @@ test('回归：代码引用检查认得出 .mjs、变量动态导入、require�
     ['src/Sample.tsx', "const R = lazy(() => import('./finance/FinanceRelated'));", '→ src/finance/FinanceRelated.tsx（import()）'],
     // 登记的按需入口也只许 import()：静态引用会把财务段打回首屏
     ['src/Sample.tsx', "import { FinanceRelated } from './finance/related-pages';", '→ src/finance/related-pages.ts'],
-    ['scripts/sample.mjs', "await import('../server/core/db.ts');", '（基础 的内部文件）'],
+    ['scripts/sample.mjs', "await import('../server/core/storage/db.ts');", '（基础 的内部文件）'],
     ['scripts/sample.mjs', "const P = new URL('../', import.meta.url).href;\nawait import(P + 'server/core/index.ts');", '的目标看不出来'],
     ['scripts/sample.mjs', "spawnSync(process.execPath, ['--import', 'tsx', 'server/flow/rules/service.ts']);", '（单据流转 的内部文件）'],
     ['vite.config.ts', "import { AI_HTTP_TIMEOUT_MS } from './shared/ai/ai-runtime';", '（共用-AI 的内部文件）'],

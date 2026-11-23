@@ -72,7 +72,7 @@ export const recordReadTools = [
 ];
 
 /**
- * 读全部记录（含已归档）要超级管理员模式。和删除、撤销退货同一个分法（server/core/permissions.ts 的 superModeDenied）：
+ * 读全部记录（含已归档）要超级管理员模式。和删除、撤销退货同一个分法（server/core/http/permissions.ts 的 superModeDenied）：
  * 进不了这个模式的账号直接说没有权限；超级管理员账号没进模式的，提示去“系统维护”进入。
  */
 const allRecordsDenied = (actor: Actor) => superModeDenied(actor, '读取全部记录（含已归档）');

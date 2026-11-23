@@ -192,7 +192,7 @@ export class DataManagementService {
         return this.flow.cancel(item.id, { version: item.version, reason: v.reason, acknowledged: true }, actor);
     }
     if (v.action === 'archive' || v.action === 'restore') {
-      // 单据和档案归档同一份做法（server/core/archive.ts），这一条没办成就 409
+      // 单据和档案归档同一份做法（server/core/records/archive.ts），这一条没办成就 409
       const body = { action: v.action, acknowledged: true, items: [item] };
       return archivedOrConflict(
         isFlowModule(v.module)

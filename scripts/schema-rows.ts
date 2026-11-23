@@ -1,4 +1,4 @@
-// 按建表生成每张表的 zod 行结构：server/core/schema/rows.ts（汇总）和 rows/ 下的几份。读库时校验用（server/core/sql.ts）。
+// 按建表生成每张表的 zod 行结构：server/core/schema/rows.ts（汇总）和 rows/ 下的几份。读库时校验用（server/core/storage/sqlite/sql.ts）。
 // 由 npm run schema:dump 一起生成（scripts/schema-dump.ts 调这里），守它的测试在 tests/schema-evolution.test.ts。
 //
 // - 业务库按 server/core/schema/tables/ 的分组依次建一遍，按分组写进几份文件（一份不超过 500 行）；
@@ -122,7 +122,7 @@ function rowsIndex() {
     '',
     '/**',
     ' * 每张表的行结构，按表名取（rows.customers）。别名、联表、聚合在调用处用 rows.x.pick({…}).extend({…}) 组；',
-    ' * 读库用 server/core/sql.ts 的 one、many。',
+    ' * 读库用 server/core/storage/sqlite/sql.ts 的 one、many。',
     ' */',
     `export const rows = { ${parts.map((part) => '...' + part.name).join(', ')} };`,
     "/** 每张表一行的类型：Rows['customers'] */",

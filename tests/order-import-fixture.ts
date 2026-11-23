@@ -9,7 +9,7 @@ import { ReceiptAi } from '../server/import/receipt-ai.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { supplierDefaultPreset } from '../server/import/default-prompts/supplier-delivery.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import type { OrderDraft } from '../shared/import/order-draft.js';
 import { draftFromForm, orderFormSchema } from '../shared/import/order-form.js';

@@ -1,7 +1,7 @@
 // 财务测试共用的搭建（只用内存库、虚构数据）：账号、启用财务、记账、直接插单据、找事件和往来、收付款、发票、红冲重做
 import type { FlowKind } from '../shared/core/index.js';
 import { pageActor } from './actor-fixture.js';
-import { Store } from '../server/core/db.js';
+import { Store, count, one, rows } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
@@ -22,7 +22,6 @@ import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js
 import { FinanceAssets } from '../server/finance/expenses/assets.js';
 import { FinancePayroll } from '../server/finance/expenses/payroll.js';
 import { FinanceCosting } from '../server/finance/costing/costing.js';
-import { count, one, rows } from '../server/core/index.js';
 import { must } from './read-result.js';
 
 /** 财务账号：最高管理员带全部财务权限和业务编辑 */

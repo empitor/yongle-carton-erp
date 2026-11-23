@@ -3,7 +3,7 @@
 import '../server/flow/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceClosing } from '../server/finance/reports/closing.js';
 import { FinanceEventViews } from '../server/finance/events/event-views.js';
 import { FinanceEvents } from '../server/finance/events/events.js';

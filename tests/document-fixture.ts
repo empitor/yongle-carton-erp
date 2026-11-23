@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type ExcelJS from 'exceljs';
 import yauzl, { type Entry } from 'yauzl';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import type { FlowService } from '../server/flow/index.js';
 import { WarehouseDaily } from '../server/flow/index.js';
 import { BusinessDocuments } from '../server/documents/service.js';

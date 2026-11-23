@@ -2,7 +2,7 @@
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
+import { Store, localAdministratorActor, type Actor } from '../server/core/index.js';
 import { z } from 'zod';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { impactRowSchema } from '../shared/business/index.js';
@@ -14,10 +14,8 @@ import { deletionHeadline, deletionInternalTables as internalTables } from '../s
 import { deletionTableLabel as tableLabel, deletionFieldLabels as fieldLabels } from '../shared/business/deletion-words.js';
 import { toolsOf } from './assistant-fixture.js';
 import { inventoryOptions } from '../shared/business/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { listingFixture, mergeIntoBatch, orderWithImports } from './delete-fixture.js';
-import type { Actor } from '../server/core/index.js';
 import { actor } from './actor-fixture.js';
 import { must } from './read-result.js';
 

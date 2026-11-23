@@ -1,7 +1,7 @@
 // 收付款和资金：多付转抵撤销、资金日报、收付计划（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, count, one, rows } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceInvoices } from '../server/finance/cash/invoices.js';
@@ -13,7 +13,6 @@ import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
 import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligation, obligationRow, funds, bill, ledgerBalance, subledger, invoicedPayable } from './finance-fixture.js';
 import { cashEntries, type CashRow } from '../server/finance/cash/cash-posting.js';
-import { count, one, rows } from '../server/core/index.js';
 
 const versionOf = (s: Store, id: number) => Number(obligationRow(s, id).version);
 

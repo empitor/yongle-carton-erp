@@ -1,8 +1,7 @@
 // 管理员改单据、更正到货、排程测试共用的准备：一张已订货的采购单（纸板 10000 张）和它的到货、更正。
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { Store, localAdministratorActor } from '../server/core/index.js';
 import { shipOnDocDate } from './ship-date.js';
 import { applyCorrection, previewCorrection, saveDoc } from './receive-fixture.js';
 import { businessBase } from './business-base-fixture.js';

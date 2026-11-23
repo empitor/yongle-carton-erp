@@ -10,12 +10,17 @@ import { listen } from './http-fixture.js';
 import express from 'express';
 import { z } from 'zod';
 import { AuthManager } from '../server/accounts/index.js';
-import type { Actor } from '../server/core/index.js';
-import { AppError, ConflictError } from '../server/core/errors.js';
-import { ProblemLog, readRecentProblems } from '../server/core/diagnostics/problem-log.js';
-import { errorReason, problemCategory, stackLines } from '../server/core/diagnostics/problem-kinds.js';
+import {
+  type Actor,
+  AppError,
+  ConflictError,
+  ProblemLog,
+  readRecentProblems,
+  errorReason,
+  pageProblemRouter,
+} from '../server/core/index.js';
+import { problemCategory, stackLines } from '../server/core/diagnostics/problem-kinds.js';
 import { operationName, routePath } from '../server/core/diagnostics/operation-names.js';
-import { pageProblemRouter } from '../server/core/diagnostics/page-problems.js';
 import { readLoginRecords } from '../server/accounts/index.js';
 import { installRequestGuards } from '../server/http-guards.js';
 import { apiErrorHandler } from '../server/http-errors.js';

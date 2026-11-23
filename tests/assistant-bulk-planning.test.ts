@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { businessBase, damageOrderCost } from './business-base-fixture.js';
 import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
 import { assistantFixture, ctxOf, toolsOf } from './assistant-fixture.js';
-import type { Store as StoreType } from '../server/core/db.js';
+import type { Store as StoreType } from '../server/core/index.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { readAs } from './read-result.js';
 
@@ -179,7 +179,7 @@ test('delivery.plan 选的成品送不了时和窗口说同样的原因：没可
 
 // 助手工具文件的直接测试
 test('安排送货、安排生产的试算（tools/planning.ts）：参数二选一；选的订单不存在时什么也不排', async () => {
-  const { Store } = await import('../server/core/db.js');
+  const { Store } = await import('../server/core/index.js');
   const store = new Store(':memory:'),
     who = pageActor({ id: 'tool-direct', name: '虚构直测', permissions: ['business:edit'] });
   try {

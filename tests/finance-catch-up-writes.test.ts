@@ -4,8 +4,7 @@
 import '../server/flow/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { AppError } from '../server/core/index.js';
+import { Store, AppError } from '../server/core/index.js';
 import { catchUp } from '../server/finance/events/catch-up.js';
 import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
