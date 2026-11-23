@@ -26,7 +26,7 @@ function flowName(kind: unknown) {
   const known = flowKinds.find((k) => k === kind);
   return known ? flowNames[known] : '单据';
 }
-/** 选了哪些（shared/business/deletion-request.ts 的 deletionSelection 解析后的样子），这里只用到这两项 */
+/** 选了哪些（shared/business/lifecycle/deletion-request.ts 的 deletionSelection 解析后的样子），这里只用到这两项 */
 type DeletionSelection = { items: { id: number }[]; inventoryPolicy: 'preserve' | 'recalculate' };
 
 /**

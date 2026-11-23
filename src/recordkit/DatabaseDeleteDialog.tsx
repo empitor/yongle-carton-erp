@@ -105,7 +105,7 @@ function DeleteFooter(o: {
 
 /**
  * “库存怎么处理”：选项文字按删的对象说（删单据说“这张单子”，删档案说“连带删掉的单据”“只删记录”），
- * 和助手确认卡片同一份（shared/business/deletion-words.ts），换选项重新查询时也不变
+ * 和助手确认卡片同一份（shared/business/lifecycle/deletion-words.ts），换选项重新查询时也不变
  */
 function InventoryChoice(o: {
   module: DeletionModule;

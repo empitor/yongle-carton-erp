@@ -18,7 +18,7 @@ type Arrival = FlowDocument<'arrival'>;
 
 /**
  * 到货行、采购明细、原材料库存品是不是同一种纸板：单位一样（原材料只有“张”），规格按全项目同一套规则比
- * （shared/business/stock-identity.ts 的 sameRawSpec：不分大小写和全半角、尺寸换成毫米）。
+ * （shared/business/operations/stock-identity.ts 的 sameRawSpec：不分大小写和全半角、尺寸换成毫米）。
  * 到货没选库存品时自动对应已有的（rawStockFor）也是这套规则，所以自动并进去的，之后明确选它照样通过。
  */
 const sameBoard = (a: Board, b: Board) => a.unit === b.unit && sameRawSpec(a, b);

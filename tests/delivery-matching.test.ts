@@ -3,13 +3,21 @@ import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lineSpecification, orderSchema, productSchema, sameSpecification, specification, specificationDifference, today } from '../shared/core/domain.js';
-import { deliveryBlockers, deliveryCandidates, planOrderDelivery, planStockDelivery, specificationMismatch, stockByProduct } from '../shared/business/warehouse-delivery.js';
-import { orderNextSteps } from '../shared/business/order-next-step.js';
+import {
+  deliveryBlockers,
+  deliveryCandidates,
+  planOrderDelivery,
+  planProductionForOrders,
+  specificationMismatch,
+  stockByProduct,
+  orderNextSteps,
+  formatStockSize,
+} from '../shared/business/index.js';
+import { planStockDelivery } from '../shared/business/flow/warehouse-delivery.js';
 import { productionHint, productionReasons } from '../src/records/order-production.js';
 import { finishedStockByProduct } from '../src/recordkit/stock-lookup.js';
 import { netQuantity } from '../src/recordkit/quantity.js';
 import { buildToday } from '../server/overview/workbench.js';
-import { formatStockSize } from '../shared/business/operations.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import { actor } from './actor-fixture.js';
 import { businessBase, manualWrite } from './business-base-fixture.js';
@@ -96,8 +104,7 @@ test('“个”就是“只”：订单、库存品、生产任务写“个”�
   assert.equal(task.unit, '只');
 });
 
-test('排产按“只”算，只扣这个产品的成品库存；已有任务在做的不再排', async () => {
-  const { planProductionForOrders } = await import('../shared/business/production-plan.js');
+test('排产按“只”算，只扣这个产品的成品库存；已有任务在做的不再排', () => {
   const order = { id: 1, number: '虚构单1', status: '已确认', lines: [{ id: 1, productId: 9, productName: '虚构箱', quantity: 1000, remainingQuantity: 1000, unit: '只' }] };
   const items = [
     { kind: 'finished', productId: 9, unit: '只', availableUnits: quantityUnits('300') },

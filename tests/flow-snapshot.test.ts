@@ -1,10 +1,8 @@
-// 快照登记（shared/business/flow-snapshot.ts 的 keepSnapshot），纯数据、虚构值：快照字段从单据结构派生（snapshot-fixture.ts），
+// 快照登记（shared/business/flow/flow-snapshot.ts 的 keepSnapshot），纯数据、虚构值：快照字段从单据结构派生（snapshot-fixture.ts），
 // 每种单据每个快照字段都要登记了引用；引用没变换回原单的，换了用新单的，送货金额按留下的单价重算。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { flowDocumentSchema, type FlowDocument } from '../shared/business/flow-document.js';
-import { keepSnapshot } from '../shared/business/flow-snapshot.js';
-import { lineMoney } from '../shared/business/index.js';
+import { flowDocumentSchema, type FlowDocument, keepSnapshot, lineMoney } from '../shared/business/index.js';
 import { flowKinds, type FlowKind } from '../shared/core/index.js';
 import { assertSnapshots, markedContent, snapshotFields } from './snapshot-fixture.js';
 

@@ -226,7 +226,7 @@ export function relinkMovement(
 
 /**
  * 改写、删除一笔流水前留下原值（before）和要改成的值（after，删除时是 null）。存的是流水那一行的列和值（库里读出来的只有文字、数字、空），
- * 读回来按共用的 movementColumnsSchema（shared/business/operations-stored.ts，movements.ts 的 movementRevisions）。
+ * 读回来按共用的 movementColumnsSchema（shared/business/operations/operations-stored.ts，movements.ts 的 movementRevisions）。
  */
 export function recordMovementRevision(
   store: Store,

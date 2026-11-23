@@ -31,7 +31,7 @@ type Stored = FlowDocument<'production'>;
 type Issue = Pick<Stored['materials'][number], 'issued' | 'returned'>;
 /** 更正后的一行领料：沿用原单第几行（新加的是 null）、哪种纸板、领用、退料 */
 type MaterialRow = Issue & { index: number | null; stockId: number };
-/** 预览里完工自己的内容（结构在 shared/business/flow-correction-views.ts） */
+/** 预览里完工自己的内容（结构在 shared/business/flow/flow-correction-views.ts） */
 type View = CorrectionDetail<z.output<typeof productionCorrectionViewSchema>>;
 
 const units = (v: unknown) => quantityUnits(String(v ?? '0'));
@@ -204,7 +204,7 @@ function finish(ctx: CorrectionContext<'production', ProductionPlan['view'], Pro
   return { summary: parts.join('；') + '。', result: { taskImpact } };
 }
 
-/** 提交结果里完工多带的（结构在 shared/business/flow-correction-views.ts，同一请求号重发时按它读回）：生产任务的已入库前后 */
+/** 提交结果里完工多带的（结构在 shared/business/flow/flow-correction-views.ts，同一请求号重发时按它读回）：生产任务的已入库前后 */
 type ProductionResult = z.output<typeof productionCorrectionExtraSchema>;
 
 export const productionCorrection: CorrectionKind<'production', Input, ProductionPlan['view'], ProductionPlan['data'], ProductionResult> = {

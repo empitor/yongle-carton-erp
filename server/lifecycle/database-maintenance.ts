@@ -78,7 +78,7 @@ export class DatabaseMaintenanceService {
       // 被删单据有几笔出入库流水要按“库存处理方式”处理；0 表示没动过库存，不用选
       inventoryChoice: p.inventoryChoice,
       // 库存怎么变：按实际删的对象说（这张采购单、这家供应商、这个原材料库存），笔数和影响清单对得上。
-      // “库存怎么处理”的选项文字界面按删的对象自己取（shared/business/deletion-words.ts），不在这里给
+      // “库存怎么处理”的选项文字界面按删的对象自己取（shared/business/lifecycle/deletion-words.ts），不在这里给
       inventoryEffect: inventoryEffectText({
         module: p.selection.module,
         count: p.selection.items.length,

@@ -10,7 +10,7 @@ type TypedMovement = Parameters<typeof movementTypeOf>[0];
 /** 流水关联的一张单据：链接、单号、是哪种单据 */
 type MovementLink = { href: string; label: string; kind: string };
 
-/** 流水的业务类型：全站同一个（shared/business/movement-filters.ts 的 movementTypeLabel），采购退货、系统维护也认得出 */
+/** 流水的业务类型：全站同一个（shared/business/operations/movement-filters.ts 的 movementTypeLabel），采购退货、系统维护也认得出 */
 export const movementType = (m: TypedMovement) => movementTypeLabel(m);
 
 const flowKindName: Record<string, string> = flowNames;

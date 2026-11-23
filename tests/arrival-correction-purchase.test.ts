@@ -13,12 +13,16 @@ import { buildDashboard } from '../server/overview/dashboard.js';
 import { toolsOf } from './assistant-fixture.js';
 import { planCorrection } from '../server/flow/index.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
-import { flowInput } from '../shared/business/physical-flow.js';
-import { matchesPurchase } from '../shared/business/purchase-filters.js';
+import {
+  flowInput,
+  matchesPurchase,
+  arrivalCorrectionExtraSchema,
+  correctionResultSchema,
+  type PurchaseView,
+} from '../shared/business/index.js';
 import { PurchaseDetails } from '../src/records/PurchaseDetails.js';
 import { startHttp } from './http-fixture.js';
 import { saveDoc, applyCorrection, previewCorrection } from './receive-fixture.js';
-import { arrivalCorrectionExtraSchema, correctionResultSchema, type PurchaseView } from '../shared/business/index.js';
 import { actor, superActor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 

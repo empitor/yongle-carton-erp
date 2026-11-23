@@ -5,7 +5,7 @@ import { call } from '../ui/index';
  * 订单、客户、供应商、产品编辑窗的保存：没有 id 是新建（POST），有 id 是改这一条（PUT）。
  * 改的时候版本号取自表单：表单是打开窗口时的内容，带的是打开时读到的版本；窗口开着时别人改过，服务端回 409，
  * 不会拿页面重读到的新版本把别人的修改盖掉。
- * 客户、产品、订单按 shared/business/records-api.ts 的接口表发，供应商按 operations-api.ts 的。
+ * 客户、产品、订单按 shared/business/orders/records-api.ts 的接口表发，供应商按 operations-api.ts 的。
  */
 
 const records = call<RecordsApi>(),

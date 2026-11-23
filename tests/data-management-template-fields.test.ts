@@ -1,8 +1,8 @@
-// 数据管理“新建”的空白模板（shared/business/data-management-templates.ts）和各模块的录入结构对得上：
+// 数据管理“新建”的空白模板（shared/business/overview/data-management-templates.ts）和各模块的录入结构对得上：
 // 录入结构里有的栏目，模板里要有（不给新建时填的，在 notInTemplate 登记原因）；模板里的栏目，录入结构里要有
 // （没有的会在保存时被悄悄丢掉）。明细、纸板资料这类嵌套的一层层比。
 // 录入结构：数据管理保存时查栏目用的那一份（server/admin/managed-records.ts 的 inputSchemas：档案、订单、采购单、
-// 库存品是各自的保存校验，单据是 shared/business/physical-flow.ts 的录入规则）。
+// 库存品是各自的保存校验，单据是 shared/business/flow/physical-flow.ts 的录入规则）。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
@@ -70,7 +70,7 @@ test('数据管理每个模块的新建模板和录入结构的栏目对得上�
   assert.deepEqual(
     named(unexplained),
     [],
-    '数据管理的新建模板（shared/business/data-management-templates.ts）和录入结构对不上：' +
+    '数据管理的新建模板（shared/business/overview/data-management-templates.ts）和录入结构对不上：' +
       '“模板里没有”的，在模板里加上这一栏（确实不给新建时填的，在本测试 notInTemplate 写明原因）；' +
       '“录入结构里没有”的，保存时会被悄悄丢掉，从模板里删掉或在录入结构里加上',
   );

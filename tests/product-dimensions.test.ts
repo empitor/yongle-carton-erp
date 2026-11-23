@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { Store, one, rows } from '../server/core/index.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { productSchema } from '../shared/core/domain.js';
-import { stockItemSchema } from '../shared/business/operations.js';
+import { stockItemSchema } from '../shared/business/index.js';
 import {
   convertDimension,
   normalizeDimensionUnit,

@@ -75,7 +75,7 @@ const orderStatuses: string[] = [...statuses],
 const pendingNames: Partial<Record<string, string>> = pendingLabels;
 /** 含税口径：值就是叫法 */
 const taxModeNames: Record<string, string> = Object.fromEntries(orderTaxModes.map((m) => [m, m]));
-/** 存代码的字段下拉里显示的字：和修改历史同一张（shared/business/history-fields.ts 的 codeNames），另加含税口径 */
+/** 存代码的字段下拉里显示的字：和修改历史同一张（shared/business/overview/history-fields.ts 的 codeNames），另加含税口径 */
 const choiceNames = (key: string): Readonly<Record<string, string>> | undefined =>
   key === 'taxMode' ? taxModeNames : Object.hasOwn(codeNames, key) ? codeNames[key] : undefined;
 

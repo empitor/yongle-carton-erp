@@ -5,15 +5,14 @@ import assert from 'node:assert/strict';
 import { Store, localAdministratorActor, type Actor } from '../server/core/index.js';
 import { z } from 'zod';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { impactRowSchema } from '../shared/business/index.js';
+import { impactRowSchema, deletionHeadline, deletionTableLabel as tableLabel, inventoryOptions } from '../shared/business/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { deletionDoneMessage, deletionImpactView } from '../src/recordkit/deletion-impact.js';
-import { deletionHeadline, deletionInternalTables as internalTables } from '../shared/business/deletion-headline.js';
+import { deletionInternalTables as internalTables } from '../shared/business/lifecycle/deletion-headline.js';
 // 解除的字段的叫法表只给这里核对登记全不全，不在接口里列
-import { deletionTableLabel as tableLabel, deletionFieldLabels as fieldLabels } from '../shared/business/deletion-words.js';
+import { deletionFieldLabels as fieldLabels } from '../shared/business/lifecycle/deletion-words.js';
 import { toolsOf } from './assistant-fixture.js';
-import { inventoryOptions } from '../shared/business/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { listingFixture, mergeIntoBatch, orderWithImports } from './delete-fixture.js';
 import { actor } from './actor-fixture.js';
@@ -187,7 +186,7 @@ test('删除影响清单（采购单、供应商）：顶部按类别汇总、�
     assert.equal(counted(view.summary, 0), view.deleted.length);
     assert.equal(counted(view.summary, 1), view.kept.length);
     assert.equal(plan.inventoryEffect, '库存数量不变：1 张到货单和 1 笔入库流水都保留，只是不再挂这张采购单。');
-    // 删档案时“库存怎么处理”的选项不说“这张单子”（页面窗口和助手卡片共用 shared/business/deletion-words.ts 这一份）
+    // 删档案时“库存怎么处理”的选项不说“这张单子”（页面窗口和助手卡片共用 shared/business/lifecycle/deletion-words.ts 这一份）
     assert.deepEqual(inventoryOptions(plan.selection.module), { recalculate: '库存一起改回（当连带删掉的单据没发生过）', preserve: '库存数量不动，只删记录' });
     assert.equal(deletionDoneMessage('purchases', [p], plan.impact), '已删除采购单 ' + p.number + '，连带 1 条记录一起删除');
   } finally {

@@ -6,7 +6,7 @@ import { receiptEvents } from './receipt-events.js';
 import type { FlowCommands } from '../documents/base.js';
 import { StockViews } from '../stock/stock-views.js';
 
-/* 到货记录的查询（回答的结构在 shared/business/flow-views.ts）。到货单本身的保存、核对、确认在 FlowService，登记到货在 register-arrival.ts。 */
+/* 到货记录的查询（回答的结构在 shared/business/flow/flow-views.ts）。到货单本身的保存、核对、确认在 FlowService，登记到货在 register-arrival.ts。 */
 
 type MovementRow = z.output<typeof rows.stock_movements>;
 type ReceiptLine = ReceiptEvent['lines'][number];

@@ -3,7 +3,7 @@ import { purchaseReturnDocumentSchema, purchaseReturnStatuses, type purchaseRetu
 import { parseStoredJson, rows } from '../../core/index.js';
 
 /*
- * 采购退货单（purchase_returns）的行和内容。内容和视图的结构在 shared/business/flow-results.ts（接口表也引它）。
+ * 采购退货单（purchase_returns）的行和内容。内容和视图的结构在 shared/business/flow/flow-results.ts（接口表也引它）。
  * 写的地方：returns.ts 新建和撤销、maintenance-cascade.ts 解除采购明细、deletion.ts 删库存品和采购明细时清掉编号；
  * 读和写都按同一份结构（strictObject：多出的键算对不上）。
  */

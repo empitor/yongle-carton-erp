@@ -4,7 +4,7 @@ import { stockDocumentSchema } from '../../../shared/business/index.js';
 
 /*
  * 库存品存进 document 列的内容（规格说明、长宽高、尺寸单位、材质、楞型、备注）：结构是共用的 stockDocumentSchema
- * （shared/business/operations-stored.ts）。写（stock-items.ts、product-stock.ts）和读都按这一份。
+ * （shared/business/operations/operations-stored.ts）。写（stock-items.ts、product-stock.ts）和读都按这一份。
  */
 type StockDocument = z.output<typeof stockDocumentSchema>;
 

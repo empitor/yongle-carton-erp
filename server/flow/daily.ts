@@ -9,7 +9,7 @@ import { FlowService } from './rules/service.js';
 
 /*
  * 仓库台账（到货、送货、生产任务按日期看）：同一批次按身份合并；计划日与真实完成日分别归属，未计划的实物流转也保留。
- * 查询参数的规则在 shared/business/flow-requests.ts（GET /flow/daily 和助手共用），回答的结构在 shared/business/flow-views.ts。
+ * 查询参数的规则在 shared/business/flow/flow-requests.ts（GET /flow/daily 和助手共用），回答的结构在 shared/business/flow/flow-views.ts。
  */
 
 type DailyQuery = z.output<typeof dailyQuerySchema>;

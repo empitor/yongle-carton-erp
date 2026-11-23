@@ -11,7 +11,7 @@ const PREVIEW_DELAY = 250;
 
 /** 交给服务端的更正输入：到货、送货、完工各一种（各自的 *-correction.ts 整理） */
 type CorrectionBody = FlowApi['POST /flow/:id/correction-preview']['body'];
-/** 核验出来的更正影响：按原单的种类各一种（shared/business/flow-correction-views.ts） */
+/** 核验出来的更正影响：按原单的种类各一种（shared/business/flow/flow-correction-views.ts） */
 export type CorrectionPreview = FlowApi['POST /flow/:id/correction-preview']['response'];
 /** 提交更正的结果（summary 是给页面提示的一句话） */
 export type CorrectionResult = FlowApi['POST /flow/:id/correct']['response'];

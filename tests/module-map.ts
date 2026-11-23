@@ -11,9 +11,6 @@ export type Layer = { name: string; paths: string[] };
 /** layers：模块内部从下往上分层，同一模块里只能引同层或下层（module-boundaries 查）；模块的每个文件都要落在某一层，入口 index.ts、pages.ts 可以不登记 */
 export type Rule = { name: string; paths: string[]; allow: string[]; layers?: Layer[] };
 
-/** 共用业务规则（shared/business）按服务端业务主线分层的文件 */
-const business = (names: string[]) => names.map((n) => 'shared/business/' + n + '.ts');
-
 // 越往下越基础。paths 按最长前缀匹配；目录写到末尾的斜杠，单个文件写全名。
 // allow 和实际用到的一致（module-boundaries 有测试查）：新用到一个模块就在这里加上，不再用了就删掉，架构图跟着改。
 export const modules: Rule[] = [
@@ -97,45 +94,17 @@ export const modules: Rule[] = [
   // 前后端共用，和服务端同一套分法
   { name: '共用-基础', paths: ['shared/core/'], allow: [] },
   {
-    // 一个平铺的目录，按文件分成和服务端业务主线一样的六层；服务端对应模块只能用同层或下层的文件（经 index.ts 引的名字按来源文件算）
+    // 共用业务和服务端业务主线的层对应，走入口时按名字的来源文件算层
     name: '共用-业务',
     paths: ['shared/business/'],
     allow: ['共用-基础'],
     layers: [
-      { name: '客户产品订单', paths: business(['mark-api', 'mark-inputs']) },
-      {
-        name: '采购库存',
-        paths: business([
-          'operations', 'operations-api', 'operations-requests', 'operations-views', 'operations-stored', 'order-batch', 'stock-identity',
-          'movement-filters', 'purchase-filters', 'limits', 'display-text', 'schedule', 'record-status', 'business-metrics',
-        ]),
-      },
-      {
-        name: '单据流转',
-        paths: business([
-          'physical-flow', 'arrival', 'flow-api', 'flow-requests', 'flow-results', 'flow-views', 'flow-correction', 'flow-correction-views',
-          'flow-document', 'flow-snapshot', 'production-completion', 'purchase-return', 'task-progress', 'stock-batches', 'warehouse-delivery', 'delivery-plan',
-          'document-value', 'arrival-draft', 'production-plan', 'labels', 'finance-source', 'stock-flow-views', 'stock-flow-api',
-        ]),
-      },
-      {
-        // 删除的请求、叫法和清单标题，档案批量归档的接口表；能删的记录种类就是数据管理的模块（data-management-modules）
-        name: '删除归档',
-        paths: business([
-          'deletion-api', 'deletion-request', 'deletion-words', 'deletion-headline', 'lifecycle-api', 'data-management-modules',
-        ]),
-      },
-      {
-        name: '订单服务',
-        paths: business(['records-api', 'record-queries', 'order-filter', 'product-family']),
-      },
-      {
-        name: '业务总览',
-        paths: business([
-          'workbench-api', 'overview', 'order-next-step', 'order-chain',
-          'history-fields', 'history-text', 'record-history', 'record-changes', 'data-management-templates',
-        ]),
-      },
+      { name: '客户产品订单', paths: ['shared/business/sales/'] },
+      { name: '采购库存', paths: ['shared/business/operations/'] },
+      { name: '单据流转', paths: ['shared/business/flow/'] },
+      { name: '删除归档', paths: ['shared/business/lifecycle/'] },
+      { name: '订单服务', paths: ['shared/business/orders/'] },
+      { name: '业务总览', paths: ['shared/business/overview/'] },
     ],
   },
   { name: '共用-财务', paths: ['shared/finance/'], allow: ['共用-基础'] },

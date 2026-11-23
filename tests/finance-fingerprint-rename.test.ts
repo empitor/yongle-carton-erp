@@ -1,10 +1,10 @@
-// 来源指纹按财务口径算（shared/business/finance-source.ts 的 fingerprintRules）：业务把一个归“算”的栏目改了名，
+// 来源指纹按财务口径算（shared/business/flow/finance-source.ts 的 fingerprintRules）：业务把一个归“算”的栏目改了名，
 // 改名表的键跟着改、财务口径的名字不动，同一张单据的指纹和改名前一样；改名表没跟上或者对错了名字，指纹就变（真的会拦）。
 // 四种来源各改几个（含明细、纸板资料、领料里的栏目，和这几个外层栏目本身）；样张先走正式的读法（storedContent）。纯函数、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sourceHash } from '../server/finance/events/source-fingerprint.js';
-import { fingerprintOf, fingerprintRules } from '../shared/business/finance-source.js';
+import { fingerprintOf, fingerprintRules } from '../shared/business/flow/finance-source.js';
 import { isRecord } from '../shared/core/index.js';
 import {
   arrivalFull,

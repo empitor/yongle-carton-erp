@@ -22,7 +22,7 @@ export type StockItemRow = StockItemBaseView;
 
 /**
  * 一笔库存变化（单据核对 validateFlow 算出来的 changes）：到货新加的行还没有库存品时 stockId 是 null、带 newItem；
- * 核对窗口（preview.ts 的 describeChanges）再补入到哪个、现在和核对后。结构跟核对窗口的回答走（shared/business/flow-views.ts）
+ * 核对窗口（preview.ts 的 describeChanges）再补入到哪个、现在和核对后。结构跟核对窗口的回答走（shared/business/flow/flow-views.ts）
  */
 export type StockChange = FlowPreview['changes'][number];
 /** 到货行没选库存品时要入的原材料：按这份内容对上已有的，没有就新建（OperationsService.rawStockFor） */

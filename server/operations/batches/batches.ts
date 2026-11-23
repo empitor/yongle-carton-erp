@@ -28,7 +28,7 @@ function batchRowView({ lines, ...r }: ReturnType<typeof batchRows>[number]) {
   const first = lines[0];
   return {
     ...r,
-    // 这一行是哪种纸板（合成一行的明细实物都一样）：AI 识别的送货单按它对订货单（shared/business/arrival-draft.ts）
+    // 这一行是哪种纸板（合成一行的明细实物都一样）：AI 识别的送货单按它对订货单（shared/business/flow/arrival-draft.ts）
     board: {
       name: first.name,
       specification: first.specification ?? '',

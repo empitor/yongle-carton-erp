@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planOrderDelivery } from '../shared/business/warehouse-delivery.js';
-import { deliveryPlan, overOrderLines } from '../shared/business/index.js';
+import { planOrderDelivery, deliveryPlan, overOrderLines } from '../shared/business/index.js';
 
 const line = (id: number, productId: number, quantity: number, extra: { specification?: string; remainingQuantity?: number } = {}) => ({
   id,
@@ -62,7 +61,7 @@ test('按订单排送货：交期早的先分可用量，扣掉已在待送货�
   ]);
 });
 
-// 安排送货的方案（shared/business/delivery-plan.ts）：页面窗口和助手 delivery.plan 共用
+// 安排送货的方案（shared/business/flow/delivery-plan.ts）：页面窗口和助手 delivery.plan 共用
 const stock = (id: number, productId: number, availableUnits: number, extra: { archived?: boolean; kind?: string } = {}) => ({
   id,
   productId,

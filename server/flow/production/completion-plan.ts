@@ -53,7 +53,7 @@ export function pickTasks(flow: FlowCommands, v: CompletionInput): Task[] {
   // list 按编号读时归档过滤、排序（日期、编号倒序）和视图都和全量列表一样，不存在、已归档、不是生产任务的编号读不到。
   const found = flow.list('task', false, undefined, scope),
     byId = new Map(found.map((t) => [t.id, t])),
-    // 剩余量和登记完工窗口同一个算法（shared/business/task-progress.ts）：直接入库和只登记同一个口径，
+    // 剩余量和登记完工窗口同一个算法（shared/business/flow/task-progress.ts）：直接入库和只登记同一个口径，
     // 同一任务不能反复登记全部剩余量
     picked = v.allActive
       ? found.filter((t) => t.status === 'confirmed' && taskLeftUnits(t) > 0)

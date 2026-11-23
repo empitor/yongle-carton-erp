@@ -1,13 +1,17 @@
-// 订单和采购单的“下一步”（shared/business/order-next-step.ts）、履约链（order-chain.ts）、订料预填（src/operations/purchase-seed.ts）：
+// 订单和采购单的“下一步”（shared/business/overview/order-next-step.ts）、履约链（order-chain.ts）、订料预填（src/operations/purchase-seed.ts）：
 // 只按已有单据和库存判断。前面是纯函数，后面几条按真实单据算（待送货单占的数量）。全部是虚构数据。
 import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { orderNextSteps, purchaseNextSteps } from '../shared/business/order-next-step.js';
-import { orderChain } from '../shared/business/order-chain.js';
-import { planOrderDelivery, pendingByOrderLine } from '../shared/business/warehouse-delivery.js';
-import { planProductionForOrders } from '../shared/business/production-plan.js';
+import {
+  orderNextSteps,
+  purchaseNextSteps,
+  orderChain,
+  planOrderDelivery,
+  pendingByOrderLine,
+  planProductionForOrders,
+} from '../shared/business/index.js';
 import { relatedBusiness } from '../server/overview/related-business.js';
 import { buildToday } from '../server/overview/workbench.js';
 import {

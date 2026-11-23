@@ -8,10 +8,9 @@ import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { receiptEvents } from '../server/flow/rules/receipt-events.js';
 import { FlowService } from '../server/flow/index.js';
 import type { FlowKind } from '../shared/core/index.js';
-import { arrivalCorrectionPreviewSchema, type FlowDocView, type StockItemBaseView } from '../shared/business/index.js';
+import { arrivalCorrectionPreviewSchema, type FlowDocView, type StockItemBaseView, batchRowKey } from '../shared/business/index.js';
 import type { OperationsService } from '../server/operations/index.js';
 import { z } from 'zod';
-import { batchRowKey } from '../shared/business/order-batch.js';
 import { quantityString, quantityUnits } from '../shared/core/quantity.js';
 
 type Item = { lineId: number; quantity: string; acceptedQuantity?: string; rejectedQuantity?: string; stockedQuantity?: string };

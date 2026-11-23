@@ -3,10 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sourceHash } from '../server/finance/events/source-fingerprint.js';
-import { financeFingerprint } from '../shared/business/finance-source.js';
+import { financeFingerprint } from '../shared/business/index.js';
 
 const source = { status: 'confirmed', date: '2026-10-27' };
-/** 一张送货单算进指纹的内容（按约定取，见 shared/business/finance-source.ts） */
+/** 一张送货单算进指纹的内容（按约定取，见 shared/business/flow/finance-source.ts） */
 const delivery = (line: Record<string, unknown>) =>
   financeFingerprint('delivery', {
     date: '2026-10-27',

@@ -3,7 +3,7 @@ import type { deliveryCorrectionPreviewSchema, FlowDocView } from '../../shared/
 
 /**
  * 更正送货单的输入：整理成服务端 POST /api/flow/:id/correction-preview、/correct 要的格式
- * （shared/business/flow-correction.ts 的 deliveryCorrectionPreviewSchema）。只算数据，不发请求、不依赖 React。
+ * （shared/business/flow/flow-correction.ts 的 deliveryCorrectionPreviewSchema）。只算数据，不发请求、不依赖 React。
  *
  * - lines 是更正后整张单：带 index 的是原单那一行（只写数量，换挂了另写 orderLineId）；不带的是新加的行（要 orderLineId）；
  *   原单里没出现的行就是删掉（这一行其实没发）。

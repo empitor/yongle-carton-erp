@@ -20,7 +20,7 @@ export type DeletionPlanView = {
 
 
 /**
- * 库存品按仓库叫（成品库存 / 原材料库存，shared/business/deletion-words.ts），和清单左边、库存说明同一个叫法：
+ * 库存品按仓库叫（成品库存 / 原材料库存，shared/business/lifecycle/deletion-words.ts），和清单左边、库存说明同一个叫法：
  * 看清单里会删除的库存品是哪种；selected 时只看选中的那几个。
  */
 function stockName(plan: DeletionPlanView, selected: boolean) {
@@ -54,7 +54,7 @@ function target(plan: DeletionPlanView, table: string, kind?: string) {
 type KeptPhrase = (plan: DeletionPlanView, r: ImpactRow) => string;
 const unlinkPurchase: KeptPhrase = (plan) => '不再挂' + target(plan, 'purchases');
 const unlinkStock: KeptPhrase = (plan) => '不再对应' + target(plan, 'stock_items');
-// 和流水列表里这种流水的叫法一致（shared/business/movement-filters.ts 的“系统维护”）
+// 和流水列表里这种流水的叫法一致（shared/business/operations/movement-filters.ts 的“系统维护”）
 const keptAsMaintenance: KeptPhrase = () => '改成系统维护流水，库存数量不动';
 
 /** 解除的字段 → 右边怎么说（按解除的是哪种关联说）；没列的字段说“去掉单据里对删掉记录的引用” */

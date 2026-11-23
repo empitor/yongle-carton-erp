@@ -19,7 +19,7 @@ const { touchOrderBatch, touchPurchases } = stockLedger;
  * 给人看的话一律说“撤销”，“冲销”只留给财务凭证。
  */
 
-/** 取消、撤销的输入：核对时的版本号、原因、确认看过了（规则在 shared/business/flow-requests.ts） */
+/** 取消、撤销的输入：核对时的版本号、原因、确认看过了（规则在 shared/business/flow/flow-requests.ts） */
 type UndoInput = z.output<typeof flowUndoSchema>;
 
 /** 这张生产任务名下有没有这个状态（draft 待入库、confirmed 已入库）的完工单 */

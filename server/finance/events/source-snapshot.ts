@@ -18,7 +18,7 @@ const sourceLine = z
   .partial()
   .extend({ quantity: arrivalLine.quantity });
 /**
- * 快照里的来源内容（doc）：四种来源的财务口径（shared/business/finance-source.ts 的 financeSourceSchemas）合在一起读，
+ * 快照里的来源内容（doc）：四种来源的财务口径（shared/business/flow/finance-source.ts 的 financeSourceSchemas）合在一起读，
  * 加上同步时补的单号（withNumber）；每项都可能没有。快照只存财务口径，多出来的项（按旧结构存的）读的时候忽略。
  */
 const financeSourceDocument = z

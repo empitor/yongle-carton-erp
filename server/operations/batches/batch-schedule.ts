@@ -3,7 +3,7 @@ import { parseStoredJson } from '../../core/index.js';
 import { storedScheduleEntrySchema, type ScheduleEntry } from '../../../shared/business/index.js';
 
 /**
- * 订货单的到货安排（order_batches.schedule）：每段的结构是共用的 storedScheduleEntrySchema（shared/business/operations-stored.ts）。
+ * 订货单的到货安排（order_batches.schedule）：每段的结构是共用的 storedScheduleEntrySchema（shared/business/operations/operations-stored.ts）。
  * 写（batches.ts 建订货单、改安排、移出采购单，deletion.ts 删采购单时去掉只属于它的行）和读都按这一份。
  */
 const storedSchedule = z.array(storedScheduleEntrySchema);

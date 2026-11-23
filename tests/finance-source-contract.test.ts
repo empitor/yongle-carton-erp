@@ -1,4 +1,4 @@
-// 财务和业务之间的约定（shared/business/finance-source.ts），直接比结构（只用虚构数据，不读库）：
+// 财务和业务之间的约定（shared/business/flow/finance-source.ts），直接比结构（只用虚构数据，不读库）：
 // 1. 栏目归类表覆盖单据每一层的每个栏目：归类表登记的每一层，栏目和业务的单据结构一个不多、一个不少；
 //    算进指纹的栏目里套着一层对象的，那一层也要登记（不然里面新加的说明会悄悄算进指纹）。
 // 2. 到货、送货、完工单归“说明”的栏目改了，来源指纹用的内容不变：财务不会因为改个备注就新增、替换财务事件。
@@ -6,8 +6,9 @@
 //    改名表（fingerprintRules）的层和归类表的层对得上（层的位置只在改名表写），一层里财务口径的名字不重复。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { financeFieldClasses, financeFingerprint, financeSourceSchemas, fingerprintOf, fingerprintRules } from '../shared/business/finance-source.js';
-import { flowContentSchema } from '../shared/business/flow-document.js';
+import { financeFingerprint, financeSourceSchemas } from '../shared/business/index.js';
+import { financeFieldClasses, fingerprintOf, fingerprintRules } from '../shared/business/flow/finance-source.js';
+import { flowContentSchema } from '../shared/business/flow/flow-document.js';
 import { isRecord } from '../shared/core/index.js';
 import { arrivalFull, deliveryFull, productionFull, stockFull, storedContent } from './finance-source-fixture.js';
 import { fieldSteps, pathText, type FieldStep } from './zod-fields.js';
@@ -56,7 +57,7 @@ test('栏目归类表覆盖每种来源每一层的每个栏目，算进指纹�
     assert.deepEqual(
       coverageProblems(kind, paths),
       { unclassified: [], stale: [], countedWithoutLayer: [] },
-      `${kind}：shared/business/finance-source.ts 的 financeFieldClasses 和业务的单据结构对不上，请给新栏目归类、删掉没有了的栏目`,
+      `${kind}：shared/business/flow/finance-source.ts 的 financeFieldClasses 和业务的单据结构对不上，请给新栏目归类、删掉没有了的栏目`,
     );
   }
 });

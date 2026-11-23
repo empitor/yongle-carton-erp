@@ -39,7 +39,7 @@ import { documentInput, validateFlow } from '../rules/validate.js';
  * 出库和送达记录；改了出库日期的，出库时间按新日期北京时间中午。
  */
 
-/** 预览里送货自己的内容（结构在 shared/business/flow-correction-views.ts） */
+/** 预览里送货自己的内容（结构在 shared/business/flow/flow-correction-views.ts） */
 type View = CorrectionDetail<z.output<typeof deliveryCorrectionViewSchema>>;
 
 /** 原送货单按内容应出的库存：每行出库，按库存品合计（出库为负） */
@@ -155,7 +155,7 @@ function finish(ctx: CorrectionContext<'delivery', DeliveryPlan['view'], Deliver
   };
 }
 
-/** 提交结果里送货多带的（结构在 shared/business/flow-correction-views.ts，同一请求号重发时按它读回）：订单已发前后、送货金额前后 */
+/** 提交结果里送货多带的（结构在 shared/business/flow/flow-correction-views.ts，同一请求号重发时按它读回）：订单已发前后、送货金额前后 */
 type DeliveryResult = z.output<typeof deliveryCorrectionExtraSchema>;
 
 export const deliveryCorrection: CorrectionKind<'delivery', DeliveryInput, DeliveryPlan['view'], DeliveryPlan['data'], DeliveryResult> = {

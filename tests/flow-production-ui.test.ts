@@ -6,7 +6,7 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FlowEditor } from '../src/flow/FlowEditor.js';
 import type { ProductionEditing } from '../src/flow/ProductionForm.js';
-import { completableTask } from '../shared/business/task-progress.js';
+import { completableTask } from '../shared/business/index.js';
 import { taskCounts, taskOptionText } from '../src/flow/task-progress.js';
 import { actions, batchDialog, noop, task } from './flow-ui-fixture.js';
 

@@ -89,7 +89,7 @@ export function examine(flow: FlowCommands, doc: FlowDocView) {
   return { snap, previewDigest: previewDigest(snap) };
 }
 
-/** 核对预览：只读（在预演里算、算完撤回），返回核对内容和 previewDigest，确认时带回来（回答的结构在 shared/business/flow-views.ts） */
+/** 核对预览：只读（在预演里算、算完撤回），返回核对内容和 previewDigest，确认时带回来（回答的结构在 shared/business/flow/flow-views.ts） */
 export function preview(flow: FlowCommands, id: number, who: Actor | null | undefined): FlowPreview {
   const actor = requirePermission(who, 'business:edit');
   return rehearse(flow.store.db, () => {

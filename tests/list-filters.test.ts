@@ -17,15 +17,18 @@ import { listen, testProblems } from './http-fixture.js';
 import { today, orderSchema } from '../shared/core/domain.js';
 import { businessBase, manualWrite } from './business-base-fixture.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';
-import { initialMovementRange, movementFilterSchema } from '../shared/business/movement-filters.js';
-import { operationalSearchText } from '../shared/business/business-metrics.js';
+import {
+  initialMovementRange,
+  movementFilterSchema,
+  operationalSearchText,
+  type StockItemBaseView,
+} from '../shared/business/index.js';
 import { Pagination, TableRegion } from '../src/ui/ListLayout.js';
 import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
 import { toolsOf } from './assistant-fixture.js';
 import { stockIdsOfParty } from '../server/operations/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { receiveLines } from './receive-fixture.js';
-import type { StockItemBaseView } from '../shared/business/index.js';
 import { readAs } from './read-result.js';
 import { catalogItems } from '../src/palette-items.js';
 

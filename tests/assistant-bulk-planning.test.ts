@@ -5,7 +5,7 @@ import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { businessBase, damageOrderCost } from './business-base-fixture.js';
-import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
+import { planStockDelivery } from '../shared/business/flow/warehouse-delivery.js';
 import { assistantFixture, ctxOf, toolsOf } from './assistant-fixture.js';
 import type { Store as StoreType } from '../server/core/index.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';

@@ -3,7 +3,7 @@ import { call } from '../ui/index';
 
 /**
  * 订货单（一次向供应商订货的批次）的请求：仓库页、采购单详情、导出订货单、登记到货和 AI 导入的到货单都走这里。
- * 放在仓库这一层：仓库页要用，采购（operations）在它上面。地址和登记到货都在单据流转的接口表（shared/business/stock-flow-api.ts）。
+ * 放在仓库这一层：仓库页要用，采购（operations）在它上面。地址和登记到货都在单据流转的接口表（shared/business/flow/stock-flow-api.ts）。
  */
 
 const stock = call<StockFlowApi>();

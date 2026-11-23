@@ -1,7 +1,7 @@
 import type { StockFlowApi, RecordStatusAction } from '../../shared/business/index';
 import { call } from '../ui/index';
 
-/** 采购单的请求：整张保存、改状态（接口表 shared/business/stock-flow-api.ts）。 */
+/** 采购单的请求：整张保存、改状态（接口表 shared/business/flow/stock-flow-api.ts）。 */
 
 const stock = call<StockFlowApi>();
 

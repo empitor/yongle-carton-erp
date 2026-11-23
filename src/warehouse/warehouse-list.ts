@@ -63,7 +63,7 @@ export const isWarehouseDoc =
   (r: FlowDocView): r is FlowDocView<WarehouseKind> =>
     r.kind === kind;
 
-/** 到货、送货记录的状态叫法：全站同一个 flowStatusText（shared/business/physical-flow.ts）。 */
+/** 到货、送货记录的状态叫法：全站同一个 flowStatusText（shared/business/flow/physical-flow.ts）。 */
 export const statusOf = (kind: WarehouseKind, r: ListRow) => flowStatusText({ ...r, kind });
 /** 记录对应的单据编号：到货记录带 flowId，送货记录的编号就是单据编号 */
 export const docIdOf = (r: ListRow) => Number(r.flowId ?? r.id);

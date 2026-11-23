@@ -137,7 +137,7 @@ function rowMatches(r: Fields, s: FilterScope, specific: Specific) {
 }
 
 /**
- * 订单：状态和范围的判断和页面订单列表同一份（shared/business/order-filter.ts），状态只认页面上的叫法
+ * 订单：状态和范围的判断和页面订单列表同一份（shared/business/orders/order-filter.ts），状态只认页面上的叫法
  * （records-read.ts 先核对过）；待办是还能送的订单
  */
 function orderSpecific(r: ModuleRows['orders'][number], f: RecordFilters): Specific {
@@ -162,7 +162,7 @@ function purchaseSpecific(r: ModuleRows['purchases'][number], f: RecordFilters):
 }
 /**
  * 单据：界面叫法（和列表的状态筛选同一个比法）；人说的旧叫法（已确认收货、已冲销这类）按存的状态认
- * （shared/business/physical-flow.ts 的 matchesFlowSaying），界面上不再显示这些词
+ * （shared/business/flow/physical-flow.ts 的 matchesFlowSaying），界面上不再显示这些词
  */
 function flowSpecific(r: Parameters<typeof matchesFlowStatus>[0] & Fields, kind: FlowKind, f: RecordFilters): Specific {
   const wanted = f.status;

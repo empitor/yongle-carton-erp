@@ -6,7 +6,7 @@ import { previewChangedMessage } from './flow-words';
 
 /**
  * 单据流转的请求：单据页、仓库页、各办理窗口和 AI 导入的到货单都走这里，组件里不写地址。
- * 按接口表发（shared/business/flow-api.ts），参数和回答的类型都来自表。
+ * 按接口表发（shared/business/flow/flow-api.ts），参数和回答的类型都来自表。
  */
 const flow = call<FlowApi>();
 

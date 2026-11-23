@@ -18,7 +18,7 @@ import { FlowService } from '../server/flow/index.js';
 import { recordContext } from '../server/overview/record-context.js';
 import { customerSchema, productSchema, orderSchema } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
-import { historyActionName } from '../shared/business/history-fields.js';
+import { historyActionName } from '../shared/business/index.js';
 import { arrivalAssistantFixture } from './arrival-assistant-fixture.js';
 import { startHttp, stateActor } from './http-fixture.js';
 import { fixture } from './maintenance-fixture.js';

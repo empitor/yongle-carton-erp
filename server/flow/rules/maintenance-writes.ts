@@ -8,7 +8,7 @@ import { storedDocument } from '../documents/read.js';
  * 单据表归单据流转，写都落在 document-store.ts（镜像列跟着内容一起写）；改订单后由调用方调
  * FlowService.maintenanceReferences 重建关联、refreshOrderProgress 重算进度。
  * 调用方拿的是单据视图（FlowService.list、get），改好整份交回来：行上的列和派生字段不写，内容按库里的单据结构核对；
- * 抄下来的快照引用没变的照原单留着（shared/business/flow-snapshot.ts 的 keepSnapshot），换了客户、订单明细的按交回来的取。
+ * 抄下来的快照引用没变的照原单留着（shared/business/flow/flow-snapshot.ts 的 keepSnapshot），换了客户、订单明细的按交回来的取。
  */
 
 /** 整份替换单据内容（原单就是库里这张），版本号加一（别处打开的单据会提示已变化） */

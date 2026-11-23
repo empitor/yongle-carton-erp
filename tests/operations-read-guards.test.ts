@@ -1,4 +1,4 @@
-// 采购库存的读接口（server/operations/router.ts，接口表 shared/business/operations-api.ts）：哪些要页面凭证、找不到回什么、
+// 采购库存的读接口（server/operations/router.ts，接口表 shared/business/operations/operations-api.ts）：哪些要页面凭证、找不到回什么、
 // 列表先校验参数再判断归档权限。只有经接口才有的结果；内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

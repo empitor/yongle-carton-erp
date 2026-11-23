@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { Store, localAdministratorActor } from '../server/core/index.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { productSchema } from '../shared/core/domain.js';
-import { descendantIds, nestByFamily } from '../shared/business/product-family.js';
+import { descendantIds, nestByFamily } from '../shared/business/index.js';
 
 /** 产品附属关系（小箱套在大箱里）：只存一个“附属于哪个产品”，订单、价格、库存不受影响。全部虚构数据。 */
 /** 不在本机的超级管理员模式；本机管理员是 localAdministratorActor(admin()) */

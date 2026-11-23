@@ -12,7 +12,7 @@ import { buildToday } from './workbench.js';
 const recordId = (raw: string) => z.coerce.number().int().positive().parse(raw);
 
 /*
- * 今日、经营概况、订单和采购单的关联记录、任一记录的关联记录与修改历史（挂在 /api 下，接口表 shared/business/workbench-api.ts）。
+ * 今日、经营概况、订单和采购单的关联记录、任一记录的关联记录与修改历史（挂在 /api 下，接口表 shared/business/overview/workbench-api.ts）。
  * 只取参数、判断权限、调服务。
  */
 export function workbenchRouter(store: Store, auth: RequestAuth | undefined) {

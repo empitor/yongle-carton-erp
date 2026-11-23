@@ -7,8 +7,16 @@ import type { z } from 'zod';
 import type { Actor, Store } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { storedDocument } from '../server/flow/documents/read.js';
-import { flowContentSchema, lifecycleFields, type FlowDocument } from '../shared/business/flow-document.js';
-import { arrivalLineSchema, arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../shared/business/physical-flow.js';
+import {
+  lifecycleFields,
+  type FlowDocument,
+  arrivalSchema,
+  deliverySchema,
+  productionSchema,
+  taskSchema,
+} from '../shared/business/index.js';
+import { flowContentSchema } from '../shared/business/flow/flow-document.js';
+import { arrivalLineSchema } from '../shared/business/flow/physical-flow.js';
 import { isRecord, type FlowKind } from '../shared/core/index.js';
 import { businessChanges } from './business-changes-fixture.js';
 

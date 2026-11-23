@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { many, rows } from '../server/core/index.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { flowStatusLabel } from '../shared/business/physical-flow.js';
+import { flowStatusLabel } from '../shared/business/flow/physical-flow.js';
 import { manualWrite } from './business-base-fixture.js';
 import { splitDeliveryFixture } from './maintenance-fixture.js';
 import { orderOf, trackedOrderOf } from './flow-fixture.js';

@@ -9,9 +9,7 @@ import { costCents, costYuan, plainPrice, precisionTotal, exactText, priceEdit, 
 import { userError } from '../shared/core/user-errors.js';
 import { errorMessage } from '../shared/core/error-message.js';
 import { z } from 'zod';
-import { flowInput } from '../shared/business/physical-flow.js';
-import { sheetArea, purchaseLineAmount } from '../shared/business/operations.js';
-import { stockItemSchema, lineMoney } from '../shared/business/operations.js';
+import { flowInput, sheetArea, purchaseLineAmount, stockItemSchema, lineMoney } from '../shared/business/index.js';
 import { positiveQuantity, quantityText, quantityString, quantityUnits, safeUnits } from '../shared/core/quantity.js';
 
 test('不足一分的尾数不静默舍入，必须明确结算规则', () => {

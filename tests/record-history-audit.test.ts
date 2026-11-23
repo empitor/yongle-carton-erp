@@ -13,12 +13,16 @@ import { recordContext } from '../server/overview/record-context.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { localAdministratorActor } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
-import { dataManagementCommandSchema } from '../shared/business/data-management-modules.js';
+import {
+  dataManagementCommandSchema,
+  movementSchema,
+  recordStatusActions,
+  historyView,
+  historyActionName,
+} from '../shared/business/index.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
-import { movementSchema } from '../shared/business/operations.js';
-import { recordStatusActions } from '../shared/business/record-status.js';
-import { HISTORY_UNKNOWN, historyView, type HistoryView } from '../shared/business/record-history.js';
-import { historyActionName, historyActionNames } from '../shared/business/history-fields.js';
+import { HISTORY_UNKNOWN, type HistoryView } from '../shared/business/overview/record-history.js';
+import { historyActionNames } from '../shared/business/overview/history-fields.js';
 import { HistoryList } from '../src/recordkit/RecordContext.js';
 import { archiveDoc } from './receive-fixture.js';
 import { firstResult } from './data-management-fixture.js';
@@ -181,7 +185,7 @@ test('服务端写修改历史的每个动作都有中文名，内容都能逐�
   }
   assert.deepEqual(unknownDynamic, [], '动作是变量的审计要在 dynamicActions 里登记可能的值');
   for (const action of actions) {
-    assert.ok(historyActionNames[action], '动作 ' + action + ' 没有中文名（shared/business/history-fields.ts 的 historyActionNames）');
+    assert.ok(historyActionNames[action], '动作 ' + action + ' 没有中文名（shared/business/overview/history-fields.ts 的 historyActionNames）');
     assertClean({ items: [{ label: historyActionName(action), value: '' }] }, '动作名 ' + action);
     const sample = samples[action];
     assert.ok(sample, '动作 ' + action + ' 没有照服务端写法的样例，补进本文件的 samples');

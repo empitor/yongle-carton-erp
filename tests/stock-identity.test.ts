@@ -1,4 +1,4 @@
-// 同一种货只有一个库存品（shared/business/stock-identity.ts 的查重键、server/operations/stock/stock-items.ts、到货自动对应）：
+// 同一种货只有一个库存品（shared/business/operations/stock-identity.ts 的查重键、server/operations/stock/stock-items.ts、到货自动对应）：
 // 原材料按查重键不重复（归档的也算），到货没选库存品时入到一样的那个，核对入库的预览和实际一致。内存库、虚构数据。
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import { count, one, rows as tableRows } from '../server/core/index.js';
 import type { Actor } from '../server/core/index.js';
 import { productSchema } from '../shared/core/domain.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
-import { rawStockKey, sameRawSpec } from '../shared/business/stock-identity.js';
+import { rawStockKey, sameRawSpec } from '../shared/business/index.js';
 import { StockConflictError } from '../server/operations/stock/stock-items.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';

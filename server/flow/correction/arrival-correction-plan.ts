@@ -30,7 +30,7 @@ type Arrival = FlowDocument<'arrival'>;
 type Checked = FlowCheck<Arrival>;
 /** 采购单（采购库存读出来的样子）的一条明细 */
 type PurchaseLine = PurchaseView['lines'][number];
-/** 预览里到货自己的内容（结构在 shared/business/flow-correction-views.ts） */
+/** 预览里到货自己的内容（结构在 shared/business/flow/flow-correction-views.ts） */
 type View = CorrectionDetail<z.output<typeof arrivalCorrectionViewSchema>>;
 /** 采购单更正前后（预览和结果里的样子） */
 type PurchaseImpact = View['purchaseImpact'][number];

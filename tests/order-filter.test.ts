@@ -1,4 +1,4 @@
-// 订单筛选只有一份判断（shared/business/order-filter.ts）：页面订单列表和助手查订单按状态筛出同样的订单，
+// 订单筛选只有一份判断（shared/business/orders/order-filter.ts）：页面订单列表和助手查订单按状态筛出同样的订单，
 // 状态只认页面上的叫法。内存库、虚构数据。
 import { sales } from '../server/sales/index.js';
 import { trackOrders } from '../server/orders/index.js';

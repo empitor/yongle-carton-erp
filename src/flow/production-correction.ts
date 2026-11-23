@@ -3,7 +3,7 @@ import type { FlowDocView, productionCorrectionPreviewSchema } from '../../share
 
 /**
  * 更正完工单的输入：整理成服务端 POST /api/flow/:id/correction-preview、/correct 要的格式
- * （shared/business/flow-correction.ts 的 productionCorrectionPreviewSchema）。只算数据，不发请求、不依赖 React。
+ * （shared/business/flow/flow-correction.ts 的 productionCorrectionPreviewSchema）。只算数据，不发请求、不依赖 React。
  *
  * - 合格、报废改了才写。领料只要有一处变了（改数、换纸板、加行、删行）就写更正后的整张领料表：
  *   带 index 的是原单那一行（换了纸板另写 stockId），不带的是新加的行（要 stockId）。
