@@ -1,5 +1,5 @@
 import { RAW_UNIT } from '../../core/index.js';
-import { displayAmount, plainPrice, type SpecFields } from '../../core/index.js';
+import { displayAmount, orderTaxOriginal, plainPrice, shownTaxRate, type SpecFields } from '../../core/index.js';
 import { formatStockSize } from './operations.js';
 
 /** 可能没写的文字：资料、识别结果、筛选字段里空着的是 null 或没有 */
@@ -52,10 +52,12 @@ export function amountText(value: string | number | null | undefined) {
   }
 }
 
-/** 税率和含税方式：“13% 含税”；都没写时“未明确”。订单详情、导入预览、订单明细小字都用它。 */
-export function taxText(rate?: string | null, mode?: string | null) {
-  const r = clean(rate),
-    m = clean(mode);
-  if (!r && !m) return '未明确';
-  return [/^\d+(\.\d+)?$/.test(r) ? r + '%' : r, m].filter(Boolean).join(' ');
+/** 订单税费：规范税率、含税口径和原件写法。 */
+export function orderTaxText({ taxRate, taxMode, taxText }: {
+  taxRate?: number | null;
+  taxMode?: string | null;
+  taxText?: string | null;
+}) {
+  const rateAndMode = [shownTaxRate(taxRate), taxMode].filter(Boolean).join(' ');
+  return [rateAndMode, orderTaxOriginal(taxText, taxRate)].filter(Boolean).join(' · ') || '未明确';
 }

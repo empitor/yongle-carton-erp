@@ -9,7 +9,7 @@ export type { DeletionImpactRow } from './lifecycle/deletion-headline.js';
 export type { Directions } from './lifecycle/deletion-words.js';
 export { dataManagementCommandSchema, dataManagementFieldName, dataManagementModules, dataManagementNames, dataManagementNoCreate } from './lifecycle/data-management-modules.js';
 export { dataManagementTemplate } from './overview/data-management-templates.js';
-export { UNPRICED_TEXT, amountText, priceText, sizeText, specLine, taxText } from './operations/display-text.js';
+export { UNPRICED_TEXT, amountText, orderTaxText, priceText, sizeText, specLine } from './operations/display-text.js';
 export { ARRIVAL_HISTORY_TITLE, arrivalProgressText, purchaseState, purchaseStatusLabel, purchaseStatusOptions, recordNames } from './flow/labels.js';
 export { initialMovementRange, matchesMovement, movementFilterSchema, movementLabels, movementSource, movementSourceKinds, movementTypeLabel, movementTypeOf, movementTypes } from './operations/movement-filters.js';
 export type { MovementFilters } from './operations/movement-filters.js';

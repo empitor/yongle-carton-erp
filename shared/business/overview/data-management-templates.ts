@@ -58,8 +58,9 @@ const orderLineTemplate = () => ({
   unitPriceExact: '',
   customerProductCode: '',
   // 本项税率、含税口径空着就跟整单走；分项交期空着就是整单的交货日期
-  taxRate: '',
-  taxMode: '',
+  taxRate: null,
+  taxMode: null,
+  taxText: null,
   deliveryDate: null,
 });
 // 采购、到货、生产、送货的数量同样留空（null）让人填，不预填 1；报废、退料没有就是 0，照旧预填 0
@@ -79,9 +80,9 @@ const orderTemplate = (today: string) => ({
   // 金额结算和订单页编辑窗一样先是“精确到分，不自动舍入”；单价有不足一分的尾数时人在这一格改选
   roundingPolicy: 'exact-cents',
   supplierName: '',
-  taxRate: '',
-  // 含税口径和订单页编辑窗新单一样先是“未明确”（不默认含税）
-  taxMode: '未明确',
+  taxRate: null,
+  taxMode: null,
+  taxText: null,
   terms: '',
 });
 const purchaseTemplate = (today: string) => ({

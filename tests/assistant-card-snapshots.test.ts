@@ -51,8 +51,8 @@ test('每种记录人能改的字段（卡片上一个都不能漏）按参数�
     [],
   ]);
   assert.deepEqual(fields('orders'), [
-    ['customerId', 'orderDate', 'deliveryDate', 'status', 'notes', 'lines', 'costs', 'externalPurchaseOrder', 'supplierName', 'currency', 'taxRate', 'taxMode', 'terms', 'roundingPolicy'],
-    ['id', 'productId', 'productName', 'specification', 'notes', 'quantity', 'unitPriceCents', 'unitPriceExact', 'customerProductCode', 'unit', 'taxRate', 'taxMode', 'deliveryDate'],
+    ['customerId', 'orderDate', 'deliveryDate', 'status', 'notes', 'lines', 'costs', 'externalPurchaseOrder', 'supplierName', 'currency', 'taxRate', 'taxMode', 'taxText', 'terms', 'roundingPolicy'],
+    ['id', 'productId', 'productName', 'specification', 'notes', 'quantity', 'unitPriceCents', 'unitPriceExact', 'customerProductCode', 'unit', 'taxRate', 'taxMode', 'taxText', 'deliveryDate'],
   ]);
   assert.deepEqual(fields('purchases'), [
     ['supplierId', 'customerOrderId', 'orderDate', 'expectedDate', 'status', 'notes', 'lines'],
@@ -93,7 +93,7 @@ test('改档案和订单、归档恢复、数据管理的改：卡片逐字不�
       '记录：客户 虚构客户甲',
       '联系方式：222 → 13800000000',
     ]);
-    const lines = oa.lines.map((l) => ({ ...l, productId: other.id, taxRate: '13', notes: '虚构行备注' }));
+    const lines = oa.lines.map((l) => ({ ...l, productId: other.id, taxRate: 13, notes: '虚构行备注' }));
     assert.deepEqual(shown(prepare('records.propose_save', { module: 'orders', id: oa.id, patch: { lines } })), [
       '修改订单：订单 ' + oa.number + '（虚构客户甲）',
       '记录：订单 ' + oa.number + '（虚构客户甲）',

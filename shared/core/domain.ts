@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MAX_PRICE_YUAN, precisionTotal } from './precision.js';
 import { cmLimitIssue, dimensionUnitSchema, dimensionValueSchema, normalizeDimensionUnit, withinCmLimit, type SpecFields } from './product-details.js';
 import { canonicalCurrency } from './currency.js';
+import { taxRateSchema } from './tax-rate.js';
 
 /** 订单金额怎么到分：按精确金额（不能有不足一分的尾数）、整单四舍五入到分 */
 export const roundingPolicies = ['exact-cents', 'half-up-cent'] as const;
@@ -40,7 +41,6 @@ const TEXT_MAX = {
   /** 订单明细的产品名称、规格、备注 */
   lineText: 2000,
   unit: 20,
-  taxRate: 30,
   taxMode: 60,
   terms: 4000,
 };
@@ -60,18 +60,23 @@ const text = (max = 200) => z.string().trim().max(max);
 // 可选说明的null表示原件未提供；数字、对象等错误类型仍拒绝。
 const blankText = (max: number) => z.preprocess((v) => (v === null ? '' : v), text(max));
 const optionalText = (max: number) => blankText(max).optional();
-/** 订单和订单明细的含税口径：下拉固定三项，存的值就是叫法（识别导入原件没写时存“未明确”） */
+/** 订单和订单明细的含税口径：下拉固定三项，存的值就是叫法。 */
 export const orderTaxModes = ['含税', '未税', '未明确'] as const;
 /**
- * 含税口径的录入：空着（明细空着跟整单走）照旧收；填了只能是三项之一。库里已有的别的写法（如“不含税”）
- * 不猜着归并，原样报出来要人改选。只管录入，不加数据库约束（表结构不动）。
+ * 含税口径空着存 NULL（明细空着跟整单走）；填了只能是三项之一。
  */
 const taxModeSchema = blankText(TEXT_MAX.taxMode)
   .superRefine((v, ctx) => {
     if (v && !orderTaxModes.some((m) => m === v))
       ctx.addIssue({ code: 'custom', message: '只能选' + orderTaxModes.join('、') + '（现在写的是“' + v + '”），请改选' });
   })
+  .transform((v) => v || null)
   .optional();
+const orderTaxFields = {
+  taxRate: taxRateSchema.nullish().describe('税率写数字，如 13 表示 13%，最多两位小数'),
+  taxMode: taxModeSchema,
+  taxText: z.string().nullish(),
+};
 /**
  * 要选的编号（客户、产品、订单、库存品……）：没选（null）、填了 0 或负数都报“请选择××”，
  * 不用 zod 默认的英文（Too small: expected number to be >0）。只换提示，校验和原来一样是正整数。
@@ -176,8 +181,7 @@ export const lineSchema = z.object({
   customerProductCode: optionalText(100),
   // 产品数量单位只有“只”（“个”、没写都按“只”）；新建或改成别的单位由订单保存拦，见 shared/core/units.ts
   unit: optionalText(TEXT_MAX.unit),
-  taxRate: optionalText(TEXT_MAX.taxRate),
-  taxMode: taxModeSchema,
+  ...orderTaxFields,
   deliveryDate: optionalDate,
 });
 function checkedTotal(lines: Parameters<typeof precisionTotal>[0]) {
@@ -207,8 +211,7 @@ const orderFields = z.object({
       )
       .default('CNY')
       .optional(),
-    taxRate: optionalText(TEXT_MAX.taxRate),
-    taxMode: taxModeSchema,
+    ...orderTaxFields,
     terms: optionalText(TEXT_MAX.terms),
     roundingPolicy: z.enum(roundingPolicies, { error: '请选择金额结算' }).optional(),
   });
@@ -262,20 +265,6 @@ export const plannedOrderSchema = applyOrderRules(
       .max(MAX_ORDER_LINES, `一张订单最多 ${MAX_ORDER_LINES} 行明细`),
   }),
 );
-
-/**
- * 库里已存的订单整理成录入内容（数据管理的编辑窗、改订单状态时整张再存一次）：含税口径不在这里核。
- * 库里可能有改成下拉以前的别的写法，原样带回（编辑窗照原样显示、状态动作照原样存）；
- * 只有人编辑订单交上来时才由 orderSchema 拦下、要人改选。
- */
-export function storedOrderInput<T extends { taxMode?: string; lines: readonly { taxMode?: string }[] }>(stored: T) {
-  const parsed = orderSchema.parse({ ...stored, taxMode: undefined, lines: stored.lines.map((l) => ({ ...l, taxMode: undefined })) });
-  return {
-    ...parsed,
-    taxMode: stored.taxMode,
-    lines: parsed.lines.map((l, i) => ({ ...l, taxMode: stored.lines[i]?.taxMode })),
-  };
-}
 
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type ProductInput = z.infer<typeof productSchema>;

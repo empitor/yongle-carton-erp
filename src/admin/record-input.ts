@@ -104,10 +104,17 @@ export function editableInput(module: string, input: JsonObject): JsonObject {
   if (module === 'orders')
     return {
       ...value,
-      // 库里没存金额结算的旧订单照实显示“未填写”，人选了才写（submittedInput 不交空的这一格）
+      // 库里没存金额结算、税率、含税口径的订单照实显示空值格子，方便编辑补填
       roundingPolicy: value.roundingPolicy ?? null,
+      taxRate: value.taxRate ?? null,
+      taxMode: value.taxMode ?? null,
       costs: editableCosts(value.costs),
-      lines: mapLines(value.lines, (l) => ({ ...l, unitPriceExact: shownPrice(l.unitPriceExact, l.unitPriceCents) })),
+      lines: mapLines(value.lines, (l) => ({
+        ...l,
+        taxRate: l.taxRate ?? null,
+        taxMode: l.taxMode ?? null,
+        unitPriceExact: shownPrice(l.unitPriceExact, l.unitPriceCents),
+      })),
     };
   if (textPriceModules.has(module) && isJsonList(value.lines))
     return {

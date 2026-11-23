@@ -1,4 +1,4 @@
-import { dateSchema, FINISHED_UNIT, finishedUnit, inspectCurrency, lineSchema, MAX_CM_DIMENSION, MAX_PRICE_UNITS, MAX_PRICE_YUAN, normalizeDimensionUnit, orderTaxModes, parseDimension, PRICE_DECIMALS } from '../core/index.js';
+import { dateSchema, FINISHED_UNIT, finishedUnit, inspectCurrency, lineSchema, MAX_CM_DIMENSION, MAX_PRICE_UNITS, MAX_PRICE_YUAN, normalizeDimensionUnit, orderTaxModes, orderTaxOriginal, parseDimension, PRICE_DECIMALS, readTaxRate } from '../core/index.js';
 import { fieldLabels, headerFields, lineFields } from './order-draft.js';
 import type { DraftEvaluation, DraftField, DraftIssue, HeaderField, LineField, OrderDraft } from './order-draft.js';
 
@@ -27,7 +27,7 @@ function equal(a: Decimal, b: Decimal) {
 /** 本公司名称：采购方识别成它，多半是把采购方和供应方看反了 */
 const OWN_COMPANY = '宁波甬勒包装制品有限公司';
 /** 原件本来就没写的选填项不算疑点 */
-const optionalHeaderFields: readonly HeaderField[] = ['notes', 'terms', 'statedTotalQuantity', 'statedTotalAmount'];
+const optionalHeaderFields: readonly HeaderField[] = ['notes', 'terms', 'taxRate', 'statedTotalQuantity', 'statedTotalAmount'];
 const optionalLineFields: readonly LineField[] = [
   'length',
   'width',
@@ -85,6 +85,11 @@ function headerIssues(h: OrderDraft['header'], issue: Issue) {
     issue('header.currency', '币种按人民币（CNY）保存，请对照原件核对。');
   if (!h.taxMode.value) issue('header.taxMode', '原件未明确含税口径，不能自行推断。');
   taxModeIssue(h.taxMode.value, 'header.taxMode', issue);
+  taxRateIssue(h.taxRate.value, 'header.taxRate', issue);
+}
+function taxRateIssue(value: string | null, path: string, issue: Issue) {
+  const message = readTaxRate(value) === null ? orderTaxOriginal(value) : '';
+  if (message) issue(path, message);
 }
 /** 含税口径只收含税、未税、未明确：原件写的别的说法（如“不含税”）不猜着归并，要人在识别结果里改选 */
 function taxModeIssue(value: string | null, path: string, issue: Issue) {
@@ -157,6 +162,7 @@ function lineIssues(line: DraftLine, issue: Issue) {
     issue(prefix + 'unit', '原文数量单位是“' + unit + '”，系统里产品只按“只”算，请把数量换算成只、单位改成只。', 'error');
   if (!f.specification.value) issue(prefix + 'specification', '产品规格未识别。');
   taxModeIssue(f.taxMode.value, prefix + 'taxMode', issue);
+  taxRateIssue(f.taxRate.value, prefix + 'taxRate', issue);
   const amount = q && p ? { value: q.value * p.value, scale: q.scale + p.scale } : null;
   statedAmountIssues(f, amount, prefix, issue);
   return { quantity: q && q.value !== 0n ? q : null, amount };

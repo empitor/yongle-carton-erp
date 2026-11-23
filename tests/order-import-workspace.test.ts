@@ -179,7 +179,7 @@ test('档案候选不等于自动关联；标准草稿使用正式字段名，�
     assert.equal(candidate.fields.customerId, null);
     assert.equal(candidate.fields.externalPurchaseOrder, 'TEST-01');
     assert.equal(candidate.fields.lines[0].unitPriceExact, '1.39');
-    assert.equal(candidate.fields.taxRate, '13');
+    assert.deepEqual([candidate.fields.taxRate, candidate.fields.taxText], [13, '13']);
     assert.equal(candidate.validatedInput, null);
     assert.equal(candidate.writesEnabled, false);
     assert.equal(JSON.stringify(sales(store).customers()), before);

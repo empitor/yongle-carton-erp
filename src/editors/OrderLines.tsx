@@ -6,6 +6,7 @@ import { FormField } from '../ui/index';
 
 import type { OrderLineDraft } from './order-draft';
 import TaxModeSelect from './TaxModeSelect';
+import OrderTaxRateField from './OrderTaxRateField';
 
 const extraKeys = ['customerProductCode', 'taxRate', 'taxMode', 'deliveryDate', 'notes'] as const;
 /** 订单明细一层的栏目叫法（本单名称、分项交期、本项税率……，栏目登记表） */
@@ -160,15 +161,7 @@ function OrderLineExtras({ l, i, orderDate, expanded, change }: LineProps) {
               onChange={(e) => change(i, 'deliveryDate', e.target.value)}
             />
           </FormField>
-          <FormField label={lineName('taxRate')}>
-            <input
-              aria-label={'第 ' + n + ' 行' + lineName('taxRate')}
-              maxLength={30}
-              placeholder="不填按整单"
-              value={l.taxRate}
-              onChange={(e) => change(i, 'taxRate', e.target.value)}
-            />
-          </FormField>
+          <OrderTaxRateField line={n} tax={l} change={(v) => change(i, 'taxRate', v)} />
           <FormField label={lineName('taxMode')}>
             <TaxModeSelect
               label={'第 ' + n + ' 行' + lineName('taxMode')}

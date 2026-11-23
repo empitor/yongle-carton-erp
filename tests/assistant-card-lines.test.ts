@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { SQLOutputValue } from 'node:sqlite';
 import { localAdministratorActor } from '../server/core/index.js';
-import { cardChanges, dataManagementFieldName } from '../shared/business/index.js';
+import { cardChanges } from '../shared/business/index.js';
+import { fieldName } from '../shared/core/index.js';
 import type { HistoryRefs } from '../shared/business/index.js';
 import type { ToolPlan } from '../server/assistant/plan-rules.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
@@ -72,7 +73,8 @@ test('订单明细夹带的改动（换产品、产品名称、行备注、客�
       productName: '虚构改名',
       notes: '虚构行备注',
       customerProductCode: 'FICT-9',
-      taxRate: '13',
+      taxRate: 13,
+      taxText: '１３％',
       taxMode: '未税',
       deliveryDate: '2026-12-01',
     };
@@ -83,7 +85,7 @@ test('订单明细夹带的改动（换产品、产品名称、行备注、客�
         patch: { lines: o.lines.map((l) => ({ ...l, [key]: value })) },
       });
       // 订单明细一层的叫法：本单名称、本项税率、分项交期……
-      const label = dataManagementFieldName(key, 'lines', 'orders');
+      const label = fieldName(key, { record: 'orders', parent: 'lines' }) ?? assert.fail(key + ' 没有栏目名');
       assert.ok(summaryOf(plan).some((l) => l.value.includes(label)), key + ' 没有列出：\n' + text(plan));
     }
     // 换产品写的是新产品的名称

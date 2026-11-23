@@ -37,6 +37,7 @@ const NOT_IN_FIRST_SCREEN = [
   'src/editors/CustomerEditor.tsx',
   'src/editors/SupplierEditor.tsx',
   'src/editors/OrderEditor.tsx',
+  'src/records/OrderDetail.tsx',
   'src/editors/ProductEditor.tsx',
   'src/import/InboxPage.tsx',
 ];

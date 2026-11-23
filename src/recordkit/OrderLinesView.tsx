@@ -1,5 +1,5 @@
 import { effectiveOrder, plainPrice, precisionTotal, priceFromCents, type TrackedOrder } from '../../shared/core/index';
-import { taxText } from '../../shared/business/index';
+import { orderTaxText } from '../../shared/business/index';
 import { displayAmount } from '../../shared/core/index';
 import { finishedUnit } from '../../shared/core/index';
 import { nestByFamily } from '../../shared/business/index';
@@ -14,8 +14,9 @@ type LineExtra = {
   customerProductCode?: string | null;
   notes?: string | null;
   deliveryDate?: string | null;
-  taxRate?: string | null;
+  taxRate?: number | null;
   taxMode?: string | null;
+  taxText?: string | null;
 };
 /** 只看的一行明细：产品名和数量一定有，别的按订单读出来的明细，可能没有（没算发货的、只带分的单价） */
 type ShownLine = Partial<OrderLine> & Pick<OrderLine, 'productName' | 'quantity'>;
@@ -40,7 +41,7 @@ export function orderLineExtra(l: LineExtra) {
     l.customerProductCode && '料号 ' + l.customerProductCode,
     l.notes,
     l.deliveryDate && '交期 ' + l.deliveryDate,
-    (l.taxRate || l.taxMode) && taxText(l.taxRate, l.taxMode),
+    (l.taxRate != null || l.taxMode || l.taxText?.trim()) && orderTaxText(l),
   ].filter((text): text is string => !!text);
 }
 

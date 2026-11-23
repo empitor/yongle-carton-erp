@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { specLine } from '../../shared/business/index';
 import { DetailPanel } from '../ui/index';
 import { ActionBar, Hint, StatusChip } from '../ui/index';
@@ -6,13 +6,12 @@ import { purchasingDetails } from './PurchasingDetails';
 import { orderDisplayStatus } from '../../shared/core/index';
 import { type RecordEntity } from '../../shared/business/index';
 import { productIncomplete } from '../../shared/business/index';
-import OrderDetail, { orderAmount } from './OrderDetail';
 import { CustomerDetail, ProductDetail, productSize } from './PartyProductDetails';
 import { businessStatusTone } from '../recordkit/record-meta';
 import { purchaseState } from '../../shared/business/index';
 import { useRecordActions, type RecordActionProps } from './useRecordActions';
 import type { Related } from './useRelatedData';
-import { recordLabel, type RecordRowOf } from './record-rows';
+import { orderAmount, recordLabel, type RecordRowOf } from './record-rows';
 import type { StockItemView } from '../../shared/business/index';
 
 const join = (parts: unknown[]) => parts.filter(Boolean).join(' · ') || undefined;
@@ -96,9 +95,14 @@ function status(text: string, archived: boolean) {
 }
 
 type BodyOptions = { related: Related; correctReceipt?: (receipt: { flowId: number }) => void };
+const OrderDetail = lazy(() => import('./OrderDetail'));
 /** 详情正文：采购单、供应商、库存品的由采购区提供 */
 const bodies: { [E in RecordEntity]: (row: RecordRowOf[E], o: BodyOptions) => ReactNode } = {
-  orders: (row, o) => <OrderDetail row={row} related={o.related} />,
+  orders: (row, o) => (
+    <Suspense fallback={<p role="status">正在打开订单…</p>}>
+      <OrderDetail row={row} related={o.related} />
+    </Suspense>
+  ),
   customers: (row) => <CustomerDetail row={row} />,
   products: (row) => <ProductDetail row={row} />,
   purchases: (row, o) => purchasingDetails('purchases', row, o),

@@ -95,7 +95,7 @@ function statusChoices(module: string): { values: string[]; label: (v: string) =
 
 /**
  * 数据管理下拉的选项：[存的值, 显示的字]。值保持原来的代码，显示一律中文。
- * 当前值不在清单里也列出来（含税口径这类库里已有的别的写法也照原样列出），免得一打开就被悄悄改掉；
+ * 当前值不在清单里也列出来，免得一打开就被悄悄改掉；
  * 保存时由录入校验拦下、要人改选。没有下拉的字段返回 null。
  */
 export function fieldChoices(key: string, current: unknown, module = ''): [string, string][] | null {
@@ -171,7 +171,7 @@ export function lockedReason(key: string, value: JsonObject, path: string, ctx: 
   if (ctx.module === 'stock_items') return stockLockedReason(key, value, ctx.record);
   return null;
 }
-export const longText = ['notes', 'requirements', 'terms', 'specification', 'productName'];
+export const longText = ['notes', 'requirements', 'terms', 'specification', 'productName', 'taxText'];
 /** 成品库存的这几项一律取关联的产品（服务端保存时按产品填），这里只显示不让改 */
 export const productBoundStockFields = new Set([
   'name',

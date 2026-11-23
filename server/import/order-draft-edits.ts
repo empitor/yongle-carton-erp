@@ -9,7 +9,7 @@ import {
   type ImportMapping,
   type OrderDraft,
 } from '../../shared/import/index.js';
-import { dateSchema, normalizeDimensionUnit, parseDimension, convertDimension, dimensionKeys } from '../../shared/core/index.js';
+import { dateSchema, normalizeDimensionUnit, parseDimension, convertDimension, dimensionKeys, readTaxRate } from '../../shared/core/index.js';
 import { AppError } from '../core/index.js';
 import type { Workspace } from './workspace-document.js';
 
@@ -22,7 +22,7 @@ export type EditableWorkspace = Pick<
   'draft' | 'history' | 'mapping' | 'mappingInvalidated' | 'changes'
 >;
 
-const numericFields = ['quantity', 'unitPrice', 'statedAmount', 'taxRate', 'statedTotalQuantity', 'statedTotalAmount'];
+const numericFields = ['quantity', 'unitPrice', 'statedAmount', 'statedTotalQuantity', 'statedTotalAmount'];
 /** 最多能撤回几次 */
 const MAX_UNDO = 80;
 
@@ -70,12 +70,15 @@ function checkValue(field: DraftOperation['field'], value: string | null) {
     numericFields.includes(field) &&
     (!/^(?:0|[1-9]\d{0,14})(?:\.\d{1,12})?$/.test(value) || (field === 'quantity' && Number(value) <= 0))
   )
-    throw new AppError('数量、单价、金额和税率必须是明确的非负十进制数；数量须大于零。');
+    throw new AppError('数量、单价和金额必须是明确的非负十进制数；数量须大于零。');
+  if (field === 'taxRate' && readTaxRate(value) === null)
+    throw new AppError('税率须在 0% 到 100% 之间，最多两位小数。小于 1% 的非零税率要写百分号，例如 0.5%。');
   if (['orderDate', 'deliveryDate'].includes(field) && !dateSchema.safeParse(value).success)
     throw new AppError('修改日期必须填写有效 YYYY-MM-DD；年份不明时应先提问。');
 }
 /** 把新值写进这一格，标成人改过、记下谁改的和为什么 */
 function writeField(field: DraftField, op: DraftOperation, value: string | null, edit: { origin: 'manual' | 'ai'; recalculate: boolean }) {
+  if (op.field === 'taxRate' && field.originalValue === undefined) field.originalValue = field.value;
   field.value = value;
   field.certainty = 'user-modified';
   if (edit.recalculate && ['quantity', 'unitPrice'].includes(op.field)) field.recalculated = true;

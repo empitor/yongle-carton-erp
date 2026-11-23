@@ -47,7 +47,7 @@ export const reversedDelivery = (ctx, id, reason) => {
 /** 这一条场景所有回答拼起来 */
 export const replies = (record) => record.turns.map((t) => t.reply ?? '').join('\n');
 export const ORDER_DELIVERY_ROWS = { orders: { changed: 1 }, order_lines: { added: 'any', removed: 'any' } };
-const ORDER_COLS = 'number, customer_id, customer_name, order_date, delivery_date, status, total_cents, currency, rounding_policy, tax_rate, tax_mode, external_purchase_order, supplier_name, notes, cost_estimate, terms';
+const ORDER_COLS = 'number, customer_id, customer_name, order_date, delivery_date, status, total_cents, currency, rounding_policy, tax_rate_bp, tax_mode, tax_text, external_purchase_order, supplier_name, notes, cost_estimate, terms';
 /** 改订单交期（G8、A-S6 共用）：记下改前订单与明细，用于核对只有交期变了、明细没动 */
 export async function orderDeliverySetup(ctx) {
   const o = await order(ctx, (x) => x.status === '已确认' && x.shippingProgress === '未发货');

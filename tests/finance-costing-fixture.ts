@@ -156,7 +156,7 @@ function salesSide({ base, flow, confirm }: CostingBase) {
   const order = base.order(
     { id: 1 },
     [base.line(product, 10, { productName: product.name, unitPriceCents: 3000, unitPriceExact: '30.0000' })],
-    { orderDate: '2026-02-01', deliveryDate: '2026-02-15', taxRate: '0', taxMode: '未税' },
+    { orderDate: '2026-02-01', deliveryDate: '2026-02-15', taxRate: 0, taxMode: '未税' },
   );
   const deliver = (date: string, qty: string) =>
     confirm(

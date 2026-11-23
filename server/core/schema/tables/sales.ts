@@ -48,8 +48,8 @@ CREATE INDEX products_parent ON products(parent_product_id) WHERE parent_product
 CREATE INDEX products_customer ON products(customer_id);
 
 -- 订单。total_cents 是按明细算出来存着的合计（分）；精确到万分之一元的合计不存，读的时候按明细现算。
--- 只收人民币；附加信息（客户采购单号、原件上的供应方、税率、含税口径、合同条件、尾数规则）从没给过的是 NULL，
--- 给了空白的存空串（编辑窗留空发的就是空串）：按“没填”查要两种都算。明细和产品上可以不填的文字列同理。
+-- 只收人民币；规范税率存万分比整数，含税口径只收枚举值，原话另外留在 tax_text。
+-- 客户采购单号等可选说明从没给过是 NULL，给了空白的存空串。
 CREATE TABLE orders(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   number TEXT NOT NULL UNIQUE,
@@ -61,8 +61,9 @@ CREATE TABLE orders(
   total_cents INTEGER NOT NULL CHECK(total_cents>=0),
   currency TEXT NOT NULL DEFAULT 'CNY' CHECK(currency='CNY'),
   rounding_policy TEXT CHECK(rounding_policy IS NULL OR rounding_policy IN ('exact-cents','half-up-cent')),
-  tax_rate TEXT,
-  tax_mode TEXT,
+  tax_rate_bp INTEGER CHECK(tax_rate_bp IS NULL OR tax_rate_bp BETWEEN 0 AND 10000),
+  tax_mode TEXT CHECK(tax_mode IS NULL OR tax_mode IN ('含税','未税','未明确')),
+  tax_text TEXT,
   external_purchase_order TEXT,
   supplier_name TEXT,
   version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
@@ -85,8 +86,9 @@ CREATE TABLE order_lines(
   unit_price_e4 INTEGER NOT NULL CHECK(unit_price_e4>=0),
   unit_price_cents INTEGER GENERATED ALWAYS AS ((unit_price_e4+50)/100) VIRTUAL,
   delivery_date TEXT CHECK(${isDateOrNull('delivery_date')}),
-  tax_rate TEXT,
-  tax_mode TEXT,
+  tax_rate_bp INTEGER CHECK(tax_rate_bp IS NULL OR tax_rate_bp BETWEEN 0 AND 10000),
+  tax_mode TEXT CHECK(tax_mode IS NULL OR tax_mode IN ('含税','未税','未明确')),
+  tax_text TEXT,
   customer_product_code TEXT,
   product_name TEXT NOT NULL,
   specification TEXT NOT NULL,

@@ -9,6 +9,7 @@ import type { JsonView } from '../../shared/assistant/index';
 
 const text = z.string().nullish();
 const size = z.number().nullish();
+const tax = { taxRate: z.number().nullish(), taxMode: text, taxText: text };
 
 const previewLine = z.object({
   productName: text,
@@ -18,6 +19,7 @@ const previewLine = z.object({
   unit: text,
   unitPriceExact: text,
   unitPriceCents: z.number().nullish(),
+  ...tax,
 });
 /** 新建客户的资料 */
 const customerInput = z.object({ contact: text, phone: text, address: text, notes: text });
@@ -50,8 +52,7 @@ const previewPlan = z.object({
     deliveryDate: text,
     externalPurchaseOrder: text,
     currency: text,
-    taxRate: text,
-    taxMode: text,
+    ...tax,
     terms: text,
     notes: text,
     lines: z.array(previewLine),

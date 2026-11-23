@@ -1,5 +1,5 @@
 import { useRef, useState, type SubmitEvent, type SyntheticEvent } from 'react';
-import { costYuan, today, type Customer, type Order, type OrderInput, type Product } from '../../shared/core/index';
+import { costYuan, hasUnrecognizedTaxRate, today, type Customer, type Order, type OrderInput, type Product } from '../../shared/core/index';
 import { emit, useAction } from '../ui/index';
 import { changeOrderStatus } from '../recordkit/record-api';
 import { saveOrder } from './editor-api';
@@ -40,8 +40,9 @@ const initialExtras = (value?: Order): OrderExtras => ({
   externalPurchaseOrder: value?.externalPurchaseOrder || '',
   supplierName: value?.supplierName || '',
   currency: 'CNY' as const,
-  taxRate: value?.taxRate || '',
-  taxMode: value?.taxMode || '未明确',
+  taxRate: value?.taxRate?.toString() ?? '',
+  taxText: value?.taxText,
+  taxMode: value?.taxMode || '',
   terms: value?.terms || '',
   roundingPolicy: value?.roundingPolicy || 'exact-cents',
 });
@@ -98,10 +99,10 @@ function useOrderDraft({ value, preset, products }: OrderEditorProps) {
   const nextKey = useRef(0);
   const key = () => 'line-' + nextKey.current++;
   const [lines, setLines] = useState<OrderLineDraft[]>(() => initialLines(value, preset, products, key)),
-    [open, setOpen] = useState<string[]>([]);
+    [open, setOpen] = useState<string[]>(() => lines.filter((l) => hasUnrecognizedTaxRate(l.taxText, l.taxRate)).map((l) => l.key));
   // 税费、合同条件、金额结算、预估成本、供应方用得少，默认收进“更多信息”；
   // 合计有不足一分的尾数要选结算方式、或里面有没填好的必填项时自动展开
-  const [moreOpen, setMoreOpen] = useState(false),
+  const [moreOpen, setMoreOpen] = useState(() => hasUnrecognizedTaxRate(extras.taxText, extras.taxRate)),
     [costed, setCosted] = useState(value?.costs != null),
     [costs, setCosts] = useState<CostDraft>(() => initialCosts(value));
   return {

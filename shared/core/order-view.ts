@@ -10,6 +10,11 @@ import { shippingProgresses } from './fulfillment.js';
 /** 订料进度：不用订料、待订、部分到料、到齐 */
 const materialProgresses = ['none', 'pending', 'partial', 'done'] as const;
 const optionalText = z.string().optional();
+const orderTaxView = {
+  taxRate: z.number().optional(),
+  taxMode: optionalText,
+  taxText: optionalText,
+};
 
 /** 读出来的订单明细：一定有编号、产品名称和四位小数的精确单价 */
 const orderLineView = z.object({
@@ -23,8 +28,7 @@ const orderLineView = z.object({
   unitPriceExact: z.string(),
   customerProductCode: optionalText,
   unit: optionalText,
-  taxRate: optionalText,
-  taxMode: optionalText,
+  ...orderTaxView,
   deliveryDate: optionalText,
 });
 
@@ -50,8 +54,7 @@ const orderHeadView = z.object({
   externalPurchaseOrder: optionalText,
   supplierName: optionalText,
   currency: z.literal('CNY').optional(),
-  taxRate: optionalText,
-  taxMode: optionalText,
+  ...orderTaxView,
   terms: optionalText,
   roundingPolicy: z.enum(roundingPolicies).optional(),
   version: z.number(),

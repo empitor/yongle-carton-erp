@@ -1,5 +1,6 @@
 import type { PurchaseView, RecordEntity, StockItemView, SupplierView } from '../../shared/business/index';
 import type { Customer, TrackedOrder, Product } from '../../shared/core/index';
+import { centsText, displayAmount } from '../../shared/core/index';
 
 /**
  * 档案、订单、采购单、库存品列表和详情里的一条，按记录种类：列表读到的带“已归档”标记，
@@ -19,3 +20,7 @@ export type RecordRow<E extends RecordEntity = RecordEntity> = RecordRowOf[E];
 
 /** 一条记录的叫法：订单、采购单是单号，其余是名称 */
 export const recordLabel = (row: RecordRow) => ('number' in row ? row.number : row.name);
+
+export function orderAmount(row: Pick<TrackedOrder, 'totalAmountExact' | 'totalCents'>) {
+  return row.totalAmountExact ? displayAmount(row.totalAmountExact) : centsText(row.totalCents);
+}

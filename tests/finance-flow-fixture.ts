@@ -48,7 +48,7 @@ export async function flowFinance() {
   };
   const admin = localAdmin();
   f.stockIn('500');
-  const order = f.order(100, { taxRate: '0', taxMode: '未税' });
+  const order = f.order(100, { taxRate: 0, taxMode: '未税' });
   /** 送货：默认按带税率的订单；传别的订单（比如没写税率的）可以一张单子送几张订单 */
   const deliver = (quantity: string, orders: OrderRef[] = [order]) => {
     const d = f.draft('delivery', {

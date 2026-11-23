@@ -218,6 +218,29 @@ test('记账以后确认送达：送达日期、送达人不算来源改过，�
   }
 });
 
+test('更正旧送货单，财务指纹保留原税率和口径，只反映数量及更正关系', async () => {
+  const t = await flowFinance();
+  try {
+    const d = t.deliver('10');
+    // 模拟升级前已经存在的送货快照：与订单现在读到的规范税率、口径都不同。
+    const legacy = businessChanges(t.f.store, t.admin);
+    legacy.edit(d.id, '$.lines[0].taxRate', '13%');
+    legacy.edit(d.id, '$.lines[0].taxMode', '含税');
+    const row = t.f.store.db.prepare('SELECT document FROM flow_documents WHERE id=?').get(d.id);
+    const before = flowDocumentSchema('delivery').parse(JSON.parse(String(row?.document)));
+    t.sync();
+    const originalHash = t.current(d.id).source_hash;
+    const replacement = t.correct(d.id, { lines: [{ index: 0, quantity: '11' }] });
+    t.sync();
+    const expected = { ...before, correctionOf: d.id, lines: before.lines.map((l) => ({ ...l, quantity: '11' })) };
+    const expectedHash = sourceHash(d, financeFingerprint('delivery', flowDocumentContent(expected)));
+    assert.notEqual(expectedHash, originalHash);
+    assert.equal(t.current(replacement.id).source_hash, expectedHash);
+  } finally {
+    t.f.store.close();
+  }
+});
+
 test('已入账的送货、到货单：只改说明不多事件、不改状态；更正后财务看到原单“已被更正替代”、替代单是更正单', async () => {
   const t = await flowFinance();
   try {

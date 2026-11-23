@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Customer, Order, OrderInput, Product } from '../../shared/core/index.js';
-import { FINISHED_UNIT, finishedUnit, finishedUnitMessage, legacyCents, orderSchema, precisionTotal, priceFromE4, priceToE4, statuses, totalCost } from '../../shared/core/index.js';
+import { FINISHED_UNIT, clearRecognizedTaxText, finishedUnit, finishedUnitMessage, legacyCents, orderSchema, percentFromTaxRateBp, precisionTotal, priceFromE4, priceToE4, statuses, taxRateToBp, totalCost } from '../../shared/core/index.js';
 import { z } from 'zod';
 import { ConflictError, InputError, inSavepoint, many, nextAutoId, parseStoredJson, rows, type Store } from '../core/index.js';
 import { chosenExact, given, readBack, type ExistingRecord } from './record-fields.js';
@@ -33,6 +33,14 @@ type StoredLine = z.output<typeof lineRow>;
 /** 成本估算存成 JSON（没估算是 NULL），按订单录入时的同一个结构读回 */
 const storedCosts = orderSchema.shape.costs;
 
+function taxView(row: Pick<StoredOrder, 'tax_rate_bp' | 'tax_mode' | 'tax_text'>) {
+  return {
+    ...given('taxRate', row.tax_rate_bp === null ? null : percentFromTaxRateBp(row.tax_rate_bp)),
+    ...given('taxMode', row.tax_mode),
+    ...given('taxText', row.tax_text),
+  };
+}
+
 function lineView(l: StoredLine) {
   return {
     id: l.id,
@@ -46,8 +54,7 @@ function lineView(l: StoredLine) {
     unitPriceExact: priceFromE4(l.unit_price_e4),
     ...given('customerProductCode', l.customer_product_code),
     ...given('notes', l.notes),
-    ...given('taxRate', l.tax_rate),
-    ...given('taxMode', l.tax_mode),
+    ...taxView(l),
     ...given('deliveryDate', l.delivery_date),
   };
 }
@@ -67,8 +74,7 @@ function orderHead(r: StoredOrder) {
     ...given('externalPurchaseOrder', r.external_purchase_order),
     ...given('supplierName', r.supplier_name),
     currency: r.currency,
-    ...given('taxRate', r.tax_rate),
-    ...given('taxMode', r.tax_mode),
+    ...taxView(r),
     ...given('terms', r.terms),
     ...given('roundingPolicy', r.rounding_policy),
     version: r.version,
@@ -80,7 +86,25 @@ function orderHead(r: StoredOrder) {
 /** 订单号末尾序号的位数（ZX-日期-0001） */
 const ORDER_SEQUENCE_DIGITS = 4;
 /** 订单上可以不填的附加信息，顺序和保存订单时的列一一对应 */
-const orderExtraKeys = ['externalPurchaseOrder', 'supplierName', 'currency', 'taxRate', 'taxMode', 'terms', 'roundingPolicy'] as const;
+const orderExtraKeys = ['externalPurchaseOrder', 'supplierName', 'currency', 'terms', 'roundingPolicy'] as const;
+type OrderTax = Pick<OrderInput, 'taxRate' | 'taxMode' | 'taxText'>;
+/** 省略税费栏目时沿用原值，显式清空已有规范税率时一并清掉可识别的旧原话（未识别原话与“口径：…”保留）。 */
+function carriedTax(next: OrderTax, old?: OrderTax): OrderTax {
+  const clearingRecognized =
+    old?.taxRate != null && next.taxRate === null && (next.taxText === undefined || next.taxText === old.taxText);
+  return {
+    taxRate: next.taxRate === undefined ? old?.taxRate : next.taxRate,
+    taxMode: next.taxMode === undefined ? old?.taxMode : next.taxMode,
+    taxText: clearingRecognized
+      ? clearRecognizedTaxText(old.taxText)
+      : next.taxText === undefined
+        ? old?.taxText
+        : next.taxText,
+  };
+}
+function taxValues({ taxRate, taxMode, taxText }: OrderTax) {
+  return [taxRate == null ? null : taxRateToBp(taxRate), taxMode ?? null, taxText ?? null];
+}
 /** 按订单编号圈范围的 SQL 条件和参数：不给编号是全部订单 */
 export function orderIdScope(orderIds: readonly number[] | undefined): { predicate: string; params: string[] } {
   return orderIds === undefined
@@ -134,7 +158,10 @@ export function saveOrder(ctx: OrderSaveContext, v: OrderInput, target: OrderSav
   const precise = precisionTotal(lines);
   checkEdit?.({ customerId: v.customerId, status: v.status, lines });
   // 订单上的附加信息：这次没给的沿用原来的，都没有就是 NULL（币种只有人民币）
-  const extras = orderExtraKeys.map((k) => v[k] ?? previous?.[k] ?? (k === 'currency' ? 'CNY' : null));
+  const extras = [
+    ...orderExtraKeys.map((k) => v[k] ?? previous?.[k] ?? (k === 'currency' ? 'CNY' : null)),
+    ...taxValues(carriedTax(v, previous)),
+  ];
   return inSavepoint(ctx.db, () => {
     const row = { v, total: precise.cents, extras, now: new Date().toISOString() };
     let id: number;
@@ -188,8 +215,7 @@ function carriedLineFields(l: LineInput, old: StoredLineView | undefined) {
   return {
     customerProductCode: l.customerProductCode ?? old?.customerProductCode,
     notes: l.notes ?? old?.notes,
-    taxRate: l.taxRate ?? old?.taxRate,
-    taxMode: l.taxMode ?? old?.taxMode,
+    ...carriedTax(l, old),
     deliveryDate: l.deliveryDate ?? old?.deliveryDate,
   };
 }
@@ -229,7 +255,7 @@ function updateOrderRow(ctx: OrderSaveContext, existing: ExistingRecord, { v, cu
   const r = ctx.db
     .prepare(
       'UPDATE orders SET customer_id=?,customer_name=?,order_date=?,delivery_date=?,status=?,notes=?,cost_estimate=?,total_cents=?,' +
-        'external_purchase_order=?,supplier_name=?,currency=?,tax_rate=?,tax_mode=?,terms=?,rounding_policy=?,updated_at=?,version=version+1 WHERE id=? AND version=?',
+        'external_purchase_order=?,supplier_name=?,currency=?,terms=?,rounding_policy=?,tax_rate_bp=?,tax_mode=?,tax_text=?,updated_at=?,version=version+1 WHERE id=? AND version=?',
     )
     .run(
       v.customerId,
@@ -263,7 +289,7 @@ function insertOrderRow(ctx: OrderSaveContext, { v, customerName, total, extras,
     ctx.db
       .prepare(
         'INSERT INTO orders(id,number,customer_id,customer_name,order_date,delivery_date,status,notes,cost_estimate,total_cents,' +
-          'external_purchase_order,supplier_name,currency,tax_rate,tax_mode,terms,rounding_policy,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          'external_purchase_order,supplier_name,currency,terms,rounding_policy,tax_rate_bp,tax_mode,tax_text,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       )
       .run(
         next,
@@ -295,15 +321,14 @@ function writeOrderLines(ctx: OrderSaveContext, id: number, lines: SavedLine[]) 
     priceToE4(l.unitPriceExact),
     l.customerProductCode ?? null,
     l.notes ?? null,
-    l.taxRate ?? null,
-    l.taxMode ?? null,
+    ...taxValues(l),
     l.deliveryDate ?? null,
   ];
   const insert = ctx.db.prepare(
-      'INSERT INTO order_lines(order_id,product_id,product_name,specification,quantity,unit,unit_price_e4,customer_product_code,notes,tax_rate,tax_mode,delivery_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO order_lines(order_id,product_id,product_name,specification,quantity,unit,unit_price_e4,customer_product_code,notes,tax_rate_bp,tax_mode,tax_text,delivery_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
     ),
     update = ctx.db.prepare(
-      'UPDATE order_lines SET product_id=?,product_name=?,specification=?,quantity=?,unit=?,unit_price_e4=?,customer_product_code=?,notes=?,tax_rate=?,tax_mode=?,delivery_date=? WHERE id=? AND order_id=?',
+      'UPDATE order_lines SET product_id=?,product_name=?,specification=?,quantity=?,unit=?,unit_price_e4=?,customer_product_code=?,notes=?,tax_rate_bp=?,tax_mode=?,tax_text=?,delivery_date=? WHERE id=? AND order_id=?',
     );
   for (const l of lines) {
     if (l.id !== undefined) update.run(...lineValues(l), l.id, id);

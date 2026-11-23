@@ -43,7 +43,7 @@ import { stockMovementActions } from '../server/operations/ledger/ledger.js';
 import { flowKinds, stockKinds } from '../shared/core/index.js';
 import { attachmentKinds } from '../shared/core/assistant-attachments.js';
 import { auditSources } from '../shared/core/audit-sources.js';
-import { orderSchema, productSchema, statuses } from '../shared/core/domain.js';
+import { orderSchema, orderTaxModes, productSchema, statuses } from '../shared/core/domain.js';
 import { FINISHED_UNIT, RAW_UNIT } from '../shared/core/units.js';
 import { documentExportSchema } from '../shared/documents/business-export.js';
 import {
@@ -113,6 +113,8 @@ function enumOwners(): Record<string, readonly string[]> {
   return {
     // 基础
     'orders.status': statuses,
+    'orders.tax_mode': orderTaxModes,
+    'order_lines.tax_mode': orderTaxModes,
     'orders.rounding_policy': orderSchema.shape.roundingPolicy.unwrap().options,
     'products.dimension_unit': productSchema.shape.dimensionUnit.unwrap().unwrap().options,
     // 归档标记、墓碑的记录种类不列枚举，由各模块登记（server/core/records/kinds/record-kinds.ts，tests/record-kinds.test.ts 守）
