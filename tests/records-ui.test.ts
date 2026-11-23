@@ -336,10 +336,13 @@ test('今日分组、订单下一步对应的窗口、订单编辑窗的合计�
   const costs = { material: '1', processing: '', waste: '', other: '', basis: '' };
   assert.deepEqual(orderTotals(filled, costs).uncounted, [2]);
   assert.equal(orderTotals([filled[0]], { ...costs, material: '0' }).total, 1500);
-  const payload = orderPayload({ extras: {}, customerId: '3', orderDate: '2026-11-13', deliveryDate: '2026-11-20', status: '待确认', notes: '', lines: [filled[0]], costed: false, costs });
+  const extras = { externalPurchaseOrder: '', supplierName: '', currency: 'CNY' as const, taxRate: '0', taxMode: '', terms: '', roundingPolicy: 'exact-cents' as const };
+  const payload = orderPayload({ extras, customerId: '3', orderDate: '2026-11-13', deliveryDate: '2026-11-20', status: '待确认', notes: '', lines: [filled[0]], costed: false, costs });
   assert.equal(payload.customerId, 3);
   assert.equal(payload.lines[0].unitPriceCents, 150);
   assert.equal(payload.lines[0].unitPriceExact, '1.50');
+  assert.equal(payload.taxRate, 0);
+  assert.equal(payload.lines[0].taxRate, null);
   assert.equal(payload.costs, null);
 });
 

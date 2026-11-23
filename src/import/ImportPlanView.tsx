@@ -1,6 +1,6 @@
 import { orderLineAmount, orderLineExtra, ORDER_LINES_TITLE } from '../recordkit/index';
 import { finishedUnit, linePrice, fieldLabel, fieldTitle, currencyName } from '../../shared/core/index';
-import { amountText, specLine, taxText } from '../../shared/business/index';
+import { amountText, orderTaxText, specLine } from '../../shared/business/index';
 import { Facts, Section, StatusChip } from '../ui/index';
 import type { Plan } from '../../shared/import/index';
 
@@ -68,7 +68,7 @@ export default function ImportPlanView({
             { label: '交货日期', value: order.deliveryDate },
             { label: '状态', value: order.status },
             { label: fieldLabel('currency'), value: currencyName(order.currency) },
-            { label: '税费', value: taxText(order.taxRate, order.taxMode) },
+            { label: '税费', value: orderTaxText(order) },
             { label: '合同条件', value: order.terms, wide: !!order.terms },
             { label: '整单备注', value: order.notes, wide: !!order.notes },
           ]}

@@ -8,6 +8,7 @@ import { sales } from '../sales/index.js';
 import { createHash } from 'node:crypto';
 import { AppError, failureMessage, requirePermission } from '../core/index.js';
 import { FINISHED_UNIT, fieldLabel, linePriceExact, pageHref, plainPrice } from '../../shared/core/index.js';
+import { orderTaxText } from '../../shared/business/index.js';
 import { prepare } from './order-import-prepare.js';
 import { attach } from './order-import-intake.js';
 import type { ImportPreview, OrderImportState, Task, WorkflowContext } from './order-import-state.js';
@@ -75,12 +76,12 @@ function summary({ task, preview }: Ready, many: boolean): Line[] {
     ...line(fieldLabel('externalPurchaseOrder'), order.externalPurchaseOrder),
     ...line(fieldLabel('orderDate'), order.orderDate),
     ...line(fieldLabel('deliveryDate'), order.deliveryDate),
-    ...line(fieldLabel('taxRate'), order.taxRate),
-    ...line(fieldLabel('taxMode'), order.taxMode),
-    ...order.lines.flatMap((_l, i) => {
+    ...line('税费', orderTaxText(order)),
+    ...order.lines.flatMap((l, i) => {
       const confirmations = plan.confirmations.filter((c) => c.line === i + 1);
       return [
         ...line('第 ' + (i + 1) + ' 行', lineText(plan, i)),
+        ...line('第 ' + (i + 1) + ' 行税费', l.taxRate != null || l.taxMode || l.taxText ? orderTaxText(l) : ''),
         // 已有同名产品的那一行：紧跟在这一行下面写明，确认即表示是另一个产品；别的相近档案另列一行
         ...confirmations.flatMap((c) => line('第 ' + c.line + ' 行已有同名的产品', c.existing.join('；') + '。确认即表示这是另一个产品。')),
         ...similar(

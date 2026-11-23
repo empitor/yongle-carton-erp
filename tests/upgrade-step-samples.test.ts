@@ -25,6 +25,7 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { upgradeSchema, upgradeSteps, type UpgradeStep } from '../server/core/schema/index.js';
 import { openVersionedSqlite, type VersionedSqliteSpec } from '../server/core/index.js';
+import { readTaxRate } from '../shared/core/index.js';
 import { CONFIG_BASELINE_DIRECTORY, configDatabases, configDbKeys } from '../scripts/config-db-dump.js';
 import { configWorkspace, notesBaseline, notesSpec, quietLog, runSql } from './config-db-fixture.js';
 
@@ -132,6 +133,20 @@ function runSample(steps: readonly UpgradeStep[], version: number, sample: Sampl
     db.close();
   }
 }
+
+test('第 24 步对订单头和明细的税率回填与 readTaxRate 一致', () => {
+  const sample = readSample(`${SAMPLE_DIR}/v24.json`);
+  assert.notEqual(typeof sample, 'string', String(sample));
+  if (typeof sample === 'string') throw new Error(sample);
+  const after = Object.fromEntries(['orders', 'order_lines'].map((table) => [
+    table,
+    sample.before[table].map(({ id, tax_rate }) => {
+      assert.ok(tax_rate === null || typeof tax_rate === 'string');
+      return { id, tax_rate_bp: readTaxRate(tax_rate) };
+    }),
+  ]));
+  assert.deepEqual(runSample(upgradeSteps, 24, { before: sample.before, after }), []);
+});
 
 test('每个升级步骤都登记了数据样例，样例真的跑过、结果和登记的一样', () => {
   const { samples, problems } = loadSamples();

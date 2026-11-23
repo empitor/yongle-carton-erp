@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { dataManagementFieldName } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, type ApiJson } from '../../shared/core/index';
+import { FINISHED_UNIT, MAX_TAX_PERCENT, RAW_UNIT, TAX_PERCENT_STEP, type ApiJson } from '../../shared/core/index';
 import { FormField } from '../ui/index';
 import RefField from './RefField';
 import type { RecordRefs } from './record-refs';
@@ -198,10 +198,11 @@ const placeholderOf = (key: string, v: ApiJson | undefined, money: boolean) =>
 /** 这一格怎么填：长文字占满一行，金额按元填，数字用数字框 */
 function inputKind(key: string, v: ApiJson | undefined, path: string, editing: string) {
   const money = yuanFields.has(key) || (path === 'costs' && key !== 'basis');
-  // 订单明细的数量是数字（单据的数量是文字）：新建模板里留空（null）时也按数字输入
+  const taxRate = editing === 'orders' && key === 'taxRate';
+  // 订单数量和税率在新建模板里留空（null）时也用数字框。
   const numeric =
-    !money && (numberFields.has(key) || typeof v === 'number' || (editing === 'orders' && key === 'quantity'));
-  return { long: longText.includes(key), money, numeric };
+    !money && (numberFields.has(key) || typeof v === 'number' || taxRate || (editing === 'orders' && key === 'quantity'));
+  return { long: longText.includes(key), money, numeric, taxRate };
 }
 
 /** 普通的一格：有选项的是下拉，长文字是多行框，别的是输入框；没法提交的原因写在格子下面 */
@@ -220,7 +221,7 @@ function PlainField({
     update = (x: ApiJson) => change({ ...value, [key]: x });
   // 这一格没法提交的原因（嵌套对象按“上一层.字段”记，明细数组里的不分行，不在这里标）
   const invalid = ctx.errors?.[path ? path + '.' + key : key];
-  const { long, money, numeric } = inputKind(key, v, path, editing),
+  const { long, money, numeric, taxRate } = inputKind(key, v, path, editing),
     choices = fieldChoices(key, v, module);
   // 库存品改种类：数量单位跟着种类走，改成原材料时清掉关联的产品（原材料不关联产品）
   const choose = (x: string | null) =>
@@ -264,7 +265,9 @@ function PlainField({
           disabled={!!locked}
           type={inputType(key, numeric)}
           inputMode={money ? 'decimal' : undefined}
-          step={numeric ? 'any' : undefined}
+          min={taxRate ? 0 : undefined}
+          max={taxRate ? MAX_TAX_PERCENT : undefined}
+          step={taxRate ? TAX_PERCENT_STEP : numeric ? 'any' : undefined}
           value={v == null ? '' : String(v)}
           placeholder={placeholderOf(key, v, money)}
           onChange={(e) => {

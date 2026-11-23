@@ -28,7 +28,7 @@ const hints: Partial<Record<HeaderField | LineField, string>> = {
   purchaseOrderNumber: '客户自己的采购单号或合同号，照原文写全',
   orderDate: 'YYYY-MM-DD',
   currency: '照原文写（人民币、美元等）',
-  taxRate: '只写数字',
+  taxRate: '逐字照抄原件，包括百分号或文字；不改写、不猜税率',
   taxMode: '照原文写含税或未税',
   terms: '付款、交货、违约等条款',
   productName: '原件上的存货名称，照原文写全，原文带的大小、颜色、型号这类区分的字不能丢，不拼尺寸和包装说明',

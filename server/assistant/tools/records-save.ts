@@ -54,7 +54,7 @@ export const recordSaveTools = [
   planTool({
     name: 'records.propose_save',
     description:
-      '新建或修改记录：id 空是新建，patch 只写要改的字段；一次建几条同类记录（几种产品的生产任务、几张送货单）用 items，出一张卡片，不要拆成几条。字段写法先用 records.search 带 describe:true 看；查不到档案、用户给了名称规格就直接新建，没说的选填项留空。改订单、采购状态在 patch 写 status，取消带 reason；导出订货单会自动标已订货。',
+      '新建或修改记录：id 空是新建，patch 只写改动；同类多条用 items 出一张卡片。字段写法先用 records.search 带 describe:true 看；查不到档案且用户已给名称规格就直接新建，没说的选填项留空。订单税率写数字，如 13 表示 13%。改订单、采购状态在 patch 写 status，取消带 reason；导出订货单会自动标已订货。',
     risk: 'review',
     schema: saveSchema,
   }, {

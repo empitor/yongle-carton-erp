@@ -54,12 +54,15 @@ await step('保存新订单', async () => {
   await pick('第 1 行产品', '水壶外箱');
   await dialog().getByLabel('第 1 行数量', { exact: true }).fill('321');
   await dialog().getByLabel('第 1 行单价', { exact: true }).fill('2.35');
+  await dialog().locator('summary', { hasText: '更多信息' }).click();
+  await dialog().getByRole('spinbutton', { name: /^税率/ }).fill('0');
   await shot('新订单');
   await dialog().getByRole('button', { name: '保存并确认' }).click();
   await dialog().waitFor({ state: 'detached', timeout: 8000 });
   const after = await api('/api/orders');
   const saved = after.find((o) => o.lines?.some((l) => l.quantity === 321));
   if (after.length !== before + 1 || !saved) fail('新订单没有保存上');
+  else if (saved.taxRate !== 0) fail('填写的 0% 税率没有保存');
   else if (saved.status !== '已确认' || saved.lines[0].unit !== '只' || saved.totalCents !== 75435)
     fail('新订单的状态、单位或金额不对：' + JSON.stringify({ status: saved.status, unit: saved.lines[0].unit, total: saved.totalCents }));
   else ok('新订单 ' + saved.number + ' 已保存：' + (await toast(/订单/)));

@@ -25,7 +25,7 @@ test('订单的四位单价、客户采购单号、税率、条款原样存回�
       notes: '',
       costs: null,
       externalPurchaseOrder: 'TEST-PO-1',
-      taxRate: '13',
+      taxRate: 13,
       taxMode: '含税',
       terms: '送货前确认',
       roundingPolicy: 'exact-cents',
@@ -47,7 +47,7 @@ test('订单的四位单价、客户采购单号、税率、条款原样存回�
       priceList,
     );
     assert.equal(order.externalPurchaseOrder, 'TEST-PO-1');
-    assert.equal(order.taxRate, '13');
+    assert.equal(order.taxRate, 13);
     assert.equal(order.terms, '送货前确认');
     assert.equal(sales(s).product(p.id)?.priceExact, '1.3000');
   } finally {
@@ -147,7 +147,7 @@ test('订单明细单价只存一份：每条明细都有四位精确单价，�
         { productId: p.id, quantity: 3, unitPriceCents: 123, unitPriceExact: '1.2345' },
         // 只给分：按分存，读出来也有四位精确单价
         { productId: p.id, quantity: 7, unitPriceCents: 139 },
-        { productId: p.id, quantity: 2, unitPriceCents: 150, unitPriceExact: '1.5', notes: '', taxRate: '13', unit: '个' },
+        { productId: p.id, quantity: 2, unitPriceCents: 150, unitPriceExact: '1.5', notes: '', taxRate: 13, unit: '个' },
       ],
     });
     let order = sales(s).saveOrder(input);
@@ -167,7 +167,7 @@ test('订单明细单价只存一份：每条明细都有四位精确单价，�
       assert.equal(Object.hasOwn(order, key), false, key);
     for (const key of ['customerProductCode', 'notes', 'taxRate', 'taxMode', 'deliveryDate'])
       assert.equal(Object.hasOwn(order.lines[0], key), false, key);
-    assert.deepEqual([order.lines[2].notes, order.lines[2].taxRate], ['', '13']);
+    assert.deepEqual([order.lines[2].notes, order.lines[2].taxRate], ['', 13]);
     assert.deepEqual(
       s.db
         .prepare('SELECT unit,unit_price_e4,unit_price_cents FROM order_lines WHERE order_id=? ORDER BY id')

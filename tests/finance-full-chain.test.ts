@@ -50,7 +50,7 @@ function business(s: Store) {
     base.order(
       { id: 1 },
       [base.line(product, quantity, { productName: product.name, unit: '个', unitPriceCents: 3000, unitPriceExact: '30.0000' })],
-      { orderDate, deliveryDate, taxRate: '0', taxMode: '未税' },
+      { orderDate, deliveryDate, taxRate: 0, taxMode: '未税' },
     );
   const confirm = (doc: { id: number }) => base.check(doc, shipOnDocDate(flow, doc.id));
   const deliver = (order: ReturnType<typeof addOrder>, date: string, quantity: string) =>

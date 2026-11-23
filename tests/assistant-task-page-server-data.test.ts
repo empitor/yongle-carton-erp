@@ -27,6 +27,10 @@ test('订单任务卡：识别好、生成导入预览后，页面认得出预�
   try {
     let w = (await f.imports.upload(imageFixture(), '虚构订单.png', true)).workspace;
     w = await f.imports.analyze(w.id, { expectedRevision: w.revision }, undefined, importer);
+    w = f.imports.edit(w.id, {
+      expectedRevision: w.revision,
+      operations: [{ op: 'set-header', field: 'taxRate', value: '0%', reason: '虚构核对税率' }],
+    }, 'manual', importer);
     const wf = new AssistantOrderWorkflow(f.store, f.imports, f.execution, f.manager.attachments);
     await attach(wf, { workspaceId: w.id }, f.ctx());
     // 第 2 行建新产品：预览里有一份新建产品的资料
@@ -40,6 +44,7 @@ test('订单任务卡：识别好、生成导入预览后，页面认得出预�
     const plan = previewPlanOf(shown.preview);
     assert.ok(plan, '导入预览认得出');
     assert.equal(plan.customer.name, '聊天验收客户');
+    assert.equal(plan.order.taxRate, 0);
     assert.deepEqual(
       plan.order.lines.map((l) => l.productName),
       ['聊天纸箱甲', '聊天纸箱乙'],

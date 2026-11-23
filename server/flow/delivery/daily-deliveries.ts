@@ -68,8 +68,9 @@ function movementGroups(store: Store, deliveryIds: readonly number[]) {
 function lineView(l: DeliveryLine, o: Order | undefined, stock: StockItem | undefined, movements: MovementRow[], shipped: ReadonlyMap<number, number>) {
   const ol = o?.lines.find((x) => x.id === l.orderLineId);
   const progress = ol && lineShippingProgress(ol.quantity, shipped.get(ol.id) ?? 0);
+  const { taxRate: _rate, taxMode: _mode, taxText: _text, ...orderDetails } = ol ?? {};
   return {
-    ...ol,
+    ...orderDetails,
     ...progress,
     ...l,
     orderNumber: l.orderNumber || o?.number,

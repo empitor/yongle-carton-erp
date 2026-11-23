@@ -138,7 +138,7 @@ test('改订单把已撤销的送货单拆开：原单的事件就地更新，�
   const { createBusinessService } = await import('../server/orders/index.js');
   const t = await flowFinance();
   try {
-    const second = t.f.order(100, { taxRate: '0', taxMode: '未税' });
+    const second = t.f.order(100, { taxRate: 0, taxMode: '未税' });
     const d = t.deliver('10', [t.order, second]);
     t.sync();
     t.reverse(d.id);

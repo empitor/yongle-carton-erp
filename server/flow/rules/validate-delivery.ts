@@ -1,7 +1,7 @@
 import { sales } from '../../sales/index.js';
 import type { Actor } from '../../core/index.js';
 import { canEnterSuperMode, requireSuperModeFor } from '../../core/index.js';
-import { effectiveOrder, quantityUnits, quantityString, type Order } from '../../../shared/core/index.js';
+import { effectiveOrder, orderTaxSnapshot, quantityUnits, quantityString, type Order } from '../../../shared/core/index.js';
 import { lineMoney, specificationMismatch, specificationMismatchText, type FlowDocument } from '../../../shared/business/index.js';
 import { fail, type DeliveryLine, type LineCheck, type StockItemRow } from '../documents/base.js';
 import { shippedUnits } from '../documents/shipped.js';
@@ -38,7 +38,7 @@ function completedLine(ctx: LineCheck<DeliveryLine>, l: DeliveryLine, o: { order
     // 订单明细的单价库里必填（unit_price_e4 NOT NULL），读出来的明细一定带精确单价
     unitPriceExact: ol.unitPriceExact,
     amountExact: lineMoney(l.quantity, ol.unitPriceExact),
-    taxRate: ol.taxRate || order.taxRate || '',
+    taxRate: orderTaxSnapshot(ol) ?? orderTaxSnapshot(order),
     taxMode: ol.taxMode || order.taxMode || '',
     productId: ol.productId,
     length: dimensions?.length ?? null,

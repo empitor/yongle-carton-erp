@@ -1,6 +1,7 @@
 import { fieldLabel, roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
 import { FormField, FormSection } from '../ui/index';
 import OrderCosts from './OrderCosts';
+import OrderTaxRateField from './OrderTaxRateField';
 import TaxModeSelect from './TaxModeSelect';
 import type { CostDraft, OrderExtras } from './order-draft';
 
@@ -56,17 +57,11 @@ export default function OrderMoreInfo({
             onChange={(e) => setExtras((v) => ({ ...v, supplierName: e.target.value }))}
           />
         </FormField>
-        <FormField label={fieldLabel('taxRate')}>
-          <input
-            maxLength={30}
-            placeholder="例如 13%"
-            value={extras.taxRate}
-            onChange={(e) => setExtras((v) => ({ ...v, taxRate: e.target.value }))}
-          />
-        </FormField>
+        <OrderTaxRateField tax={extras} change={(taxRate) => setExtras((v) => ({ ...v, taxRate }))} />
         <FormField label={fieldLabel('taxMode')}>
           <TaxModeSelect
             label={fieldLabel('taxMode')}
+            blank="未填写"
             value={extras.taxMode}
             onChange={(taxMode) => setExtras((v) => ({ ...v, taxMode }))}
           />

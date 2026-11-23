@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import { type Store } from '../core/index.js';
-import { customerSchema, productSchema, orderSchema, storedOrderInput, flowKinds, type FlowKind } from '../../shared/core/index.js';
+import { customerSchema, productSchema, orderSchema, flowKinds, type FlowKind } from '../../shared/core/index.js';
 import { supplierSchema, purchaseSchema, stockItemSchema } from '../../shared/business/index.js';
 import { flowInput, type FlowDocView } from '../../shared/business/index.js';
 import { arrivalSchema, deliverySchema, productionSchema, taskSchema } from '../../shared/business/index.js';
@@ -38,8 +38,7 @@ type RecordInput<E extends RecordEntity> = z.output<(typeof recordSchemas)[E]>;
 const businessInputs: { [E in RecordEntity]: (record: BusinessRecord<E>) => RecordInput<E> } = {
   customers: (r) => customerSchema.parse(r),
   products: (r) => productSchema.parse(r),
-  // 库里的旧含税口径照原样带进编辑窗（下拉里列成“原来写的……（请改选）”），不在这里拦
-  orders: (r) => storedOrderInput(r),
+  orders: (r) => orderSchema.parse(r),
   suppliers: (r) => supplierSchema.parse(r),
   purchases: (r) => purchaseSchema.parse({ ...r, status: r.baseStatus }),
   stock_items: (r) => stockItemSchema.parse(r),

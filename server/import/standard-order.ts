@@ -1,7 +1,7 @@
 import { sales } from '../sales/index.js';
 import type { z } from 'zod';
 import type { Store } from '../core/index.js';
-import { FINISHED_UNIT, finishedUnit, type Product, type ProductInput } from '../../shared/core/index.js';
+import { FINISHED_UNIT, finishedUnit, percentFromTaxRateBp, readTaxRate, type Product, type ProductInput } from '../../shared/core/index.js';
 import { customerSchema, orderSchema, plannedOrderSchema, productSchema } from '../../shared/core/index.js';
 import { legacyCents, MAX_PRICE_YUAN, PRICE_DECIMALS } from '../../shared/core/index.js';
 import { evaluateDraft, fieldLabels, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
@@ -15,6 +15,14 @@ type Mapping = ImportMapping | undefined;
 const importLabels = new Map<string, string>(Object.entries(fieldLabels));
 const labelOf = (field: string) => fieldName(field) ?? importLabels.get(field) ?? field;
 const value = (v: string | null) => v?.trim() || '';
+
+function taxFromDraft(field: DraftLine['fields']['taxRate']) {
+  const bp = readTaxRate(field.value);
+  return {
+    taxRate: bp === null ? null : percentFromTaxRateBp(bp),
+    taxText: field.originalValue === undefined ? field.value : field.originalValue,
+  };
+}
 
 /** 投影过程中攒的：问题、要新建的产品、这单涉及的产品（提示用） */
 type Collected = {
@@ -117,7 +125,7 @@ function projectLine(
     unitPriceExact: value(f.unitPrice.value),
     customerProductCode: value(f.productCode.value),
     unit: finishedUnit(value(f.unit.value)),
-    taxRate: value(f.taxRate.value),
+    ...taxFromDraft(f.taxRate),
     taxMode: value(f.taxMode.value),
     deliveryDate: value(f.deliveryDate.value) || undefined,
   };
@@ -159,8 +167,8 @@ function headerFields(d: OrderDraft, m: Mapping, customerId: number | null, curr
     externalPurchaseOrder: value(d.header.purchaseOrderNumber.value),
     supplierName: value(d.header.supplierName.value),
     currency: currency.currency ?? d.header.currency.value,
-    taxRate: value(d.header.taxRate.value),
-    taxMode: value(d.header.taxMode.value) || '未明确',
+    ...taxFromDraft(d.header.taxRate),
+    taxMode: value(d.header.taxMode.value),
     terms: value(d.header.terms.value),
     roundingPolicy: m?.roundingPolicy || 'exact-cents',
   };

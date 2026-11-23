@@ -118,7 +118,7 @@ const orders = Array.from({ length: 28 }, (_, i) => {
   const two = i % 3 === 0;
   const orderDate = shift(-24 + i), deliveryDate = shift(-24 + i + 7 + (i % 5));
   const lines = [a, ...(two ? [b] : [])].map((p, j) => ({ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity: 500 * (1 + ((i + j) % 6)), unit: '只', unitPriceCents: 180 + (i * 37 + j * 91) % 900, notes: '', customerProductCode: 'KH-' + (1000 + i * 3 + j) }));
-  return sales(store).saveOrder(orderSchema.parse({ customerId: c.id, orderDate, deliveryDate, status: statusCycle[i % statusCycle.length], notes: i % 7 === 0 ? '客户要求分批送货' : '', costs: null, externalPurchaseOrder: 'PO-' + (2600 + i), taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines }));
+  return sales(store).saveOrder(orderSchema.parse({ customerId: c.id, orderDate, deliveryDate, status: statusCycle[i % statusCycle.length], notes: i % 7 === 0 ? '客户要求分批送货' : '', costs: null, externalPurchaseOrder: 'PO-' + (2600 + i), taxRate: 13, taxMode: '含税', roundingPolicy: 'half-up-cent', lines }));
 });
 const confirmedOrders = orders.filter((o) => o.status === '已确认');
 // 财务补充场景用：上个月最后一天的一张已确认送货单（按本月启用财务时是启用前的单据），备注写明，场景脚本按它找。
@@ -126,7 +126,7 @@ const confirmedOrders = orders.filter((o) => o.status === '已确认');
 {
   const prevEnd = shift(-Number(today().slice(8, 10)));
   const p = products[0], quantity = 500;
-  const o = sales(store).saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
+  const o = sales(store).saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: 13, taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
   const l = o.lines[0], fin = finishedOf(l.productId);
   flow.stock.move(fin.id, { action: 'in', quantity: String(quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
   confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
@@ -190,7 +190,7 @@ if (!real) {
   const buyer = one(store.db, rows.customers.pick({ id: true }), "SELECT id FROM customers WHERE name='聊天验收客户'");
   if (!buyer) throw new Error('助手夹具里没有“聊天验收客户”');
   const old = sales(store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'B', priceCents: 0, customerId: buyer.id }));
-  sales(store).saveOrder(orderSchema.parse({ customerId: buyer.id, orderDate: shift(-90), deliveryDate: shift(-80), status: '已取消', notes: '虚构老订单', costs: null, externalPurchaseOrder: 'PO-虚构老单', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: old.id, productName: old.name, specification: '300×200×150', quantity: 100, unit: '只', unitPriceCents: 123, notes: '', customerProductCode: '' }] }));
+  sales(store).saveOrder(orderSchema.parse({ customerId: buyer.id, orderDate: shift(-90), deliveryDate: shift(-80), status: '已取消', notes: '虚构老订单', costs: null, externalPurchaseOrder: 'PO-虚构老单', taxRate: 13, taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: old.id, productName: old.name, specification: '300×200×150', quantity: 100, unit: '只', unitPriceCents: 123, notes: '', customerProductCode: '' }] }));
   const order = (await f.imports.upload(imageFixture(), '虚构客户订单.png', false)).workspace;
   await f.imports.analyze(order.id, { expectedRevision: order.revision }, undefined, actor);
   const arrival = (await f.imports.upload(imageFixture(true), '虚构供应商送货单.jpg', false, 'arrival')).workspace;

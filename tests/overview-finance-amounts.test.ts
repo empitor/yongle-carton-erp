@@ -26,7 +26,7 @@ test('同一批单据（部分送货、上个月的送货、撤销的送货、�
     t.deliver('30');
     t.deliver('25');
     t.reverse(t.deliver('5').id);
-    const old = f.order(10, { orderDate: '2026-09-01', taxRate: '0', taxMode: '未税' });
+    const old = f.order(10, { orderDate: '2026-09-01', taxRate: 0, taxMode: '未税' });
     const september = f.draft('delivery', {
       date: '2026-09-28',
       customerId: f.customer.id,

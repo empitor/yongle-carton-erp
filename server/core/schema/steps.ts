@@ -51,6 +51,109 @@ function rebuildTable(db: DatabaseSync, table: string, definition: string, colum
     ALTER TABLE ${rebuilt} RENAME TO ${table};`);
 }
 
+/** v24 的历史写法转换固定在这一步，和 readTaxRate 的等价性由升级样例测试核对。 */
+const taxWhitespace = [...'\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff']
+  .map((ch) => ch.charCodeAt(0));
+const withoutTaxSpaces = taxWhitespace.reduce((sql, cp) => `replace(${sql},char(${cp}),'')`, 'tax_rate');
+const normalizedTax = [...'０１２３４５６７８９％．'].reduce(
+  (sql, ch, i) => `replace(${sql},'${ch}','${'0123456789%.'[i]}')`, withoutTaxSpaces,
+);
+const v24Rate = `(
+        WITH raw(value) AS (SELECT ${normalizedTax} WHERE instr(tax_rate,char(0))=0),
+        split(digits,percent) AS (
+          SELECT CASE WHEN substr(value,-1)='%' THEN substr(value,1,length(value)-1) ELSE value END,
+            substr(value,-1)='%' FROM raw
+        ),
+        decimal_parts AS (SELECT digits,percent,instr(digits,'.') AS point FROM split),
+        parsed AS (
+          SELECT CAST(digits AS INTEGER) AS whole, percent,
+            CASE WHEN point=0 THEN 0 ELSE CAST(substr(substr(digits,point+1)||'00',1,2) AS INTEGER) END AS fraction
+          FROM decimal_parts
+          WHERE digits GLOB '[0-9]*' AND digits NOT GLOB '*[^0-9.]*'
+            AND (point=0 OR (length(digits)-point BETWEEN 1 AND 2 AND instr(substr(digits,point+1),'.')=0))
+        )
+        SELECT whole*100+fraction FROM parsed
+        WHERE whole<=100 AND whole*100+fraction<=10000 AND (whole>0 OR fraction=0 OR percent)
+      )`;
+const v24Mode = `CASE WHEN tax_mode='不含税' THEN '未税'
+  WHEN tax_mode IN ('含税','未税','未明确') THEN tax_mode END`;
+const v24Text = `NULLIF(concat_ws(char(10),NULLIF(tax_rate,''),CASE
+  WHEN trim(tax_mode,char(${taxWhitespace.join(',')}))<>'' AND (${v24Mode}) IS NULL
+  THEN '口径：'||tax_mode END),'')`;
+
+function stageOrderTax(db: DatabaseSync, table: 'orders' | 'order_lines') {
+  db.exec(`ALTER TABLE ${table} ADD COLUMN tax_rate_bp INTEGER;
+    ALTER TABLE ${table} ADD COLUMN tax_text TEXT;
+    UPDATE ${table} SET tax_rate_bp=${v24Rate}, tax_mode=${v24Mode}, tax_text=${v24Text};`);
+}
+
+/** 状态操作重试仍要返回当时的订单结果，所以原结果只换税费字段的形状，保留请求摘要和其余快照。 */
+function migrateOrderStatusResults(db: DatabaseSync) {
+  const patch = (source: string) => `(SELECT json_patch(${source},json_object(
+    'taxRate',${v24Rate}/100.0,'taxMode',${v24Mode},'taxText',${v24Text}))
+    FROM (SELECT json_extract(${source},'$.taxRate') AS tax_rate, json_extract(${source},'$.taxMode') AS tax_mode))`;
+  db.exec(`UPDATE operation_requests
+    SET result=json_set(${patch('result')},'$.lines',(
+      SELECT json_group_array(json(${patch('item.value')}) ORDER BY item.key)
+      FROM json_each(result,'$.lines') AS item
+    ))
+    WHERE kind='order-status';`);
+}
+
+function rebuildOrderTax(db: DatabaseSync) {
+  stageOrderTax(db, 'orders');
+  rebuildTable(
+    db, 'orders',
+    `id INTEGER PRIMARY KEY AUTOINCREMENT,
+      number TEXT NOT NULL UNIQUE,
+      customer_id INTEGER NOT NULL REFERENCES customers(id),
+      customer_name TEXT NOT NULL,
+      order_date TEXT NOT NULL CHECK(order_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND date(order_date) IS order_date),
+      delivery_date TEXT NOT NULL CHECK(delivery_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND date(delivery_date) IS delivery_date),
+      status TEXT NOT NULL CHECK(status IN ('待确认','已确认','生产中','待发货','已发货','已取消')),
+      total_cents INTEGER NOT NULL CHECK(total_cents>=0),
+      currency TEXT NOT NULL DEFAULT 'CNY' CHECK(currency='CNY'),
+      rounding_policy TEXT CHECK(rounding_policy IS NULL OR rounding_policy IN ('exact-cents','half-up-cent')),
+      tax_rate_bp INTEGER CHECK(tax_rate_bp IS NULL OR tax_rate_bp BETWEEN 0 AND 10000),
+      tax_mode TEXT CHECK(tax_mode IS NULL OR tax_mode IN ('含税','未税','未明确')),
+      tax_text TEXT,
+      external_purchase_order TEXT,
+      supplier_name TEXT,
+      version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      cost_estimate TEXT CHECK(cost_estimate IS NULL OR (json_valid(cost_estimate) AND json_type(cost_estimate)='object')),
+      terms TEXT`,
+    'id,number,customer_id,customer_name,order_date,delivery_date,status,total_cents,currency,rounding_policy,' +
+      'tax_rate_bp,tax_mode,tax_text,external_purchase_order,supplier_name,version,created_at,updated_at,notes,cost_estimate,terms',
+  );
+  stageOrderTax(db, 'order_lines');
+  rebuildTable(
+    db, 'order_lines',
+    `id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id),
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      quantity INTEGER NOT NULL CHECK(quantity>0),
+      unit TEXT NOT NULL DEFAULT '只' CHECK(unit='只'),
+      unit_price_e4 INTEGER NOT NULL CHECK(unit_price_e4>=0),
+      unit_price_cents INTEGER GENERATED ALWAYS AS ((unit_price_e4+50)/100) VIRTUAL,
+      delivery_date TEXT CHECK(delivery_date IS NULL OR (delivery_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND date(delivery_date) IS delivery_date)),
+      tax_rate_bp INTEGER CHECK(tax_rate_bp IS NULL OR tax_rate_bp BETWEEN 0 AND 10000),
+      tax_mode TEXT CHECK(tax_mode IS NULL OR tax_mode IN ('含税','未税','未明确')),
+      tax_text TEXT,
+      customer_product_code TEXT,
+      product_name TEXT NOT NULL,
+      specification TEXT NOT NULL,
+      notes TEXT`,
+    'id,order_id,product_id,quantity,unit,unit_price_e4,delivery_date,tax_rate_bp,tax_mode,tax_text,customer_product_code,product_name,specification,notes',
+  );
+  db.exec(`CREATE INDEX orders_filter ON orders(customer_id,order_date,status);
+    CREATE INDEX order_lines_order ON order_lines(order_id);
+    CREATE INDEX order_lines_product ON order_lines(product_id);`);
+  migrateOrderStatusResults(db);
+}
+
 export const upgradeSteps: readonly UpgradeStep[] = [
   {
     version: 21,
@@ -131,5 +234,10 @@ export const upgradeSteps: readonly UpgradeStep[] = [
           WHERE l.product_id=products.id
           HAVING COUNT(DISTINCT o.customer_id)=1
         );`),
+  },
+  {
+    version: 24,
+    name: '订单和明细的税率改存万分比、含税口径和原话',
+    up: rebuildOrderTax,
   },
 ];

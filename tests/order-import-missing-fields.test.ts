@@ -117,7 +117,7 @@ test('表上没填的栏目是“原件未提供”，不编造业务值；栏�
   assert.equal(draftFromForm(orderFormSchema.parse(numeric)).lines[0].quantity.value, '1000');
 });
 
-test('经请求导入：外币被拒、中文说明；改成没写币种后按人民币导入并提醒，单位“个”记成“只”，税口径记“未明确”；重放同一预览不重复建单', async () => {
+test('经请求导入：外币被拒；没写币种按人民币导入并提醒，单位“个”记成“只”，未写的税口径留空；重放不重复建单', async () => {
   const form = minimal('USD');
   form.lines[0].unit = '个';
   const store = new Store(':memory:'),
@@ -144,7 +144,7 @@ test('经请求导入：外币被拒、中文说明；改成没写币种后按�
     const preview = previewReply.parse(previewBody);
     assert.equal(preview.plan.order.currency, 'CNY');
     assert.ok(preview.plan.warnings.some((s) => s.includes('默认保存')));
-    assert.equal(preview.plan.order.taxMode, '未明确', '不默认含税');
+    assert.equal(preview.plan.order.taxMode, null, '原件没写口径就留空');
     assert.equal(preview.plan.order.externalPurchaseOrder, '');
     assert.equal(preview.plan.products[0].input.length, null);
     const result = await request(w.id + '/execute', { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: true }),
@@ -228,7 +228,7 @@ test('多明细各自的税率、口径、交期和规格照原件落库，普�
     assert.ok(order, '建了订单');
     assert.equal(order.lines.length, 2);
     assert.equal(order.totalAmountExact, '2850.0000');
-    assert.equal(order.lines[0].taxRate, '13%');
+    assert.deepEqual([order.lines[0].taxRate, order.lines[0].taxText], [13, '13%']);
     assert.equal(order.lines[1].deliveryDate, '2026-11-03');
     assert.equal(order.lines[0].specification, '产品A规格');
     assert.equal(order.lines[1].specification, '');
@@ -236,9 +236,29 @@ test('多明细各自的税率、口径、交期和规格照原件落库，普�
     sales(f.store).saveOrder(input, order.id, order.version);
     order = sales(f.store).order(order.id);
     assert.ok(order, '改后订单还在');
-    assert.equal(order.lines[0].taxRate, '13%');
+    assert.deepEqual([order.lines[0].taxRate, order.lines[0].taxText], [13, '13%']);
     assert.equal(order.lines[1].deliveryDate, '2026-11-03');
     assert.equal(order.lines[1].taxMode, '含税');
+  } finally {
+    f.close();
+  }
+});
+
+test('识别出有歧义的税率时保留原话并提醒，人工核对后保存明确的税率和原话', async () => {
+  const input = minimal('CNY');
+  input.header.taxRate = '0.13';
+  const f = await imported(input);
+  try {
+    const preview = await f.preview();
+    assert.deepEqual([preview.plan.order.taxRate, preview.plan.order.taxText], [null, '0.13']);
+    assert.ok(preview.plan.warnings.some((w) => w.includes('税率没认出来，原件写的是“0.13”')));
+    f.manager.edit(f.w.id, {
+      expectedRevision: f.w.revision,
+      operations: [{ op: 'set-header', field: 'taxRate', value: '0.13%', reason: '虚构：客户确认税率' }],
+    });
+    const receipt = await f.execute(await f.preview());
+    const saved = sales(f.store).order(receipt.orderId);
+    assert.deepEqual([saved?.taxRate, saved?.taxText], [0.13, '0.13']);
   } finally {
     f.close();
   }

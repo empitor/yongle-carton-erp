@@ -1,5 +1,5 @@
 import { FINISHED_UNIT, RAW_UNIT, isFlowKind } from '../core/index.js';
-import { centsText, isRecord, orderDisplayStatus, plainPrice } from '../core/index.js';
+import { centsText, isRecord, orderDisplayStatus, orderTaxOriginal, plainPrice, shownTaxRate } from '../core/index.js';
 import { dataManagementFieldName } from './data-management-modules.js';
 import { UNPRICED_TEXT, priceText, sizeText } from './display-text.js';
 import { purchaseState } from './labels.js';
@@ -150,6 +150,7 @@ function refValueText(ctx: Ctx, key: string, value: unknown, row: Row | undefine
 /** 存代码的字段、税率和普通的文字、数、是否 */
 function plainValueText(key: string, value: unknown) {
   if (Object.hasOwn(codeNames, key)) return codeNames[key][String(value)] ?? null;
+  if (key === 'taxRate' && typeof value === 'number') return shownTaxRate(value);
   if (key === 'taxRate') return /^\d+(\.\d+)?$/.test(String(value)) ? String(value) + '%' : String(value);
   if (typeof value === 'boolean') return value ? '是' : '否';
   if (typeof value === 'number') return String(value);
@@ -166,6 +167,8 @@ function filledValueText(ctx: Ctx, key: string, value: unknown, row: Row | undef
   if (key === 'unitPriceCents' || (parent === 'costs' && key !== 'basis')) return money(value);
   if (key === 'unitPriceExact') return exactPrice(value);
   if (quantityFields.has(key)) return withUnit(value, unitOf(ctx, row, parent));
+  if (ctx.module === 'orders' && key === 'taxText')
+    return typeof row?.taxRate === 'number' ? String(value) : orderTaxOriginal(textOf(value));
   return plainValueText(key, value);
 }
 

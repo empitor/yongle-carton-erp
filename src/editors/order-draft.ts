@@ -15,6 +15,7 @@ export type OrderLineDraft = {
   specification: string;
   customerProductCode: string;
   taxRate: string;
+  taxText?: string;
   taxMode: string;
   deliveryDate: string;
   quantity: string;
@@ -36,6 +37,7 @@ export type OrderExtras = {
   supplierName: string;
   currency: 'CNY';
   taxRate: string;
+  taxText?: string;
   taxMode: string;
   terms: string;
   roundingPolicy: NonNullable<OrderInput['roundingPolicy']>;
@@ -80,7 +82,8 @@ export function initialLines(
     return value.lines.map((l) => ({
       key: nextKey(),
       customerProductCode: l.customerProductCode || '',
-      taxRate: l.taxRate || '',
+      taxRate: l.taxRate?.toString() ?? '',
+      taxText: l.taxText,
       taxMode: l.taxMode || '',
       deliveryDate: l.deliveryDate || '',
       id: l.id,
@@ -158,7 +161,7 @@ export function orderTotals(lines: OrderLineDraft[], costs: CostDraft) {
 /** 保存时提交的订单：表头、明细（单价分和精确值都带上）、预估成本（没录就是 null） */
 export function orderPayload(o: {
   value?: Order;
-  extras: Record<string, unknown>;
+  extras: OrderExtras;
   customerId: string;
   orderDate: string;
   deliveryDate: string;
@@ -172,6 +175,7 @@ export function orderPayload(o: {
   return {
     ...value,
     ...o.extras,
+    taxRate: o.extras.taxRate === '' ? null : Number(o.extras.taxRate),
     customerId: Number(o.customerId),
     orderDate: o.orderDate,
     deliveryDate: o.deliveryDate,
@@ -188,7 +192,8 @@ export function orderPayload(o: {
       unitPriceCents: legacyCents(l.price),
       unitPriceExact: l.price,
       customerProductCode: l.customerProductCode,
-      taxRate: l.taxRate,
+      taxRate: l.taxRate === '' ? null : Number(l.taxRate),
+      taxText: l.taxText,
       taxMode: l.taxMode,
       deliveryDate: l.deliveryDate || undefined,
       unit: l.unit,

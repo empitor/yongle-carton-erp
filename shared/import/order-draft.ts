@@ -54,7 +54,7 @@ export const fieldLabels: Record<HeaderField | LineField, string> = {
   orderDate: fieldLabel('orderDate'),
   deliveryDate: fieldLabel('deliveryDate'),
   currency: fieldLabel('currency'),
-  taxRate: unitLabel(fieldLabel('taxRate'), '%'),
+  taxRate: fieldLabel('taxRate'),
   taxMode: fieldLabel('taxMode'),
   notes: fieldLabel('notes'),
   terms: fieldLabel('terms'),
@@ -84,6 +84,8 @@ const fieldSchema = z.strictObject({
   value: z.string().max(DRAFT_VALUE_MAX).nullable(),
   certainty: z.enum(['recognized', 'needs-review', 'user-modified']),
   note: z.preprocess((v) => (v === null || v === undefined ? '' : v), z.string().max(DRAFT_NOTE_MAX)),
+  /** 修改识别税率时保留第一次识别出的原话。 */
+  originalValue: z.string().max(DRAFT_VALUE_MAX).nullable().optional(),
   /** 人改了数量或单价、改之前原文金额和数量×单价对得上：正式金额按新值重算，原文金额只留着对照（后端写，不给模型） */
   recalculated: z.literal(true).optional(),
   /** 这一格是助手改的（人在识别结果页上再改就去掉），之后打开的人看得出哪些格子助手动过 */

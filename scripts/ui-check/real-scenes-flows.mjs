@@ -7,7 +7,7 @@ async function freshOrder(ctx, productName, quantity) {
   const c = await freshCustomer(ctx);
   const p = ctx.q('SELECT id,name FROM products WHERE name=?', productName)[0];
   return ctx.admin.api('/api/orders', {
-    customerId: c.id, orderDate: day(0), deliveryDate: day(5), status: '已确认', notes: '', costs: null, externalPurchaseOrder: '', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent',
+    customerId: c.id, orderDate: day(0), deliveryDate: day(5), status: '已确认', notes: '', costs: null, externalPurchaseOrder: '', taxRate: 13, taxMode: '含税', roundingPolicy: 'half-up-cent',
     lines: [{ productId: p.id, productName: p.name, specification: '', quantity, unit: '只', unitPriceCents: 250, notes: '', customerProductCode: '' }],
   });
 }
@@ -15,7 +15,7 @@ async function freshOrder(ctx, productName, quantity) {
 async function freshOrder2(ctx, names, quantity) {
   const c = await freshCustomer(ctx);
   const lines = names.map((n) => ctx.q('SELECT id,name FROM products WHERE name=?', n)[0]).map((p) => ({ productId: p.id, productName: p.name, specification: '', quantity, unit: '只', unitPriceCents: 250, notes: '', customerProductCode: '' }));
-  return ctx.admin.api('/api/orders', { customerId: c.id, orderDate: day(0), deliveryDate: day(20), status: '已确认', notes: '', costs: null, externalPurchaseOrder: '', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines });
+  return ctx.admin.api('/api/orders', { customerId: c.id, orderDate: day(0), deliveryDate: day(20), status: '已确认', notes: '', costs: null, externalPurchaseOrder: '', taxRate: 13, taxMode: '含税', roundingPolicy: 'half-up-cent', lines });
 }
 const confirmAll = (say) => ({ say, confirm: true });
 const TASK_NO = /SC-\d{8}-\d{3,6}/g;

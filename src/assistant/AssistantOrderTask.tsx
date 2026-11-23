@@ -1,5 +1,5 @@
 import { finishedUnit, linePrice, currencyName, pageHref } from '../../shared/core/index';
-import { amountText, specLine } from '../../shared/business/index';
+import { amountText, orderTaxText, specLine } from '../../shared/business/index';
 import type { ThreadView } from '../../shared/assistant/index';
 import { importedOrderOf, previewPlanOf, type PreviewPlan } from './order-task-view';
 
@@ -27,6 +27,7 @@ function PreviewLines({ plan }: { plan: PreviewPlan }) {
         {l.quantity} {finishedUnit(l.unit)} × {linePrice(l)} 元；产品档案：{plan.products[i]?.name}（
         {plan.products[i]?.mode === 'new' ? '新建' : '已有'}）
       </p>
+      {(l.taxRate != null || l.taxMode || l.taxText) && <p>税费 {orderTaxText(l)}</p>}
     </article>
   ));
 }
@@ -69,7 +70,7 @@ function ImportPreview({ plan }: { plan: PreviewPlan }) {
       </p>
       <PreviewLines plan={plan} />
       <p>
-        币种 {currencyName(order.currency)}；税率 {order.taxRate || '未注明'}；{order.taxMode}
+        币种 {currencyName(order.currency)}；税费 {orderTaxText(order)}
         ；合同条件 {order.terms || '无'}；备注 {order.notes || '无'}
       </p>
       <NewRecords plan={plan} />

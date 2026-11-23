@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { arrivalLineValue, deliveryLineValue } from '../../../shared/business/index.js';
-import { errorMessage, quantityUnits } from '../../../shared/core/index.js';
+import { errorMessage, quantityUnits, readTaxRate } from '../../../shared/core/index.js';
 import { one, rows } from '../../core/index.js';
 import { financeError } from '../base/core.js';
 import { documentMoney, theoreticalMoney } from '../base/amounts.js';
@@ -108,7 +108,7 @@ function choose(line: string | null | undefined, party: string | null | undefine
   return { value: index < 0 ? '' : String(values[index]).trim(), source: ['line', 'party'][index] ?? null };
 }
 const validTax = ({ mode, rate }: { mode: string; rate: string }) =>
-  /^\d{1,3}(\.\d{1,6})?%?$/.test(rate) && Number(rate.replace(/%$/, '')) <= 100 && storedTaxModes.some((m) => m === mode);
+  /^\d{1,3}(\.\d{1,2})?%?$/.test(rate) && readTaxRate(rate) !== null && storedTaxModes.some((m) => m === mode);
 // 算出来就是 0 的行（数量为 0，或单价明确填了 0）不管什么口径金额都是 0：没写清税率口径时按“未税 / 0”计，
 // 不算资料待补，否则要人给一张 0 元单子补税率。单价没填是未知，前面已按缺价格转资料待补，到不了这里。
 const priced = (exact: string, tax: { mode: string; rate: string }) =>
