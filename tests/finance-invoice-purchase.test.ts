@@ -2,8 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
-import { count, one } from '../server/core/index.js';
+import { Store, count, one } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceMonthly } from '../server/finance/reports/monthly.js';

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { entry } from '../server/finance/base/query.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';

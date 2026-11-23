@@ -6,12 +6,15 @@ import fs, { readdirSync, readFileSync, writeFileSync, rmSync, existsSync } from
 import { syncBuiltinESMExports } from 'node:module';
 import { join, sep } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Store } from '../server/core/db.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
+import {
+  Store,
+  openVersionedSqlite,
+  restoreFullBackup,
+  readBackupManifest,
+  validateBusinessDatabase,
+} from '../server/core/index.js';
 import { ImportRepository } from '../server/import/repository.js';
-import { restoreFullBackup } from '../server/core/backup.js';
-import { readBackupManifest } from '../server/core/backup-manifest.js';
-import { supportedDatabaseVersions, validateBusinessDatabase } from '../server/core/backup-check.js';
+import { supportedDatabaseVersions } from '../server/core/backup/backup-check.js';
 import { AuthManager } from '../server/accounts/index.js';
 import {
   alterBackupDatabase,

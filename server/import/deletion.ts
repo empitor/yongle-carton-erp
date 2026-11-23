@@ -1,4 +1,4 @@
-// 识别导入的表在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。由本模块的 index.ts 引入。
+// 识别导入的表在删除、初始化时怎么处理（登记接口见 server/core/records/deletion-rules.ts）。由本模块的 index.ts 引入。
 import { many, parseStoredJson, registerRecordDeletion, registerReset, registerTableDeletion, rows } from '../core/index.js';
 import { receiptForMarking } from './import-receipt.js';
 

@@ -6,7 +6,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SNAPSHOT_DIRECTORY } from '../server/core/schema/upgrade.js';
-import { Store } from '../server/core/db.js';
+import { Store, count } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { FinanceClosing } from '../server/finance/reports/closing.js';
@@ -14,7 +14,6 @@ import { FinanceAssets } from '../server/finance/expenses/assets.js';
 import { FinancePayroll } from '../server/finance/expenses/payroll.js';
 import { FinanceCosting } from '../server/finance/costing/costing.js';
 import { entry } from '../server/finance/base/query.js';
-import { count } from '../server/core/index.js';
 import { maker, newSettings, postDrafts as postAll, ledgerBalance, monthEndJobs } from './finance-fixture.js';
 
 /** 结账：计提、成本跑完以后数据又变了（多见于反结账后改账），检查要发现，并能红冲后重做。全部虚构数据。 */

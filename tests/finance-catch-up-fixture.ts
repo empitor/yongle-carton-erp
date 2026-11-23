@@ -1,6 +1,5 @@
 // 补扫测试共用（server/finance/catch-up.ts）：数开了几次事务、库的改动数，出错记录里补扫记的几条
-import type { Store } from '../server/core/db.js';
-import { count, type ProblemLog } from '../server/core/index.js';
+import { type Store, count, type ProblemLog } from '../server/core/index.js';
 import type { SkipLog } from '../server/finance/events/catch-up.js';
 
 /** 假的出错记录：补扫、助手查财务必传，不看出错记录的测试给它（记下的都丢掉） */

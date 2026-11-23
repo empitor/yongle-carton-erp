@@ -1,7 +1,7 @@
 // 已开票的送货、到货被冲销或更正时的发票和往来（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, count } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceInvoices } from '../server/finance/cash/invoices.js';
@@ -12,7 +12,6 @@ import { FinanceAllocations } from '../server/finance/cash/allocations.js';
 import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, obligation, obligationRow, funds, bill, ledgerBalance, subledger, eventsStep, setDoc } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { count } from '../server/core/index.js';
 
 test('已开票送货被冲销，整张红票后可以更正，结账的事件步骤放行', () => {
   const s = new Store(':memory:');

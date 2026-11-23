@@ -1,16 +1,14 @@
-// 删产品连带成品库存（server/core/deletion-rules.ts 登记的规则，经 /deletions 接口）：成品一定关联产品，不留没有产品的成品；
+// 删产品连带成品库存（server/core/records/deletion-rules.ts 登记的规则，经 /deletions 接口）：成品一定关联产品，不留没有产品的成品；
 // 流水和引用它的单据按删库存品的规则处理；删客户不动成品库存；初始化照常清空。内存库、虚构数据，起真实服务。
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store, count, localAdministratorActor } from '../server/core/index.js';
 import { AuthManager } from '../server/accounts/index.js';
-import { count } from '../server/core/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { impactRowSchema } from '../shared/business/deletion-request.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import './delete-fixture.js';

@@ -7,7 +7,7 @@ import { fail, newItemOf, type FlowCommands, type StockChange } from '../documen
 import { validateFlow } from './validate.js';
 
 /*
- * 核对窗口：确认前先出一份预览（库存怎么变、提示）和预览摘要（server/core/preview-digest.ts）；
+ * 核对窗口：确认前先出一份预览（库存怎么变、提示）和预览摘要（server/core/storage/preview-digest.ts）；
  * 确认时在写入的事务里按当前数据重算同一份核对内容（examine），摘要对不上就拒绝。
  */
 

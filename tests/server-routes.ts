@@ -18,7 +18,7 @@ type ServerRoute = { segments: string[]; methods: string[]; file: string };
 const segments = (path: string) => path.split('?')[0].split('/').filter(Boolean);
 const serverFrame = /[\\/](server[\\/][^:()]+\.ts)/;
 /** 按接口表注册路由的 route()：它替调用方注册，注册文件算调用它的那个文件 */
-const registrar = 'server/core/route.ts';
+const registrar = 'server/core/http/route.ts';
 const callerFile = () =>
   (new Error().stack ?? '')
     .split('\n')

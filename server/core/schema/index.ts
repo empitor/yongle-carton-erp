@@ -10,12 +10,13 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { errorMessage } from '../../../shared/core/index.js';
-import { SQLITE_CODE, sqliteCode } from '../errors.js';
-import { exists, many, pragmaInteger } from '../sql.js';
+import { SQLITE_CODE, sqliteCode } from '../http/errors.js';
+import { applySessionPragmas, readOnlyDatabase } from '../storage/sqlite/connection.js';
+import { exists, many, pragmaInteger } from '../storage/sqlite/sql.js';
 import { mismatchLines, schemaMismatch, type SchemaMismatch } from './conformity.js';
 import { createSchema, type SchemaBuild } from './create.js';
 import { SchemaError } from './errors.js';
-import { applyConnectionPragmas, applySessionPragmas, optimizeDatabase, readOnlyDatabase } from './pragmas.js';
+import { applyConnectionPragmas, optimizeDatabase } from './pragmas.js';
 import { latestVersion, orderedSteps, snapshotForUpgrade, upgradeSchema, type UpgradeStep } from './upgrade.js';
 import { SCHEMA_APPLICATION_ID, SCHEMA_BASELINE, SCHEMA_LATEST } from './version.js';
 

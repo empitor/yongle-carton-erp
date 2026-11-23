@@ -3,7 +3,7 @@
  * 以及连本机假服务端（bot-fakes.ts）的一条连接。凭据都是虚构的。
  */
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { InboxService } from '../server/inbox/service.js';
 import { BotConnection, type BotTimers } from '../server/inbox/bots/connection.js';
 import type { BotCredentials, BotProtocol, ProtocolDeps } from '../server/inbox/bots/protocol.js';

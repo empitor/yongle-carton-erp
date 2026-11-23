@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import { blocksNewProduct, emptyImportMapping, invalidateImportMapping, productCandidatesForLine, resolveCustomerCandidates } from '../shared/import/import-matching.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { blankField, draftLineFieldsSchema, lineFields, type LineField, type OrderDraft } from '../shared/import/order-draft.js';
 import { draftFromForm, orderFormSchema } from '../shared/import/order-form.js';

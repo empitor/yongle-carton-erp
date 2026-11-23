@@ -1,9 +1,10 @@
-// 流式回复的写出（server/core/stream.ts）和读取（src/ui/event-stream.ts）：用假连接、假计时器，不起服务、不真等。
+// 流式回复的写出（server/core/http/stream.ts）和读取（src/ui/event-stream.ts）：用假连接、假计时器，不起服务、不真等。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
-import { STREAM_HEARTBEAT_MS, STREAM_LATEST_MS, openEventStream, pipeBytes } from '../server/core/stream.js';
+import { openEventStream, pipeBytes } from '../server/core/index.js';
+import { STREAM_HEARTBEAT_MS, STREAM_LATEST_MS } from '../server/core/http/stream.js';
 import { readEventStream } from '../src/ui/event-stream.js';
 
 /** 假请求：只记下设的超时 */

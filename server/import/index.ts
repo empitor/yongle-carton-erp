@@ -1,4 +1,4 @@
-// 识别导入的表的删除、初始化规则，以及订单删掉前给导入记录打标记（server/core/deletion-rules.ts）
+// 识别导入的表的删除、初始化规则，以及订单删掉前给导入记录打标记（server/core/records/deletion-rules.ts）
 import './deletion.js';
 export { prepareArrivalRecognition } from './arrival-recognition.js';
 export { resolveImportCustomer } from './customer-resolution.js';

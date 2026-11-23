@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import express from 'express';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { apiErrorHandler } from '../server/http-errors.js';
 import { orderDraftSchema } from '../shared/import/index.js';
 import '../server/flow/index.js';

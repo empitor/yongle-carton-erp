@@ -1,4 +1,4 @@
-import { AppError } from '../errors.js';
+import { AppError } from '../http/errors.js';
 
 /**
  * 业务库不能打开：0.9.0 以前的旧库、比程序新的库、不是本系统的文件、版本记录坏了，或者建新库、升级、升级前快照没做成。

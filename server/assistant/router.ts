@@ -80,7 +80,7 @@ function attachmentFileRoutes(router: Router, manager: AssistantManager, auth: R
   });
 }
 
-/** 一次回复用事件流推给页面（写法在 server/core/stream.ts）；进度按阶段、正在生成的正文（整段替换）只算最新一条 */
+/** 一次回复用事件流推给页面（写法在 server/core/http/stream.ts）；进度按阶段、正在生成的正文（整段替换）只算最新一条 */
 function chatRoute(router: Router, manager: AssistantManager, auth: RequestAuth) {
   router.post('/threads/:id/chat', async (req, res) => {
     const id = req.params.id;

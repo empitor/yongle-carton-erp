@@ -4,7 +4,7 @@ import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { startHttp } from './http-fixture.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
 import { projectOrder, standardOrderDraft } from '../server/import/standard-order.js';

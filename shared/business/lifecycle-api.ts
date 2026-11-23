@@ -8,7 +8,7 @@ import type { RecordEntity } from './operations.js';
  * 表的写法见 shared/core/api-table.ts。正文照 shared/core/archive-input.ts 的结构写，服务端照样先校验。
  */
 
-/** 批量归档、恢复（server/core/archive.ts 的 changeArchive） */
+/** 批量归档、恢复（server/core/records/archive.ts 的 changeArchive） */
 type ArchiveBody = z.input<typeof recordArchiveInputSchema>;
 
 export type LifecycleApi = { [E in RecordEntity as `POST /${E}/batch`]: { body: ArchiveBody; response: ArchiveResult<number> } };

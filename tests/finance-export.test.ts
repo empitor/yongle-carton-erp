@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
-import type { Store } from '../server/core/db.js';
+import type { Store } from '../server/core/index.js';
 import { FinanceAssets } from '../server/finance/expenses/assets.js';
 import { FinanceBank } from '../server/finance/cash/bank.js';
 import { FinanceEvents } from '../server/finance/events/events.js';

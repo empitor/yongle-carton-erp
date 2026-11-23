@@ -3,12 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
-import { AppError } from '../server/core/errors.js';
+import { Store, AppError, localAdministratorActor } from '../server/core/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { autoConfirmAssistant, ctxOf, toolsOf } from './assistant-fixture.js';
 import { orderedPurchase } from './receive-fixture.js';
 import { actor, superActor } from './actor-fixture.js';

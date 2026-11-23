@@ -3,17 +3,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DatabaseSync } from 'node:sqlite';
-import { one, rows } from '../server/core/index.js';
+import { one, rows, Store, StoredDataError } from '../server/core/index.js';
 import { insertFlowDocument, writeFlowDocument } from '../server/flow/documents/document-store.js';
 import { replaceFlowDocument } from '../server/flow/rules/maintenance-writes.js';
 import { storedDocument } from '../server/flow/documents/read.js';
 import { insertSource, updateSourceDocument } from '../server/flow/index.js';
-import { Store } from '../server/core/db.js';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk as actor } from './flow-fixture.js';
 import type { FlowDocument } from '../shared/business/index.js';
 import { z } from 'zod';
-import { StoredDataError } from '../server/core/errors.js';
 import { finishedStockOfProduct } from '../server/flow/index.js';
 
 // 各种单据最少的完整内容（库里的单据结构，shared/business/flow-document.ts），测试里只改要看的字段
@@ -151,7 +149,7 @@ test('库里的单据内容只存单据自己的字段：到货和送货确认�
 });
 
 test('读库里的单据内容对不上结构（多了一个键）：报服务端错误（500、不是“输入不对”的 400），说明里写明是哪张单据', (t) => {
-  // 读库对不上时服务端会写一条日志（server/core/sql.ts），这里是故意造的，接住不打到测试输出里；测试结束自动还原
+  // 读库对不上时服务端会写一条日志（server/core/storage/sqlite/sql.ts），这里是故意造的，接住不打到测试输出里；测试结束自动还原
   t.mock.method(console, 'error', () => {});
   const f = flowFixture();
   try {

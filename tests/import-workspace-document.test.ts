@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ImportRepository } from '../server/import/repository.js';
-import { StoredDataError } from '../server/core/errors.js';
+import { StoredDataError } from '../server/core/index.js';
 import { workspaceRecord } from './import-fixtures.js';
 import { fixture, recognized, tempDir } from './order-import-fixture.js';
 

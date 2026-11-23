@@ -3,8 +3,7 @@
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
-import { AppError } from '../server/core/errors.js';
+import { Store, AppError } from '../server/core/index.js';
 import { assertNewProductAllowed, duplicateCustomers, productDuplicates, type ProductLike } from '../server/sales/duplicate-records.js';
 import { importPlan } from '../server/import/import-plan.js';
 import { duplicateKey, looseKey, nameKey } from '../shared/core/name-keys.js';

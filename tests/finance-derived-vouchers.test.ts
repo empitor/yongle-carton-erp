@@ -1,8 +1,7 @@
 // 财务派生凭证的撤回（没记账）和红冲（已记账）：保证金、利息、坏账、资产处置、费用、票据（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { one, rows } from '../server/core/index.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceEvents } from '../server/finance/events/events.js';

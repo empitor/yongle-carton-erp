@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { pageActor } from './actor-fixture.js';
 import { ctxOf } from './assistant-fixture.js';
 import { fakeAiSettings, httpError } from './fake-deepseek.js';

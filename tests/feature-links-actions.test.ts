@@ -105,7 +105,7 @@ test('认路由认得接口表的写法：route() 注册的写地址照样要登
   const lifecycle = routes.filter((r) => r.file === 'server/lifecycle/lifecycle-router.ts').map(routeKey);
   assert.ok(lifecycle.includes('POST /stock_items/batch'), 'lifecycle-router.ts 用 route() 循环注册的 POST /stock_items/batch 没认出来');
   assert.ok(writeKeys.includes('PUT /customers/:id'), '“写地址都登记”那条查的写地址里要有 route() 注册的');
-  assert.deepEqual(routes.filter((r) => r.file === 'server/core/route.ts'), [], '注册文件不能算成 route() 自己');
+  assert.deepEqual(routes.filter((r) => r.file === 'server/core/http/route.ts'), [], '注册文件不能算成 route() 自己');
 });
 
 test('同一种记录上同一个动作只有一条（已知两套的除外，合掉了要删登记）', () => {

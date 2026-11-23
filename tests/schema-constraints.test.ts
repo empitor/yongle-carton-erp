@@ -10,11 +10,18 @@ import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 import { assistantMessageRoles, assistantRunStates } from '../server/assistant/conversation.js';
 import { markSourceKinds } from '../shared/business/index.js';
-import { Store } from '../server/core/db.js';
-import { count, one } from '../server/core/sql.js';
-import { rows } from '../server/core/schema/rows.js';
+import {
+  Store,
+  count,
+  one,
+  rows,
+  AppError,
+  constraintFailure,
+  failureMessage,
+  isConstraintError,
+} from '../server/core/index.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
-import { AppError, CONSTRAINT_MESSAGE, constraintFailure, failureMessage, isConstraintError } from '../server/core/errors.js';
+import { CONSTRAINT_MESSAGE } from '../server/core/http/errors.js';
 import {
   isDate,
   isDateOrNull,
@@ -106,7 +113,7 @@ function enumOwners(): Record<string, readonly string[]> {
     'orders.status': statuses,
     'orders.rounding_policy': orderSchema.shape.roundingPolicy.unwrap().options,
     'products.dimension_unit': productSchema.shape.dimensionUnit.unwrap().unwrap().options,
-    // 归档标记、墓碑的记录种类不列枚举，由各模块登记（server/core/record-kinds.ts，tests/record-kinds.test.ts 守）
+    // 归档标记、墓碑的记录种类不列枚举，由各模块登记（server/core/records/kinds/record-kinds.ts，tests/record-kinds.test.ts 守）
     'business_audit.source': auditSources,
     // 采购库存
     'stock_items.kind': stockKinds,

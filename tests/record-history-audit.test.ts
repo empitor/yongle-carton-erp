@@ -11,7 +11,7 @@ import { updateDocumentInfo } from '../server/flow/index.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 import { recordContext } from '../server/overview/record-context.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { dataManagementCommandSchema } from '../shared/business/data-management-modules.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
@@ -38,7 +38,7 @@ function auditCalls() {
   const calls: { file: string; fields: Record<string, string> }[] = [],
     unreadable: string[] = [];
   for (const file of files('server')) {
-    if (file === 'server/core/audit.ts') continue; // audit 本身的定义
+    if (file === 'server/core/records/audit.ts') continue; // audit 本身的定义
     const text = readFileSync(file, 'utf8');
     for (const m of text.matchAll(/(?<![\w.$])audit\(/g)) {
       const entry = callArgs(text, m.index + m[0].length)[2] ?? '';

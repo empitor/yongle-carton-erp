@@ -1,8 +1,7 @@
-// 记一条业务审计（server/core/audit.ts 的 audit）：business_audit 的每一列照传入的写，明细按 JSON 存。内存库、虚构数据。
+// 记一条业务审计（server/core/records/audit.ts 的 audit）：business_audit 的每一列照传入的写，明细按 JSON 存。内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { audit, viaEntry } from '../server/core/audit.js';
-import { Store } from '../server/core/db.js';
+import { audit, viaEntry, Store } from '../server/core/index.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { pageActor } from './actor-fixture.js';
 

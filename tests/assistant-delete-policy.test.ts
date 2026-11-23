@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { AppError } from '../server/core/errors.js';
+import { AppError } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
 import { autoConfirmAssistant, lastCard } from './assistant-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';

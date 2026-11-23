@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import express from 'express';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { listen } from './http-fixture.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';

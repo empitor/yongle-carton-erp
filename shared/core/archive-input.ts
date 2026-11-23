@@ -4,7 +4,7 @@ import { z } from 'zod';
 const MAX_ARCHIVE_ITEMS = 1000;
 
 /**
- * 批量归档、恢复的正文（服务端 server/core/archive.ts 的 changeArchive 按它校验，接口表照它的输入 z.input 写类型）。
+ * 批量归档、恢复的正文（服务端 server/core/records/archive.ts 的 changeArchive 按它校验，接口表照它的输入 z.input 写类型）。
  * id 是编号的写法、firstVersion 是版本号从几开始，由记录种类定；业务库里的记录用 recordArchiveInputSchema。
  */
 export function archiveInputSchema<Id extends z.ZodType<number | string>>(id: Id, firstVersion: 0 | 1) {
@@ -18,7 +18,7 @@ export function archiveInputSchema<Id extends z.ZodType<number | string>>(id: Id
   });
 }
 
-/** 批量归档、恢复的回答：逐条的编号、成没成、说明（server/core/archive.ts 的 changeArchive 交回，各接口表照它写） */
+/** 批量归档、恢复的回答：逐条的编号、成没成、说明（server/core/records/archive.ts 的 changeArchive 交回，各接口表照它写） */
 export type ArchiveResult<Id extends number | string> = { results: { id: Id; success: boolean; message: string }[] };
 
 /** 业务库里的记录（档案、单据）：编号是正整数，版本号从 1 起 */

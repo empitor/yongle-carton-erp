@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor } from '../server/core/index.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { userError } from '../shared/core/user-errors.js';
 import { errorMessage } from '../shared/core/error-message.js';

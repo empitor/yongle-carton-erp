@@ -1,10 +1,10 @@
 // 归档标记（record_lifecycle）和永久删除墓碑（permanent_record_deletions）的记录种类不在建表里写死（升级第 22 步去掉了枚举），
-// 由各模块登记（server/core/record-kinds.ts）：登记齐了现在能归档的十种，写入前核对，没登记的报错、不落库。
+// 由各模块登记（server/core/records/kinds/record-kinds.ts）：登记齐了现在能归档的十种，写入前核对，没登记的报错、不落库。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import '../server/lifecycle/index.js';
 import { AppError, Store, count, registerRecordKinds, rememberDeletedRecord } from '../server/core/index.js';
-import { assertRecordKind } from '../server/core/record-kinds.js';
+import { assertRecordKind } from '../server/core/records/kinds/record-kinds.js';
 import { recordEntities } from '../shared/business/operations.js';
 import { flowKinds } from '../shared/core/index.js';
 import { actor } from './actor-fixture.js';

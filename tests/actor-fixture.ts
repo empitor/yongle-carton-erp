@@ -1,7 +1,7 @@
-// 测试里造账号：Actor.source 必填（server/core/actor.ts），和登录会话一样记成从页面来；
-// 要测助手、数据管理入口的，拿到后用 server/core/audit.ts 的 viaEntry 换。
+// 测试里造账号：Actor.source 必填（server/core/http/actor.ts），和登录会话一样记成从页面来；
+// 要测助手、数据管理入口的，拿到后用 server/core/records/audit.ts 的 viaEntry 换。
 // 只造身份，不引任何业务模块和助手：借一个账号的测试不用为此加载别的东西。
-import type { Actor } from '../server/core/actor.js';
+import type { Actor } from '../server/core/index.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import type { Permission } from '../shared/core/accounts.js';
 

@@ -1,4 +1,4 @@
-// 采购库存的表在删除、初始化时怎么处理（登记接口见 server/core/deletion-rules.ts）。由本模块的 index.ts 引入。
+// 采购库存的表在删除、初始化时怎么处理（登记接口见 server/core/records/deletion-rules.ts）。由本模块的 index.ts 引入。
 import { audit, one, registerRecordKinds, registerReset, registerTableDeletion, rows } from '../core/index.js';
 import { quantityString } from '../../shared/core/index.js';
 import { batchRowKey } from '../../shared/business/index.js';
@@ -6,7 +6,7 @@ import { batchScheduleText, readBatchSchedule } from './batches/batch-schedule.j
 import { readPurchaseLineDocument, recordMovementRevision, touchPurchases, touchStockItems } from './ledger/ledger.js';
 import type { DeletionContext, DeletionGraph, DeletionRow, Store } from '../core/index.js';
 
-// 供应商、采购单、库存品能归档、删了留墓碑（server/core/record-kinds.ts）
+// 供应商、采购单、库存品能归档、删了留墓碑（server/core/records/kinds/record-kinds.ts）
 registerRecordKinds('采购库存', ['suppliers', 'purchases', 'stock_items']);
 
 /** 删除时一行里的一个值（库里读出来的原样）：按 id 分组、找行用它作键 */

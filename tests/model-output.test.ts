@@ -7,7 +7,7 @@ import { receiptFormTool, receiptFromForm } from '../server/import/receipt-form.
 import { sameSpecification } from '../shared/core/domain.js';
 import { isBadModelOutput, retryBadModelOutput } from '../server/ai/model-retry.js';
 import { AiConnectionError } from '../server/ai/errors.js';
-import { AppError } from '../server/core/errors.js';
+import { AppError } from '../server/core/index.js';
 
 
 test('订单识别填表：多给的栏目丢掉，数字转文字，拿不准的标待核对、写明原因，空着的算原件未提供', () => {

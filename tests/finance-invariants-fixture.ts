@@ -1,5 +1,5 @@
 // 对账测试的固定种子：内存库、虚构客户供应商产品、启用财务、资金账户和账期（全部是虚构数据）
-import { Store } from '../server/core/db.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { FinanceBooks } from '../server/finance/ledger/books.js';
 import { FinanceClosing } from '../server/finance/reports/closing.js';
 import { FinanceCosting } from '../server/finance/costing/costing.js';
@@ -15,7 +15,6 @@ import { FinanceDepositsInterest } from '../server/finance/parties/deposits-inte
 import { approver, postDrafts, supervisor } from './finance-fixture.js';
 import { shipOnDocDate } from './ship-date.js';
 import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
-import { one, rows } from '../server/core/index.js';
 import { businessBase } from './business-base-fixture.js';
 
 /** 对账测试用进了超级管理员模式的财务账号（冲销单据要用），审核用基础 fixture 的审核员 */

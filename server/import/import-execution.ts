@@ -53,7 +53,7 @@ function pageReceipt(r: ImportReceipt): ImportReceipt {
 }
 
 /**
- * 正式导入：先预览（导入计划和预览摘要，server/core/preview-digest.ts），确认时按当前数据重算计划、摘要对上了
+ * 正式导入：先预览（导入计划和预览摘要，server/core/storage/preview-digest.ts），确认时按当前数据重算计划、摘要对上了
  * 才在一个事务里建客户、产品和订单，写导入记录和审计。同一个人拿同一份预览摘要重复提交只返回第一次的结果。
  */
 export class ImportExecutionService {

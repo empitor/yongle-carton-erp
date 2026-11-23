@@ -6,7 +6,7 @@ import { readJson } from './read-body';
 
 /* 登录状态：类型、能不能办业务，和请求时用的那份记下的登录状态（含页面凭证）。发请求在 http.ts。 */
 
-/** GET /api/auth/state 的回答（服务端 server/core/auth-router.ts）。读到后按它校验，不像登录状态的回答不用。 */
+/** GET /api/auth/state 的回答（服务端 server/accounts/auth-router.ts）。读到后按它校验，不像登录状态的回答不用。 */
 const authStateSchema = z.object({
   configured: z.boolean(),
   deploymentMode: z.boolean().optional(),

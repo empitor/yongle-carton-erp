@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
-import { Store } from '../server/core/db.js';
+import { Store, count, one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
 import { AuthManager } from '../server/accounts/index.js';
 import { testImports } from './order-import-fixture.js';
 import { ImportExecutionService } from '../server/import/import-execution.js';
@@ -17,7 +17,6 @@ import { startHttp } from './http-fixture.js';
 import { imageFixture } from './import-fixtures.js';
 import { fakeAiSettings } from './fake-deepseek.js';
 import { z } from 'zod';
-import { count, one as oneRow, parseStoredJson, rows } from '../server/core/index.js';
 import { storedReceipt } from '../server/import/import-receipt.js';
 
 const editor = pageActor({ id: 'fictional-editor', name: '虚构业务员', permissions: ['business:edit'] });

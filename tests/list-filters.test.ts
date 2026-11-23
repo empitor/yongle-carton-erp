@@ -1,4 +1,4 @@
-// 列表的筛选和分页（server/core/paging.ts、server/orders/record-lists.ts、server/operations/party-links.ts）：
+// 列表的筛选和分页（server/core/http/paging.ts、server/orders/record-lists.ts、server/operations/party-links.ts）：
 // 流水的日期范围、接口组合筛选、分页统计，产品和库存按客户、供应商筛，页面和助手同一套。内存库、虚构数据。
 import { sales } from '../server/sales/index.js';
 import { pageActor, actor as assistantActor } from './actor-fixture.js';
@@ -11,7 +11,7 @@ import { customerList, orderList, productList } from '../server/orders/record-li
 import { businessFixture } from './flow-fixture.js';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Store } from '../server/core/db.js';
+import { Store, pageRows } from '../server/core/index.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 import { today, orderSchema } from '../shared/core/domain.js';
@@ -21,7 +21,6 @@ import { initialMovementRange, movementFilterSchema } from '../shared/business/m
 import { operationalSearchText } from '../shared/business/business-metrics.js';
 import { Pagination, TableRegion } from '../src/ui/ListLayout.js';
 import WarehouseNavigation from '../src/warehouse/WarehouseNavigation.js';
-import { pageRows } from '../server/core/paging.js';
 import { toolsOf } from './assistant-fixture.js';
 import { productIdsOfCustomer, stockIdsOfParty } from '../server/operations/index.js';
 import { OperationsService } from '../server/operations/index.js';

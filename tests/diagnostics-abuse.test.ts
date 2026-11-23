@@ -6,10 +6,7 @@ import assert from 'node:assert/strict';
 import { listen } from './http-fixture.js';
 import express from 'express';
 import { z } from 'zod';
-import type { Actor } from '../server/core/index.js';
-import { count as countRows } from '../server/core/sql.js';
-import { ProblemLog } from '../server/core/diagnostics/problem-log.js';
-import { recordFailedRequests } from '../server/core/diagnostics/request-recorder.js';
+import { type Actor, count as countRows, ProblemLog, recordFailedRequests } from '../server/core/index.js';
 import { apiErrorHandler } from '../server/http-errors.js';
 
 const clerk: Actor = pageActor({ id: 's1', name: '虚构业务员', permissions: ['business:edit'], role: 'admin' });

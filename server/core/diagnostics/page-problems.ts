@@ -1,9 +1,9 @@
 import { Router, type Request } from 'express';
 import type { z } from 'zod';
 import { pageProblemsSchema, type DiagnosticsApi } from '../../../shared/core/index.js';
-import type { Actor } from '../actor.js';
-import { done, refuse, route } from '../route.js';
-import { Throttle } from '../throttle.js';
+import type { Actor } from '../http/actor.js';
+import { done, refuse, route } from '../http/route.js';
+import { Throttle } from '../http/throttle.js';
 import { operationName, routePath } from './operation-names.js';
 import { problemCategory, type ProblemCategory } from './problem-kinds.js';
 import { PROBLEM_WINDOW, type ProblemLog } from './problem-log.js';

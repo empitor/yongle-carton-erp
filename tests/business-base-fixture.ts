@@ -3,10 +3,9 @@
 // 名字、数量、有没有期初库存这些差别用参数给，默认值是最常用的那套。
 import { sales } from '../server/sales/index.js';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import { Store, type Actor } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
-import type { Actor } from '../server/core/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 
 // 需要触发页面保存的审计或快照时，复用路由实际调用的保存函数。

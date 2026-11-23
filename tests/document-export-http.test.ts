@@ -6,8 +6,7 @@ import { z } from 'zod';
 import { purgeExportFiles } from '../server/documents/export-records.js';
 import { startHttp } from './http-fixture.js';
 import { setup } from './document-fixture.js';
-import { Store } from '../server/core/db.js';
-import { count as countRows } from '../server/core/sql.js';
+import { Store, count as countRows } from '../server/core/index.js';
 import { DocumentTemplateSettings } from '../server/documents/settings.js';
 import { actor } from './actor-fixture.js';
 

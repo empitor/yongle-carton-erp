@@ -18,8 +18,7 @@ import {
 } from '../server/assistant/command-directory.js';
 import { FILTER_KEYS_HINT } from '../server/assistant/tools/records-filter.js';
 import { toolsOf } from './assistant-fixture.js';
-import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/index.js';
+import { Store, type Actor } from '../server/core/index.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import { readAs } from './read-result.js';
 

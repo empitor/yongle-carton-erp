@@ -17,7 +17,7 @@ export function recordsRouter(store: Store, auth?: RequestAuth) {
   const on = route<RecordsApi>(router);
   const actorOf = (req: Request) => auth?.actor(req);
   const elevated = (req: Request) => isSuperMode(actorOf(req));
-  /** 列表的查询参数和带不带已归档的：全站同一个判断（server/core/permissions.ts） */
+  /** 列表的查询参数和带不带已归档的：全站同一个判断（server/core/http/permissions.ts） */
   const listQuery = (req: Request, query: unknown) => {
     const fields = listFields(query);
     return { fields, includeArchived: includeArchivedFor(actorOf(req), fields.archived) };

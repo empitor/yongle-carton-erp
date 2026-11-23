@@ -6,12 +6,10 @@ import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { nextAutoId } from '../server/core/ids.js';
+import { Store, nextAutoId, SchemaError } from '../server/core/index.js';
 import {
   SCHEMA_BASELINE,
   SCHEMA_LATEST,
-  SchemaError,
   describeSchema,
   inspectSchema,
   schemaFingerprint,

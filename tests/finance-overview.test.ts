@@ -3,7 +3,7 @@ import { pageActor } from './actor-fixture.js';
 import { quietLog } from './finance-catch-up-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceOverview } from '../server/finance/reports/overview.js';
 import { FinanceDue } from '../server/finance/parties/due.js';

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import * as finance from '../server/finance/base/stored-values.js';
 import { accepts, rejects } from './schema-fixture.js';
 

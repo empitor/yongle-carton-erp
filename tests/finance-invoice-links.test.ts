@@ -1,7 +1,7 @@
 // 发票关联往来：账期、带数量的关联、已开票合计、分期跟着往来走（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
@@ -11,7 +11,6 @@ import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js'
 import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, arrivalDoc, event, obligationRow, confirmBlue, confirmRed, rawObligation } from './finance-fixture.js';
-import { one, rows } from '../server/core/index.js';
 
 /** 财务事件名下那笔往来的编号（这些测试里一张单据只有一笔；没有就让测试失败） */
 function obligationOfEvent(s: Store, eventId: number) {

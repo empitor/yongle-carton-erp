@@ -6,10 +6,8 @@ import { BusinessDocuments } from '../server/documents/service.js';
 import { EXPORT_FILE_KEEP_DAYS, purgeExportFiles } from '../server/documents/export-records.js';
 import { renderBusinessForm } from '../server/documents/render.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor, AppError, count } from '../server/core/index.js';
 import { z } from 'zod';
-import { AppError } from '../server/core/errors.js';
-import { count } from '../server/core/sql.js';
 import { setup } from './document-fixture.js';
 import { actor } from './actor-fixture.js';
 

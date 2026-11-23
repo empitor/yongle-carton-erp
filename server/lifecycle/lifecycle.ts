@@ -65,7 +65,7 @@ const ownBlocks: { [E in RecordEntity]: (store: Store, id: number, row: Business
   stock_items: stockItemBlocked,
 };
 
-/** 档案什么时候不能归档（客户、产品、订单、供应商、采购单、库存品）；做法和说法在 server/core/archive.ts */
+/** 档案什么时候不能归档（客户、产品、订单、供应商、采购单、库存品）；做法和说法在 server/core/records/archive.ts */
 function blocked<E extends RecordEntity>(store: Store, entity: E, id: number, row: BusinessRecordOf[E]): string | null {
   const reference = draftReference[entity];
   if (

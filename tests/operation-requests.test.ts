@@ -2,10 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
 import {
-  OPERATION_REQUEST_KEEP_DAYS,
-  REQUEST_REUSED,
+  Store,
   onceByRequest,
   operationRequest,
   purgeOperationRequests,
@@ -13,12 +11,18 @@ import {
   requestDone,
   saveRequest,
   updateRequestResult,
-} from '../server/core/requests.js';
-import { peekSequence, takeSequence } from '../server/core/sequences.js';
-import { AppError, StoredDataError } from '../server/core/errors.js';
-import { count, one, pragmaInteger } from '../server/core/sql.js';
-import { rows } from '../server/core/schema/rows.js';
-import { runCleanup, scheduleDailyCleanup } from '../server/core/cleanup.js';
+  peekSequence,
+  takeSequence,
+  AppError,
+  StoredDataError,
+  count,
+  one,
+  rows,
+  scheduleDailyCleanup,
+} from '../server/core/index.js';
+import { OPERATION_REQUEST_KEEP_DAYS, REQUEST_REUSED } from '../server/core/storage/requests.js';
+import { pragmaInteger } from '../server/core/storage/sqlite/sql.js';
+import { runCleanup } from '../server/core/backup/cleanup.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

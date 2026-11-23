@@ -1,5 +1,5 @@
-import type { Actor } from '../actor.js';
-import { AppError } from '../errors.js';
+import type { Actor } from '../http/actor.js';
+import { AppError } from '../http/errors.js';
 
 /**
  * 诊断读取函数共用的几样：权限（每个读取函数第一步调）、时间写法、分页条数。

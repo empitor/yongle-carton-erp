@@ -10,8 +10,7 @@ import LinkedDialogs, { linkedDelete } from '../src/admin/LinkedDialogs.js';
 import DatabaseDeleteDialog from '../src/recordkit/DatabaseDeleteDialog.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { AppError } from '../server/core/errors.js';
-import { count } from '../server/core/index.js';
+import { AppError, count } from '../server/core/index.js';
 import { basics, command } from './data-management-fixture.js';
 
 const noop = () => {};

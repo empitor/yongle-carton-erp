@@ -4,7 +4,7 @@
  *     'GET /customers/:id': { response: Customer };
  *     'PUT /customers/:id': { body: CustomerBody; response: Customer };
  *   };
- * 服务端用 route()（server/core/route.ts）注册，前端用 call()（src/ui/call.ts）发，两边引同一个键：返回值、参数对不上就编译不过。
+ * 服务端用 route()（server/core/http/route.ts）注册，前端用 call()（src/ui/call.ts）发，两边引同一个键：返回值、参数对不上就编译不过。
  * - 路径参数从键里推出来（:id）。query 是地址上的查询参数，body 是请求正文；不写就是不收。写接口（POST、PUT、PATCH、DELETE）必须写 body。
  * - 同一个地址按查询参数回不同形状的（withMetrics=1 回分页、不带回数组）：每种形状一个键，把定形状的参数写进键里
  *   （'GET /orders?withMetrics=1'）。服务端只注册不带问号的键，处理函数的返回值按这几个键的并集查。

@@ -1,7 +1,7 @@
 // 税务底稿：增值税留抵按月滚动（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { entry } from '../server/finance/base/query.js';
 import { FinanceTax } from '../server/finance/base/vat.js';

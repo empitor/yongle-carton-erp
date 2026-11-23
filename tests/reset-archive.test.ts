@@ -8,20 +8,24 @@ import { mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
-import { count, many, one } from '../server/core/sql.js';
-import { rows } from '../server/core/schema/rows.js';
-import type { Actor } from '../server/core/index.js';
+import {
+  Store,
+  count,
+  many,
+  one,
+  rows,
+  type Actor,
+  localAdministratorActor,
+  viaEntry,
+} from '../server/core/index.js';
 import { testImports } from './order-import-fixture.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { clearArchiveNow, deferArchiveCleanup } from '../server/admin/reset-archive.js';
-// 初始化时各模块清自己的表，删除时各模块配合（server/core/deletion-rules.ts）。
+// 初始化时各模块清自己的表，删除时各模块配合（server/core/records/deletion-rules.ts）。
 // 初始化要求单据导出登记了清空规则，不引它，单独跑这个文件会报“初始化要单据导出模块配合”
 import '../server/finance/index.js';
 import '../server/import/index.js';
 import '../server/documents/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { viaEntry } from '../server/core/audit.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';

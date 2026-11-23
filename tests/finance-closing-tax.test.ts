@@ -1,7 +1,7 @@
 // 月末税费计提怎么算（server/finance/closing-tax.ts 的 taxPlan）：附加税、所得税的分录和缺税率时的提示。全部虚构数据，内存库。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { entry } from '../server/finance/base/query.js';

@@ -147,7 +147,7 @@ export default [
     // 服务端读库只走 server/core 的 one、many、exists、count（在那里按结构校验），不直接 prepare(…).get/all/iterate；写库的 .run() 不管。
     // 按类型认语句对象（scripts/eslint-local-rules.mjs），先存进变量再读的也拦
     files: ['server/**/*.{ts,mts}'],
-    ignores: ['server/core/sql.ts', 'server/core/schema/**'],
+    ignores: ['server/core/storage/sqlite/sql.ts', 'server/core/schema/**'],
     rules: {
       'local/no-direct-db-read': 'error',
     },

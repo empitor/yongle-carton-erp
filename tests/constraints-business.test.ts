@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FINISHED_UNIT, RAW_UNIT } from '../shared/core/units.js';
 import { accepts, rejects, sha } from './schema-fixture.js';
 

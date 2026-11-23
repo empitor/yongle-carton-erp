@@ -1,6 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { Actor } from '../actor.js';
-import { Throttle } from '../throttle.js';
+import type { Actor } from '../http/actor.js';
+import { Throttle } from '../http/throttle.js';
 import { operationName, routePath } from './operation-names.js';
 import { errorReason, problemCategory, stackLines } from './problem-kinds.js';
 import { PROBLEM_WINDOW, type ProblemLog } from './problem-log.js';

@@ -1,7 +1,7 @@
 // 业务单据同步进财务：幂等、待补资料、收入确认口径、来源删除（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceEvents, unseenSources } from '../server/finance/events/events.js';
 import { FinanceReports } from '../server/finance/reports/reports.js';

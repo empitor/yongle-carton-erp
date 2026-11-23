@@ -9,7 +9,7 @@ import { deletionSelection, flowDocumentContent, flowDocumentSchema } from '../.
 import { impactList, inventoryFigures } from './deletion-impact.js';
 
 /*
- * 删除范围（删除引擎的规划部分，只读）：选了哪些记录，按数据库外键和各模块登记的删除规则（server/core/deletion-rules.ts）
+ * 删除范围（删除引擎的规划部分，只读）：选了哪些记录，按数据库外键和各模块登记的删除规则（server/core/records/deletion-rules.ts）
  * 算出连带删哪些行、解除哪些引用，带影响清单和范围摘要。真删在 database-maintenance.ts。
  */
 

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import { StoredDataError } from '../server/core/errors.js';
+import { StoredDataError } from '../server/core/index.js';
 import type { Workspace } from '../server/import/workspace-document.js';
 import { emptyImportMapping, importWorkspaceViewSchema } from '../shared/import/index.js';
 import { workspaceRecord } from './import-fixtures.js';

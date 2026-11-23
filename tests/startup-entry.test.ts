@@ -1,9 +1,9 @@
-// 运行锁（server/core/lock.ts）：两个进程不同时写一个库；起子进程测启动入口的在 tests/release/startup-entry.test.ts。
+// 运行锁（server/core/storage/lock.ts）：两个进程不同时写一个库；起子进程测启动入口的在 tests/release/startup-entry.test.ts。
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { acquireLock } from '../server/core/lock.js';
+import { acquireLock } from '../server/core/index.js';
 import { workspace } from './schema-fixture.js';
 
 test('运行锁：写进本进程号，放锁只删自己写的；活着的进程占着就拒绝，死掉的进程留下的锁接管，内容不认识的拒绝', () => {

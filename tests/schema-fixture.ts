@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { openBusinessDatabase, type UpgradeStep } from '../server/core/schema/index.js';
 import { customerSchema } from '../shared/core/domain.js';
 

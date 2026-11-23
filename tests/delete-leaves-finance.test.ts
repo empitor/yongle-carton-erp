@@ -4,9 +4,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { many } from '../server/core/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { Store, many, localAdministratorActor } from '../server/core/index.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { z } from 'zod';
 import { superActor } from './actor-fixture.js';

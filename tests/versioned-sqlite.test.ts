@@ -9,13 +9,9 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { defaultAccountPath } from '../server/accounts/index.js';
-import { checkVersionedSqlite, openVersionedSqlite } from '../server/core/versioned-sqlite.js';
-import {
-  resolveHomes,
-  VersionedSqliteError,
-  type VersionedSqliteSpec,
-  type VersionedSqliteState,
-} from '../server/core/versioned-sqlite-spec.js';
+import { openVersionedSqlite, VersionedSqliteError, type VersionedSqliteSpec } from '../server/core/index.js';
+import { checkVersionedSqlite } from '../server/core/backup/versioned-sqlite.js';
+import { resolveHomes, type VersionedSqliteState } from '../server/core/backup/versioned-sqlite-spec.js';
 
 /** 一个虚构的配置库：基线和当前都是第 3 版，notes 带 pinned 列，另有 tags 表。 */
 const notesOld = 'CREATE TABLE notes(id INTEGER PRIMARY KEY,body TEXT NOT NULL)';

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { createApp } from '../server/app.js';
 import { specification, today } from '../shared/core/domain.js';
 import { listen, testProblems } from './http-fixture.js';

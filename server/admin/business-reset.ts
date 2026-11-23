@@ -17,7 +17,7 @@ import { resetRequestSchema, type BusinessResetScope, type ResetPreview, type Re
 export type ResetBy = 'page' | 'assistant';
 /** 初始化要用识别导入的两件事：清空工作区、删原件归档（装配传进来的 ImportManager） */
 type ResetImports = Pick<ImportManager, 'deleteAllWorkspaces' | 'clearArchive'>;
-/** 清业务数据必须有这几个模块各自清自己的表（server/core/deletion-rules.ts 的 registerReset；别的模块登记了也一起清），连财务一起清再加财务 */
+/** 清业务数据必须有这几个模块各自清自己的表（server/core/records/deletion-rules.ts 的 registerReset；别的模块登记了也一起清），连财务一起清再加财务 */
 const businessModules = [
   '客户产品订单',
   '识别导入',

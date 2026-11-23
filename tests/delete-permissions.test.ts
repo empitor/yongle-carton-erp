@@ -5,12 +5,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { AuthManager } from '../server/accounts/index.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor, count } from '../server/core/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { startHttp } from './http-fixture.js';
 import { setup } from './delete-fixture.js';
 import { z } from 'zod';
-import { count } from '../server/core/index.js';
 import { actor, superActor } from './actor-fixture.js';
 
 /** 抛出的错带的状态码、类别和说明（不是带说明的对象就让断言失败） */

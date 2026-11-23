@@ -1,4 +1,4 @@
-// 配置库基线到当前之间的升级（server/core/versioned-sqlite.ts）：留备份后一步步升级、数据留着；
+// 配置库基线到当前之间的升级（server/core/backup/versioned-sqlite.ts）：留备份后一步步升级、数据留着；
 // 中途出错整个退回、文件不变、不删库；规格写错打开前就报错；比基线旧的照旧删掉重建；拿不到写锁就拒绝。只用造出来的步骤和虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,8 +6,7 @@ import { existsSync, readdirSync, renameSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { SNAPSHOT_DIRECTORY } from '../server/core/schema/index.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
-import { VersionedSqliteError, type VersionedSqliteSpec } from '../server/core/versioned-sqlite-spec.js';
+import { openVersionedSqlite, VersionedSqliteError, type VersionedSqliteSpec } from '../server/core/index.js';
 import {
   configWorkspace,
   noteSteps,

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { Store } from '../server/core/db.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
@@ -17,7 +17,6 @@ import { MonthCostBook, type Item } from '../server/finance/costing/costing-mont
 import { spreadAdjustment } from '../server/finance/costing/costing-invoice-adjust.js';
 import type { StockMovement as Movement } from '../server/flow/index.js';
 import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
-import { one, rows } from '../server/core/index.js';
 
 /** 管理员改一条流水（给的数量 delta_units、说明 notes）并留修订记录，再同步财务 */
 function reviseMovement(s: Store, movement: { id: string; itemId: number }, patch: { delta_units?: number; notes?: string }) {

@@ -2,8 +2,7 @@
 // 按流水重算结余时逐笔算出前后结余，会变负或超上限的交给调用方报错。内存库、虚构数据。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
-import { many, rows } from '../server/core/index.js';
+import { Store, many, rows } from '../server/core/index.js';
 import { OperationsService } from '../server/operations/index.js';
 import { stockLedger } from '../server/operations/index.js';
 import { MAX_STOCK_UNITS } from '../shared/core/index.js';

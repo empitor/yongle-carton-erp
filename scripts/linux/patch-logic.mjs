@@ -24,7 +24,7 @@ export function parseEnv(text) {
 }
 
 /**
- * 服务的配置目录，照程序里 configDirectory（server/core/config-paths.ts）的 Linux 规则另写一份（补丁脚本不引 server 代码，
+ * 服务的配置目录，照程序里 configDirectory（server/core/backup/config-paths.ts）的 Linux 规则另写一份（补丁脚本不引 server 代码，
  * tests/patch-rollback.test.ts 拿同样的输入比两边的结果）：ERP_CONFIG_DIR，否则 XDG_CONFIG_HOME/zhixu-erp，
  * 否则服务账号家目录下的 .config/zhixu-erp（家目录从 /etc/passwd 读，查不到返回 null）。不是绝对路径的和程序一样拒绝。
  */

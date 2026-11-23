@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { DataManagementService } from '../server/admin/data-management-service.js';
 import { recordContext } from '../server/overview/record-context.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor } from '../server/core/index.js';
 import { AUDIT_SOURCE, auditSourceNames } from '../shared/core/audit-sources.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { assistantFixture, confirmCard } from './assistant-fixture.js';

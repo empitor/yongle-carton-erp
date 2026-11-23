@@ -4,11 +4,10 @@ import { copyFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, SchemaError } from '../server/core/index.js';
 import {
   SCHEMA_BASELINE,
   SCHEMA_LATEST,
-  SchemaError,
   inspectSchema,
   openBusinessDatabase,
   schemaRefusal,

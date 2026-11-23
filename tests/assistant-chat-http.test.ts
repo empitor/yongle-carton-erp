@@ -12,11 +12,10 @@ import { assistantFixture, autoConfirmAssistant, lastCard, secret } from './assi
 import { businessBase } from './business-base-fixture.js';
 import { createBusinessService } from '../server/orders/index.js';
 import { startHttp } from './http-fixture.js';
-import { Store } from '../server/core/db.js';
+import { Store, count } from '../server/core/index.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { assistantDefaultPreset } from '../server/assistant/default-prompt.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import { count } from '../server/core/index.js';
 import { planCardSchema } from '../shared/assistant/index.js';
 import { actor } from './actor-fixture.js';
 import { readAs } from './read-result.js';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, one, rows } from '../server/core/index.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceReports } from '../server/finance/reports/reports.js';
 import { FinanceDue } from '../server/finance/parties/due.js';
@@ -13,7 +13,6 @@ import { FinanceStatements } from '../server/finance/parties/statements.js';
 import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
 import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { FinanceAllocations } from '../server/finance/cash/allocations.js';
-import { one, rows } from '../server/core/index.js';
 
 /** 承兑汇票：收票、开票、背书、退票都要在往来上留核销，往来明细、账龄、到期、收付计划和总账一致。全部虚构数据。 */
 

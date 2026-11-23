@@ -6,14 +6,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { ZodError } from 'zod';
-import { Store } from '../server/core/db.js';
-import type { Actor } from '../server/core/index.js';
+import { Store, type Actor, localAdministratorActor } from '../server/core/index.js';
 import { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';
 import { defaultPromptPreset } from '../server/import/default-prompts/sales-order.js';
 import { InboxService } from '../server/inbox/service.js';
 import { ReceiptAi } from '../server/import/receipt-ai.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { testProtector as protector } from './fake-deepseek.js';
 import { tempDir, testImports } from './order-import-fixture.js';
 

@@ -1,4 +1,4 @@
-// 初始化（连财务一起清）时财务清空自己的表（登记接口见 server/core/deletion-rules.ts）。由本模块的 index.ts 引入。
+// 初始化（连财务一起清）时财务清空自己的表（登记接口见 server/core/records/deletion-rules.ts）。由本模块的 index.ts 引入。
 import { many, registerReset, rows } from '../core/index.js';
 
 registerReset({

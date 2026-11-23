@@ -1,7 +1,7 @@
 // 财务事件的金额：启用前单据、0 元单据、缺数量还是缺价格、更正单直接入账（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, count } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceReports } from '../server/finance/reports/reports.js';
 import { FinanceMonthly } from '../server/finance/reports/monthly.js';
@@ -12,7 +12,6 @@ import { maker, newSettings, physical, deliveryDoc, arrivalDoc, event, eventsSte
 import { evaluateSource } from '../server/finance/events/event-evaluate.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { readSnapshot } from '../server/finance/events/source-snapshot.js';
-import { count } from '../server/core/index.js';
 
 test('启用前的单据启用后被改（补价格、编辑、冲销）：仍算启用前，不生成事件，结账不卡', () => {
   const s = new Store(':memory:');

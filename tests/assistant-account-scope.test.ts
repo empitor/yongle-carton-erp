@@ -11,8 +11,7 @@ import { changeLifecycle } from '../server/lifecycle/index.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { autoConfirmAssistant } from './assistant-fixture.js';
-import { AppError } from '../server/core/errors.js';
-import type { Actor } from '../server/core/index.js';
+import { AppError, type Actor } from '../server/core/index.js';
 import { readAs } from './read-result.js';
 
 const cashier = pageActor({ id: 'fictional-cashier', name: '虚构出纳', role: 'admin' as const, permissions: ['finance:view', 'finance:cash'] });

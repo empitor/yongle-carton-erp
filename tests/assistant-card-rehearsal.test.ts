@@ -1,8 +1,7 @@
 // 出卡片前的试执行（server/assistant/tools/card-rehearsal.ts）的两道守卫：要等的函数不试；业务库里每张表要么盯着、要么写明为什么不用盯。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
-import { count } from '../server/core/index.js';
+import { Store, count } from '../server/core/index.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';
 import { PROMISE_REFUSED, rehearseChanges, rehearsedTables } from '../server/assistant/tools/card-rehearsal.js';
 import { autoConfirmAssistant, ctxOf } from './assistant-fixture.js';

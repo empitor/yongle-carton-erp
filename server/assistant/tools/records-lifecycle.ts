@@ -228,7 +228,7 @@ export function withInventoryPolicy(
   };
 }
 
-/** 归档、恢复一条：档案和单据都是 server/core/archive.ts 那一份做法，各模块只给“什么时候不能归档” */
+/** 归档、恢复一条：档案和单据都是 server/core/records/archive.ts 那一份做法，各模块只给“什么时候不能归档” */
 function commitLifecycle(ctx: ToolContext, a: z.output<typeof lifecycleArgs>, actor: Actor) {
   const body = { action: a.action, acknowledged: true, items: [{ id: a.id, version: a.version }] };
   const entity = recordKindOf(a.module);

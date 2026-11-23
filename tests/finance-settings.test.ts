@@ -2,7 +2,7 @@ import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store, count, type Actor } from '../server/core/index.js';
 import { SCHEMA_LATEST } from '../server/core/schema/index.js';
 import { FinanceSettings } from '../server/finance/base/settings.js';
 import { FinanceTemplates } from '../server/finance/base/template.js';
@@ -10,7 +10,6 @@ import { financePermissions } from '../shared/core/accounts.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { entry } from '../server/finance/base/query.js';
 import { maker, newSettings, post } from './finance-fixture.js';
-import { count, type Actor } from '../server/core/index.js';
 import { z } from 'zod';
 
 /** 财务设置审计里改前改后的“审核分离”这一项 */

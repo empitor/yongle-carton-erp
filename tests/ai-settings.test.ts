@@ -12,7 +12,7 @@ import { defaultAiSettingsPath } from '../server/ai/credential-store.js';
 import { defaultPromptSettingsPath } from '../server/ai/prompt-presets.js';
 import { createApp } from '../server/app.js';
 import { listen, startHttp, testProblems } from './http-fixture.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { testImports } from './order-import-fixture.js';
 import { promptTable } from './assistant-fixture.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';

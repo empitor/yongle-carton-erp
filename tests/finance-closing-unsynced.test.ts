@@ -4,7 +4,7 @@ import '../server/flow/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
 import { deliveryDoc, event, eventsStep, maker, newSettings, physical, postDrafts } from './finance-fixture.js';

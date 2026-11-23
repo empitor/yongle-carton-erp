@@ -4,10 +4,10 @@ import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { errorMessage } from '../../../shared/core/index.js';
-import { consistentCopy } from '../sqlite-copy.js';
-import { exists, integrityPassed, many, one } from '../sql.js';
+import { readOnlyDatabase } from '../storage/sqlite/connection.js';
+import { consistentCopy } from '../storage/sqlite/sqlite-copy.js';
+import { exists, integrityPassed, many, one } from '../storage/sqlite/sql.js';
 import { SchemaError } from './errors.js';
-import { readOnlyDatabase } from './pragmas.js';
 import { upgradeSteps, type UpgradeStep } from './steps.js';
 import { SCHEMA_BASELINE } from './version.js';
 

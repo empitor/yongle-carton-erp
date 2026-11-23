@@ -56,7 +56,7 @@ const speaking = new Map<string, AbortController>();
 
 /**
  * 朗读一段文字，把 DeepSeek 流回来的音频（24 kHz、16 位小端、单声道的裸 PCM）原样写给浏览器（边收边写的做法在
- * server/core/stream.ts 的 pipeBytes）。拿到第一块音频之前出错（没密钥、余额不足、网络不通）照常抛出，由出错处理回中文说明；
+ * server/core/http/stream.ts 的 pipeBytes）。拿到第一块音频之前出错（没密钥、余额不足、网络不通）照常抛出，由出错处理回中文说明；
  * 已经开始写音频以后再断，只能断开连接，浏览器按“朗读中途断了”提示。
  */
 export async function readAloud(ai: TextToSpeech, text: string, owner: string, res: ServerResponse): Promise<void> {

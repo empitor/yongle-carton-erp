@@ -6,13 +6,16 @@ import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
-import { Store } from '../server/core/db.js';
-import { openVersionedSqlite } from '../server/core/versioned-sqlite.js';
+import {
+  Store,
+  openVersionedSqlite,
+  createFullBackup,
+  one,
+  readBackupManifest,
+} from '../server/core/index.js';
 import { ImportRepository } from '../server/import/repository.js';
-import { createFullBackup } from '../server/core/backup.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { AuthManager } from '../server/accounts/index.js';
-import { one, readBackupManifest } from '../server/core/index.js';
 import { z } from 'zod';
 
 /** 目录下每个文件的内容（base64），比较“一个字节没变”用 */

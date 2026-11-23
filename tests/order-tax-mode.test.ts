@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
-import { count } from '../server/core/sql.js';
+import { count } from '../server/core/index.js';
 import { changeOrderStatus } from '../server/orders/index.js';
 import { fieldNamer, orderSchema, userError } from '../shared/core/index.js';
 import { evaluateDraft } from '../shared/import/index.js';

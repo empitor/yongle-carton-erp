@@ -49,7 +49,7 @@ const sets = {
   // 权限：按账号判断能不能做、超级管理员模式、纯财务账号能用的地址和工具
   // （起整套服务的 super-admin、auth 测试一组要跑近 10 分钟，规则本身由纯函数测试守）
   permission: {
-    mutate: ['server/core/permissions.ts', 'shared/core/account-scope.ts'],
+    mutate: ['server/core/http/permissions.ts', 'shared/core/account-scope.ts'],
     tests: ['tests/permission-rules.test.ts', 'tests/assistant-account-scope.test.ts'],
   },
   // 单位和数量的校验入口：单据输入归一单位、拒收别的单位、到货行的 0

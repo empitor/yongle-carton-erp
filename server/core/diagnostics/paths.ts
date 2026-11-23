@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultDbPath } from '../db.js';
-import { registerVersionedSqlite } from '../versioned-sqlite-spec.js';
+import { defaultDbPath } from '../storage/db.js';
+import { registerVersionedSqlite } from '../backup/versioned-sqlite-spec.js';
 import { problemLogDatabase } from './problem-log.js';
 
 /**

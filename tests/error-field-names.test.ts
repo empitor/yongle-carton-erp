@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { z } from 'zod';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { fieldNamer, userError } from '../shared/core/index.js';
 import { deliverySetup } from './delivery-fixture.js';
 import { startHttp } from './http-fixture.js';

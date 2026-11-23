@@ -1,7 +1,7 @@
 // 月末的折旧、工资分次发、损益结转和 12 月年度利润结转（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { FinanceReports } from '../server/finance/reports/reports.js';
 import { FinanceClosing } from '../server/finance/reports/closing.js';

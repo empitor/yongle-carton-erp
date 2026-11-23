@@ -8,12 +8,11 @@ import assert from 'node:assert/strict';
 const completed = z.looseObject({ results: z.array(z.looseObject({})) });
 import { randomUUID } from 'node:crypto';
 import { autoConfirmAssistant } from './assistant-fixture.js';
-import { localAdministratorActor } from '../server/core/local-administrator.js';
+import { localAdministratorActor, count as countOf } from '../server/core/index.js';
 import { today } from '../shared/core/domain.js';
 import { businessBase } from './business-base-fixture.js';
 import { asList, field } from '../server/assistant/chat/result-fields.js';
 import type { AssistantManager } from '../server/assistant/manager.js';
-import { count as countOf } from '../server/core/index.js';
 import { actor, superActor } from './actor-fixture.js';
 const request = (name: string, args: Record<string, unknown>) => ({ message: '', toolCalls: [{ name, args }] });
 /** 用户说了的完工事实：完工日期和每个任务的实际良品、废品（全部做完、100%良品）。助手登记完工这两项必填。 */

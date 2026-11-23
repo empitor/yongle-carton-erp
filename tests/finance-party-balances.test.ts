@@ -1,7 +1,7 @@
 // 应收应付按单位、超授信、到货详情的财务一段（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { FinanceEvents } from '../server/finance/events/events.js';
 import { FinanceParties } from '../server/finance/parties/parties.js';
 import { FinanceLedger } from '../server/finance/ledger/ledger.js';

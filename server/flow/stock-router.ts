@@ -41,7 +41,7 @@ type Routes = {
   flow: FlowService;
   /** 认人：没有账号体系时拒绝；每次都查页面凭证（订货单的读接口也要，写接口装配层已经查过一次） */
   actor: (req: Request) => Actor | null;
-  /** 列表带不带已归档的：全站同一个判断（server/core/permissions.ts） */
+  /** 列表带不带已归档的：全站同一个判断（server/core/http/permissions.ts） */
   include: (req: Request, archived: unknown) => boolean;
 };
 

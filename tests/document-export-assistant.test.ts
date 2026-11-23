@@ -7,7 +7,7 @@ import { AssistantTools } from '../server/assistant/tools.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { assistantFixture, confirmCard, autoConfirmAssistant, lastCard, toolsOf } from './assistant-fixture.js';
 import { setup } from './document-fixture.js';
-import { count } from '../server/core/sql.js';
+import { count } from '../server/core/index.js';
 import { actor } from './actor-fixture.js';
 import { readAs } from './read-result.js';
 

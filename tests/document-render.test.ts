@@ -14,7 +14,7 @@ import { sampleDocument } from '../server/documents/sample.js';
 import { documentRowsPerPage } from '../server/documents/layout.js';
 import { layoutCases } from '../server/documents/layout-check.js';
 import { renderBusinessForm } from '../server/documents/render.js';
-import { AppError } from '../server/core/errors.js';
+import { AppError } from '../server/core/index.js';
 import { allRows, wordXml, zipEntries } from './document-fixture.js';
 
 const templates = defaultDocumentTemplates().templates;

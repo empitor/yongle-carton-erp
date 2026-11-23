@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { docxFixture, xlsxFixture } from './import-fixtures.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { fakeKey, replyCutOff, replyNative } from './fake-deepseek.js';
 import { filledForm, importWorkspace } from './order-import-fixture.js';
 import type { AiProgress } from '../shared/ai/index.js';

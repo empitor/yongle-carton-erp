@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { listen, testProblems } from './http-fixture.js';
 import { test } from 'node:test';
 import { createApp } from '../server/app.js';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

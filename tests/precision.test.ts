@@ -3,7 +3,7 @@
 import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../server/core/db.js';
+import { Store } from '../server/core/index.js';
 import { orderSchema, productSchema } from '../shared/core/domain.js';
 import { costCents, costYuan, plainPrice, precisionTotal, exactText, priceEdit, priceFromE4, priceToE4, productPricePatch } from '../shared/core/precision.js';
 import { userError } from '../shared/core/user-errors.js';

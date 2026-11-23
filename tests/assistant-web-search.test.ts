@@ -11,8 +11,7 @@ import { mergeSearchResults, webTools, WEB_READ_CHUNK, WEB_SEARCH } from '../ser
 import { allowedUrl, noteSearchResult } from '../server/assistant/chat/external-content.js';
 import { field } from '../server/assistant/chat/result-fields.js';
 import type { ReadExtra, ToolContext } from '../server/assistant/tools/context.js';
-import type { Actor } from '../server/core/index.js';
-import { Store } from '../server/core/db.js';
+import { type Actor, Store } from '../server/core/index.js';
 import type { AiSettingsManager } from '../server/ai/settings-manager.js';
 import { assistantFixture, toolServices } from './assistant-fixture.js';
 import { fakeAiSettings, fakeDeepSeek, fakeKey } from './fake-deepseek.js';
