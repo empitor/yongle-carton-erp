@@ -53,9 +53,9 @@ for (const t of await page.locator('.ai-settings-tabs [role=tab], .ai-settings-t
     else ok(button + '：' + file.suggestedFilename());
   }
 }
-// 消息接入：三家都连本机假服务端（server.mts 接的 tests/bot-fakes.ts），填虚构凭据要显示“已连接”，每张卡片一个主按钮
+// 消息接入：三家都连本机假服务端（server.mts 接的 tests/import/bot-fakes.ts），填虚构凭据要显示“已连接”，每张卡片一个主按钮
 {
-  const fake = readFileSync(new URL('../../tests/bot-fakes-http.ts', import.meta.url), 'utf8');
+  const fake = readFileSync(new URL('../../tests/import/bot-fakes-http.ts', import.meta.url), 'utf8');
   const [, appId, secret] = /appId: '([^']+)', secret: '([^']+)'/.exec(fake);
   await go(page, '#ai-settings?tab=channels');
   for (const label of ['企业微信机器人', '飞书机器人', '钉钉机器人']) {

@@ -33,12 +33,12 @@ model: opus
 - 不许出现的写法：函数越改越长、判断越套越深；同一段逻辑抄到第三处；为一个特例加开关参数；只给测试用的开关或分支；`catch` 之后什么都不做；“临时”“先这样”“以后再改”。
 
 ### 模块（AGENTS.md“模块”）
-- `tests/module-boundaries.test.ts`、`tests/module-api-owners.test.ts`、`tests/module-table-owners.test.ts` 会拦，但要看新登记的理由站不站得住：`module-boundaries` 的 `exceptions` 现在是空的，新加条目要说清为什么传入、登记、插槽都不行；`outsideRefs`、`toolInternalRefs`，`module-table-owners` 的 `tableWriteExceptions`、`singleWriterTables`、`financeDynamicReads`、`auditReaders`、`assistantReadExceptions` 新加条目都要有站得住的理由。
+- `tests/checks/module-boundaries.test.ts`、`tests/checks/module-api-owners.test.ts`、`tests/checks/module-table-owners.test.ts` 会拦，但要看新登记的理由站不站得住：`module-boundaries` 的 `exceptions` 现在是空的，新加条目要说清为什么传入、登记、插槽都不行；`outsideRefs`、`toolInternalRefs`，`module-table-owners` 的 `tableWriteExceptions`、`singleWriterTables`、`financeDynamicReads`、`auditReaders`、`assistantReadExceptions` 新加条目都要有站得住的理由。
 - 低层要用高层的东西：服务端用调用方传入或登记（没登记要报错，不能悄悄跳过），前端用插槽和服务接口（`src/ui/slots.tsx`）。库存流水只经 `server/operations/ledger/ledger.ts`。
 
 ### 新增功能时一起改（AGENTS.md 同名一节和它指向的清单）
 - 表或字段：逐项对 AGENTS.md 和 `docs/架构/数据库和备份.md`“业务库”的清单；另查升级步骤照 `server/core/schema/steps.ts` 开头的规矩写（STRICT、枚举 CHECK、日期和 JSON 用 `server/core/schema/tables/checks.ts` 的片段、带 `version` 列的表有 `CHECK(version>=1)`），新表的外键在删除引擎里有处理。业务库从 0.9.0 起不兼容更早的数据，不要新加“兼容老数据”的读取分支；读取规则改了而库里可能留着现行程序不再写出的记录时，对应功能的测试里有直接改库造出老样子的用例。
-- 助手工具：要在和人一样的前提下真能跑通（比如普通账号、订单已关联生产任务），不能只看文档或工具名，拿不准就写探针试。没有给 `server/assistant/chat/` 加猜意思、按字眼放行或拦截、改写模型回答的规则；写入都出确认卡片，卡片上写明动的是哪条记录和每个变了的字段（`tests/assistant-boundaries.test.ts` 守着）。
+- 助手工具：要在和人一样的前提下真能跑通（比如普通账号、订单已关联生产任务），不能只看文档或工具名，拿不准就写探针试。没有给 `server/assistant/chat/` 加猜意思、按字眼放行或拦截、改写模型回答的规则；写入都出确认卡片，卡片上写明动的是哪条记录和每个变了的字段（`tests/assistant/assistant-boundaries.test.ts` 守着）。
 - 文档（AGENTS.md“文档怎么维护”）：和代码同一轮改完、写的和代码对得上；只写现状和待办，不写“本轮”“之前”这类会过时的话；一件事只在一处写。
 - 测试：新测试按守的事放进对应的文件，不按“哪一轮审查”建文件。
 

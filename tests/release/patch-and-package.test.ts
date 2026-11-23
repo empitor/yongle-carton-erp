@@ -1,4 +1,4 @@
-// 发布前检查：补丁和整包的文件清单、补丁脚本能单独运行、版本探针、命令行备份（只调纯函数的回滚判断和补丁锁在 tests/patch-rollback.test.ts）。改业务代码用不着每次跑，发布时跑 npm run test:release。
+// 发布前检查：补丁和整包的文件清单、补丁脚本能单独运行、版本探针、命令行备份（只调纯函数的回滚判断和补丁锁在 tests/core/patch-rollback.test.ts）。改业务代码用不着每次跑，发布时跑 npm run test:release。
 import { sales } from '../../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { Store, createFullBackup, restoreFullBackup, readBackupManifest } from '
 import { supportedDatabaseVersions } from '../../server/core/backup/backup-check.js';
 import { customerSchema } from '../../shared/core/domain.js';
 import { errorMessage } from '../../shared/core/error-message.js';
-import { load, patchLogic, patchRollback, projectRoot } from '../patch-scripts-fixture.js';
+import { load, patchLogic, patchRollback, projectRoot } from '../support/patch-scripts-fixture.js';
 
 type Stray = { untracked: string[]; ignored: string[] };
 type PatchServer = {

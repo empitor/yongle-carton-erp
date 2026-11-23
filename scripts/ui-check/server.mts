@@ -15,7 +15,7 @@ const remote = process.env.UI_CHECK_REMOTE === '1';
 const realModel = process.env.UI_CHECK_REAL_MODEL === '1';
 process.env.PORT = String(port);
 // 先设好端口等环境变量再加载服务端代码，所以用 import()；引用模块只走公开入口
-const { createOrderWorkflowFixture } = await import('../../tests/assistant-workflow-fixture.ts');
+const { createOrderWorkflowFixture } = await import('../../tests/support/assistant-workflow-fixture.ts');
 const { one, rows } = await import('../../server/core/index.ts');
 const { AuthManager, readLoginRecords } = await import('../../server/accounts/index.ts');
 const { createApp } = await import('../../server/app.ts');
@@ -46,7 +46,7 @@ const slowRecognition = (next: (request: Request) => Promise<Response>) => async
   return new Response(body, { status: response.status, headers: response.headers });
 };
 // 到货识别：模型替身固定回一张虚构送货单（supplierReply 在下面造好种子数据以后才定，识别时才读；真实模型模式用真实设置）
-const { makeSettings } = await import('../../tests/assistant-fixture.ts');
+const { makeSettings } = await import('../../tests/support/assistant-fixture.ts');
 const receiptSettings = real ? real.settings : makeSettings(() => supplierReply);
 const f = createOrderWorkflowFixture(undefined, { ...(real ? { settings: real.settings } : { wrap: slowRecognition }), receiptSettings });
 const authPath = join(f.dir, 'users.sqlite');
@@ -61,7 +61,7 @@ add('虚构管理员', 'Fictional-Admin-2026', 'super_admin');
 add('虚构出纳', 'Fictional-Cashier-2026', 'admin', ['finance:view', 'finance:cash']);
 add('虚构只读', 'Fictional-Viewer-2026', 'admin', []);
 db.close();
-const { pageActor } = await import('../../tests/actor-fixture.ts');
+const { pageActor } = await import('../../tests/support/actor-fixture.ts');
 const actor: Actor = pageActor({ id: 'seed', name: '虚构初始化', permissions: ['business:edit', 'import:execute'], role: 'admin' });
 const { store } = f, ops = new OperationsService(store), flow = new FlowService(store);
 const shift = (d: number) => { const t = new Date(today() + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
@@ -166,10 +166,10 @@ inbox.ingest({ channel: 'wecom_bot', externalId: 'v2', senderName: '李工', con
 inbox.ingest({ channel: 'wecom_bot', externalId: 'v3', senderName: '虚构华美瓦楞', conversation: '虚构华美瓦楞', kind: 'text', text: '明天上午送BC五层纸板800张，请安排卸货。', receivedAt: nowIso(95) });
 inbox.ingest({ channel: 'wecom_bot', externalId: 'v4', senderName: '张会计', conversation: '虚构北仑灯具', kind: 'image', file: { name: '手写订单照片.png', mime: 'image/png', bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==','base64')) }, receivedAt: nowIso(180) });
 inbox.ingest({ channel: 'manual', externalId: 'v5', kind: 'text', text: '客户电话：月底对账单已发，请核对。', receivedAt: nowIso(600) });
-// 三家机器人连本机假服务端（tests/bot-fakes.ts），不会连到真的企业微信、飞书、钉钉；
-// 填 tests/bot-fakes-http.ts 里的虚构凭据能看到“已连接”，填别的看“连接被拒绝”。Secret 只在这个临时目录里，不加密
+// 三家机器人连本机假服务端（tests/import/bot-fakes.ts），不会连到真的企业微信、飞书、钉钉；
+// 填 tests/import/bot-fakes-http.ts 里的虚构凭据能看到“已连接”，填别的看“连接被拒绝”。Secret 只在这个临时目录里，不加密
 const { inboxBots, BotSettings } = await import('../../server/inbox/index.ts');
-const { startFakeBots } = await import('../../tests/bot-fakes.ts');
+const { startFakeBots } = await import('../../tests/import/bot-fakes.ts');
 const fakeBots = await startFakeBots();
 const botSettings = new BotSettings(join(f.dir, 'bots.sqlite'), { protect: (v) => v, unprotect: (v) => v });
 const bots = inboxBots(f.store, botSettings, {
@@ -185,7 +185,7 @@ const { receiptAi } = f.deps;
 // 识别好的文件（模型替身给结果，不调真实模型）：AI 导入页、助手导入卡片、“助手改的”标记要看。
 // 订单那份是“聊天验收客户”的：第 1 行“聊天纸箱甲 300×200×150”已有归属该客户的同名产品（规格没写单位，作为候选待确认），第 2 行要新建产品。
 if (!real) {
-  const { imageFixture } = await import('../../tests/import-fixtures.ts');
+  const { imageFixture } = await import('../../tests/support/import-fixtures.ts');
   const { prepareArrivalRecognition } = await import('../../server/import/index.ts');
   const buyer = one(store.db, rows.customers.pick({ id: true }), "SELECT id FROM customers WHERE name='聊天验收客户'");
   if (!buyer) throw new Error('助手夹具里没有“聊天验收客户”');
@@ -234,7 +234,7 @@ const app = createApp(f.store, { auth, assistant, imports: f.imports, execution:
 const { createServer } = await import('node:http');
 /**
  * 模拟从域名访问（--remote，或请求带转发头）时给登录状态补一个虚构备案号，看页面底部的备案号（scripts/ui-check/flow-filing.mjs）。
- * 真实服务只在部署模式的域名入口带出（server/accounts/auth-router.ts，tests/deployment.test.ts 守着）；这个实例没开部署模式，在这里补。
+ * 真实服务只在部署模式的域名入口带出（server/accounts/auth-router.ts，tests/core/deployment.test.ts 守着）；这个实例没开部署模式，在这里补。
  */
 const FAKE_FILING = { icp: '虚构ICP备00000000号' };
 function withFakeFiling(res: import('node:http').ServerResponse) {

@@ -124,9 +124,9 @@ export default [
     files: ['{server,shared,src,scripts,tests}/**/*.{ts,tsx,mts,js,mjs}'],
     ignores: [
       'src/ui/**',
-      'tests/assistant-page-reads-server.test.ts',
-      'tests/stream-reply.test.ts',
-      'tests/frontend-request.test.ts',
+      'tests/assistant/assistant-page-reads-server.test.ts',
+      'tests/core/stream-reply.test.ts',
+      'tests/app/frontend-request.test.ts',
     ],
     rules: { 'no-restricted-imports': ['error', { patterns: [uiImport(['trustedReply', 'responseData', 'readEventStream'])] }] },
   },
@@ -161,7 +161,7 @@ export default [
   },
   { files: ['server/flow/finance-facts/**/*.ts'], rules: { 'local/no-flow-literals': 'error' } },
   {
-    // 财务从业务拿数据的只读窗口：只用 server/core 的 one、many、exists、count 读，能写库的入口一个都不碰（SQL 里的写由 tests/module-table-owners.test.ts 查）
+    // 财务从业务拿数据的只读窗口：只用 server/core 的 one、many、exists、count 读，能写库的入口一个都不碰（SQL 里的写由 tests/checks/module-table-owners.test.ts 查）
     files: ['server/flow/finance-facts/**/*.ts'],
     rules: {
       'no-restricted-properties': [
