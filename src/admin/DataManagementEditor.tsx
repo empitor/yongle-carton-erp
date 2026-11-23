@@ -198,7 +198,7 @@ function EditWindow({
   submit: (patch: JsonObject, confirmDistinct?: boolean) => void;
 }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  function save(confirmDistinct?: boolean) {
+  function save() {
     let patch;
     try {
       patch = submittedInput(module, input, editing?.input);
@@ -210,7 +210,7 @@ function EditWindow({
       return;
     }
     setFieldErrors({});
-    submit(patch, confirmDistinct);
+    submit(patch, sameName);
   }
   return (
     <DataManagementRecordDialog

@@ -39,7 +39,7 @@ export default function DataManagementRecordDialog({
   fieldErrors?: Record<string, string>;
   /** 关联字段的候选（客户、产品、订单……），还在读是 null */
   refs: RecordRefs | null;
-  save: (confirmDistinct?: boolean) => void;
+  save: () => void;
   close: () => void;
 }) {
   // 每点一次保存加一：同一句报错再出现一次也要再滚过去
@@ -81,11 +81,11 @@ export default function DataManagementRecordDialog({
             disabled={busy}
             onClick={() => {
               setAttempt((n) => n + 1);
-              save(sameName);
+              save();
             }}
           >
             <Save size={14} aria-hidden="true" />
-            {busy ? '正在保存…' : sameName ? '确认是另一个产品，继续保存' : '保存' + dataManagementNames[module]}
+            {busy ? '正在保存…' : sameName ? '是另一个产品，保存' : '保存' + dataManagementNames[module]}
           </button>
         </EditorFooter>
       }
