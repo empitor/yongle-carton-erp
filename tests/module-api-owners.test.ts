@@ -16,8 +16,10 @@ const apiOwners: [prefix: string, module: string][] = [
   ['/diagnostics', '基础'],
   // 使用手册（server/system/user-manual.ts），“使用说明”页读
   ['/guide', '系统资料'],
-  ['/business', '业务汇总'], ['/dashboard', '业务汇总'], ['/customers', '业务汇总'], ['/products', '业务汇总'],
-  ['/orders', '业务汇总'], ['/marks', '业务汇总'],
+  ['/business', '业务汇总'], ['/dashboard', '业务汇总'],
+  ['/customers', '订单服务'], ['/products', '订单服务'], ['/orders', '订单服务'],
+  // 产品详情里的唛头由业务汇总挂路由。
+  ['/marks', '业务汇总'], ['/products/:id/marks', '业务汇总'],
   ['/suppliers', '采购库存'],
   // 采购单、库存品和流水、订货单（含登记到货）回答带单据的内容，在单据流转（server/flow/stock-router.ts）
   ['/purchases', '单据流转'], ['/warehouse', '单据流转'], ['/order-batches', '单据流转'],
@@ -40,7 +42,7 @@ const apiOwners: [prefix: string, module: string][] = [
 const apiAllow: Record<string, string[]> = {
   // 每个页面的登录状态和凭证刷新都由前端基础读 /auth/state。
   '前端-基础': ['基础', '账号'],
-  '前端-业务': ['基础', '采购库存', '单据流转', '删除归档', '业务汇总'],
+  '前端-业务': ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '业务汇总'],
   '前端-单据导出': ['单据导出'],
   '前端-系统资料': ['系统资料'],
   '前端-财务': ['基础', '财务'],
@@ -79,8 +81,8 @@ const fin = (name: string, code: string, expect: string[], violation?: ApiSample
 const apiSamples: ApiSample[] = [
   // ---------- 必须拦住 ----------
   fin('财务前端直接 fetch 没登记的模块', `export const probe = () => fetch('/api/unregistered-module/probe');`, ['/unregistered-module/probe'], '没登记'),
-  fin('财务前端先存进变量再请求业务汇总的地址', `export function probe() { const path = '/customers'; return authorizedRequest(path, undefined, 'GET'); }`, ['/customers'], '越界'),
-  fin('财务前端模板字符串请求业务汇总', 'export const probe = () => authorizedRequest(`/customers/${id}`, undefined, "GET");', ['/customers/:id'], '越界'),
+  fin('财务前端先存进变量再请求订单服务的地址', `export function probe() { const path = '/customers'; return authorizedRequest(path, undefined, 'GET'); }`, ['/customers'], '越界'),
+  fin('财务前端模板字符串请求订单服务', 'export const probe = () => authorizedRequest(`/customers/${id}`, undefined, "GET");', ['/customers/:id'], '越界'),
   fin('财务前端拼出来的 /api 地址（不在请求函数里）', `export const url = '/api/customers/' + id + '/x';`, ['/customers/:id/x'], '越界'),
   fin('请求函数参数里没登记的根前缀（不带 /api 也报）', `export const probe = () => authorizedRequest('/unregistered/x', undefined, 'GET');`, ['/unregistered/x'], '没登记'),
   fin('三元：两边都算', `export const probe = () => authorizedRequest(cond ? '/customers' : '/suppliers', undefined, 'GET');`, ['/customers', '/suppliers'], '越界'),

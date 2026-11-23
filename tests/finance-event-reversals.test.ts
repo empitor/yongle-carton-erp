@@ -198,7 +198,7 @@ test('生成过凭证的送货单被撤销：草稿凭证、已记账凭证都�
 });
 
 test('暂估往来已被核销的送货单被撤销后，订单又换了客户（单据跟着改）：仍是同一条“待撤销核销”，撤销核销记账后自动已更正、放行', async () => {
-  const { createBusinessService } = await import('../server/business/service.js');
+  const { createBusinessService } = await import('../server/orders/index.js');
   const t = await flowFinance();
   try {
     const service = new FinanceSettlements(t.f.store);

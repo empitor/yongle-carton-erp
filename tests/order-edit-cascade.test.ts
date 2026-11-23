@@ -1,4 +1,4 @@
-// 本机管理员给订单换客户时连带改送货单（server/business/order-edit-cascade.ts）：共享的送货单拆开，出库流水改挂、不重记，
+// 本机管理员给订单换客户时连带改送货单（server/flow/rules/order-edit-cascade.ts）：共享的送货单拆开，出库流水改挂、不重记，
 // 状态和出库、送达记录沿用；写到一半失败整笔回滚；不是本机管理员的不能连带改。删明细见 order-edit-line-removal.test.ts，
 // 审计和流水备注见 order-edit-audit.test.ts，删除引擎本身见 database-maintenance.test.ts。
 import { pageActor } from './actor-fixture.js';
@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { many, rows } from '../server/core/index.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { flowStatusLabel } from '../shared/business/physical-flow.js';
-import { manualWrite } from '../server/business/service.js';
+import { manualWrite } from './business-base-fixture.js';
 import { splitDeliveryFixture } from './maintenance-fixture.js';
 import { orderOf } from './flow-fixture.js';
 

@@ -358,7 +358,7 @@ test('前端模块之间的事件只用 src/ui/events.ts 的 emit、listen，不
   assert.deepEqual(bad, []);
 });
 
-test('分了层的模块只往下用：前端业务四层、共用业务四层（含服务端四层经入口用它），一处越层都不许有', () => {
+test('分了层的模块只往下用，服务端用共用业务也按对应层限制', () => {
   assert.deepEqual(all.flatMap((f) => layerBreaches(f).map((b) => b.text)), []);
 });
 
@@ -366,7 +366,7 @@ test('分了层的模块每个文件都登记进了某一层，层表里写的�
   assert.deepEqual(modules.flatMap((m) => layerGaps(m, all)), []);
 });
 
-/** 层名里对不上任何模块名的（服务端四层用共用业务的限制靠模块名和层名相同对上，改了模块名限制会悄悄失效） */
+/** 共用业务的层名要对上服务端模块名，才能应用对应的分层限制 */
 const unmatchedLayers = (rule: Rule | undefined, rules: Rule[]) =>
   (rule?.layers ?? []).filter((l) => !rules.some((m) => m.name === l.name)).map((l) => l.name);
 

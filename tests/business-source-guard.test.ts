@@ -1,8 +1,8 @@
-// 业务服务（server/business/service.ts）只收人工来源和带确认凭据的助手来源：没有凭据的助手来源直接写客户、产品、订单一律拒绝，伪造人工来源也不行。内存库。
+// 业务服务（server/orders/service.ts）只收人工来源和带确认凭据的助手来源：没有凭据的助手来源直接写客户、产品、订单一律拒绝，伪造人工来源也不行。内存库。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
-import { createBusinessService, BusinessAccessError } from '../server/business/service.js';
+import { createBusinessService, BusinessAccessError } from '../server/orders/index.js';
 
 test('助手来源没有确认凭据时业务服务拒绝写入，模型伪造人工来源也不能改变上下文', () => {
   const store = new Store(':memory:');

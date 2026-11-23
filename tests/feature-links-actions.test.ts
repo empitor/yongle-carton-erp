@@ -99,7 +99,7 @@ test('写地址都登记、不重复：服务端每个写地址正好属于一�
 });
 
 test('认路由认得接口表的写法：route() 注册的写地址照样要登记在动作上，注册文件算调 route() 的文件', () => {
-  const records = routes.filter((r) => r.file === 'server/business/records-router.ts').map(routeKey);
+  const records = routes.filter((r) => r.file === 'server/orders/records-router.ts').map(routeKey);
   for (const key of ['GET /customers', 'PUT /customers/:id', 'POST /orders/:id/cancel'])
     assert.ok(records.includes(key), 'records-router.ts 用 route() 注册的 ' + key + ' 没认出来');
   const lifecycle = routes.filter((r) => r.file === 'server/lifecycle/lifecycle-router.ts').map(routeKey);

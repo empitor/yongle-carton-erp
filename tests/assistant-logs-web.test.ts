@@ -19,7 +19,7 @@ import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import { systemStatus } from '../server/assistant/tools/system.js';
 import type { ToolContext, ToolServices } from '../server/assistant/tools/context.js';
 import { field } from '../server/assistant/chat/result-fields.js';
-import { manualWrite } from '../server/business/service.js';
+import { manualWrite } from './business-base-fixture.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { fakeAiSettings, fakeKey } from './fake-deepseek.js';
 import { readAs } from './read-result.js';

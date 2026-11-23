@@ -1,10 +1,10 @@
-// 订单状态由有效单据派生（server/flow/rules/order-progress.ts、server/business/service.ts）：生产中、待发货、已发货跟着任务、完工、
+// 订单状态由有效单据派生（server/flow/rules/order-progress.ts、server/orders/service.ts）：生产中、待发货、已发货跟着任务、完工、
 // 送货走，分批做分批发、一张任务挂多张单、撤销和删除单据后回退；人工只定待确认、已确认、已取消。下一步见 order-next-step.test.ts。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { createBusinessService } from '../server/business/service.js';
+import { createBusinessService } from '../server/orders/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { count, type Actor } from '../server/core/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, orderDisplayStatus, productSchema, statuses, uncountedOrderStatuses } from '../shared/core/domain.js';

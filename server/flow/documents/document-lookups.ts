@@ -4,8 +4,8 @@ import { many, rows } from '../../core/index.js';
 import { flowEntityPrefix, flowStatus, type FlowKind } from '../../../shared/business/index.js';
 
 /*
- * 单据流转的轻量只读：按编号或条件只取几列（版本号、单号、原件文件名），不组装单据视图。
- * 给上层核对“数据变没变”（助手确认卡片的数据版本）、列表补名字用；要单据的样子读 FlowService 的 list、get。
+ * 单据流转的轻量只读：按编号或条件只取关联编号、版本号、单号等，不组装单据视图。
+ * 给上层查关联、核对版本、列表补名字用；要单据的样子读 FlowService 的 list、get。
  */
 
 const PRODUCTION: FlowKind = 'production',
@@ -26,6 +26,25 @@ export const pendingCompletionVersions = (store: Store) =>
   many(store.db, numberedVersion, versionSelect + ' WHERE t.kind=? AND t.status=? ORDER BY t.id', PRODUCTION, flowStatus.draft);
 
 const arrivalHead = rows.flow_documents.pick({ id: true, number: true, status: true });
+const idRow = rows.flow_documents.pick({ id: true });
+
+/** 按 flow_refs 索引取关联单据编号。详情的关联业务和改订单的单据连带按各自的规则核对查到的单据。 */
+export function referencingDocuments(
+  store: Store,
+  kind: 'arrival' | 'task' | 'production' | 'delivery',
+  column: 'order_id' | 'task_id' | 'purchase_line_id',
+  ids: readonly number[],
+) {
+  if (!ids.length) return [];
+  return many(
+    store.db,
+    idRow,
+    `SELECT id FROM flow_documents WHERE kind=? AND id IN (SELECT document_id FROM flow_refs WHERE ${column} IN (SELECT value FROM json_each(?)))`,
+    kind,
+    JSON.stringify(ids),
+  ).map((r) => r.id);
+}
+
 /**
  * 到货单（含归档的）的单号、状态和锁没锁（已确认、取消、撤销的不能再改），按编号批量取：
  * 识别导入的文件列表、换识别类型前看锁没锁用。找不到的不在结果里。

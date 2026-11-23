@@ -103,7 +103,7 @@ export const historyActionNames: Record<string, string> = {
   correct: '更正',
   // 本机管理员改库存品时到货单里的纸板资料跟着改（server/flow/maintenance-cascade.ts）
   'edit-related-stock': '库存品资料同步到单据',
-  // 本机管理员改订单时送货单跟着变（server/business/order-edit-cascade.ts 记的三种）
+  // 本机管理员改订单时送货单跟着变（server/flow/rules/order-edit-cascade.ts 记的三种）
   'split-delivery': '拆分送货单',
   'remove-delivery-lines': '送货单去掉明细',
   'change-delivery-customer': '送货单换客户',

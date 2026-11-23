@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import type { DatabaseSync } from 'node:sqlite';
 import { one, rows } from '../server/core/index.js';
 import { insertFlowDocument, writeFlowDocument } from '../server/flow/documents/document-store.js';
-import { replaceFlowDocument } from '../server/flow/index.js';
+import { replaceFlowDocument } from '../server/flow/rules/maintenance-writes.js';
 import { storedDocument } from '../server/flow/documents/read.js';
 import { insertSource, updateSourceDocument } from '../server/flow/index.js';
 import { Store } from '../server/core/db.js';

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { pageRows, InputError, type Store } from '../core/index.js';
 import { productIdsOfCustomer } from '../operations/index.js';
-import { dateSchema, type Order } from '../../shared/core/index.js';
+import type { Order } from '../../shared/core/index.js';
 import {
   customerQuerySchema,
   matchesOperationalRecord,
@@ -13,11 +13,9 @@ import {
   productMetrics,
   productQuerySchema,
 } from '../../shared/business/index.js';
-import { buildDashboard } from './dashboard.js';
-import { periodOrders } from './period-records.js';
 
 /*
- * 客户、产品、订单列表和经营概况的读取：按请求参数筛选、分页、算统计（原来写在 server/app.ts 里）。
+ * 客户、产品、订单列表的读取：按请求参数筛选、分页、算统计。
  * 只读，参数是请求的 query，按 shared/business/record-queries.ts 的规则校验；带不带已归档的由调用方按权限判断好传进来。
  */
 
@@ -25,7 +23,7 @@ import { periodOrders } from './period-records.js';
 export const listFields = (query: unknown) => z.record(z.string(), z.unknown()).parse(query);
 
 /** 订单的筛选：客户、产品、下单日期、显示状态、关键字、待处理/全部/历史（判断和助手同一份 orderMatches） */
-function filterOrders<T extends Order>(f: z.output<typeof orderQuerySchema>, rows: T[]) {
+export function filterOrders<T extends Order>(f: z.output<typeof orderQuerySchema>, rows: T[]) {
   if (f.start && f.end && f.start > f.end) throw new InputError('开始日期不能晚于结束日期');
   const filter = { ...f, retainPending: f.retainPending === '1' };
   return rows.filter((o) => orderMatches(o, filter));
@@ -75,16 +73,4 @@ export function orderList(store: Store, query: Record<string, unknown>, includeA
   return query.withMetrics === '1'
     ? { ...pageRows(rows, query), totalRecords: scoped.length, metrics: orderMetrics(rows) }
     : rows;
-}
-
-/** 经营概况：按订单的筛选条件和统计日期算 */
-export function orderDashboard(store: Store, query: Record<string, unknown>) {
-  const range = z.object({ start: dateSchema.optional(), end: dateSchema.optional() }).parse(query);
-  // 页面不显示工作台统计，只有助手 overview.get 需要；这里不算，首页少卡几秒。
-  // 所选日期的统计算上这段时间里已归档的订单（只按日期圈出来读），实时的待办用没归档的
-  const { current, archived } = periodOrders(store, range);
-  return buildDashboard(store, filterOrders(orderQuerySchema.parse(query), [...current, ...archived]), range, undefined, {
-    allOrders: current,
-    workbench: false,
-  });
 }

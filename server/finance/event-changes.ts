@@ -17,7 +17,7 @@ import { taxBasis } from './event-evaluate.js';
  * 单据生效以后，明细的数量、单价、税率、改挂订单或采购明细都要更正，出一张替代单（另一条来源，不在这里比）；
  * 同一张单据的明细原地会变的只有：到货明细的纸板资料（管理员改库存品时跟着对齐，flow/maintenance-cascade.ts 的
  * alignStock：品名、按面积计价时的长宽）和采购关联（管理员删改采购明细时解除，写成“对应采购单”）。
- * 送货单改订单时只会删行、拆单（business/order-edit-cascade.ts），留下的行原样不动，所以送货单只列增减的行。
+ * 送货单改订单时只会删行、拆单（flow/rules/order-edit-cascade.ts），留下的行原样不动，所以送货单只列增减的行。
  */
 type EventChange = { label: string; before: string; after: string };
 

@@ -5,7 +5,7 @@ import type { customerQuerySchema, orderQuerySchema, productQuerySchema } from '
 import type { RecordStatusAction, recordStatusInputSchema } from './record-status.js';
 
 /*
- * 客户、产品、订单的接口表（服务端 server/business/records-router.ts，前端 src/editors/editor-api.ts、src/recordkit/record-api.ts、
+ * 客户、产品、订单的接口表（服务端 server/orders/records-router.ts，前端 src/editors/editor-api.ts、src/recordkit/record-api.ts、
  * src/records/list-api.ts）。表的写法见 shared/core/api-table.ts。查询参数和正文都照服务端的 zod 规则的输入写，服务端照样先校验。
  */
 

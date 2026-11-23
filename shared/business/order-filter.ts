@@ -1,7 +1,7 @@
 import { orderDisplayStatus, orderInView, type displayOrderStatuses, type Order, type OrderView } from '../core/index.js';
 
 /*
- * 订单筛选的判断：页面订单列表和经营概况（server/business/record-lists.ts）、助手查订单（records.search、records.summarize）
+ * 页面订单列表和经营概况经 server/orders/record-lists.ts 筛选；助手查订单（records.search、records.summarize）也用这里的判断。
  * 都调这一份。状态只认页面上看到的叫法（displayOrderStatuses，“部分发货”由发货进度派生），不认别的说法。
  */
 

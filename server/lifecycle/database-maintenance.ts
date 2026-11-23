@@ -27,7 +27,7 @@ type CheckedDeletion = { actor: Actor; v: DeletionRequest; request: ReturnType<t
 /**
  * 删除引擎（受控数据库维护）：删除不是归档/冲销。这里管谁能删、预览和真删；删哪些、解除哪些引用在 deletion-plan.ts 算，
  * 由数据库外键和各模块登记的删除规则决定（server/core/deletion-rules.ts）；改、删每一行都交给表的主人写，这里不直接写别的模块的表。
- * 影响清单怎么显示、库存说明要的数在 deletion-impact.ts；管理员改订单时连带改单据在业务汇总的 order-edit-cascade.ts。
+ * 影响清单怎么显示、库存说明要的数在 deletion-impact.ts；管理员改订单时由订单服务的 order-edit-cascade.ts 调用删除引擎。
  */
 export class DatabaseMaintenanceService {
   constructor(readonly store: Store) {}
@@ -126,7 +126,7 @@ export class TakenSnapshot {
 }
 
 /**
- * 调用方在同一次操作里已经拍过破坏前快照时的删除（本机管理员改订单连带删整张送货单：业务汇总的 service.ts 改订单前
+ * 调用方在同一次操作里已经拍过破坏前快照时的删除（本机管理员改订单连带删整张送货单：订单服务的 service.ts 改订单前
  * 用 TakenSnapshot.take 拍了一份）：核对和删除跟 delete 一样，只是不再拍第二份。要本库的快照凭证，没拍过就调不了。
  */
 export function deleteAfterSnapshot(

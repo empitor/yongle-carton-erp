@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { flowFixture, clerk, localAdmin } from './flow-fixture.js';
 import { alignStock, detachPurchaseLines } from '../server/flow/rules/maintenance-cascade.js';
-import { replaceFlowDocument } from '../server/flow/index.js';
+import { replaceFlowDocument } from '../server/flow/rules/maintenance-writes.js';
 import { get } from '../server/flow/documents/read.js';
 import { receiveLines } from './receive-fixture.js';
 

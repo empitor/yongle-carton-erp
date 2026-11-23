@@ -83,7 +83,7 @@ const moduleTests: ModuleTests[] = [
       },
       {
         file: 'tests/flow-document-store.test.ts',
-        why: '测单据表唯一的写法 document-store（插入、写入、镜像列）和存下的原文，入口不导出写单据表的函数',
+        why: '直接测 document-store 的插入、写入、镜像列、存下的原文和 maintenance-writes 的整份替换校验，入口不导出这些单据写法',
       },
       {
         file: 'tests/flow-input-units.test.ts',
@@ -91,7 +91,7 @@ const moduleTests: ModuleTests[] = [
       },
       {
         file: 'tests/flow-maintenance.test.ts',
-        why: '直接测本机管理员改数据时的连带（alignStock、detachPurchaseLines），它们由采购库存在保存点里回调，入口不导出',
+        why: '直接测管理员连带（alignStock、detachPurchaseLines），用内部的 replaceFlowDocument 模拟另一次编辑，入口不导出这些内部件',
       },
       {
         file: 'tests/flow-totals.test.ts',
@@ -129,6 +129,16 @@ const moduleTests: ModuleTests[] = [
         file: 'tests/workbench.test.ts',
         why: '造当日完工实绩走页面单条登记完工 ManualProductionCompletion（只挂在单据流转自己的路由上，入口不导出）',
       },
+    ],
+  },
+  {
+    module: '订单服务',
+    dir: 'server/orders/',
+    own: [
+      { file: 'tests/business-base-fixture.ts', why: '准备代码复用页面路由的 manualWrite，保留真实的快照和审计；其它测试经夹具调用' },
+      { file: 'tests/list-filters.test.ts', why: '直接测客户、产品和订单三个列表的筛选和统计，列表函数由模块自己的路由调用' },
+      { file: 'tests/order-filter.test.ts', why: '直接对照订单列表与助手的筛选结果，订单列表函数由模块自己的路由调用' },
+      { file: 'tests/record-status.test.ts', why: '直接验证整张保存拦住越过状态动作的变更，assertOrderStatusKept 只由模块自己的路由调用' },
     ],
   },
 ];

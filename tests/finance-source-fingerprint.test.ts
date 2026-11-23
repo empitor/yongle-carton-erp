@@ -282,7 +282,7 @@ test('单据内容不经程序被直接改动（防篡改的保险）：来源�
 });
 
 test('单据在原处被程序改了（本机管理员改订单换客户，送货单跟着换）：照旧“单据内容改过了”；改两次由新的一条接手，原来那张凭证沿着链找回来', async () => {
-  const { createBusinessService } = await import('../server/business/service.js');
+  const { createBusinessService } = await import('../server/orders/index.js');
   const t = await flowFinance();
   try {
     const d = t.deliver('10');

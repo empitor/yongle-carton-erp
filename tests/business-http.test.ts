@@ -1,4 +1,4 @@
-// 客户、产品、订单的接口（server/business/、不带登录的 createApp）：增改查、校验、版本冲突、筛选、首页金额、来源保护、重开库后数据还在。
+// 客户、产品、订单的接口（server/orders/、不带登录的 createApp）：增改查、校验、版本冲突、筛选、首页金额、来源保护、重开库后数据还在。
 // 每条测试自己起服务、自己造虚构数据，互不依赖。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -11,6 +11,7 @@ export const serverModuleNames = [
   '采购库存',
   '单据流转',
   '删除归档',
+  '订单服务',
   '业务汇总',
   '财务',
   '单据导出',

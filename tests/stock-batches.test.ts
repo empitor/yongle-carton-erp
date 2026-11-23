@@ -8,7 +8,7 @@ import { stockItemBatches } from '../server/flow/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { stockBatches, type BatchMovement } from '../shared/business/stock-batches.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
-import { createBusinessService } from '../server/business/service.js';
+import { createBusinessService } from '../server/orders/index.js';
 import type { Order } from '../shared/core/order-view.js';
 import type { Actor } from '../server/core/index.js';
 // 删除引擎要用到各模块登记的删除规则（和 tests/delete-rules.test.ts 一样先加载）

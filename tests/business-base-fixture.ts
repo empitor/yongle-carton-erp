@@ -8,6 +8,9 @@ import { FlowService } from '../server/flow/index.js';
 import type { Actor } from '../server/core/index.js';
 import { customerSchema, orderSchema, productSchema } from '../shared/core/domain.js';
 
+// 需要触发页面保存的审计或快照时，复用路由实际调用的保存函数。
+export { manualWrite } from '../server/orders/service.js';
+
 type Fields = Record<string, unknown>;
 /** 只要编号的记录：单据、订单、产品、库存品 */
 type Ref = { id: number };

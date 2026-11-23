@@ -6,12 +6,11 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
 import { count } from '../server/core/sql.js';
-import { manualWrite } from '../server/business/service.js';
-import { changeOrderStatus } from '../server/business/order-status.js';
+import { changeOrderStatus } from '../server/orders/index.js';
 import { fieldNamer, orderSchema, userError } from '../shared/core/index.js';
 import { evaluateDraft } from '../shared/import/index.js';
 import { actor } from './actor-fixture.js';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, manualWrite } from './business-base-fixture.js';
 import { basics, command, shownError } from './data-management-fixture.js';
 import { asDraft } from './order-import-fixture.js';
 

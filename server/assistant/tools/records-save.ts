@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Actor } from '../../core/index.js';
 import { isSuperMode } from '../../core/index.js';
-import { changeOrderStatus, createBusinessService } from '../../business/index.js';
+import { changeOrderStatus, createBusinessService } from '../../orders/index.js';
 import { reviewedAssistantGrant } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { DataManagementService } from '../../admin/index.js';
@@ -67,7 +67,7 @@ function currentStatus(ctx: ToolContext, module: 'orders' | 'purchases', id: num
 }
 
 /**
- * 订单、采购单的状态变了：改调状态动作（server/business/order-status.ts、server/flow/stock-entries.ts 的 changePurchaseStatus），
+ * 订单、采购单的状态变了：改调状态动作（server/orders/order-status.ts、server/flow/stock/stock-entries.ts 的 changePurchaseStatus），
  * 和页面详情里的“确认 / 退回 / 取消 / 恢复”同一个服务函数；同时改了别的内容的，先按原状态保存内容。
  * 状态没变返回 null，照常保存。
  */

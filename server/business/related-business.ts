@@ -1,30 +1,10 @@
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
-import { FlowService, WarehouseDaily } from '../flow/index.js';
+import { FlowService, referencingDocuments, WarehouseDaily } from '../flow/index.js';
 import { purchaseOrderLinks } from '../operations/index.js';
 import { MarkService } from './product-marks.js';
 
 const idRow = z.object({ id: z.number() });
-
-/**
- * 某类单据里关联这条记录的单据编号，按 flow_refs 索引取（单据每次保存、确认、管理员修改都会重写它的关联）。
- * 调用方仍按原规则逐条核对。详情的关联业务、管理员改订单连带改单据（order-edit-cascade.ts）都用它。
- */
-export function referencingDocuments(
-  store: Store,
-  kind: 'arrival' | 'task' | 'production' | 'delivery',
-  column: 'order_id' | 'task_id' | 'purchase_line_id',
-  ids: readonly number[],
-) {
-  if (!ids.length) return [];
-  return many(
-    store.db,
-    idRow,
-    `SELECT id FROM flow_documents WHERE kind=? AND id IN (SELECT document_id FROM flow_refs WHERE ${column} IN (SELECT value FROM json_each(?)))`,
-    kind,
-    JSON.stringify(ids),
-  ).map((r) => r.id);
-}
 
 /** 采购单详情里的关联业务：到货记录、订的库存品、给哪几张订单订的料 */
 function purchaseRelated(store: Store, id: number) {

@@ -134,7 +134,7 @@ test('到货连续更正两次、更正后又撤销替代单：入过账的那�
 });
 
 test('改订单把已撤销的送货单拆开：原单的事件就地更新，拆出来的新单直接已更正，不卡结账', async () => {
-  const { createBusinessService } = await import('../server/business/service.js');
+  const { createBusinessService } = await import('../server/orders/index.js');
   const t = await flowFinance();
   try {
     const second = t.f.order(100, { taxRate: '0', taxMode: '未税' });

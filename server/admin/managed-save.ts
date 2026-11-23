@@ -2,7 +2,7 @@ import type { Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
 import { AppError, reviewedAssistantGrant } from '../core/index.js';
 import { dataManagementNoCreate, documentInfoFields, flowDocNames, flowInput, type FlowKind } from '../../shared/business/index.js';
-import { createBusinessService } from '../business/index.js';
+import { createBusinessService } from '../orders/index.js';
 import type { OperationsService } from '../operations/index.js';
 import { updateDocumentInfo, type FlowService } from '../flow/index.js';
 import { inputSchemas, isFlowModule, recordSchemas, type ManagedModule } from './managed-records.js';
@@ -14,7 +14,7 @@ import { rejectionText } from './field-rejection.js';
 export type Origin = 'management-ui' | 'management-assistant';
 /** 保存一条要的：哪个模块、谁办的（数据管理窗口发来的已标上入口）、从哪来，改的时候还有手里的那条（新建没有） */
 type SaveContext = { module: ManagedModule; actor: Actor; origin: Origin; current?: Current };
-/** 档案和订单走业务汇总的保存服务（客户、产品、订单）；供应商走采购库存，采购单、库存品走单据流转的保存入口 */
+/** 档案和订单走订单服务的保存服务（客户、产品、订单）；供应商走采购库存，采购单、库存品走单据流转的保存入口 */
 const businessWritable = ['customers', 'products', 'orders'] as const;
 const isBusinessWritable = (module: string): module is (typeof businessWritable)[number] =>
   businessWritable.some((m) => m === module);

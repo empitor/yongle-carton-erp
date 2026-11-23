@@ -23,7 +23,7 @@ import { ManualProductionCompletion } from '../server/flow/production/production
 import { ProductionCompletion } from '../server/flow/index.js';
 import { must } from './read-result.js';
 import { buildToday } from '../server/business/workbench.js';
-import { orderDashboard } from '../server/business/record-lists.js';
+import { orderDashboard } from '../server/business/dashboard.js';
 import { changeLifecycle } from '../server/lifecycle/index.js';
 
 const actor: Actor = pageActor({ id: 'perf-operator', name: '虚构测试操作员', permissions: ['business:edit'] });

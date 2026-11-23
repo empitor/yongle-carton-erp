@@ -6,7 +6,7 @@ import { shippedByLine } from '../documents/shipped.js';
  * 改已有订单前按单据核对（Store.saveOrder 调，接口见 server/core/order-hooks.ts）：
  * 已关联生产、送货记录的订单，普通修改不能改客户、产品明细、规格、数量，已有送货的不能改状态；
  * 本机管理员的数据维护（maintenance）可以改，但明细编号要是这张单的。改完的状态由改单连带处理
- * （server/business/order-edit-cascade.ts 的 alignOrder）按全部单据重算一次（order-progress.ts 的 updateOrders）。
+ * （server/orders/order-edit-cascade.ts 的 alignOrder）按全部单据重算一次（order-progress.ts 的 updateOrders）。
  */
 export function orderEditGuard(db: DatabaseSync, maintenance = false): OrderEditGuard {
   return (id, previous, next) => {

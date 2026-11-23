@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { z } from 'zod';
 import { assistantFixture, autoConfirmAssistant, lastCard, secret } from './assistant-fixture.js';
 import { businessBase } from './business-base-fixture.js';
-import { createBusinessService } from '../server/business/service.js';
+import { createBusinessService } from '../server/orders/index.js';
 import { startHttp } from './http-fixture.js';
 import { Store } from '../server/core/db.js';
 import { PromptPresetManager } from '../server/ai/prompt-presets.js';

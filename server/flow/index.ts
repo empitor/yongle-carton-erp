@@ -10,9 +10,9 @@ export { correctDocument, planCorrection } from './correction/correction.js';
 export { PurchaseReturns } from './arrival/returns.js';
 export { flowRouter } from './router.js';
 export { insertSource, updateSourceDocument } from './documents/sources.js';
-export { carryOverFlowDocument, replaceFlowDocument } from './rules/maintenance-writes.js';
+export { detachTasks, moveDeliveries, retainDeliveryLines } from './rules/order-edit-cascade.js';
 export { FlowService } from './rules/service.js';
-export { arrivalHeads, documentVersions, pendingCompletionVersions, sourceFileNames } from './documents/document-lookups.js';
+export { arrivalHeads, documentVersions, pendingCompletionVersions, referencingDocuments, sourceFileNames } from './documents/document-lookups.js';
 export { finishedStockOfProduct, stockItemBatches } from './stock/stock-batches.js';
 export { updateDocumentInfo } from './correction/document-info.js';
 // 财务从业务拿数据的只读窗口：财务只引这一个对象（tests/module-narrow-refs.test.ts）

@@ -1,15 +1,29 @@
+import { z } from 'zod';
 import { many, parseStoredJson, rows as tables, type Store } from '../core/index.js';
 import { flowDocumentSchema, flowStatus, purchaseState } from '../../shared/business/index.js';
 import { buildWorkbench } from './workbench.js';
-import { displayOrderStatuses, orderDisplayStatus, today, type Order } from '../../shared/core/index.js';
+import { dateSchema, displayOrderStatuses, orderDisplayStatus, today, type Order } from '../../shared/core/index.js';
 import type { Dashboard } from '../../shared/business/index.js';
 import { closedOrder, deliverableOrder, effectiveOrder, monthsBefore } from '../../shared/core/index.js';
 import { documentValueCents, sumMoney } from '../../shared/business/index.js';
 import { quantityString } from '../../shared/core/index.js';
 import { FlowService } from '../flow/index.js';
 import type { MovementView, PurchaseView, StockItemView, UnitBalance } from '../../shared/business/index.js';
-import { orderMetrics, productMetrics, pendingPurchase } from '../../shared/business/index.js';
-import { periodPurchases, type DateRange } from './period-records.js';
+import { orderMetrics, orderQuerySchema, productMetrics, pendingPurchase } from '../../shared/business/index.js';
+import { filterOrders } from '../orders/index.js';
+import { periodOrders, periodPurchases, type DateRange } from './period-records.js';
+
+/** 经营概况：按订单的筛选条件和统计日期算 */
+export function orderDashboard(store: Store, query: Record<string, unknown>) {
+  const range = z.object({ start: dateSchema.optional(), end: dateSchema.optional() }).parse(query);
+  // 页面不显示工作台统计，只有助手 overview.get 需要；这里不算，首页少卡几秒。
+  // 所选日期的统计算上这段时间里已归档的订单（只按日期圈出来读），实时的待办用没归档的
+  const { current, archived } = periodOrders(store, range);
+  return buildDashboard(store, filterOrders(orderQuerySchema.parse(query), [...current, ...archived]), range, undefined, {
+    allOrders: current,
+    workbench: false,
+  });
+}
 
 type Overview = Dashboard['overview'];
 

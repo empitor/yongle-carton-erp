@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { z, ZodError } from 'zod';
 import { KIB, MIB, fieldNamer, isRecordKind, userError } from '../shared/core/index.js';
 import { AppError, ConflictError, InputError, constraintFailure } from './core/index.js';
-import { BusinessAccessError } from './business/index.js';
+import { BusinessAccessError } from './orders/index.js';
 
 const tooLargeMessage = (limit: number) =>
   '提交内容过大，这里一次最多 ' + (limit >= MIB ? Math.floor(limit / MIB) + ' MB' : Math.ceil(limit / KIB) + ' KB');

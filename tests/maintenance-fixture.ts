@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { DataManagementService } from '../server/admin/data-management-service.js';
-import { createBusinessService } from '../server/business/service.js';
+import { createBusinessService } from '../server/orders/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { saveDoc } from './receive-fixture.js';
 import { businessBase, standardRecords } from './business-base-fixture.js';

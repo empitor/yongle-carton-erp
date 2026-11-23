@@ -4,7 +4,7 @@ import { viewContent, writeFlowDocument } from '../documents/document-store.js';
 import { storedDocument } from '../documents/read.js';
 
 /**
- * 管理员直接改订单时，已有单据要跟着改（业务汇总的 order-edit-cascade.ts 调）。
+ * 管理员直接改订单时，已有单据要跟着改（本模块的 order-edit-cascade.ts 调）。
  * 单据表归单据流转，写都落在 document-store.ts（镜像列跟着内容一起写）；改订单后由调用方调
  * FlowService.maintenanceReferences 重建关联、refreshOrderProgress 重算进度。
  * 调用方拿的是单据视图（FlowService.list、get），改好整份交回来：行上的列和派生字段不写，内容按库里的单据结构核对；

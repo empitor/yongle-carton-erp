@@ -1,4 +1,4 @@
-// 本机管理员改订单连带改送货单留下的记录（server/business/order-edit-cascade.ts）：每张被拆、减行、换客户的送货单一条审计，
+// 本机管理员改订单连带改送货单留下的记录（server/flow/rules/order-edit-cascade.ts）：每张被拆、减行、换客户的送货单一条审计，
 // 改挂的出库流水备注里的单号跟着换、修订记录留着原备注。
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { test } from 'node:test';

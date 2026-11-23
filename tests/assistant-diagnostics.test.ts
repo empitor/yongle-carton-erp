@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import type { Actor } from '../server/core/index.js';
-import { manualWrite } from '../server/business/service.js';
+import { manualWrite } from './business-base-fixture.js';
 import { customerSchema } from '../shared/core/domain.js';
 import { AssistantToolRegistry } from '../server/assistant/tool-registry.js';
 import type { ToolContext } from '../server/assistant/tools/context.js';

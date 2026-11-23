@@ -49,7 +49,7 @@ const receiptCorrection = { correctionOfReceiptId: z.string().optional() };
 const keysOf = <T extends object>(shape: T) => Object.keys(shape).filter((k): k is Extract<keyof T, string> => Object.hasOwn(shape, k));
 /**
  * 生命周期字段（四种单据合在一起）：经办记录（确认、取消撤销、送货的出库送达）和更正关系。
- * 快照登记（flow-snapshot.ts）按“严格结构减录入结构再减这些”认快照字段；拆送货单（server/business/order-edit-cascade.ts）照带经办记录
+ * 快照登记（flow-snapshot.ts）按“严格结构减录入结构再减这些”认快照字段；拆送货单（server/flow/rules/order-edit-cascade.ts）照带经办记录
  */
 export const lifecycleFields = { records: keysOf({ ...records, ...shipping }), correction: keysOf({ ...correction, ...receiptCorrection }) };
 export type LifecycleField = (typeof lifecycleFields)[keyof typeof lifecycleFields][number];

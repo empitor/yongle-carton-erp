@@ -1,5 +1,5 @@
 // 订单、采购单的状态动作（确认、退回、取消、恢复）：各是一个动作，和单据的取消一样要权限、版本、防重复、审计，
-// 取消必填原因；整张保存不改状态（server/business/order-status.ts、server/flow/stock/stock-entries.ts）。
+// 取消必填原因；整张保存不改状态（server/orders/order-status.ts、server/flow/stock/stock-entries.ts）。
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { cookieOf, startHttp } from './http-fixture.js';
 import { count } from '../server/core/index.js';
 import { OrderBatchService } from '../server/operations/index.js';
-import { changeOrderStatus, assertOrderStatusKept } from '../server/business/order-status.js';
+import { changeOrderStatus, assertOrderStatusKept } from '../server/orders/order-status.js';
 import { recordContext } from '../server/business/record-context.js';
 import { historyView } from '../shared/business/record-history.js';
 import { statusActionFor } from '../shared/business/record-status.js';

@@ -1,12 +1,12 @@
-// 列表的筛选和分页（server/core/paging.ts、server/business/record-lists.ts、server/operations/party-links.ts）：
+// 列表的筛选和分页（server/core/paging.ts、server/orders/record-lists.ts、server/operations/party-links.ts）：
 // 流水的日期范围、接口组合筛选、分页统计，产品和库存按客户、供应商筛，页面和助手同一套。内存库、虚构数据。
 import { pageActor, actor as assistantActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { customerList, orderDashboard, orderList, productList } from '../server/business/record-lists.js';
-import { manualWrite } from '../server/business/service.js';
+import { orderDashboard } from '../server/business/dashboard.js';
+import { customerList, orderList, productList } from '../server/orders/record-lists.js';
 import { businessFixture } from './flow-fixture.js';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -14,7 +14,7 @@ import { Store } from '../server/core/db.js';
 import { createApp } from '../server/app.js';
 import { listen, testProblems } from './http-fixture.js';
 import { today, orderSchema } from '../shared/core/domain.js';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, manualWrite } from './business-base-fixture.js';
 import { monthsBefore } from '../shared/core/date-ranges.js';
 import { initialMovementRange, movementFilterSchema } from '../shared/business/movement-filters.js';
 import { operationalSearchText } from '../shared/business/business-metrics.js';
@@ -414,7 +414,7 @@ test('助手按客户查产品、按供应商或客户查库存，和页面结�
   assert.deepEqual(ids('finished_inventory', { customerId: f.a.id }), [f.finishedA.id]);
 });
 
-test('客户、产品、订单列表和手工保存：直接调业务汇总的服务，不经接口；手工保存版本不对整笔不落库', () => {
+test('客户、产品、订单列表和手工保存：直接调订单服务的服务，不经接口；手工保存版本不对整笔不落库', () => {
   const f = businessFixture();
   try {
     const list = orderList(f.store, { withMetrics: '1', status: '已确认' }, false);

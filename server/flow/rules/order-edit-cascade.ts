@@ -1,18 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
-import type { Actor, Store } from '../core/index.js';
-import { AppError, audit, exists, many, requireLocalAdministrator, rows } from '../core/index.js';
-import { quantityUnits, type Order } from '../../shared/core/index.js';
-import { flowEntity, lifecycleFields, movementSource, type FlowDocView } from '../../shared/business/index.js';
-import { FlowService, carryOverFlowDocument, replaceFlowDocument } from '../flow/index.js';
-import { stockLedger } from '../operations/index.js';
-import { DatabaseMaintenanceService, deleteAfterSnapshot, type TakenSnapshot } from '../lifecycle/index.js';
-import { referencingDocuments } from './related-business.js';
+import type { Actor, Store } from '../../core/index.js';
+import { AppError, audit, many, rows } from '../../core/index.js';
+import { quantityUnits, type Order } from '../../../shared/core/index.js';
+import { flowEntity, lifecycleFields, movementSource, type FlowDocView } from '../../../shared/business/index.js';
+import { stockLedger } from '../../operations/index.js';
+import { referencingDocuments } from '../documents/document-lookups.js';
+import { carryOverFlowDocument, replaceFlowDocument } from './maintenance-writes.js';
+import { FlowService } from './service.js';
 
 /*
  * 本机管理员改订单时连带改单据：送货单、生产任务和它们的库存流水跟着订单的新明细、新客户走。
- * 调用方是 service.ts 的订单保存（同一个事务里先 prepareOrderEdit、保存订单、再 alignOrder）。
- * 整张送货单都被删时交给删除引擎（删除归档的 database-maintenance.ts），别的只改单据内容、改挂流水，不另记新流水。
+ * 订单服务在订单保存的同一事务里调用这些函数。这里只改单据内容、改挂流水，不另记新流水。
  */
 
 type Delivery = FlowDocView<'delivery'>;
@@ -20,40 +19,6 @@ type DeliveryLine = Delivery['lines'][number];
 type Movement = z.output<typeof rows.stock_movements>;
 /** 拿走的行的出库改挂到哪张新送货单；null 是改成独立的“系统维护”流水 */
 type MoveTo = { id: number; number: string } | null;
-
-/**
- * 改订单之前：送货单里被删掉的订单明细先拿走。整张都是被删的行的送货单交给删除引擎删掉（库存数量不动），
- * 只删部分行的照 retainDeliveryLines 处理。只读挂着这张订单的送货单（按单据关联圈出来），下面照原规则逐条核对。
- * snapshot：改订单之前拍的破坏前快照（service.ts），整张删送货单时删除引擎凭它不再另拍。
- */
-export function prepareOrderEdit(
-  store: Store,
-  before: Order,
-  lines: readonly { id?: number }[],
-  actor: Actor,
-  snapshot: TakenSnapshot,
-) {
-  requireLocalAdministrator(actor);
-  const keep = new Set(lines.flatMap((l) => (l.id ? [l.id] : []))),
-    flow = new FlowService(store),
-    engine = new DatabaseMaintenanceService(store);
-  for (const d of flow.list('delivery', true, undefined, referencingDocuments(store, 'delivery', 'order_id', [before.id]))) {
-    const next = d.lines.filter((l) => l.orderId !== before.id || keep.has(l.orderLineId));
-    if (next.length === d.lines.length) continue;
-    if (next.length) retainDeliveryLines(store, d, next, actor);
-    else deleteWholeDelivery(engine, d, actor, snapshot);
-  }
-}
-
-/**
- * 整张送货单都是被删的行：单据删掉，库存数量不动（它的出入库流水留着，改成独立的“系统维护”流水）。
- * 和只删部分行是同一个结果：改订单不等于这车货没发过。
- */
-function deleteWholeDelivery(engine: DatabaseMaintenanceService, d: Delivery, actor: Actor, snapshot: TakenSnapshot) {
-  const selection = { module: 'delivery', items: [{ id: d.id, version: d.version }], inventoryPolicy: 'preserve' },
-    p = engine.preview(selection, actor);
-  deleteAfterSnapshot(engine, { ...selection, requestId: randomUUID(), deletionDigest: p.digest }, actor, 'order-edit', snapshot);
-}
 
 /** 这张送货单名下的出库流水（按顺序号） */
 const ownMovements = (store: Store, d: Delivery) =>
@@ -79,7 +44,7 @@ const ownMovements = (store: Store, d: Delivery) =>
  * 合计为 0，两组原样留在这张单上。只拆出库、不拆冲销的话，原单和拆出的新单各自的合计就不是 0 了，
  * 以后删其中一张并选“库存一起改回”，库存会凭空多出来或少掉。
  */
-function retainDeliveryLines(store: Store, d: Delivery, lines: DeliveryLine[], actor: Actor, moveTo: MoveTo = null) {
+export function retainDeliveryLines(store: Store, d: Delivery, lines: DeliveryLine[], actor: Actor, moveTo: MoveTo = null) {
   const detached = d.status === 'confirmed' ? detachMovements(store, { d, lines, actor, moveTo }) : [];
   replaceFlowDocument(store, d.id, {
     ...d,
@@ -185,21 +150,8 @@ function leavingMovements(d: Delivery, lines: DeliveryLine[], movements: Movemen
   return leaving;
 }
 
-/** 订单改好之后：生产任务、送货单跟着订单的新明细和新客户改，最后重算这张订单的生产、发货进度。 */
-export function alignOrder(store: Store, before: Order, after: Order, actor: Actor) {
-  const flow = new FlowService(store);
-  const detachedTask = detachTasks(store, flow, after);
-  if (before.customerId !== after.customerId) moveDeliveries(store, { flow, after, actor });
-  if (
-    detachedTask ||
-    exists(store.db, 'SELECT 1 FROM flow_refs WHERE order_id=?', after.id) ||
-    before.lines.some((l) => l.shippedQuantity !== undefined && l.shippedQuantity > 0)
-  )
-    flow.refreshOrderProgress([after.id]);
-}
-
 /** 订单里没有这种产品了：生产任务不再关联这张订单（只读挂着它的任务）。返回有没有改过 */
-function detachTasks(store: Store, flow: FlowService, after: Order) {
+export function detachTasks(store: Store, flow: FlowService, after: Order) {
   let detached = false;
   for (const task of flow
     .list('task', true, undefined, referencingDocuments(store, 'task', 'order_id', [after.id]))
@@ -214,7 +166,7 @@ function detachTasks(store: Store, flow: FlowService, after: Order) {
 
 type CustomerChange = { flow: FlowService; after: Order; actor: Actor };
 /** 订单换了客户：只有这张订单的行的送货单整张改客户；和别的订单合送的，把这张订单的行拆到新送货单上 */
-function moveDeliveries(store: Store, job: CustomerChange) {
+export function moveDeliveries(store: Store, job: CustomerChange) {
   const { flow, after } = job;
   for (const d of flow
     .list('delivery', true, undefined, referencingDocuments(store, 'delivery', 'order_id', [after.id]))

@@ -3,7 +3,7 @@ import { dateSchema, displayOrderStatuses, orderViews } from '../core/index.js';
 import { SEARCH_MAX_LENGTH } from './limits.js';
 
 /*
- * 客户、产品、订单列表的查询参数（GET /customers、/products、/orders）：服务端 server/business/record-lists.ts 按它校验，
+ * 客户、产品、订单列表的查询参数（GET /customers、/products、/orders）：服务端 server/orders/record-lists.ts 按它校验，
  * 接口表 records-api.ts 照它的输入（z.input）写类型。withMetrics 写在接口表的键里；分页参数是 shared/core/paging.ts 的 pagingSchema。
  */
 

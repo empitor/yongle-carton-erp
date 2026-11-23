@@ -2,7 +2,8 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import { pageProblemRouter, proxyIngress, requirePermission, requireSuperAdminAccount, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
 import { userManualRouter } from './system/index.js';
 import { operationsRouter } from './operations/index.js';
-import { recordsRouter, workbenchRouter } from './business/index.js';
+import { marksRouter, workbenchRouter } from './business/index.js';
+import { recordsRouter } from './orders/index.js';
 import { installRequestGuards } from './http-guards.js';
 import { apiErrorHandler } from './http-errors.js';
 import { resolve } from 'node:path';
@@ -16,7 +17,6 @@ import { promptModuleListRouter, promptSettingsRouter } from './ai/index.js';
 import type { PromptPresetManager } from './ai/index.js';
 import { promptModules, type PromptModuleId } from '../shared/ai/index.js';
 import type { ImportExecutionService } from './import/index.js';
-import { marksRouter } from './business/index.js';
 import { inboxRouter, type BotManager } from './inbox/index.js';
 import { stockFlowRouter } from './flow/index.js';
 import { flowRouter } from './flow/index.js';
@@ -137,7 +137,7 @@ export function createApp(store: Store, options: AppOptions) {
       requirePermission(options.auth.actor(req), 'business:edit');
     next();
   };
-  // 业务汇总：客户、产品、订单的列表、单条、新建、修改；删除归档：六类档案的批量归档、恢复
+  // 订单服务：客户、产品、订单的列表、单条、新建、修改；删除归档：六类档案的批量归档、恢复
   app.use('/api', recordsRouter(store, options.auth));
   app.use('/api', lifecycleRouter(store, options.auth));
   const auth = options.auth;
