@@ -1,12 +1,12 @@
 // 走真实单据流程的财务测试底子（虚构数据、内存库）
 import { z } from 'zod';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceEventViews } from '../server/finance/event-views.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceEventViews } from '../server/finance/events/event-views.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { count as countRows, many, one, parseStoredJson, rows } from '../server/core/index.js';
 import type { Actor } from '../server/core/index.js';
 import { maker, postDrafts, event } from './finance-fixture.js';

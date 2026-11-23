@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceReports } from '../server/finance/reports.js';
-import { FinanceDue } from '../server/finance/due.js';
-import { FinanceNotes } from '../server/finance/notes.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceClosing } from '../server/finance/closing.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceReports } from '../server/finance/reports/reports.js';
+import { FinanceDue } from '../server/finance/parties/due.js';
+import { FinanceNotes } from '../server/finance/cash/notes.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
 import { maker, newSettings, postDrafts as postAll, physical, deliveryDoc } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { FinanceStatements } from '../server/finance/statements.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { FinanceAllocations } from '../server/finance/allocations.js';
+import { FinanceStatements } from '../server/finance/parties/statements.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { FinanceAllocations } from '../server/finance/cash/allocations.js';
 import { one, rows } from '../server/core/index.js';
 
 /** 承兑汇票：收票、开票、背书、退票都要在往来上留核销，往来明细、账龄、到期、收付计划和总账一致。全部虚构数据。 */

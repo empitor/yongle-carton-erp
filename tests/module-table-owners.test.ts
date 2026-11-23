@@ -57,11 +57,11 @@ const tableWriteExceptions: { path: string; why: string }[] = [
 const financeSqlPath = 'server/finance/';
 const financeReadable = (table: string) => table.startsWith('fin_') || table === 'business_audit';
 const financeDynamicReads: { file: string; splice: string; why: string }[] = [
-  { file: 'server/finance/query.ts', splice: 'table', why: 'row() 按编号取财务表的一行：表名参数的类型 FinanceIdTable 只收 fin_ 开头、有 id 列的表，业务表编译不过' },
-  { file: 'server/finance/deposits-interest.ts', splice: 'effectiveInterest', why: '本文件的 SQL 片段：有效的压款利息（fin_ 表）' },
-  { file: 'server/finance/obligation-sql.ts', splice: 'allocations', why: '本文件的 SQL 片段：往来的核销（fin_ 表）' },
-  { file: 'server/finance/invoice-matching.ts', splice: 'snapshotLines', why: 'source-snapshot.ts 的片段：事件快照明细的 json_each' },
-  { file: 'server/finance/overview.ts', splice: 'snapshotLines', why: 'source-snapshot.ts 的片段：事件快照明细的 json_each' },
+  { file: 'server/finance/base/query.ts', splice: 'table', why: 'row() 按编号取财务表的一行：表名参数的类型 FinanceIdTable 只收 fin_ 开头、有 id 列的表，业务表编译不过' },
+  { file: 'server/finance/parties/deposits-interest.ts', splice: 'effectiveInterest', why: '本文件的 SQL 片段：有效的压款利息（fin_ 表）' },
+  { file: 'server/finance/parties/obligation-sql.ts', splice: 'allocations', why: '本文件的 SQL 片段：往来的核销（fin_ 表）' },
+  { file: 'server/finance/cash/invoice-matching.ts', splice: 'snapshotLines', why: 'events/source-snapshot.ts 的片段：事件快照明细的 json_each' },
+  { file: 'server/finance/reports/overview.ts', splice: 'snapshotLines', why: 'events/source-snapshot.ts 的片段：事件快照明细的 json_each' },
 ];
 
 /** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构/财务.md“财务从哪拿业务数据”） */
@@ -87,7 +87,7 @@ const singleWriterTables: Record<string, string[]> = {
  */
 const auditReaders: { file: string; why: string }[] = [
   { file: 'server/overview/record-context.ts', why: '记录的修改历史，展示' },
-  { file: 'server/finance/audit-log.ts', why: '财务操作记录页，展示和筛选' },
+  { file: 'server/finance/base/audit-log.ts', why: '财务操作记录页，展示和筛选' },
   { file: 'server/admin/reset-archive.ts', why: '初始化后确认自己刚写的那条审计已经提交，再删原件归档；技术用途' },
 ];
 

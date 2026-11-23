@@ -5,18 +5,18 @@ import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { OperationsService } from '../server/operations/index.js';
 import { FlowService } from '../server/flow/index.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceCosting } from '../server/finance/costing.js';
-import { FinanceClosing } from '../server/finance/closing.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceCosting } from '../server/finance/costing/costing.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
 import { maker, fixture } from './finance-costing-fixture.js';
 import { booked } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { FinanceMargin } from '../server/finance/margin.js';
-import { MonthCostBook, type Item } from '../server/finance/costing-month.js';
-import { spreadAdjustment } from '../server/finance/costing-invoice-adjust.js';
+import { FinanceMargin } from '../server/finance/costing/margin.js';
+import { MonthCostBook, type Item } from '../server/finance/costing/costing-month.js';
+import { spreadAdjustment } from '../server/finance/costing/costing-invoice-adjust.js';
 import type { StockMovement as Movement } from '../server/flow/index.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { one, rows } from '../server/core/index.js';
 
 /** 管理员改一条流水（给的数量 delta_units、说明 notes）并留修订记录，再同步财务 */

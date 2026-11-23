@@ -4,17 +4,17 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { one } from '../server/core/index.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { entry } from '../server/finance/query.js';
-import { FinanceStatements } from '../server/finance/statements.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { FinanceAllocations } from '../server/finance/allocations.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { entry } from '../server/finance/base/query.js';
+import { FinanceStatements } from '../server/finance/parties/statements.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { FinanceAllocations } from '../server/finance/cash/allocations.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, obligation, funds, reverseSource } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { workbook } from './finance-http-fixture.js';
-import type { FinanceSettlements } from '../server/finance/settlements.js';
+import type { FinanceSettlements } from '../server/finance/cash/settlements.js';
 
 /** 操作员在红字凭证、撤销核销上写的内部原因（对账单不能带出去） */
 const reason = '虚构：内部原因';
@@ -220,7 +220,7 @@ test('对账单：没核销直接记预收（预付）的收付款也列出来�
     const next = new FinanceStatements(s).statement(maker, { ...range, from: '2026-02-01', to: '2026-02-28' });
     assert.equal(next.opening, revoked.closing);
     // 导出：同一行、期末一样，末尾写一句预收
-    const { statementWorkbook } = await import('../server/finance/exports.js');
+    const { statementWorkbook } = await import('../server/finance/reports/exports.js');
     const exported = new FinanceStatements(s).statementForExport(maker, range);
     const book = await workbook(await statementWorkbook(range.from, range.to, exported.party, range.kind, exported.data));
     const texts: string[] = [];

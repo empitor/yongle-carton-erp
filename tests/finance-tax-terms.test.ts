@@ -2,20 +2,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceReports, FinanceInfoPending } from '../server/finance/reports.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { FinanceDue } from '../server/finance/due.js';
-import { documentMoney } from '../server/finance/amounts.js';
-import { dueDate, installments, termOptions } from '../server/finance/terms.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceReports, FinanceInfoPending } from '../server/finance/reports/reports.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { FinanceDue } from '../server/finance/parties/due.js';
+import { documentMoney } from '../server/finance/base/amounts.js';
+import { dueDate, installments, termOptions } from '../server/finance/parties/terms.js';
 import { physical, deliveryDoc, funds, maker, newSettings, postDrafts, event, obligation, obligationRow } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
-import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
-import { FinanceSettlements } from '../server/finance/settlements.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { readSnapshot } from '../server/finance/source-snapshot.js';
+import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
+import { FinanceSettlements } from '../server/finance/cash/settlements.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { readSnapshot } from '../server/finance/events/source-snapshot.js';
 
 test('财务不卡业务：订单和供应商都没写税率时，送货、到货照常确认，收款照常核销到理论金额往来；只有正式报表和结账被拦，补完税率放行', async () => {
   const t = await flowFinance();

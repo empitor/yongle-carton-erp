@@ -16,7 +16,7 @@ import {
 } from '../shared/core/account-scope.js';
 import { accountPermissions } from '../server/accounts/account-db.js';
 import { StoredDataError } from '../server/core/errors.js';
-import { financeActor } from '../server/finance/core.js';
+import { financeActor } from '../server/finance/base/core.js';
 import { parseAuthState, type AuthState } from '../src/ui/auth-state.js';
 import { grant, pageActor } from './actor-fixture.js';
 

@@ -24,7 +24,7 @@ import {
   isPeriodOrNull,
   isSha256,
 } from '../server/core/schema/tables/checks.js';
-import * as finance from '../server/finance/stored-values.js';
+import * as finance from '../server/finance/base/stored-values.js';
 import { purchaseReturnStatuses } from '../shared/business/flow-results.js';
 import { flowSourceKinds } from '../server/flow/documents/sources.js';
 import { stockMovementActions } from '../server/operations/ledger/ledger.js';

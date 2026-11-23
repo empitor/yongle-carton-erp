@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceReports } from '../server/finance/reports.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceAssets } from '../server/finance/assets.js';
-import { FinancePayroll } from '../server/finance/payroll.js';
-import { FinanceCosting } from '../server/finance/costing.js';
-import { entry } from '../server/finance/query.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceReports } from '../server/finance/reports/reports.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceAssets } from '../server/finance/expenses/assets.js';
+import { FinancePayroll } from '../server/finance/expenses/payroll.js';
+import { FinanceCosting } from '../server/finance/costing/costing.js';
+import { entry } from '../server/finance/base/query.js';
 import { maker, newSettings, postDrafts, ledgerBalance } from './finance-fixture.js';
 import { z } from 'zod';
 

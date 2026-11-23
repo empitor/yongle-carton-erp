@@ -2,18 +2,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceSettings } from '../server/finance/settings.js';
-import { FinanceEvents, unseenSources } from '../server/finance/events.js';
-import { FinanceReports } from '../server/finance/reports.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { FinanceEventViews } from '../server/finance/event-views.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
+import { FinanceEvents, unseenSources } from '../server/finance/events/events.js';
+import { FinanceReports } from '../server/finance/reports/reports.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { FinanceEventViews } from '../server/finance/events/event-views.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { maker, newSettings, physical, deliveryDoc, arrivalDoc, event } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { readSnapshot } from '../server/finance/source-snapshot.js';
+import { readSnapshot } from '../server/finance/events/source-snapshot.js';
 
 test('同步幂等，缺价缺税待补，补齐后制单，来源删除保留历史', () => {
   const store = new Store(':memory:');

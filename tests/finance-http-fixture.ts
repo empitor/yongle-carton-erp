@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import { Store } from '../server/core/db.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { entry } from '../server/finance/query.js';
-import { FinanceSettings } from '../server/finance/settings.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { entry } from '../server/finance/base/query.js';
+import { FinanceSettings } from '../server/finance/base/settings.js';
 import { startHttp } from './http-fixture.js';
 import { maker, postDrafts } from './finance-fixture.js';
 

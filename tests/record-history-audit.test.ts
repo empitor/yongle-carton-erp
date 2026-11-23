@@ -172,7 +172,7 @@ test('服务端写修改历史的每个动作都有中文名，内容都能逐�
   for (const { file, fields } of calls) {
     const { action, entity, id } = fields;
     if (id === 'null') continue; // 不挂在某条记录上的审计不进修改历史
-    if (file === 'server/finance/core.ts') continue; // 财务的审计（financeAudit）挂在财务表上
+    if (file === 'server/finance/base/core.ts') continue; // 财务的审计（financeAudit）挂在财务表上
     if (!shownEntity(entity)) continue;
     const found = literals(action);
     if (found.length) found.forEach((a) => actions.add(a));

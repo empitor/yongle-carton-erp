@@ -6,11 +6,11 @@ import '../server/flow/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { catchUp } from '../server/finance/catch-up.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { scanSources } from '../server/finance/source-scan.js';
+import { catchUp } from '../server/finance/events/catch-up.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { scanSources } from '../server/finance/events/source-scan.js';
 import { deliveryDoc, maker, newSettings, physical } from './finance-fixture.js';
 import { quietLog } from './finance-catch-up-fixture.js';
 

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import * as finance from '../server/finance/stored-values.js';
+import * as finance from '../server/finance/base/stored-values.js';
 import { accepts, rejects } from './schema-fixture.js';
 
 const now = '2026-11-12T00:00:00.000Z';

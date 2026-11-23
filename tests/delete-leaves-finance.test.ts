@@ -37,7 +37,7 @@ test('不加载财务模块也能删已入库的到货单', () => {
 test('删除财务已经记过事件的送货单：财务的表一行都不变，补扫以后才标成来源已删除', async () => {
   // 第一条要在没加载财务时跑，财务的准备代码放到这里才加载
   const { maker, newSettings, physical, deliveryDoc } = await import('./finance-fixture.js');
-  const { FinanceEvents } = await import('../server/finance/events.js');
+  const { FinanceEvents } = await import('../server/finance/events/events.js');
   const s = new Store(':memory:');
   try {
     newSettings(s);

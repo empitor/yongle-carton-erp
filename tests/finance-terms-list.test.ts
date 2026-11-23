@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceParties } from '../server/finance/parties.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
 import { maker, newSettings } from './finance-fixture.js';
 
 test('账期列表：每行的约定已解析补齐，和读一个单位的一样', () => {

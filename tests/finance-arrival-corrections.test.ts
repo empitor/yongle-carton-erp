@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { customerSchema } from '../shared/core/domain.js';
 import { one, rows } from '../server/core/index.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
 import { maker, postDrafts, subledger } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 

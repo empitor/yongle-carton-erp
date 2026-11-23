@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../server/core/db.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
 import { quantityUnits } from '../shared/core/index.js';
 import { businessChanges } from './business-changes-fixture.js';
 import { fixture, maker } from './finance-costing-fixture.js';

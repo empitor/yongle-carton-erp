@@ -3,9 +3,9 @@
 // 走真实的单据流程和更正服务，内存库、虚构数据。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { FinanceSettlements } from '../server/finance/settlements.js';
-import { FinanceCashAccounts } from '../server/finance/cash-accounts.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { FinanceSettlements } from '../server/finance/cash/settlements.js';
+import { FinanceCashAccounts } from '../server/finance/cash/cash-accounts.js';
 import { maker, funds, confirmBlue, subledger, unbalancedVouchers } from './finance-fixture.js';
 import { flowFinance } from './finance-flow-fixture.js';
 

@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { eventChanges } from '../server/finance/event-changes.js';
-import { FinanceEventViews } from '../server/finance/event-views.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { eventChanges } from '../server/finance/events/event-changes.js';
+import { FinanceEventViews } from '../server/finance/events/event-views.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
 import { maker, newSettings, postDrafts, physical, deliveryDoc, event, setDoc } from './finance-fixture.js';
 import { businessChanges } from './business-changes-fixture.js';
-import type { FinanceSourceLine } from '../server/finance/source-snapshot.js';
+import type { FinanceSourceLine } from '../server/finance/events/source-snapshot.js';
 
 test('改了什么：到货两行同一种纸板、没关联采购明细时改了库存品名称，两行都列出来；新增的行写数量（带单位）和单价（“元/m²”）；不比金额时不出“金额 … → —”', () => {
   const board: NonNullable<FinanceSourceLine['item']> = { name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm' };

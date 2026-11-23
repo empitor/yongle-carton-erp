@@ -18,7 +18,7 @@ Object.assign(process.env, {
 
 const sets = {
   core: {
-    mutate: ['shared/core/precision.ts', 'shared/core/quantity.ts', 'shared/core/units.ts', 'server/finance/amounts.ts'],
+    mutate: ['shared/core/precision.ts', 'shared/core/quantity.ts', 'shared/core/units.ts', 'server/finance/base/amounts.ts'],
     tests: [
       'tests/precision.test.ts',
       'tests/price-storage.test.ts',
@@ -38,12 +38,12 @@ const sets = {
   },
   // 财务凭证：借贷平衡、已记账不可改、红字冲销只做一次
   voucher: {
-    mutate: ['server/finance/ledger.ts:86-109', 'server/finance/ledger.ts:237-321'],
+    mutate: ['server/finance/ledger/ledger.ts:86-109', 'server/finance/ledger/ledger.ts:237-321'],
     tests: ['tests/finance-ledger.test.ts', 'tests/voucher-rules-boundaries.test.ts'],
   },
   // 税额：增值税留抵按月滚动、附加税、按百分比算税
   tax: {
-    mutate: ['server/finance/vat.ts:42-119', 'server/finance/terms.ts:22-33'],
+    mutate: ['server/finance/base/vat.ts:41-118', 'server/finance/base/amounts.ts:11-22'],
     tests: ['tests/finance-invoice-vat.test.ts', 'tests/finance-closing-tax.test.ts', 'tests/finance-tax-terms.test.ts', 'tests/vat-worksheet-boundaries.test.ts'],
   },
   // 权限：按账号判断能不能做、超级管理员模式、纯财务账号能用的地址和工具

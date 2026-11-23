@@ -7,10 +7,10 @@ import { buffer } from 'node:stream/consumers';
 import yauzl from 'yauzl';
 import { z } from 'zod';
 import type { Store } from '../server/core/db.js';
-import { FinanceAssets } from '../server/finance/assets.js';
-import { FinanceClosing } from '../server/finance/closing.js';
-import { FinanceCosting } from '../server/finance/costing.js';
-import { FinancePayroll } from '../server/finance/payroll.js';
+import { FinanceAssets } from '../server/finance/expenses/assets.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
+import { FinanceCosting } from '../server/finance/costing/costing.js';
+import { FinancePayroll } from '../server/finance/expenses/payroll.js';
 import { maker, period, request, password, workbook, findRow, checkLayout, fixture, prepare } from './finance-http-fixture.js';
 import { cookieOf } from './http-fixture.js';
 

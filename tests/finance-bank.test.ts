@@ -4,12 +4,12 @@ import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
 import { Store } from '../server/core/db.js';
-import { FinanceBank } from '../server/finance/bank.js';
-import { bankWorkbook } from '../server/finance/exports.js';
-import { FinanceInvoices } from '../server/finance/invoices.js';
-import { FinanceTax } from '../server/finance/vat.js';
+import { FinanceBank } from '../server/finance/cash/bank.js';
+import { bankWorkbook } from '../server/finance/reports/exports.js';
+import { FinanceInvoices } from '../server/finance/cash/invoices.js';
+import { FinanceTax } from '../server/finance/base/vat.js';
 import { funds, bill as invoiceInput, maker, newSettings, postDrafts } from './finance-fixture.js';
-import { FinanceInvoiceConfirm } from '../server/finance/invoice-confirm.js';
+import { FinanceInvoiceConfirm } from '../server/finance/cash/invoice-confirm.js';
 
 test('银行导入去重、匹配建议不写入、余额调节与进项转出', () => {
   const s = new Store(':memory:');

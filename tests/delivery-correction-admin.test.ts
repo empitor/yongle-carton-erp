@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import type { Actor } from '../server/core/index.js';
 import { AppError, one as oneRow, rows } from '../server/core/index.js';
 import { stockItemBatches } from '../server/flow/index.js';
-import { originsOf } from '../server/finance/costing-origins.js';
+import { originsOf } from '../server/finance/costing/costing-origins.js';
 import { must, viewAs } from './read-result.js';
 import { today } from '../shared/core/index.js';
 import { clerk, localAdmin } from './flow-fixture.js';

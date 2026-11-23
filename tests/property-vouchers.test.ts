@@ -7,7 +7,7 @@ import fc from 'fast-check';
 import { z } from 'zod';
 import { Store } from '../server/core/db.js';
 import { count, many, rows } from '../server/core/index.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
 import { exactText } from '../shared/core/precision.js';
 import { booked, deliveryDoc, ledgerBalance, maker, newSettings, physical, post } from './finance-fixture.js';
 

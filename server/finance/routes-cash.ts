@@ -2,24 +2,24 @@
 // 页面怎么分、共用的写法见 routes.ts。
 import path from 'node:path';
 import { z } from 'zod';
-import { financeError } from './core.js';
-import { range } from './query.js';
-import { bankWorkbook, statementWorkbook, taxWorkbook } from './exports.js';
+import { financeError } from './base/core.js';
+import { range } from './base/query.js';
+import { bankWorkbook, statementWorkbook, taxWorkbook } from './reports/exports.js';
 import { exportSheet, upload, type FinanceRoutes } from './routes.js';
-import { FinanceAllocations } from './allocations.js';
-import { FinanceAttachments } from './attachments.js';
-import { FinanceBank } from './bank.js';
-import { FinanceCashAccounts } from './cash-accounts.js';
-import { FinanceDepositsInterest } from './deposits-interest.js';
-import { FinanceDue } from './due.js';
-import { FinanceInvoiceConfirm } from './invoice-confirm.js';
-import { FinanceInvoiceMatching } from './invoice-matching.js';
-import { FinanceInvoices } from './invoices.js';
-import { FinanceNotes } from './notes.js';
-import { FinanceParties } from './parties.js';
-import { FinanceSettlements } from './settlements.js';
-import { FinanceStatements } from './statements.js';
-import { FinanceTax } from './vat.js';
+import { FinanceAllocations } from './cash/allocations.js';
+import { FinanceAttachments } from './base/attachments.js';
+import { FinanceBank } from './cash/bank.js';
+import { FinanceCashAccounts } from './cash/cash-accounts.js';
+import { FinanceDepositsInterest } from './parties/deposits-interest.js';
+import { FinanceDue } from './parties/due.js';
+import { FinanceInvoiceConfirm } from './cash/invoice-confirm.js';
+import { FinanceInvoiceMatching } from './cash/invoice-matching.js';
+import { FinanceInvoices } from './cash/invoices.js';
+import { FinanceNotes } from './cash/notes.js';
+import { FinanceParties } from './parties/parties.js';
+import { FinanceSettlements } from './cash/settlements.js';
+import { FinanceStatements } from './parties/statements.js';
+import { FinanceTax } from './base/vat.js';
 
 /** 改账期的正文先按对象收：单位种类和编号以地址为准，盖掉正文里的同名项，其余由账期的规则校验 */
 const termsFields = z.looseObject({});

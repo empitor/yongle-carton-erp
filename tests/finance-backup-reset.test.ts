@@ -14,7 +14,7 @@ import { SCHEMA_LATEST } from '../server/core/schema/index.js';
 import { createFullBackup, restoreFullBackup } from '../server/core/backup.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
-import { FinanceAttachments } from '../server/finance/attachments.js';
+import { FinanceAttachments } from '../server/finance/base/attachments.js';
 import { maker, newSettings } from './finance-fixture.js';
 
 test('完整备份恢复后财务附件的字节原样都在', async () => {

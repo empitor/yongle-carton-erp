@@ -2,16 +2,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceReports } from '../server/finance/reports.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceEventHandling } from '../server/finance/event-handling.js';
-import { FinanceClosing } from '../server/finance/closing.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceReports } from '../server/finance/reports/reports.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceEventHandling } from '../server/finance/events/event-handling.js';
+import { FinanceClosing } from '../server/finance/reports/closing.js';
 import { maker, newSettings, physical, deliveryDoc, arrivalDoc, event, eventsStep, setDoc } from './finance-fixture.js';
-import { evaluateSource } from '../server/finance/event-evaluate.js';
+import { evaluateSource } from '../server/finance/events/event-evaluate.js';
 import { businessChanges } from './business-changes-fixture.js';
-import { readSnapshot } from '../server/finance/source-snapshot.js';
+import { readSnapshot } from '../server/finance/events/source-snapshot.js';
 import { count } from '../server/core/index.js';
 
 test('启用前的单据启用后被改（补价格、编辑、冲销）：仍算启用前，不生成事件，结账不卡', () => {

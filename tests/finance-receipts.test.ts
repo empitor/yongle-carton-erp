@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
 import { customerSchema } from '../shared/core/domain.js';
-import { FinanceParties } from '../server/finance/parties.js';
-import { FinanceEvents } from '../server/finance/events.js';
-import { FinanceMonthly } from '../server/finance/monthly.js';
-import { FinanceBank } from '../server/finance/bank.js';
-import { FinanceDue } from '../server/finance/due.js';
+import { FinanceParties } from '../server/finance/parties/parties.js';
+import { FinanceEvents } from '../server/finance/events/events.js';
+import { FinanceMonthly } from '../server/finance/reports/monthly.js';
+import { FinanceBank } from '../server/finance/cash/bank.js';
+import { FinanceDue } from '../server/finance/parties/due.js';
 import { physical, deliveryDoc, funds, maker, newSettings, postDrafts, event, obligation } from './finance-fixture.js';
-import { FinanceEventVouchers } from '../server/finance/event-voucher.js';
-import { FinanceAllocations } from '../server/finance/allocations.js';
+import { FinanceEventVouchers } from '../server/finance/events/event-voucher.js';
+import { FinanceAllocations } from '../server/finance/cash/allocations.js';
 
 test('一笔收款跨多张来源单，多个收款单冲同一往来单，下钻合计等于实际收入', () => {
   const s = new Store(':memory:');

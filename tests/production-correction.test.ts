@@ -10,7 +10,7 @@ import type { Actor } from '../server/core/index.js';
 import { AppError, count, one, rows } from '../server/core/index.js';
 import { correctDocument, planCorrection } from '../server/flow/index.js';
 import { stockItemBatches } from '../server/flow/index.js';
-import { originsOf } from '../server/finance/costing-origins.js';
+import { originsOf } from '../server/finance/costing/costing-origins.js';
 import { must } from './read-result.js';
 import type { Store } from '../server/core/db.js';
 import { productSchema } from '../shared/core/domain.js';

@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
-import { FinanceLedger } from '../server/finance/ledger.js';
-import { entry } from '../server/finance/query.js';
-import { FinanceTax } from '../server/finance/vat.js';
+import { FinanceLedger } from '../server/finance/ledger/ledger.js';
+import { entry } from '../server/finance/base/query.js';
+import { FinanceTax } from '../server/finance/base/vat.js';
 import { maker, newSettings, post } from './finance-fixture.js';
 
 test('增值税留抵按月滚动：上月期末留抵等于本月上期留抵，交过税的月份不吃掉后面的留抵', () => {
