@@ -212,11 +212,14 @@ function violations(f: string, text: string = readFileSync(f, 'utf8')) {
 /** import(…)、require(…) 里不是一个写死的字符串（拼接、模板、变量）：目标可能看不出来 */
 const dynamicLoad = /\b(?:import|require)\s*\(\s*(?!(['"])[^'"`]*\1\s*\))/;
 /**
- * 要解析的文件（全量解析 tests/ 太慢）：文字里出现模块目录名，并且写了“目录名/某个不是 index 的文件”（如 operations/ledger），
- * 或者有看不出目标的加载。只引 index.js 的文件很多，跳过它们。
+ * 要解析的文件（全量解析 tests/ 太慢）：文字里出现模块路径且指向非入口文件（如 server/core/storage），
+ * 或者有看不出目标的动态加载并出现模块目录名。只引 index.js 或 shared/core/ 的文件跳过。
  */
-const mayRefer = (text: string) =>
-  moduleTests.some(({ dir }) => text.includes(dirName(dir)) && (new RegExp(dirName(dir) + '/(?!index\\.)').test(text) || dynamicLoad.test(text)));
+const moduleMatchers = moduleTests.map(({ dir }) => ({ dir, name: dirName(dir), inner: new RegExp(dir + '(?!index\\.)') }));
+const mayRefer = (text: string) => {
+  const hasDynamic = dynamicLoad.test(text);
+  return moduleMatchers.some(({ dir, name, inner }) => (text.includes(dir) && inner.test(text)) || (hasDynamic && text.includes(name)));
+};
 
 test('测试引登记了的模块只走 index.ts，本模块测试登记过才能引内部', () => {
   const found = files('tests')
