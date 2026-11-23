@@ -1,19 +1,14 @@
 // 识别导入给别的模块用的服务接口（由 src/slots.ts 装进插槽，接口定义在 src/ui/slots.tsx）
 import { importStillOpen } from '../../shared/import/index';
 import { fileStatus } from './fileStatus';
-import { inboxFileUrl, readInbox, readInboxItem, setInboxStatus } from './inbox-api';
+import { readInbox } from './inbox-api';
 import { changeWorkspaceFiles, readImports } from './workspace-api';
 
-/** 收件箱：今日页列待处理的，订单编辑窗对照原文，订单建好后标记已转成订单 */
+/** 收件箱：今日页列待处理的 */
 export const inboxService = {
   async pending(limit: number) {
     const v = await readInbox({ status: 'pending', channel: '', q: '', page: 1 }, limit);
     return { rows: v.rows, total: v.filteredRecords };
-  },
-  item: readInboxItem,
-  fileUrl: inboxFileUrl,
-  async converted(item: { id: number; version: number }, kind: 'order') {
-    await setInboxStatus(item, 'converted', kind);
   },
 };
 

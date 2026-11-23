@@ -7,11 +7,9 @@ import CustomerEditor from './CustomerEditor';
 import ProductEditor from './ProductEditor';
 import OrderLines from './OrderLines';
 import OrderMoreInfo from './OrderMoreInfo';
-import { useOrderEditor, type OrderEditorProps } from './useOrderEditor';
+import { useOrderEditor, type OrderEditorProps, type OrderSource } from './useOrderEditor';
 
 type Editor = ReturnType<typeof useOrderEditor>;
-/** 收件箱的一条（识别导入经插槽提供） */
-type InboxItem = NonNullable<Editor['inboxItem']>;
 
 /** 底部按钮：待确认的订单有“保存”和“保存并确认”，别的状态只有“保存订单” */
 function OrderEditorFooter({ e, formId, close }: { e: Editor; formId: string; close: () => void }) {
@@ -51,19 +49,19 @@ function OrderEditorFooter({ e, formId, close }: { e: Editor; formId: string; cl
   );
 }
 
-/** 从收件箱新建时放在表单上方对照的原文 */
-function InboxSource({ e, item }: { e: Editor; item: InboxItem }) {
+/** 表单上方对照的原文资料（由调用方传入） */
+function SourceReference({ source }: { source: OrderSource }) {
   return (
-    <aside className="sales-inbox-source" aria-label="收件箱原文">
+    <aside className="sales-order-source" aria-label={source.title}>
       <header>
-        <strong>收件箱原文</strong>
-        <span>{[item.senderName, item.conversation].filter(Boolean).join(' · ') || '手动添加'}</span>
-        {item.status === 'pending' && <small>保存订单后标为已处理</small>}
+        <strong>{source.title}</strong>
+        {source.meta && <span>{source.meta}</span>}
+        {source.hint && <small>{source.hint}</small>}
       </header>
-      {item.text && <p>{item.text}</p>}
-      {item.fileName && (
-        <a href={e.inbox?.fileUrl(item.id)} download>
-          下载 {item.fileName}
+      {source.text && <p>{source.text}</p>}
+      {source.file && (
+        <a href={source.file.url} download>
+          下载 {source.file.name}
         </a>
       )}
     </aside>
@@ -160,7 +158,7 @@ function OrderLinesSection({ e }: { e: Editor }) {
 
 /** 订单编辑窗：客户、日期、明细、合计和“更多信息”（税费、合同条件、结算、预估成本）。状态和保存在 useOrderEditor.ts。 */
 export default function OrderEditor(props: OrderEditorProps) {
-  const { value, close, loading = false } = props;
+  const { value, source, close, loading = false } = props;
   const formId = useId();
   const e = useOrderEditor(props);
   const { total, fractional, costTotal, uncounted } = e.totals;
@@ -175,7 +173,7 @@ export default function OrderEditor(props: OrderEditorProps) {
     >
       <form id={formId} className="sales-form sales-order-editor" onSubmit={e.submit} onInvalid={e.onInvalid}>
         <FormMessage>{e.error}</FormMessage>
-        {e.inboxItem && <InboxSource e={e} item={e.inboxItem} />}
+        {source && <SourceReference source={source} />}
         {!loading && (!e.availableCustomers.length || !e.availableProducts.length) && (
           <FormMessage tone="info">还没有客户或产品档案，可以用“新建客户”和每行的“+”先建档，已填的内容会保留。</FormMessage>
         )}

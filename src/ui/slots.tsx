@@ -21,14 +21,11 @@ import { canViewFinance, useAuthState } from './auth-state';
 export type WorkspaceFileResult =
   | { id: string; success: true; result: { id: string } }
   | { id: string; success: false; message: string };
-/** 收件箱的一条：今日页列的、订单编辑窗对照的几项（识别导入 shared/import 的 InboxItem） */
+/** 收件箱的一条：今日页列的几项（识别导入 shared/import 的 InboxItem） */
 export type InboxSlotItem = {
   id: number;
-  version: number;
-  status: string;
   channel: string;
   senderName: string;
-  conversation: string;
   text: string;
   fileName: string | null;
 };
@@ -66,13 +63,9 @@ export type Slots = {
   DataManagementEditor?: ComponentType<{ close: () => void; initialModule?: string }>;
   /** 今日页里的 AI 识别文件：还要人处理的那些，和每份那一行的进度文字（识别导入） */
   aiFiles?: { open(): Promise<AiFileSlotItem[]>; note(workspace: AiFileSlotItem): string };
-  /** 收件箱（识别导入）：今日页列待处理的，订单编辑窗对照原文，订单建好后标记已转成订单 */
+  /** 收件箱（识别导入）：今日页列待处理的 */
   inbox?: {
     pending(limit: number): Promise<{ rows: InboxSlotItem[]; total: number }>;
-    item(id: number): Promise<InboxSlotItem>;
-    converted(item: { id: number; version: number }, kind: 'order'): Promise<void>;
-    /** 收件的原文件下载地址 */
-    fileUrl(id: number): string;
   };
   /** 今日页右栏近期到期的应收应付（财务）；没有财务权限时是空的 */
   finance?: { dueSoon(days: number, limit: number): Promise<DueSoonRow[]> };

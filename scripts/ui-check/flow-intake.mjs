@@ -34,6 +34,44 @@ await step('收件箱标为已处理再恢复', async () => {
   else ok('收件箱恢复待处理：' + back);
 });
 
+await step('收件箱文字消息本页新建订单', async () => {
+  const text = '吹风机彩箱再加500只，下周三前能送到吗？';
+  const beforeOrders = await api('/api/orders');
+  await page.goto(BASE + '#inbox');
+  await tab('待处理').click();
+  await page.getByRole('button', { name: '查看 ' + text }).click();
+  await panel().getByRole('button', { name: '新建订单', exact: true }).click();
+  const dlg = dialog();
+  await dlg.waitFor({ timeout: 8000 });
+  const source = dlg.getByLabel('收件箱原文');
+  await source.waitFor({ timeout: 5000 });
+  if (!(await source.innerText()).includes(text)) fail('订单编辑窗没显示收件箱原文');
+  if (!page.url().includes('#inbox')) fail('点新建订单不应该离开收件箱页：' + page.url());
+  const customerInput = dlg.getByLabel('订单客户', { exact: true });
+  await customerInput.click();
+  await dlg.getByRole('option').first().click();
+  await dlg.getByLabel(/^下单日期/).fill('2026-12-10');
+  await dlg.getByLabel(/^交货日期/).fill('2026-12-20');
+  const productInput = dlg.getByLabel('第 1 行产品', { exact: true });
+  await productInput.click();
+  await dlg.getByRole('option').first().click();
+  await dlg.getByLabel('第 1 行数量', { exact: true }).fill('500');
+  await dlg.getByLabel('第 1 行单价', { exact: true }).fill('2.5');
+  await shot('收件箱新建订单窗');
+  await dlg.getByRole('button', { name: '保存并确认', exact: true }).click();
+  await dlg.waitFor({ state: 'detached', timeout: 10000 });
+  const done = await toast('收件已标为已处理');
+  await page.getByRole('button', { name: '查看 ' + text }).waitFor({ state: 'detached', timeout: 8000 });
+  const afterOrders = await api('/api/orders');
+  const created = afterOrders.find((o) => !beforeOrders.some((b) => b.id === o.id));
+  const converted = (await inbox('converted')).find((r) => r.text === text);
+  if (!page.url().includes('#inbox')) fail('保存后离开收件箱页了：' + page.url());
+  else if (!created) fail('保存后订单列表没有多一张');
+  else if (created.status !== '已确认') fail('点保存并确认后新单状态不是已确认：' + created.status);
+  else if (!converted || converted.convertedKind !== 'order') fail('保存后收件没标成已转订单');
+  else ok('收件箱本页新建订单 ' + created.number + '：' + done);
+});
+
 await step('收件箱文件转订单', async () => {
   // 用种子里那张真的 PNG（11月采购单.xlsx 的内容不是真表格，服务端会拒收）
   const name = '手写订单照片.png';

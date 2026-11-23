@@ -12,12 +12,14 @@ export default function InboxRowActions({
   canEdit,
   busy,
   convert,
+  createOrder,
   setRowStatus,
 }: {
   row: InboxItem;
   canEdit: boolean;
   busy: boolean;
   convert: (row: InboxItem, kind: ConvertedKind) => void;
+  createOrder: (row: InboxItem) => void;
   setRowStatus: (row: InboxItem, next: InboxStatus, message: string) => void;
 }) {
   const hidden = !canEdit;
@@ -60,7 +62,7 @@ export default function InboxRowActions({
     );
   return (
     <ActionBar
-      primary={[{ label: '新建订单', hidden, href: '#orders?create=1&inbox=' + row.id }]}
+      primary={[{ label: '新建订单', hidden, disabled: busy, onClick: () => createOrder(row) }]}
       secondary={[done]}
       more={[ignore]}
     />
