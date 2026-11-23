@@ -9,11 +9,11 @@ const CustomerEditor = lazy(() => import('../editors/CustomerEditor'));
 const OrderEditor = lazy(() => import('../editors/OrderEditor'));
 const ProductEditor = lazy(() => import('../editors/ProductEditor'));
 
-/** 订单、客户、产品页开着的编辑窗：编辑哪一条，或新建（订单可以带客户、产品、收件箱原文） */
+/** 订单、客户、产品页开着的编辑窗：编辑哪一条，或新建（订单可以带客户、产品） */
 export type RecordEditor =
   | { kind: 'customers'; value?: Customer }
   | { kind: 'products'; value?: Product }
-  | { kind: 'orders'; value?: Order; inboxId?: number; preset?: { customerId?: number; productIds?: number[] } }
+  | { kind: 'orders'; value?: Order; preset?: { customerId?: number; productIds?: number[] } }
   | null;
 
 type OpenEditor = NonNullable<RecordEditor>;
@@ -30,7 +30,7 @@ async function reread(current: OpenEditor, id: number): Promise<OpenEditor> {
   }
 }
 
-/** 还开着同一条才换成重读到的内容（订单窗原来带的收件箱原文、预填照旧） */
+/** 还开着同一条才换成重读到的内容（订单窗原来带的预填照旧） */
 function withFresh(latest: RecordEditor, fresh: OpenEditor): RecordEditor {
   if (!latest || latest.value?.id !== fresh.value?.id) return latest;
   if (latest.kind === 'orders' && fresh.kind === 'orders') return { ...latest, value: fresh.value };
@@ -72,7 +72,6 @@ export function useRecordEditor({
     }
     setEditor({
       kind: 'orders',
-      inboxId: Number(params.get('inbox')) || undefined,
       // 从客户、产品“新建订单”过来的：预先填客户或产品
       preset: {
         customerId: Number(params.get('customer')) || undefined,
@@ -140,12 +139,15 @@ export default function RecordEditors({
             loading={loading}
             key={editor.value ? editor.value.id + ':' + editor.value.version : 'new:' + routeKey}
             value={editor.value}
-            inboxId={editor.inboxId}
             preset={editor.preset}
             customers={customers}
             products={products}
             close={close}
-            saved={saved}
+            saved={(_, message) => {
+              emit('erp-business-changed');
+              setEditor(null);
+              notify(message);
+            }}
           />
         )}
       </Suspense>

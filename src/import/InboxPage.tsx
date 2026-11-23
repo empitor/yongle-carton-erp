@@ -6,6 +6,7 @@ import { PageHeading, Pagination } from '../ui/index';
 import InboxDetail, { inboxKicker, inboxSubtitle, InboxStatus } from './InboxDetail';
 import InboxTable from './InboxTable';
 import InboxRowActions from './InboxRowActions';
+import InboxOrderDialog from './InboxOrderDialog';
 import InboxPasteDialog from './InboxPasteDialog';
 import { ChannelNote, InboxFilters } from './InboxFilters';
 import type { ConvertedKind, InboxItem, InboxStatus as Status } from '../../shared/import/index';
@@ -19,6 +20,7 @@ export default function InboxPage() {
   const list = useInboxList(),
     { data, rows, selected, setSelected } = list;
   const [pasting, setPasting] = useState(false);
+  const [orderRow, setOrderRow] = useState<InboxItem | null>(null);
   const { busy, error: workError, run, clear } = useAction();
   const input = useRef<HTMLInputElement>(null);
   const error = list.error || workError;
@@ -109,6 +111,7 @@ export default function InboxPage() {
               canEdit={canEdit}
               busy={busy}
               convert={(row, kind) => void convert(row, kind)}
+              createOrder={setOrderRow}
               setRowStatus={setRowStatus}
             />
           }
@@ -124,6 +127,7 @@ export default function InboxPage() {
       {pasting && (
         <InboxPasteDialog busy={busy} error={workError} close={() => setPasting(false)} add={(text) => void addText(text)} />
       )}
+      {orderRow && <InboxOrderDialog row={orderRow} close={() => setOrderRow(null)} />}
     </div>
   );
 }

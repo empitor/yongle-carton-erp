@@ -12,6 +12,7 @@ import CommandPalette, { paletteActions } from '../src/CommandPalette.js';
 import { fieldChoices } from '../src/admin/field-rules.js';
 import { batchAfterSave } from '../src/operations/OrderBatchDialog.js';
 import OrderEditor from '../src/editors/OrderEditor.js';
+import { finishInboxOrder, inboxOrderSource } from '../src/import/InboxOrderDialog.js';
 import { productSchema, today } from '../shared/core/domain.js';
 import { orderViewSchema } from '../shared/core/order-view.js';
 import TodayRow from '../src/records/TodayRow.js';
@@ -108,6 +109,76 @@ test('新建订单的交货日期留空要自己填（不猜日期），下单�
   assert.match(orderDate, new RegExp('value="' + today() + '"'), '下单日期是今天');
   assert.match(deliveryDate, /value=""/, '交货日期空着');
   assert.match(deliveryDate, /required/);
+});
+
+test('订单编辑窗：不传对照原文时不显示原文区，传入后显示原文和下载链接', () => {
+  const plain = renderToStaticMarkup(
+    h(OrderEditor, { customers: [], products: [], close: () => {}, saved: () => {} }),
+  );
+  assert.doesNotMatch(plain, /<aside\b/, '没传对照原文时不显示原文区');
+  const source = inboxOrderSource({
+    id: 7,
+    status: 'pending',
+    senderName: '虚构李工',
+    conversation: '虚构客户群',
+    text: '外箱加急 500 只',
+    fileName: '说明.txt',
+  });
+  const withSource = renderToStaticMarkup(
+    h(OrderEditor, { customers: [], products: [], source, close: () => {}, saved: () => {} }),
+  );
+  assert.match(withSource, /aria-label="收件箱原文"/);
+  assert.match(withSource, /虚构李工 · 虚构客户群/);
+  assert.match(withSource, /保存订单后标为已处理/);
+  assert.match(withSource, /外箱加急 500 只/);
+  assert.match(withSource, /href="\/api\/inbox\/7\/file"/);
+  assert.match(withSource, /下载 说明\.txt/);
+});
+
+test('收件箱建订单：保存成功后按原收件编号和版本标为已处理并提示结果', async () => {
+  const seen: Array<{ id: number; version: number }> = [];
+  const ok = await finishInboxOrder(
+    { id: 7, version: 3, status: 'pending' },
+    { number: 'SO-虚构-7' },
+    '订单 SO-虚构-7 已建立并确认。',
+    async (item) => {
+      seen.push({ id: item.id, version: item.version });
+    },
+  );
+  assert.deepEqual(seen, [{ id: 7, version: 3 }]);
+  assert.deepEqual(ok, { message: '订单 SO-虚构-7 已建立并确认，收件已标为已处理。', tone: 'done' });
+});
+
+test('收件箱建订单：标为已处理失败时不吞错，返回带单号和原因的错误提示', async () => {
+  const seen: Array<{ id: number; version: number }> = [];
+  const failed = await finishInboxOrder(
+    { id: 7, version: 3, status: 'pending' },
+    { number: 'SO-虚构-7' },
+    '订单 SO-虚构-7 已建立，待确认。',
+    async (item) => {
+      seen.push({ id: item.id, version: item.version });
+      throw new Error('记录已修改，请刷新。');
+    },
+  );
+  assert.deepEqual(seen, [{ id: 7, version: 3 }]);
+  assert.deepEqual(failed, {
+    message: '订单 SO-虚构-7 已建立，但收件没能标为已处理：记录已修改，请刷新。',
+    tone: 'error',
+  });
+});
+
+test('收件箱建订单：已处理收件不再重复调用标记，沿用订单保存提示', async () => {
+  let called = false;
+  const alreadyDone = await finishInboxOrder(
+    { id: 7, version: 2, status: 'converted' },
+    { number: 'SO-虚构-7' },
+    '订单 SO-虚构-7 已建立，待确认。',
+    async () => {
+      called = true;
+    },
+  );
+  assert.equal(called, false);
+  assert.deepEqual(alreadyDone, { message: '订单 SO-虚构-7 已建立，待确认。', tone: 'done' });
 });
 
 test('订单编辑窗：有一项单价超上限算不出金额时，合计显示“—”并说明是哪一项，不显示 0.00', () => {

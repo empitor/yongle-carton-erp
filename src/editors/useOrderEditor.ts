@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type SubmitEvent, type SyntheticEvent } from 'react';
+import { useRef, useState, type SubmitEvent, type SyntheticEvent } from 'react';
 import { costYuan, today, type Customer, type Order, type OrderInput, type Product } from '../../shared/core/index';
-import { emit, notify, useAction, useLoad, useSlots, type Slots } from '../ui/index';
+import { emit, useAction } from '../ui/index';
 import { changeOrderStatus } from '../recordkit/record-api';
 import { saveOrder } from './editor-api';
 import {
@@ -14,16 +14,26 @@ import {
   type OrderLineDraft,
 } from './order-draft';
 
+/** 表单上方对照的原文资料（从别处发起新建订单时传入，编辑窗只管显示） */
+export type OrderSource = {
+  title: string;
+  meta?: string;
+  hint?: string;
+  text?: string;
+  file?: { name: string; url: string };
+};
+
 export type OrderEditorProps = {
   value?: Order;
   loading?: boolean;
-  inboxId?: number;
+  /** 表单上方对照的原文和原文件下载链接；只用于对照，不发给模型 */
+  source?: OrderSource;
   /** 从客户或产品“新建订单”时带进来的内容；只用于新建 */
   preset?: { customerId?: number; productIds?: number[] };
   customers: Customer[];
   products: Product[];
   close: () => void;
-  saved: () => void;
+  saved: (record: Order, message: string) => void | Promise<void>;
 };
 
 const initialExtras = (value?: Order): OrderExtras => ({
@@ -91,30 +101,26 @@ const invalidHandler = (d: Draft, setInvalid: (text: string) => void) => (e: Syn
   setInvalid('明细 ' + (index + 1) + ' 的' + (el.dataset.field || '附加项') + '没填好：' + el.validationMessage);
 };
 
-/** 从收件箱新建时对照的原文：收件箱由识别导入提供（插槽里的服务接口），不是从收件箱新建或没装上收件箱时不读 */
-function useInboxItem(inbox: Slots['inbox'], inboxId: number | undefined) {
-  const load = inbox && inboxId ? () => inbox.item(inboxId) : null;
-  return useLoad(load ? String(inboxId) : null, () => (load ? load() : Promise.reject(new Error('没有要对照的收件。'))))
-    .data;
-}
-
 /** 保存后的提示：新建、保存、保存并确认各一句 */
 const savedText = (number: string | undefined, editing: boolean, confirmed: boolean) =>
   '订单' +
   (number ? ' ' + number : '') +
   (confirmed ? (editing ? ' 已保存并确认。' : ' 已建立并确认。') : editing ? ' 已保存。' : ' 已建立，待确认。');
 
-/** 订单编辑窗的状态和动作：填的内容、保存（保存并确认）、快速建档回填、收件箱原文。数据怎么算在 order-draft.ts。 */
+/** 把本窗里刚快速新建的档案叠到外部传入列表后，防止外部慢读返回时覆盖刚回填的记录 */
+const mergeRecords = <T extends { id: number }>(base: T[], added: T[]) => [
+  ...base.filter((x) => !added.some((a) => a.id === x.id)),
+  ...added,
+];
+
+/** 订单编辑窗的状态和动作：填的内容、保存（保存并确认）、快速建档回填。数据怎么算在 order-draft.ts。 */
 export function useOrderEditor(props: OrderEditorProps) {
-  const { value, inboxId, customers, products, saved } = props;
-  // 从收件箱新建时只把原文放在表单上方对照，不解析、不发给模型。收件箱由识别导入提供（插槽里的服务接口）。
-  const { inbox } = useSlots();
-  const inboxItem = useInboxItem(inbox, inboxId);
-  const [availableCustomers, setAvailableCustomers] = useState(customers),
-    [availableProducts, setAvailableProducts] = useState(products),
+  const { value, customers, products, saved } = props;
+  const [createdCustomers, setCreatedCustomers] = useState<Customer[]>([]),
+    [createdProducts, setCreatedProducts] = useState<Product[]>([]),
     [quickCreate, setQuickCreate] = useState<null | { kind: 'customer' | 'product'; line?: number }>(null);
-  useEffect(() => setAvailableCustomers(customers), [customers]);
-  useEffect(() => setAvailableProducts(products), [products]);
+  const availableCustomers = mergeRecords(customers, createdCustomers),
+    availableProducts = mergeRecords(products, createdProducts);
   const d = useOrderDraft(props);
   // 订单状态不在窗口里手选：待确认的订单底部有“保存”和“保存并确认”；
   // 已确认的照原状态保存；生产中、待发货、已发货由生产和送货单据推进。
@@ -134,10 +140,8 @@ export function useOrderEditor(props: OrderEditorProps) {
         const body = { value, extras, customerId, orderDate, deliveryDate, notes, lines, costed, costs };
         let record = await saveOrder(value?.id, orderPayload({ ...body, status: confirmAfter ? status : submitStatus.current }));
         if (confirmAfter) record = await changeOrderStatus(record, 'confirm');
-        // 订单已保存；收件状态没改成时不影响订单，收件箱里仍可手动标记已处理。
-        if (inboxItem?.status === 'pending') await inbox?.converted(inboxItem, 'order').catch(() => {});
-        saved();
-        notify(savedText(record?.number || value?.number, !!value, pending && submitStatus.current === '已确认'));
+        const message = savedText(record?.number || value?.number, !!value, pending && submitStatus.current === '已确认');
+        await saved(record, message);
       })
       // 回车提交时按原状态保存；要确认就点“保存并确认”
       .finally(() => (submitStatus.current = status));
@@ -148,13 +152,13 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   /** 快速新建客户、产品后选进当前订单（产品带出名称、料号、规格和参考单价，和下拉选产品一样） */
   const customerCreated = (record: Customer) => {
-    setAvailableCustomers((v) => [...v.filter((x) => x.id !== record.id), record]);
+    setCreatedCustomers((v) => [...v.filter((x) => x.id !== record.id), record]);
     d.setCustomerId(String(record.id));
     setQuickCreate(null);
     emit('erp-business-changed');
   };
   const productCreated = (record: Product) => {
-    setAvailableProducts((v) => [...v.filter((x) => x.id !== record.id), record]);
+    setCreatedProducts((v) => [...v.filter((x) => x.id !== record.id), record]);
     const line = quickCreate?.line;
     d.setLines((v) => v.map((l, i) => (i === line ? fillProduct(l, record, String(record.id)) : l)));
     setQuickCreate(null);
@@ -162,7 +166,7 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   return {
     ...d,
-    inbox, inboxItem, availableCustomers, availableProducts, quickCreate, setQuickCreate, customerCreated, productCreated,
+    availableCustomers, availableProducts, quickCreate, setQuickCreate, customerCreated, productCreated,
     status, pending, submitStatus, chooseProduct, submit,
     onInvalid: invalidHandler(d, setInvalid),
     error: invalid || save.error,
