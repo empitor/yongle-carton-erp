@@ -1,3 +1,4 @@
+import { sales } from '../../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -40,13 +41,13 @@ test('备份和恢复演练：数据可恢复，旧库保留，运行中恢复�
   const run = runner(dir, { DB_PATH: dbPath, LOCALAPPDATA: dir, ERP_BACKUP_DIR: join(dir, 'backups') });
   try {
     let store = new Store(dbPath);
-    store.saveCustomer({ name: '备份前虚构客户', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '备份前虚构客户', contact: '', phone: '', address: '', notes: '' });
     store.close();
     const backup = run('backup');
     assert.equal(backup.status, 0, backup.stderr + backup.stdout);
     const file = join(dir, 'backups', readdirSync(join(dir, 'backups'))[0]);
     store = new Store(dbPath);
-    store.saveCustomer({ name: '备份后虚构客户', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '备份后虚构客户', contact: '', phone: '', address: '', notes: '' });
     store.close();
     const unlock = acquireLock(dbPath);
     try {
@@ -57,8 +58,8 @@ test('备份和恢复演练：数据可恢复，旧库保留，运行中恢复�
     const restored = run('restore', file);
     assert.equal(restored.status, 0, restored.stderr + restored.stdout);
     store = new Store(dbPath);
-    assert.equal(store.customers().length, 1);
-    assert.equal(store.customers()[0].name, '备份前虚构客户');
+    assert.equal(sales(store).customers().length, 1);
+    assert.equal(sales(store).customers()[0].name, '备份前虚构客户');
     store.close();
     // 完整恢复把原data目录整体另存为同级目录，不覆盖。
     assert.ok(readdirSync(dir).some((x) => x.includes('before-restore')));
@@ -66,7 +67,7 @@ test('备份和恢复演练：数据可恢复，旧库保留，运行中恢复�
     writeFileSync(broken, 'broken data');
     assert.equal(run('restore', broken).status, 1);
     store = new Store(dbPath);
-    assert.equal(store.customers().length, 1);
+    assert.equal(sales(store).customers().length, 1);
     store.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -78,7 +79,7 @@ test('命令行遇到 0.9.0 以前的库：restore 在动文件之前拒绝并�
     dbPath = join(dir, 'data', 'erp.sqlite');
   try {
     const store = new Store(dbPath);
-    store.saveCustomer({ name: '现在的虚构客户', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '现在的虚构客户', contact: '', phone: '', address: '', notes: '' });
     store.close();
     // 0.9.0 以前的库的样子：没有本系统的标识，版本记录只有两列、到第 19 版
     const legacy = join(dir, 'legacy.sqlite');
@@ -113,7 +114,7 @@ test('命令行备份和恢复整份备份：清单记着各配置库的版本�
   const database = fakeConfigDatabase;
   try {
     const store = new Store(dbPath);
-    store.saveCustomer({ name: '备份前虚构客户', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '备份前虚构客户', contact: '', phone: '', address: '', notes: '' });
     store.close();
     // 各库按当前程序的版本造：账号库、机器人设置库第 1 版，助手工具设置、提示词库、AI 设置库第 2 版，AI 识别工作区第 3 版
     const latest: Record<string, number> = {
@@ -179,7 +180,7 @@ test('命令行备份和恢复整份备份：清单记着各配置库的版本�
     assert.ok(readdirSync(dir).some((entry) => entry.includes('before-restore')));
     const back = new Store(dbPath);
     try {
-      assert.deepEqual(back.customers().map((customer) => customer.name), ['备份前虚构客户']);
+      assert.deepEqual(sales(back).customers().map((customer) => customer.name), ['备份前虚构客户']);
     } finally {
       back.close();
     }
@@ -247,7 +248,7 @@ test('命令行单文件恢复：WAL 模式的文件（直接复制出来的业�
   const leftovers = () => readdirSync(dataDir).filter((name) => /\.restore-|-wal$|-shm$|-journal$/.test(name));
   try {
     const store = new Store(dbPath);
-    store.saveCustomer({ name: '单文件恢复虚构客户', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '单文件恢复虚构客户', contact: '', phone: '', address: '', notes: '' });
     store.close();
     // 格式正确的单个文件：完整备份里的业务库副本
     const made = run('backup');
@@ -301,7 +302,7 @@ test('命令行单文件恢复：WAL 模式的文件（直接复制出来的业�
     assert.deepEqual(readdirSync(dirname(good)).sort(), backupFiles, '备份目录没有多出 -wal、-shm');
     const back = new Store(dbPath);
     try {
-      assert.equal(back.customers()[0].name, '单文件恢复虚构客户');
+      assert.equal(sales(back).customers()[0].name, '单文件恢复虚构客户');
     } finally {
       back.close();
     }
@@ -318,7 +319,7 @@ test('程序自动拍的快照（删除前、初始化前、升级前）都是�
   const names = () => {
     const store = new Store(dbPath);
     try {
-      return store.customers().map((customer) => customer.name).sort();
+      return sales(store).customers().map((customer) => customer.name).sort();
     } finally {
       store.close();
     }
@@ -329,11 +330,11 @@ test('程序自动拍的快照（删除前、初始化前、升级前）都是�
   };
   try {
     const store = new Store(dbPath);
-    store.saveCustomer({ name: '快照前虚构客户甲', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '快照前虚构客户甲', contact: '', phone: '', address: '', notes: '' });
     // 删除、初始化前拍的快照
     const destructive = snapshotBeforeDestructive(store, 'delete');
     assert.ok(destructive);
-    store.saveCustomer({ name: '快照后虚构客户乙', contact: '', phone: '', address: '', notes: '' });
+    sales(store).createCustomer({ name: '快照后虚构客户乙', contact: '', phone: '', address: '', notes: '' });
     store.close();
     // 升级前拍的快照（和 openBusinessDatabase 升级前用的是同一个函数）
     const upgrade = snapshotForUpgrade(dbPath, SCHEMA_LATEST, SCHEMA_LATEST + 1);

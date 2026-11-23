@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { type DeletionGraph, type DeletionRow as Row } from '../core/index.js';
+import { type DeletionGraph, type DeletionRow as Row, textOf } from '../core/index.js';
 import { deletionLabel } from '../core/index.js';
 import { flowEntity, flowEntityPrefix, flowNames, movementSource, type impactRowSchema } from '../../shared/business/index.js';
 import { quantityString, flowKinds } from '../../shared/core/index.js';
@@ -16,8 +16,6 @@ type Deletion = { table: string; row: Row };
 /** 只解除关联的一行：value 是要改的列和新值 */
 type Update = { table: string; row: Row; value: Record<string, unknown> };
 
-/** 删除涉及的行（列都是任意值）里的一列是文字就交出来，不是交 undefined */
-export const textOf = (value: unknown) => (typeof value === 'string' ? value : undefined);
 /** 清单里一行的编号：有 id 列用它，没有的（关联表）用 rowid */
 function rowId(r: Row): number | string {
   const id: unknown = r.id;

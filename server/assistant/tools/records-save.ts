@@ -1,4 +1,5 @@
 // 只管：records.propose_save 新建、修改记录——生成方案时试算校验，执行时交给和人工同一个保存服务（executeSave）。
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Actor } from '../../core/index.js';
@@ -59,7 +60,7 @@ export const recordSaveTools = [
 /** 订单、采购单现在的状态和版本（采购单比的是基础状态） */
 function currentStatus(ctx: ToolContext, module: 'orders' | 'purchases', id: number) {
   if (module === 'orders') {
-    const order = ctx.store.order(id, true);
+    const order = sales(ctx.store).order(id, true);
     return order && { from: order.status, version: order.version };
   }
   const purchase = ctx.flow.views.purchases(true, id)[0];

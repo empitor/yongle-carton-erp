@@ -61,7 +61,7 @@ const textOf = (value: unknown) => (typeof value === 'string' ? value : '');
  * - 按“分”存的行去掉带回来的旧精确价（分改了、精确价还是原来的）。不去掉的话尾数校验按旧精确价算，
  *   改了数量和分的明细会被误拦成“精确金额包含不足一分的尾数”；
  * - 精确价点名清空、分没动的行拒收：明细单价必填，不能清成没定价。
- * 只看原有明细（编号和产品都对得上，和 Store.saveOrder 找原明细同一个办法）；新加的明细照提交的存。
+ * 只看原有明细（编号和产品都对得上，和 sales(store).saveOrder 找原明细同一个办法）；新加的明细照提交的存。
  */
 export function orderLinesPriceEdit(lines: readonly unknown[], before: unknown, input: unknown) {
   const oldLines = linesOf(before),

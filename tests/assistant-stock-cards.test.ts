@@ -1,5 +1,6 @@
 // 助手出的库存类卡片（核对到货、完工、送货、冲销、删除、出入库、登记到货、采购退货）：人点了确认才写，
 // 走的是和页面同一个事务服务，权限、库存不足、幂等照旧。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { z } from 'zod';
 import { test } from 'node:test';
@@ -84,7 +85,7 @@ test('核对到货、完工、送货，冲销送货，删除空档案：点了�
     const deletion = await propose(f, thread, owner, 'records.delete', { module: 'products', id: unused.id });
     // 密码由聊天接口在确认卡片提交时核验
     f.manager.execute(deletion.id, { acknowledged: true, deletionDigest: cardDigest(deletion) }, owner, 's', { passwordVerified: true });
-    assert.equal(f.store.product(unused.id, true), undefined);
+    assert.equal(sales(f.store).product(unused.id, true), undefined);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     f.close();

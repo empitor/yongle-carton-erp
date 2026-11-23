@@ -3,7 +3,7 @@
  * - 写（INSERT、UPDATE、DELETE）：只有表的主人能写；别的模块要改，调它的接口（比如库存流水调 operations/ledger.ts）。
  *   例外只有 tableWriteExceptions 登记的几处，各写明原因。
  * - 读：顺着代码依赖读（能引用哪个模块，就能读它的表），没有逆着读的例外。
- *   财务更严：SQL 只读自己的 fin_ 表和审计表，业务数据（连基础的 customers、orders、record_lifecycle）一律经只读窗口拿。
+ *   财务更严：SQL 只读自己的 fin_ 表和审计表，业务数据（连 customers、orders、record_lifecycle）一律经只读窗口拿。
  * - 新建的表要在这里登记属于哪个模块；登记了却没人建的表也拦。
  */
 import assert from 'node:assert/strict';
@@ -13,14 +13,14 @@ import ts from 'typescript';
 import { all, ownerModule, scriptKind } from './module-map.js';
 
 const tableOwnerList: [module: string, tables: string][] = [
-  ['基础', 'customers products orders order_lines business_audit schema_migrations operation_requests number_sequences record_lifecycle permanent_record_deletions'],
+  ['基础', 'business_audit schema_migrations operation_requests number_sequences record_lifecycle permanent_record_deletions'],
   ['账号', 'users auth_events auth_sessions account_requests'],
   // 出错记录库（单独的 logs/problems.sqlite，server/core/diagnostics/problem-log.ts）
   ['基础', 'recent_problems'],
   ['采购库存', 'suppliers purchases purchase_lines stock_items stock_movements stock_movement_revisions order_batches order_batch_purchases'],
   // flow_ 开头的都归单据流转
   ['单据流转', 'purchase_returns'],
-  ['业务总览', 'product_marks mark_files'],
+  ['客户产品订单', 'customers products orders order_lines product_marks mark_files'],
   ['识别导入', 'import_executions inbox_files inbox_items workspaces recognition_failures bots'],
   // 导出记录（文件内容和交付状态）、单据模板设置；订货批次的 export_id 指向导出记录，采购库存只存编号不读这张表
   ['单据导出', 'document_exports document_template_settings'],
@@ -49,7 +49,7 @@ const tableWriteExceptions: { path: string; why: string }[] = [
 ];
 /**
  * 财务的 SQL 只许读这些表：自己的 fin_ 表，和基础的审计表（只给财务操作记录页展示，见 auditReaders）。
- * 业务数据（单据流转、采购库存的表，基础的 customers、orders、record_lifecycle）一律经只读窗口 financeFacts 拿
+ * 业务数据（单据流转、采购库存的表，客户产品订单和归档标记的表）一律经只读窗口 financeFacts 拿
  * （server/flow/finance-facts/，docs/架构/财务.md“财务从哪拿业务数据”），业务改表时财务一行不用动。
  * 不是表的名字（json_each、WITH 起的名字）不算。FROM、JOIN 后表名位置是拼进来的，看不出读谁，也报；
  * 拼的是财务自己的 SQL 片段（片段的文字也在财务文件里，同样受这条查）或类型只收 fin_ 表的表名，按“哪个文件拼的什么”登记在 financeDynamicReads。
@@ -366,12 +366,12 @@ test('回归：SQL 读写检查不分大小写，认得出带引号的表名、�
   // 数据库连接（Store）不整个文件免查：运行时只能写基础自己的表，按表名拼出来的写入也拦
   assert.ok(sqlCheck('server/core/db.ts', "db.exec('update purchases set version=1')").length, 'Store 写采购库存的表');
   assert.ok(sqlCheck('server/core/db.ts', "db.prepare('INSERT OR REPLACE INTO ' + table + ' VALUES(?,?)')").length, 'Store 按表名写');
-  assert.deepEqual(sqlCheck('server/core/db.ts', "db.prepare('UPDATE orders SET version=version+1 WHERE id=?')"), []);
+  assert.deepEqual(sqlCheck('server/sales/records.ts', "db.prepare('UPDATE orders SET version=version+1 WHERE id=?')"), []);
   // 删除和初始化不例外：删除引擎、初始化按表名写、写别的模块的表都拦（要调各模块登记的规则）
   assert.ok(sqlCheck('server/lifecycle/database-maintenance.ts', "db.prepare('UPDATE ' + quote(t) + ' SET a=1')").length, '删除引擎按表名写');
   assert.ok(sqlCheck('server/admin/business-reset.ts', "db.prepare('update fin_settings set a=1')").length, '初始化写财务的表');
   assert.ok(sqlCheck('server/admin/business-reset.ts', "db.prepare('DELETE FROM \"' + name + '\"')").length, '初始化按表名清空');
-  assert.ok(sqlCheck('server/admin/data-management-service.ts', "db.prepare('DELETE FROM order_lines WHERE order_id=?')").length, '数据管理删基础的表');
+  assert.ok(sqlCheck('server/admin/data-management-service.ts', "db.prepare('DELETE FROM order_lines WHERE order_id=?')").length, '数据管理删客户产品订单的表');
   assert.ok(sqlCheck('server/admin/workspace-management.ts', "db.prepare('update flow_documents set a=1')").length, '数据管理的其他文件');
   // 读也逐张查：数据管理读财务、助手的表都拦（初始化前查已结账期间由财务自己说）
   assert.ok(sqlCheck('server/admin/business-reset.ts', "db.prepare('select 1 from fin_periods where closed=1')").length, '数据管理逆着读财务的表');

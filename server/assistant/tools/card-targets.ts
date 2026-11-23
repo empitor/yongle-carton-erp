@@ -1,4 +1,5 @@
 // 确认卡片动的是哪几条（card-summary.ts 用）：按工具的参数认，不看模型写的说法；再按各自的读法读出它现在的样子。
+import { sales } from '../../sales/index.js';
 import type { Actor } from '../../core/index.js';
 import { AppError } from '../../core/index.js';
 import { PurchaseReturns } from '../../flow/index.js';
@@ -58,7 +59,7 @@ function flowRow(ctx: ToolContext, id: number): Obj {
   const doc = ctx.flow.get(id);
   return {
     ...doc,
-    customerName: doc.kind === 'delivery' ? doc.customerName || ctx.store.customer(doc.customerId, true)?.name : undefined,
+    customerName: doc.kind === 'delivery' ? doc.customerName || sales(ctx.store).customer(doc.customerId, true)?.name : undefined,
     supplierName: doc.kind === 'arrival' ? doc.supplierName || ctx.ops.supplierName(doc.supplierId, true) : undefined,
   };
 }

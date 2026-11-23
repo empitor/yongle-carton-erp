@@ -11,10 +11,9 @@ export { readBackupManifest } from './backup-manifest.js';
 export { autoBackupFailure, scheduleDailyBackup } from './backup-auto.js';
 export { validateBusinessDatabase } from './backup-check.js';
 export { snapshotBeforeDestructive } from './snapshots.js';
-export { assertNewProductAllowed, describeProduct, duplicateCustomers } from './duplicate-records.js';
-export type { DuplicateRecord } from './duplicate-records.js';
 export { backupDirectory, configDirectory, masterKeyName } from './config-paths.js';
-export { Store, archivedAmongIn, archivedIdsIn, defaultDbPath, partyView } from './db.js';
+export { Store, archivedAmongIn, archivedIdsIn, defaultDbPath } from './db.js';
+export { partyView } from './party-view.js';
 export { clientNetwork, forwardedClient, hasProxyHeaders, proxyIngress, readDeployment } from './deployment.js';
 export type { Deployment } from './deployment.js';
 export { isLocalAdministrator, localAdministratorActor, requireLocalAdministrator } from './local-administrator.js';
@@ -31,11 +30,9 @@ export {
   requireSuperModeFor,
   superModeDenied,
 } from './permissions.js';
-export { orderIdScope } from './orders.js';
-export type { OrderEditCheck } from './orders.js';
 // 基础模块自己的表的删除、初始化规则（加载基础模块时登记）
 import './deletion-base.js';
-export { beforeRecordDeleted, deletionColumns, deletionLabel, deletionMirror, deletionPlanners, deletionRemove, deletionUpdate, registerRecordDeletion, registerReset, registerTableDeletion, requireDeletionTables, requireRecordDeletionHook, resetClear, resetCounts, resetParticipants } from './deletion-rules.js';
+export { beforeRecordDeleted, deletionColumns, deletionLabel, deletionMirror, deletionPlanners, deletionRemove, deletionUpdate, registerRecordDeletion, registerReset, registerTableDeletion, requireDeletionTables, requireRecordDeletionHook, resetClear, resetCounts, resetParticipants, textOf } from './deletion-rules.js';
 // 归档标记、墓碑能记的记录种类：各模块登记自己的（server/core/record-kinds.ts）
 export { registerRecordKinds } from './record-kinds.js';
 export type { DeletionContext, DeletionGraph, DeletionRow } from './deletion-rules.js';

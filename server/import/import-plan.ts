@@ -1,6 +1,7 @@
+import { sales, assertNewProductAllowed, describeProduct, duplicateCustomers, type DuplicateRecord } from '../sales/index.js';
 import { createHash } from 'node:crypto';
 import type { Store } from '../core/index.js';
-import { AppError, assertNewProductAllowed, describeProduct, duplicateCustomers, type DuplicateRecord } from '../core/index.js';
+import { AppError } from '../core/index.js';
 import {
   evaluateDraft,
   type CustomerPlanRef,
@@ -136,13 +137,13 @@ const names = (rows: DuplicateRecord[]) =>
     .join('、');
 /**
  * 预览前和执行前都核一次：选的档案还在、版本没变；要新建的客户没有同名的已有档案；
- * 要新建的产品过基础的 assertNewProductAllowed（料号相同、同名同尺寸材质的拦下，连已归档的一起比）。
+ * 要新建的产品过客户产品订单模块的 assertNewProductAllowed（料号相同、同名同尺寸材质的拦下，连已归档的一起比）。
  * 返回每行已有的同名不同尺寸材质的产品，要人确认是另一个产品。
  */
 export function checkReferences(store: Store, customer: CustomerPlanRef, products: ProductPlanRef[]) {
   const sameName = new Map<number, string[]>();
   if (customer.mode === 'existing') {
-    const c = store.customer(customer.id);
+    const c = sales(store).customer(customer.id);
     if (!c || c.version !== customer.version) throw new AppError(CUSTOMER_CHANGED, 409);
   } else {
     const same = duplicateCustomers(store, customer.name);
@@ -151,7 +152,7 @@ export function checkReferences(store: Store, customer: CustomerPlanRef, product
   }
   for (const p of products)
     if (p.mode === 'existing') {
-      const found = store.product(p.id);
+      const found = sales(store).product(p.id);
       if (!found || found.version !== p.version) throw new AppError(PRODUCT_CHANGED, 409);
     } else {
       const found = assertNewProductAllowed(store, p.input, true);
@@ -206,7 +207,7 @@ type Projection = ReturnType<typeof projectOrder>;
 /** 客户用哪个档案：已有的带上名字，新建的带上相近的已有客户 */
 function customerPlan(store: Store, mapping: ImportMapping, name: string, projection: Projection): CustomerPlanRef {
   if (mapping.customer.mode === 'existing') {
-    const found = store.customer(mapping.customer.id);
+    const found = sales(store).customer(mapping.customer.id);
     if (!found) throw new AppError(CUSTOMER_CHANGED, 409);
     return { ...mapping.customer, name: found.name };
   }
@@ -226,7 +227,7 @@ function productPlan(
 ): ProductPlanRef {
   const choice = context.mapping.products[line.id];
   if (choice.mode === 'existing') {
-    const found = store.product(choice.id);
+    const found = sales(store).product(choice.id);
     if (!found) throw new AppError(PRODUCT_CHANGED, 409);
     return { ...choice, name: found.name };
   }
@@ -254,7 +255,7 @@ export function importPlan(store: Store, w: ImportWorkspaceView): Plan {
   const name = draft.header.buyerName.value || '';
   autoMapCustomer(store, mapping, name);
   const history = mapping.customer.mode === 'existing' ? customerProductSpecs(store, mapping.customer.id) : undefined;
-  const products = store.products();
+  const products = sales(store).products();
   autoMapProducts(draft, mapping, products, history);
   const projection = projectOrder(store, draft, mapping);
   if (projection.issues.length) throw new AppError(projection.issues.join('；'));

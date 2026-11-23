@@ -28,7 +28,7 @@ const businessRowFiles: { file: string; name: string; title: string; groups: Tab
     file: 'business-db',
     name: 'businessRows',
     title: '业务库（财务以外）',
-    groups: ['base', 'operations', 'flow', 'documents', 'business', 'import', 'assistant'],
+    groups: ['migration', 'sales', 'base', 'operations', 'flow', 'documents', 'marks', 'import', 'assistant'],
   },
   { file: 'finance-db', name: 'financeRows', title: '业务库的财务', groups: ['financeLedger', 'financeDealings', 'financeCosts'] },
 ];

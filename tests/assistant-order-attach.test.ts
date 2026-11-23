@@ -1,5 +1,6 @@
 // 助手关联页面上已经识别、人工核对过的工作区：跨会话读、改、匹配、批量正式导入；有一份过不了时先导能导的；
 // 新客户只建一次。不重新识别、不复制、不重复导入。假 DeepSeek、临时目录、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -43,13 +44,13 @@ test('两份页面上核对过的：查列表、关联、一张卡片正式导�
       execute([a.id, b.id]),
     );
     const v = await f.send('把目前AI智能导入已经识别的两份文件全部导入', [], randomUUID(), who);
-    assert.equal(f.store.orders().length, 2, v.messages.at(-1)?.text);
+    assert.equal(sales(f.store).orders().length, 2, v.messages.at(-1)?.text);
     assert.deepEqual(v.messages.at(-1)?.facts?.executed.map((e) => e.label), ['正式导入 2 份订单']);
     assert.equal(f.imports.status().workspaces.length, 2);
     assert.equal(f.imports.get(a.id).fileHash, a.fileHash);
     f.replies.push(execute([a.id, b.id]));
     await f.send('继续导入这两份', [], randomUUID(), who);
-    assert.equal(f.store.orders().length, 2);
+    assert.equal(sales(f.store).orders().length, 2);
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM import_executions'), 2);
     assert.equal(f.recognitionCalls(), before);
     const fresh = f.manager.create(who);
@@ -69,7 +70,7 @@ test('两份页面上核对过的：查列表、关联、一张卡片正式导�
 test('一批里有过不了的（单位不对、客户已归档）：不出卡片、原因交给模型；先导能导的，改好后再导只导剩下的', async () => {
   const f = fixture();
   try {
-    const archived = f.store.saveCustomer(customerSchema.parse({ name: '虚构归档客户有限公司' }));
+    const archived = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构归档客户有限公司' }));
     f.store.db
       .prepare('INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES(?,?,?,?)')
       .run('customers', archived.id, new Date().toISOString(), who.id);
@@ -80,7 +81,7 @@ test('一批里有过不了的（单位不对、客户已归档）：不出卡�
     setUnit(f, b.id, '箱');
     f.replies.push(execute([a.id, b.id]));
     let v = await f.send('导入这两份已识别订单', [], randomUUID(), who);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
     const refused = v.messages.at(-1);
     assert.ok(refused, '有回复');
     assert.equal(refused.plans?.length, 0);
@@ -90,7 +91,7 @@ test('一批里有过不了的（单位不对、客户已归档）：不出卡�
     assert.match(v.messages.at(-1)?.facts?.failed[0].message ?? '', /归档/);
     f.replies.push(execute([a.id]));
     await f.send('先导入没问题的那份', [], randomUUID(), who);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     const fixed = setUnit(f, b.id, '只');
     assert.ok(b.mapping, '核对过的工作区有匹配');
     f.imports.mapping(b.id, { expectedRevision: fixed.revision, mapping: b.mapping }, who);
@@ -99,7 +100,7 @@ test('一批里有过不了的（单位不对、客户已归档）：不出卡�
       f.replies.push(execute([a.id, b.id]));
       v = await f.send('继续剩余导入', [], randomUUID(), who);
     }
-    assert.equal(f.store.orders().length, 2, v.messages.at(-1)?.text);
+    assert.equal(sales(f.store).orders().length, 2, v.messages.at(-1)?.text);
     assert.equal(f.recognitionCalls(), 3);
     const wf = f.manager.orderWorkflow;
     assert.ok(wf, '订单导入接上了');
@@ -120,17 +121,17 @@ test('三份都写新客户：卡片上都写“新建”，确认时只建一�
     f.replies.push(execute(ids));
     const result = await f.send('正式导入这三份订单，新客户允许建档', [], randomUUID(), who);
     assert.deepEqual(result.messages.at(-1)?.facts?.executed.map((e) => e.label), ['正式导入 3 份订单']);
-    const orders = f.store.orders();
+    const orders = sales(f.store).orders();
     assert.equal(orders.length, 3);
     assert.equal(new Set(orders.map((o) => o.customerId)).size, 1);
-    assert.equal(f.store.customers().filter((c) => c.name === name).length, 1);
+    assert.equal(sales(f.store).customers().filter((c) => c.name === name).length, 1);
     for (const [index, id] of ids.entries()) {
       assert(f.execution.receipt(id, who));
       if (index) assert.equal(f.imports.get(id).mapping?.customer.mode, 'existing');
     }
-    const customer = f.store.customer(orders[0].customerId);
+    const customer = sales(f.store).customer(orders[0].customerId);
     assert.ok(customer, '新建的客户在');
-    f.store.saveCustomer(customerSchema.parse({ ...customer, name: '虚构批量客户（更名后）有限公司' }), customer.id, customer.version);
+    sales(f.store).updateCustomer(customerSchema.parse({ ...customer, name: '虚构批量客户（更名后）有限公司' }), customer.id, customer.version);
     assert.equal(resolveImportCustomer(f.store, name).customer?.id, customer.id);
   } finally {
     f.close();
@@ -158,12 +159,12 @@ test('关联页面上核对过的那份：改数量、匹配客户和产品都�
     );
     assert.equal(at(result, 'workspace', 'draft', 'lines', 0, 'id'), lineId);
     assert.equal(at(result, 'workspace', 'draft', 'lines', 0, 'fields', 'quantity', 'value'), '150');
-    await wf.call('order_import.match', { taskId, customerId: f.store.customers()[0].id }, ctx);
-    result = await wf.call('order_import.match', { taskId, line: 1, productId: f.store.products()[0].id }, ctx);
+    await wf.call('order_import.match', { taskId, customerId: sales(f.store).customers()[0].id }, ctx);
+    result = await wf.call('order_import.match', { taskId, line: 1, productId: sales(f.store).products()[0].id }, ctx);
     assert.equal(at(result, 'workspace', 'id'), original.id);
     assert.equal(f.recognitionCalls(), 1);
     assert.equal(f.imports.status().workspaces.length, 1);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
   } finally {
     f.close();
   }

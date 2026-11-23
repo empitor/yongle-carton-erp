@@ -1,5 +1,6 @@
 // 助手的数据管理命令（management.*）：只给本机最高管理员，走和数据管理同一个服务，写入要人在卡片上确认；
 // 删除不在数据管理命令里，用 records.delete。读识别工作区的列表只读、不要确认。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { pageActor, superActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,8 +47,8 @@ test('助手按本机管理员的权限改订单、更正已入库的完工、�
       id: f.order.id,
       patch: { lines: f.order.lines.map((l) => ({ ...l, quantity: 500 })) },
     });
-    assert.equal(f.store.order(f.order.id)?.lines[0].quantity, 500);
-    assert.equal(f.store.order(f.order.id)?.totalCents, 50000);
+    assert.equal(sales(f.store).order(f.order.id)?.lines[0].quantity, 500);
+    assert.equal(sales(f.store).order(f.order.id)?.totalCents, 50000);
     f.arrival();
     const p = f.production();
     // 已入库的完工单改数量走更正（撤销原单、另出替代单）；records.propose_save 改它会被服务端拒
@@ -97,7 +98,7 @@ test('数据管理命令不认模型伪造的本机管理员身份；停用后�
     assert.throws(() => a.manager.tools.prepare('management.execute', args, actor, 's'), /本机最高管理员/);
     a.manager.registry.set({ name: 'management.execute', enabled: false, expectedRevision: 0 }, f.who);
     await assert.rejects(() => a.manager.registry.dispatch('management.execute', args, f.who, noEffects), /停用/);
-    assert.equal(f.store.customers().length, 1);
+    assert.equal(sales(f.store).customers().length, 1);
   } finally {
     a.close();
   }
@@ -113,7 +114,7 @@ test('management.execute 真的写库', async () => {
       { message: '已保存。' },
     );
     const result = await a.manager.chat(thread.id, a.input('把订单 ' + f.order.number + ' 的备注改成统一工具实际写入', randomUUID()), f.who, 's', () => {}, () => f.who);
-    assert.equal(f.store.order(f.order.id)?.notes, '统一工具实际写入');
+    assert.equal(sales(f.store).order(f.order.id)?.notes, '统一工具实际写入');
     assert.equal(result.messages.at(-1)?.facts?.executed.length, 1);
   } finally {
     a.close();

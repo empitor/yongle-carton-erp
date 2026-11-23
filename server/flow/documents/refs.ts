@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import type { Store } from '../../core/index.js';
 import { one, rows } from '../../core/index.js';
 import type { FlowDocument } from '../../../shared/business/index.js';
@@ -56,7 +57,7 @@ export function rewriteRefs(store: Store, id: number, doc: FlowDocument) {
         order_line_id: l.orderLineId,
         stock_id: l.stockId,
         product_id:
-          store.order(l.orderId, true)?.lines.find((x) => x.id === l.orderLineId)
+          sales(store).order(l.orderId, true)?.lines.find((x) => x.id === l.orderLineId)
             ?.productId || null,
       });
   }

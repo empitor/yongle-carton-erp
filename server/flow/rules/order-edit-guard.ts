@@ -1,6 +1,7 @@
+import { type OrderEditCheck } from '../../sales/index.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Order } from '../../../shared/core/index.js';
-import { InputError, exists, type OrderEditCheck } from '../../core/index.js';
+import { InputError, exists } from '../../core/index.js';
 import { shippedByLine } from '../documents/shipped.js';
 
 /*

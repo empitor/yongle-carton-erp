@@ -1,6 +1,7 @@
 // 界面实测用的隔离实例：临时目录、纯虚构数据、模型替身，不接触 data/ 或用户配置。账号密码都是虚构的。
 // UI_CHECK_PORT 换端口（默认 3199）；UI_CHECK_REMOTE=1 关掉“本机管理员”，模拟从域名访问。
 // UI_CHECK_REAL_MODEL=1 是真实模型模式（不装模型替身，见 real-model.mts），由 preview.mjs --real-model 设。
+import { sales } from '../../server/sales/index.js';
 import { randomUUID, scryptSync } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -67,10 +68,10 @@ const shift = (d: number) => { const t = new Date(today() + 'T00:00:00Z'); t.set
 // 种子是补录历史：送货单按单据上的日期出库（真实操作里出库日就是确认那天）
 const confirm = (d: FlowDocView) => { const p = flow.preview(d.id, actor); return flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true, ...(d.kind === 'delivery' ? { shipDate: d.date } : {}) }, actor); };
 const customers = ['虚构东海电器有限公司', '虚构明远食品有限公司', '虚构海曙五金制品厂', '虚构北仑灯具有限公司', '虚构慈溪小家电有限公司', '虚构余姚塑料制品有限公司'].map((name, i) =>
-  store.saveCustomer(customerSchema.parse({ name, contact: '联系人' + (i + 1), phone: '0574-0000-00' + i, address: '虚构路' + (i + 1) + '号' })));
+  sales(store).createCustomer(customerSchema.parse({ name, contact: '联系人' + (i + 1), phone: '0574-0000-00' + i, address: '虚构路' + (i + 1) + '号' })));
 const productDefs = [['电饭煲外箱 3L', 420, 320, 300, 'K=A', 'BC'], ['电饭煲外箱 5L', 480, 360, 340, 'K=A', 'BC'], ['食品礼盒外箱', 500, 350, 260, 'B=B', 'BE'], ['五金配件箱 小', 300, 200, 150, 'A=A', 'B'], ['五金配件箱 大', 450, 300, 250, 'K=K', 'BC'], ['灯具内托箱', 620, 180, 180, 'B=B', 'E'], ['吹风机彩箱', 260, 110, 240, 'W=A', 'E'], ['水壶外箱', 380, 380, 320, 'K=A', 'BC'], ['塑料件周转箱', 600, 400, 300, 'K=K', 'AB']] as const;
-const products = productDefs.map(([name, length, width, height, material, flute]) => store.saveProduct(productSchema.parse({ name, length, width, height, dimensionUnit: 'mm', material, flute, requirements: '四色印刷，钉箱', priceCents: 0 })));
-store.saveProduct(productSchema.parse({ name: '资料不全的临时箱' }));
+const products = productDefs.map(([name, length, width, height, material, flute]) => sales(store).createProduct(productSchema.parse({ name, length, width, height, dimensionUnit: 'mm', material, flute, requirements: '四色印刷，钉箱', priceCents: 0 })));
+sales(store).createProduct(productSchema.parse({ name: '资料不全的临时箱' }));
 const suppliers = ['虚构鼎盛纸业', '虚构宏泰纸板厂', '虚构华美瓦楞', '虚构永信纸业'].map((name, i) => ops.saveSupplier({ name, contact: '供应联系人' + i, phone: '0574-1000-00' + i, address: '虚构工业区' + i }, actor));
 const raws = [['BC五层纸板 1250×1000', 1250, 1000, 'K=A', 'BC'], ['BE五层纸板 1400×1100', 1400, 1100, 'B=B', 'BE'], ['B三层纸板 900×700', 900, 700, 'A=A', 'B'], ['E三层纸板 800×600', 800, 600, 'W=A', 'E']] as const;
 const rawItems = raws.map(([name, length, width, material, flute]) => flow.stock.saveItem({ name, kind: 'raw', unit: '张', length, width, height: null, dimensionUnit: 'mm', material, flute, specification: '', notes: '', productId: null }, actor));
@@ -87,7 +88,7 @@ const orders = Array.from({ length: 28 }, (_, i) => {
   const two = i % 3 === 0;
   const orderDate = shift(-24 + i), deliveryDate = shift(-24 + i + 7 + (i % 5));
   const lines = [a, ...(two ? [b] : [])].map((p, j) => ({ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity: 500 * (1 + ((i + j) % 6)), unit: '只', unitPriceCents: 180 + (i * 37 + j * 91) % 900, notes: '', customerProductCode: 'KH-' + (1000 + i * 3 + j) }));
-  return store.saveOrder(orderSchema.parse({ customerId: c.id, orderDate, deliveryDate, status: statusCycle[i % statusCycle.length], notes: i % 7 === 0 ? '客户要求分批送货' : '', costs: null, externalPurchaseOrder: 'PO-' + (2600 + i), taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines }));
+  return sales(store).saveOrder(orderSchema.parse({ customerId: c.id, orderDate, deliveryDate, status: statusCycle[i % statusCycle.length], notes: i % 7 === 0 ? '客户要求分批送货' : '', costs: null, externalPurchaseOrder: 'PO-' + (2600 + i), taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines }));
 });
 const confirmedOrders = orders.filter((o) => o.status === '已确认');
 // 财务补充场景用：上个月最后一天的一张已确认送货单（按本月启用财务时是启用前的单据），备注写明，场景脚本按它找。
@@ -95,7 +96,7 @@ const confirmedOrders = orders.filter((o) => o.status === '已确认');
 {
   const prevEnd = shift(-Number(today().slice(8, 10)));
   const p = products[0], quantity = 500;
-  const o = store.saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
+  const o = sales(store).saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
   const l = o.lines[0], fin = finishedOf(l.productId);
   flow.stock.move(fin.id, { action: 'in', quantity: String(quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
   confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
@@ -158,8 +159,8 @@ if (!real) {
   const { prepareArrivalRecognition } = await import('../../server/import/index.ts');
   const buyer = one(store.db, rows.customers.pick({ id: true }), "SELECT id FROM customers WHERE name='聊天验收客户'");
   if (!buyer) throw new Error('助手夹具里没有“聊天验收客户”');
-  const old = store.saveProduct(productSchema.parse({ name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'B', priceCents: 0 }));
-  store.saveOrder(orderSchema.parse({ customerId: buyer.id, orderDate: shift(-90), deliveryDate: shift(-80), status: '已取消', notes: '虚构老订单', costs: null, externalPurchaseOrder: 'PO-虚构老单', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: old.id, productName: old.name, specification: '300×200×150', quantity: 100, unit: '只', unitPriceCents: 123, notes: '', customerProductCode: '' }] }));
+  const old = sales(store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'B', priceCents: 0 }));
+  sales(store).saveOrder(orderSchema.parse({ customerId: buyer.id, orderDate: shift(-90), deliveryDate: shift(-80), status: '已取消', notes: '虚构老订单', costs: null, externalPurchaseOrder: 'PO-虚构老单', taxRate: '13%', taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: old.id, productName: old.name, specification: '300×200×150', quantity: 100, unit: '只', unitPriceCents: 123, notes: '', customerProductCode: '' }] }));
   const order = (await f.imports.upload(imageFixture(), '虚构客户订单.png', false)).workspace;
   await f.imports.analyze(order.id, { expectedRevision: order.revision }, undefined, actor);
   const arrival = (await f.imports.upload(imageFixture(true), '虚构供应商送货单.jpg', false, 'arrival')).workspace;

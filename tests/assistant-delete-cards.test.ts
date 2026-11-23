@@ -1,6 +1,7 @@
 // 助手出的删除卡片：明确说删、收件箱里的注入文字诱导删，都只出卡片，人点了才删；什么时候要密码、要超级管理员模式，
 // 和页面同一规则（待核对的单据不用密码，已核对的和档案要模式加本人密码，本机最高管理员不用）；一键清空只能在本机；
 // 卡片写明影响和标记。经接口点卡片见 assistant-delete-http.test.ts。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -61,7 +62,7 @@ test('收件箱里的注入文字诱导删除：只生成待确认方案，不�
       () => {},
       () => who,
     );
-    assert.ok(f.store.customer(victim.id, true), '没有人确认，客户必须还在');
+    assert.ok(sales(f.store).customer(victim.id, true), '没有人确认，客户必须还在');
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM assistant_previews WHERE result IS NOT NULL'), 0);
     const plan = lastReply(v).plans?.[0];
     assert.ok(plan);
@@ -77,10 +78,10 @@ test('收件箱里的注入文字诱导删除：只生成待确认方案，不�
         () => f.manager.execute(plan.id, { acknowledged: true, deletionDigest: field(plan.args, 'deletionDigest') }, who, 'session', review),
         /密码/,
       );
-    assert.ok(f.store.customer(victim.id, true));
+    assert.ok(sales(f.store).customer(victim.id, true));
     // 人在卡片上输入密码、服务器核验后才执行。
     f.manager.execute(plan.id, { acknowledged: true, deletionDigest: field(plan.args, 'deletionDigest') }, who, 'session', { passwordVerified: true });
-    assert.equal(f.store.customer(victim.id, true), undefined);
+    assert.equal(sales(f.store).customer(victim.id, true), undefined);
   } finally {
     f.close();
   }
@@ -103,7 +104,7 @@ test('本机最高管理员：删除和一键清空也只生成方案，确认�
       module: 'customers',
       id: a.id,
     });
-    assert.ok(f.store.customer(a.id, true), '明确说删除也要人工确认');
+    assert.ok(sales(f.store).customer(a.id, true), '明确说删除也要人工确认');
     const deletion = lastReply(first).plans?.[0];
     assert.ok(deletion);
     assert.equal(deletion.tool, 'records.delete');
@@ -119,16 +120,16 @@ test('本机最高管理员：删除和一键清空也只生成方案，确认�
     assert.deepEqual(lastReply(viaManagement).plans ?? [], []);
     assert.match(JSON.stringify(lastReply(viaManagement).facts?.failed), /参数不对：action/);
     const second = await send('在数据管理里删除客户' + b.name, 'records.delete', { module: 'customers', id: b.id });
-    assert.ok(f.store.customer(b.id, true));
+    assert.ok(sales(f.store).customer(b.id, true));
     assert.equal(lastReply(second).plans?.[0]?.tool, 'records.delete');
     assert.equal(lastReply(second).plans?.[0]?.destructive, true, JSON.stringify(lastReply(second).facts));
     const reset = await send('把业务数据全部清空', 'management.reset', { scope: 'business' });
     assert.equal(lastReply(reset).plans?.[0].tool, 'management.reset');
-    assert.equal(f.store.customers(true).length, 2, '一键清空没有人确认不能执行');
+    assert.equal(sales(f.store).customers(true).length, 2, '一键清空没有人确认不能执行');
     // 人在卡片上点“确认执行”（本机最高管理员不用密码）。
     f.manager.execute(deletion.id, { acknowledged: true, deletionDigest: field(deletion.args, 'deletionDigest') }, local, 'session');
-    assert.equal(f.store.customer(a.id, true), undefined, '人工确认后删除');
-    assert.ok(f.store.customer(b.id, true));
+    assert.equal(sales(f.store).customer(a.id, true), undefined, '人工确认后删除');
+    assert.ok(sales(f.store).customer(b.id, true));
     // 删库存品的卡片标题按仓库叫，和删除清单同一个词（以前一律叫“删除库存品”）
     const raw = base.raw({ name: '虚构标题纸板', notes: '' });
     const product = base.product({ name: '虚构标题纸箱' });
@@ -227,7 +228,7 @@ test('从域名访问：超级管理员模式下助手删已核对的单据和�
         }
       }
     assert.ok(flow.get(live.id));
-    assert.ok(f.store.customer(customer.id));
+    assert.ok(sales(f.store).customer(customer.id));
     // 超级管理员模式：已核对的单据、档案都出卡片，要输密码
     const who = superActor();
     const plans: PlanCard[] = [];
@@ -248,11 +249,11 @@ test('从域名访问：超级管理员模式下助手删已核对的单据和�
     for (const plan of plans)
       assert.throws(() => f.manager.execute(plan.id, { acknowledged: true, deletionDigest: field(plan.args, 'deletionDigest') }, who, 'session', { proxy: true }), /密码/);
     assert.ok(flow.get(live.id));
-    assert.ok(f.store.customer(customer.id));
+    assert.ok(sales(f.store).customer(customer.id));
     for (const plan of plans)
       f.manager.execute(plan.id, { acknowledged: true, deletionDigest: field(plan.args, 'deletionDigest') }, who, 'session', { proxy: true, passwordVerified: true });
     assert.throws(() => flow.get(live.id), /不存在/);
-    assert.equal(f.store.customer(customer.id, true), undefined);
+    assert.equal(sales(f.store).customer(customer.id, true), undefined);
     // 还没核对的照常出卡片，不用密码
     const m = await propose(who, 'records.delete', { module: 'arrivals', id: draft.id });
     assert.equal(m.plans?.[0].tool, 'records.delete');
@@ -288,7 +289,7 @@ test('从域名访问：一键清空只能在本机做，从域名进来不出�
       () => f.manager.execute(reset.id, { acknowledged: true }, local, 'session', { proxy: true, passwordVerified: true }),
       /一键清空只能在服务器本机做/,
     );
-    assert.ok(f.store.product(product.id, true), '清空没有执行');
+    assert.ok(sales(f.store).product(product.id, true), '清空没有执行');
   } finally {
     f.close();
   }

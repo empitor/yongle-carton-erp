@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import { trackOrders } from '../../orders/index.js';
 // 助手工具：安排送货、安排生产的只读试算（delivery.plan、production.plan）。
 import { z } from 'zod';
@@ -43,11 +44,11 @@ function deliverySources(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema
   if (v.stockIds) {
     const items = ctx.flow.views.items(false, v.stockIds).filter((i) => i.kind === 'finished');
     const productIds = [...new Set(items.map((s) => Number(s.productId)).filter(Boolean))];
-    const orders = trackOrders(ctx.store, ctx.store.ordersByIds(orderIdsOfProducts(ctx.store, productIds)));
+    const orders = trackOrders(ctx.store, sales(ctx.store).ordersByIds(orderIdsOfProducts(ctx.store, productIds)));
     return { items, orders };
   }
   // 结构上的检查保证二者有一个
-  const orders = trackOrders(ctx.store, ctx.store.ordersByIds(v.orderIds ?? fail(PICK_ONE)));
+  const orders = trackOrders(ctx.store, sales(ctx.store).ordersByIds(v.orderIds ?? fail(PICK_ONE)));
   const productIds = [...new Set(orders.flatMap((o) => o.lines.map((l) => Number(l.productId))))];
   return { items: ctx.flow.views.items(false, finishedIdsOfProducts(ctx.store, productIds)).filter((i) => i.kind === 'finished'), orders };
 }
@@ -57,7 +58,7 @@ function planDelivery(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema>, 
   requireActor(who);
   const { items, orders } = deliverySources(ctx, v);
   const customerIds = [...new Set(orders.map((o) => o.customerId).filter((id): id is number => id != null))];
-  const customers = ctx.store.customers(true, customerIds);
+  const customers = sales(ctx.store).customers(true, customerIds);
   const nameOf = new Map(customers.map((c) => [c.id, c.name]));
   const owners = Object.fromEntries((v.owners || []).map((o) => [o.stockId, o.customerId]));
   // 已经排在待送货单上的数量要从“还要排多少”里扣掉（可用库存已经扣过它）。只读待送货的送货单，按主键批量组装。
@@ -91,7 +92,7 @@ function planDelivery(ctx: ToolContext, v: z.output<typeof deliveryPlanSchema>, 
 
 function planProduction(ctx: ToolContext, v: z.output<typeof productionPlanSchema>, who: Actor | null | undefined) {
   requireActor(who);
-  const orders = trackOrders(ctx.store, ctx.store.ordersByIds(v.orderIds)),
+  const orders = trackOrders(ctx.store, sales(ctx.store).ordersByIds(v.orderIds)),
     related = orders.map((o) => relatedBusiness(ctx.store, 'orders', o.id));
   const plan = planProductionForOrders(orders, related, ctx.flow.views.items());
   return {

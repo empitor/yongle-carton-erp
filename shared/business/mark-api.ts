@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import type { markRemoveSchema, markSourceKinds, markUpdateSchema } from './mark-inputs.js';
 
 /*
- * 产品唛头资料的接口表（服务端 server/overview/mark-router.ts，挂在 /api 下；前端 src/marks/mark-api.ts）。
+ * 产品唛头资料的接口表（服务端 server/sales/mark-router.ts，挂在 /api 下；前端 src/marks/mark-api.ts）。
  * 表的写法见 shared/core/api-table.ts。上传（收原始字节）和看原件（回文件）不是 JSON，不在表里，照旧用 express 注册。
  */
 

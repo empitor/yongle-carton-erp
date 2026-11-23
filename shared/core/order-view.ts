@@ -3,7 +3,7 @@ import { roundingPolicies, statuses } from './domain.js';
 import { shippingProgresses } from './fulfillment.js';
 
 /*
- * 读出来的订单视图（server/core/orders.ts 组装）的结构，类型 Order 就按它推。只描述形状，不带录入规则的长度上限、
+ * 读出来的订单视图（server/sales/orders.ts 组装）的结构，类型 Order 就按它推。只描述形状，不带录入规则的长度上限、
  * 去空格这些：防重复提交同号重发时按它校验库里存的上次结果，那是存过的数据，不该再过一遍录入时的限制。
  */
 

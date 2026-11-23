@@ -1,5 +1,6 @@
 // 删产品连带成品库存（server/core/deletion-rules.ts 登记的规则，经 /deletions 接口）：成品一定关联产品，不留没有产品的成品；
 // 流水和引用它的单据按删库存品的规则处理；删客户不动成品库存；初始化照常清空。内存库、虚构数据，起真实服务。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -83,7 +84,7 @@ async function removeProduct(s: Server, product: { id: number; name: string }, s
   const exists = (table: string, id: number) => !!store.db.prepare('SELECT 1 FROM ' + table + ' WHERE id=?').get(id);
   const movesOf = (id: number) => count(store.db, 'SELECT count(*) FROM stock_movements WHERE item_id=?', id);
   const revisionsOf = (id: number) => count(store.db, 'SELECT count(*) FROM stock_movement_revisions WHERE item_id=?', id);
-  const current = store.product(product.id, true);
+  const current = sales(store).product(product.id, true);
   assert.ok(current, '要删的产品还在');
   const selection = { module: 'products', items: [{ id: product.id, version: current.version }], ...(inventoryPolicy ? { inventoryPolicy } : {}) };
   const plan = await s.preview(selection);

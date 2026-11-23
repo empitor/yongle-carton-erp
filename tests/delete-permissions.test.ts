@@ -1,5 +1,6 @@
 // 删除的权限：待核对的单据有编辑权限就能删，已核对的和档案要超级管理员（服务器上还要再输本人密码）；
 // 库存怎么处理；同一请求重试原样返回。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -105,17 +106,17 @@ test('服务器上从域名访问：草稿直接删；已确认的单据和档�
     assert.equal(r.status, 200);
     assert.equal(f.exists(f.live.id), false);
     // 客户、产品等档案和本机一样能删（用户 2026-11-09 定放开），同样要密码
-    const product = f.store.products()[0];
+    const product = sales(f.store).products()[0];
     const selection = { module: 'products', items: [{ id: product.id, version: product.version }], inventoryPolicy: 'preserve' };
     r = await post('/deletions/preview', selection);
     assert.equal(r.status, 200);
     digest = await digestOf(r);
     r = await post('/deletions/execute', { ...selection, requestId: randomUUID(), deletionDigest: digest });
     assert.equal(r.status, 400, '没输密码不删');
-    assert.ok(f.store.products(true).some((p) => p.id === product.id));
+    assert.ok(sales(f.store).products(true).some((p) => p.id === product.id));
     r = await post('/deletions/execute', { ...selection, requestId: randomUUID(), deletionDigest: digest, password });
     assert.equal(r.status, 200);
-    assert.ok(!f.store.products(true).some((p) => p.id === product.id));
+    assert.ok(!sales(f.store).products(true).some((p) => p.id === product.id));
     // 退出超级管理员模式后，档案又删不了
     await post('/auth/super-admin/exit', {});
     const other = f.base.product({ name: '虚构另一种纸箱' });
@@ -135,7 +136,7 @@ test('删除的库存处理：没动过库存的单据不用选；动过库存�
   assert.match(taskPlan.inventoryEffect, /没有动过库存/);
   // 一张已出库的送货单：入库 1000，送出 300
   const { ops } = f.base;
-  const product = f.store.products()[0];
+  const product = sales(f.store).products()[0];
   const item = f.base.finished(product, { name: '虚构纸箱' }, { quantity: '1000', date: '2026-11-09' });
   const ship = () =>
     f.base.check(

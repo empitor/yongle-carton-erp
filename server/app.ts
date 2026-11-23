@@ -1,8 +1,9 @@
+import { marksRouter } from './sales/index.js';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import { pageProblemRouter, proxyIngress, requirePermission, requireSuperAdminAccount, requireSuperModeFor, type Deployment, type ProblemLog, type Store } from './core/index.js';
 import { userManualRouter } from './system/index.js';
 import { operationsRouter } from './operations/index.js';
-import { marksRouter, workbenchRouter } from './overview/index.js';
+import { workbenchRouter } from './overview/index.js';
 import { recordsRouter } from './orders/index.js';
 import { installRequestGuards } from './http-guards.js';
 import { apiErrorHandler } from './http-errors.js';

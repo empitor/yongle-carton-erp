@@ -1,5 +1,6 @@
 // 识别导入和永久删除：正式导入的订单永久删除后来源、审计还在；同一原件可以再识别、再导入，编号不复用；
 // 导入台账的唯一约束；识别工作区库里同一原件能建多个识别任务。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -103,7 +104,7 @@ test('永久删除正式导入的订单：来源文件、审计和导入凭据�
     const { w } = await f.recognize();
     const imported = await f.importIt(w.id);
     assert.ok(imported.receipt);
-    const order = f.store.order(imported.receipt.orderId);
+    const order = sales(f.store).order(imported.receipt.orderId);
     assert.ok(order);
     await f.removeOrder(order);
     const execution = one(f.store.db, rows.import_executions.pick({ order_id: true, document: true }),
@@ -136,7 +137,7 @@ test('同一原件：原订单有效或在归档里时入库被拦并说明；�
     const first = await f.recognize('同一订单照片.docx');
     const initial = await f.importIt(first.w.id);
     assert.ok(initial.receipt);
-    const order1 = f.store.order(initial.receipt.orderId);
+    const order1 = sales(f.store).order(initial.receipt.orderId);
     assert.ok(order1);
     const second = await f.recognize('同一订单照片.docx');
     assert.notEqual(second.up.workspace.id, first.up.workspace.id);
@@ -153,10 +154,10 @@ test('同一原件：原订单有效或在归档里时入库被拦并说明；�
     assert.equal(archived.status, 409);
     assert.ok(typeof archived.message === 'string');
     assert.match(archived.message, /归档|有效订单/);
-    const row = f.store.order(order1.id, true);
+    const row = sales(f.store).order(order1.id, true);
     assert.ok(row);
     await f.request('/orders/batch', { action: 'restore', acknowledged: true, items: [{ id: row.id, version: row.version }] });
-    const restored = f.store.order(order1.id);
+    const restored = sales(f.store).order(order1.id);
     assert.ok(restored);
     await f.removeOrder(restored);
     const third = await f.recognize('同一订单照片.docx');
@@ -165,7 +166,7 @@ test('同一原件：原订单有效或在归档里时入库被拦并说明；�
     assert.equal(history.permanentlyDeleted, true);
     const subsequent = await f.importIt(third.w.id);
     assert.ok(subsequent.receipt);
-    const order2 = f.store.order(subsequent.receipt.orderId);
+    const order2 = sales(f.store).order(subsequent.receipt.orderId);
     assert.ok(order2);
     assert.notEqual(order2.id, order1.id);
     assert.notEqual(order2.number, order1.number);
@@ -180,10 +181,10 @@ test('同一原件：原订单有效或在归档里时入库被拦并说明；�
 test('导入台账：同一原件只能挂一张有效订单，订单已永久删除的那条（order_id 为空）不挡', () => {
   const store = new Store(':memory:');
   try {
-    const customer = store.saveCustomer(customerSchema.parse({ name: '台账客户（虚构）' })),
-      product = store.saveProduct(productSchema.parse({ name: '台账纸箱（虚构）' }));
+    const customer = sales(store).createCustomer(customerSchema.parse({ name: '台账客户（虚构）' })),
+      product = sales(store).createProduct(productSchema.parse({ name: '台账纸箱（虚构）' }));
     const order = () =>
-      store.saveOrder(
+      sales(store).saveOrder(
         orderSchema.parse({
           customerId: customer.id,
           orderDate: '2026-10-25',

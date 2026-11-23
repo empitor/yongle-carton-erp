@@ -1,4 +1,5 @@
 // 固定种子三个月业务逐月对账：凭证、往来、资金、经营报表和库存对得上，并实测结账（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { FinanceAssets } from '../server/finance/assets.js';
@@ -67,7 +68,7 @@ function produceAndDeliver(w: World, period: string, f: Figures) {
       maker,
     ),
   );
-  const order = w.store.saveOrder(
+  const order = sales(w.store).saveOrder(
     orderSchema.parse({
       customerId: w.customer.id,
       orderDate: dayOf(period, 1),

@@ -1,6 +1,7 @@
 // 助手的第二批排查工具（diagnostics.errors、logs.read、accounts.events、source.search、source.read）：直接调用各工具；
 // 全部排查工具（连同第一批、系统状态、联网）的机密扫描。联网命令本身的测试在 assistant-web-search.test.ts。
 // 数据全是虚构的，库在内存或临时目录里。
+import { sales } from '../server/sales/index.js';
 import { grant, pageActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
@@ -157,7 +158,7 @@ test('机密一律不返回：每个排查工具（和系统状态、联网）�
     registry = new AssistantToolRegistry(':memory:');
   const { settings } = fakeAiSettings({ pages: { 'https://example.com/k': { title: '虚构网页', content: '虚构的网页正文' } } });
   try {
-    const c = store.saveCustomer(customerSchema.parse({ name: '虚构客户原名' }));
+    const c = sales(store).createCustomer(customerSchema.parse({ name: '虚构客户原名' }));
     manualWrite(store, { entity: 'customers', action: 'update', id: c.id, input: { ...c, name: '虚构客户新名' } }, staff);
     problems.record({
       source: 'page', account: boss.name, path: '/api/x?token=' + hex64, operation: '虚构', category: '页面报错', status: 0,

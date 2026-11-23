@@ -1,4 +1,5 @@
 // 一笔收款跨多张单据、多个收款冲同一往来、欠款按单位的合计（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
@@ -75,8 +76,8 @@ test('欠款按单位：页顶合计按全部单位算，不只加当前页', ()
   const s = new Store(':memory:');
   try {
     newSettings(s, '2026-01');
-    s.saveCustomer(customerSchema.parse({ name: '虚构客户二' }));
-    s.saveCustomer(customerSchema.parse({ name: '虚构客户三' }));
+    sales(s).createCustomer(customerSchema.parse({ name: '虚构客户二' }));
+    sales(s).createCustomer(customerSchema.parse({ name: '虚构客户三' }));
     const parties = new FinanceParties(s);
     const owe = (partyId: number, amount: number, dueDate?: string) =>
       parties.create(maker, {

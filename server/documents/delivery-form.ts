@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import type { Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
@@ -78,7 +79,7 @@ function draftProducts(store: Store, record: Delivery, orders: Orders): Products
     const ol = orderLineOf(orders, l);
     return ol ? [ol.productId] : [];
   });
-  return new Map(store.products(true, [...new Set(ids)]).map((p) => [p.id, p]));
+  return new Map(sales(store).products(true, [...new Set(ids)]).map((p) => [p.id, p]));
 }
 
 /** 模板可选的列：订单号、客户采购单号、客户产品编号、单价、金额、尺寸、材质、楞型（产品没填的印空） */
@@ -105,8 +106,8 @@ export function deliveryForm(store: Store, id: number): RawForm<'delivery'> {
   if (record.kind !== 'delivery') throw new AppError('请选择送货记录。');
   if (['cancelled', 'reversed'].includes(record.status))
     throw new AppError('取消或冲销的送货单不能导出为有效送货单。', 409);
-  const customer = store.customer(record.customerId, true),
-    orders: Orders = new Map(store.ordersByIds(record.lines.map((l) => l.orderId), true).map((o) => [o.id, o])),
+  const customer = sales(store).customer(record.customerId, true),
+    orders: Orders = new Map(sales(store).ordersByIds(record.lines.map((l) => l.orderId), true).map((o) => [o.id, o])),
     products = draftProducts(store, record, orders);
   return {
     record,

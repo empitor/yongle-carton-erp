@@ -1,6 +1,7 @@
 // 助手一轮对话扛得住中断：发话中途断线自动原样重发、一直不行就明说失败（不拿半截文字当回复）、
 // 单个命令超时中止后告诉模型、每一步当时就存、进程中断后再开这个会话接得上（没开始的、查到一半的、结果不明的各有说法）、
 // 同一请求编号重发直接给上次的结果。假 DeepSeek、内存库、虚构数据，不发真实请求。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -351,12 +352,12 @@ test('写入执行后模型接口断了：已经执行的照实记在这一轮�
     await assert.rejects(() => f.manager.chat(t.id, input, actor, 's', () => {}, () => actor), /虚构连接中断/);
     const last = f.manager.view(t.id, actor).messages.at(-1);
     assert.ok(last, '有回复');
-    assert.equal(f.store.customers().length, 1);
+    assert.equal(sales(f.store).customers().length, 1);
     assert.equal(last.error, true);
     assert.equal(last.facts?.executed.length, 1);
     await f.manager.chat(t.id, input, actor, 's', () => {}, () => actor);
     assert.equal(n, 2, '重发同一请求直接给上次的结果');
-    assert.equal(f.store.customers().length, 1);
+    assert.equal(sales(f.store).customers().length, 1);
   } finally {
     f.close();
   }

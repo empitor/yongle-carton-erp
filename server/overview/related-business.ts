@@ -1,9 +1,9 @@
+import { sales, MarkService } from '../sales/index.js';
 import { trackOrders } from '../orders/index.js';
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
 import { FlowService, referencingDocuments, WarehouseDaily } from '../flow/index.js';
 import { purchaseOrderLinks } from '../operations/index.js';
-import { MarkService } from './product-marks.js';
 
 const idRow = z.object({ id: z.number() });
 
@@ -29,13 +29,13 @@ function purchaseRelated(store: Store, id: number) {
   return {
     arrivals,
     stocks: views.items(true, purchase.lines.flatMap((l) => (l.stockItemId ? [l.stockItemId] : []))),
-    orders: trackOrders(store, store.ordersByIds(purchase.orderIds, true)),
+    orders: trackOrders(store, sales(store).ordersByIds(purchase.orderIds, true)),
   };
 }
 
 /** 订单详情里的关联业务：生产任务、完工、送货、采购、成品库存、唛头、生产进度 */
 function orderRelated(store: Store, id: number) {
-  const order = store.order(id, true);
+  const order = sales(store).order(id, true);
   if (!order) return null;
   const flow = new FlowService(store);
   const tasks = flow.list('task', true, undefined, referencingDocuments(store, 'task', 'order_id', [id])).filter((t) => t.orderIds.includes(id));

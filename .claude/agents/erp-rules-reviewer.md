@@ -19,7 +19,7 @@ model: opus
 ### 业务规则（AGENTS.md“业务规则”）
 - **不猜：** 留意默认税率、默认今天、拿 0 或 1 冒充数量和单价、把没定价当 0 元。
 - **数量单位：** 统一走 `shared/core/units.ts`；采购明细、到货明细没有数据库约束、靠保存服务保证，新写入路径不能绕过。
-- **单价：** 精确价和“分”两头都给时按 `server/core/record-fields.ts` 的 `chosenExact`（对不上又分不清改的哪头就拒收）；补丁先过 `shared/core/precision.ts` 的 `priceEdit`；单价上限 `MAX_PRICE_YUAN`。
+- **单价：** 精确价和“分”两头都给时按 `server/sales/record-fields.ts` 的 `chosenExact`（对不上又分不清改的哪头就拒收）；补丁先过 `shared/core/precision.ts` 的 `priceEdit`；单价上限 `MAX_PRICE_YUAN`。
 - **金额：** 留意 `parseFloat`、`Number(x) *`、金额和数量直接相乘。
 - **写入：** 版本校验（`version` / `expectedVersion`）、审计（`business_audit`）都在。幂等可以带 `requestId`，也可以“已经办过就直接返回”，但要放在版本校验之前；同样的请求重复提交报错，算问题。批量操作逐条把失败原因交给人或写进结果时用 `failureMessage`（`server/core/errors.ts`），不把数据库约束的英文原文带给用户。
 - **日期：** 业务日期用 `shared/core/domain.ts` 的 `today()`（按业务时区），不能用 `toISOString().slice(0, 10)`（北京时间早上 8 点前会变成前一天）；操作时间戳可以用 ISO。送达、到货、签收这类该由人确认的业务日期不悄悄默认今天，至少预填让人看见、能改。日期校验用共享的 `dateSchema`，不只用正则，还要和单据自身日期合理（比如送达不早于出库）。

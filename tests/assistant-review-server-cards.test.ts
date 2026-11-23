@@ -1,5 +1,6 @@
 // 助手核对区按结构读卡片：喂服务端真实生成的卡片（删除、改资料、导出）和执行结果，核对区该显示的都认得出；
 // 导出卡片确认后文件下载失败，照样刷新会话、交回助手接着办。内存库、虚构数据，模型用替身。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -71,7 +72,7 @@ test('删除卡片改成“库存数量不动”：服务器回的新方案和�
 test('改资料的卡片：不是删除方案，核对区按服务器写好的逐行内容和提醒显示', async () => {
   const f = assistantFixture();
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构改资料客户' }));
+    const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构改资料客户' }));
     const thread = f.manager.create(actor);
     f.replies.push({
       message: '',

@@ -1,4 +1,5 @@
 // 来源指纹只含财务用得到的内容（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { customerSchema } from '../shared/core/domain.js';
@@ -289,8 +290,8 @@ test('单据在原处被程序改了（本机管理员改订单换客户，送�
     t.sync();
     const booked = t.book(d.id, true);
     const switchCustomer = (name: string) => {
-      const other = t.f.store.saveCustomer(customerSchema.parse({ name }));
-      const order = t.f.store.order(t.order.id);
+      const other = sales(t.f.store).createCustomer(customerSchema.parse({ name }));
+      const order = sales(t.f.store).order(t.order.id);
       assert.ok(order, '订单还在');
       createBusinessService(t.f.store).execute(
         { entity: 'orders', action: 'update', id: order.id, input: { ...order, customerId: other.id } },

@@ -1,4 +1,5 @@
 // 财务 HTTP 一条龙：从期初和辅助账走通票据、预算、员工借还款、保证金、资产处置和红票（内存库、虚构数据）
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -279,7 +280,7 @@ async function redInvoice(f: Flow, supplier: number) {
 test('财务 HTTP 从期初和辅助账走通票据、预算、员工借还款、资产处置和红票', async () => {
   const store = new Store(':memory:');
   const h = await startHttp(store, { admin: { name: '虚构制单', password: 'Fictional-http-owner' } });
-  const customer = store.saveCustomer(customerSchema.parse({ name: '虚构 HTTP 客户' }));
+  const customer = sales(store).createCustomer(customerSchema.parse({ name: '虚构 HTTP 客户' }));
   const supplier = new OperationsService(store).saveSupplier(
     { name: '虚构 HTTP 供应商' },
     pageActor({ id: 'seed', name: '虚构操作员', permissions: ['business:edit'] }),

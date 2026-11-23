@@ -1,5 +1,6 @@
 // 只做合计的几处读法：订单明细已发（server/flow/documents/shipped.ts）、生产任务的完工进度（server/flow/documents/read.ts）。
 // 守的是结果：送货单、完工单各种状态混在一起时，每条订单明细已发多少、每张任务完工到哪，一个数都不能变。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,7 +49,7 @@ test('订单明细已发：只算已出库的送货单；按订单圈出的送�
     const raw = rawStock(f),
       task = f.task('200');
     production(f, raw, { taskId: task.id, good: '100' });
-    const other = f.store.saveOrder(
+    const other = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-10-01',

@@ -1,5 +1,6 @@
 // 本机管理员改订单连带改送货单留下的记录（server/flow/rules/order-edit-cascade.ts）：每张被拆、减行、换客户的送货单一条审计，
 // 改挂的出库流水备注里的单号跟着换、修订记录留着原备注。
+import { sales } from '../server/sales/index.js';
 import { AUDIT_SOURCE } from '../shared/core/audit-sources.js';
 import { test } from 'node:test';
 import '../server/import/index.js';
@@ -38,7 +39,7 @@ test('拆分、减行、换客户的送货单各记一条单据级审计：带�
     const a = f.order([100]),
       b = f.order([100]);
     const d = f.ship([{ order: a }, { order: b }]);
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构审计客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构审计客户' }));
     let from = mark();
     f.editOrder(a.id, { customerId: other.id });
     const split = f.deliveries().find((x) => x.id !== d.id);
@@ -73,7 +74,7 @@ test('拆分、减行、换客户的送货单各记一条单据级审计：带�
     const c = f.order([100, 60]);
     const e = f.ship([{ order: c, line: 0 }, { order: c, line: 1, quantity: '60' }]);
     from = mark();
-    const current = f.store.order(c.id);
+    const current = sales(f.store).order(c.id);
     assert.ok(current);
     f.editOrder(c.id, { lines: [current.lines[0]] });
     rows = audits(from);
@@ -125,7 +126,7 @@ test('拆出去的出库流水改挂到新送货单时，备注里的单号跟�
       assert.ok(delivery);
       return delivery;
     };
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构备注客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构备注客户' }));
 
     // 出库确认时的备注：“单号 · 客户发货”
     const a = f.order([100]),
@@ -145,7 +146,7 @@ test('拆出去的出库流水改挂到新送货单时，备注里的单号跟�
     assert.deepEqual(moved.after, { source_kind: 'flow_delivery', source_id: String(split.id), notes: split.number + ' · 客户发货' });
 
     // 改订单删掉 b 的第二行：那笔出库留成独立流水，不挂在别的单上，备注还留着原来的送货单号
-    const current = f.store.order(b.id);
+    const current = sales(f.store).order(b.id);
     assert.ok(current);
     f.editOrder(b.id, { lines: [current.lines[0]] });
     assert.deepEqual([row(mb2.id).source_kind, row(mb2.id).source_id, notesOf(mb2.id)], ['database-maintenance', null, d.number + ' · 客户发货']);

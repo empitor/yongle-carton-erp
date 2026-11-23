@@ -1,5 +1,6 @@
 // 数量和单位的属性测试（fast-check 随机生成）：数量和千分整数来回换算不丢，库存品单位只收“只”“张”，别的一律拒收。
 // 纯函数和内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
@@ -64,7 +65,7 @@ test('库存品的单位：原材料只存成“张”、成品只存成“只�
         const expected = kind === 'raw' ? RAW_UNIT : FINISHED_UNIT;
         const before = f.ops.items(true).length;
         // 成品要挂一个还没有成品库存的产品
-        const productId = kind === 'finished' ? f.store.saveProduct(productSchema.parse({ name: '虚构单位产品' + ++serial })).id : undefined;
+        const productId = kind === 'finished' ? sales(f.store).createProduct(productSchema.parse({ name: '虚构单位产品' + ++serial })).id : undefined;
         try {
           const saved = f.ops.saveItem({ name: '虚构单位' + ++serial, kind, unit, productId }, clerk);
           return stockUnit(kind, unit) === expected && saved.unit === expected;

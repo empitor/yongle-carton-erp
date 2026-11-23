@@ -1,4 +1,5 @@
 // 识别工作区的维护：归档保留、永久删除真删；删掉到货后解除引用；归档的可以直接改、直接删；已正式导入的可以改、撤销、归档，不重复导入。
+import { sales } from '../server/sales/index.js';
 import { pageActor, actor as fixtureActor, grant } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -135,7 +136,7 @@ test('已正式导入的工作区可由本机管理员编辑、撤销和归档�
     );
     await f.send('识别这张客户订单', [attachment.id]);
     await f.send('确认导入');
-    const original = f.store.orders()[0];
+    const original = sales(f.store).orders()[0];
     assert.ok(original);
     const who = localAdministratorActor({ ...user, name: '虚构维护', role: 'super_admin' });
     let w = f.current();
@@ -157,7 +158,7 @@ test('已正式导入的工作区可由本机管理员编辑、撤销和归档�
       who,
     );
     assert.equal(firstLine(w).fields.quantity.value, '250');
-    assert.equal(f.store.order(original.id)?.lines[0].quantity, 100);
+    assert.equal(sales(f.store).order(original.id)?.lines[0].quantity, 100);
     assert.equal(f.store.db.prepare('SELECT COUNT(*) n FROM import_executions').get()?.n, 1);
     w = f.imports.undo(w.id, { expectedRevision: w.revision }, who);
     assert.equal(firstLine(w).fields.quantity.value, '100');
@@ -186,10 +187,10 @@ test('已正式导入的工作区可由本机管理员编辑、撤销和归档�
     await f.send('把已导入订单的工作区草稿第一行数量改为275，不重复导入', [], randomUUID(), who);
     w = f.current();
     assert.equal(firstLine(w).fields.quantity.value, '275');
-    assert.equal(f.store.order(original.id)?.lines[0].quantity, 100);
+    assert.equal(sales(f.store).order(original.id)?.lines[0].quantity, 100);
     f.imports.changeArchive({ action: 'archive', items: [{ id: w.id, version: w.revision }] }, who);
     assert.ok(f.imports.archives().some((r) => r.id === w.id));
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     assert.equal(f.recognitionCalls(), 1);
   } finally {
     f.close();

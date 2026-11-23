@@ -1,6 +1,7 @@
 // 送货明细的材质、楞型（server/flow/rules/validate-delivery.ts 补，server/documents/delivery-form.ts 印）：出库核对时按产品补进明细存下，
 // 产品没填的为空；导出送货单的“材质 / 配纸”“楞型”两列按明细印，待送货的（明细出库时才补）按产品现在的印；
 // 更正送货单时同一条订单明细的行沿用出库时的（和单价一样），原单没有的订单明细新加的行按产品现在的补。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -24,8 +25,8 @@ import { actor } from './actor-fixture.js';
 function setup(t: TestContext) {
   const f = workbenchFixture(actor);
   t.after(() => f.store.close());
-  const plain = f.store.saveProduct(productSchema.parse({ name: '虚构无材质纸箱' }));
-  const second = f.store.saveOrder(
+  const plain = sales(f.store).createProduct(productSchema.parse({ name: '虚构无材质纸箱' }));
+  const second = sales(f.store).saveOrder(
     orderSchema.parse({
       customerId: f.customer.id,
       orderDate: f.order.orderDate,
@@ -75,7 +76,7 @@ function addMaterialColumns(store: Store) {
 const lastTwo = (rows: string[][]) => rows.map((r) => r.slice(-2));
 /** 改产品的材质、楞型（别的照旧） */
 const remake = (store: Store, id: number, patch: { material: string; flute: string }) => {
-  const p = store.product(id, true);
+  const p = sales(store).product(id, true);
   assert.ok(p, '虚构产品在');
   manualWrite(store, { entity: 'products', action: 'update', id, input: { ...p, ...patch } }, actor);
 };
@@ -135,7 +136,7 @@ test('更正送货单新加的行（原单没有的订单明细）：按产品�
   const f = setup(t);
   const d = f.draft();
   f.ship(d.id);
-  const third = f.store.saveOrder(
+  const third = sales(f.store).saveOrder(
     orderSchema.parse({
       customerId: f.customer.id,
       orderDate: f.order.orderDate,

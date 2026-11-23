@@ -1,4 +1,5 @@
 // 订单识别：识别、核对修改、上传检查、接口权限（工作区并发、删除、正式导入在 order-import-workspace.test.ts）
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
@@ -379,8 +380,8 @@ test('删除密钥后不外发；原件篡改拦截；工作区独立持久恢�
 test('识别接口要页面凭证、跨站请求被拒；没开正式导入时没有执行地址；识别全流程不改业务表、不外发业务档案', async () => {
   const f = await fixture(),
     store = new Store(':memory:');
-  store.saveCustomer({ name: '保留的ERP虚构客户', contact: '', phone: '', address: '', notes: '' });
-  const before = JSON.stringify(store.customers());
+  sales(store).createCustomer({ name: '保留的ERP虚构客户', contact: '', phone: '', address: '', notes: '' });
+  const before = JSON.stringify(sales(store).customers());
   const server = await listen(createApp(store, { aiSettings: f.settings, imports: f.manager, problems: testProblems() }));
   const base = server.origin + '/api/ai/imports';
   const post = (path: string, body: unknown, token = f.settings.csrfToken) =>
@@ -417,9 +418,9 @@ test('识别接口要页面凭证、跨站请求被拒；没开正式导入时�
       ).status,
       404,
     );
-    assert.equal(JSON.stringify(store.customers()), before);
-    assert.equal(store.products().length, 0);
-    assert.equal(store.orders().length, 0);
+    assert.equal(JSON.stringify(sales(store).customers()), before);
+    assert.equal(sales(store).products().length, 0);
+    assert.equal(sales(store).orders().length, 0);
     assert.ok(!JSON.stringify(f.calls()[0].body).includes('保留的ERP虚构客户'));
   } finally {
     await server.close();

@@ -1,5 +1,6 @@
 // 命令怎么发给模型（server/assistant/chat/command-tools.ts）：常用的十二条作为原生工具直接调，其余常驻一份目录、用三个通用工具找、查用法、执行；
 // 两条路走同一条分派（只读直接执行、写入出卡片、权限照旧），经 run_command 执行时参数不对报错里带正确用法。假 DeepSeek、内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -28,7 +29,7 @@ async function replyTo(f: ReturnType<typeof assistantFixture>, threadId: string,
 test('常用命令直接调，冷门命令找到、查过用法再执行：只读直接执行，写入出卡片；找命令、查用法不算办事', async () => {
   const f = assistantFixture();
   try {
-    const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构目录客户甲' }));
+    const c = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构目录客户甲' }));
     f.replies.push(
       { message: '', toolCalls: [{ name: 'records.get', args: { module: 'customers', id: c.id } }] },
       { message: '', toolCalls: [{ name: 'find_command', args: { query: '修改历史' } }] },
@@ -67,7 +68,7 @@ test('常用命令直接调，冷门命令找到、查过用法再执行：只�
     assert.equal(readAs(toolResultSent(calls, 'records.get'), { record: z.looseObject({ name: z.unknown() }) }).record.name, '虚构目录客户甲');
     assert.notEqual(readAs(toolResultSent(calls, 'history.records'), { ok: z.unknown().optional() }).ok, false);
     assert.equal(readAs(toolResultSent(calls, 'records.propose_save'), { state: z.unknown() }).state, 'awaiting_confirmation');
-    assert.equal(f.store.customer(c.id)?.phone, '');
+    assert.equal(sales(f.store).customer(c.id)?.phone, '');
     assert.deepEqual(reply.facts?.tools, ['records.get', 'history.records', 'records.propose_save'], '找命令、查用法不记进这一轮办的事');
     assert.equal(reply.facts?.reads, 2);
     assert.equal(reply.facts?.cards.length, 1);
@@ -100,7 +101,7 @@ test('执行命令时参数不对：报错里带上这条命令的正确用法�
 test('常用命令经 run_command 调也照样执行；只有这一种给法，没有换档的开关', async () => {
   const f = assistantFixture();
   try {
-    const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构目录客户乙' }));
+    const c = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构目录客户乙' }));
     f.replies.push({ message: '', toolCalls: [{ name: 'run_command', args: { name: 'records.get', args: { module: 'customers', id: c.id } } }] }, { message: '查到了。' });
     const t = f.manager.create(actor);
     const reply = await replyTo(f, t.id, '看看虚构目录客户乙');

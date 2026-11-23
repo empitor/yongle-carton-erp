@@ -1,4 +1,5 @@
 // 产品的唛头：像产品的备注一样挂在产品上（看、传、删、写一句说明）。唛头不识别。
+import { sales, MarkService } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -10,7 +11,6 @@ import { Store } from '../server/core/db.js';
 import { count } from '../server/core/index.js';
 import { startHttp } from './http-fixture.js';
 import { fixtureOwner } from './flow-fixture.js';
-import { MarkService } from '../server/overview/product-marks.js';
 import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { productSchema } from '../shared/core/domain.js';
 import { superActor as fixtureSuperActor } from './actor-fixture.js';
@@ -21,7 +21,7 @@ async function fixture() {
   const http = await startHttp(store, { admin: false }),
     base = http.origin;
   const save = (name: string, customerProductCode: string, l: number, w: number, h: number) =>
-    store.saveProduct(
+    sales(store).createProduct(
       productSchema.parse({
         name,
         customerProductCode,
@@ -126,7 +126,7 @@ test('不在本机的超级管理员模式删带唛头的产品，唛头和原�
   try {
     const actor = who();
     const superActor = fixtureSuperActor();
-    const product = store.saveProduct(productSchema.parse({ name: '虚构带唛头产品' }));
+    const product = sales(store).createProduct(productSchema.parse({ name: '虚构带唛头产品' }));
     new MarkService(store).add(
       {
         productId: product.id,
@@ -141,7 +141,7 @@ test('不在本机的超级管理员模式删带唛头的产品，唛头和原�
       selection = { module: 'products', items: [{ id: product.id, version: product.version }] },
       { digest } = engine.preview(selection, superActor);
     engine.delete({ ...selection, requestId: randomUUID(), deletionDigest: digest }, superActor, 's');
-    assert.equal(store.product(product.id, true), undefined);
+    assert.equal(sales(store).product(product.id, true), undefined);
     assert.equal(count(store.db, 'SELECT count(*) FROM product_marks'), 0);
     assert.equal(count(store.db, 'SELECT count(*) FROM mark_files'), 0);
   } finally {
@@ -154,7 +154,7 @@ test('从产品上移除唛头前留快照', () => {
   const store = new Store(join(dir, 'erp.sqlite'));
   try {
     const actor = who();
-    const product = store.saveProduct(productSchema.parse({ name: '虚构带唛头产品' }));
+    const product = sales(store).createProduct(productSchema.parse({ name: '虚构带唛头产品' }));
     const marks = new MarkService(store);
     const mark = marks.add(
       {

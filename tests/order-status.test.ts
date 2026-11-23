@@ -1,5 +1,6 @@
 // 订单状态由有效单据派生（server/flow/rules/order-progress.ts、server/orders/service.ts）：生产中、待发货、已发货跟着任务、完工、
 // 送货走，分批做分批发、一张任务挂多张单、撤销和删除单据后回退；人工只定待确认、已确认、已取消。下一步见 order-next-step.test.ts。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -84,7 +85,7 @@ test('分批做分批发：今天做一半发一半是部分发货，明天做�
 test('订单逐行算未发、部分发货、已发完：待送货、取消、撤销的送货单不算；没有送货单的订单已发就是 0', () => {
   const f = flowFixture();
   try {
-    const products = ['甲', '乙', '丙'].map((name) => f.store.saveProduct(productSchema.parse({ name: '虚构纸箱' + name })));
+    const products = ['甲', '乙', '丙'].map((name) => sales(f.store).createProduct(productSchema.parse({ name: '虚构纸箱' + name })));
     const stocks = products.map((p) => {
       const s = f.ops.saveItem({ name: p.name, kind: 'finished', unit: '只', productId: p.id }, clerk);
       f.stockIn('3000', s.id);

@@ -1,6 +1,7 @@
 // 本机管理员给订单换客户时连带改送货单（server/flow/rules/order-edit-cascade.ts）：共享的送货单拆开，出库流水改挂、不重记，
 // 状态和出库、送达记录沿用；写到一半失败整笔回滚；不是本机管理员的不能连带改。删明细见 order-edit-line-removal.test.ts，
 // 审计和流水备注见 order-edit-audit.test.ts，删除引擎本身见 database-maintenance.test.ts。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 // 删除引擎要各模块登记的删除规则
@@ -23,7 +24,7 @@ test('订单已出库后改客户和数量：金额重算，只发这张订单�
   try {
     const a = f.order([100]);
     const d = f.ship([{ order: a }]);
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '明确更正的客户' }));
+    const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '明确更正的客户' }));
     const saved = f.editOrder(a.id, { customerId: customer.id, lines: orderOf(f.store, a.id).lines.map((l) => ({ ...l, quantity: 50 })) });
     assert.deepEqual([saved.customerId, saved.lines[0].quantity, saved.totalCents], [customer.id, 50, 5000]);
     assert.equal(f.flow.get(d.id, 'delivery').customerId, customer.id);
@@ -42,7 +43,7 @@ test('改订单客户拆分已出库、已送达的送货单：拆出来的新�
     const shipped = f.ship([{ order: a }, { order: b }], { plannedDate: '2026-10-26' });
     const delivered = f.flow.markDelivered(shipped.id, { version: shipped.version }, f.who);
     assert.equal(flowStatusLabel(delivered), '已送达');
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '拆分送货更正客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '拆分送货更正客户' }));
     f.editOrder(a.id, { customerId: other.id });
     const split = f.deliveries().find((d) => d.customerId === other.id);
     assert.ok(split && split.id !== delivered.id, '拆出了一张新送货单');
@@ -76,7 +77,7 @@ test('改订单客户拆分已撤销的送货单：出库和冲销两组流水�
       const reversalIds = before.filter((m) => m.source_kind === 'flow_reversal').map((m) => String(m.id));
       assert.deepEqual(f.own(d.id), { out: -200000, back: 200000 });
 
-      const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构拆分撤销客户' }));
+      const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构拆分撤销客户' }));
       f.editOrder(a.id, { customerId: other.id });
 
       const docs = f.deliveries();
@@ -128,7 +129,7 @@ test('改订单客户拆分已出库的送货单：两张单各自名下的出�
       const snapshotLine = d.lines.find((l) => l.orderId === a.id);
       assert.ok(snapshotLine);
       assert.equal(f.balance(), 660000);
-      const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构拆分出库客户' }));
+      const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构拆分出库客户' }));
       f.editOrder(a.id, { customerId: other.id });
 
       const docs = f.deliveries();
@@ -184,7 +185,7 @@ test('订单已由别的送货单发完时改客户：带着这张订单的已�
     assert.equal(orderOf(f.store, a.id).status, '已发货');
     const before = f.moves();
 
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构发完后换客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构发完后换客户' }));
     f.editOrder(a.id, { customerId: other.id });
 
     const edited = orderOf(f.store, a.id);
@@ -234,7 +235,7 @@ test('一张送货单发三张订单，其中一张换客户：三张订单的�
       return [o.customerId, o.status, o.lines[0].shippedQuantity];
     };
 
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构三单拆分客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构三单拆分客户' }));
     f.editOrder(b.id, { customerId: other.id });
     const split = f.deliveries().find((x) => x.id !== d.id);
     assert.ok(split);
@@ -282,7 +283,7 @@ test('改订单连带拆送货单写到一半失败（写修订记录出错）�
     const a = f.order([100]),
       b = f.order([100]);
     f.ship([{ order: a }, { order: b }]);
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构回滚客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构回滚客户' }));
     const before = snapshot(f);
     f.store.db.exec("CREATE TRIGGER fail_revision BEFORE INSERT ON stock_movement_revisions BEGIN SELECT RAISE(ABORT,'虚构：写修订记录失败'); END");
     assert.throws(() => f.editOrder(a.id, { customerId: other.id }), /虚构：写修订记录失败/);
@@ -303,7 +304,7 @@ test('不是本机管理员的不能连带改单据：远程的超级管理员�
     const a = f.order([100, 60]),
       b = f.order([100]);
     f.ship([{ order: a, line: 0 }, { order: a, line: 1, quantity: '60' }, { order: b }]);
-    const other = f.store.saveCustomer(customerSchema.parse({ name: '虚构越权客户' }));
+    const other = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构越权客户' }));
     const remoteSuper = pageActor({
       id: 'fictional-remote-super',
       name: '虚构远程管理员',

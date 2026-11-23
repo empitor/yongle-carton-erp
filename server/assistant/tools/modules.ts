@@ -1,6 +1,7 @@
 // 只管：按业务模块读记录——取列表 recordRows、按编号取一条 recordRow、记录在页面上的链接 recordLink（页面报的记录种类和助手模块的换算在 page-record.ts）。
 // 模块名单、中文名和全站记录种类的对照在 shared/assistant/assistant-modules.ts；档案、库存品和单据按业务总览的
 // module-records.ts 读（和数据管理同一份，单据补好关联的名称），这里只加助手筛选要用的几项（归档标记、关联的客户）。
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { flowDocHref, pageHref, type FlowKind } from '../../../shared/core/index.js';
@@ -34,7 +35,7 @@ function inventoryRows(ctx: ToolContext, module: InventoryModule, archived: bool
 /** 流水：补上产品、客户、供应商编号（筛选用）；库存品、订单、采购明细、来源单据只读流水用到的那几条 */
 function movementRows(ctx: ToolContext, movements = ctx.flow.views.movements()) {
   const items = new Map(ctx.ops.items(true, ids(movements.map((r) => r.item_id))).map((i) => [i.id, i]));
-  const orders = new Map(ctx.store.ordersByIds(ids(movements.map((r) => r.customer_order_id)), true).map((o) => [o.id, o]));
+  const orders = new Map(sales(ctx.store).ordersByIds(ids(movements.map((r) => r.customer_order_id)), true).map((o) => [o.id, o]));
   const lineSuppliers = suppliersOfPurchaseLines(ctx.store, ids(movements.map((r) => r.purchase_line_id)));
   const fromFlowDocument = (r: (typeof movements)[number]) => String(r.source_kind).startsWith(flowEntityPrefix); // 流水的单据来源是 flow_<种类>
   const documentIds = ids(movements.filter(fromFlowDocument).map((r) => r.source_id));
@@ -86,7 +87,7 @@ function flowRows<K extends FlowKind>(ctx: ToolContext, kind: K, archived: boole
   const docs: NamedDocument<K>[] = namedDocuments(ctx.flow, kind, archived, only);
   const taskIds = ids(docs.map(taskOf));
   const tasks = new Map(ctx.flow.list('task', true, undefined, taskIds).map((t) => [t.id, t.orderIds]));
-  const orders = new Map(ctx.store.ordersByIds(ids(docs.flatMap((d) => [...orderIdsOf(d, tasks)])), true).map((o) => [o.id, o.customerId]));
+  const orders = new Map(sales(ctx.store).ordersByIds(ids(docs.flatMap((d) => [...orderIdsOf(d, tasks)])), true).map((o) => [o.id, o.customerId]));
   return docs.map((d) => ({
     ...d,
     customerIds: [...new Set([customerOf(d), ...orderIdsOf(d, tasks).map((id) => orders.get(id))].filter(Boolean))],

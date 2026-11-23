@@ -1,6 +1,7 @@
 // 助手的系统维护（状态、体检、备份、清空预览）、收件箱手动添加和读取、唛头挂上和移除这几个工具本身（extra-tools.ts、tools/system.ts、
 // tools/documents-inbox.ts）。
 // 内存库或临时目录、虚构数据。
+import { sales, MarkService } from '../server/sales/index.js';
 import { z } from 'zod';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,7 +22,6 @@ import type { WorkflowContext } from '../server/assistant/order-import-state.js'
 import { field } from '../server/assistant/chat/result-fields.js';
 import { documentInboxTools } from '../server/assistant/tools/documents-inbox.js';
 import { resetPreview, systemBackup, systemCheck, systemStatus } from '../server/assistant/tools/system.js';
-import { MarkService } from '../server/overview/product-marks.js';
 import { productSchema } from '../shared/core/domain.js';
 import type { AssistantAttachment } from '../shared/core/index.js';
 import { actor } from './actor-fixture.js';
@@ -153,7 +153,7 @@ test('收件箱：手动添加文字和附件，不给内容就报错；列表�
 test('唛头：挂到产品、从产品上移除；只影响唛头（聊天里这两件事都先出确认卡片，见 assistant-boundaries）', async () => {
   const store = new Store(':memory:');
   try {
-    const product = store.saveProduct(productSchema.parse({ name: '虚构箱' }));
+    const product = sales(store).createProduct(productSchema.parse({ name: '虚构箱' }));
     const { tools, context } = attachedFile(store, { name: '虚构唛头.png', ...pngInfo });
     const added = readAs(await tools.call('marks.add', { productId: product.id }, context), { id: z.number() });
     const service = new MarkService(store);
@@ -163,7 +163,7 @@ test('唛头：挂到产品、从产品上移除；只影响唛头（聊天里�
     const removed = await tools.call('marks.remove', args, ctx());
     assert.equal(field(removed, 'verified'), true);
     assert.equal(service.list(product.id).length, 0);
-    assert.ok(store.product(product.id), '产品还在');
+    assert.ok(sales(store).product(product.id), '产品还在');
     await assert.rejects(tools.call('marks.add', { productId: product.id }, ctx()), /哪一份附件/);
     const bad = attachedFile(store, { name: '虚构.docx', mime: 'application/msword', kind: 'office', transfer: 'file' });
     await assert.rejects(bad.tools.call('marks.add', { productId: product.id }, bad.context), /只支持/);

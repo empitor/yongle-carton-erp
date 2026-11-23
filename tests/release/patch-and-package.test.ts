@@ -1,11 +1,11 @@
 // 发布前检查：补丁和整包的文件清单、补丁脚本能单独运行、版本探针、命令行备份（只调纯函数的回滚判断和补丁锁在 tests/patch-rollback.test.ts）。改业务代码用不着每次跑，发布时跑 npm run test:release。
+import { sales } from '../../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { Store } from '../../server/core/db.js';
 import { createFullBackup, restoreFullBackup } from '../../server/core/backup.js';
@@ -77,7 +77,7 @@ test('完整备份接受比程序新的数据库版本并写进清单；恢复�
   try {
     const data = join(root, 'data');
     const store = new Store(join(data, 'erp.sqlite'));
-    store.saveCustomer(customerSchema.parse({ name: '虚构新版客户' }));
+    sales(store).createCustomer(customerSchema.parse({ name: '虚构新版客户' }));
     const max = Math.max(...supportedDatabaseVersions);
     const normal = await createFullBackup({ dataDir: data, backupRoot: join(root, 'normal') });
     const normalManifest = readBackupManifest(normal.dir);
@@ -107,7 +107,7 @@ test('命令行 backup 遇到更新的库照样备份并提示；restore 仍然�
     const dbPath = join(dir, 'data', 'erp.sqlite'),
       backups = join(dir, 'backups');
     const store = new Store(dbPath);
-    store.saveCustomer(customerSchema.parse({ name: '虚构命令行客户' }));
+    sales(store).createCustomer(customerSchema.parse({ name: '虚构命令行客户' }));
     const max = Math.max(...supportedDatabaseVersions);
     store.db.exec(`INSERT INTO schema_migrations(version,name,applied_at,app_version) VALUES(${max + 1},'虚构的将来版本',datetime('now'),'9.9.9')`);
     store.close();
@@ -163,7 +163,7 @@ test('服务账号读取版本的探针脚本：业务库的结构版本、配�
 
 test('应用补丁脚本：导入不执行；只拿上传的那几个文件放一个目录也能运行，先检查 root；忽略挂断信号、输出出错不退出、写日志', async () => {
   // 导入时要是执行了主流程，没有 root 会直接退出进程，这条测试就跑不完
-  await import(pathToFileURL(join(projectRoot, 'scripts/linux/apply-patch.mjs')).href);
+  await load('scripts/linux/apply-patch.mjs', {});
   const { applyScripts, resultCheckHint } = await patchServer();
   const script = join(projectRoot, 'scripts/linux/apply-patch.mjs');
   if (process.platform === 'win32' || process.getuid?.() !== 0) {

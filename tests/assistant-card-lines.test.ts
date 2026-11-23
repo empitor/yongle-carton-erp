@@ -1,5 +1,6 @@
 // 确认卡片上给人看的内容（server/assistant/tools/card-summary.ts）：动的是哪条、会发生什么，一个字段都不漏。
 // 改数据必须人点确认是唯一的保险，卡片要让人一眼看清；安全复审 rb-2、rb-3、rb-4、rb-7、rb-8 的场景都在这里。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -228,7 +229,7 @@ function shipped(s: ReturnType<typeof setup>) {
 }
 /** 订单读回来（换客户要带当前版本号）；读不到就让测试失败 */
 function storedOrder(s: ReturnType<typeof setup>, id: number) {
-  const order = s.f.store.order(id, true);
+  const order = sales(s.f.store).order(id, true);
   assert.ok(order, '订单 ' + id + ' 不在库里');
   return order;
 }

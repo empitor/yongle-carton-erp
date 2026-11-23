@@ -1,4 +1,5 @@
 // 识别走流式：等模型时不动工作区，完整结束后才校验、一次保存；中途出错不存半份；本机推送只转发进度和结果。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { docxFixture, xlsxFixture } from './import-fixtures.js';
@@ -80,7 +81,7 @@ test('本机识别地址推送进度和最终结果；出错推 error、不带�
       assert.equal(text.includes('event: error'), fail);
       assert.equal(!!f.manager.get(w.id).draft, !fail);
     }
-    assert.equal(store.orders().length, 0);
+    assert.equal(sales(store).orders().length, 0);
   } finally {
     // 关服务前断开保活连接，免得关不掉
     server.server.closeAllConnections();

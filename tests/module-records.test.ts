@@ -1,6 +1,7 @@
 // 按模块读记录只有一份（server/overview/module-records.ts）：数据管理的列表和助手查记录补的名称一样——
 // 单据上记了名字的用记的，没记的按档案补；到货单另补订货单号和原件文件名。助手的模块名和全站记录种类的对照只有一份
 // （shared/assistant/assistant-modules.ts），页面报全站记录种类，助手换成自己的模块。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -47,7 +48,7 @@ test('单据上记了名字的用记的：产品改名以后，生产任务在�
   t.after(() => store.close());
   const task = flow.save('task', { date: '2026-10-20', productId: product.id, quantity: '10', unit: '只', orderIds: [], notes: '' }, actor);
   assert.equal(flow.get(task.id, 'task').productName, '虚构纸箱甲', '生产任务下达时记下产品名');
-  store.saveProduct(productSchema.parse({ name: '虚构改名后的纸箱' }), product.id, product.version);
+  sales(store).updateProduct(productSchema.parse({ name: '虚构改名后的纸箱' }), product.id, product.version);
   const expected = '虚构纸箱甲';
   assert.equal(must(namedDocuments(flow, 'task', true, [task.id])[0], '生产任务').productName, expected);
   const viaAssistant = readAs(tools.read('records.get', { module: 'production_tasks', id: task.id }, actor), { record: z.looseObject({ productName: z.string() }) });

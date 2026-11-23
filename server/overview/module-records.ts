@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import type { Store } from '../core/index.js';
 import type { TrackedOrder, FlowKind } from '../../shared/core/index.js';
 import { batchNumbers } from '../operations/index.js';
@@ -18,7 +19,7 @@ export type EntityRecordOf = {
 export function entityRecords<E extends RecordEntity>(store: Store, entity: E, includeArchived: boolean, ids?: readonly number[]): EntityRecordOf[E][];
 export function entityRecords(store: Store, entity: RecordEntity, includeArchived: boolean, ids?: readonly number[]) {
   if (entity === 'orders') {
-    const orders = ids ? store.ordersByIds(ids, includeArchived) : store.orders(includeArchived);
+    const orders = ids ? sales(store).ordersByIds(ids, includeArchived) : sales(store).orders(includeArchived);
     return trackOrders(store, orders);
   }
   return ids ? businessRecords(store, entity, ids, includeArchived) : businessList(store, entity, includeArchived);
@@ -43,8 +44,8 @@ function documentNames(flow: FlowService, docs: readonly FlowDocView[]) {
     batches = unique(docs.map((d) => (d.kind === 'arrival' ? d.orderBatchId : undefined))),
     sources = unique(docs.map((d) => (d.kind === 'arrival' ? d.sourceId : undefined)));
   return {
-    products: named(products.length ? flow.store.products(true, products) : []),
-    customers: named(customers.length ? flow.store.customers(true, customers) : []),
+    products: named(products.length ? sales(flow.store).products(true, products) : []),
+    customers: named(customers.length ? sales(flow.store).customers(true, customers) : []),
     suppliers: named(suppliers.length ? flow.ops.suppliers(true, suppliers) : []),
     batches: batchNumbers(flow.store, batches),
     sources: sourceFileNames(flow.store, sources),

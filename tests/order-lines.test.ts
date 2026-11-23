@@ -1,4 +1,5 @@
-// 订单明细：保存时（server/core/orders.ts）产品编号和产品名称要指同一个产品，名称、规格、备注原样存、没带的沿用；列表和详情里的显示。
+// 订单明细：保存时（server/sales/orders.ts）产品编号和产品名称要指同一个产品，名称、规格、备注原样存、没带的沿用；列表和详情里的显示。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
@@ -12,10 +13,10 @@ import { customerSchema, orderSchema, productSchema } from '../shared/core/domai
 test('明细换了产品：名称跟着新产品的档案走，不收补丁里带的旧名称；产品没换时照旧用给的名称', () => {
   const s = new Store(':memory:');
   try {
-    const c = s.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-      a = s.saveProduct(productSchema.parse({ name: '虚构箱A' })),
-      b = s.saveProduct(productSchema.parse({ name: '虚构箱B' }));
-    let order = s.saveOrder(
+    const c = sales(s).createCustomer(customerSchema.parse({ name: '虚构客户' })),
+      a = sales(s).createProduct(productSchema.parse({ name: '虚构箱A' })),
+      b = sales(s).createProduct(productSchema.parse({ name: '虚构箱B' }));
+    let order = sales(s).saveOrder(
       orderSchema.parse({
         customerId: c.id,
         orderDate: '2026-11-01',
@@ -27,7 +28,7 @@ test('明细换了产品：名称跟着新产品的档案走，不收补丁里�
     assert.equal(order.lines[0].productName, '客户叫法A', '新建时给的名称照收');
     const lineId = order.lines[0].id;
     // 产品没换：给的名称照收
-    order = s.saveOrder(
+    order = sales(s).saveOrder(
       orderSchema.parse({ ...order, lines: [{ ...order.lines[0], productName: '客户新叫法A' }] }),
       order.id,
       order.version,
@@ -35,7 +36,7 @@ test('明细换了产品：名称跟着新产品的档案走，不收补丁里�
     assert.equal(order.lines[0].productName, '客户新叫法A');
     assert.equal(order.lines[0].id, lineId, '没有关联单据也保留原明细编号');
     // 换成产品 B，补丁里还带着 A 的名称：名称改成 B 的档案名
-    order = s.saveOrder(
+    order = sales(s).saveOrder(
       orderSchema.parse({ ...order, lines: [{ ...order.lines[0], productId: b.id }] }),
       order.id,
       order.version,
@@ -50,20 +51,20 @@ test('明细换了产品：名称跟着新产品的档案走，不收补丁里�
 test('订单拒收重复、外来明细编号，保存失败后原明细不变', () => {
   const s = new Store(':memory:');
   try {
-    const c = s.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
-    const p = s.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
+    const c = sales(s).createCustomer(customerSchema.parse({ name: '虚构客户' }));
+    const p = sales(s).createProduct(productSchema.parse({ name: '虚构纸箱' }));
     const input = orderSchema.parse({
       customerId: c.id, orderDate: '2026-10-01', deliveryDate: '2026-10-25', status: '已确认',
       lines: [{ productId: p.id, quantity: 10, unitPriceCents: 130 }],
     });
-    const order = s.saveOrder(input), other = s.saveOrder(input);
+    const order = sales(s).saveOrder(input), other = sales(s).saveOrder(input);
     const line = order.lines[0], foreign = other.lines[0];
     const invalid = /明细编号重复或不属于当前订单/;
-    assert.throws(() => s.saveOrder({ ...input, lines: [foreign] }), invalid);
+    assert.throws(() => sales(s).saveOrder({ ...input, lines: [foreign] }), invalid);
     for (const lines of [[line, line], [line, foreign]])
-      assert.throws(() => s.saveOrder({ ...input, lines }, order.id, order.version), invalid);
-    assert.deepEqual(s.order(order.id), order);
-    assert.deepEqual(s.orders().map((o) => o.id), [other.id, order.id]);
+      assert.throws(() => sales(s).saveOrder({ ...input, lines }, order.id, order.version), invalid);
+    assert.deepEqual(sales(s).order(order.id), order);
+    assert.deepEqual(sales(s).orders().map((o) => o.id), [other.id, order.id]);
   } finally {
     s.close();
   }
@@ -72,19 +73,19 @@ test('订单拒收重复、外来明细编号，保存失败后原明细不变',
 test('明细的名称、规格、备注原样存回（长名称、多行）；改订单时这一行没带名称、备注就沿用原来的，带了空串的清空', () => {
   const s = new Store(':memory:');
   try {
-    const c = s.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-      p = s.saveProduct(productSchema.parse({ name: '档案通用名' }));
+    const c = sales(s).createCustomer(customerSchema.parse({ name: '虚构客户' })),
+      p = sales(s).createProduct(productSchema.parse({ name: '档案通用名' }));
     const texts = { productName: '原订单存货名：加长纸箱' + '纸'.repeat(180), specification: '600 × 300 × 200 mm\n客户型号 ABC', notes: '每捆20只\n特殊说明：防潮包装' };
-    let order = s.saveOrder(
+    let order = sales(s).saveOrder(
       orderSchema.parse({ customerId: c.id, orderDate: '2026-10-01', deliveryDate: '2026-10-25', status: '已确认', lines: [{ productId: p.id, quantity: 1000, unitPriceCents: 130, ...texts }] }),
     );
     const kept = () => [order.lines[0].productName, order.lines[0].specification, order.lines[0].notes];
     assert.deepEqual(kept(), [texts.productName, texts.specification, texts.notes]);
     // 助手、数据管理按补丁改明细时可能只带改了的栏：没带的沿用
     const { productName, notes, ...partial } = order.lines[0];
-    order = s.saveOrder(orderSchema.parse({ ...order, lines: [partial] }), order.id, order.version);
+    order = sales(s).saveOrder(orderSchema.parse({ ...order, lines: [partial] }), order.id, order.version);
     assert.deepEqual(kept(), [texts.productName, texts.specification, texts.notes]);
-    order = s.saveOrder(orderSchema.parse({ ...order, lines: [{ ...order.lines[0], notes: '' }] }), order.id, order.version);
+    order = sales(s).saveOrder(orderSchema.parse({ ...order, lines: [{ ...order.lines[0], notes: '' }] }), order.id, order.version);
     assert.equal(order.lines[0].notes, '');
   } finally {
     s.close();

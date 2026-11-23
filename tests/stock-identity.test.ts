@@ -1,5 +1,6 @@
 // 同一种货只有一个库存品（shared/business/stock-identity.ts 的查重键、server/operations/stock/stock-items.ts、到货自动对应）：
 // 原材料按查重键不重复（归档的也算），到货没选库存品时入到一样的那个，核对入库的预览和实际一致。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -102,7 +103,7 @@ test('同一种货只有一个库存品：成品要先选产品、一个产品�
       () => f.ops.saveItem({ name: '虚构衬板', kind: 'raw', unit: '张' }, f.actor),
       conflict(f.glue.id, true, /^已经有一样的原材料“虚构衬板”（已归档）：.*请到已归档里恢复它，不用再建。$/),
     );
-    const spare = f.store.saveProduct(productSchema.parse({ name: '虚构备用纸箱' })),
+    const spare = sales(f.store).createProduct(productSchema.parse({ name: '虚构备用纸箱' })),
       parked = f.ops.saveItem({ name: '虚构备用成品', kind: 'finished', unit: '只', productId: spare.id }, f.actor);
     assert.ok(changeLifecycle(f.store, 'stock_items', { action: 'archive', items: [{ id: parked.id, version: parked.version }] }, f.actor).results[0].success);
     assert.throws(

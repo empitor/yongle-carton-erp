@@ -1,5 +1,6 @@
 // 超级管理员模式：谁能进、密码和页面凭证、按会话绑定、超时、退出；模式里能改归档记录、删客户产品订单；
 // 验密码的限流。识别导入和永久删除的几条在 import-permanent-deletion.test.ts。虚构账号。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
@@ -70,10 +71,10 @@ async function fixture() {
     admin = client('普通管理员'),
     reader = client('只读账号'),
     anonymous = client();
-  const customer = store.saveCustomer(customerSchema.parse({ name: '已有客户（虚构）' })),
-    product = store.saveProduct(productSchema.parse({ name: '已有纸箱（虚构）' }));
+  const customer = sales(store).createCustomer(customerSchema.parse({ name: '已有客户（虚构）' })),
+    product = sales(store).createProduct(productSchema.parse({ name: '已有纸箱（虚构）' }));
   const addOrder = (status: '待确认' | '已发货' = '待确认') =>
-    store.saveOrder(
+    sales(store).saveOrder(
       orderSchema.parse({
         customerId: customer.id,
         orderDate: '2026-10-25',
@@ -152,7 +153,7 @@ test('各权限层级、密码验证、CSRF、会话绑定和模式超时由后�
     await f.owner.enter();
     f.advance(16 * 60000);
     assert.equal((await f.execute(f.owner, p)).status, 403);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
   } finally {
     await f.close();
   }
@@ -178,12 +179,12 @@ test('普通管理员不能编辑已归档的记录；超级管理员模式里�
       assert.equal(z.object({ version: z.number() }).parse(await r.json()).version, row.version + 1);
       assert.equal(f.store.archived(e, row.id), true);
     }
-    assert.equal(f.store.order(f.order.id, true)?.totalAmountExact, '1390.0000');
+    assert.equal(sales(f.store).order(f.order.id, true)?.totalAmountExact, '1390.0000');
     const copy = new Store(f.file);
-    assert.equal(copy.customer(f.customer.id, true)?.notes, '超级管理员已核对并修改');
-    assert.equal(copy.order(f.order.id, true)?.notes, '超级管理员已核对并修改');
+    assert.equal(sales(copy).customer(f.customer.id, true)?.notes, '超级管理员已核对并修改');
+    assert.equal(sales(copy).order(f.order.id, true)?.notes, '超级管理员已核对并修改');
     copy.close();
-    const row = f.store.product(f.product.id, true);
+    const row = sales(f.store).product(f.product.id, true);
     assert.ok(row, '产品还在');
     await f.owner.exit();
     assert.equal((await f.owner.request('/products/' + row.id, row, 'PUT')).status, 404);
@@ -203,7 +204,7 @@ test('已发货订单的归档和恢复按业务条件走，和永久删除无�
     await f.lifecycle(f.owner, 'products', f.product);
     assert.equal(await firstSucceeded(await f.lifecycle(f.admin, 'orders', shipped, 'restore')), true);
     assert.equal(await firstSucceeded(await f.lifecycle(f.owner, 'orders', shipped, 'restore')), true);
-    assert.equal(f.store.order(shipped.id)?.lines[0].productName, f.product.name);
+    assert.equal(sales(f.store).order(shipped.id)?.lines[0].productName, f.product.name);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     await f.close();
@@ -227,25 +228,25 @@ test('删除客户连带它的订单：影响清单列出整张订单；没带�
     assert.equal((await f.execute(f.owner, p, { deletionDigest: undefined })).status, 409);
     assert.equal((await f.execute(f.owner, p, { password: 'Incorrect' })).status, 401);
     assert.equal((await f.execute(f.owner, p, { password: undefined })).status, 400);
-    assert.equal(f.store.customers().length, 1);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).customers().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     const r = await f.execute(f.owner, p);
     assert.equal(r.status, 200, await r.clone().text());
-    assert.equal(f.store.customers(true).length, 0);
-    assert.equal(f.store.orders(true).length, 0);
-    assert.equal(f.store.products(true).length, 1);
+    assert.equal(sales(f.store).customers(true).length, 0);
+    assert.equal(sales(f.store).orders(true).length, 0);
+    assert.equal(sales(f.store).products(true).length, 1);
     assert.equal(count(f.store.db, 'SELECT COUNT(*) FROM order_lines'), 0);
     const audits = count(f.store.db, "SELECT COUNT(*) FROM business_audit WHERE source='page' AND action='delete'");
     assert.equal(audits, 2);
     assert.equal(await firstSucceeded(await f.lifecycle(f.owner, 'customers', f.customer, 'restore')), false);
     // 删掉的编号不复用
-    const newCustomer = f.store.saveCustomer(customerSchema.parse({ name: '删除后新客户' }));
+    const newCustomer = sales(f.store).createCustomer(customerSchema.parse({ name: '删除后新客户' }));
     assert.ok(newCustomer.id > f.customer.id);
     const lines = f.order.lines.map(({ id: _oldLineId, ...line }) => line);
-    assert.ok(f.store.saveOrder(orderSchema.parse({ ...f.order, customerId: newCustomer.id, lines })).id > f.order.id);
+    assert.ok(sales(f.store).saveOrder(orderSchema.parse({ ...f.order, customerId: newCustomer.id, lines })).id > f.order.id);
     const copy = new Store(f.file);
-    assert.equal(copy.customer(f.customer.id, true), undefined);
-    assert.equal(copy.order(f.order.id, true), undefined);
+    assert.equal(sales(copy).customer(f.customer.id, true), undefined);
+    assert.equal(sales(copy).order(f.order.id, true), undefined);
     assert.deepEqual(copy.db.prepare('PRAGMA foreign_key_check').all(), []);
     copy.close();
   } finally {
@@ -261,19 +262,19 @@ test('单条和批量删除客户、产品、订单（含已归档的）；看�
     // 看过清单以后这个客户又多了一张订单：范围变了，拒绝
     const second = f.addOrder();
     assert.equal((await f.execute(f.owner, p)).status, 409);
-    assert.equal(f.store.customers(true).length, 1);
-    assert.equal(f.store.orders(true).length, 2);
+    assert.equal(sales(f.store).customers(true).length, 1);
+    assert.equal(sales(f.store).orders(true).length, 2);
     p = await f.preview(f.owner, 'orders', [f.order, second]);
     assert.equal((await f.execute(f.owner, p)).status, 200);
-    assert.equal(f.store.orders(true).length, 0);
-    const extra = f.store.saveProduct(productSchema.parse({ name: '额外产品' }));
+    assert.equal(sales(f.store).orders(true).length, 0);
+    const extra = sales(f.store).createProduct(productSchema.parse({ name: '额外产品' }));
     await f.lifecycle(f.owner, 'products', extra);
     p = await f.preview(f.owner, 'products', [f.product, extra]);
     assert.equal((await f.execute(f.owner, p)).status, 200);
-    assert.equal(f.store.products(true).length, 0);
+    assert.equal(sales(f.store).products(true).length, 0);
     p = await f.preview(f.owner, 'customers', [f.customer]);
     assert.equal((await f.execute(f.owner, p)).status, 200);
-    assert.equal(f.store.customers(true).length, 0);
+    assert.equal(sales(f.store).customers(true).length, 0);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     await f.close();
@@ -293,7 +294,7 @@ test('删除确认排队验密码的空当里账号被降级：这次删除不�
     const id = account.id;
     const cookie = await h.login(other.name, other.password);
     await h.enterSuperMode(cookie, other.password);
-    const customer = store.saveCustomer(customerSchema.parse({ name: '虚构待删客户' }));
+    const customer = sales(store).createCustomer(customerSchema.parse({ name: '虚构待删客户' }));
     const selection = { module: 'customers', items: [{ id: customer.id, version: customer.version }] };
     const digest = previewAnswer.parse(await (await h.send('/deletions/preview', selection, cookie)).json()).digest;
     const before = gate.calls;
@@ -303,7 +304,7 @@ test('删除确认排队验密码的空当里账号被降级：这次删除不�
     assert.equal((await h.send('/auth/users/' + id, { level: 'staff' }, h.cookie, { method: 'PUT' })).status, 200);
     gate.release();
     assert.equal((await deleting).status, 403);
-    assert.ok(store.customer(customer.id), '客户还在');
+    assert.ok(sales(store).customer(customer.id), '客户还在');
   } finally {
     gate.release();
     await h.close();

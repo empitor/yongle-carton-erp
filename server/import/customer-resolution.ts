@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import type { Store } from '../core/index.js';
 import { resolveCustomerCandidates } from '../../shared/import/index.js';
 import { historyCustomerIds } from './order-lookup.js';
@@ -9,7 +10,7 @@ import { historyCustomerIds } from './order-lookup.js';
 export function resolveImportCustomer(store: Store, name: string, confirmedCustomerIds: number[] = []) {
   const archived = store.archivedIds('customers');
   return resolveCustomerCandidates(
-    store.customers(true).map((c) => ({ ...c, archived: archived.has(c.id) })),
+    sales(store).customers(true).map((c) => ({ ...c, archived: archived.has(c.id) })),
     name,
     historyCustomerIds(store, name),
     confirmedCustomerIds,

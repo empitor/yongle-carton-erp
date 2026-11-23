@@ -1,6 +1,7 @@
 // 助手读附件：附件直接放进用户这句话，模型自己看（server/assistant/chat/model-attachments.ts）。
 // 各种类型怎么交给模型：图片发原图、TXT 和 CSV 发原文、PDF、Word、表格原样上传后按文件编号引用；DeepSeek 说文件失效时从原件重传。
 // 上传留多久、快到期时续、附件删掉以后怎么办在 tests/assistant-model-chat.test.ts。模型用假 DeepSeek，不发真实请求。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -68,7 +69,7 @@ test('单图/多图/PDF/Word/Excel/CSV/TXT/WebP：图片发原图、文字发原
     }
     assert(fake.chatCalls().some((c) => JSON.stringify(c.body).includes('附件正文：虚构验收317')), '文字原文内联');
     assert(fake.calls.every((c) => c.method !== 'DELETE'), '上传的文件留着，后面几轮接着看');
-    assert.equal(store.orders().length, 0);
+    assert.equal(sales(store).orders().length, 0);
     assert.equal(count(store.db, 'SELECT COUNT(*) FROM stock_movements'), 0);
   } finally {
     f.close();

@@ -1,3 +1,4 @@
+import { sales } from '../server/sales/index.js';
 import type { FlowKind } from '../shared/core/index.js';
 import { pageActor } from './actor-fixture.js';
 import { randomUUID } from 'node:crypto';
@@ -131,7 +132,7 @@ export function splitDeliveryFixture() {
   const ship = (lines: ShipLine[], extra: object = {}) => viewAs(f.base.check(pending(lines, extra)), 'delivery');
   const undo = (id: number) => f.flow.reverse(id, { version: f.flow.get(id).version, reason: '虚构：发错了', acknowledged: true }, f.who);
   const editOrder = (id: number, patch: Record<string, unknown>, who: Actor = f.who) => {
-    const current = f.store.order(id);
+    const current = sales(f.store).order(id);
     if (!current) throw new Error('测试数据：没有订单 ' + id);
     return createBusinessService(f.store).execute(
       { entity: 'orders', action: 'update', id, input: { ...current, ...patch } },

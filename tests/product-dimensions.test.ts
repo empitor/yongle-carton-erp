@@ -1,5 +1,6 @@
 // 产品尺寸可空、厘米毫米换算，识别导入时的尺寸（缺尺寸也能导、换单位不改实际大小、未知单位不猜、cm 档案对上 mm 草稿）。
 // 识别导入走服务层（ImportExecutionService）直调，接口那一层的登录和凭证由 order-import-execute 守着。假 DeepSeek、内存库、临时目录、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -78,7 +79,7 @@ test('产品仅名称必填，真正NULL保存缺失尺寸；错误数值及错�
   assert.deepEqual([p.length, p.width, p.height, p.material, p.flute], [null, null, null, '', '']);
   const store = new Store(':memory:');
   try {
-    const saved = store.saveProduct(p);
+    const saved = sales(store).createProduct(p);
     assert.equal(saved.length, null);
     assert.equal(saved.dimensionUnit, null);
     const row = one(store.db, rows.products.pick({ length: true }), 'SELECT length FROM products WHERE id=?', saved.id);
@@ -118,8 +119,8 @@ test('缺长宽高、配纸、类型且单位未知的新产品能正式导入�
     assert.deepEqual([input.length, input.dimensionUnit], [null, null]);
     assert.ok(preview.plan.warnings.some((s: string) => s.includes('可后续补充')));
     const receipt = await f.imported(),
-      product = f.store.products()[0],
-      order = f.store.order(receipt.orderId);
+      product = sales(f.store).products()[0],
+      order = sales(f.store).order(receipt.orderId);
     assert.ok(order);
     assert.deepEqual([product.material, product.flute, product.dimensionUnit, product.length], ['', '', null, null]);
     assert.deepEqual(
@@ -139,7 +140,7 @@ test('cm与mm均可创建产品及正式导入，小数和1cm=10mm换算往返�
     );
     try {
       await f.imported();
-      const saved = f.store.products()[0];
+      const saved = sales(f.store).products()[0];
       assert.equal(saved.dimensionUnit, unit);
       assert.deepEqual(normalizedDimensions(saved), [302.5, 200, 150]);
     } finally {
@@ -183,8 +184,8 @@ test('未知单位不当成毫米、无本地推算，保留原文且允许后�
     const input = planned.input;
     assert.deepEqual([input.dimensionUnit, input.dimensionUnitRaw, input.length], [null, '英寸', 3.5]);
     await f.imported();
-    assert.equal(f.store.products()[0].dimensionUnit, null);
-    assert.equal(f.store.products()[0].dimensionUnitRaw, '英寸');
+    assert.equal(sales(f.store).products()[0].dimensionUnit, null);
+    assert.equal(sales(f.store).products()[0].dimensionUnitRaw, '英寸');
     assert.equal(normalizeDimensionUnit('unknown'), null);
   } finally {
     f.close();
@@ -232,18 +233,18 @@ test('同名产品同类补充提醒合并一次且不是红色错误，真正�
 test('同一实际尺寸的cm档案与mm草稿能够正确匹配，不创建重复产品或改变旧档案', async () => {
   const f = await fixture(withLine({ length: '300', width: '200', height: '150', dimensionUnit: 'mm', material: '牛卡', flute: 'B' }));
   try {
-    const product = f.store.saveProduct(
+    const product = sales(f.store).createProduct(
       productSchema.parse({ name: '名称已明确的纸箱A', length: 30, width: 20, height: 15, dimensionUnit: 'cm', material: '牛卡', flute: 'B', priceCents: 139 }),
     );
     const planned = (await f.preview()).plan.products[0];
     assert.ok(planned.mode === 'existing');
     assert.deepEqual([planned.mode, planned.id], ['existing', product.id]);
     await f.imported();
-    assert.equal(f.store.products().length, 1);
-    const saved = f.store.product(product.id);
+    assert.equal(sales(f.store).products().length, 1);
+    const saved = sales(f.store).product(product.id);
     assert.ok(saved);
     assert.deepEqual([saved.length, saved.dimensionUnit], [30, 'cm']);
-    assert.equal(f.store.orders()[0].lines[0].unitPriceExact, '1.3900');
+    assert.equal(sales(f.store).orders()[0].lines[0].unitPriceExact, '1.3900');
   } finally {
     f.close();
   }

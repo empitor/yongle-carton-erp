@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { all, moduleOf, refsOf, type Ref } from './module-map.js';
+import ts from 'typescript';
+import { all, moduleOf, refsOf, scriptKind, tools, type Ref } from './module-map.js';
 
 /** 一个文件 export 出来的声明名（export const、function、type、interface、class、enum） */
 const declaredExports = (file: string) =>
@@ -45,8 +46,41 @@ function narrowViolations(f: string, refs: Ref[] = refsOf(f)) {
   return out;
 }
 
-test('窄引用：财务用单据流转只走只读窗口 financeFacts，用共用业务只用约定和登记的几样', () => {
+/** 改产品和同步成品库存由订单服务在同一个保存点内完成。 */
+const productUpdate = {
+  member: 'updateProduct',
+  caller: '订单服务',
+  how: '改已有产品须经订单服务，由它同步成品库存',
+};
+
+function accessedMember(n: ts.Node) {
+  if (ts.isPropertyAccessExpression(n)) return n.name.text;
+  if (ts.isElementAccessExpression(n) && ts.isStringLiteralLike(n.argumentExpression)) return n.argumentExpression.text;
+  if (ts.isBindingElement(n) && ts.isObjectBindingPattern(n.parent)) {
+    const key = n.propertyName ?? n.name;
+    if (ts.isIdentifier(key) || ts.isStringLiteralLike(key)) return key.text;
+    if (ts.isComputedPropertyName(key) && ts.isStringLiteralLike(key.expression)) return key.expression.text;
+  }
+}
+
+function productUpdateViolations(file: string, text: string = readFileSync(file, 'utf8')) {
+  if (moduleOf(file)?.name === productUpdate.caller || !text.includes(productUpdate.member)) return [];
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const out: string[] = [];
+  const visit = (n: ts.Node) => {
+    if (accessedMember(n) === productUpdate.member) {
+      const line = source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1;
+      out.push(file + ':' + line + ' 的 ' + productUpdate.member + '：' + productUpdate.how);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(source);
+  return out;
+}
+
+test('窄引用：财务经只读窗口读业务，改已有产品经订单服务同步成品库存', () => {
   assert.deepEqual(ruledFiles().flatMap((f) => narrowViolations(f)), []);
+  assert.deepEqual([...all, ...tools].flatMap((f) => productUpdateViolations(f)), []);
 });
 
 test('回归：窄引用拦住财务引单据流转的服务和别的名字、看不出名字的引用，窗口和约定不误报', () => {
@@ -69,4 +103,14 @@ test('回归：窄引用拦住财务引单据流转的服务和别的名字、�
   for (const text of allowed) assert.deepEqual(narrowViolations('server/finance/sample.ts', refsOf('server/finance/sample.ts', text)), [], '不该拦：' + text);
   // 别的模块不受这张表管
   assert.deepEqual(narrowViolations('server/overview/sample.ts', refsOf('server/overview/sample.ts', "import { FlowService } from '../flow/index.js';")), []);
+
+  for (const text of [
+    'sales(store).updateProduct(input, id, version);',
+    "records['updateProduct'](input, id, version);",
+    'const { updateProduct: update } = records;',
+  ]) {
+    assert.equal(productUpdateViolations('server/import/sample.ts', text).length, 1, text);
+    assert.deepEqual(productUpdateViolations('server/orders/sample.ts', text), []);
+  }
+  assert.deepEqual(productUpdateViolations('server/import/sample.ts', 'sales(store).createProduct(input);'), []);
 });

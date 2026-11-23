@@ -1,5 +1,6 @@
 // 助手问合计用的 records.summarize（tools/records-summary.ts）：订单金额和只数的口径、采购单没单价的不猜、
 // 未到数量按单位分、按每张产出几只算要几张纸。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { z } from 'zod';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,9 +16,9 @@ function setup() {
   const store = new Store(':memory:');
   const tools = toolsOf(store),
     summarize = (args: object) => tools.read('records.summarize', args, actor);
-  const product = store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
+  const product = sales(store).createProduct(productSchema.parse({ name: '虚构纸箱' }));
   const order = (customerId: number, status: string, quantities: number[], unitPriceCents = 100) =>
-    store.saveOrder(
+    sales(store).saveOrder(
       orderSchema.parse({
         customerId,
         orderDate: '2026-11-01',
@@ -32,8 +33,8 @@ function setup() {
 test('订单合计：金额、只数、单数都只算有效订单（不含待确认、已取消）；按客户分的同一口径', () => {
   const f = setup();
   try {
-    const a = f.store.saveCustomer(customerSchema.parse({ name: '虚构甲' })),
-      b = f.store.saveCustomer(customerSchema.parse({ name: '虚构乙' }));
+    const a = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构甲' })),
+      b = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构乙' }));
     f.order(a.id, '已确认', [100]);
     f.order(a.id, '待确认', [50], 200);
     f.order(b.id, '已取消', [30]);
@@ -87,7 +88,7 @@ test('采购单合计：没单价的单独计数、不进金额（不猜）；�
 test('按每张产出几只算要几张纸：各型号各自向上取整，或共用时的最少张数；订单不存在 404', () => {
   const f = setup();
   try {
-    const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构甲' }));
+    const c = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构甲' }));
     const order = f.order(c.id, '已确认', [181, 182]);
     const allocate = (mode: string) => readAs(f.summarize({ module: 'orders', allocation: { orderId: order.id, unitsPerSheet: 4, mode } }), { lines: z.array(z.looseObject({ sheets: z.unknown(), exactShare: z.unknown() })) });
     const each = allocate('per-product');

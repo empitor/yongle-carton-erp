@@ -1,6 +1,7 @@
 // 订单和订单明细的含税口径只收三项（含税、未税、未明确）：页面保存、数据管理、识别导入同一条录入规则
 // （shared/core/domain.ts 的 orderTaxModes）。库里已有的别的写法不猜着归并：照原样读出来，改订单时要人改选，报错带原值。
 // 只管录入，不加数据库约束，所以库里旧的写法要直接写库来造。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -52,7 +53,7 @@ test('页面保存订单：别的写法被拒、不落库不记审计；三项�
   assert.equal(count(base.store.db, 'SELECT COUNT(*) n FROM orders'), 0);
   assert.equal(audits(), 0);
   const saved = manualWrite(base.store, { entity: 'orders', action: 'create', input: input('含税') }, actor);
-  assert.equal(base.store.order(saved.id)?.taxMode, '含税');
+  assert.equal(sales(base.store).order(saved.id)?.taxMode, '含税');
   assert.equal(audits(), 1);
 });
 
@@ -62,14 +63,14 @@ test('库里已有的别的写法：原样读出，不归并；改订单时不�
     product = base.product();
   const created = base.order(customer, [{ productId: product.id, quantity: 10, unitPriceCents: 100 }], { taxMode: '含税' });
   base.store.db.prepare("UPDATE orders SET tax_mode='不含税' WHERE id=?").run(created.id);
-  const old = base.store.order(created.id) ?? assert.fail('订单读不到');
+  const old = sales(base.store).order(created.id) ?? assert.fail('订单读不到');
   assert.equal(old.taxMode, '不含税', '读出来照原样，不换成未税');
   const audits = () => count(base.store.db, 'SELECT COUNT(*) n FROM business_audit');
   const before = audits();
   const update = (fields: Record<string, unknown>) =>
     manualWrite(base.store, { entity: 'orders', action: 'update', id: old.id, input: { ...old, ...fields } }, actor);
   assert.throws(() => update({ notes: '只改备注' }), /只能选含税、未税、未明确（现在写的是“不含税”）/);
-  assert.equal(base.store.order(old.id)?.version, old.version, '被拦下时版本不变');
+  assert.equal(sales(base.store).order(old.id)?.version, old.version, '被拦下时版本不变');
   assert.equal(audits(), before);
   const saved = update({ notes: '改选了', taxMode: '未税' });
   assert.deepEqual([saved.taxMode, saved.version], ['未税', old.version + 1]);
@@ -81,13 +82,13 @@ test('数据管理改订单：别的写法被拒、提示说清；改成三项�
   try {
     const bad = command('orders', 'update', [f.order], { taxMode: '不含税' });
     assert.match(shownError(() => f.service.execute(bad, f.who, 's')), /含税口径：只能选含税、未税、未明确（现在写的是“不含税”），请改选/);
-    assert.equal(f.store.order(f.order.id, true)?.version, f.order.version);
+    assert.equal(sales(f.store).order(f.order.id, true)?.version, f.order.version);
     const good = command('orders', 'update', [f.order], { taxMode: '未税' });
     f.service.execute(good, f.who, 's');
-    const after = f.store.order(f.order.id, true) ?? assert.fail('订单读不到');
+    const after = sales(f.store).order(f.order.id, true) ?? assert.fail('订单读不到');
     assert.deepEqual([after.taxMode, after.version], ['未税', f.order.version + 1]);
     f.service.execute(good, f.who, 's');
-    assert.equal(f.store.order(f.order.id, true)?.version, after.version, '同一请求重发原样返回，不再改一次');
+    assert.equal(sales(f.store).order(f.order.id, true)?.version, after.version, '同一请求重发原样返回，不再改一次');
   } finally {
     f.store.close();
   }

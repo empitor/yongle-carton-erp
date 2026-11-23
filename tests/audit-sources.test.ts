@@ -1,5 +1,6 @@
 // 审计来源只表示从哪个入口来（shared/core/audit-sources.ts）：入口把来源标在账号上，服务照账号记，自己不写来源。
 // 同一个服务被页面、助手、数据管理共用时，记下来的来源分得清是哪边来的。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
@@ -17,7 +18,7 @@ test('归档客户：页面、助手、数据管理三个入口各做一次，�
   const h = await startHttp(f.store);
   try {
     const [a, b, c] = ['虚构来源甲', '虚构来源乙', '虚构来源丙'].map((name) =>
-      f.store.saveCustomer(customerSchema.parse({ name })),
+      sales(f.store).createCustomer(customerSchema.parse({ name })),
     );
     // 页面：登录后在客户页上归档（records-router.ts 把登录账号原样交给服务）
     const page = await h.post('/customers/batch', { action: 'archive', acknowledged: true, items: [{ id: a.id, version: a.version }] });

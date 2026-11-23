@@ -1,4 +1,5 @@
 // 聊天里识别导入订单的夹具：文件库（临时目录）、导入管理器、助手，模型替身按用户这句话调识别或正式导入。
+import { sales } from '../server/sales/index.js';
 import { executeImports, importCard } from '../server/assistant/order-import-card.js';
 import type { OrderImportState, WorkflowContext } from '../server/assistant/order-import-state.js';
 import { randomUUID } from 'node:crypto';
@@ -103,11 +104,11 @@ async function reviewWorkspace(store: Store, imports: ImportManager, o: Reviewed
     w.draft.lines.map((line) => {
       const name = line.fields.productName.value;
       if (name === null) throw new Error('识别结果里有一行没有产品名');
-      const p = store.products().find((p) => p.name === name) || store.saveProduct(productSchema.parse({ name }));
+      const p = sales(store).products().find((p) => p.name === name) || sales(store).createProduct(productSchema.parse({ name }));
       return [line.id, { mode: 'existing' as const, id: p.id, version: p.version }];
     }),
   );
-  const c = store.customers()[0];
+  const c = sales(store).customers()[0];
   const customer = o.newCustomer ? { mode: 'new' as const } : { mode: 'existing' as const, id: c.id, version: c.version };
   return imports.mapping(w.id, { expectedRevision: w.revision, mapping: { customer, products, roundingPolicy: 'exact-cents' } }, actor);
 }
@@ -149,7 +150,7 @@ export function createOrderWorkflowFixture(
   const { prompts, imports, built } = workflowDeps(store, dir, settings, options.receiptSettings ?? settings),
     { execution } = built.deps,
     manager = new AssistantManager(built.deps, { agent: options.agent });
-  store.saveCustomer(customerSchema.parse({ name: '聊天验收客户' }));
+  sales(store).createCustomer(customerSchema.parse({ name: '聊天验收客户' }));
   const thread = manager.create(actor),
     events: { event: string; data: Record<string, unknown> }[] = [];
   const send = (text: string, attachmentIds: string[] = [], requestId = randomUUID(), who: Actor = actor) =>

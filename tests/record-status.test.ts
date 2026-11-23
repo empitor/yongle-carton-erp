@@ -1,5 +1,6 @@
 // 订单、采购单的状态动作（确认、退回、取消、恢复）：各是一个动作，和单据的取消一样要权限、版本、防重复、审计，
 // 取消必填原因；整张保存不改状态（server/orders/order-status.ts、server/flow/stock/stock-entries.ts）。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -130,14 +131,14 @@ test('已有出库送货单的订单：状态动作被拒（接口回 400），�
     const order = f.order(100);
     f.stockIn('50');
     f.confirm('delivery', { customerId: f.customer.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: f.finished.id, quantity: '50' }] });
-    const now = must(f.store.order(order.id), '订单'),
+    const now = must(sales(f.store).order(order.id), '订单'),
       once = input(now, '虚构：客户不要了'),
       audits = () => count(f.store.db, "SELECT count(*) FROM business_audit WHERE entity='orders'");
     const before = [audits(), now.status];
     const rejected = (e: unknown) => e instanceof InputError && /已产生送货记录的订单状态由实际交付进度维护/.test(e.message);
     assert.throws(() => changeOrderStatus(f.store, order.id, 'cancel', once, clerk), rejected);
     assert.throws(() => changeOrderStatus(f.store, order.id, 'cancel', once, clerk), rejected, '没被当成已办的请求');
-    assert.deepEqual([audits(), f.store.order(order.id)?.status], before);
+    assert.deepEqual([audits(), sales(f.store).order(order.id)?.status], before);
     assert.equal(f.store.db.prepare("SELECT 1 FROM operation_requests WHERE request_id=?").get(once.requestId), undefined);
   } finally {
     f.store.close();
@@ -150,21 +151,21 @@ test('归档：归档客户、产品不连带订单；没发完货的订单不�
     const items = (row: { id: number; version: number }) => ({ action: 'archive', acknowledged: true, items: [{ id: row.id, version: row.version }] });
     const change = (entity: Parameters<typeof changeLifecycle>[1], row: { id: number; version: number }, action = 'archive') =>
       changeLifecycle(f.store, entity, { ...items(row), action }, actor).results[0];
-    const customer = must(f.store.customer(f.order.customerId), '客户'),
-      product = must(f.store.product(f.order.lines[0].productId), '产品');
+    const customer = must(sales(f.store).customer(f.order.customerId), '客户'),
+      product = must(sales(f.store).product(f.order.lines[0].productId), '产品');
     for (const [entity, row] of [['customers', customer], ['products', product]] as const) {
       assert.equal(change(entity, row).success, true);
-      assert.equal(f.store.orders().length, 1, '订单不跟着归档');
-      assert.equal(f.store.order(f.order.id)?.lines[0].productName, '虚构状态纸箱');
+      assert.equal(sales(f.store).orders().length, 1, '订单不跟着归档');
+      assert.equal(sales(f.store).order(f.order.id)?.lines[0].productName, '虚构状态纸箱');
       assert.equal(change(entity, row, 'restore').success, true);
     }
     const confirmed = changeOrderStatus(f.store, f.order.id, 'confirm', input(f.order), actor);
     assert.equal(change('orders', confirmed).success, false, '已确认、没发完货');
-    const shipped = f.store.saveOrder({ ...confirmed, status: '已发货' }, confirmed.id, confirmed.version);
+    const shipped = sales(f.store).saveOrder({ ...confirmed, status: '已发货' }, confirmed.id, confirmed.version);
     assert.equal(change('orders', shipped).success, true);
-    assert.deepEqual([f.store.orders().length, f.store.orders(true).length], [0, 1]);
+    assert.deepEqual([sales(f.store).orders().length, sales(f.store).orders(true).length], [0, 1]);
     assert.equal(change('orders', shipped, 'restore').success, true);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     assert.deepEqual(
       f.audits('orders', f.order.id).map((r) => r.action).slice(-2),
       ['archive', 'restore'],

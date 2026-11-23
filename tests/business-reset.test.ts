@@ -1,4 +1,5 @@
 // 清空业务数据（人工和助手）：连带清哪些、保留哪些，财务已有记录时拒绝，编号不回头，初始化的范围登记全。
+import { sales } from '../server/sales/index.js';
 import { z } from 'zod';
 import { pageActor, actor as assistantActor, superActor as assistantSuperActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
@@ -10,10 +11,9 @@ import { DatabaseMaintenanceService } from '../server/lifecycle/index.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { count, many, resetCounts, resetParticipants, rows } from '../server/core/index.js';
 import { AssistantAttachments } from '../server/assistant/attachments.js';
-// 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务总览加载时登记（server/core/deletion-rules.ts）
+// 初始化时各模块清自己的表，删除时各模块配合（server/core/deletion-rules.ts）。
 import '../server/finance/index.js';
 import '../server/import/index.js';
-import '../server/overview/index.js';
 import { FinanceSettings } from '../server/finance/settings.js';
 import { FinanceEvents } from '../server/finance/events.js';
 import { financePermissions } from '../shared/core/accounts.js';
@@ -213,8 +213,8 @@ test('业务删除保留独立收件及附件，业务初始化清理两张表�
       assert.equal(inbox.get(id).status, 'pending');
       assert.deepEqual(inbox.file(id).content, inboxFile.bytes);
     }
-    assert.equal(store.customer(customer.id, true), undefined);
-    assert.equal(store.product(product.id, true), undefined);
+    assert.equal(sales(store).customer(customer.id, true), undefined);
+    assert.equal(sales(store).product(product.id, true), undefined);
     // 识别导入用一个空的替身：只清工作区时什么都不删
     const reset = new BusinessReset(store, { deleteAllWorkspaces: () => ({ count: 0, ids: [], failed: [] }), clearArchive: () => 0 }),
       who = localAdministratorActor(superActor());
@@ -326,7 +326,7 @@ test('初始化后编号接着往上走，不再逐行写墓碑；单号里的�
       used = sequences();
     for (const [table, id] of Object.entries(before.ids)) assert.equal(used[table], id, table + ' 的编号水位');
     new BusinessReset(store).execute({ scope: 'business' }, actor);
-    assert.equal(store.customers(true).length, 0);
+    assert.equal(sales(store).customers(true).length, 0);
     assert.equal(tombstones(), marks, '初始化不再逐行写墓碑');
     assert.deepEqual(sequences(), used, '初始化只清表，不动编号水位');
     const after = seed('丙');
@@ -355,7 +355,7 @@ test('清空全部数据同时删除AI识别工作区和原件', async () => {
     assert.ok(result.aiImports >= 1);
     assert.equal(f.imports.status().workspaces.length, 0);
     assert.equal(f.imports.archives().length, 0);
-    assert.equal(f.store.customers().length, 0);
+    assert.equal(sales(f.store).customers().length, 0);
   } finally {
     f.close();
   }
@@ -388,7 +388,7 @@ test('初始化的范围：每张表要么由所属模块登记清空，要么�
       .all()
       .map((r) => String(r.name));
     const cleared = new Set(
-      resetParticipants(['业务总览', '识别导入', '单据流转', '采购库存', '单据导出', '基础'], true).flatMap((r) => Object.keys(resetCounts(store, r))),
+      resetParticipants(['客户产品订单', '识别导入', '单据流转', '采购库存', '单据导出', '基础'], true).flatMap((r) => Object.keys(resetCounts(store, r))),
     );
     assert.deepEqual(all.filter((t) => !cleared.has(t) && !kept[t]), [], '没登记清空、也没写明保留的表');
     assert.deepEqual([...cleared].filter((t) => !all.includes(t)), [], '登记清空的表都在库里');

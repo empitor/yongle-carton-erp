@@ -1,3 +1,4 @@
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,24 +23,24 @@ const admin = () => (pageActor({
 const owners = () => [localAdministratorActor(admin()), admin()];
 test('产品可以附属于另一个产品，能改能取消；不能附属自己，也不能绕成一圈', () => {
   const store = new Store(':memory:');
-  const big = store.saveProduct(productSchema.parse({ name: '虚构大箱', priceExact: '5.0000' })),
-    small = store.saveProduct(productSchema.parse({ name: '虚构小箱', parentProductId: big.id, priceExact: '1.2000' }));
-  const saved = store.product(small.id);
+  const big = sales(store).createProduct(productSchema.parse({ name: '虚构大箱', priceExact: '5.0000' })),
+    small = sales(store).createProduct(productSchema.parse({ name: '虚构小箱', parentProductId: big.id, priceExact: '1.2000' }));
+  const saved = sales(store).product(small.id);
   assert.ok(saved);
   assert.equal(saved.parentProductId, big.id);
   assert.equal(saved.priceExact, '1.2000', '价格各自独立');
   // 只改名称，不传附属关系时保留原来的
-  const renamed = store.saveProduct(productSchema.parse({ name: '虚构小箱改名' }), small.id, small.version);
+  const renamed = sales(store).updateProduct(productSchema.parse({ name: '虚构小箱改名' }), small.id, small.version);
   assert.equal(renamed.parentProductId, big.id);
   assert.throws(
-    () => store.saveProduct(productSchema.parse({ name: '虚构大箱', parentProductId: big.id }), big.id, big.version),
+    () => sales(store).updateProduct(productSchema.parse({ name: '虚构大箱', parentProductId: big.id }), big.id, big.version),
     /不能附属于自己/,
   );
   assert.throws(
-    () => store.saveProduct(productSchema.parse({ name: '虚构大箱', parentProductId: small.id }), big.id, big.version),
+    () => sales(store).updateProduct(productSchema.parse({ name: '虚构大箱', parentProductId: small.id }), big.id, big.version),
     /绕成一圈/,
   );
-  const cleared = store.saveProduct(
+  const cleared = sales(store).updateProduct(
     productSchema.parse({ name: '虚构小箱改名', parentProductId: null }),
     small.id,
     renamed.version,
@@ -76,32 +77,32 @@ test('列表按附属关系排：附属品紧跟在它附属的产品后面，�
 test('删除被附属的产品：附属品去掉附属关系、照常能保存；本机和不在本机的超级管理员模式一样', () => {
   const family = () => {
     const store = new Store(':memory:');
-    const big = store.saveProduct(productSchema.parse({ name: '虚构大箱' })),
-      small = store.saveProduct(productSchema.parse({ name: '虚构小箱', parentProductId: big.id, priceExact: '1.2000' }));
+    const big = sales(store).createProduct(productSchema.parse({ name: '虚构大箱' })),
+      small = sales(store).createProduct(productSchema.parse({ name: '虚构小箱', parentProductId: big.id, priceExact: '1.2000' }));
     return { store, big, small };
   };
   const stillSavable = (store: Store, small: { id: number; version: number }, stale: number) => {
-    const child = store.product(small.id);
+    const child = sales(store).product(small.id);
     assert.ok(child);
     assert.equal(child.parentProductId, undefined, '附属关系去掉了');
     assert.equal(child.priceExact, '1.2000', '别的资料没动');
     assert.ok(child.version > stale, '附属品版本加一，删除前打开的编辑窗保存时提示刷新');
     assert.throws(
-      () => store.saveProduct(productSchema.parse({ name: '虚构小箱', parentProductId: stale }), small.id, small.version),
+      () => sales(store).updateProduct(productSchema.parse({ name: '虚构小箱', parentProductId: stale }), small.id, small.version),
       /已被其他页面修改/,
     );
-    const renamed = store.saveProduct(productSchema.parse({ name: '虚构小箱改名' }), child.id, child.version);
+    const renamed = sales(store).updateProduct(productSchema.parse({ name: '虚构小箱改名' }), child.id, child.version);
     assert.equal(renamed.name, '虚构小箱改名');
     assert.equal(renamed.parentProductId ?? null, null);
     // 刷新以后编辑窗还带着已经删掉的附属编号：不拦，存成没有附属；从来没有过的编号照样拦下
-    const again = store.saveProduct(
+    const again = sales(store).updateProduct(
       productSchema.parse({ name: '虚构小箱改名', parentProductId: stale }),
       renamed.id,
       renamed.version,
     );
     assert.equal(again.parentProductId ?? null, null);
     assert.throws(
-      () => store.saveProduct(productSchema.parse({ name: '虚构小箱', parentProductId: 99999 }), again.id, again.version),
+      () => sales(store).updateProduct(productSchema.parse({ name: '虚构小箱', parentProductId: 99999 }), again.id, again.version),
       /附属的产品不存在/,
     );
     assert.deepEqual(store.db.prepare('PRAGMA foreign_key_check').all(), []);
@@ -124,10 +125,10 @@ test('删除被附属的产品：附属品去掉附属关系、照常能保存�
 test('附属关系是真外键：被附属的产品不能直接删；大箱和附属品一起删，本机和不在本机的超级管理员模式都能删干净', () => {
   const family = () => {
     const store = new Store(':memory:');
-    const big = store.saveProduct(productSchema.parse({ name: '虚构大箱' })),
-      small = store.saveProduct(productSchema.parse({ name: '虚构小箱', parentProductId: big.id })),
-      tiny = store.saveProduct(productSchema.parse({ name: '虚构小小箱', parentProductId: small.id })),
-      other = store.saveProduct(productSchema.parse({ name: '虚构别的箱' }));
+    const big = sales(store).createProduct(productSchema.parse({ name: '虚构大箱' })),
+      small = sales(store).createProduct(productSchema.parse({ name: '虚构小箱', parentProductId: big.id })),
+      tiny = sales(store).createProduct(productSchema.parse({ name: '虚构小小箱', parentProductId: small.id })),
+      other = sales(store).createProduct(productSchema.parse({ name: '虚构别的箱' }));
     return { store, big, small, tiny, other };
   };
   const left = (store: Store) =>
@@ -155,7 +156,7 @@ test('附属关系是真外键：被附属的产品不能直接删；大箱和�
       { name: '虚构小小箱', parent: null },
       { name: '虚构别的箱', parent: null },
     ]);
-    const detached = store.product(tiny.id);
+    const detached = sales(store).product(tiny.id);
     assert.ok(detached);
     assert.ok(detached.version > tiny.version, '解除附属的产品版本加一');
     assert.deepEqual(store.db.prepare('PRAGMA foreign_key_check').all(), []);

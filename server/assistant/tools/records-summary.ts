@@ -1,5 +1,6 @@
 // 只管：记录汇总的计算——records.summarize 按模块算的统计数字、采购单未到数量合计、
 // 按每张产出几只算订单要几张纸（allocation）。记录怎么筛在 records-filter.ts。
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
 import { AppError } from '../../core/index.js';
 import { orderMetrics, purchaseMetrics, productMetrics, inventoryMetrics, summarizeMovements } from '../../../shared/business/index.js';
@@ -35,7 +36,7 @@ export const allocationSchema = z.strictObject({
 });
 /** records.summarize 带 allocation：按订单明细和每张产出几只，算各型号独立取整和共用时最少要几张。 */
 export function allocateSheets(ctx: ToolContext, allocation: z.output<typeof allocationSchema>) {
-  const order = ctx.store.order(allocation.orderId);
+  const order = sales(ctx.store).order(allocation.orderId);
   if (!order) throw new AppError('客户订单不存在。', 404);
   // 订单明细单位只有“只”（数据库约束），按每张产出几只换算张数
   const rate = BigInt(allocation.unitsPerSheet),

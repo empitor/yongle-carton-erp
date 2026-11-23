@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { fulfillmentSummary, lineShippingProgress, type Order, type TrackedOrder } from '../../shared/core/index.js';
 import type { Store } from '../core/index.js';
 import { shippedByLine } from '../flow/index.js';
@@ -32,6 +33,6 @@ export function trackOrders(store: Store, orders: readonly Order[]): TrackedOrde
 }
 
 export function trackedOrder(store: Store, id: number, includeArchived = false): TrackedOrder | undefined {
-  const order = store.order(id, includeArchived);
+  const order = sales(store).order(id, includeArchived);
   return order && trackOrders(store, [order])[0];
 }

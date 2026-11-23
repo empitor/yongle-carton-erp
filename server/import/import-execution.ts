@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, open, rename } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -144,19 +145,19 @@ export class ImportExecutionService {
       customerId =
         plan.customer.mode === 'existing'
           ? plan.customer.id
-          : this.store.saveCustomer(customerSchema.parse(plan.customer.input)).id;
+          : sales(this.store).createCustomer(customerSchema.parse(plan.customer.input)).id;
     if (plan.customer.mode === 'new') created.push({ entity: 'customers', id: customerId });
     const cache = new Map<string, number>(),
       productIds = plan.products.map((p) => {
         if (p.mode === 'existing') return p.id;
         const cached = cache.get(p.key);
         if (cached !== undefined) return cached;
-        const product = this.store.saveProduct(productSchema.parse(p.input));
+        const product = sales(this.store).createProduct(productSchema.parse(p.input));
         cache.set(p.key, product.id);
         created.push({ entity: 'products', id: product.id });
         return product.id;
       });
-    const order = this.store.saveOrder(
+    const order = sales(this.store).saveOrder(
       orderSchema.parse({ ...plan.order, customerId, lines: plan.order.lines.map((l, i) => ({ ...l, productId: productIds[i] })) }),
     );
     const receipt = {
@@ -189,7 +190,7 @@ export class ImportExecutionService {
         id: c.id,
         document: {
           before: null,
-          after: c.entity === 'customers' ? this.store.customer(c.id) : this.store.product(c.id),
+          after: c.entity === 'customers' ? sales(this.store).customer(c.id) : sales(this.store).product(c.id),
           executionId: receipt.executionId,
         },
       });

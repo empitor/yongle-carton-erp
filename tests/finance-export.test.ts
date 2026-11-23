@@ -1,4 +1,5 @@
 // 财务 Excel 下载（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
@@ -25,8 +26,8 @@ const blockedAnswer = z.object({ code: z.string() });
  */
 function exportWorld(store: Store) {
   const post = prepare(store);
-  const customer = store.saveCustomer(customerSchema.parse({ name: '=1+1' }));
-  const other = store.saveCustomer(customerSchema.parse({ name: '虚构预收客户' }));
+  const customer = sales(store).createCustomer(customerSchema.parse({ name: '=1+1' }));
+  const other = sales(store).createCustomer(customerSchema.parse({ name: '虚构预收客户' }));
   for (const [index, price] of ['300', '0.01', '0.02', undefined].entries()) {
     const date = next + '-05';
     const line = { orderId: 1, orderLineId: 1, stockId: 1, quantity: '1', unit: '只', unitPriceExact: price, taxMode: '未税' };

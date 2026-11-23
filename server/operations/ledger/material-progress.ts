@@ -1,8 +1,9 @@
+import { orderIdScope } from '../../sales/index.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { purchaseBusinessStatuses } from '../../../shared/business/index.js';
 import type { TrackedOrder } from '../../../shared/core/index.js';
-import { many, orderIdScope } from '../../core/index.js';
+import { many } from '../../core/index.js';
 
 type MaterialProgress = Exclude<TrackedOrder['materialProgress'], 'none'>;
 const CANCELLED: (typeof purchaseBusinessStatuses)[number] = '已取消';

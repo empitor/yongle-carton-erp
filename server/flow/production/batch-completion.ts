@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Store } from '../../core/index.js';
@@ -112,7 +113,7 @@ export class ProductionCompletion {
   private registerRow(v: CompletionInput, actor: Actor, row: CompletionRow, pending: boolean): { writes: number; result: RegisteredRow } {
     // 挂任务的按任务的产品；不挂任务的（打样、补做）按这一行填的产品
     const task = row.task;
-    const product = this.store.product(row.productId);
+    const product = sales(this.store).product(row.productId);
     if (!product) throw new AppError(task ? '关联产品不可用。' : '产品不存在或已归档。', 409);
     // 成品库存由产品决定：一个产品只有一个（归档的也算），没有就按产品新建，已归档的自动恢复再入库。
     // 成品和生产任务的单位都只有“只”（数据库约束）

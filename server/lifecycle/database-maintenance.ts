@@ -8,7 +8,7 @@ import { beforeRecordDeleted, deletionRemove, deletionUpdate } from '../core/ind
 import type { DeletionContext, DeletionRow } from '../core/index.js';
 import { audit, isSuperMode, rememberDeletedRecord, superModeDenied } from '../core/index.js';
 import { inventoryEffectText } from './deletion-summary.js';
-import { textOf } from './deletion-impact.js';
+import { textOf } from '../core/index.js';
 import { businessTables, planDeletion, quote } from './deletion-plan.js';
 import { recomputeAfterFlowDeletion } from '../flow/index.js';
 import { snapshotBeforeDestructive } from '../core/index.js';

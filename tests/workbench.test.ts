@@ -1,5 +1,6 @@
 // 工作台和今日队列（server/overview/workbench.ts）：读真实待办、跨日计划和当日实绩，把订单、采购分到逾期、未排产、
 // 待下单、到货待登记；有客户料号的纸箱从完工到部分送货走一遍。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,11 +69,11 @@ test('工作台读取真实待办、跨日计划与当日实绩，读取及登�
 test('今日队列把真实记录分到逾期、未排产、待下单和到货待登记', () => {
   const store = new Store(':memory:'),
     ops = new OperationsService(store),
-    customer = store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-    product = store.saveProduct(productSchema.parse({ name: '虚构箱' }));
+    customer = sales(store).createCustomer(customerSchema.parse({ name: '虚构客户' })),
+    product = sales(store).createProduct(productSchema.parse({ name: '虚构箱' }));
   try {
     const order = (deliveryDate: string, status = '已确认') =>
-      store.saveOrder(
+      sales(store).saveOrder(
         orderSchema.parse({
           customerId: customer.id,
           orderDate: '2026-10-01',
@@ -144,7 +145,7 @@ test('有客户料号的纸箱从整批完工到部分送货：成品规格按�
     assert.ok(stock);
     assert.equal(stock.specification, specification(f.product));
     assert.notEqual(stock.specification, '000123');
-    assert.equal(deliveryCandidates(stock, f.customer.id, trackOrders(f.store, f.store.orders())).length, 1);
+    assert.equal(deliveryCandidates(stock, f.customer.id, trackOrders(f.store, sales(f.store).orders())).length, 1);
     const doc = f.flow.save(
       'delivery',
       { date, customerId: f.customer.id, lines: [{ stockId: stock.id, orderId: f.order.id, orderLineId: f.order.lines[0].id, quantity: '40' }] },

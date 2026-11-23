@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { many, type Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
@@ -23,12 +24,12 @@ export type ArrivalLinks = {
 /** 保存客户和产品选择前核对档案在不在、版本对不对 */
 export function validateMapping(store: Store, m: ImportMapping) {
   if (m.customer.mode === 'existing') {
-    const c = store.customer(m.customer.id);
+    const c = sales(store).customer(m.customer.id);
     if (!c || c.version !== m.customer.version) throw new AppError('客户不存在或版本已变化，请重新选择', 409);
   }
   for (const p of Object.values(m.products))
     if (p.mode === 'existing') {
-      const product = store.product(p.id);
+      const product = sales(store).product(p.id);
       if (!product || product.version !== p.version)
         throw new AppError('产品不存在或版本已变化，请重新选择', 409);
     }

@@ -1,5 +1,6 @@
 // 供应商送货单识别（server/import/receipt-ai.ts、到货识别的接口）：原件怎么发给模型、结果怎么存、怎么变成待核对的到货单。
 // 假模型、内存库、临时目录、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -119,7 +120,7 @@ test('供应商图片发原图、DOCX/XLSX/PDF原样上传后按文件编号引�
           () => progress++,
         );
         assert.equal(result.result?.lines[0].quantity, '100');
-        assert.equal(f.store.orders().length, 0);
+        assert.equal(sales(f.store).orders().length, 0);
         assert.equal(new OperationsService(f.store).items().length, 0);
         assert.equal(count(f.store.db, 'SELECT COUNT(*) FROM stock_movements'), 0);
         const req = f.fake.chatCalls().at(-1);
@@ -353,7 +354,7 @@ test('识别结果关联到货单：要登录、换别的原件被拒；核对�
     flow.confirm(doc.id, input, actor);
     assert.equal((await f.post(path + '/mode', { mode: 'order', expectedRevision: f.imports.get(w.id).revision })).status, 409);
     const items = ops.items();
-    assert.deepEqual([items.length, items[0].kind, items[0].quantity, ops.movements().length, f.store.orders().length], [1, 'raw', '100', 1, 0]);
+    assert.deepEqual([items.length, items[0].kind, items[0].quantity, ops.movements().length, sales(f.store).orders().length], [1, 'raw', '100', 1, 0]);
     const other = f.ai.upload(docxFixture(), '其他.docx', actor);
     assert.equal((await link(other.id)).status, 409);
     const importer = new ImportExecutionService(f.store, f.imports);

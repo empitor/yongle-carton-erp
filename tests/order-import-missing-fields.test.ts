@@ -1,5 +1,6 @@
 // 识别导入时原件缺项、币种、数量单位：没写的不编造，人民币各种写法和没写都按人民币，外币拒收要人改，
 // 金额对不上、超精度不导。规则在纯函数和服务层测，只留一条经请求走完核对、预览、正式导入。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -132,7 +133,7 @@ test('经请求导入：外币被拒、中文说明；改成没写币种后按�
     const error = z.object({ message: z.string() }).parse(await refused.json());
     assert.match(error.message, /原币种.*无法自动转换/);
     assert.doesNotMatch(error.message, /Invalid input|expected/);
-    assert.equal(store.orders().length, 0);
+    assert.equal(sales(store).orders().length, 0);
     w = f.manager.edit(w.id, {
       expectedRevision: w.revision,
       operations: [{ op: 'set-header', field: 'currency', value: '', reason: '虚构核对：原件没写币种' }],
@@ -150,7 +151,7 @@ test('经请求导入：外币被拒、中文说明；改成没写币种后按�
       receiptBody: unknown = await result.json();
     assert.equal(result.status, 200, JSON.stringify(receiptBody));
     const receipt = receiptReply.parse(receiptBody);
-    const order = store.order(receipt.orderId);
+    const order = sales(store).order(receipt.orderId);
     assert.ok(order, '建了订单');
     assert.equal(order.currency, 'CNY');
     assert.equal(order.lines[0].unit, '只');
@@ -160,7 +161,7 @@ test('经请求导入：外币被拒、中文说明；改成没写币种后按�
     const replay = await request(w.id + '/execute', { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: true });
     assert.equal(replay.status, 200);
     assert.equal(receiptReply.parse(await replay.json()).executionId, receipt.executionId);
-    assert.equal(store.orders().length, 1);
+    assert.equal(sales(store).orders().length, 1);
     assert.deepEqual(store.db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     await h.close();
@@ -176,7 +177,7 @@ test('没写数量单位的明细按“只”导入', async () => {
   const f = await imported(form);
   try {
     const receipt = await f.execute(await f.preview());
-    assert.equal(f.store.order(receipt.orderId)?.lines[0].unit, '只');
+    assert.equal(sales(f.store).order(receipt.orderId)?.lines[0].unit, '只');
   } finally {
     f.close();
   }
@@ -197,8 +198,8 @@ test('新建和已有档案都在预览前汇总所有缺项和错误，不重�
       assert.ok(w.draft, '有识别结果');
       const lineId = w.draft.lines[0].id;
       if (existing) {
-        const c = f.store.saveCustomer(customerSchema.parse({ name: '币种兼容客户（虚构）' }));
-        const p = f.store.saveProduct(productSchema.parse({ name: '缺项纸箱A（虚构）' }));
+        const c = sales(f.store).createCustomer(customerSchema.parse({ name: '币种兼容客户（虚构）' }));
+        const p = sales(f.store).createProduct(productSchema.parse({ name: '缺项纸箱A（虚构）' }));
         w = { ...w, mapping: { customer: { mode: 'existing', id: c.id, version: c.version }, products: { [lineId]: { mode: 'existing', id: p.id, version: p.version } }, roundingPolicy: 'exact-cents' } };
       } else w = { ...w, mapping: { customer: { mode: 'new' }, products: { [lineId]: { mode: 'new' } }, roundingPolicy: 'exact-cents' } };
       const check = standardOrderDraft(f.store, w);
@@ -209,7 +210,7 @@ test('新建和已有档案都在预览前汇总所有缺项和错误，不重�
       assert.equal(new Set(issues).size, issues.length);
     }
     await assert.rejects(f.preview());
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
     assert.ok(f.manager.get(f.w.id).draft);
   } finally {
     f.close();
@@ -223,7 +224,7 @@ test('多明细各自的税率、口径、交期和规格照原件落库，普�
   const f = await imported(data);
   try {
     const receipt = await f.execute(await f.preview());
-    let order = f.store.order(receipt.orderId);
+    let order = sales(f.store).order(receipt.orderId);
     assert.ok(order, '建了订单');
     assert.equal(order.lines.length, 2);
     assert.equal(order.totalAmountExact, '2850.0000');
@@ -232,8 +233,8 @@ test('多明细各自的税率、口径、交期和规格照原件落库，普�
     assert.equal(order.lines[0].specification, '产品A规格');
     assert.equal(order.lines[1].specification, '');
     const input = orderSchema.parse({ ...order, lines: order.lines.map(({ taxRate: _r, taxMode: _m, deliveryDate: _d, ...rest }) => rest) });
-    f.store.saveOrder(input, order.id, order.version);
-    order = f.store.order(order.id);
+    sales(f.store).saveOrder(input, order.id, order.version);
+    order = sales(f.store).order(order.id);
     assert.ok(order, '改后订单还在');
     assert.equal(order.lines[0].taxRate, '13%');
     assert.equal(order.lines[1].deliveryDate, '2026-11-03');

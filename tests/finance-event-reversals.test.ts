@@ -1,4 +1,5 @@
 // 送货、盘点单据被撤销或改动后财务事件怎么记（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
@@ -220,7 +221,7 @@ test('暂估往来已被核销的送货单被撤销后，订单又换了客户�
     // 本机管理员改订单换客户，已撤销的送货单跟着换（财务看的内容变了）：就地刷新那一条，不新建、不变成要人红冲的“有差异”
     const before = t.count();
     const other = businessBase(maker, t.f.store).customer({ name: '虚构换后客户' });
-    const order = t.f.store.order(untaxed.id);
+    const order = sales(t.f.store).order(untaxed.id);
     assert.ok(order, '订单还在');
     createBusinessService(t.f.store).execute(
       { entity: 'orders', action: 'update', id: order.id, input: { ...order, customerId: other.id } },

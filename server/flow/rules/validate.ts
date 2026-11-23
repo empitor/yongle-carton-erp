@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import type { Actor } from '../../core/index.js';
 import { AppError, isLocalAdministrator } from '../../core/index.js';
 import { FINISHED_UNIT, RAW_UNIT, UNITS_PER_QUANTITY, deliverableOrder, finishedUnitMessage, rawUnitMessage, today, quantityUnits, quantityString, MAX_STOCK_UNITS, type FlowKind } from '../../../shared/core/index.js';
@@ -139,10 +140,10 @@ function checkBalances(changes: StockChange[], stockOf: (id: number) => StockIte
 /** 生产任务：产品和关联的订单都要在 */
 function checkTask(ctx: Check, v: FlowDocument<'task'>) {
   const { flow, maintenance } = ctx;
-  if (!flow.store.product(v.productId, maintenance)) fail('产品不存在或已归档。');
+  if (!sales(flow.store).product(v.productId, maintenance)) fail('产品不存在或已归档。');
   if (new Set(v.orderIds).size !== v.orderIds.length) fail('关联订单重复。');
   for (const id of v.orderIds) {
-    const order = flow.store.order(id, maintenance);
+    const order = sales(flow.store).order(id, maintenance);
     if (
       !order ||
       (!maintenance && !deliverableOrder(order)) ||
@@ -205,7 +206,7 @@ function checkProduction(ctx: Check, v: FlowDocument<'production'>) {
   const { flow, maintenance, item, change } = ctx;
   // 保存（待入库）和核对入库都拦，和登记完工（batch-completion）同一个 today()、同一句话
   if (v.date > today()) fail('完工日期不能晚于今天。');
-  if (!flow.store.product(v.productId, maintenance)) fail('产品不存在或已归档。');
+  if (!sales(flow.store).product(v.productId, maintenance)) fail('产品不存在或已归档。');
   const finished = item(v.finishedStockId, 'finished');
   if (finished.productId !== v.productId) fail('成品库存品必须关联本次生产产品。');
   const task = productionTask(ctx, v);

@@ -26,6 +26,13 @@ const moduleTests: ModuleTests[] = [
     ],
   },
   {
+    module: '客户产品订单',
+    dir: 'server/sales/',
+    own: [
+      { file: 'tests/duplicate-records.test.ts', why: '直接验证查重怎么归入料号相同、同一产品和同名的另一产品三组，入口只提供写入检查和显示函数' },
+    ],
+  },
+  {
     module: '采购库存',
     dir: 'server/operations/',
     own: [
@@ -151,9 +158,9 @@ const dirName = (dir: string) => dir.split('/').filter(Boolean).pop() ?? dir;
  * （如 server/operations/）就算可能绕过入口，也报，改成写明路径的字面量走 index.ts。
  */
 function violations(f: string, text: string = readFileSync(f, 'utf8')) {
+  const refs = refsOf(f, text).filter((r) => codeRef.has(r.how));
   return moduleTests.flatMap(({ module, dir, own }) => {
     if (own.some((o) => o.file === f)) return [];
-    const refs = refsOf(f, text).filter((r) => codeRef.has(r.how));
     const inner = refs
       .filter((r) => r.target?.startsWith(dir) && r.target !== dir + 'index.ts')
       .map((r) => f + ':' + r.line + ' 引了 ' + r.target + '：测试引' + module + '只走 ' + dir + 'index.ts；是本模块自己的测试登记进 moduleTests 并写明原因');
@@ -206,5 +213,7 @@ test('回归样例：引内部文件、export from、require、import() 内部�
   assert.equal(violations(sample, "import type { RecordIds } from '../server/operations/ledger/record-scope.js';").length, 1, '只引类型也算');
   assert.equal(violations(sample, "import { HashQueue } from '../server/accounts/hash-queue.js';").length, 1);
   assert.equal(violations(sample, "import { AuthManager } from '../server/accounts/index.js';").length, 0);
+  assert.equal(violations(sample, "import { MarkService } from '../server/sales/product-marks.js';").length, 1);
+  assert.equal(violations(sample, "import { MarkService } from '../server/sales/index.js';").length, 0);
   assert.equal(violations('tests/operations-core.test.ts', "import { MovementQueries } from '../server/operations/ledger/movements.js';").length, 0);
 });

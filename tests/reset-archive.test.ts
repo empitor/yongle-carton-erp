@@ -1,4 +1,5 @@
 // 初始化删原件归档：只在清了导入台账时删；最后删，删不掉只给警告不推翻；工作区清理失败就不删；跟着外层事务走。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -14,11 +15,10 @@ import type { Actor } from '../server/core/index.js';
 import { testImports } from './order-import-fixture.js';
 import { BusinessReset } from '../server/admin/business-reset.js';
 import { clearArchiveNow, deferArchiveCleanup } from '../server/admin/reset-archive.js';
-// 初始化时各模块清自己的表、删除时各模块配合：财务、识别导入、业务总览、单据导出加载时登记（server/core/deletion-rules.ts）；
+// 初始化时各模块清自己的表，删除时各模块配合（server/core/deletion-rules.ts）。
 // 初始化要求单据导出登记了清空规则，不引它，单独跑这个文件会报“初始化要单据导出模块配合”
 import '../server/finance/index.js';
 import '../server/import/index.js';
-import '../server/overview/index.js';
 import '../server/documents/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { viaEntry } from '../server/core/audit.js';
@@ -44,8 +44,8 @@ type ResetImports = NonNullable<ConstructorParameters<typeof BusinessReset>[1]>;
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 function seedBusiness(store: Store) {
-  store.saveCustomer(customerSchema.parse({ name: '虚构初始化客户' }));
-  store.saveProduct(productSchema.parse({ name: '虚构初始化产品' }));
+  sales(store).createCustomer(customerSchema.parse({ name: '虚构初始化客户' }));
+  sales(store).createProduct(productSchema.parse({ name: '虚构初始化产品' }));
 }
 
 const customerCount = (store: Store) => count(store.db, 'SELECT COUNT(*) FROM customers');

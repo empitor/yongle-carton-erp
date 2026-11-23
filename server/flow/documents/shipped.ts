@@ -1,7 +1,8 @@
+import { orderIdScope } from '../../sales/index.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { quantityText, quantityUnits } from '../../../shared/core/index.js';
-import { many, orderIdScope, rows } from '../../core/index.js';
+import { many, rows } from '../../core/index.js';
 
 /* 订单明细已经出库多少：只算已确认的送货单（订单状态派生、订单视图、改单核对、送货核对都用这里） */
 

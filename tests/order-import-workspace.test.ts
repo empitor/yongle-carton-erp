@@ -1,4 +1,5 @@
 // 订单识别工作区：并发和过期修订、多文件隔离、删除和取消、客户产品关联、同一原件同时正式导入、后台识别
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -162,7 +163,7 @@ test('档案候选不等于自动关联；标准草稿使用正式字段名，�
     store = new Store(':memory:');
   try {
     let w = await recognized(f);
-    const customer = store.saveCustomer({
+    const customer = sales(store).createCustomer({
       name: '宁波虚构客户有限公司',
       contact: '',
       phone: '',
@@ -171,7 +172,7 @@ test('档案候选不等于自动关联；标准草稿使用正式字段名，�
     });
     const { matchDraft } = await import('../server/import/matching.js'),
       { standardOrderDraft } = await import('../server/import/standard-order.js');
-    const before = JSON.stringify(store.customers()),
+    const before = JSON.stringify(sales(store).customers()),
       matches = matchDraft(store, w);
     assert.ok(matches.customerCandidates.some((c) => c.id === customer.id));
     assert.equal(w.mapping, undefined);
@@ -183,7 +184,7 @@ test('档案候选不等于自动关联；标准草稿使用正式字段名，�
     assert.equal(candidate.fields.taxRate, '13');
     assert.equal(candidate.validatedInput, null);
     assert.equal(candidate.writesEnabled, false);
-    assert.equal(JSON.stringify(store.customers()), before);
+    assert.equal(JSON.stringify(sales(store).customers()), before);
   } finally {
     store.close();
     f.close();
@@ -231,9 +232,9 @@ test('同一原件两份工作区同时正式导入：只成一张订单、台�
     store = new Store(':memory:'),
     f = importWorkspace(() => ({ header, lines: [line], warnings: [] }), { store, archiveDirectory: archive.dir }),
     actor = pageActor({ id: 'tester', name: '虚构业务员', permissions: ['business:edit', 'import:execute'] });
-  store.saveCustomer(customerSchema.parse({ name: header.buyerName }));
+  sales(store).createCustomer(customerSchema.parse({ name: header.buyerName }));
   const { productName: _name, specification: _spec, quantity: _q, unit: _u, unitPrice: _p, ...size } = line;
-  store.saveProduct(productSchema.parse({ name: line.productName, ...size, length: 300, width: 200, height: 150 }));
+  sales(store).createProduct(productSchema.parse({ name: line.productName, ...size, length: 300, width: 200, height: 150 }));
   const manager = f.manager,
     service = new ImportExecutionService(store, manager);
   try {
@@ -257,7 +258,7 @@ test('同一原件两份工作区同时正式导入：只成一张订单、台�
       service.execute(b.id, { expectedRevision: pb.plan.source.revision, previewDigest: pb.previewDigest, acknowledged: true }, actor),
     ]);
     assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
-    assert.equal(store.orders().length, 1);
+    assert.equal(sales(store).orders().length, 1);
     assert.equal(count(store.db, 'SELECT COUNT(*) n FROM import_executions'), 1);
   } finally {
     f.close();

@@ -1,6 +1,7 @@
 // 出卡片以后相关数据变了，旧卡片确认时被拒（server/assistant/tools.ts 的 stamp、previews.ts 的 commit）：
 // 档案改了或归档了、单据改了、库存品的库存变了，都说清是哪条变了；数据没变的照常执行。
 // 版本绑定之外，改生产任务计划数的规则（不能少于已登记的完工数）由单据保存服务守着，两层不冲突。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -45,11 +46,11 @@ test('出卡片以后档案被改、被归档：旧卡片确认被拒，说清�
       c = base.customer({ name: '虚构没变的客户' });
     // 没人动过：照常执行
     card('records.propose_save', { module: 'customers', id: c.id, patch: { phone: '333' } })();
-    assert.equal(f.store.customer(c.id)?.phone, '333');
+    assert.equal(sales(f.store).customer(c.id)?.phone, '333');
     const editA = card('records.propose_save', { module: 'customers', id: a.id, patch: { phone: '111' } });
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构改过的客户', notes: '页面上刚改过' }), a.id, a.version);
+    sales(f.store).updateCustomer(customerSchema.parse({ name: '虚构改过的客户', notes: '页面上刚改过' }), a.id, a.version);
     assert.throws(editA, stale('虚构改过的客户'));
-    assert.equal(f.store.customer(a.id)?.phone, '', '被拒的没有执行');
+    assert.equal(sales(f.store).customer(a.id)?.phone, '', '被拒的没有执行');
     const editB = card('records.propose_save', { module: 'customers', id: b.id, patch: { phone: '222' } });
     tools.commit(tools.prepare('records.propose_lifecycle', { module: 'customers', id: b.id, action: 'archive' }, who, 'other'), who, 'other');
     assert.throws(editB, stale('虚构归档的客户'));
@@ -104,9 +105,9 @@ test('出卡片以后订单明细被页面改了：改这张订单的卡片确�
   try {
     const { o, fields } = orderSetup(s.base);
     const edit = s.card('records.propose_save', { module: 'orders', id: o.id, patch: { notes: '虚构卡片上改的备注' } });
-    s.f.store.saveOrder(orderSchema.parse({ ...fields, lines: [{ ...o.lines[0], quantity: 120 }] }), o.id, o.version);
+    sales(s.f.store).saveOrder(orderSchema.parse({ ...fields, lines: [{ ...o.lines[0], quantity: 120 }] }), o.id, o.version);
     assert.throws(edit, stale(o.number));
-    assert.equal(s.f.store.order(o.id)?.notes, '', '被拒的没有执行');
+    assert.equal(sales(s.f.store).order(o.id)?.notes, '', '被拒的没有执行');
   } finally {
     s.f.close();
   }

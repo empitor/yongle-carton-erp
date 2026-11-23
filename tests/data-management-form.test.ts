@@ -1,4 +1,5 @@
 // 数据管理的编辑窗（src/admin）：新建时提示全是中文、每个字段有中文名、不露内部编号和英文代码、单价写法、订单的预估成本。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -197,7 +198,7 @@ test('数据管理编辑窗不露内部编号和英文代码：关联字段的�
     const sent = submittedInput('orders', { ...shown, lines: [{ ...linesOf(shown)[0], unitPriceExact: '2.5' }] });
     assert.deepEqual([linesOf(sent)[0].unitPriceCents, linesOf(sent)[0].unitPriceExact], [250, '2.5']);
     f.service.execute(command('orders', 'update', [record.record], sent), f.who, 's');
-    const saved = must(f.store.order(f.order.id, true), '保存后订单');
+    const saved = must(sales(f.store).order(f.order.id, true), '保存后订单');
     assert.deepEqual([saved.lines[0].unitPriceCents, saved.lines[0].unitPriceExact], [250, '2.5000']);
     // 单价清空：分也清空，由校验提示“请填写单价”，不按旧价存
     const cleared = submittedInput('orders', { ...shown, lines: [{ ...linesOf(shown)[0], unitPriceExact: '' }] });
@@ -207,7 +208,7 @@ test('数据管理编辑窗不露内部编号和英文代码：关联字段的�
     const priced = submittedInput('products', { ...editableInput('products', product.input), priceExact: '3.456' });
     assert.deepEqual([priced.priceCents, priced.priceExact], [346, '3.456']);
     f.service.execute(command('products', 'update', [product.record], priced), f.who, 's');
-    const savedProduct = must(f.store.product(f.product.id), '保存后产品');
+    const savedProduct = must(sales(f.store).product(f.product.id), '保存后产品');
     assert.deepEqual([savedProduct.priceCents, savedProduct.priceExact], [346, '3.4560']);
     assert.equal(editableInput('products', f.service.list('products', f.who).records[0].input).priceExact, '3.456');
     // 预估成本按元填，格式不对直接说中文
@@ -318,10 +319,10 @@ test('数据管理订单的预估成本：新建和没有成本的订单摊开�
     // 编辑窗里按元填，存的是分
     edit.costs = { material: '1', processing: '0.5', waste: '0.10', other: '0', basis: '虚构估算' };
     f.service.execute(command('orders', 'update', [blank], submittedInput('orders', edit)), f.who, 's');
-    assert.deepEqual(must(f.store.order(blank.id, true), '保存后订单').costs, { material: 100, processing: 50, waste: 10, other: 0, basis: '虚构估算' });
+    assert.deepEqual(must(sales(f.store).order(blank.id, true), '保存后订单').costs, { material: 100, processing: 50, waste: 10, other: 0, basis: '虚构估算' });
     // 只填了一部分：照样提交，由校验提示缺哪项（规则没改）
     const partial = { ...edit, costs: { material: '1', processing: null, waste: null, other: null, basis: '' } };
-    const current = must(f.store.order(blank.id, true), '订单');
+    const current = must(sales(f.store).order(blank.id, true), '订单');
     assert.throws(
       () => f.service.execute(command('orders', 'update', [current], submittedInput('orders', partial)), f.who, 's'),
       /加工成本（元）：请填写有效金额/,

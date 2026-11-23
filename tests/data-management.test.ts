@@ -1,5 +1,6 @@
 // 本机管理员的“数据管理”（server/admin/data-management-service.ts）：谁能用、改的版本幂等、新建模板、读记录和列表显示。
 // 删除不在数据管理命令里（data-management-delete.test.ts）。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -23,7 +24,7 @@ test('本机管理员的能力不能由普通对象属性伪造；普通账号�
         /本机最高管理员/,
       );
     }
-    assert.equal(f.store.customers().length, 1);
+    assert.equal(sales(f.store).customers().length, 1);
   } finally {
     f.store.close();
   }
@@ -33,7 +34,7 @@ test('本机管理员在数据管理里改归档订单：版本、幂等、批�
   try {
     const archived = f.service.execute(command('orders', 'archive', [f.order]), f.who, 's');
     assert.equal(archived.count, 1);
-    let row = must(f.store.order(f.order.id, true), '订单');
+    let row = must(sales(f.store).order(f.order.id, true), '订单');
     // 明细照编辑窗给的那份（input）改：订单读出来的样子带着已送数量这类派生的栏目，录入不收
     const input = must(f.service.list('orders', f.who).records.find((r) => r.record.id === row.id), '订单').input;
     const edit = command('orders', 'update', [row], {
@@ -43,13 +44,13 @@ test('本机管理员在数据管理里改归档订单：版本、幂等、批�
     });
     const a = f.service.execute(edit, f.who, 's');
     assert.equal(firstResult(a).totalAmountExact, '246.9000');
-    assert.equal(must(f.store.order(row.id, true), '订单').notes, '归档后修正');
+    assert.equal(must(sales(f.store).order(row.id, true), '订单').notes, '归档后修正');
     assert.deepEqual(f.service.execute(edit, f.who, 's'), a);
     assert.throws(
       () => f.service.execute({ ...edit, requestId: randomUUID() }, f.who, 's'),
       /变化/,
     );
-    row = must(f.store.order(row.id, true), '订单');
+    row = must(sales(f.store).order(row.id, true), '订单');
     assert.throws(
       () =>
         f.service.execute(
@@ -59,7 +60,7 @@ test('本机管理员在数据管理里改归档订单：版本、幂等、批�
         ),
       /变化/,
     );
-    assert.equal(must(f.store.order(row.id, true), '订单').notes, '归档后修正');
+    assert.equal(must(sales(f.store).order(row.id, true), '订单').notes, '归档后修正');
   } finally {
     f.store.close();
   }
@@ -70,7 +71,7 @@ test('数据管理新建模板不预填数量、单价和交货日期：漏填�
   try {
     const t = f.service.list('orders', f.who).template;
     assert.deepEqual([t.deliveryDate, t.lines[0].quantity, t.lines[0].unitPriceCents], [null, null, null]);
-    const count = f.store.orders(true).length;
+    const count = sales(f.store).orders(true).length;
     const line = { ...t.lines[0], productId: f.product.id, productName: f.product.name };
     assert.throws(
       () =>
@@ -82,7 +83,7 @@ test('数据管理新建模板不预填数量、单价和交货日期：漏填�
         f.service.execute(command('orders', 'create', [], { ...t, customerId: f.customer.id, lines: [{ ...line, quantity: 5, unitPriceCents: 100 }] }), f.who, 's'),
       /请填写明确日期/,
     );
-    assert.equal(f.store.orders(true).length, count, '一张也没建出来');
+    assert.equal(sales(f.store).orders(true).length, count, '一张也没建出来');
     // 采购、到货、生产、送货的数量同样留空；报废、退料没有就是 0
     const template = <M extends 'purchases' | 'arrival' | 'task' | 'production' | 'delivery'>(m: M) => f.service.list(m, f.who).template;
     assert.equal(template('purchases').lines[0].quantity, null);

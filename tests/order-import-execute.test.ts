@@ -1,5 +1,6 @@
 // 识别导入的正式执行（server/import/import-execution.ts）：按预览摘要确认、登录、事务回滚、去重、同名档案确认。
 // 文件库、临时目录、虚构数据；模型替身直接交回填好的表。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -119,15 +120,15 @@ test('正式导入要登录和绑定的预览、要确认；字段、精度、�
     let r = await f.preview(w);
     assert.equal(r.status, 200);
     const preview = previewReply.parse(await r.json());
-    assert.equal(f.store.customers().length, 0, '预览不建档案');
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).customers().length, 0, '预览不建档案');
+    assert.equal(sales(f.store).orders().length, 0);
     assert.equal(preview.plan.order.lines[0].notes, '每捆20只，防潮');
     assert.equal((await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: false })).status, 400);
     assert.equal((await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, actor: { id: 'forged' } })).status, 400, '不收请求里带的操作人');
     r = await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest });
     assert.equal(r.status, 200);
     const receipt = receiptReply.parse(await r.json()),
-      order = f.store.order(receipt.orderId);
+      order = sales(f.store).order(receipt.orderId);
     assert.ok(order, '建了订单');
     assert.deepEqual(
       [order.lines[0].productName, order.lines[0].specification, order.lines[0].notes, order.lines[0].unit, order.lines[0].unitPriceExact],
@@ -144,13 +145,13 @@ test('正式导入要登录和绑定的预览、要确认；字段、精度、�
     assert.ok(count(f.store.db, 'SELECT COUNT(*) n FROM business_audit') >= 3);
     const replay = receiptReply.parse(await (await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest })).json());
     assert.equal(replay.orderId, receipt.orderId);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     assert.equal(f.manager.get(w.id).imported?.orderId, order.id);
     assert.throws(() => f.manager.edit(w.id, { expectedRevision: w.revision, operations: [] }));
     // 归档识别工作区不动订单和原件
     const removed = f.manager.changeArchive({ action: 'archive', acknowledged: true, items: [{ id: w.id, version: w.revision }] }, editor);
     assert.equal(removed.results[0].success, true);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     assert.ok(existsSync(stored.sourcePath));
     const reopened = testImports({ directory: join(f.dir, 'imports'), settings: f.settings, store: f.store });
     assert.equal(reopened.status().workspaces.length, 0);
@@ -162,7 +163,7 @@ test('正式导入要登录和绑定的预览、要确认；字段、精度、�
     assert.equal(second.workspace.historyImport?.orderId, order.id);
     assert.equal((await f.preview(second.workspace)).status, 409);
     const persisted = new Store(join(f.dir, 'business.sqlite'));
-    assert.equal(persisted.orders()[0].lines[0].notes, '每捆20只，防潮');
+    assert.equal(sales(persisted).orders()[0].lines[0].notes, '每捆20只，防潮');
     assert.equal(count(persisted.db, 'SELECT COUNT(*) n FROM import_executions'), 1);
     persisted.close();
   } finally {
@@ -177,11 +178,11 @@ test('订单写到一半失败时新客户、新产品、审计一起回滚，�
       preview = previewReply.parse(await (await f.preview(w)).json());
     f.store.db.exec("CREATE TRIGGER fail_order BEFORE INSERT ON orders BEGIN SELECT RAISE(ABORT,'injected failure'); END");
     assert.equal((await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest })).status, 500);
-    assert.deepEqual([f.store.customers().length, f.store.products().length, f.store.orders().length], [0, 0, 0]);
+    assert.deepEqual([sales(f.store).customers().length, sales(f.store).products().length, sales(f.store).orders().length], [0, 0, 0]);
     assert.equal(count(f.store.db, 'SELECT COUNT(*) n FROM business_audit'), 0);
     f.store.db.exec('DROP TRIGGER fail_order');
     assert.equal((await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest })).status, 200);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
   } finally {
     await f.close();
   }
@@ -194,10 +195,10 @@ test('预览以后档案变了、核对内容又改过、权限被撤销、采�
     let preview = previewReply.parse(await (await f.preview(w)).json());
     // 预览以后别人建了同名客户：导入计划变成用这个客户，摘要对不上，什么都不写
     assert.equal(preview.plan.customer.mode, 'new');
-    f.store.saveCustomer(customerSchema.parse({ name: preview.plan.customer.name }));
+    sales(f.store).createCustomer(customerSchema.parse({ name: preview.plan.customer.name }));
     const stale = await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest });
     assert.deepEqual([stale.status, failureReply.parse(await stale.json()).code], [409, 'preview-changed'], '预览以后档案变了');
-    assert.deepEqual([f.store.orders().length, f.store.products().length, f.store.customers().length], [0, 0, 1]);
+    assert.deepEqual([sales(f.store).orders().length, sales(f.store).products().length, sales(f.store).customers().length], [0, 0, 1]);
     preview = previewReply.parse(await (await f.preview(w)).json());
     assert.equal(preview.plan.customer.mode, 'existing');
     w = f.manager.edit(w.id, {
@@ -214,7 +215,7 @@ test('预览以后档案变了、核对内容又改过、权限被撤销、采�
     assert.equal((await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest })).status, 200);
     const second = await f.draft('different-byte-source');
     assert.equal((await f.preview(second)).status, 409, '采购单号重复');
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
   } finally {
     await f.close();
   }
@@ -224,11 +225,11 @@ test('同名客户有两个时导入预览要人工选择，不建订单', async
   const f = await fixture();
   try {
     for (const contact of ['联系人甲', '联系人乙'])
-      f.store.saveCustomer({ name: '虚构测试买方', contact, phone: '', address: '', notes: '' });
+      sales(f.store).createCustomer({ name: '虚构测试买方', contact, phone: '', address: '', notes: '' });
     const response = await f.preview(await f.draft());
     assert.equal(response.status, 400);
     assert.match(failureReply.parse(await response.json()).message, /歧义/);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
   } finally {
     await f.close();
   }
@@ -241,7 +242,7 @@ test('并发提交不重复写入；精确匹配复用档案，客户改名后�
       preview = previewReply.parse(await (await f.preview(w)).json());
     const replies = await Promise.all([f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest }), f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest })]);
     assert.ok(replies.every((r) => [200, 409].includes(r.status)));
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     const withNumber = (x: { id: string; revision: number }, value: string) =>
       f.manager.edit(x.id, {
         expectedRevision: x.revision,
@@ -252,10 +253,10 @@ test('并发提交不重复写入；精确匹配复用档案，客户改名后�
     assert.equal(p.plan.customer.mode, 'existing');
     assert.equal(p.plan.products[0].mode, 'existing');
     assert.equal((await f.execute(second, { expectedRevision: p.plan.source.revision, previewDigest: p.previewDigest })).status, 200);
-    assert.deepEqual([f.store.orders().length, f.store.customers().length, f.store.products().length], [2, 1, 1]);
-    const customer = f.store.customers()[0],
-      renamed = f.store.saveCustomer({ ...customer, name: '改名后的虚构买方' }, customer.id, customer.version),
-      product = f.store.products()[0];
+    assert.deepEqual([sales(f.store).orders().length, sales(f.store).customers().length, sales(f.store).products().length], [2, 1, 1]);
+    const customer = sales(f.store).customers()[0],
+      renamed = sales(f.store).updateCustomer({ ...customer, name: '改名后的虚构买方' }, customer.id, customer.version),
+      product = sales(f.store).products()[0];
     let third = withNumber(await f.draft('third-order'), 'FICTIONAL-PO-002');
     assert.ok(third.draft, '有识别结果');
     third = f.manager.mapping(third.id, {
@@ -275,7 +276,7 @@ test('并发提交不重复写入；精确匹配复用档案，客户改名后�
 test('同名产品查重：料号相同、同名同尺寸材质的拦下；同名不同尺寸要在预览里确认“是另一个产品”才建，人工新建窗口同一套规则', async () => {
   const f = await fixture();
   try {
-    const named = () => f.store.products(true).filter((p) => p.name.replace(/\s/g, '') === '原存货名A');
+    const named = () => sales(f.store).products(true).filter((p) => p.name.replace(/\s/g, '') === '原存货名A');
     const asNew = async (suffix: string) => {
       const w = await f.draft(suffix);
       assert.ok(w.draft, '有识别结果');
@@ -285,7 +286,7 @@ test('同名产品查重：料号相同、同名同尺寸材质的拦下；同�
       });
     };
     // 已有同名、尺寸不同的产品（归档的也算）
-    const other = f.store.saveProduct(
+    const other = sales(f.store).createProduct(
       productSchema.parse({ name: '原存货名 A', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B' }),
     );
     f.store.markArchived('products', other.id, 'fixture');
@@ -298,7 +299,7 @@ test('同名产品查重：料号相同、同名同尺寸材质的拦下；同�
     const without = await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest });
     assert.equal(without.status, 409);
     assert.equal(failureReply.parse(await without.json()).code, 'same-name-product', '没确认不建');
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
     assert.equal((await f.execute(w, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, distinctProducts: [lineId] })).status, 200);
     assert.equal(named().length, 2, '确认过是另一个产品就新建');
 
@@ -317,7 +318,7 @@ test('同名产品查重：料号相同、同名同尺寸材质的拦下；同�
     assert.match(asked.message, /已有同名产品：原存货名 A（400 × 300 × 200 mm/);
     assert.equal((await create({ confirmDistinct: true })).status, 201);
     assert.equal(named().length, 3);
-    f.store.saveProduct(productSchema.parse({ name: '虚构料号箱', customerProductCode: 'XG-77' }));
+    sales(f.store).createProduct(productSchema.parse({ name: '虚构料号箱', customerProductCode: 'XG-77' }));
     const code = await f.request('/products', { name: '完全不同的名字', customerProductCode: 'xg 77', priceCents: 0, confirmDistinct: true });
     assert.equal(code.status, 409);
     assert.match(failureReply.parse(await code.json()).message, /客户料号“xg 77”已经用在：虚构料号箱/);

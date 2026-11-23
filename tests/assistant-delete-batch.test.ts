@@ -1,5 +1,6 @@
 // 助手一次删几条（records.delete 给 ids）：和页面批量删除同一个删除引擎、同一个上限；一张卡片列出每一条和合起来的影响清单，
 // 人点了才删；出卡片后有一条变了整张作废；密码、快照、审计、防重复和页面批量删除一样。一次一条的用法见 assistant-delete-cards。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -40,9 +41,9 @@ test('一次删三个客户：一张卡片，卡片上三条都在、写明删 3
     const preview = previewOf.parse(card.after);
     assert.deepEqual(preview.selection.items.map((i) => i.id), list.map((c) => c.id));
     assert.deepEqual(deletionImpactView(preview).deleted.map((l) => l.name), ['虚构批删甲', '虚构批删乙', '虚构批删丙']);
-    assert.equal(f.store.customers().length, 3, '没点确认不删');
+    assert.equal(sales(f.store).customers().length, 3, '没点确认不删');
     f.manager.execute(card.id, { acknowledged: true, deletionDigest: cardDigest(card) }, who, 's');
-    assert.equal(f.store.customers(true).length, 0);
+    assert.equal(sales(f.store).customers(true).length, 0);
     assert.deepEqual(deletedCustomerAudits(f.store), list.map((c) => c.id));
   } finally {
     f.close();
@@ -58,12 +59,12 @@ test('出卡片以后其中一条被人改了：确认时整张卡片作废，�
     const thread = f.manager.create(who),
       card = lastCard(await f.say(thread.id, '把这三个客户都删了', {}, who));
     const changed = list[1];
-    f.store.saveCustomer(customerSchema.parse({ name: changed.name, notes: '页面上刚改过' }), changed.id, changed.version);
+    sales(f.store).updateCustomer(customerSchema.parse({ name: changed.name, notes: '页面上刚改过' }), changed.id, changed.version);
     assert.throws(
       () => f.manager.execute(card.id, { acknowledged: true, deletionDigest: cardDigest(card) }, who, 's'),
       (e: unknown) => e instanceof AppError && e.code === 'card-stale' && e.message.includes('虚构作废乙') && !e.message.includes('虚构作废甲'),
     );
-    assert.equal(f.store.customers().length, 3, '一条都没删');
+    assert.equal(sales(f.store).customers().length, 3, '一条都没删');
     assert.equal(count(f.store.db, "SELECT COUNT(*) FROM business_audit WHERE action='delete'"), 0);
     assert.equal(lastCard(f.manager.view(thread.id, who)).state, 'cancelled');
   } finally {
@@ -93,7 +94,7 @@ test('只读账号用不了删除命令，一次一条、一次几条都一样',
       list = customers(f, ['虚构只读甲', '虚构只读乙']);
     for (const args of [{ module: 'customers', id: list[0].id }, { module: 'customers', ids: list.map((c) => c.id) }])
       await assert.rejects(() => f.manager.registry.dispatch('records.delete', args, viewer, noEffects), /权限/);
-    assert.equal(f.store.customers().length, 2);
+    assert.equal(sales(f.store).customers().length, 2);
   } finally {
     f.close();
   }

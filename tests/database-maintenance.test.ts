@@ -1,4 +1,5 @@
 // 删除引擎删记录、归档和恢复、管理员直接改已确认的单据：原表、流水、归档标记、外键都对得上。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -122,14 +123,14 @@ test('归档只保留并隐藏记录，恢复只针对归档；未完成采购�
         .success,
       true,
     );
-    assert.equal(f.store.orders().length, 0);
-    assert.equal(f.store.orders(true).length, 1);
+    assert.equal(sales(f.store).orders().length, 0);
+    assert.equal(sales(f.store).orders(true).length, 1);
     assert.equal(
       changeLifecycle(f.store, 'orders', { action: 'restore', items: [item] }, f.who).results[0]
         .success,
       true,
     );
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
   } finally {
     f.store.close();
   }
@@ -225,7 +226,7 @@ test('AI删除、归档、恢复使用不同操作，已归档记录删除后在
       id: f.order.id,
       action: 'archive',
     });
-    assert.ok(f.store.order(f.order.id, true));
+    assert.ok(sales(f.store).order(f.order.id, true));
     assert.equal(f.store.archived('orders', f.order.id), true);
     await chat('恢复订单 ' + f.order.number, 'records.propose_lifecycle', {
       module: 'orders',
@@ -238,13 +239,13 @@ test('AI删除、归档、恢复使用不同操作，已归档记录删除后在
       id: f.order.id,
     });
     // 删除只生成方案，人在确认卡片上确认后才执行。
-    assert.ok(f.store.order(f.order.id, true));
+    assert.ok(sales(f.store).order(f.order.id, true));
     assert.equal(proposed.messages.at(-1)?.plans?.length, 1);
     // 确认卡片提交时带上卡片上看到的范围摘要
     const card = proposed.messages.at(-1)?.plans?.[0];
     assert.ok(card);
     a.manager.execute(card.id, { acknowledged: true, deletionDigest: field(card.args, 'deletionDigest') }, f.who, 's');
-    assert.equal(f.store.order(f.order.id, true), undefined);
+    assert.equal(sales(f.store).order(f.order.id, true), undefined);
     assert.equal(f.store.archived('orders', f.order.id), false);
     const tools = f.store.db
       .prepare(
@@ -319,7 +320,7 @@ test('已归档的完工单要先恢复再更正：归档时预览就拒，恢�
 test('删除订单时解除采购明细按行关联的这张订单（列进影响清单），之后这条采购照常到货入库', () => {
   const f = fixture();
   try {
-    const other = f.store.saveOrder(
+    const other = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-10-01',
@@ -339,7 +340,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
     );
     const purchase = f.flow.views.purchases(true, created.id)[0];
     assert.equal(purchase.lines[0].customerOrderId, other.id, '这一行给另一张订单订料');
-    const order = must(f.store.order(other.id), '订单'),
+    const order = must(sales(f.store).order(other.id), '订单'),
       selection = { module: 'orders', items: [{ id: order.id, version: order.version }] },
       plan = f.service.preview(selection, f.who);
     const entry = must(plan.impact.find((r) => r.table === 'purchase_lines'), '采购明细影响');
@@ -355,7 +356,7 @@ test('删除订单时解除采购明细按行关联的这张订单（列进影�
       '订单外键列已置空（由通用的外键规划解除，不再靠单独的规划规则）',
     );
     assert.ok(after.version > purchase.version, '采购单版本加一');
-    assert.equal(f.store.order(other.id, true), undefined);
+    assert.equal(sales(f.store).order(other.id, true), undefined);
     // 这条采购到货：以前出入库流水挂到不存在的订单上，确认时报外键错误
     const arrival = f.flow.save(
       'arrival',
@@ -400,7 +401,7 @@ test('删除预览和删除不把唛头文件、助手附件这类大文件内�
     try {
       // 删一张不相干的生产任务，和删产品（唛头和没人再用的唛头文件一起删）
       f.del('task', task);
-      f.del('products', must(f.store.product(f.product.id), '产品'));
+      f.del('products', must(sales(f.store).product(f.product.id), '产品'));
     } finally {
       db.prepare = prepare;
     }

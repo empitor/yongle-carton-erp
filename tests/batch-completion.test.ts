@@ -1,5 +1,6 @@
 // 整批登记完工（server/flow/production/batch-completion.ts、production-completion.ts）：预览不扣库存、共用纸板按产量比例分，
 // 版本变化、库存不足整批拒绝，只登记稍后核对入库，剩余量扣掉待入库的，不挂任务的完工同一个入口。单张完工见 production-completion-single.test.ts。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -240,7 +241,7 @@ test('只登记：库存够不够照单张待入库的规则（登记不拦、�
 test('只登记中途一张出错（产品归档了）：整批不写，失败记一条审计', () => {
   const f = fixture();
   try {
-    const product = f.store.product(f.tasks[1].productId);
+    const product = sales(f.store).product(f.tasks[1].productId);
     assert.ok(product);
     assert.ok(changeLifecycle(f.store, 'products', { action: 'archive', items: [{ id: product.id, version: product.version }] }, actor).results[0].success);
     const movements = movementCount(f.store);

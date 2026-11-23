@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Store } from '../../core/index.js';
@@ -124,7 +125,7 @@ export class FlowService implements FlowCommands {
    */
   private rewrite(id: number, v: FlowDocument, task: FlowDocView<'task'> | null) {
     const stored = storedDocument(this.store, id),
-      next: FlowDocument = task && v.kind === 'task' && stored.kind === 'task' ? { ...stored, ...v, productName: this.store.product(v.productId, true)?.name } : v;
+      next: FlowDocument = task && v.kind === 'task' && stored.kind === 'task' ? { ...stored, ...v, productName: sales(this.store).product(v.productId, true)?.name } : v;
     writeFlowDocument(this.store, id, keepSnapshot(stored, next), { date: v.date, at: new Date().toISOString() });
     return id;
   }
@@ -134,7 +135,7 @@ export class FlowService implements FlowCommands {
     return insertFlowDocument(this.store, {
       date: v.date,
       status: v.kind === 'task' ? 'confirmed' : 'draft',
-      document: v.kind === 'task' ? { ...v, productName: this.store.product(v.productId, true)?.name, confirmedBy: actor.name, confirmedAt: at } : v,
+      document: v.kind === 'task' ? { ...v, productName: sales(this.store).product(v.productId, true)?.name, confirmedBy: actor.name, confirmedAt: at } : v,
       actor,
       at,
     });
@@ -213,7 +214,7 @@ export class FlowService implements FlowCommands {
    * 自动新建、恢复成品库存的审计里写上。
    */
   finishedStockOf(v: FinishedStockInput, actor: Actor, document?: string) {
-    if (!this.store.product(v.productId, isLocalAdministrator(actor))) return v.finishedStockId;
+    if (!sales(this.store).product(v.productId, isLocalAdministrator(actor))) return v.finishedStockId;
     const task = !document && v.taskId ? one(this.store.db, rows.flow_documents.pick({ number: true }), 'SELECT number FROM flow_documents WHERE id=?', v.taskId) : null;
     return this.ops.finishedStockFor(v.productId, actor, v.finishedStockId, document ?? (task ? '生产任务 ' + task.number : undefined)).item.id;
   }

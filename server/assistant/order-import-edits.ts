@@ -1,4 +1,5 @@
 // 当前订单任务上的工具：选中、读取、重试识别、改识别结果、匹配档案、撤销、刷新预览。正式导入在 order-import-card.ts（出确认卡片）。
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
 import { AppError } from '../core/index.js';
@@ -68,9 +69,9 @@ function matchLine(wf: OrderImportState, w: ImportWorkspaceView, task: Task, map
     return;
   }
   const matches = input.productCode
-    ? wf.store.products().filter((p) => p.customerProductCode === input.productCode)
+    ? sales(wf.store).products().filter((p) => p.customerProductCode === input.productCode)
     : input.productId
-      ? wf.store.products(false, [input.productId])
+      ? sales(wf.store).products(false, [input.productId])
       : [];
   if (matches.length !== 1)
     throw new AppError('产品未唯一匹配，请明确选择档案编号，不能合并相似型号。');
@@ -95,7 +96,7 @@ function matchArchives(wf: OrderImportState, args: Record<string, unknown>, ctx:
   const input = matchInput.parse(args);
   const mapping = structuredClone(w.mapping ?? emptyMapping());
   if (input.customerId) {
-    const c = wf.store.customer(input.customerId);
+    const c = sales(wf.store).customer(input.customerId);
     if (!c) throw new AppError('客户不存在或不可用。');
     mapping.customer = { mode: 'existing', id: c.id, version: c.version };
   } else if (input.line) {

@@ -1,5 +1,6 @@
 // 助手的确认卡片（界限 2“改数据必须人点确认”的展开）：一句话出几张卡片、一次动多条、流程类写入的卡片写明动的是什么、
 // 点了“不执行”就作废、确认或拒绝之后把结果交回模型接着办。六条界限各一组在 assistant-boundaries.test.ts。
+import { sales, MarkService } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -9,7 +10,6 @@ import { messageText } from './fake-deepseek.js';
 import type { ChatCall } from './fake-deepseek-wire.js';
 import { AppError } from '../server/core/errors.js';
 import { count } from '../server/core/index.js';
-import { MarkService } from '../server/overview/product-marks.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
 import { updateDocumentInfo } from '../server/flow/index.js';
@@ -32,8 +32,8 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 test('一次动多条、一句话出几张卡片：每张都要点；拒绝的作废，再点确认也不执行', async () => {
   const f = assistantFixture();
   try {
-    const a = f.store.saveCustomer(customerSchema.parse({ name: '虚构批量甲' })),
-      b = f.store.saveCustomer(customerSchema.parse({ name: '虚构批量乙' }));
+    const a = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构批量甲' })),
+      b = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构批量乙' }));
     f.replies.push(
       {
         message: '',
@@ -49,7 +49,7 @@ test('一次动多条、一句话出几张卡片：每张都要点；拒绝的�
     const plans = v.messages.at(-1)?.plans ?? [];
     assert.equal(plans.length, 2, JSON.stringify(v.messages.at(-1)?.facts?.failed));
     assert.equal(f.store.archived('customers', a.id), false);
-    assert.equal(f.store.customers().length, 2);
+    assert.equal(sales(f.store).customers().length, 2);
     // 第一张（一次动两条）点确认：两条一起归档
     await confirmCard(f, v, 0, actor, 's');
     assert.equal(f.store.archived('customers', a.id), true);
@@ -57,7 +57,7 @@ test('一次动多条、一句话出几张卡片：每张都要点；拒绝的�
     // 第二张点“不执行”：作废，之后再点确认也没用
     assert.deepEqual(f.manager.reject(plans[1].id, actor, 's'), { rejected: true });
     assert.throws(() => f.manager.execute(plans[1].id, { acknowledged: true }, actor, 's'), /作废/);
-    assert.equal(f.store.customers(true).some((c) => c.name === '虚构批量丙'), false);
+    assert.equal(sales(f.store).customers(true).some((c) => c.name === '虚构批量丙'), false);
     assert.deepEqual(f.manager.view(t.id, actor).messages.at(-1)?.plans?.map((p) => p.state), ['executed', 'cancelled']);
     assert.throws(() => f.manager.reject(plans[0].id, actor, 's'), /已经执行过/);
   } finally {
@@ -68,7 +68,7 @@ test('流程类写入也只出卡片：挂唛头、移除唛头、放进收件�
   const f = assistantFixture();
   try {
     const boss = superActor();
-    const product = f.store.saveProduct(productSchema.parse({ name: '虚构界限纸箱' }));
+    const product = sales(f.store).createProduct(productSchema.parse({ name: '虚构界限纸箱' }));
     const t = f.manager.create(boss);
     const file = await f.manager.attachments.upload(t.id, png, '虚构唛头.png', randomUUID(), boss);
     const other = f.manager.create(boss);
@@ -158,7 +158,7 @@ test('卡片确认或拒绝之后接着办：结果交回模型（不显示成�
     const after = await f.say(t.id, '', { card: { id: rejected.id, decision: 'rejected' } });
     assert.match(messageText(serverNote(f.requests, -1, '服务器：用户在确认卡片上')), /点了拒绝，没有执行/);
     assert.deepEqual(after.messages.at(-1)?.facts?.executed, []);
-    assert.equal(f.store.customers().some((c) => c.name === '虚构被拒客户'), false);
+    assert.equal(sales(f.store).customers().some((c) => c.name === '虚构被拒客户'), false);
   } finally {
     f.close();
   }
@@ -167,8 +167,8 @@ test('卡片确认或拒绝之后接着办：结果交回模型（不显示成�
 test('一句话给两种产品安排生产：一条命令（items）一张卡片，确认后建出两张任务', async () => {
   const f = assistantFixture();
   try {
-    const p1 = f.store.saveProduct(productSchema.parse({ name: '虚构排产甲' })),
-      p2 = f.store.saveProduct(productSchema.parse({ name: '虚构排产乙' }));
+    const p1 = sales(f.store).createProduct(productSchema.parse({ name: '虚构排产甲' })),
+      p2 = sales(f.store).createProduct(productSchema.parse({ name: '虚构排产乙' }));
     const task = (productId: number, quantity: string) => ({ date: '2026-11-14', productId, quantity, unit: '只', orderIds: [] });
     const t = f.manager.create(superActor());
     f.replies.push(call('records.propose_save', { module: 'production_tasks', items: [task(p1.id, '100'), task(p2.id, '200')] }), { message: '出了一张卡片。' });
@@ -189,17 +189,17 @@ test('一句话给两种产品安排生产：一条命令（items）一张卡片
 test('出卡片以后数据变了：确认时照旧拦下，说清哪条变了；卡片作废，交回助手的是“按最新数据重新出一张”', async () => {
   const f = assistantFixture();
   try {
-    const c = f.store.saveCustomer(customerSchema.parse({ name: '虚构过期客户' }));
+    const c = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构过期客户' }));
     const t = f.manager.create(actor);
     f.replies.push(call('records.propose_save', { module: 'customers', id: c.id, patch: { phone: '111' } }), { message: '出了卡片。' });
     const v = await f.say(t.id, '把虚构过期客户的电话改成 111');
     const plan = lastCard(v);
     // 出卡片以后有人在页面上改了这位客户
-    const shown = f.store.customer(c.id);
+    const shown = sales(f.store).customer(c.id);
     assert.ok(shown);
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构过期客户', notes: '页面上刚改过' }), c.id, shown.version);
+    sales(f.store).updateCustomer(customerSchema.parse({ name: '虚构过期客户', notes: '页面上刚改过' }), c.id, shown.version);
     await assert.rejects(() => confirmCard(f, v, 0, actor, 's'), (e: unknown) => e instanceof AppError && e.code === 'card-stale' && /虚构过期客户 变了/.test(e.message) && /重新出一张/.test(e.message));
-    assert.equal(f.store.customer(c.id)?.phone, '', '没有执行');
+    assert.equal(sales(f.store).customer(c.id)?.phone, '', '没有执行');
     f.replies.push({ message: '数据变了，我按最新的重新出一张。' });
     await f.say(t.id, '', { card: { id: plan.id, decision: 'rejected' } });
     const note = serverNote(f.requests, -1, '服务器：');
@@ -219,7 +219,7 @@ test('数据管理命令一次改几条：一张卡片，确认后按原单位�
   const f = assistantFixture();
   try {
     const owner = localAdministratorActor(superActor());
-    const products = [0, 1, 2].map((i) => f.store.saveProduct(productSchema.parse({ name: '虚构尺寸' + i, length: 30, width: 20, height: 10, dimensionUnit: 'cm' })));
+    const products = [0, 1, 2].map((i) => sales(f.store).createProduct(productSchema.parse({ name: '虚构尺寸' + i, length: 30, width: 20, height: 10, dimensionUnit: 'cm' })));
     f.replies.push(
       call('management.execute', {
         requestId: randomUUID(),
@@ -232,9 +232,9 @@ test('数据管理命令一次改几条：一张卡片，确认后按原单位�
     );
     const v = await f.say(f.manager.create(owner).id, '把这三个产品的尺寸单位改为毫米，保持真实尺寸', {}, owner);
     assert.deepEqual(v.messages.at(-1)?.plans?.map((p) => p.label), ['数据管理：修改产品 3 条：产品 虚构尺寸0 等 3 条']);
-    assert(f.store.products().every((p) => p.dimensionUnit === 'cm'), '没点不改');
+    assert(sales(f.store).products().every((p) => p.dimensionUnit === 'cm'), '没点不改');
     await confirmCard(f, v, 0, owner, 's');
-    assert(f.store.products().every((p) => p.dimensionUnit === 'mm' && p.length === 300 && p.width === 200 && p.height === 100));
+    assert(sales(f.store).products().every((p) => p.dimensionUnit === 'mm' && p.length === 300 && p.width === 200 && p.height === 100));
   } finally {
     f.close();
   }

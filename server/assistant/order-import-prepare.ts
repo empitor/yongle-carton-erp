@@ -1,4 +1,5 @@
 // 生成正式导入预览（先按已建档的客户、产品复用档案）和调用识别；两件事都改任务状态并保存。
+import { sales } from '../sales/index.js';
 import { ZodError } from 'zod';
 import { AppError, failureMessage } from '../core/index.js';
 import { formatZodIssues } from '../import/index.js';
@@ -29,7 +30,7 @@ function reuseCustomer(wf: OrderImportState, ctx: WorkflowContext, state: Workfl
         .filter((t) => batch.includes(t.workspaceId))
         .flatMap((t) => {
           const receipt = wf.execution.receipt(t.workspaceId, ctx.check());
-          const order = receipt?.orderId ? wf.store.order(receipt.orderId, true) : undefined;
+          const order = receipt?.orderId ? sales(wf.store).order(receipt.orderId, true) : undefined;
           return order ? [order.customerId] : [];
         })
     : [];
@@ -46,7 +47,7 @@ function reuseProducts(wf: OrderImportState, w: ImportWorkspaceView, mapping: Im
   for (const line of w.draft?.lines || [])
     if (mapping.products[line.id]?.mode === 'new') {
       const definition = productFieldsFromDraft(line.fields);
-      const exact = wf.store.products().filter((p) => created.includes(p.id) && sameProductInBatch(p, definition));
+      const exact = sales(wf.store).products().filter((p) => created.includes(p.id) && sameProductInBatch(p, definition));
       if (exact.length === 1) {
         mapping.products[line.id] = { mode: 'existing', id: exact[0].id, version: exact[0].version };
         changed = true;

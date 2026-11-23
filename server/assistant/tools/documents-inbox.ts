@@ -1,10 +1,10 @@
 // 助手工具：唛头参考、收件箱、单据模板和单据预览、导出进度和最近的导出（documents.export 的执行在 chat/workflow-cards.ts 和 workflow-direct.ts）。
+import { MarkService } from '../../sales/index.js';
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { canEnterSuperMode } from '../../core/index.js';
 import { BusinessDocuments, listExports } from '../../documents/index.js';
 import { DocumentTemplateSettings } from '../../documents/index.js';
-import { MarkService } from '../../overview/index.js';
 import { InboxService } from '../../inbox/index.js';
 import type { ToolPlan } from '../plan-rules.js';
 import { paging, uuid, positive, requireActor, type ToolContext } from './context.js';

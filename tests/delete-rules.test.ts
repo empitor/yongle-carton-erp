@@ -1,5 +1,6 @@
 // 删除时各模块按登记的规则配合（server/core/deletion-rules.ts）：删除引擎只调登记的规则，表由它的主人写；
 // 没登记的表宁可拒绝。编号、单号删了不复用；合并订货单删一张时订货单跟着改。删产品连带成品库存在 delete-product-stock.test.ts。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -51,7 +52,7 @@ for (const [where, actorOf] of [
 test('删除影响清单里唛头、唛头原文件、订单明细叫看得懂的名字，不显示内部编号；执行后没有唛头再用的原文件一起删', () => {
   const f = orderWithImports();
   try {
-    const product = must(f.store.product(f.target.lines[0].productId), '产品');
+    const product = must(sales(f.store).product(f.target.lines[0].productId), '产品');
     // 虚构一张唛头原文件和挂在产品上的唛头（只是几个字节，不是真实文件）
     const content = Buffer.from('fictional-mark'),
       sha = createHash('sha256').update(content).digest('hex');
@@ -64,7 +65,7 @@ test('删除影响清单里唛头、唛头原文件、订单明细叫看得懂�
     // 另一张原文件这个产品和别的产品都在用：别的产品还用着，不删也不列
     const sharedContent = Buffer.from('fictional-shared-mark'),
       sharedSha = createHash('sha256').update(sharedContent).digest('hex'),
-      otherProduct = f.store.saveProduct(productSchema.parse({ name: '虚构别的纸箱' }));
+      otherProduct = sales(f.store).createProduct(productSchema.parse({ name: '虚构别的纸箱' }));
     f.store.db
       .prepare('INSERT INTO mark_files(sha256,size,mime,file_name,content) VALUES(?,?,?,?,?)')
       .run(sharedSha, sharedContent.length, 'image/png', '虚构共用唛头.png', sharedContent);
@@ -93,7 +94,7 @@ test('新加的表引用了要删的记录、却没登记删除规则：预览�
   try {
     // 模拟以后新模块加了一张引用客户的表，忘了登记删除规则
     f.store.db.exec('CREATE TABLE fictional_customer_notes(id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES customers(id))');
-    const lonely = f.store.saveCustomer(customerSchema.parse({ name: '虚构新客户' }));
+    const lonely = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构新客户' }));
     f.store.db.prepare('INSERT INTO fictional_customer_notes(id,customer_id) VALUES(1,?)').run(lonely.id);
     const service = new DatabaseMaintenanceService(f.store),
       who = localAdministratorActor(superActor()),
@@ -159,12 +160,12 @@ test('删掉最后一个客户、最后一张订单后，新编号和订单号�
     const admin = localAdministratorActor(superActor()),
       service = new DatabaseMaintenanceService(f.store);
     // 客户：建一个没有往来的，用删除引擎删掉，再建一个
-    const lonely = f.store.saveCustomer(customerSchema.parse({ name: '虚构新客户' }));
+    const lonely = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构新客户' }));
     const selection = { module: 'customers', items: [{ id: lonely.id, version: lonely.version }] };
     const plan = service.preview(selection, admin);
     service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, admin, 'test-binding');
     assert.ok(!f.store.db.prepare('SELECT 1 FROM customers WHERE id=?').get(lonely.id), '客户删掉了');
-    const fresh = f.store.saveCustomer(customerSchema.parse({ name: '虚构再建客户' }));
+    const fresh = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构再建客户' }));
     assert.ok(fresh.id > lonely.id, '新客户不接上被删客户的编号');
     // 订单：不在本机的超级管理员模式删掉最后一张，再建一张
     const who = superActor(),
@@ -173,7 +174,7 @@ test('删掉最后一个客户、最后一张订单后，新编号和订单号�
     service.delete({ ...orderSelection, requestId: randomUUID(), deletionDigest: p.digest }, who, 'session');
     assert.ok(!f.store.db.prepare('SELECT 1 FROM orders WHERE id=?').get(f.other.id), '订单删掉了');
     const product = must(one(f.store.db, rows.products.pick({ id: true }), 'SELECT id FROM products LIMIT 1'), '产品');
-    const order = f.store.saveOrder(
+    const order = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-11-01',

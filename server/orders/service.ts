@@ -1,7 +1,8 @@
+import { sales, assertNewProductAllowed } from '../sales/index.js';
 import { z } from 'zod';
 import { customerSchema, productSchema, orderSchema, derivedOrderStatuses } from '../../shared/core/index.js';
 import type { Customer, Product, TrackedOrder } from '../../shared/core/index.js';
-import { Store, InputError, assertNewProductAllowed, exists, notFound } from '../core/index.js';
+import { Store, InputError, exists, notFound } from '../core/index.js';
 import { validAssistantGrant } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
@@ -36,27 +37,32 @@ export const ORDER_NOT_FOUND = '订单不存在';
 const savedOrder = (store: Store, id: number) => trackedOrder(store, id, true) ?? notFound(ORDER_NOT_FOUND);
 
 /** 校验过的一次保存：新建没有 id 和 version */
-type SaveJob = { action: 'create' | 'update'; id?: number; version?: number; input: unknown; context: WriteContext };
+type SaveJob = { input: unknown; context: WriteContext } &
+  ({ action: 'create'; id?: undefined; version?: undefined } | { action: 'update'; id: number; version: number });
 /** 新建产品时确认了“是另一个产品”（confirmDistinct: true） */
 const confirmsDistinct = (input: unknown) =>
   typeof input === 'object' && input !== null && 'confirmDistinct' in input && input.confirmDistinct === true;
 
 /** 每类记录怎么存：按 entity 取，返回值跟着 entity 走 */
 const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] } = {
-  customers: (store, { input, id, version, context }) =>
-    store.saveCustomer(customerSchema.parse(input), id, version, context.superAdminMode),
+  customers: (store, job) => {
+    const customer = customerSchema.parse(job.input);
+    return job.action === 'create'
+      ? sales(store).createCustomer(customer)
+      : sales(store).updateCustomer(customer, job.id, job.version, job.context.superAdminMode);
+  },
   products: (store, { action, input, id, version, context }) => {
     const product = productSchema.parse(input);
-    // 新建前查重（三个入口同一套，server/core/duplicate-records.ts）：已有同名、尺寸或材质不同的，
+    // 新建前查重（三个入口同一套，server/sales/duplicate-records.ts）：已有同名、尺寸或材质不同的，
     // 要在新建窗口里确认“是另一个产品”（confirmDistinct）才建
     if (action === 'create') {
       assertNewProductAllowed(store, product, confirmsDistinct(input));
-      return store.saveProduct(product);
+      return sales(store).createProduct(product);
     }
     return inSavepoint(store.db, () => {
-      const previous = id === undefined ? undefined : store.product(id, context.superAdminMode);
+      const previous = sales(store).product(id, context.superAdminMode);
       if (!previous) notFound('记录不存在');
-      const saved = store.saveProduct(product, id, version, context.superAdminMode);
+      const saved = sales(store).updateProduct(product, id, version, context.superAdminMode);
       // 产品和它的成品库存在同一个保存点内更新。
       syncFinishedStock(store, previous, saved, context.actor);
       return saved;
@@ -70,7 +76,7 @@ function saveOrderCommand(store: Store, { input: raw, id, version, context }: Sa
   // 本机管理员也一样，否则会绕过实物流转
   {
     const next = orderSchema.parse(raw).status,
-      previous = id ? store.order(id, true)?.status : undefined;
+      previous = id ? sales(store).order(id, true)?.status : undefined;
     if (next !== previous && derivedOrderStatuses.includes(next))
       throw new InputError(
         '“' + next + '”由生产任务和送货单自动更新，不能手工设置。请通过生产或送货记录推进订单。',
@@ -88,8 +94,8 @@ function saveOrderCommand(store: Store, { input: raw, id, version, context }: Sa
       input = orderSchema.parse(raw);
     return inSavepoint(store.db, () => {
       prepareOrderEdit(store, before, input.lines, actor, snapshot);
-      const current = store.order(orderId, true) ?? notFound(ORDER_NOT_FOUND);
-      const updated = store.saveOrder(input, orderId, current.version, true);
+      const current = sales(store).order(orderId, true) ?? notFound(ORDER_NOT_FOUND);
+      const updated = sales(store).saveOrder(input, orderId, current.version, true);
       alignOrder(store, before, updated, actor);
       // 全库重算到货数、库存余额和订单金额（这三步不分范围）；传空数组是因为这张订单的生产、发货进度
       // alignOrder 已经按需重算过，这里不再重算任何订单的进度
@@ -121,16 +127,17 @@ export function createBusinessService(store: Store) {
       if (
         id &&
         !(entity === 'customers'
-          ? store.customer(id, context.superAdminMode)
+          ? sales(store).customer(id, context.superAdminMode)
           : entity === 'products'
-            ? store.product(id, context.superAdminMode)
-            : store.order(id, context.superAdminMode))
+            ? sales(store).product(id, context.superAdminMode)
+            : sales(store).order(id, context.superAdminMode))
       )
         notFound(entity === 'orders' ? ORDER_NOT_FOUND : '记录不存在');
-      const version = id
-        ? z.object({ version: z.number().int().positive() }).parse(command.input).version
-        : undefined;
-      return savers[command.entity](store, { action, id, version, input: command.input, context });
+      const input = command.input;
+      const job: SaveJob = id === undefined
+        ? { action: 'create', input, context }
+        : { action: 'update', id, version: z.object({ version: z.number().int().positive() }).parse(input).version, input, context };
+      return savers[command.entity](store, job);
     },
   };
 }
@@ -148,9 +155,9 @@ export function saveOrderWithProgress(
   includeArchived?: boolean,
 ) {
   return inSavepoint(store.db, () => {
-    const previous = id === undefined ? undefined : store.order(id, includeArchived);
+    const previous = id === undefined ? undefined : sales(store).order(id, includeArchived);
     const checkEdit = previous && orderEditGuard(store.db, previous);
-    const saved = store.saveOrder(input, id, version, includeArchived, checkEdit);
+    const saved = sales(store).saveOrder(input, id, version, includeArchived, checkEdit);
     const linked = exists(store.db, 'SELECT 1 FROM flow_refs WHERE order_id=? LIMIT 1', saved.id);
     if (linked) new FlowService(store).refreshOrderProgress([saved.id], true);
     return linked ? savedOrder(store, saved.id) : trackOrders(store, [saved])[0];
@@ -166,9 +173,9 @@ export function manualWrite<E extends WritableEntity>(store: Store, command: Bus
   const id = 'id' in command ? Number(command.id) : null,
     before = id
       ? command.entity === 'customers'
-        ? store.customer(id, elevated)
+        ? sales(store).customer(id, elevated)
         : command.entity === 'products'
-          ? store.product(id, elevated)
+          ? sales(store).product(id, elevated)
           : trackedOrder(store, id, elevated)
       : null;
   return inSavepoint(store.db, () => {

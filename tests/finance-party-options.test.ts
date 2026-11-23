@@ -1,4 +1,5 @@
 // 财务选客户、供应商的下拉：走财务自己的读取地址，出纳这类纯财务账号也能读（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
@@ -14,8 +15,8 @@ const options = z.array(z.object({ id: z.number(), name: z.string() }));
 
 /** 建两个客户、一个供应商（都是虚构的），返回编号 */
 function parties(s: Store) {
-  const kept = s.saveCustomer(customerSchema.parse({ name: '虚构客户甲' }));
-  const archived = s.saveCustomer(customerSchema.parse({ name: '虚构客户乙' }));
+  const kept = sales(s).createCustomer(customerSchema.parse({ name: '虚构客户甲' }));
+  const archived = sales(s).createCustomer(customerSchema.parse({ name: '虚构客户乙' }));
   const supplier = new OperationsService(s).saveSupplier({ name: '虚构供应商' }, maker);
   return { kept: kept.id, archived: archived.id, supplier: supplier.id };
 }

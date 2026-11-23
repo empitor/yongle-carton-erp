@@ -4,13 +4,14 @@ import { z } from 'zod';
 
 /** 业务库（财务以外）：一张表一个行结构 */
 export const businessRows = {
-  // base（server/core/schema/tables/ 的这一组）
+  // migration（server/core/schema/tables/ 的这一组）
   schema_migrations: z.object({
     version: z.number(),
     name: z.string(),
     applied_at: z.string(),
     app_version: z.string(),
   }),
+  // sales（server/core/schema/tables/ 的这一组）
   customers: z.object({
     id: z.number(),
     name: z.string(),
@@ -79,6 +80,7 @@ export const businessRows = {
     specification: z.string(),
     notes: z.string().nullable(),
   }),
+  // base（server/core/schema/tables/ 的这一组）
   business_audit: z.object({
     id: z.number(),
     at: z.string(),
@@ -304,7 +306,7 @@ export const businessRows = {
     actor_name: z.string(),
     document: z.string(),
   }),
-  // business（server/core/schema/tables/ 的这一组）
+  // marks（server/core/schema/tables/ 的这一组）
   mark_files: z.object({
     sha256: z.string(),
     size: z.number(),

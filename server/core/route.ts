@@ -5,7 +5,7 @@ import { AppError } from './errors.js';
 /*
  * 按接口表注册路由（表的写法见 shared/core/api-table.ts）：
  *   const on = route<RecordsApi>(router);
- *   on('GET /customers/:id', ({ param }) => store.customer(Number(param('id'))) ?? notFound('客户不存在'));
+ *   on('GET /customers/:id', ({ param }) => sales(store).customer(Number(param('id'))) ?? notFound('客户不存在'));
  *   on('POST /customers', ({ body, req }) => save(body, actorOf(req)), { status: 201 });
  * 处理函数的返回值按表检查；路径参数是文字，query、body 是 unknown，进服务先用 zod 校验。req 只用来认人、读请求头，
  * 响应只能经 reply 写缓存头和 Cookie（见 RouteReply）。出错照常抛（AppError 等），由全站的出错处理回答；找不到用 notFound(说明)，就是 AppError 的 404。

@@ -1,5 +1,6 @@
 // 单据页的列表、详情操作条和确认窗（src/flow/FlowTable.tsx、FlowActions.tsx、FlowDialogs.tsx）：按状态一个主按钮，
 // 危险项在“更多”里，撤销只开确认窗，调整排程报错写出来。只渲染，不碰数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -30,7 +31,7 @@ const click = (list: z.output<typeof barAction>[], label: string) => {
 /** 服务端真实存出来的单据：产品“虚构纸箱2”的生产任务（计划 100 只，登记完工直接入库 40 只）和那张完工单 */
 function storedTaskAndProduction() {
   const f = flowFixture();
-  const product = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱2' }));
+  const product = sales(f.store).createProduct(productSchema.parse({ name: '虚构纸箱2' }));
   f.stockIn('10', f.raw.id);
   const planned = f.task({ productId: product.id, quantity: '100', unit: '只', plannedDate: '2026-11-02' });
   new ProductionCompletion(f.store).execute(

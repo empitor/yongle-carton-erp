@@ -1,5 +1,6 @@
 // 识别导入的对应和正式导入走流程：编辑后选择按项失效、刷新保留、预览只复用已有档案、相近产品要人确认、归档的不能导。
 // 候选规则本身在 import-candidates.test.ts。
+import { sales } from '../server/sales/index.js';
 import { REPEAT_ORDER_REASON, emptyImportMapping, productCandidatesForLine } from '../shared/import/import-matching.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -59,8 +60,8 @@ test('人工与AI草稿编辑共用按项失效；刷新保留选择与失效原
   const f = createOrderWorkflowFixture();
   try {
     let w = await recognized(f);
-    const c = f.store.customers()[0];
-    const p = f.store.saveProduct(productSchema.parse({ name: '虚构既有产品' }));
+    const c = sales(f.store).customers()[0];
+    const p = sales(f.store).createProduct(productSchema.parse({ name: '虚构既有产品' }));
     const recognizedDraft = requiredDraft(w);
     const mapping = emptyImportMapping(recognizedDraft);
     mapping.customer = { mode: 'existing', id: c.id, version: c.version };
@@ -103,7 +104,7 @@ test('人工与AI草稿编辑共用按项失效；刷新保留选择与失效原
       reopened.close();
     }
     assert.equal(f.recognitionCalls(), 1);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
     await assert.rejects(
       f.execution.preview(w.id, { expectedRevision: w.revision }, actor),
       /原产品选择已失效/,
@@ -134,10 +135,10 @@ test('匹配保存失败保留原草稿；完整预览与正式导入只复用�
   const f = createOrderWorkflowFixture();
   try {
     let w = await recognized(f);
-    const c = f.store.customers()[0];
+    const c = sales(f.store).customers()[0];
     const recognizedDraft = requiredDraft(w);
     const products = recognizedDraft.lines.map((l) =>
-      f.store.saveProduct(productSchema.parse({ name: l.fields.productName.value })),
+      sales(f.store).createProduct(productSchema.parse({ name: l.fields.productName.value })),
     );
     const mapping = emptyImportMapping(recognizedDraft);
     mapping.customer = { mode: 'existing', id: c.id, version: c.version };
@@ -155,8 +156,8 @@ test('匹配保存失败保留原草稿；完整预览与正式导入只复用�
     );
     assert.equal(f.imports.get(w.id).mapping, undefined);
     w = f.imports.mapping(w.id, { expectedRevision: w.revision, mapping }, actor);
-    assert.equal(f.store.orders().length, 0);
-    assert.equal(f.store.products().length, 2);
+    assert.equal(sales(f.store).orders().length, 0);
+    assert.equal(sales(f.store).products().length, 2);
     const readonly = matchDraft(f.store, w);
     assert.equal(readonly.customerResolution.customer?.id, c.id);
     const preview = await f.execution.preview(w.id, { expectedRevision: w.revision }, actor);
@@ -165,14 +166,14 @@ test('匹配保存失败保留原草稿；完整预览与正式导入只复用�
       { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: true },
       actor,
     );
-    const order = f.store.order(result.orderId);
+    const order = sales(f.store).order(result.orderId);
     assert.ok(order);
     assert.equal(order.customerId, c.id);
-    assert.equal(f.store.orders().length, 1);
-    assert.equal(f.store.products().length, 2);
+    assert.equal(sales(f.store).orders().length, 1);
+    assert.equal(sales(f.store).products().length, 2);
     assert.equal(f.recognitionCalls(), 1);
     await f.execution.execute(w.id, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: true }, actor);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
   } finally {
     f.close();
   }
@@ -182,17 +183,17 @@ test('本客户以前订过的同名同规格产品，正式预览直接关联�
   const f = createOrderWorkflowFixture();
   try {
     const w = await recognized(f);
-    const c = f.store.customers()[0];
+    const c = sales(f.store).customers()[0];
     const recognizedDraft = requiredDraft(w);
     const products = recognizedDraft.lines.map((l) =>
-      f.store.saveProduct(productSchema.parse({ name: l.fields.productName.value })),
+      sales(f.store).createProduct(productSchema.parse({ name: l.fields.productName.value })),
     );
     await assert.rejects(
       f.execution.preview(w.id, { expectedRevision: w.revision }, actor),
       /已找到产品候选/,
       '只有名字一样、没订过，还是要问',
     );
-    f.store.saveOrder(
+    sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: c.id,
         orderDate: '2026-01-05',
@@ -225,9 +226,9 @@ test('本客户以前订过的同名同规格产品，正式预览直接关联�
       }),
       products.map((p) => ['existing', p.id]),
     );
-    assert.equal(f.store.products().length, 2);
+    assert.equal(sales(f.store).products().length, 2);
     // 已关联的老产品看档案里的资料：档案全的不提示“资料可后续补充”“尺寸单位待确认”
-    const full = f.store.saveProduct(
+    const full = sales(f.store).createProduct(
       productSchema.parse({ name: '虚构资料全的箱', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'BC' }),
     );
     const fullMapping = emptyImportMapping(recognizedDraft);
@@ -247,9 +248,9 @@ test('选了新建的照办，不要求“用户原话说过”：方案列出�
   const f = createOrderWorkflowFixture();
   try {
     let w = await recognized(f);
-    const c = f.store.customers()[0];
-    const old = f.store.saveProduct(productSchema.parse({ name: '聊天纸箱甲', material: 'K=A', flute: 'BC' }));
-    const stopped = f.store.saveProduct(productSchema.parse({ name: '聊天纸箱甲', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B' }));
+    const c = sales(f.store).customers()[0];
+    const old = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', material: 'K=A', flute: 'BC' }));
+    const stopped = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 400, width: 300, height: 200, dimensionUnit: 'mm', material: '牛卡', flute: 'B' }));
     f.store.markArchived('products', stopped.id, 'fixture');
     const recognizedDraft = requiredDraft(w);
     const mapping = emptyImportMapping(recognizedDraft);
@@ -274,8 +275,8 @@ test('选了新建的照办，不要求“用户原话说过”：方案列出�
       { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: true, distinctProducts: [requiredDraft(w).lines[0].id] },
       actor,
     );
-    assert.equal(f.store.products().filter((p) => p.name === '聊天纸箱甲').length, 2);
-    assert.ok(f.store.product(old.id));
+    assert.equal(sales(f.store).products().filter((p) => p.name === '聊天纸箱甲').length, 2);
+    assert.ok(sales(f.store).product(old.id));
   } finally {
     f.close();
   }
@@ -287,7 +288,7 @@ test('正式预览也读取同一候选规则，尺寸相同但名称不同不�
     let w = await recognized(f);
     const line = requiredDraft(w).lines[0],
       known = knownLine(draft());
-    f.store.saveProduct(
+    sales(f.store).createProduct(
       productSchema.parse({
         name: '虚构另一名称',
         length: 300,
@@ -330,8 +331,8 @@ test('正式预览也读取同一候选规则，尺寸相同但名称不同不�
       f.execution.preview(w.id, { expectedRevision: w.revision }, actor),
       /已找到产品候选/,
     );
-    assert.equal(f.store.products().length, 1);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).products().length, 1);
+    assert.equal(sales(f.store).orders().length, 0);
   } finally {
     f.close();
   }
@@ -346,12 +347,12 @@ test('已归档的识别文件不能导入：先出了预览再归档，重新�
     w = f.imports.get(w.id);
     await assert.rejects(f.execution.preview(w.id, { expectedRevision: w.revision }, actor), /已归档，先恢复再导入/);
     await assert.rejects(f.execution.execute(w.id, { expectedRevision: early.plan.source.revision, previewDigest: early.previewDigest, acknowledged: true }, actor));
-    assert.equal(f.store.orders().length, 0, '没有导进去');
+    assert.equal(sales(f.store).orders().length, 0, '没有导进去');
     f.imports.changeArchive({ action: 'restore', items: [{ id: w.id, version: w.revision }] }, actor);
     w = f.imports.get(w.id);
     const preview = await f.execution.preview(w.id, { expectedRevision: w.revision }, actor);
     await f.execution.execute(w.id, { expectedRevision: preview.plan.source.revision, previewDigest: preview.previewDigest, acknowledged: true }, actor);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
   } finally {
     f.close();
   }

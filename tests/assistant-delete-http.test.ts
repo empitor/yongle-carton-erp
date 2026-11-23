@@ -1,5 +1,6 @@
 // 经接口点助手的删除卡片：从域名进来时服务器核对超级管理员模式和本人密码、卡片版本；一键清空只能在本机；
 // 不是部署本机入口也要密码；已执行的卡片再点（网络重试）返回原结果。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -60,7 +61,7 @@ test('从域名删档案：没进模式不出卡片；执行时卡片版本不�
   const d = await overDomain();
   const { f, send, owner } = d;
   try {
-    const victim = f.store.saveCustomer(customerSchema.parse({ name: '虚构代理入口客户' }));
+    const victim = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构代理入口客户' }));
     const args = { module: 'customers', id: victim.id };
     const plain = await d.actorNow();
     assert.equal(plain.superAdminMode, false);
@@ -88,12 +89,12 @@ test('从域名删档案：没进模式不出卡片；执行时卡片版本不�
     const expired = await execute({ password: owner.password });
     assert.equal(expired.code, 403);
     assert.match(String(expired.value.message), /进入超级管理员模式/);
-    assert.ok(f.store.customer(victim.id, true));
+    assert.ok(sales(f.store).customer(victim.id, true));
     await send('/auth/super-admin/enter', { password: owner.password });
     const done = await execute({ password: owner.password });
     assert.equal(done.code, 200, JSON.stringify(done.value));
-    assert.equal(f.store.customer(victim.id, true), undefined);
-    const kept = f.store.saveCustomer(customerSchema.parse({ name: '虚构清空不掉的客户' }));
+    assert.equal(sales(f.store).customer(victim.id, true), undefined);
+    const kept = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构清空不掉的客户' }));
     assert.throws(
       () => f.manager.tools.prepare('management.reset', { scope: 'business' }, who, d.binding, { proxy: true }),
       (e: unknown) => e instanceof AppError && e.status === 403 && /一键清空只能在服务器本机做/.test(e.message),
@@ -102,7 +103,7 @@ test('从域名删档案：没进模式不出卡片；执行时卡片版本不�
     const reset = await send(savePreview(f.store, { thread: d.thread, who, binding: d.binding }, resetPlan), { acknowledged: true, password: owner.password });
     assert.equal(reset.code, 403);
     assert.match(String(reset.value.message), /一键清空只能在服务器本机做/);
-    assert.ok(f.store.customer(kept.id, true));
+    assert.ok(sales(f.store).customer(kept.id, true));
   } finally {
     await d.close();
   }
@@ -139,7 +140,7 @@ test('不是部署的本机入口：不是本机最高管理员的执行删除�
     assert.ok(who, '还在登录');
     assert.notEqual(who.localAdministrator, true);
     const thread = readAs(await (await send('/assistant/threads', {})).json(), { id: z.string() });
-    const victim = f.store.saveCustomer(customerSchema.parse({ name: '虚构要密码客户' }));
+    const victim = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构要密码客户' }));
     const binding = sessionBinding(h.cookie);
     const plan = f.manager.tools.prepare('records.delete', { module: 'customers', id: victim.id }, who, binding);
     const path = savePreview(f.store, { thread: thread.id, who, binding }, plan, f.manager.tools.stamp(plan, who));
@@ -149,10 +150,10 @@ test('不是部署的本机入口：不是本机最高管理员的执行删除�
       assert.notEqual(r.status, 200);
       assert.match(readAs(await r.json(), { message: z.string() }).message, /密码/);
     }
-    assert.ok(f.store.customer(victim.id, true));
+    assert.ok(sales(f.store).customer(victim.id, true));
     const done = await send(path, { ...seen, password });
     assert.equal(done.status, 200, await done.clone().text());
-    assert.equal(f.store.customer(victim.id, true), undefined);
+    assert.equal(sales(f.store).customer(victim.id, true), undefined);
   } finally {
     await h.close();
     f.close();

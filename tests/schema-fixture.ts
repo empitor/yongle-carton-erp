@@ -1,4 +1,5 @@
 // 业务库结构测试共用的准备：临时目录、当前程序建的库、第 20 版的库、0.9.0 以前旧库的样子、虚构的升级步骤。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -30,7 +31,7 @@ export function workspace(prefix: string) {
 /** 当前程序建的库，里面有一个虚构客户 */
 export function currentDatabase(path: string) {
   const store = new Store(path);
-  store.saveCustomer(customerSchema.parse({ name: '虚构升级客户' }));
+  sales(store).createCustomer(customerSchema.parse({ name: '虚构升级客户' }));
   store.close();
 }
 

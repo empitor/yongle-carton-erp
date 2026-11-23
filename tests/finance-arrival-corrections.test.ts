@@ -1,4 +1,5 @@
 // 到货更正、改订单拆单、替代单落在已结账月份（全部是虚构数据，只用内存库）
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { customerSchema } from '../shared/core/domain.js';
@@ -144,8 +145,8 @@ test('改订单把已撤销的送货单拆开：原单的事件就地更新，�
     t.sync();
     const original = t.current(d.id);
     assert.equal(original.status, 'corrected');
-    const other = t.f.store.saveCustomer(customerSchema.parse({ name: '虚构拆单客户' }));
-    const current = t.f.store.order(t.order.id);
+    const other = sales(t.f.store).createCustomer(customerSchema.parse({ name: '虚构拆单客户' }));
+    const current = sales(t.f.store).order(t.order.id);
     assert.ok(current, '订单还在');
     createBusinessService(t.f.store).execute(
       { entity: 'orders', action: 'update', id: current.id, input: { ...current, customerId: other.id } },

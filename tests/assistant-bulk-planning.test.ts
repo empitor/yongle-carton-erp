@@ -1,9 +1,10 @@
+import { sales } from '../server/sales/index.js';
 import { trackOrders } from '../server/orders/index.js';
 import { z } from 'zod';
 import { pageActor, actor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, damageOrderCost } from './business-base-fixture.js';
 import { planStockDelivery } from '../shared/business/warehouse-delivery.js';
 import { assistantFixture, ctxOf, toolsOf } from './assistant-fixture.js';
 import type { Store as StoreType } from '../server/core/db.js';
@@ -58,7 +59,7 @@ test('按交期先后把成品排满：先给交期早的甲，剩下给乙；�
     // 和人工窗口同一份算法
     const items = f.base.flow.views.items().filter((i) => i.kind === 'finished');
     assert.deepEqual(
-      planStockDelivery(items.filter((i) => i.id === f.stock.id), trackOrders(fx.store, fx.store.orders())).map((g) => g.lines),
+      planStockDelivery(items.filter((i) => i.id === f.stock.id), trackOrders(fx.store, sales(fx.store).orders())).map((g) => g.lines),
       plan.groups.map((g) => g.lines.map(({ orderNumber, productName, unit, ...l }) => l)),
     );
   } finally {
@@ -96,13 +97,14 @@ test('delivery.plan 按主键批量读：不全量加载订单和库存品再筛
     const tools = toolsOf(fx.store);
     // 另一个不相干的客户、产品和库存：不该被读进来，也不影响结果
     const other = f.base.product({ name: '虚构无关纸箱' });
+    const unrelated = f.base.order(f.base.customer({ name: '虚构无关客户' }), [f.base.line(other, 1)]);
     const otherStock = f.base.finished(other, { name: '虚构无关纸箱' });
     const expectedByOrders = tools.read('delivery.plan', { orderIds: [f.oa.id, f.ob.id, f.oc.id] }, actor);
     const expectedByStock = tools.read('delivery.plan', { stockIds: [f.stock.id] }, actor);
     const views = tools.flow.views,
       items = views.items.bind(views);
     const seenItems: number[][] = [];
-    t.mock.method(fx.store, 'orders', () => assert.fail('不能先读全部订单'));
+    damageOrderCost(fx.store, unrelated.id);
     t.mock.method(views, 'items', (include: boolean, ids?: Parameters<typeof views.items>[1]) => {
       assert.ok(ids !== undefined, '库存品要按编号读');
       seenItems.push([ids].flat());

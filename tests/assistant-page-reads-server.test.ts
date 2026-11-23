@@ -1,5 +1,6 @@
 // 助手页面按结构认服务端发来的数据（src/assistant/chat-events.ts 的回复事件、assistant-api.ts 的上传和语音回答、
 // shared/assistant 的导出文件结构）：喂的都是内存里的助手服务真实产生的（模型用替身），经 JSON 来回一次，和浏览器收到的一样。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -68,9 +69,9 @@ test('页面认得服务端发的说话人、先说的话、正文、思考、�
 test('页面认得服务端发的“业务变了、刷新”和“打开页面”两种效果', async () => {
   const f = autoConfirmAssistant();
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构客户' })),
-      product = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱' }));
-    const order = f.store.saveOrder(
+    const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构客户' })),
+      product = sales(f.store).createProduct(productSchema.parse({ name: '虚构纸箱' }));
+    const order = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: customer.id,
         orderDate: '2026-10-25',

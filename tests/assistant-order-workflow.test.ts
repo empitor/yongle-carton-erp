@@ -1,6 +1,7 @@
 // 聊天里识别导入客户订单：附件→识别→改→确认导入的整条流程、批量识别、各格式原件、型号匹配、改别人那份出卡片、
 // 识别失败重试、权限隔离、到货模式不能当订单、收件箱转进对话、HTTP+SSE、多会话去重。
 // 关联页面上已识别的工作区见 assistant-order-attach.test.ts。假 DeepSeek、临时目录、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { trackedOrderOf } from './flow-fixture.js';
@@ -72,7 +73,7 @@ test('聊天附件识别→跨轮改同一份→确认导入；用量计入这�
 
     const nonce = randomUUID();
     view = await f.send('没问题，确认导入', [], nonce);
-    const order = f.store.orders()[0];
+    const order = sales(f.store).orders()[0];
     assert.equal(order.lines[1].quantity, 300);
     assert.equal(order.lines[1].unitPriceExact, '1.2345');
     assert.equal(order.customerName, '聊天验收客户');
@@ -81,7 +82,7 @@ test('聊天附件识别→跨轮改同一份→确认导入；用量计入这�
     assert.equal(new FlowService(f.store).views.purchases().length, 0);
     await f.send('没问题，确认导入', [], nonce);
     await f.send('没问题，确认导入');
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     assert.equal(f.recognitionCalls(), 1);
     assert.equal(count(f, 'SELECT COUNT(*) n FROM import_executions'), 1);
     assert.equal(count(f, 'SELECT COUNT(*) n FROM stock_movements'), 0);
@@ -112,7 +113,7 @@ test('几份订单附件在同一次 order_import.start 里一起识别', async 
     assert.equal(f.recognitionCalls(), 2);
     assert.deepEqual(view.orderWorkflow?.tasks.map((t) => t.state), ['awaiting_confirmation', 'awaiting_confirmation']);
     assert.deepEqual(view.orderWorkflow?.tasks.map((t) => t.fileName).sort(), ['订单乙.jpg', '订单甲.png']);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
   } finally {
     f.close();
   }
@@ -132,7 +133,7 @@ test('JPG、PDF、Word、Excel 附件原件原样交给识别', async () => {
       assert((await f.imports.original(f.current().id)).bytes.equals(bytes));
     }
     assert.equal(f.recognitionCalls(), 4);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
   } finally {
     f.close();
   }
@@ -141,7 +142,7 @@ test('JPG、PDF、Word、Excel 附件原件原样交给识别', async () => {
 test('按客户料号匹配产品，之后改数量映射还在；料号对上两个产品时拒绝', async () => {
   const f = fixture();
   try {
-    const product = f.store.saveProduct(productSchema.parse({ name: '型号产品', customerProductCode: 'A003' }));
+    const product = sales(f.store).createProduct(productSchema.parse({ name: '型号产品', customerProductCode: 'A003' }));
     const a = await f.manager.attachments.upload(f.thread.id, xlsxFixture(), '采购订单.xlsx', randomUUID(), actor);
     await f.send('识别订单', [a.id]);
     const match = { message: '匹配', toolCalls: [{ name: 'order_import.match', args: { line: 2, productCode: 'A003' } }] };
@@ -152,7 +153,7 @@ test('按客户料号匹配产品，之后改数量映射还在；料号对上�
     f.replies.push(editLine(f, () => line.id, '300'));
     await f.send('第二行数量改成300');
     assert.equal(field(f.current().mapping?.products[line.id], 'id'), product.id);
-    f.store.saveProduct(productSchema.parse({ name: '另一型号产品', customerProductCode: 'A003' }));
+    sales(f.store).createProduct(productSchema.parse({ name: '另一型号产品', customerProductCode: 'A003' }));
     f.replies.push(match);
     const result = await f.send('第二行对应A003型号');
     assert.match(result.messages.at(-1)?.text ?? '', /未唯一匹配/);
@@ -271,7 +272,7 @@ test('别人的会话拒绝；没导入权限的看不到识别命令；文件�
     const v = await f.send('只阅读这张图片', [a.id]);
     assert.ok(v.orderWorkflow, '会话里有订单导入的状态');
     assert.equal(v.orderWorkflow.tasks.length, 0);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
   } finally {
     f.close();
   }
@@ -294,7 +295,7 @@ test('同一文件在 AI 导入页面已选成到货单：订单识别不复制�
     );
     assert.match(result.messages.at(-1)?.text ?? '', /到货/);
     assert.equal(f.recognitionCalls(), 0);
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
     const refuse = () => {
       throw Error('不应调度');
     };
@@ -374,7 +375,7 @@ test('两个会话交来同一份原件：各有各的任务，正式导入全�
     await f.send('识别订单', [a.id]);
     const first = f.current().id;
     await f.send('确认导入');
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     const t2 = f.manager.create(actor),
       a2 = await f.manager.attachments.upload(t2.id, bytes, '二.png', randomUUID(), actor);
     const v = await f.manager.chat(t2.id, { requestId: randomUUID(), text: '识别订单', attachmentIds: [a2.id] }, actor, 's', () => {}, () => actor);
@@ -382,7 +383,7 @@ test('两个会话交来同一份原件：各有各的任务，正式导入全�
     assert.ok(second, '第二个会话有自己的任务');
     assert.notEqual(second.workspaceId, first);
     assert.equal(second.state, 'needs_review');
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     f.manager.clear(t2.id, actor);
     const cleared = f.manager.view(t2.id, actor).orderWorkflow;
     assert.ok(cleared, '会话里有订单导入的状态');

@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { many, one, parseStoredJson, rows, type Store } from '../core/index.js';
 import type { ImportWorkspaceView } from '../../shared/import/index.js';
@@ -23,7 +24,7 @@ function refFromRow(store: Store, row: z.infer<typeof executionRow>): ImportedRe
     sourceId: row.source_id,
   };
   if (row.order_id === null) return { ...base, archived: true, permanentlyDeleted: true };
-  const order = store.order(row.order_id, true);
+  const order = sales(store).order(row.order_id, true);
   return order
     ? { ...base, orderId: order.id, orderNumber: order.number, archived: store.archived('orders', order.id) }
     : { ...base, archived: true, permanentlyDeleted: true };
@@ -69,5 +70,5 @@ export function fingerprintImported(store: Store, fingerprint: string) {
     z.object({ order_id: z.number() }),
     'SELECT order_id FROM import_executions WHERE fingerprint=? AND order_id IS NOT NULL',
     fingerprint,
-  ).some((row) => store.order(row.order_id, true) !== undefined);
+  ).some((row) => sales(store).order(row.order_id, true) !== undefined);
 }

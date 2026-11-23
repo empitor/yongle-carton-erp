@@ -20,6 +20,8 @@ import { count } from './sql.js';
 
 /** 删除时的一行：带 rowid，列只有规划时读过的那些（见 DeletionPlanner.columns），值是库里读出来的原样 */
 export type DeletionRow = Record<string, SQLOutputValue> & { __rowid: number };
+/** 取删除规划中一列的原始文字。 */
+export const textOf = (value: unknown) => (typeof value === 'string' ? value : undefined);
 /** 删除时改一行要写的值（列 → 新值），和读出来的值是同一种 */
 type DeletionValues = Record<string, SQLOutputValue>;
 /** 一次删除的上下文：谁删的、什么时候、这次删除的请求编号 */
@@ -191,11 +193,12 @@ export type ResetRules = {
   /** 财务：已经结账的期间，初始化要用户在预览里明确勾选才清 */
   closedPeriods?(store: Store): { period: string; version: number }[];
 };
-const resetRules = new Map<ModuleName, ResetRules>();
+const resetRules = new Map<string, ResetRules>();
 export function registerReset(r: ResetRules) {
   for (const s of r.statements)
     if (!/^DELETE FROM \w+( WHERE .+)?$/.test(s)) throw new AppError(r.module + '登记的清空语句格式不对：' + s, 500);
-  resetRules.set(r.module, r);
+  // 同一个模块可以按外键依赖分几次清，各段按 order 排序。
+  resetRules.set(r.module + ':' + r.order, r);
 }
 /**
  * 参加初始化的模块：modules 是必须登记了的（没登记报错，不会悄悄少清一块）；另外登记了的模块也一起清，
@@ -203,7 +206,8 @@ export function registerReset(r: ResetRules) {
  */
 export function resetParticipants(modules: readonly ModuleName[], includeFinance: boolean) {
   const need: readonly ModuleName[] = includeFinance ? [...modules, '财务'] : modules;
-  const missing = need.filter((m) => !resetRules.has(m));
+  const registered = new Set([...resetRules.values()].map((r) => r.module));
+  const missing = need.filter((m) => !registered.has(m));
   if (missing.length) throw new AppError('初始化要' + missing.join('、') + '模块配合，但它们没有加载。', 500);
   return [...resetRules.values()]
     .filter((r) => (r.finance ? includeFinance : true))

@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
 import { AppError, many, rows } from '../../core/index.js';
 import { shippedByLine } from '../documents/shipped.js';
@@ -22,7 +23,7 @@ const MAX_LINKED_ORDERS = 50;
  */
 export function updateOrders(flow: FlowCommands, ids: number[], onlyChanged = false) {
   for (const id of new Set(ids)) {
-    const order = flow.store.order(id, true);
+    const order = sales(flow.store).order(id, true);
     if (!order) continue;
     // 每条明细已发多少：这张单的有效送货单一次读齐
     const shipped = shippedByLine(flow.store.db, [id]),
@@ -46,7 +47,7 @@ export function updateOrders(flow: FlowCommands, ids: number[], onlyChanged = fa
           ? '待发货'
           : '已确认';
     if (onlyChanged && status === order.status) continue;
-    flow.store.setDerivedOrderStatus(id, status);
+    sales(flow.store).setDerivedOrderStatus(id, status);
   }
 }
 function confirmedTasksOf(flow: FlowCommands, orderId: number): Task[] {
@@ -96,7 +97,7 @@ function producedEnough(flow: FlowCommands, orderId: number, productId: number, 
   const { orders, tasks } = linkedTasks(flow, orderId, productId, own);
   let need = 0;
   for (const oid of orders) {
-    const o = flow.store.order(oid, true);
+    const o = sales(flow.store).order(oid, true);
     // 同挂的别的订单是待确认、已取消的不算数，不算进要做的数；正在重算的这张照算
     // （走到这里的已经要按单据重算，比如本机管理员把出过库的订单改成待确认）
     if (!o || (oid !== orderId && !effectiveOrder(o))) continue;
@@ -117,7 +118,7 @@ export function recomputeAfterMaintenance(flow: FlowCommands, affectedOrders?: n
       409,
     );
   });
-  flow.store.recomputeOrderTotals();
+  sales(flow.store).recomputeOrderTotals();
   refreshOrderProgress(flow, affectedOrders);
 }
 /** onlyChanged：状态没变就不动订单（不加版本号）。 */

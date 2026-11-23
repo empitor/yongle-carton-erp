@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import type { Actor } from '../../core/index.js';
 import { assertPreviewCurrent, audit, exists, onceByRequest, one, operationRequest, requirePermission, rows } from '../../core/index.js';
 import { MAX_STOCK_UNITS, today, type FlowKind } from '../../../shared/core/index.js';
@@ -89,7 +90,7 @@ function shipment(flow: FlowCommands, doc: FlowDocView<'delivery'>, given: strin
   if (shipDate > today()) fail('出库日期不能晚于今天。');
   if (given) {
     const orderIds = [...new Set(doc.lines.map((l) => Number(l.orderId)).filter(Boolean))];
-    const late = flow.store.ordersByIds(orderIds, true).find((o) => o.orderDate > shipDate);
+    const late = sales(flow.store).ordersByIds(orderIds, true).find((o) => o.orderDate > shipDate);
     if (late) fail('出库日期不能早于订单 ' + late.number + ' 的下单日期 ' + late.orderDate + '。');
   }
   // 补录了出库日的，出库时间按那天（北京时间中午）记，送达日期才能不早于它
@@ -110,14 +111,14 @@ function confirmedDocument(
       return {
         ...doc,
         date: done.shipped?.date ?? doc.date,
-        customerName: flow.store.customer(doc.customerId, true)?.name,
+        customerName: sales(flow.store).customer(doc.customerId, true)?.name,
         ...confirmed,
         // 送货单出库就是装车：变“送货中”，客户收到后再“确认送达”
         ...(done.shipped ? { shippedAt: done.shipped.shippedAt, shippedBy: done.by } : {}),
       };
     case 'task':
     case 'production':
-      return { ...doc, productName: flow.store.product(doc.productId, true)?.name, ...confirmed };
+      return { ...doc, productName: sales(flow.store).product(doc.productId, true)?.name, ...confirmed };
   }
 }
 

@@ -1,5 +1,6 @@
 // 删除、初始化、维护改写、删对话前的恢复快照：事务里也能拍、没写入时复用、改坏或删掉就重拍、保留策略；拍不成就整体不做。
 // 初始化时各模块清自己的表、删除时各模块配合：要先加载识别导入、财务和单据导出模块让它们登记（server/core/deletion-rules.ts），正式服务启动时都会加载
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import '../server/import/index.js';
 import '../server/finance/index.js';
@@ -89,7 +90,7 @@ test('初始化前自动生成可打开的恢复快照，里面是清空前的�
   try {
     orderBasics(f.store);
     new BusinessReset(f.store).execute({ scope: 'business' }, admin());
-    assert.equal(f.store.customers(true).length, 0);
+    assert.equal(sales(f.store).customers(true).length, 0);
     assert.equal(f.snapshots().length, 1);
     assert.deepEqual(customerNames(join(f.dir, 'snapshots', f.snapshots()[0])), ['虚构客户']);
   } finally {
@@ -104,17 +105,17 @@ test('恢复快照带着编号水位：清空过的编号在快照打开的库�
     const f = orderBasics(new Store(file));
     const order = f.order([f.line(f.pa)]);
     new BusinessReset(f.store).execute({ scope: 'business' }, admin());
-    assert.equal(f.store.customers(true).length, 0);
+    assert.equal(sales(f.store).customers(true).length, 0);
     // 清空以后再拍一份：表是空的，用过的最大编号只记在 sqlite_sequence 里
     const snapshot = snapped(f.store, 'after-reset');
     f.store.close();
     const copy = new Store(snapshot);
     try {
-      const customer = copy.saveCustomer(customerSchema.parse({ name: '虚构恢复后客户' })),
-        product = copy.saveProduct(productSchema.parse({ name: '虚构恢复后箱' }));
+      const customer = sales(copy).createCustomer(customerSchema.parse({ name: '虚构恢复后客户' })),
+        product = sales(copy).createProduct(productSchema.parse({ name: '虚构恢复后箱' }));
       assert.equal(customer.id, f.customer.id + 1);
       assert.equal(product.id, f.pb.id + 1);
-      const next = copy.saveOrder(
+      const next = sales(copy).saveOrder(
         orderSchema.parse({
           customerId: customer.id,
           orderDate: '2026-10-01',
@@ -142,7 +143,7 @@ test('事务内也能拍快照，内容是事务开始前已提交的数据；�
   assert.equal(snapshotBeforeDestructive(orderBasics().store, 'memory'), null);
   const f = tempStore('erp-snapshot-tx-');
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构事务前客户' }));
+    const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构事务前客户' }));
     f.store.db.exec('SAVEPOINT outer_tx');
     f.store.db.prepare('DELETE FROM customers WHERE id=?').run(customer.id);
     f.store.db.prepare("INSERT INTO customers(name,contact,phone,address,notes,created_at,updated_at) VALUES('虚构未提交客户','','','','',datetime('now'),datetime('now'))").run();
@@ -162,7 +163,7 @@ test('事务内也能拍快照，内容是事务开始前已提交的数据；�
 test('删除引擎删记录放在外层 SAVEPOINT 里（助手确认执行）也留下删之前的快照', () => {
   const f = tempStore('erp-snapshot-maint-');
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构待删客户' }));
+    const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构待删客户' }));
     f.store.db.exec('SAVEPOINT assistant_commit');
     new DatabaseMaintenanceService(f.store).delete(
       { module: 'customers', items: [{ id: customer.id, version: customer.version }], requestId: randomUUID() },
@@ -170,7 +171,7 @@ test('删除引擎删记录放在外层 SAVEPOINT 里（助手确认执行）也
       'session',
     );
     f.store.db.exec('RELEASE assistant_commit');
-    assert.equal(f.store.customer(customer.id, true), undefined);
+    assert.equal(sales(f.store).customer(customer.id, true), undefined);
     const files = f.snapshots();
     assert.equal(files.length, 1);
     assert.deepEqual(customerNames(join(f.dir, 'snapshots', files[0])), ['虚构待删客户']);
@@ -187,9 +188,9 @@ for (const [who, viaAdmin] of [
   test(`${who}改订单：${viaAdmin ? '改之前留下快照' : '不额外拍快照'}`, () => {
     const f = tempStore('erp-snapshot-order-');
     try {
-      const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构订单客户' })),
-        product = f.store.saveProduct(productSchema.parse({ name: '虚构订单纸箱' }));
-      const order = f.store.saveOrder(
+      const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构订单客户' })),
+        product = sales(f.store).createProduct(productSchema.parse({ name: '虚构订单纸箱' }));
+      const order = sales(f.store).saveOrder(
         orderSchema.parse({
           customerId: customer.id,
           orderDate: '2026-10-01',
@@ -216,7 +217,7 @@ for (const [who, viaAdmin] of [
           { entity: 'orders', action: 'update', id: order.id, input: { ...order, notes: '虚构备注', version: order.version } },
           { source: 'manual-ui', operatorId: 'audit-user' },
         );
-      assert.equal(f.store.order(order.id, true)?.notes, '虚构备注');
+      assert.equal(sales(f.store).order(order.id, true)?.notes, '虚构备注');
       if (!viaAdmin) return assert.deepEqual(f.snapshots(), []);
       assert.equal(f.snapshots().length, 1);
       const notes = read(join(f.dir, 'snapshots', f.snapshots()[0]), 'SELECT notes FROM orders', (r) => r.notes);
@@ -250,7 +251,7 @@ for (const [who, actor, kept] of [
       const b = orderBasics(f.store),
         order = b.order([b.line(b.pa)]);
       manualWrite(f.store, { entity: 'orders', action: 'update', id: order.id, input: { ...order, notes: '虚构备注', version: order.version } }, actor());
-      assert.equal(f.store.order(order.id, true)?.notes, '虚构备注');
+      assert.equal(sales(f.store).order(order.id, true)?.notes, '虚构备注');
       assert.equal(f.snapshots().length, kept);
       if (!kept) return;
       const notes = read(join(f.dir, 'snapshots', f.snapshots()[0]), 'SELECT notes FROM orders', (r) => r.notes);
@@ -264,7 +265,7 @@ test('本机管理员改订单删掉一行、只挂这一行的送货单整张�
   const f = tempStore('erp-snapshot-order-cascade-');
   try {
     const m = fixture(f.store);
-    const order = f.store.saveOrder(
+    const order = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: m.customer.id,
         orderDate: '2026-10-01',
@@ -313,7 +314,7 @@ test('助手删对话前拍快照，快照里还有删掉的对话；没有要�
 test('快照拍不成：删除和初始化整体不做，记录和数据都还在', (t) => {
   const f = tempStore('erp-snapshot-fail-');
   try {
-    const customer = f.store.saveCustomer(customerSchema.parse({ name: '虚构留下的客户' }));
+    const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构留下的客户' }));
     failSnapshots(t);
     const refused = /无法在操作前生成恢复快照，本次操作未执行/;
     assert.throws(
@@ -326,7 +327,7 @@ test('快照拍不成：删除和初始化整体不做，记录和数据都还�
       refused,
     );
     assert.throws(() => new BusinessReset(f.store).execute({ scope: 'business' }, admin()), refused);
-    assert.deepEqual(f.store.customers(true).map((c) => c.name), ['虚构留下的客户']);
+    assert.deepEqual(sales(f.store).customers(true).map((c) => c.name), ['虚构留下的客户']);
     assert.equal(f.store.db.isTransaction, false);
     assert.deepEqual(f.snapshots(), []);
   } finally {
@@ -339,10 +340,10 @@ test('快照拍不成：删除和初始化整体不做，记录和数据都还�
 test('没有写入时复用上一份；有写入、其他连接写入后都重新拍', () => {
   const f = tempStore('erp-snapshot-reuse-');
   try {
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构客户甲' }));
+    sales(f.store).createCustomer(customerSchema.parse({ name: '虚构客户甲' }));
     const first = snapped(f.store, 'first');
     assert.equal(snapshotBeforeDestructive(f.store, 'again'), first, '没有任何写入，复用');
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构客户乙' }));
+    sales(f.store).createCustomer(customerSchema.parse({ name: '虚构客户乙' }));
     const second = snapped(f.store, 'after-write');
     assert.notEqual(second, first, '快照之后有写入，必须重新拍');
     assert.deepEqual(customerNames(second), ['虚构客户甲', '虚构客户乙']);
@@ -363,7 +364,7 @@ test('事务里拍的快照不复用：事务提交后再拍一份包含提交�
   const f = tempStore('erp-snapshot-txreuse-');
   try {
     f.store.db.exec('SAVEPOINT outer_tx');
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构事务内客户' }));
+    sales(f.store).createCustomer(customerSchema.parse({ name: '虚构事务内客户' }));
     const inside = snapped(f.store, 'inside');
     f.store.db.exec('RELEASE outer_tx');
     const after = snapped(f.store, 'after');

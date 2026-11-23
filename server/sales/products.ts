@@ -1,17 +1,16 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { Product, ProductInput } from '../../shared/core/index.js';
 import { priceToE4 } from '../../shared/core/index.js';
-import { ConflictError, InputError } from './errors.js';
+import { ConflictError, InputError, exists } from '../core/index.js';
 import { chosenExact, readBack, type ExistingRecord } from './record-fields.js';
-import { exists } from './sql.js';
 
 /*
- * 产品的保存（表归基础）：参考单价只存一份、这次没给的附加信息沿用原来的、附属关系的核对。
+ * 产品保存：参考单价只存一份、这次没给的附加信息沿用原来的、附属关系的核对。
  * 连带改成品库存在订单服务（server/orders/service.ts）；用到的 Store 能力从参数传进来，这个文件不引用 db.ts。
  */
 
 /** 存产品要用的：库连接和按编号读产品 */
-export type ProductSaveContext = { db: DatabaseSync; product(id: number, includeArchived?: boolean): Product | undefined };
+type ProductSaveContext = { db: DatabaseSync; product(id: number, includeArchived?: boolean): Product | undefined };
 
 /**
  * 参考单价只存一份（万分之一元的整数，没定价是 null）。只给了分：分没变就沿用原来的四位价，分变了按分存，分是 0 就是没定价。

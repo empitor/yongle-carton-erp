@@ -1,5 +1,6 @@
 // 送货出库和送达（server/flow/、server/documents/）：导出送货单就是出库，确认送达只记送达，撤销送货加回库存。
 // 出库日期的规则见 delivery-ship-date.test.ts。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -89,7 +90,7 @@ test('送货发错发重了：普通业务账号（不进超级管理员模式�
 
 test('一张送货单两行出同一个成品库存（两张订单）：详情每行只挂自己那一笔出库，撤销扣回的挂第一行，同一笔不在两行里重复', (t) => {
   const f = deliverySetup(t);
-  const second = f.store.saveOrder(
+  const second = sales(f.store).saveOrder(
     orderSchema.parse({
       customerId: f.order.customerId,
       orderDate: shift(-400),
@@ -138,8 +139,8 @@ test('送货单上的金额按两位小数写', (t) => {
 test('送货单没填收货地址、联系人、电话：导出印“未记录”，不拿客户档案的顶上', (t) => {
   const f = deliverySetup(t);
   const { customerId } = f.flow.get(f.delivery.id, 'delivery');
-  const customer = f.store.customer(customerId) ?? assert.fail('有客户');
-  f.store.saveCustomer(
+  const customer = sales(f.store).customer(customerId) ?? assert.fail('有客户');
+  sales(f.store).updateCustomer(
     customerSchema.parse({ ...customer, address: '虚构客户档案地址', contact: '虚构档案联系人', phone: '000-档案' }),
     customerId,
     customer.version,

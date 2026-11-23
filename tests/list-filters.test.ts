@@ -1,5 +1,6 @@
 // 列表的筛选和分页（server/core/paging.ts、server/orders/record-lists.ts、server/operations/party-links.ts）：
 // 流水的日期范围、接口组合筛选、分页统计，产品和库存按客户、供应商筛，页面和助手同一套。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { pageActor, actor as assistantActor } from './actor-fixture.js';
 import { z } from 'zod';
 import { test } from 'node:test';
@@ -44,7 +45,7 @@ function fixture() {
     boxB = base.product({ name: '虚构乙箱' }),
     idle = base.product({ name: '虚构没人订的箱' });
   const order = (customerId: number, product: { id: number; name: string }) =>
-    store.saveOrder(
+    sales(store).saveOrder(
       orderSchema.parse({
         customerId,
         orderDate: '2026-11-10',
@@ -275,7 +276,7 @@ test('HTTP 分页：统计按完整筛选结果，不带页码的调用方仍拿
     stocked = base.product({ name: '虚构成品' }),
     stock = base.finished(stocked, { name: '虚构成品' });
   const orders = [1, 2, 3].map((n) =>
-    store.saveOrder(
+    sales(store).saveOrder(
       orderSchema.parse({
         customerId: customer.id,
         orderDate: '2026-10-0' + n,
@@ -435,7 +436,7 @@ test('客户、产品、订单列表和手工保存：直接调订单服务的�
     assert.equal(saved.notes, '直接调');
     assert.ok(f.store.db.prepare("SELECT 1 FROM business_audit WHERE entity='customers' AND record_id=?").get(f.customer.id));
     assert.throws(() => manualWrite(f.store, { entity: 'customers', action: 'update', id: f.customer.id, input: { ...f.customer, notes: '旧版本' } }, f.actor));
-    assert.equal(f.store.customer(f.customer.id)?.notes, '直接调');
+    assert.equal(sales(f.store).customer(f.customer.id)?.notes, '直接调');
   } finally {
     f.store.close();
   }

@@ -1,4 +1,5 @@
 // 送货单（server/flow/）：预览和会话、版本绑定，超订单数量，多订单送货，改期，管理员改已出库的送货单。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -231,7 +232,7 @@ test('多种产品的送货单：待送货不扣库存；保存、确认同一�
 test('库存不够、同一种成品几张订单合计超过库存时预览就拦下，单据留在待送货，库存不动', () => {
   const f = deliveryFixture();
   try {
-    const otherSameCustomer = f.store.saveOrder(
+    const otherSameCustomer = sales(f.store).saveOrder(
       orderSchema.parse({
         ...f.order,
         lines: f.order.lines.map((l) => ({ ...l, id: undefined, quantity: 100 })),

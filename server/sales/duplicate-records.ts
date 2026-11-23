@@ -1,11 +1,8 @@
-import type { Store } from './db.js';
-import { AppError } from './errors.js';
-import { rows } from './schema/rows.js';
-import { many } from './sql.js';
+import { AppError, many, rows, type Store } from '../core/index.js';
 import { duplicateKey, normalizeDimensionUnit, normalizedDimensions, specification, type SpecFields } from '../../shared/core/index.js';
 
 /**
- * 新建客户、产品前查重（档案归基础，人工新建、识别导入、助手都用这一处）。
+ * 新建客户、产品前查重（人工新建、识别导入、助手都用这一处）。
  * 比名字用最严的 duplicateKey（全角半角、大小写、空白、分隔符号都不算区别），连已归档的一起查。
  * 产品三条：客户料号相同一律不建；名称相同、尺寸材质也相同不建（选已有的或先恢复）；
  * 名称相同但尺寸或材质不同可以建——纸箱厂同名不同尺寸很常见——但要人看过已有的同名产品、确认“是另一个产品”才建。

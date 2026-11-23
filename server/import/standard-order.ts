@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import type { z } from 'zod';
 import type { Store } from '../core/index.js';
 import { FINISHED_UNIT, finishedUnit, type Product, type ProductInput } from '../../shared/core/index.js';
@@ -76,7 +77,7 @@ function projectLine(store: Store, d: OrderDraft, l: DraftLine, m: Mapping, out:
   // 产品数量单位只有“只”：“个”、没写都按“只”；别的单位要人先换算
   if (finishedUnit(value(f.unit.value)) !== FINISHED_UNIT)
     out.issues.push('第' + (d.lines.indexOf(l) + 1) + '项数量单位是“' + value(f.unit.value) + '”，产品只按“只”算，请换算成只后再导入。');
-  const existing = productId ? store.product(productId) : undefined;
+  const existing = productId ? sales(store).product(productId) : undefined;
   if (productId && !existing) out.issues.push('关联产品不存在');
   if (existing) out.optionalProducts.push(existing);
   if (choice?.mode === 'new') planNewProduct(l, priceCents, out);
@@ -151,7 +152,7 @@ export function projectOrder(store: Store, d: OrderDraft, m: Mapping) {
   const out: Collected = { issues: [], newProducts: [], optionalProducts: [] };
   const currency = inspectCurrency(d.header.currency.value);
   const customerId = m?.customer.mode === 'existing' ? m.customer.id : null;
-  if (customerId && !store.customer(customerId)) out.issues.push('关联客户不存在');
+  if (customerId && !sales(store).customer(customerId)) out.issues.push('关联客户不存在');
   const newCustomer =
     m?.customer.mode === 'new'
       ? customerSchema.safeParse({ name: d.header.buyerName.value, contact: '', phone: '', address: '', notes: '' })

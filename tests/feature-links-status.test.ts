@@ -32,8 +32,8 @@ const statusWriters: { table: string; status: string; files: string[]; why: stri
   {
     table: 'orders',
     status: '语句',
-    files: ['server/core/orders.ts', 'server/core/db.ts'],
-    why: '整张保存（确认、退回、取消、恢复经 changeOrderStatus 也落到这里）在 orders.ts；生产中、待发货、已发货由单据派生，写回在 db.ts 的 setDerivedOrderStatus',
+    files: ['server/sales/orders.ts', 'server/sales/records.ts'],
+    why: '整张保存（确认、退回、取消、恢复经 changeOrderStatus 也落到这里）在 orders.ts；生产中、待发货、已发货由单据派生，写回在 records.ts 的 setDerivedOrderStatus',
   },
   { table: 'purchases', status: '语句', files: ['server/operations/purchases/purchase-save.ts'], why: '整张保存；改状态的四个动作经 changePurchaseStatus 调它' },
 ];

@@ -1,4 +1,5 @@
 // 生产任务和完工单（server/flow/）：进度、领料、预览失效、撤销完工、取消剩余、选错任务的提示。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -159,7 +160,7 @@ test('同一种纸板做两种产品：各入各的成品库存，一张送货�
   try {
     const order = f.order(100);
     f.confirmId(f.production('100').id);
-    const product2 = f.store.saveProduct(productSchema.parse({ name: '虚构第二款纸箱' })),
+    const product2 = sales(f.store).createProduct(productSchema.parse({ name: '虚构第二款纸箱' })),
       stock2 = f.ops.saveItem({ name: '虚构第二款成品', kind: 'finished', unit: '只', productId: product2.id }, clerk),
       order2 = f.order(10, { lines: [{ productId: product2.id, quantity: 10, unit: '只', unitPriceCents: 1000 }] });
     f.confirmId(f.production('10', { productId: product2.id, finishedStockId: stock2.id, materials: [{ stockId: f.raw.id, issued: '30', returned: '0' }] }).id);
@@ -171,7 +172,7 @@ test('同一种纸板做两种产品：各入各的成品库存，一张送货�
       ],
     });
     assert.deepEqual([f.ops.balance(f.finished.id), f.ops.balance(stock2.id)], [80000, 0]);
-    assert.equal(f.store.order(order2.id)?.status, '已发货');
+    assert.equal(sales(f.store).order(order2.id)?.status, '已发货');
     assert.equal(trackedOrder(f.store, order.id)?.lines[0].remainingQuantity, 80);
   } finally {
     f.store.close();
@@ -185,7 +186,7 @@ test('完工登记选的生产任务对不上时，说清是哪里不对、下�
     const cancelled = f.draft('task', { productId: f.product.id, quantity: '100', unit: '只', orderIds: [] });
     f.flow.cancel(cancelled.id, { version: cancelled.version, reason: '虚构：不做了', acknowledged: true }, clerk);
     assert.throws(() => production(cancelled.id), new RegExp('所选生产任务 ' + cancelled.number + '已取消，不能登记完工，请重新选择生产任务。'));
-    const other = f.store.saveProduct(productSchema.parse({ name: '虚构另一种纸箱' }));
+    const other = sales(f.store).createProduct(productSchema.parse({ name: '虚构另一种纸箱' }));
     const otherTask = f.draft('task', { productId: other.id, quantity: '100', unit: '只', orderIds: [] });
     assert.throws(
       () => production(otherTask.id),

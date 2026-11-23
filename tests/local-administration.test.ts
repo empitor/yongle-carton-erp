@@ -1,5 +1,6 @@
 // 本机管理员（在服务器本机登录的超级管理员）和数据管理：谁算本机管理员、数据管理直接改业务数据的规矩、
 // AI 工作区的管理服务。助手的数据管理命令在 assistant-management-tools.test.ts。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +33,7 @@ const jsonObject = z.record(z.string(), z.unknown());
 const body = async (r: Response) => jsonObject.parse(await r.json());
 /** 库里的订单：必须在 */
 function storedOrder(store: Store, id: number) {
-  const order = store.order(id);
+  const order = sales(store).order(id);
   assert.ok(order, '订单还在');
   return order;
 }
@@ -79,12 +80,12 @@ test('本机登录的最高管理员就是本机管理员，过了 15 分钟仍�
     const command = cmd('customers', 'create', [], { name: '虚构无需模式客户' });
     assert.equal((await s.req('/management/execute', command)).status, 200);
     assert.equal((await s.req('/management/execute', command)).status, 200, '同一请求重放');
-    assert.equal(s.store.customers().length, 1);
+    assert.equal(sales(s.store).customers().length, 1);
     // 初始化预览按范围列出各表要清的条数，只看不动
     const preview = await s.req('/management/reset-preview?scope=business');
     assert.equal(preview.status, 200);
     assert.equal(z.object({ tables: z.record(z.string(), z.number()) }).parse(await preview.json()).tables.customers, 1);
-    assert.equal(s.store.customers().length, 1);
+    assert.equal(sales(s.store).customers().length, 1);
   } finally {
     await s.close();
   }
@@ -96,7 +97,7 @@ test('本机管理员的数据管理请求也要页面凭证；带了代理头�
     const command = cmd('customers', 'create', [], { name: '虚构客户' });
     assert.equal((await s.req('/management/execute', command, { 'X-ERP-Auth-Token': '' })).status, 403);
     assert.equal((await s.req('/management/execute', command, { 'X-Forwarded-For': '127.0.0.1' })).status, 403);
-    assert.equal(s.store.customers().length, 0);
+    assert.equal(sales(s.store).customers().length, 0);
   } finally {
     await s.close();
   }
@@ -109,13 +110,13 @@ test('本机管理员能直接改已核对的订单，在页面上删除不用�
       order = storedOrder(s.store, f.order.id);
     const updated = await s.req('/orders/' + order.id, { ...orderSchema.parse(order), version: order.version, notes: '直接编辑已确认订单' }, {}, 'PUT');
     assert.equal(updated.status, 200);
-    assert.equal(s.store.order(order.id)?.notes, '直接编辑已确认订单');
-    const clean = s.store.saveCustomer(customerSchema.parse({ name: '虚构待删客户' }));
+    assert.equal(sales(s.store).order(order.id)?.notes, '直接编辑已确认订单');
+    const clean = sales(s.store).createCustomer(customerSchema.parse({ name: '虚构待删客户' }));
     const selection = { module: 'customers', items: [{ id: clean.id, version: clean.version }] };
     const preview = z.object({ digest: z.string() }).parse(await (await s.req('/deletions/preview', selection)).json());
     const r = await s.req('/deletions/execute', { ...selection, requestId: randomUUID(), deletionDigest: preview.digest });
     assert.equal(r.status, 200);
-    assert.equal(s.store.customer(clean.id, true), undefined);
+    assert.equal(sales(s.store).customer(clean.id, true), undefined);
   } finally {
     await s.close();
   }
@@ -212,7 +213,7 @@ test('本机管理员删订单（删除引擎）：连送货一起删，留下�
     const preview = f.service.preview(selection, f.who),
       command = { ...selection, requestId: randomUUID(), deletionDigest: preview.digest };
     f.service.delete(command, f.who, 's');
-    assert.equal(f.store.order(order.id, true), undefined);
+    assert.equal(sales(f.store).order(order.id, true), undefined);
     assert.equal(f.flow.list('delivery', true).length, 0);
     assert.equal(f.flow.list('production', true).length, 1);
     assert.equal(f.ops.balance(f.finished.id), 760000);
@@ -245,13 +246,13 @@ test('本机管理员删订单（删除引擎）：订单版本变了、看过�
     const fresh = maintenance.preview(selection(), f.who);
     f.store.db.exec("CREATE TRIGGER fictional_delete_failure BEFORE DELETE ON orders BEGIN SELECT RAISE(ABORT,'fixture abort'); END");
     assert.throws(() => remove(fresh.digest), /fixture abort/);
-    assert.ok(f.store.order(order.id, true));
+    assert.ok(sales(f.store).order(order.id, true));
     assert.equal(f.flow.list('delivery', true).length, 1);
     assert.equal(f.ops.balance(f.finished.id), 760000);
     assert.deepEqual(f.store.db.prepare('PRAGMA foreign_key_check').all(), []);
     f.store.db.exec('DROP TRIGGER fictional_delete_failure');
     remove(maintenance.preview(selection(), f.who).digest);
-    assert.equal(f.store.order(order.id, true), undefined);
+    assert.equal(sales(f.store).order(order.id, true), undefined);
   } finally {
     f.store.close();
   }
@@ -261,8 +262,8 @@ test('订单只关联了生产任务时，数据管理能改客户、规格、�
   const f = fixture();
   try {
     f.task();
-    const another = f.store.saveCustomer(customerSchema.parse({ name: '虚构更正客户' })),
-      otherProduct = f.store.saveProduct(productSchema.parse({ name: '虚构新增产品' }));
+    const another = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构更正客户' })),
+      otherProduct = sales(f.store).createProduct(productSchema.parse({ name: '虚构新增产品' }));
     const order = storedOrder(f.store, f.order.id);
     const input = {
       customerId: another.id,

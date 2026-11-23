@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import type { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { AppError, isLocalAdministrator } from '../../core/index.js';
@@ -96,10 +97,10 @@ function plan(flow: FlowCommands, original: FlowDocView<'delivery'>, stored: Flo
   });
   // 抄下来的快照引用没变的留着原单出库时的（品名、规格、单价、税率、材质楞型、尺寸，金额按新数量乘出库时的单价重算）；
   // 换挂、新加的行按那条订单明细、产品现在的取
-  const document = keepSnapshot(stored, { ...checked.document, customerName: flow.store.customer(checked.document.customerId, true)?.name }),
+  const document = keepSnapshot(stored, { ...checked.document, customerName: sales(flow.store).customer(checked.document.customerId, true)?.name }),
     lines = document.lines;
   const orders = new Map(
-    flow.store.ordersByIds([...new Set([...stored.lines, ...lines].map((l) => l.orderId))], true).map((o) => [o.id, o]),
+    sales(flow.store).ordersByIds([...new Set([...stored.lines, ...lines].map((l) => l.orderId))], true).map((o) => [o.id, o]),
   );
   checkLinkedOrders(flow, stored, lines, orders, head);
   const warnings = [

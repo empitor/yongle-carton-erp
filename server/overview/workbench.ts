@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { count, many, type Store } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
@@ -309,7 +310,7 @@ function daySchedule({ store, dueArrivals, tasks, deliveryRecords, date }: Sched
       .filter((t) => (t.plannedDate || t.date) === date && t.status === 'confirmed' && t.progress < 100)
       .map((t) => ({
         id: t.id,
-        label: (store.product(t.productId, true)?.name || t.number) + ' ' + t.quantity + ' ' + t.unit,
+        label: (sales(store).product(t.productId, true)?.name || t.number) + ' ' + t.quantity + ' ' + t.unit,
       })),
     deliveries: deliveryRecords
       .filter((d) => !d.cancelled && (d.plannedDate === date || d.actualDate === date))

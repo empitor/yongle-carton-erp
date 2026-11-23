@@ -25,7 +25,7 @@ const notInTemplate: Partial<Record<Gap, string>> = {
   'purchases:lines.id': '明细编号：保存时分配，新建的明细没有编号',
   'products:dimensionUnitRaw': '原文尺寸单位：识别导入时记下原件上看不懂的单位写法，手工新建没有原件',
   'orders:lines.productName':
-    '本单名称：不填就按产品档案的名称存（server/core/orders.ts 的 lineName），放一个空格子进来会被“至少一个字”拦下；要另起名字的保存后再编辑',
+    '本单名称：不填就按产品档案的名称存（server/sales/orders.ts 的 lineName），放一个空格子进来会被“至少一个字”拦下；要另起名字的保存后再编辑',
   'arrival:orderBatchId': '订货单：只在按订货单登记到货时由系统记下，手工新建没有',
   'delivery:actualTime': '实际送货时间：新建的送货单是待送货，出库时才有',
 };

@@ -1,5 +1,6 @@
 // 库存品（server/operations/stock-items.ts、product-stock.ts、ledger.ts）：用过的不能改种类和关联产品，成品跟着产品，0 数量不记流水。
 // 内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,7 +31,7 @@ function fixture() {
     return f.flow.stock.saveItem({ name: now.name, kind: now.kind, unit: now.unit, productId: now.productId, version: now.version, ...patch }, f.actor, id);
   };
   const productRow = (id: number): Product => {
-    const found = f.store.product(id, true);
+    const found = sales(f.store).product(id, true);
     assert.ok(found);
     return found;
   };
@@ -58,7 +59,7 @@ test('已有出入库记录或被单据、采购明细引用的库存品不能�
     // 没用过的库存品：种类还能改，单位跟着种类
     const spare = f.ops.saveItem({ name: '虚构备用', kind: 'raw', unit: '张' }, f.actor);
     // 改成成品要挂一个还没有成品库存的产品（一个产品只有一个成品库存）
-    const spareProduct = f.store.saveProduct(productSchema.parse({ name: '虚构备用纸箱' }));
+    const spareProduct = sales(f.store).createProduct(productSchema.parse({ name: '虚构备用纸箱' }));
 
     const turned = change(spare.id, { kind: 'finished', unit: '只', productId: spareProduct.id });
     assert.deepEqual([turned.kind, turned.unit], ['finished', '只']);
@@ -148,10 +149,10 @@ test('成品已有出入库记录或被单据引用时不能改关联的产品�
   const f = fixture();
   try {
     const { item, change } = f;
-    const other = f.store.saveProduct(productSchema.parse({ name: '虚构另一种纸箱' }));
+    const other = sales(f.store).createProduct(productSchema.parse({ name: '虚构另一种纸箱' }));
 
     // 从没用过的成品：关联的产品照旧能改（改成的产品还没有成品库存），名称跟着新产品
-    const third = f.store.saveProduct(productSchema.parse({ name: '虚构第三种纸箱' }));
+    const third = sales(f.store).createProduct(productSchema.parse({ name: '虚构第三种纸箱' }));
     const spare = f.ops.saveItem({ name: '虚构备用成品', kind: 'finished', unit: '只', productId: third.id }, f.actor);
     const moved = change(spare.id, { productId: other.id });
     assert.deepEqual([moved.productId, moved.name], [other.id, '虚构另一种纸箱']);
@@ -179,9 +180,9 @@ test('成品已有出入库记录或被单据引用时不能改关联的产品�
     assert.deepEqual(snapshot(), before);
 
     // 没有流水、只被待送货的送货单引用的成品：同样拒绝（另一个产品、另一张订单，一个产品只有一个成品库存）
-    const shipped = f.store.saveProduct(productSchema.parse({ name: '虚构待送货纸箱' })),
-      free = f.store.saveProduct(productSchema.parse({ name: '虚构空着的纸箱' }));
-    const shipOrder = f.store.saveOrder(
+    const shipped = sales(f.store).createProduct(productSchema.parse({ name: '虚构待送货纸箱' })),
+      free = sales(f.store).createProduct(productSchema.parse({ name: '虚构空着的纸箱' }));
+    const shipOrder = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-10-01',
@@ -275,7 +276,7 @@ test('数量是 0 的出入库不记流水：写入前先拦住并说清原因�
 test('成品的名称、尺寸、材质、楞型、规格说明按产品；产品改了这几项（含加工要求），成品库存在同一事务里跟着改（版本加一、写审计），备注不动', () => {
   const f = fixture();
   try {
-    const box = f.store.saveProduct(
+    const box = sales(f.store).createProduct(
       productSchema.parse({ name: '虚构彩箱', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=K', flute: 'BE' }),
     );
     // 传进来的名称、尺寸、材质、楞型都不算数，按产品填；规格说明、备注是库存品自己的
@@ -352,13 +353,13 @@ test('成品的名称、尺寸、材质、楞型、规格说明按产品；产�
 test('产品改了尺寸，成品库存的规格说明跟着改；按新规格下的订单照常排送货，老订单明细还写着旧规格的被拦下，提示去核对这张订单', () => {
   const f = fixture();
   try {
-    const box = f.store.saveProduct(
+    const box = sales(f.store).createProduct(
       productSchema.parse({ name: '虚构规格箱', length: 300, width: 200, height: 150, dimensionUnit: 'mm', material: 'K=A', flute: 'B' }),
     );
     const stock = f.ops.saveItem({ name: '随便写', kind: 'finished', unit: '只', productId: box.id, specification: '随便写的规格' }, f.actor);
     assert.equal(stock.specification, '300 × 200 × 150 mm / K=A / B');
     const orderFor = (spec: string) =>
-      f.store.saveOrder(
+      sales(f.store).saveOrder(
         orderSchema.parse({
           customerId: f.customer.id,
           orderDate: '2026-10-01',

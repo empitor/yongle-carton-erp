@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { RAW_UNIT, rawUnit, rawUnitMessage, quantityUnits, quantityString } from '../../../shared/core/index.js';
@@ -117,7 +118,7 @@ export class PurchaseWriter {
       throw new AppError('供应商已归档，请先恢复或另选供应商。');
     if (
       v.customerOrderId &&
-      !this.store.order(
+      !sales(this.store).order(
         v.customerOrderId,
         isSuperMode(actor) || before?.customerOrderId === v.customerOrderId,
       )
@@ -126,7 +127,7 @@ export class PurchaseWriter {
     // 明细各自关联的订单（一张采购单给几张订单订料）：每张都要存在
     for (const orderId of new Set(v.lines.flatMap((l) => (l.customerOrderId ? [l.customerOrderId] : []))))
       if (
-        !this.store.order(
+        !sales(this.store).order(
           orderId,
           isSuperMode(actor) || !!before?.lines.some((old) => old.customerOrderId === orderId),
         )

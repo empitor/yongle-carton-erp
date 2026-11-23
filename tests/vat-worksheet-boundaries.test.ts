@@ -1,5 +1,6 @@
 // 税务底稿的边界：进项转出加到应纳、期初留抵从启用月起滚、小规模按销项票不含税额乘征收率、税率写法、没财务权限不能看。
 // 全部虚构数据，内存库；只用非负金额（负数四舍五入另有测试）。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Store } from '../server/core/db.js';
@@ -56,7 +57,7 @@ test('小规模纳税人：应纳按本月已确认销项票的不含税额乘�
       requestId: 'rates',
       taxRates: { smallVat: 300, urban: 700, education: 0, localEducation: 0, income: 0 },
     });
-    s.saveCustomer(customerSchema.parse({ name: '虚构客户' }));
+    sales(s).createCustomer(customerSchema.parse({ name: '虚构客户' }));
     const invoice = new FinanceInvoices(s).create(maker, bill('sale', 'XN-0001', { date: '2026-01-15', gross: 10000 }));
     // 只要一张已确认的销项票（确认流程另有测试），直接标成已确认
     s.db.prepare("UPDATE fin_invoices SET status='normal' WHERE id=?").run(invoice.id);

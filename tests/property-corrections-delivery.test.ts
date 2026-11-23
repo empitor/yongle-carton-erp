@@ -3,6 +3,7 @@
 // 有效送货之和、订单状态由有效送货派生；会出负库存、超订单、没改、重复明细、挂到已发完订单的被拒（且只因为这些），
 // 被拒库里不变；预览和执行一致、防重复、旧版本被拒（property-corrections-fixture.ts）；原样留下的行沿用出库时的
 // 材质楞型，新加、换挂的行按产品现在的。改成别的样子再改回原样，一切回到第一次更正之前。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -145,7 +146,7 @@ function expectedRefusals(f: Setup, d: Delivery, lines: Line[], balances: Map<nu
     now = contribution(next),
     shipped = shippedNow(f),
     oldLines = new Set(d.lines.map((l) => l.orderLineId));
-  const closed = (orderLineId: number) => f.store.order(slotOf(f, orderLineId).orderId, true)?.status === '已发货';
+  const closed = (orderLineId: number) => sales(f.store).order(slotOf(f, orderLineId).orderId, true)?.status === '已发货';
   return {
     库存不足: [...new Set([...was.stock.keys(), ...now.stock.keys()])].some((k) => (balances.get(k) ?? 0) + (now.stock.get(k) ?? 0) - (was.stock.get(k) ?? 0) < 0),
     超过订单剩余数量: [...now.sent].some(([k, n]) => n > (was.sent.get(k) ?? 0) && (shipped.get(k) ?? 0) - (was.sent.get(k) ?? 0) + n > ORDERED),
@@ -165,7 +166,7 @@ function assertDerived(f: Setup) {
   for (const o of f.orders) {
     const sent = o.lines.map((l) => all.sent.get(l.id ?? 0) ?? 0);
     const status = sent.every((n) => n >= ORDERED) ? '已发货' : sent.some((n) => n > 0) ? '待发货' : '已确认';
-    assert.equal(f.store.order(o.id, true)?.status, status, '订单状态由有效送货派生');
+    assert.equal(sales(f.store).order(o.id, true)?.status, status, '订单状态由有效送货派生');
   }
 }
 
@@ -196,7 +197,7 @@ function correctOnce(f: Setup, d: Delivery, c: { lines: Line[]; who: Actor }) {
 function remat(f: Setup, product: number, m: number) {
   f.current[product] = { ...f.current[product], ...MATERIALS[m] };
   const id = f.products[product].id,
-    version = f.store.product(id)?.version ?? assert.fail('测试数据：没有产品 ' + id);
+    version = sales(f.store).product(id)?.version ?? assert.fail('测试数据：没有产品 ' + id);
   manualWrite(f.store, { entity: 'products', action: 'update', id, input: { ...f.current[product], version } }, null);
 }
 
@@ -251,7 +252,7 @@ test('送货：改成别的样子（数量、删行、加行、换挂）再改�
       const f = setup(ships);
       try {
         const a = f.flow.get(effectiveIds(f.store, 'delivery')[0], 'delivery');
-        const state = () => ({ balances: [...assertLedger(f.store, f.ops)], shipped: [...shippedNow(f)], status: f.orders.map((o) => f.store.order(o.id, true)?.status) });
+        const state = () => ({ balances: [...assertLedger(f.store, f.ops)], shipped: [...shippedNow(f)], status: f.orders.map((o) => sales(f.store).order(o.id, true)?.status) });
         const before = state();
         const lines = edits.reduce((now, op) => correctionOf(f, op, now, a)?.lines ?? now, keptLines(a));
         const b = attemptCorrection(f.store, f.ops, { id: a.id, input: { expectedVersion: a.version, reason: '虚构改成 B', lines }, who: localAdmin(), refusable: REFUSABLE });

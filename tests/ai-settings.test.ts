@@ -1,4 +1,5 @@
 // AI 设置（server/ai/settings-manager.ts）：一把加密保存的密钥、保存并测试、并发数、存储出错时不降级、HTTP 设置接口和账号权限。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -182,7 +183,7 @@ test('HTTP 设置接口：要 CSRF、密钥不回显、删除要确认；业务�
     assert.equal(settingsAnswer.parse(await removed.json()).hasKey, false);
     const later = settingsAnswer.parse(await (await post('/key/save', { apiKey: fakeKey, expectedRevision: saved.revision + 2 })).json());
     assert.equal(later.check.state, 'saved');
-    assert.deepEqual([store.customers().length, store.products().length, store.orders().length], [0, 0, 0]);
+    assert.deepEqual([sales(store).customers().length, sales(store).products().length, sales(store).orders().length], [0, 0, 0]);
   } finally {
     await server.close();
     m.close();

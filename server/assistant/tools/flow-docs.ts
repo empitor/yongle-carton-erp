@@ -1,5 +1,6 @@
 // 助手工具：单据流转（仓库日台账、成品批次、计划日期、改已生效单据的说明、确认送达、出入库、取消、核对、冲销、批量完工）的定义、
 // 只读工具和确认后的执行。生成方案在 flow-doc-plans.ts；改数量的更正在 corrections.ts。
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { assistantProductionCompletionSchema, dailyQuerySchema } from '../../../shared/business/index.js';
@@ -117,7 +118,7 @@ export const flowDocTools = [
         tasks: ctx.flow.list('task'),
         productions: ctx.flow.list('production'),
         items: ctx.flow.views.items(),
-        products: ctx.store.products(),
+        products: sales(ctx.store).products(),
       }),
     },
   ),

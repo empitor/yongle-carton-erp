@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import type { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import { AppError, isLocalAdministrator, requireSuperModeFor } from '../../core/index.js';
@@ -148,9 +149,9 @@ function plan(flow: FlowCommands, original: FlowDocView<'production'>, stored: S
   const checked = validateFlow(flow, document, actor, false, { excludingId: original.id, maintenance: true });
   checkNewLinks(flow, stored, document, head.taskId);
   const taskImpact = taskImpactOf(flow, stored, head.taskId, good);
-  const productName = (id: number) => flow.store.product(id, true)?.name ?? '';
+  const productName = (id: number) => sales(flow.store).product(id, true)?.name ?? '';
   // 产品名快照：产品没换的留着原单的，换了按新产品取
-  const replacement = keepSnapshot(stored, { ...document, productName: flow.store.product(document.productId, true)?.name });
+  const replacement = keepSnapshot(stored, { ...document, productName: sales(flow.store).product(document.productId, true)?.name });
   const view: View = {
     original,
     unit: FINISHED_UNIT,

@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import type { Store } from '../core/index.js';
 import { OperationsService } from '../operations/index.js';
 import { FlowService } from '../flow/index.js';
@@ -21,9 +22,9 @@ export type BusinessRecordOf = {
 const readers: {
   [E in RecordEntity]: (store: Store, includeArchived: boolean, ids?: readonly number[]) => BusinessRecordOf[E][];
 } = {
-  customers: (store, include, ids) => store.customers(include, ids),
-  products: (store, include, ids) => store.products(include, ids),
-  orders: (store, include, ids) => (ids ? store.ordersByIds(ids, include) : store.orders(include)),
+  customers: (store, include, ids) => sales(store).customers(include, ids),
+  products: (store, include, ids) => sales(store).products(include, ids),
+  orders: (store, include, ids) => (ids ? sales(store).ordersByIds(ids, include) : sales(store).orders(include)),
   suppliers: (store, include, ids) => new OperationsService(store).suppliers(include, ids),
   purchases: (store, include, ids) => new FlowService(store).views.purchases(include, ids),
   stock_items: (store, include, ids) => new FlowService(store).views.items(include, ids),

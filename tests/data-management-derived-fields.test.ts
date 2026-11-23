@@ -1,6 +1,7 @@
 // 数据管理保存时读出来才有的栏目（已发数量、金额、单号这类系统算出来的）：照读到的记录原样带回来不算错，
 // 改了值、或带了记录里根本没有的栏目才拦，报错一律中文（server/admin/input-fields.ts、field-rejection.ts）。
 // 助手 records.get 读到的订单、采购单是业务总览的记录，单据是单据视图（明细和数据管理列表的 record 同一份），这里用后者代替。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { inputSchemas, type ManagedModule } from '../server/admin/managed-records.js';
@@ -29,7 +30,7 @@ test('助手照读到的记录原样带回明细、只改一格能存：订单�
   const f = fixture();
   try {
     resend(f, 'orders', f.order.id, 900);
-    assert.equal(f.store.order(f.order.id, true)?.lines[0].quantity, 900);
+    assert.equal(sales(f.store).order(f.order.id, true)?.lines[0].quantity, 900);
     resend(f, 'purchases', f.purchase.id, '900');
     assert.equal(f.flow.views.purchases(true, [f.purchase.id])[0].lines[0].quantity, '900');
     const arrival = f.flow.save(
@@ -39,7 +40,7 @@ test('助手照读到的记录原样带回明细、只改一格能存：订单�
     );
     resend(f, 'arrival', arrival.id, '20');
     assert.equal(f.flow.get(arrival.id, 'arrival').lines[0].quantity, '20');
-    const orderLine = f.store.order(f.order.id, true)?.lines[0];
+    const orderLine = sales(f.store).order(f.order.id, true)?.lines[0];
     assert.ok(orderLine);
     const delivery = f.flow.save(
       'delivery',
@@ -62,7 +63,7 @@ test('改了读出来才有的栏目：拒收，用中文说是哪一格，订�
       () => f.dataManagement.execute(command('orders', 'update', [r], { lines, totalCents: 1 }), f.who, 's', 'management-assistant'),
       (e: unknown) => e instanceof Error && /明细第1项的已发数量：是系统算出来的/.test(e.message) && /订单金额/.test(e.message) && !NO_LATIN.test(e.message),
     );
-    assert.equal(f.store.order(f.order.id, true)?.version, r.version, '订单没改');
+    assert.equal(sales(f.store).order(f.order.id, true)?.version, r.version, '订单没改');
   } finally {
     f.store.close();
   }

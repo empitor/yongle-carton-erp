@@ -1,4 +1,5 @@
 // 删除影响清单给人看的样子：每种表的叫法、顶部汇总、库存说明、确认窗口的标题和按钮、订货单怎么列。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
@@ -118,7 +119,7 @@ function orderRows() {
       actor,
     );
     // 安排的任务已下达，订单的生产状态跟着变了（版本号加一），按现在的版本删
-    const plan = previewPreserve(o.store, 'orders', [{ id: o.target.id, version: must(o.store.order(o.target.id, true), '订单').version }]);
+    const plan = previewPreserve(o.store, 'orders', [{ id: o.target.id, version: must(sales(o.store).order(o.target.id, true), '订单').version }]);
     assert.deepEqual(byTable(plan, 'import_executions').map((r) => r.name), [o.target.number]);
     const detached = byTable(plan, 'flow_documents').find((r) => r.id === task.id);
     assert.deepEqual(detached?.fields, ['order_id']);
@@ -252,7 +253,7 @@ test('删除影响清单（库存品、产品、待送货的送货单）：库�
   // 删产品：连带的成品库存叫“成品库存”，现在还有的 100 只写进库存说明；删完的提示说清连带几条
   f = listingFixture();
   try {
-    const product = must(f.store.product(f.product.id, true), '产品');
+    const product = must(sales(f.store).product(f.product.id, true), '产品');
     const plan = preview(f, 'products', product);
     const view = deletionImpactView(plan);
     assert.ok(view.deleted.some((r) => r.kind === '成品库存'), JSON.stringify(view.deleted));

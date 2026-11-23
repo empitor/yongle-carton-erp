@@ -1,4 +1,5 @@
 // 业务服务（server/orders/service.ts）只收人工来源和带确认凭据的助手来源：没有凭据的助手来源直接写客户、产品、订单一律拒绝，伪造人工来源也不行。内存库。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
@@ -31,9 +32,9 @@ test('助手来源没有确认凭据时业务服务拒绝写入，模型伪造�
         BusinessAccessError,
       );
     }
-    assert.equal(store.customers().length, 0);
-    assert.equal(store.products().length, 0);
-    assert.equal(store.orders().length, 0);
+    assert.equal(sales(store).customers().length, 0);
+    assert.equal(sales(store).products().length, 0);
+    assert.equal(sales(store).orders().length, 0);
     business.execute(
       {
         entity: 'customers',
@@ -42,7 +43,7 @@ test('助手来源没有确认凭据时业务服务拒绝写入，模型伪造�
       },
       { source: 'manual-ui', operatorId: null },
     );
-    assert.equal(store.customers().length, 1);
+    assert.equal(sales(store).customers().length, 1);
   } finally {
     store.close();
   }

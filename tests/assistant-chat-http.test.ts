@@ -1,5 +1,6 @@
 // 助手会话本身：重开库后会话和提示词还在、当前记录从服务器读、写入只出卡片且只在本登录会话点得了、
 // 清空会话作废没点的卡片、自定义提示词真的发出去；经接口聊天和点卡片。虚构数据，不发真实请求。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -44,7 +45,7 @@ test('重开业务库和提示词库：会话、改过的提示词都在，档�
     assert.equal(f.manager.view(thread.id, actor).messages.length, 2);
     assert.throws(() => f.manager.view(thread.id, { ...actor, id: 'other-user' }));
     assert.equal(files.prompts.view().presets[0].name, '独立全局持久预设');
-    assert.deepEqual(files.store.customer(customer.id), customer);
+    assert.deepEqual(sales(files.store).customer(customer.id), customer);
   } finally {
     f.close();
     files.prompts.close();
@@ -76,7 +77,7 @@ test('改当前记录：确认写入后给页面发业务刷新事件', async ()
     const order = base.order(customer, [base.line(product, 100, { productName: product.name })], { orderDate: '2026-10-25', deliveryDate: '2026-10-30' });
     f.replies.push(call('records.propose_save', { module: 'orders', id: order.id, patch: { deliveryDate: '2027-01-02' } }));
     await f.say(f.manager.create(actor).id, '把当前订单交期改为2027-01-02', { context: { page: '#orders', module: 'orders', id: order.id } });
-    assert.equal(f.store.order(order.id)?.deliveryDate, '2027-01-02');
+    assert.equal(sales(f.store).order(order.id)?.deliveryDate, '2027-01-02');
     assert(f.events.some(([e, d]) => e === 'effect' && d.type === 'business'));
   } finally {
     f.close();
@@ -90,7 +91,7 @@ test('写入只出卡片：没点不写；别的登录会话点不了；点了�
     f.replies.push(call('records.propose_save', { module: 'products', id: p.id, patch: { requirements: '人工确认后更新' } }));
     const plan = lastCard(await f.say(f.manager.create(actor).id, '修改这个产品的加工要求'));
     assert.equal(plan.state, 'waiting');
-    assert.equal(f.store.product(p.id)?.requirements, '旧备注');
+    assert.equal(sales(f.store).product(p.id)?.requirements, '旧备注');
     assert.equal(audits(f), 0);
     assert.throws(() => f.manager.execute(plan.id, { acknowledged: true }, actor, 'another'), /登录会话/);
     const result = f.manager.execute(plan.id, { acknowledged: true }, actor, 's');
@@ -117,7 +118,7 @@ test('清空会话：没点的卡片作废，再点不执行', async () => {
     f.manager.clear(t.id, actor);
     assert.equal(f.manager.view(t.id, actor).messages.length, 0);
     assert.throws(() => f.manager.execute(plan.id, { acknowledged: true }, actor, 's'), /作废/);
-    assert.equal(f.store.product(p.id)?.requirements, '');
+    assert.equal(sales(f.store).product(p.id)?.requirements, '');
   } finally {
     f.close();
   }
@@ -156,9 +157,9 @@ test('经接口聊天和点卡片：未登录 401、没页面凭证 403；高风
     assert.match(wire, /event: result/);
     assert(!wire.includes(secret));
     const plan = await lastPlan();
-    assert.equal(f.store.customers().length, 0);
+    assert.equal(sales(f.store).customers().length, 0);
     assert.equal((await req('/assistant/previews/' + plan.id + '/execute', { acknowledged: true })).status, 200);
-    assert.equal(f.store.customers().at(0)?.name, '待审核客户');
+    assert.equal(sales(f.store).customers().at(0)?.name, '待审核客户');
     await req('/auth/super-admin/enter', { password });
     const base = businessBase(actor, f.store),
       { ops } = base,

@@ -1,5 +1,6 @@
 // 识别导入路由（server/import/router.ts）：上传异常与编码回退、文件内联/下载、状态读写、业务预览与导入执行入口。
 // 内存库、临时目录、虚构数据、假模型。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
@@ -233,7 +234,7 @@ test('识别结果的备注可以编辑，撤销后恢复原备注', async (t) =
 test('匹配路由返回档案候选和每条识别明细对应的产品候选', async (t) => {
   const { ctx, s, current, path } = await businessWorkspace(t);
   assert.ok(ctx.store);
-  const customer = ctx.store.saveCustomer({ name: '虚构客户', contact: '', phone: '', address: '', notes: '' });
+  const customer = sales(ctx.store).createCustomer({ name: '虚构客户', contact: '', phone: '', address: '', notes: '' });
   const matches = await s.get(path + '/matches');
   assert.equal(matches.status, 200);
   const reply = z.object({
@@ -295,7 +296,7 @@ test('按预览正式导入后，回执对应新订单和原识别文件', async
   assert.equal(receipt.sourceId, current.id);
   assert.equal(receipt.digest, previewDigest);
   assert.ok(ctx.store);
-  const order = ctx.store.order(receipt.orderId);
+  const order = sales(ctx.store).order(receipt.orderId);
   assert.ok(order);
   assert.equal(order.number, receipt.orderNumber);
   assert.equal(order.externalPurchaseOrder, 'TEST-01');

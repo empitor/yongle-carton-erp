@@ -2,8 +2,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { applyCreationPragmas } from './pragmas.js';
 import { upgradeSteps, type UpgradeStep } from './steps.js';
 import { assistantTables } from './tables/assistant.js';
-import { baseTables } from './tables/base.js';
-import { businessTables } from './tables/business.js';
+import { baseTables, migrationTable } from './tables/base.js';
+import { marksTables, salesTables } from './tables/sales.js';
 import { documentsTables } from './tables/documents.js';
 import { financeCostTables } from './tables/finance-costs.js';
 import { financeDealingTables } from './tables/finance-dealings.js';
@@ -15,15 +15,17 @@ import { operationsTables } from './tables/operations.js';
 import { SCHEMA_BASELINE, SCHEMA_BASELINE_NAME } from './version.js';
 
 /**
- * 当前完整结构的建表语句，按表的主人分组（和 tests/module-table-owners.test.ts 的 tableOwnerList 对应），按这个先后建。
+ * 当前完整结构的建表语句，各分组按此顺序执行。档案和唛头分段，保持表与索引的创建顺序。
  * scripts/schema-dump.ts 也按这个分组生成行结构（server/core/schema/rows/）。
  */
 export const schemaTableGroups = {
+  migration: migrationTable,
+  sales: salesTables,
   base: baseTables,
   operations: operationsTables,
   flow: flowTables,
   documents: documentsTables,
-  business: businessTables,
+  marks: marksTables,
   import: importTables,
   financeLedger: financeLedgerTables,
   financeDealings: financeDealingTables,

@@ -1,5 +1,6 @@
 // 成品库存按“每次完工”分批（server/flow/stock/stock-batches.ts、shared/business/stock-batches.ts）：批次怎么算、估计还剩多少、批量取数。
 // 批次备注、批次接口在 document-info.test.ts。数据全是虚构的，库在内存里。
+import { sales } from '../server/sales/index.js';
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -377,7 +378,7 @@ test('拆分送货单（出库改挂到新单）以后撤销其中一张：只�
   // 订单 A 换客户：送货单拆成两张，订单 A 那笔出库改挂到新单
   const who = localAdmin();
   const other = f.base.customer({ name: '虚构换来的客户' });
-  const current = f.store.order(f.orderA.id);
+  const current = sales(f.store).order(f.orderA.id);
   assert.ok(current);
   createBusinessService(f.store).execute(
     { entity: 'orders', action: 'update', id: current.id, input: { ...current, customerId: other.id } },

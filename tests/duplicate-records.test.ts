@@ -1,10 +1,11 @@
-// 新建客户、产品前的查重只有一套（server/core/duplicate-records.ts，名字键在 shared/core/name-keys.ts）：
+// 新建客户、产品前的查重只有一套（server/sales/duplicate-records.ts，名字键在 shared/core/name-keys.ts）：
 // 人工新建、识别导入、助手都用它。只用 :memory: 库和虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
 import { AppError } from '../server/core/errors.js';
-import { assertNewProductAllowed, duplicateCustomers, productDuplicates, type ProductLike } from '../server/core/duplicate-records.js';
+import { assertNewProductAllowed, duplicateCustomers, productDuplicates, type ProductLike } from '../server/sales/duplicate-records.js';
 import { importPlan } from '../server/import/import-plan.js';
 import { duplicateKey, looseKey, nameKey } from '../shared/core/name-keys.js';
 import { customerSchema, productSchema } from '../shared/core/domain.js';
@@ -24,8 +25,8 @@ test('名字键三档：宽松只去空白和大小写，名字键再统一全�
 test('客户查重：分隔符、全角、大小写、末尾标点都不算区别；已归档的也查；空名字不查', () => {
   const store = new Store(':memory:');
   try {
-    const a = store.saveCustomer(customerSchema.parse({ name: '虚构贸易（甲）' })),
-      b = store.saveCustomer(customerSchema.parse({ name: 'Fictional Trade Co.' }));
+    const a = sales(store).createCustomer(customerSchema.parse({ name: '虚构贸易（甲）' })),
+      b = sales(store).createCustomer(customerSchema.parse({ name: 'Fictional Trade Co.' }));
     store.markArchived('customers', b.id, 'fixture');
     assert.deepEqual(duplicateCustomers(store, '虚构贸易-甲').map((r) => r.id), [a.id]);
     assert.deepEqual(duplicateCustomers(store, 'fictional trade co').map((r) => [r.id, r.archived]), [[b.id, true]]);
@@ -41,9 +42,9 @@ const box = { length: 300, width: 200, height: 150, dimensionUnit: 'mm' as const
 test('产品查重三条：料号相同一律拦；同名同尺寸材质拦；同名不同尺寸材质（或没写全）确认是另一个产品才建；都含已归档', () => {
   const store = new Store(':memory:');
   try {
-    const coded = store.saveProduct(productSchema.parse({ name: '虚构料号箱', customerProductCode: 'XG-001' })),
-      full = store.saveProduct(productSchema.parse({ name: '虚构纸箱 甲', ...box })),
-      bare = store.saveProduct(productSchema.parse({ name: '虚构纸箱甲' }));
+    const coded = sales(store).createProduct(productSchema.parse({ name: '虚构料号箱', customerProductCode: 'XG-001' })),
+      full = sales(store).createProduct(productSchema.parse({ name: '虚构纸箱 甲', ...box })),
+      bare = sales(store).createProduct(productSchema.parse({ name: '虚构纸箱甲' }));
     store.markArchived('products', full.id, 'fixture');
     const ids = (input: ProductLike) => {
       const r = productDuplicates(store, input);

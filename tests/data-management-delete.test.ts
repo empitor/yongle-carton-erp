@@ -1,6 +1,7 @@
 // 数据管理的删除只有一条路：数据管理命令（/management/execute）只办改、归档、恢复、确认、撤销、取消，不收删除；
 // 数据管理页删业务记录打开的是业务页面同一个删除窗（src/recordkit/DatabaseDeleteDialog.tsx，发 /deletions/execute）。
 // 删除本身的权限、版本、防重复、审计、快照由删除引擎的测试守着（delete-permissions、snapshots、local-administration）。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement as h } from 'react';
@@ -18,13 +19,13 @@ const noop = () => {};
 test('数据管理命令收到删除：说一句中文“删除请用删除功能”，记录还在、不留删除审计', () => {
   const f = basics();
   try {
-    const row = f.store.order(f.order.id, true);
+    const row = sales(f.store).order(f.order.id, true);
     assert.ok(row);
     assert.throws(
       () => f.service.execute({ ...command('orders', 'delete', [row]), entry: AUDIT_SOURCE.dataManagement }, f.who, 's'),
       (e: unknown) => e instanceof AppError && e.status === 400 && /删除请用删除功能/.test(e.message) && !/[A-Za-z]/.test(e.message),
     );
-    assert.ok(f.store.order(row.id, true), '订单还在');
+    assert.ok(sales(f.store).order(row.id, true), '订单还在');
     assert.equal(count(f.store.db, "SELECT COUNT(*) FROM business_audit WHERE action='delete'"), 0);
   } finally {
     f.store.close();

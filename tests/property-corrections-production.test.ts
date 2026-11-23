@@ -3,6 +3,7 @@
 // 每一步之后：库存守恒、任务已入库等于有效完工之和、订单状态由有效单据派生；会出负库存、全是 0、没改的被拒
 // （且只因为这些），被拒库里不变；预览和执行一致、防重复、旧版本被拒（property-corrections-fixture.ts）。
 // 改成别的样子再改回原样，一切回到第一次更正之前。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -27,7 +28,7 @@ type Done = [number, number, number];
 function setup(done: Done[]) {
   const f = businessFixture(),
     actor = f.actor;
-  const other = f.store.saveProduct(productSchema.parse({ name: '虚构纸箱乙' }));
+  const other = sales(f.store).createProduct(productSchema.parse({ name: '虚构纸箱乙' }));
   const otherStock = f.ops.saveItem({ name: '虚构成品乙', kind: 'finished', unit: '只', productId: other.id }, actor);
   const opening = (id: number) => {
     const it = f.ops.items(true, id)[0];
@@ -155,7 +156,7 @@ function assertDerived(f: Setup) {
   }
   for (const t of f.tasks) assert.equal(units(f.flow.get(t.id, 'task').completed), completed.get(t.id) ?? 0, '任务的已入库');
   const made = (completed.get(f.tasks[0].id) ?? 0) + (completed.get(f.tasks[1].id) ?? 0);
-  assert.equal(f.store.order(f.order.id, true)?.status, made >= ORDERED ? '待发货' : '生产中', '订单状态由有效完工派生');
+  assert.equal(sales(f.store).order(f.order.id, true)?.status, made >= ORDERED ? '待发货' : '生产中', '订单状态由有效完工派生');
 }
 
 /** 改一次完工：拒绝只因为该拒的原因；办成了任务影响的前后和真的一样 */
@@ -233,7 +234,7 @@ test('完工：改成别的样子（合格数、领料、换纸板、换挂任�
         const state = () => ({
           balances: [...assertLedger(f.store, f.ops)],
           completed: f.tasks.map((t) => f.flow.get(t.id, 'task').completed),
-          status: f.store.order(f.order.id, true)?.status,
+          status: sales(f.store).order(f.order.id, true)?.status,
         });
         const before = state();
         const input = edits.reduce<Input>((now, op) => correctionOf(f, op, now, a) ?? now, {});

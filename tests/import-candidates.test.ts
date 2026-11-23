@@ -1,5 +1,6 @@
 // 客户、产品候选和选择失效的规则（shared/import/import-matching.ts、客户对应、同一批里的同一产品）：哪些直接对应已有档案，
 // 哪些要人选或确认，哪些不拦新建；不走识别流程。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -56,19 +57,19 @@ const knownLine = (d: OrderDraft) => {
 test('客户完全一致或只差排版唯一解析，同名及唯一相似均只返回候选，不新建或合并；已归档的单独说', () => {
   const store = new Store(':memory:');
   try {
-    const c = store.saveCustomer(
+    const c = sales(store).createCustomer(
       customerSchema.parse({ name: '虚构精确客户有限公司', contact: '张甲' }),
     );
     assert.equal(resolveImportCustomer(store, c.name).customer?.id, c.id);
     assert.equal(resolveImportCustomer(store, '虚构精确客户').state, 'resolved', '只差公司后缀就并入');
-    assert.equal(store.customers().length, 1);
-    const spaced = store.saveCustomer(customerSchema.parse({ name: '虚构 晨星（宁波）有限公司' }));
+    assert.equal(sales(store).customers().length, 1);
+    const spaced = sales(store).createCustomer(customerSchema.parse({ name: '虚构 晨星（宁波）有限公司' }));
     assert.equal(resolveImportCustomer(store, '虚构晨星(宁波)有限公司').customer?.id, spaced.id, '空格、全半角括号不算不同');
-    const twin = store.saveCustomer(customerSchema.parse({ name: c.name, contact: '李乙' }));
+    const twin = sales(store).createCustomer(customerSchema.parse({ name: c.name, contact: '李乙' }));
     const same = resolveImportCustomer(store, c.name);
     assert.equal(same.state, 'ambiguous');
     assert.deepEqual(new Set(same.candidates.map((x) => x.id)), new Set([c.id, twin.id]));
-    const archived = store.saveCustomer(customerSchema.parse({ name: '虚构归档客户有限公司' }));
+    const archived = sales(store).createCustomer(customerSchema.parse({ name: '虚构归档客户有限公司' }));
     store.db
       .prepare('INSERT INTO record_lifecycle(entity,record_id,archived_at,actor_id) VALUES(?,?,?,?)')
       .run('customers', archived.id, '2026-11-01T00:00:00.000Z', 'fictional-user');
@@ -81,7 +82,7 @@ test('客户完全一致或只差排版唯一解析，同名及唯一相似均�
 test('产品候选以名称及明确单位尺寸比较，多候选不消歧，未知单位和冲突不推荐', () => {
   const store = new Store(':memory:');
   try {
-    const p = store.saveProduct(
+    const p = sales(store).createProduct(
       productSchema.parse({
         name: '虚构匹配纸箱',
         length: 30,
@@ -120,9 +121,9 @@ test('产品候选以名称及明确单位尺寸比较，多候选不消歧，�
     line.fields.length.value = '301';
     assert.equal(productCandidatesForLine(line, [p])[0].recommended, false);
     line.fields.length.value = '300';
-    const twin = store.saveProduct(productSchema.parse({ ...p, name: p.name }));
+    const twin = sales(store).createProduct(productSchema.parse({ ...p, name: p.name }));
     assert.equal(productCandidatesForLine(line, [p, twin]).filter((c) => c.recommended).length, 2);
-    const unrelated = store.saveProduct(
+    const unrelated = sales(store).createProduct(
       productSchema.parse({ name: '完全不同产品', material: '牛卡', flute: 'B' }),
     );
     assert.equal(productCandidatesForLine(line, [unrelated]).length, 0);
@@ -134,7 +135,7 @@ test('产品候选以名称及明确单位尺寸比较，多候选不消歧，�
 test('已匹配但材质楞型缺失只提示资料不完整，正式投影不报匹配失败', () => {
   const store = new Store(':memory:');
   try {
-    const p = store.saveProduct(
+    const p = sales(store).createProduct(
       productSchema.parse({
         name: '虚构匹配纸箱',
         length: 300,
@@ -145,7 +146,7 @@ test('已匹配但材质楞型缺失只提示资料不完整，正式投影不�
     );
     const d = draft();
     knownLine(d);
-    const c = store.saveCustomer(customerSchema.parse({ name: d.header.buyerName.value }));
+    const c = sales(store).createCustomer(customerSchema.parse({ name: d.header.buyerName.value }));
     const mapping = emptyImportMapping(d);
     mapping.customer = { mode: 'existing', id: c.id, version: c.version };
     for (const l of d.lines)

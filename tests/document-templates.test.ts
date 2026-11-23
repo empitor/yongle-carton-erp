@@ -1,5 +1,6 @@
 // 单据模板设置和导出业务（server/documents/settings.ts、service.ts，shared/documents/document-templates.ts）：
 // 列恢复默认、模板维护和校验、多模板、样张、设置的修订和审计、初始化时留什么、采购单单价写法。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -251,7 +252,7 @@ test('虚构样张按当前未保存配置生成，Excel保留前导零编码，
     assert.match(String(sheet.headerFooter.oddHeader), /测试样张 · 非正式/);
     assert.equal(countRows(f.store.db, 'SELECT COUNT(*) n FROM operation_requests'), before);
     assert.equal(countRows(f.store.db, 'SELECT COUNT(*) n FROM document_exports'), exportsBefore, '样张不留导出记录');
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     assert.equal(new FlowService(f.store).views.purchases().length, 1);
   } finally {
     f.store.close();

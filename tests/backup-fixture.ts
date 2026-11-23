@@ -1,4 +1,5 @@
 // 备份测试共用的准备。建一份完整备份要建好几个库再整理、校验，所以每种样子只建一次，各条测试复制一份来改。
+import { sales } from '../server/sales/index.js';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -90,7 +91,7 @@ export const fictionalNotesV3 = {
 async function buildConfigBackup(root: string) {
   const target = join(root, 'target'), local = join(root, 'config', 'local.sqlite');
   const store = new Store(join(target, 'erp.sqlite'));
-  store.saveCustomer(customerSchema.parse({ name: '虚构配置库客户' }));
+  sales(store).createCustomer(customerSchema.parse({ name: '虚构配置库客户' }));
   store.close();
   new AuthManager(join(target, 'security', 'users.sqlite')).close();
   new ImportRepository(join(target, 'ai-imports', 'workspaces.sqlite')).close();

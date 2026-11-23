@@ -1,3 +1,4 @@
+import { sales } from '../server/sales/index.js';
 import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,18 +42,18 @@ test('订单规格只写了产品名称时不拿它和库存规格比对；写�
   assert.equal(lineSpecification({ specification: '虚构纸箱A_1', productName: '虚构纸箱A—1' }), '', '判断照抄品名时下划线、破折号也不算差别');
   assert.equal(lineSpecification({ specification: '虚构纸箱A-300x200x150 五层', productName: '虚构纸箱A-300x200x150' }), '虚构纸箱A-300x200x150 五层');
   const f = setup('只');
-  assert.equal(deliveryCandidates(f.item(), f.customer.id, trackOrders(f.store, f.store.orders())).length, 1, '产品、单位一致就能送');
+  assert.equal(deliveryCandidates(f.item(), f.customer.id, trackOrders(f.store, sales(f.store).orders())).length, 1, '产品、单位一致就能送');
   const g = setup('只', '400×300×200 五层');
-  assert.equal(deliveryCandidates(g.item(), g.customer.id, trackOrders(g.store, g.store.orders())).length, 0, '尺寸不同的规格不混着发');
-  assert.equal(deliveryBlockers(g.item(), trackOrders(g.store, g.store.orders()))[0].kind, 'spec');
+  assert.equal(deliveryCandidates(g.item(), g.customer.id, trackOrders(g.store, sales(g.store).orders())).length, 0, '尺寸不同的规格不混着发');
+  assert.equal(deliveryBlockers(g.item(), trackOrders(g.store, sales(g.store).orders()))[0].kind, 'spec');
 });
 
 test('订单没写单位就是“只”：读出来是只，直接能排送货、能确认发货', () => {
   const f = setup();
-  assert.equal(f.store.order(f.order.id)?.lines[0].unit, '只', '老订单没写单位按“只”读');
-  assert.equal(deliveryCandidates(f.item(), f.customer.id, trackOrders(f.store, f.store.orders())).length, 1);
-  assert.equal(deliveryBlockers(f.item(), trackOrders(f.store, f.store.orders())).length, 0, '不再报“没写单位”');
-  const [plan] = planStockDelivery([f.item()], trackOrders(f.store, f.store.orders()), f.customer.id);
+  assert.equal(sales(f.store).order(f.order.id)?.lines[0].unit, '只', '老订单没写单位按“只”读');
+  assert.equal(deliveryCandidates(f.item(), f.customer.id, trackOrders(f.store, sales(f.store).orders())).length, 1);
+  assert.equal(deliveryBlockers(f.item(), trackOrders(f.store, sales(f.store).orders())).length, 0, '不再报“没写单位”');
+  const [plan] = planStockDelivery([f.item()], trackOrders(f.store, sales(f.store).orders()), f.customer.id);
   assert.deepEqual(plan.lines.map((l) => l.quantity), ['1000']);
   const draft = f.flow.save('delivery', { date: '2026-11-10', plannedDate: '2026-11-10', customerId: f.customer.id, address: '', contact: '', phone: '', lines: plan.lines, notes: '' }, actor);
   const done = f.check(draft);
@@ -62,9 +63,9 @@ test('订单没写单位就是“只”：读出来是只，直接能排送货�
 
 test('“个”就是“只”：订单、库存品、生产任务写“个”都存成“只”；别的单位不收，提示先换算', () => {
   const f = setup('个');
-  assert.equal(f.store.order(f.order.id)?.lines[0].unit, '只');
+  assert.equal(sales(f.store).order(f.order.id)?.lines[0].unit, '只');
   // 成品一定关联产品，一个产品一个成品库存
-  const [productB, productC] = ['虚构成品B', '虚构成品C'].map((name) => f.store.saveProduct(productSchema.parse({ name })));
+  const [productB, productC] = ['虚构成品B', '虚构成品C'].map((name) => sales(f.store).createProduct(productSchema.parse({ name })));
   const finished = f.ops.saveItem({ name: '虚构成品B', kind: 'finished', unit: '个', productId: productB.id }, actor);
   assert.equal(finished.unit, '只');
   const blank = f.ops.saveItem({ name: '虚构成品C', kind: 'finished', productId: productC.id }, actor);
@@ -75,7 +76,7 @@ test('“个”就是“只”：订单、库存品、生产任务写“个”�
   assert.throws(() => f.ops.saveItem({ name: '虚构胶水', kind: 'raw', unit: '公斤' }, actor), /只有“张”/);
   assert.throws(
     () =>
-      f.store.saveOrder(orderSchema.parse({
+      sales(f.store).saveOrder(orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-11-10',
         deliveryDate: '2026-11-20',
@@ -133,7 +134,7 @@ test('只有长宽的产品（隔板、垫片）也比规格：订单写的长�
     const item = base.finished(product, { name: product.name });
     assert.equal(item.specification, '600 × 400 mm', '没填的高不写占位');
     const orderFor = (specification: string) =>
-      store.saveOrder(
+      sales(store).saveOrder(
         orderSchema.parse({
           customerId: customer.id,
           orderDate: '2026-11-09',
@@ -315,7 +316,7 @@ test('今日页“待排产”只排还要做的产品：只剩规格对不上�
       base.finished(p, { name: p.name, length: p.length, width: p.width, height: p.height, dimensionUnit: 'mm' });
     const raw = base.raw({ name: '虚构待排产纸板' }, { quantity: '100', date: day });
     const order = (quantities: [number, number]) =>
-      store.saveOrder(
+      sales(store).saveOrder(
         orderSchema.parse({
           customerId: customer.id,
           orderDate: '2026-10-01',
@@ -337,7 +338,7 @@ test('今日页“待排产”只排还要做的产品：只剩规格对不上�
     // 第二张：五金箱还没做、没库存，彩箱同样对不上
     const second = order([600, 300]);
     // 彩箱的长改成 270：两张订单的彩箱明细（260×110×240）都和产品现在的对不上
-    const current = store.product(color.id, true);
+    const current = sales(store).product(color.id, true);
     assert.ok(current, '彩箱产品还在');
     manualWrite(store, { entity: 'products', action: 'update', id: color.id, input: { ...current, length: 270 } }, actor);
     const view = buildToday(store, day);
@@ -363,7 +364,7 @@ test('今日页和订单下一步、送货同一个规格判断：规格对不�
   // 成品 1000 只，产品 300 × 200 × 150；交期早的那张订单明细写成 260 × 200 × 150，对不上
   const f = setup();
   try {
-    const wrong = f.store.saveOrder(
+    const wrong = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-11-09',

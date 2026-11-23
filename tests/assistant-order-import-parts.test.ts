@@ -1,5 +1,6 @@
 // 助手订单导入各部分单独测：直接 import order-import-*.ts 的函数调用，不经过聊天和模型回复。
 // 整条聊天流程的测试在 assistant-order-workflow.test.ts。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import { productSchema } from '../shared/core/domain.js';
 import { executeImports, importCard } from '../server/assistant/order-import-card.js';
@@ -361,9 +362,9 @@ test('order-import-prepare：已有识别结果时 recognize 不再调模型，�
 test('order-import-card：卡片上客户和每行产品都写明用已有档案还是新建，新建的下面列出相近的已有档案（照导入方案给的列）', async () => {
   const { f, w, wf, ctx } = await setup();
   try {
-    const old = f.store.saveProduct(productSchema.parse({ name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm' }));
+    const old = sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱甲', length: 300, width: 200, height: 150, dimensionUnit: 'mm' }));
     // 和第 2 行同名、尺寸不同的老产品：第 2 行要新建时它是“相近的已有档案”
-    f.store.saveProduct(productSchema.parse({ name: '聊天纸箱乙', length: 210, width: 150, height: 100, dimensionUnit: 'mm' }));
+    sales(f.store).createProduct(productSchema.parse({ name: '聊天纸箱乙', length: 210, width: 150, height: 100, dimensionUnit: 'mm' }));
     await attach(wf, { workspaceId: w.id }, ctx());
     await onTask(wf, 'order_import.match', {}, ctx());
     await onTask(wf, 'order_import.match', { line: 1, productId: old.id }, ctx());
@@ -385,7 +386,7 @@ test('order-import-card：卡片上客户和每行产品都写明用已有档案
     const customer = again.indexOf('客户：聊天验收客户二厂（新建）');
     assert.ok(customer > 0);
     assert.equal(again[customer + 1], '相近的已有客户：聊天验收客户');
-    assert.equal(f.store.orders().length, 0, '出卡片不建订单');
+    assert.equal(sales(f.store).orders().length, 0, '出卡片不建订单');
   } finally {
     f.close();
   }
@@ -401,7 +402,7 @@ test('order-import-edits、order-import-card：没失败不重试；匹配已有
     assert.match(matched.message, /^档案匹配已保存。/);
     // 出卡片：只算不写，卡片上逐行列出实际会建什么
     const card = await importCard(wf, ctx(), {});
-    assert.equal(f.store.orders().length, 0);
+    assert.equal(sales(f.store).orders().length, 0);
     assert.match(card.label, /^正式导入订单：/);
     assert.match(card.label, /（聊天验收客户）$/, '标题带客户名');
     assert.ok(card.summary.some((l) => l.label === '客户' && l.value === '聊天验收客户（用已有档案：聊天验收客户）'), '客户写明用已有档案');
@@ -410,11 +411,11 @@ test('order-import-edits、order-import-card：没失败不重试；匹配已有
     assert.ok(card.summary.some((l) => l.label === '客户') && card.summary.some((l) => l.label === '合计'));
     const done = await executeImports(wf, ctx(), card.args.imports);
     assert.ok(done.order?.id);
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     // 已经导入过：不再出卡片，同一张卡片再确认一次也不重复建
     await assert.rejects(importCard(wf, ctx(), {}), /已经导入过，不会重复导入/);
     await assert.rejects(executeImports(wf, ctx(), card.args.imports));
-    assert.equal(f.store.orders().length, 1);
+    assert.equal(sales(f.store).orders().length, 1);
     await assert.rejects(onTask(wf, 'order_import.edit', { expectedRevision: 1, operations: [] }, ctx()), /已经正式导入，识别结果不能再改/);
   } finally {
     f.close();

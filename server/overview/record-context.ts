@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { type Store } from '../core/index.js';
 import type { Actor } from '../core/index.js';
@@ -244,7 +245,7 @@ export function recordContext(store: Store, module: string, id: number, who: Act
   const { related, add } = relatedList(module, id);
   const orderIds = relatedOrderIds(store, module, id);
   if (module === 'customers' || module === 'products')
-    for (const order of trackOrders(store, store.ordersByIds([...orderIds], true))) add('orders', order);
+    for (const order of trackOrders(store, sales(store).ordersByIds([...orderIds], true))) add('orders', order);
   const purchases = relatedPurchases(store, module, id, orderIds);
   for (const p of purchases) add('purchases', p);
   const purchaseIds = new Set(purchases.map((p) => p.id));
@@ -253,7 +254,7 @@ export function recordContext(store: Store, module: string, id: number, who: Act
   for (const d of docs) add(d.kind, d);
   if (physical) addUpstream(store, flow, id, add);
   // 一个任务/送货单可包含多个订单；完整展示扩展影响，不能隐藏共同引用。
-  const orderRows = store.ordersByIds([...new Set(docs.flatMap(documentOrderIds))], true);
+  const orderRows = sales(store).ordersByIds([...new Set(docs.flatMap(documentOrderIds))], true);
   const orders = new Map(trackOrders(store, orderRows).map((o) => [o.id, o]));
   for (const d of docs)
     for (const orderId of documentOrderIds(d)) {

@@ -1,4 +1,5 @@
 // 读取只读用到的记录：查询走索引、按编号读、语句条数不随数据量增长。只看语句和查询计划，不比快慢。
+import { sales } from '../server/sales/index.js';
 import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { pageActor } from './actor-fixture.js';
 import { mock, test } from 'node:test';
@@ -14,7 +15,7 @@ import { OperationsService } from '../server/operations/index.js';
 import { StockViews } from '../server/flow/stock/stock-views.js';
 import { FlowService } from '../server/flow/index.js';
 import { localAdministratorActor } from '../server/core/local-administrator.js';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, damageOrderCost } from './business-base-fixture.js';
 import { quantityUnits } from '../shared/core/quantity.js';
 import type { Actor } from '../server/core/index.js';
 import { saveDoc } from './receive-fixture.js';
@@ -153,15 +154,15 @@ test('数据管理改一条记录只按编号读选中的那条；本机管理�
       wholeFlow = (sql: string) => /^SELECT \* FROM flow_documents( WHERE kind=\?)? ORDER BY/.test(sql),
       wholeProducts = (sql: string) => /FROM products ORDER BY/.test(sql);
     // 挂着它的任务安排时已下达，订单的生产状态变过（版本号加一），按现在的版本改
-    const order = must(f.store.order(target.id, true), '订单');
+    const order = must(sales(f.store).order(target.id, true), '订单');
     let seen = record(() => service.execute(command('orders', order, { notes: '虚构改备注' }), who, 's'));
-    assert.equal(f.store.order(target.id)?.notes, '虚构改备注');
+    assert.equal(sales(f.store).order(target.id)?.notes, '虚构改备注');
     assert.deepEqual(seen.filter(wholeOrders), [], '不组装全部订单');
     assert.deepEqual(seen.filter(wholeFlow), [], '不读全部送货单、生产任务');
     assert.ok(seen.some((sql) => sql.includes('flow_refs WHERE order_id=?')), '按单据关联圈出这张订单的单据');
-    const product = must(f.store.product(f.pa.id), '产品');
+    const product = must(sales(f.store).product(f.pa.id), '产品');
     seen = record(() => service.execute(command('products', product, { name: '虚构箱A改名' }), who, 's'));
-    assert.equal(f.store.product(f.pa.id)?.name, '虚构箱A改名');
+    assert.equal(sales(f.store).product(f.pa.id)?.name, '虚构箱A改名');
     assert.deepEqual(seen.filter(wholeProducts), [], '不组装全部产品');
     const task = must(f.flow.list('task').find((t) => t.orderIds.includes(target.id)), '生产任务');
     seen = record(() => service.execute(command('task', task, { notes: '虚构任务备注' }), who, 's'));
@@ -192,12 +193,12 @@ test('读一张订单、读全部订单：语句条数不随订单量增长，�
       db.exec('COMMIT');
       const one = sqlOf(f.store, () => assert.equal(trackedOrder(f.store, 1)?.lines[0].shippedQuantity, 1)).seen;
       for (const sql of one) assert.doesNotMatch(planOf(f.store, sql), /SCAN (flow_documents|flow_refs|order_lines)\b/, sql);
-      const ordinary = sqlOf(f.store, () => f.store.orders());
+      const ordinary = sqlOf(f.store, () => sales(f.store).orders());
       assert.equal(ordinary.result.length, n);
       assert.equal(ordinary.seen.some((sql) => /flow_documents|purchases|purchase_lines/.test(sql)), false);
       const all = sqlOf(f.store, () => assert.equal(trackOrders(f.store, ordinary.result).length, n)).seen;
       assert.equal(all.length, 2, '一批订单只查一次送货、一次订料');
-      assert.deepEqual(f.store.ordersByIds([1, n], true).map((o) => o.id).sort((a, b) => a - b), [1, n]);
+      assert.deepEqual(sales(f.store).ordersByIds([1, n], true).map((o) => o.id).sort((a, b) => a - b), [1, n]);
       return [one.length, all.length];
     } finally {
       f.store.close();
@@ -384,37 +385,30 @@ test('今日页、经营概况的月度统计只读这段时间里已归档的�
     return record.id;
   };
   const order = (orderDate: string) =>
-    base.order(customer, [{ productId: product.id, quantity: 10, unitPriceCents: 100 }], { orderDate, deliveryDate: '2026-12-30', status: '待确认' });
+    base.order(customer, [{ productId: product.id, quantity: 10, unitPriceCents: 100 }], { orderDate, deliveryDate: '2026-12-30', status: '已发货' });
   const purchase = (orderDate: string) =>
     ops.savePurchase({ supplierId: supplier.id, orderDate, status: '已取消', lines: [{ name: '虚构纸板', unit: '张', length: 1000, width: 800, dimensionUnit: 'mm', quantity: '5', priceBasis: 'quantity' }] }, actor);
-  archived('orders', order('2026-01-05'));
+  const oldOrder = archived('orders', order('2026-01-05'));
   archived('purchases', purchase('2026-01-02'));
-  const recentOrder = archived('orders', order('2026-10-05')),
+  const recentOrder = order('2026-10-05'),
     recentPurchase = archived('purchases', purchase('2026-10-02'));
+  archived('orders', recentOrder);
+  damageOrderCost(store, oldOrder);
   const spies = {
-    orders: mock.method(store, 'orders'),
-    ordersByIds: mock.method(store, 'ordersByIds'),
     // 所有采购单读取最后都到基本读法；period-records.ts 读的是完整视图
     purchases: mock.method(OperationsService.prototype, 'purchases'),
     viewPurchases: mock.method(StockViews.prototype, 'purchases'),
   };
   try {
-    buildToday(store, '2026-10-31');
-    orderDashboard(store, { start: '2026-10-01', end: '2026-10-31' });
-    assert.ok(spies.orders.mock.calls.every((c) => !c.arguments[0]), '整批读的订单不带已归档的');
+    assert.equal(buildToday(store, '2026-10-31').summary.monthOrderCents, recentOrder.totalCents);
+    const dashboard = orderDashboard(store, { start: '2026-10-01', end: '2026-10-31' });
+    assert.equal(dashboard.amountCents, recentOrder.totalCents);
+    assert.equal(dashboard.count, 1);
     assert.ok(spies.purchases.mock.calls.every((c) => !c.arguments[0] || c.arguments[1] !== undefined), '带已归档的采购单只按编号读');
     // 带已归档读的（period-records.ts 发起的）只读到这段时间里的那一张
-    const fromPeriod = /period-records/;
     assert.deepEqual(
-      [
-        ...directCalls(fromPeriod, 'orders', spies.ordersByIds.mock.calls, (a) => a[0]),
-        ...directCalls(fromPeriod, 'purchases', spies.viewPurchases.mock.calls.filter((c) => c.arguments[0]), (a) => a[1]),
-      ].map((r) => [r.name, r.ids]),
-      [
-        ['orders', [recentOrder]],
-        ['orders', [recentOrder]],
-        ['purchases', [recentPurchase]],
-      ],
+      directCalls(/period-records/, 'purchases', spies.viewPurchases.mock.calls.filter((c) => c.arguments[0]), (a) => a[1]).map((r) => r.ids),
+      [[recentPurchase]],
     );
   } finally {
     for (const spy of Object.values(spies)) spy.mock.restore();

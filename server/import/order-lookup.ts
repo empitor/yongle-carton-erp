@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { many, rows, type Store } from '../core/index.js';
 import type { Order } from '../../shared/core/index.js';
@@ -67,12 +68,12 @@ export function duplicateOrderCandidates(
     order.deliveryDate ?? null,
   ))
     found.add(id);
-  return store.ordersByIds([...found], true);
+  return sales(store).ordersByIds([...found], true);
 }
 
 /** 采购单号完全相同的订单（不含归档），给识别结果页提示“可能重复” */
 export function ordersWithPurchaseOrder(store: Store, purchaseOrder: string): Order[] {
-  return store.ordersByIds(orderIds(store, 'SELECT id FROM orders WHERE external_purchase_order=?', purchaseOrder));
+  return sales(store).ordersByIds(orderIds(store, 'SELECT id FROM orders WHERE external_purchase_order=?', purchaseOrder));
 }
 
 /** 这位客户以前的订单（含归档）里订过的产品，和明细上写的规格 */

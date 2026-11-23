@@ -1,6 +1,7 @@
 // 经营概览和订单的日期视图（server/overview/dashboard.ts、shared/core/date-ranges.ts）：按自然月算范围，
 // 历史未完成的订单留在当前视图，概览的数字来自订单、采购、流水，查询不改数据；采购列表的组合查询用同一套数据。
 // 工作台和今日队列见 workbench.test.ts。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -233,7 +234,7 @@ test('HTTP订单日期分类保留历史未完成、归档可搜索、全部/自
       (await get('/orders?archived=1')).map((o) => o.id),
       [f.cancelled.id],
     );
-    assert.equal(f.store.orders(true).length, 4, '回收站软删除与日期归档均保留业务记录');
+    assert.equal(sales(f.store).orders(true).length, 4, '回收站软删除与日期归档均保留业务记录');
   } finally {
     await f.close();
   }
@@ -291,7 +292,7 @@ test('经营概览来自订单/采购/流水：实时库存不截日期，不混
     assert.equal(v.inventory.raw.find((g) => g.unit === '张')?.quantity, '4');
     assert.deepEqual(v.inventory.raw.map((g) => g.unit), ['张'], '原材料只有“张”一个单位');
     assert.equal(v.inventory.zeroCount, 1);
-    assert.equal(v.products.total, f.store.products().length);
+    assert.equal(v.products.total, sales(f.store).products().length);
     assert.equal(v.movements.length, 1);
     assert.equal(v.movements[0].action, 'purchase');
     assert.ok(v.activity.some((a) => a.category === '采购单'));

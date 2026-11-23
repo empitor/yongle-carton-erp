@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { z } from 'zod';
 import { many, parseStoredJson, rows as tables, type Store } from '../core/index.js';
 import { flowDocumentSchema, flowStatus, purchaseState } from '../../shared/business/index.js';
@@ -210,7 +211,7 @@ export function buildDashboard(
   date = today(),
   options: { allOrders?: TrackedOrder[]; workbench?: boolean } = {},
 ): Dashboard {
-  const allOrders = options.allOrders ?? trackOrders(store, store.orders()),
+  const allOrders = options.allOrders ?? trackOrders(store, sales(store).orders()),
     currentIds = new Set(allOrders.map((o) => o.id)),
     archived = (o: TrackedOrder) => !currentIds.has(o.id);
   const views = new FlowService(store).views,
@@ -222,7 +223,7 @@ export function buildDashboard(
   const movements = views.movements({ start: range.start, end: range.end }, { limit: RECENT_MOVEMENTS });
   const recentOrders = newestFirst(rows.filter((o) => !archived(o)), RECENT_ORDERS),
     recentPurchases = newestFirst(currentPurchases, RECENT_PURCHASES);
-  const products = store.products();
+  const products = sales(store).products();
   return {
     ...orderFigures(rows, date, archived),
     deliveredCents: deliveries.cents,

@@ -1,3 +1,4 @@
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
 import { FINISHED_UNIT, RAW_UNIT, finishedUnitMessage, rawUnitMessage, stockUnit } from '../../../shared/core/index.js';
 import type { Store } from '../../core/index.js';
@@ -142,7 +143,7 @@ export class StockItems {
     if (!v.productId)
       throw new AppError('成品库存要先选产品：一个产品对应一个成品库存，名称、尺寸、材质、楞型都按产品来。');
     // 已归档的产品不能新关联；原来就关联着它的成品照样能改备注
-    const product = this.store.product(v.productId, isSuperMode(actor) || before?.productId === v.productId);
+    const product = sales(this.store).product(v.productId, isSuperMode(actor) || before?.productId === v.productId);
     if (!product) throw new AppError('关联产品不存在或已归档。');
     return { ...v, ...finishedFromProduct(product) };
   }
@@ -230,7 +231,7 @@ export class StockItems {
    */
   finishedStockFor(productId: number, who: Actor | null | undefined, expected?: number | null, document?: string) {
     const actor = businessActor(who),
-      product = this.store.product(productId, true);
+      product = sales(this.store).product(productId, true);
     if (!product) throw new AppError('产品不存在。', 404);
     const row = one(this.store.db, rows.stock_items.pick({ id: true }), 'SELECT id FROM stock_items WHERE product_id=?', productId);
     if (expected != null && (!row || row.id !== expected))

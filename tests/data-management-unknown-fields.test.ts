@@ -1,5 +1,6 @@
 // 数据管理保存时，提交的内容里有录入结构不收的栏目（不管在第几层）要报错并说清是哪一格，不能保存成功却少了东西
 // （server/admin/managed-save.ts、server/admin/input-fields.ts）；订单模板有“金额结算”这一格，带不足一分尾数的单价能建成。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
@@ -77,7 +78,7 @@ test('数据管理改订单：明细里多一格拒收（页面和助手发来�
       () => f.service.execute(command('orders', 'update', [listed.record], { status2: '已确认' }), f.who, 's'),
       (e: unknown) => e instanceof Error && /有系统不认识的栏目/.test(e.message) && !/[A-Za-z]/.test(e.message),
     );
-    assert.equal(f.store.order(f.order.id, true)?.notes, '', '订单没改');
+    assert.equal(sales(f.store).order(f.order.id, true)?.notes, '', '订单没改');
   } finally {
     f.store.close();
   }
@@ -97,7 +98,7 @@ test('数据管理新建订单：模板有“金额结算”这一格，单价�
     });
     assert.throws(() => f.service.execute(command('orders', 'create', [], order('exact-cents')), f.who, 's'), /金额结算：.*不足一分/);
     const created = firstResult(f.service.execute(command('orders', 'create', [], order('half-up-cent')), f.who, 's'));
-    assert.equal(f.store.order(created.id, true)?.roundingPolicy, 'half-up-cent');
+    assert.equal(sales(f.store).order(created.id, true)?.roundingPolicy, 'half-up-cent');
   } finally {
     f.store.close();
   }
@@ -106,7 +107,7 @@ test('数据管理新建订单：模板有“金额结算”这一格，单价�
 test('数据管理编辑没存金额结算的订单：编辑窗照实显示“未填写”，没动这一格保存就不写；改成带尾数的单价时报错让人选，选了才写', () => {
   const f = basics();
   try {
-    assert.equal(f.store.order(f.order.id, true)?.roundingPolicy, undefined, '准备的订单库里没存金额结算');
+    assert.equal(sales(f.store).order(f.order.id, true)?.roundingPolicy, undefined, '准备的订单库里没存金额结算');
     const listed = () => {
       const row = f.service.list('orders', f.who).records.find((r) => r.record.id === f.order.id);
       assert.ok(row);
@@ -117,7 +118,7 @@ test('数据管理编辑没存金额结算的订单：编辑窗照实显示“�
     assert.equal(shown.roundingPolicy, null, '编辑窗里有这一格，下拉显示“未填写”');
     // 只改备注，整份交回：金额结算照旧没存
     f.service.execute(command('orders', 'update', [row.record], submittedInput('orders', { ...shown, notes: '虚构只改备注' }, row.input)), f.who, 's');
-    assert.deepEqual([f.store.order(f.order.id, true)?.notes, f.store.order(f.order.id, true)?.roundingPolicy], ['虚构只改备注', undefined]);
+    assert.deepEqual([sales(f.store).order(f.order.id, true)?.notes, sales(f.store).order(f.order.id, true)?.roundingPolicy], ['虚构只改备注', undefined]);
     // 改成带尾数的单价、没选：拦下说去金额结算里选哪一项，不替人填
     row = listed();
     const fractional = { ...editableInput('orders', row.input), lines: [{ ...row.input.lines[0], quantity: 3, unitPriceExact: '1.2345' }] };
@@ -126,7 +127,7 @@ test('数据管理编辑没存金额结算的订单：编辑窗照实显示“�
       /金额结算：精确金额包含不足一分的尾数，请在金额结算里选“明确采用整单四舍五入到分”/,
     );
     f.service.execute(command('orders', 'update', [row.record], submittedInput('orders', { ...fractional, roundingPolicy: 'half-up-cent' }, row.input)), f.who, 's');
-    assert.equal(f.store.order(f.order.id, true)?.roundingPolicy, 'half-up-cent');
+    assert.equal(sales(f.store).order(f.order.id, true)?.roundingPolicy, 'half-up-cent');
   } finally {
     f.store.close();
   }

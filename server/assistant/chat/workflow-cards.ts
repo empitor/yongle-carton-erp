@@ -2,6 +2,7 @@
 // 登记了的只出确认卡片：card() 由服务器算出卡片上给人看的内容（summary）和确认时原样执行的参数（args）；
 // 人点确认后 run() 按存下来的参数执行。业务类工具（有方案生成器的）一律出卡片，不在这里，见 tool-step.ts。
 // 不算写入的流程类工具在 workflow-direct.ts；流程类工具两边都没登记，tests/assistant-boundaries.test.ts 会拦。
+import { sales } from '../../sales/index.js';
 import type { Store } from '../../core/index.js';
 import { BusinessDocuments } from '../../documents/index.js';
 import { FlowService } from '../../flow/index.js';
@@ -51,7 +52,7 @@ type Entry = {
 );
 
 const productName = (store: Store, id: number | undefined) =>
-  (id === undefined ? undefined : store.products(true, [id])[0]?.name) ?? '编号 ' + id;
+  (id === undefined ? undefined : sales(store).products(true, [id])[0]?.name) ?? '编号 ' + id;
 /** 改识别结果的三个命令各自的卡片标题 */
 const DRAFT_EDITS: Record<string, string> = {
   'order_import.edit': '改识别结果',
@@ -73,7 +74,7 @@ function draftEditCard(svc: ChatServices, ctx: WorkflowContext, name: string, ra
       : name === 'order_import.undo'
         ? [{ label: '改动', value: '撤回最近的一次修改' }]
         : a.customerId
-          ? [{ label: '客户', value: '配成 ' + (svc.store.customer(a.customerId)?.name ?? '编号 ' + a.customerId) }]
+          ? [{ label: '客户', value: '配成 ' + (sales(svc.store).customer(a.customerId)?.name ?? '编号 ' + a.customerId) }]
           : a.line
             ? [{ label: '第 ' + a.line + ' 行产品', value: a.createNew ? '新建档案' : '配成 ' + (a.productCode ?? productName(svc.store, a.productId)) }]
             : [{ label: '客户', value: a.createNew ? '新建档案' : '按名称自动匹配' }];

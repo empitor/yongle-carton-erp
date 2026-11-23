@@ -1,5 +1,6 @@
 // 本机管理员改订单删掉明细时连带改单据（server/orders/order-edit-cascade.ts）：只挂这一行的送货单删掉、合送的去掉这一行，
 // 已出库那一行的出库留成“系统维护”的独立流水，已撤销的只改内容；流水和明细对不上的先拦下。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 // 删除引擎要各模块登记的删除规则
 import '../server/import/index.js';
@@ -27,7 +28,7 @@ test('管理员改订单去掉一行：只挂这一行的送货单删掉、几�
       another = f.order([100]),
       otherOrder = deliver([line(another, another.lines[0], f.finished.id)]);
     // 另一张也订了第二种产品的订单：生产任务同时关联两张
-    const sameProduct = f.store.saveOrder(
+    const sameProduct = sales(f.store).saveOrder(
       orderSchema.parse({
         customerId: f.customer.id,
         orderDate: '2026-10-01',

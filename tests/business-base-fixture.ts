@@ -1,6 +1,7 @@
 // 业务档案的底子（内存库、虚构数据）：客户、产品、供应商、纸板、成品库存、订单怎么建，单据怎么预览再核对，都只在这里写一份。
 // 各模块的准备代码（flow-fixture、stack-fixture、document-fixture、maintenance-fixture……）在它上面搭自己的数据；
-// 以后拆客户产品订单、采购库存时，主要改这一份。名字、数量、有没有期初库存这些差别用参数给，默认值是最常用的那套。
+// 名字、数量、有没有期初库存这些差别用参数给，默认值是最常用的那套。
+import { sales } from '../server/sales/index.js';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../server/core/db.js';
 import { OperationsService } from '../server/operations/index.js';
@@ -44,14 +45,14 @@ export function businessBase(who: Actor, store = new Store(':memory:')) {
     flow,
     stockIn,
     line,
-    customer: (fields: Fields = {}) => store.saveCustomer(customerSchema.parse({ name: '虚构客户', ...fields })),
-    product: (fields: Fields = {}) => store.saveProduct(productSchema.parse({ name: '虚构纸箱', ...fields })),
+    customer: (fields: Fields = {}) => sales(store).createCustomer(customerSchema.parse({ name: '虚构客户', ...fields })),
+    product: (fields: Fields = {}) => sales(store).createProduct(productSchema.parse({ name: '虚构纸箱', ...fields })),
     supplier: (fields: Fields = {}) => ops.saveSupplier({ name: '虚构供应商', ...fields }, who),
     raw: (fields: Fields = {}, opening?: Opening) => withOpening(ops.saveItem({ name: '虚构纸板', kind: 'raw', unit: '张', ...fields }, who), opening),
     finished: (p: Ref, fields: Fields = {}, opening?: Opening) =>
       withOpening(ops.saveItem({ name: '虚构成品', kind: 'finished', unit: '只', productId: p.id, ...fields }, who), opening),
     order: (c: Ref, lines: Fields[], fields: Fields = {}) =>
-      store.saveOrder(orderSchema.parse({ customerId: c.id, orderDate: '2026-10-01', deliveryDate: '2026-10-30', status: '已确认', lines, ...fields })),
+      sales(store).saveOrder(orderSchema.parse({ customerId: c.id, orderDate: '2026-10-01', deliveryDate: '2026-10-30', status: '已确认', lines, ...fields })),
     check: (doc: Ref, extra: Fields = {}, by: Actor = who) =>
       flow.confirm(doc.id, { previewDigest: flow.preview(doc.id, by).previewDigest, requestId: randomUUID(), acknowledged: true, ...extra }, by),
   };
@@ -68,4 +69,9 @@ export function standardRecords(
     raw = base.raw(names.raw),
     finished = base.finished(product, names.finished);
   return { customer, product, supplier, raw, finished };
+}
+
+/** 模拟只在组装订单时才会发现的坏数据，用来验证查询没有组装无关订单。 */
+export function damageOrderCost(store: Store, id: number) {
+  store.db.prepare('UPDATE orders SET cost_estimate=? WHERE id=?').run('{"basis":[]}', id);
 }

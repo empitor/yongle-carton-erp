@@ -1,5 +1,6 @@
 // 确认卡片上的字逐字固定（server/assistant/tools/card-summary.ts）：几种典型卡片的标题和每一行原样比对。
 // 卡片是人点确认前唯一看到的东西，改写法（拆函数、补类型）不能改一个字、一行的先后，也不能多列或少列字段。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -118,7 +119,7 @@ test('改档案和订单、归档恢复、数据管理的改：卡片逐字不�
       '恢复客户：客户 虚构客户丙',
       '恢复：客户 虚构客户丙（恢复后照常使用）',
     ]);
-    const items = [{ id: ids[1], version: f.store.customer(ids[1], true)?.version }];
+    const items = [{ id: ids[1], version: sales(f.store).customer(ids[1], true)?.version }];
     assert.deepEqual(shown(prepare('management.execute', { requestId: randomUUID(), module: 'customers', action: 'update', items, patch: { notes: '虚构' }, reason: '虚构维护' })), [
       '数据管理：修改客户 1 条：客户 虚构客户丁',
       '记录：客户 虚构客户丁',
@@ -290,7 +291,7 @@ test('送货出库、更正送货单、换订单、订单换客户：连带改�
       '连带：' + orderTitle + ' 状态：部分发货 → 已确认',
       '原因：虚构点错',
     ]);
-    const items = [{ id: oa.id, version: f.store.order(oa.id, true)?.version }];
+    const items = [{ id: oa.id, version: sales(f.store).order(oa.id, true)?.version }];
     const patch = { customerId: customer('虚构客户乙').id };
     assert.deepEqual(shown(prepare('management.execute', { requestId: randomUUID(), module: 'orders', action: 'update', items, reason: '虚构维护', patch })), [
       '数据管理：修改订单 1 条：' + orderTitle,

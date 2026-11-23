@@ -4,6 +4,7 @@
 // 人点确认后逐份导入：每份导入前按当时的数据重新生成预览，和卡片上那一份核对——内容（客户、产品、明细、合计）必须一样，
 // 用已有档案的必须还是那一个；卡片上写“新建”的，只有同一张卡片里前面几份刚建出来的才可以改用（五份同一个新客户，只建一次）。
 // 对不上（识别结果、档案之后被改了）就拒绝，要重新出卡片。
+import { sales } from '../sales/index.js';
 import { createHash } from 'node:crypto';
 import { AppError, failureMessage, requirePermission } from '../core/index.js';
 import { FINISHED_UNIT, fieldLabel, linePriceExact, pageHref, plainPrice } from '../../shared/core/index.js';
@@ -194,7 +195,7 @@ async function importOne(wf: OrderImportState, ctx: WorkflowContext, item: Impor
     ctx.check(),
     ctx.check,
   );
-  const order = wf.store.order(receipt.orderId, true);
+  const order = sales(wf.store).order(receipt.orderId, true);
   if (!order) throw new AppError('导入的订单 ' + receipt.orderNumber + ' 读不到了，请到订单列表核对。', 409);
   made.customers.add(order.customerId);
   for (const line of order.lines) made.products.add(line.productId);

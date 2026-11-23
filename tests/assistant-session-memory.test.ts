@@ -1,5 +1,6 @@
 // 助手的会话内上下文：历史原样回放、前缀逐字节不变、太长时压成摘要、
 // 单个工具结果截到上限、卡片后来怎么样了、长期记忆的位置。用假 DeepSeek 记下每次请求，断言请求里带着什么；只用内存库和虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
@@ -51,7 +52,7 @@ test('隔了几轮问“刚才那个再看看”：第一轮查到的编号和�
     answer('还是虚构客户甲，电话没填。'),
   ]);
   try {
-    f.store.saveCustomer(customerSchema.parse({ name: '虚构客户甲' }));
+    sales(f.store).createCustomer(customerSchema.parse({ name: '虚构客户甲' }));
     await f.say('看一下客户编号1');
     await f.say('你好');
     await f.say('今天忙不忙');

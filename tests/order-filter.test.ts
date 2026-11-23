@@ -1,5 +1,6 @@
 // 订单筛选只有一份判断（shared/business/order-filter.ts）：页面订单列表和助手查订单按状态筛出同样的订单，
 // 状态只认页面上的叫法。内存库、虚构数据。
+import { sales } from '../server/sales/index.js';
 import { trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,7 +27,7 @@ test('订单筛选：客户、产品、关键字和状态一起判断', (t) => {
   const customer = base.customer(),
     product = base.product();
   base.order(customer, [base.line(product, 10)], { orderDate: '2026-11-01', deliveryDate: '2026-11-20' });
-  const [order] = trackOrders(base.store, base.store.orders());
+  const [order] = trackOrders(base.store, sales(base.store).orders());
   const matches = (f: Parameters<typeof orderMatches>[1]) => orderMatches(order, f);
   assert.equal(matches({ customerId: customer.id, productId: product.id, q: product.name, status: '已确认' }), true);
   assert.equal(matches({ customerId: customer.id + 1 }), false);

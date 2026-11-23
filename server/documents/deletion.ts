@@ -5,7 +5,7 @@ import { registerReset } from '../core/index.js';
 
 registerReset({
   module: '单据导出',
-  // 排在采购库存（40，先清引用导出记录的订货批次）后面、基础（50）前面
+  // 排在采购库存（40，先清引用导出记录的订货批次）后面、客户产品订单的档案（50）前面
   order: 45,
   statements: ['DELETE FROM document_exports'],
 });

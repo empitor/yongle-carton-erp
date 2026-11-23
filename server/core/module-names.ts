@@ -8,6 +8,7 @@ export const serverModuleNames = [
   '账号',
   'AI接入',
   '系统资料',
+  '客户产品订单',
   '采购库存',
   '单据流转',
   '删除归档',

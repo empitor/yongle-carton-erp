@@ -1,4 +1,5 @@
 // 做完整备份：带上哪些文件、清单记什么、数据库副本整理成单个文件；自动备份的调度、复制到另一个目录和按份数清理。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync, rmSync, existsSync, utimesSync } from 'node:fs';
@@ -101,7 +102,7 @@ test('完整备份带上账号、收件箱原件、识别工作区，不带运�
     data = join(dir, 'data');
   try {
     const store = new Store(join(data, 'erp.sqlite'));
-    store.saveCustomer(customerSchema.parse({ name: '虚构备份客户' }));
+    sales(store).createCustomer(customerSchema.parse({ name: '虚构备份客户' }));
     const file = { name: '虚构附件.bin', mime: 'application/octet-stream', bytes: new Uint8Array([1, 2, 3]) };
     const inboxId = Number(
       new InboxService(store).ingest({ channel: 'manual', externalId: 'fictional-inbox', kind: 'file', receivedAt: '2026-11-05T10:00:00Z', file }).id,
@@ -132,7 +133,7 @@ test('完整备份带上账号、收件箱原件、识别工作区，不带运�
     restoreFullBackup(result.dir, fresh);
     const back = new Store(join(fresh, 'erp.sqlite'));
     try {
-      assert.deepEqual(back.customers().map((c) => c.name), ['虚构备份客户']);
+      assert.deepEqual(sales(back).customers().map((c) => c.name), ['虚构备份客户']);
       const restoredInbox = new InboxService(back);
       assert.equal(restoredInbox.get(inboxId).externalId, 'fictional-inbox');
       assert.deepEqual(restoredInbox.file(inboxId).content, file.bytes);
@@ -161,7 +162,7 @@ test('备份里的数据库副本都是回滚日志模式：只读校验、恢�
   const sidecars = (root: string) => Object.keys(files(root)).filter((name) => /-(wal|shm|journal)$/.test(name));
   try {
     const store = new Store(join(data, 'erp.sqlite'));
-    store.saveCustomer(customerSchema.parse({ name: '虚构备份客户' }));
+    sales(store).createCustomer(customerSchema.parse({ name: '虚构备份客户' }));
     const auth = new AuthManager(join(data, 'security', 'users.sqlite'));
     // 一个没人登记的 WAL 模式数据库文件：备份照样复制，副本也要切成回滚日志
     mkdirSync(join(data, 'misc'));
@@ -188,7 +189,7 @@ test('备份里的数据库副本都是回滚日志模式：只读校验、恢�
     // 恢复出来的业务库照常打开，程序会重新设成 WAL
     const back = new Store(join(dir, 'restored', 'erp.sqlite'));
     try {
-      assert.equal(back.customers()[0].name, '虚构备份客户');
+      assert.equal(sales(back).customers()[0].name, '虚构备份客户');
       assert.equal(back.db.prepare('PRAGMA journal_mode').get()?.journal_mode, 'wal');
     } finally {
       back.close();

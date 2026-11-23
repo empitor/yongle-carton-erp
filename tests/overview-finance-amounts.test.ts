@@ -1,4 +1,5 @@
 // 经营概况的送货金额、到货金额和财务月度台账的理论收入、理论支出同一个口径、同一处算（虚构数据、内存库）
+import { sales } from '../server/sales/index.js';
 import { trackOrders } from '../server/orders/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -92,7 +93,7 @@ test('本月接单：财务月度台账和经营概况同一个口径，待确�
     f.order(30, { orderDate: '2026-10-05', status: '待确认' });
     f.order(40, { orderDate: '2026-10-06', status: '已取消' });
     const month = new FinanceMonthly(f.store).get(maker, { period: '2026-10' });
-    const october = trackOrders(f.store, f.store.orders()).filter((o) => o.orderDate.startsWith('2026-10'));
+    const october = trackOrders(f.store, sales(f.store).orders()).filter((o) => o.orderDate.startsWith('2026-10'));
     const dashboard = buildDashboard(f.store, october, { start: '2026-10-01', end: '2026-10-31' }, '2026-10-31', { workbench: false });
     assert.equal(month.ordered, dashboard.amountCents);
     assert.equal(month.ordered, 10000, '只算已确认的那张：100 只 × 1 元');

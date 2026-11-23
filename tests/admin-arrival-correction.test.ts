@@ -1,4 +1,5 @@
 // 管理员更正到货单：助手只有 arrival.correct 一个工具、网页走真实身份和原服务、入库 0 的行、新加的行、替代单的单号。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -99,7 +100,7 @@ test('HTTP更正到货单与排程复用真实身份、CSRF和原服务；改单
     const doc = f.flow.get(again.flowId);
     const put = await h.send('/flow/' + doc.id, { ...doc, notes: '虚构备注', requestId: randomUUID() }, h.cookie, { method: 'PUT' });
     assert.equal(put.status, 409);
-    const product = f.store.saveProduct(productSchema.parse({ name: '虚构HTTP排程产品' }));
+    const product = sales(f.store).createProduct(productSchema.parse({ name: '虚构HTTP排程产品' }));
     const task = saveDoc(f.flow, 
       'task',
       { date: today(), productId: product.id, quantity: '20', unit: '只' },

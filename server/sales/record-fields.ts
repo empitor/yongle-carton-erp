@@ -1,5 +1,5 @@
 import { legacyCents, samePrice } from '../../shared/core/index.js';
-import { InputError } from './errors.js';
+import { InputError } from '../core/index.js';
 
 /* 客户、产品、订单读写共用的规则：改哪条、存完读回来、没给的附加字段怎么读、精确价和“分”都给了时听谁的 */
 

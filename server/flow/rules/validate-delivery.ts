@@ -1,6 +1,7 @@
-import type { Actor, Store } from '../../core/index.js';
+import { sales } from '../../sales/index.js';
+import type { Actor } from '../../core/index.js';
 import { canEnterSuperMode, requireSuperModeFor } from '../../core/index.js';
-import { effectiveOrder, quantityUnits, quantityString } from '../../../shared/core/index.js';
+import { effectiveOrder, quantityUnits, quantityString, type Order } from '../../../shared/core/index.js';
 import { lineMoney, specificationMismatch, specificationMismatchText, type FlowDocument } from '../../../shared/business/index.js';
 import { fail, type DeliveryLine, type LineCheck, type StockItemRow } from '../documents/base.js';
 import { shippedUnits } from '../documents/shipped.js';
@@ -9,13 +10,12 @@ import { shippedUnits } from '../documents/shipped.js';
  */
 
 type Delivery = FlowDocument<'delivery'>;
-type Order = NonNullable<ReturnType<Store['order']>>;
 type OrderLine = Order['lines'][number];
 
 /** 这一行发的订单和订单明细：同一客户、正常已确认的订单（本机管理员不卡订单状态） */
 function orderLineOf(ctx: LineCheck<DeliveryLine>, v: Delivery, l: DeliveryLine): { order: Order; line: OrderLine } {
   const { flow, maintenance } = ctx;
-  const order = flow.store.order(l.orderId, maintenance),
+  const order = sales(flow.store).order(l.orderId, maintenance),
     line = order?.lines.find((x) => x.id === l.orderLineId);
   if (!order || order.customerId !== v.customerId || !line || (!maintenance && !effectiveOrder(order)))
     return fail('请选择同一客户正常已确认订单的有效产品明细。');
@@ -25,7 +25,7 @@ function orderLineOf(ctx: LineCheck<DeliveryLine>, v: Delivery, l: DeliveryLine)
 /** 补全后的一行：订单明细的品名、规格、单价、税率，产品尺寸（成品库存没填尺寸的取产品的），产品的材质、楞型 */
 function completedLine(ctx: LineCheck<DeliveryLine>, l: DeliveryLine, o: { order: Order; line: OrderLine }, it: StockItemRow): DeliveryLine {
   const { order, line: ol } = o;
-  const product = ctx.flow.store.product(ol.productId, true),
+  const product = sales(ctx.flow.store).product(ol.productId, true),
     dimensions = it.length != null || it.width != null ? it : product;
   return {
     ...l,
@@ -72,7 +72,7 @@ function checkLine(ctx: LineCheck<DeliveryLine>, v: Delivery, l: DeliveryLine) {
 
 /** 送货单：客户、订单明细、成品对应的产品和规格、超订单发货（要超级管理员模式并写原因） */
 export function checkDelivery(ctx: LineCheck<DeliveryLine>, v: Delivery) {
-  if (!ctx.flow.store.customer(v.customerId, ctx.maintenance)) fail('客户不存在或已归档。');
+  if (!sales(ctx.flow.store).customer(v.customerId, ctx.maintenance)) fail('客户不存在或已归档。');
   const selected = new Set<number>();
   for (const l of v.lines) {
     if (selected.has(l.orderLineId)) fail('同一订单明细请合并为一条发货数量。');

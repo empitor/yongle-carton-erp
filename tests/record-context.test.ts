@@ -8,7 +8,7 @@ import { recordContext } from '../server/overview/record-context.js';
 import { flowStatusText } from '../shared/business/index.js';
 import { saveDoc } from './receive-fixture.js';
 import { actor } from './actor-fixture.js';
-import { businessBase } from './business-base-fixture.js';
+import { businessBase, damageOrderCost } from './business-base-fixture.js';
 
 /** 按编号读的参数：一个编号或一组编号，不给就是全部（照采购库存读库存品的参数） */
 type RecordIds = Parameters<OperationsService['items']>[1];
@@ -40,7 +40,7 @@ function fixture() {
     finishedStockId: finished.id, goodQuantity: '100', operator: '虚构员工', materials: [{ stockId: raw.id, issued: '1', returned: '0' }] });
   const delivery = confirm('delivery', { customerId: customer.id,
     lines: orders.map((o) => ({ orderId: o.id, orderLineId: o.lines[0].id, stockId: finished.id, quantity: '10' })) });
-  return { store, ops, flow, customer, product, supplier, raw, finished, orders, purchases, arrival, task, production, delivery };
+  return { base, store, ops, flow, customer, product, supplier, raw, finished, orders, purchases, arrival, task, production, delivery };
 }
 
 /** 关联记录写成“名字[:方向][:已归档]”：名字是这份虚构数据里的叫法，方向只写上游 */
@@ -106,7 +106,11 @@ test('关联记录只按编号读，不装配全表；单条采购单、供应�
   const f = fixture();
   try {
     const want = related(f, 'orders', f.orders[0].id);
-    t.mock.method(f.store, 'orders', () => assert.fail('不应装配全表：orders'));
+    const unrelated = f.base.order(
+      f.base.customer({ name: '虚构无关客户' }),
+      [f.base.line(f.base.product({ name: '虚构无关纸箱' }), 1)],
+    );
+    damageOrderCost(f.store, unrelated.id);
     // 采购、库存按编号读可以，不带编号就是读全表
     const { purchases, items } = OperationsService.prototype;
     t.mock.method(OperationsService.prototype, 'purchases', function (this: OperationsService, ...args: Parameters<OperationsService['purchases']>) {

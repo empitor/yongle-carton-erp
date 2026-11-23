@@ -1,3 +1,4 @@
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -136,8 +137,8 @@ test('启用财务：应收、应付、预收、预付按单位填期初就行�
   const { FinanceParties } = await import('../server/finance/parties.js');
   const store = new Store(':memory:');
   try {
-    store.saveCustomer(customerSchema.parse({ name: '虚构客户甲' }));
-    store.saveCustomer(customerSchema.parse({ name: '虚构客户乙' }));
+    sales(store).createCustomer(customerSchema.parse({ name: '虚构客户甲' }));
+    sales(store).createCustomer(customerSchema.parse({ name: '虚构客户乙' }));
     new OperationsService(store).saveSupplier({ name: '虚构供应商' }, { ...admin, permissions: [...admin.permissions, 'business:edit'] });
     const service = new FinanceSettings(store);
     const customer = (id: string, name: string) => ({ kind: 'customer', id, name });

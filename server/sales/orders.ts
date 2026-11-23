@@ -2,26 +2,19 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Customer, Order, OrderInput, Product } from '../../shared/core/index.js';
 import { FINISHED_UNIT, finishedUnit, finishedUnitMessage, legacyCents, orderSchema, precisionTotal, priceFromE4, priceToE4, statuses, totalCost } from '../../shared/core/index.js';
 import { z } from 'zod';
-import { ConflictError, InputError } from './errors.js';
-import { nextAutoId } from './ids.js';
-import { inSavepoint } from './savepoint.js';
+import { ConflictError, InputError, inSavepoint, many, nextAutoId, parseStoredJson, rows, type Store } from '../core/index.js';
 import { chosenExact, given, readBack, type ExistingRecord } from './record-fields.js';
-import { rows } from './schema/rows.js';
-import { many, parseStoredJson } from './sql.js';
 
 /*
- * 订单的读和存（表归基础）：组装普通订单视图，保存订单和明细。
- * 用到的 Store 能力从参数传进来（Store 在 db.ts 里把自己传进来），这个文件不引用 db.ts。
+ * 订单的读和存：组装普通订单视图，保存订单和明细。
+ * 读取的归档标记和保存时用的档案从调用方传入。
  */
 
 /** 读订单要用的：库连接和归档标记 */
-export type OrderContext = {
-  db: DatabaseSync;
-  archived(entity: string, id: number): boolean;
-  archivedIds(entity: string): Set<number>;
-};
+type OrderContext = Pick<Store, 'db' | 'archived' | 'archivedIds'>;
 /** 存订单还要读客户、产品和原来的订单 */
-export type OrderSaveContext = OrderContext & {
+type OrderSaveContext = {
+  db: DatabaseSync;
   customer(id: number, includeArchived?: boolean): Customer | undefined;
   product(id: number, includeArchived?: boolean): Product | undefined;
   order(id: number, includeArchived?: boolean): Order | undefined;

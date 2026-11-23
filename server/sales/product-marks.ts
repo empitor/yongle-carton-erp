@@ -1,3 +1,4 @@
+import { sales } from './records.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { Store } from '../core/index.js';
@@ -31,11 +32,11 @@ const markFile = rows.mark_files.pick({ mime: true, content: true }).extend({ na
 export class MarkService {
   constructor(readonly store: Store) {}
   private product(id: number) {
-    if (!this.store.product(id)) throw new AppError('产品不存在或已归档。', 404);
+    if (!sales(this.store).product(id)) throw new AppError('产品不存在或已归档。', 404);
   }
   /** 只读不要求产品未归档：归档产品的面板也要能看到唛头。 */
   list(productId: number) {
-    if (!this.store.product(productId, true)) throw new AppError('产品不存在。', 404);
+    if (!sales(this.store).product(productId, true)) throw new AppError('产品不存在。', 404);
     return many(this.store.db, markRow, `SELECT ${columns} FROM product_marks WHERE product_id=? ORDER BY id`, productId);
   }
   listForProducts(ids: number[]) {

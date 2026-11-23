@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import type { z } from 'zod';
 import { RAW_UNIT, UNITS_PER_QUANTITY } from '../../shared/core/index.js';
 import type { Store } from '../core/index.js';
@@ -166,7 +167,7 @@ export class OperationsService {
     if (!item) throw new AppError('库存品不存在或已归档。', 404);
     if (item.version !== v.expectedVersion)
       throw new AppError('库存已变化，请刷新数量后重新确认。', 409);
-    if (v.customerOrderId && !this.store.order(v.customerOrderId, isSuperMode(actor)))
+    if (v.customerOrderId && !sales(this.store).order(v.customerOrderId, isSuperMode(actor)))
       throw new AppError('关联订单不存在或已归档。');
     const qty = quantityUnits(v.quantity);
     if (v.action !== 'adjust' && qty <= 0) throw new AppError('出入库数量必须大于零。');

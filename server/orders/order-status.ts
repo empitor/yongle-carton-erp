@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { trackedOrderViewSchema, storedOrderInput } from '../../shared/core/index.js';
 import { orderStatusRules, recordStatusActionNames, recordStatusInputSchema, type RecordStatusAction } from '../../shared/business/index.js';
 import type { Actor, Store } from '../core/index.js';
@@ -41,7 +42,7 @@ export function changeOrderStatus(store: Store, id: number, action: RecordStatus
 /** 整张保存（PUT /api/orders/:id）不改状态：带了和现在不一样的状态就拒绝，指到详情里的状态动作 */
 export function assertOrderStatusKept(store: Store, id: number, raw: unknown, includeArchived = false) {
   const next = typeof raw === 'object' && raw !== null && 'status' in raw ? raw.status : undefined,
-    current = store.order(id, includeArchived)?.status;
+    current = sales(store).order(id, includeArchived)?.status;
   if (current !== undefined && typeof next === 'string' && next !== current)
     throw new AppError(
       '保存订单不改状态。确认、退回待确认、取消、恢复请用订单详情里的对应按钮（取消要写原因）。',

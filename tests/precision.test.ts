@@ -1,5 +1,6 @@
 // 精度规则（纯函数为主）：单价的写法、上限、改价补丁的意思，不足一分的尾数，数量的写法，面积和金额按十进制精确换算。
 // 单价和合计怎么存在 price-storage.test.ts。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../server/core/db.js';
@@ -124,8 +125,8 @@ test('改价补丁的意思（priceEdit）：清空价格、按分存、照提�
   // 盖上以后交给保存：清空的存成没定价（不是 0 元）
   const s = new Store(':memory:');
   try {
-    let p = s.saveProduct(productSchema.parse({ name: '虚构清价纸箱', priceExact: '1.2345' }));
-    p = s.saveProduct(productSchema.parse({ ...p, ...productPricePatch({ priceExact: '' }, p) }), p.id, p.version);
+    let p = sales(s).createProduct(productSchema.parse({ name: '虚构清价纸箱', priceExact: '1.2345' }));
+    p = sales(s).updateProduct(productSchema.parse({ ...p, ...productPricePatch({ priceExact: '' }, p) }), p.id, p.version);
     assert.deepEqual([p.priceCents, p.priceExact], [0, undefined]);
   } finally {
     s.close();

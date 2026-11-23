@@ -1,4 +1,5 @@
 // 从完整备份恢复：不合格的备份在复制和切换之前就拒绝、现有数据不动；切换中途出错整体退回；正常的照常恢复。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs, { readdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
@@ -278,7 +279,7 @@ test('正常的备份照常恢复：换成备份里的文件（运行标记留�
     assert.equal(versionOf(join(f.target, 'misc', 'scraps.sqlite')), 7);
     const store = new Store(join(f.target, 'erp.sqlite'));
     try {
-      assert.deepEqual(store.customers().map((customer) => customer.name), ['虚构配置库客户']);
+      assert.deepEqual(sales(store).customers().map((customer) => customer.name), ['虚构配置库客户']);
     } finally {
       store.close();
     }

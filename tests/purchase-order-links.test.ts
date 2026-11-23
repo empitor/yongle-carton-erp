@@ -1,3 +1,4 @@
+import { sales } from '../server/sales/index.js';
 import { trackedOrder, trackOrders } from '../server/orders/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,8 +80,8 @@ test('一张采购单可以给几张订单订料：明细各自关联订单，�
   assert.deepEqual(storedLinks(f.store, f.purchase.id), [[f.a.id, null], [f.b.id, null]]);
   assert.deepEqual(f.purchase.lines.map((l) => l.customerOrderId), [f.a.id, f.b.id]);
   // 订料进度：按一张订单、按几张订单、全部订单三种读法结果一样
-  assert.deepEqual(trackOrders(f.store, f.store.ordersByIds([f.a.id, f.b.id], true)).map((o) => o.materialProgress), ['pending', 'pending']);
-  assert.deepEqual(trackOrders(f.store, f.store.orders(true)).map((o) => o.materialProgress), ['pending', 'pending']);
+  assert.deepEqual(trackOrders(f.store, sales(f.store).ordersByIds([f.a.id, f.b.id], true)).map((o) => o.materialProgress), ['pending', 'pending']);
+  assert.deepEqual(trackOrders(f.store, sales(f.store).orders(true)).map((o) => o.materialProgress), ['pending', 'pending']);
 });
 
 test('采购明细关联的订单是真外键列：JSON 里再存一份、指向不存在的订单都被数据库拒绝；按订单找采购用得上索引', () => {
@@ -126,7 +127,7 @@ test('不在本机的超级管理员模式删订单：采购明细按行的关�
     '影响清单列出解除关联的采购明细',
   );
   service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, who, 'session');
-  assert.equal(f.store.order(f.a.id, true), undefined, '订单删了');
+  assert.equal(sales(f.store).order(f.a.id, true), undefined, '订单删了');
   assert.deepEqual(storedLinks(f.store, f.purchase.id), [[null, null], [f.b.id, null]]);
   const after = f.flow.views.purchases(true, f.purchase.id)[0];
   assert.deepEqual(after.lines.map((l) => l.quantity), before.lines.map((l) => l.quantity), '采购明细留着');

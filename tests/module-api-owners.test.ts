@@ -18,8 +18,8 @@ const apiOwners: [prefix: string, module: string][] = [
   ['/guide', '系统资料'],
   ['/business', '业务总览'], ['/dashboard', '业务总览'],
   ['/customers', '订单服务'], ['/products', '订单服务'], ['/orders', '订单服务'],
-  // 产品详情里的唛头由业务总览挂路由。
-  ['/marks', '业务总览'], ['/products/:id/marks', '业务总览'],
+  // 产品详情里的唛头由客户产品订单挂路由。
+  ['/marks', '客户产品订单'], ['/products/:id/marks', '客户产品订单'],
   ['/suppliers', '采购库存'],
   // 采购单、库存品和流水、订货单（含登记到货）回答带单据的内容，在单据流转（server/flow/stock-router.ts）
   ['/purchases', '单据流转'], ['/warehouse', '单据流转'], ['/order-batches', '单据流转'],
@@ -42,7 +42,7 @@ const apiOwners: [prefix: string, module: string][] = [
 const apiAllow: Record<string, string[]> = {
   // 每个页面的登录状态和凭证刷新都由前端基础读 /auth/state。
   '前端-基础': ['基础', '账号'],
-  '前端-业务': ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览'],
+  '前端-业务': ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览'],
   '前端-单据导出': ['单据导出'],
   '前端-系统资料': ['系统资料'],
   '前端-财务': ['基础', '财务'],

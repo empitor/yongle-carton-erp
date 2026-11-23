@@ -1,5 +1,6 @@
+import { sales } from '../../sales/index.js';
 import { z } from 'zod';
-import { lineShippingProgress, quantityUnits } from '../../../shared/core/index.js';
+import { lineShippingProgress, quantityUnits, type Order } from '../../../shared/core/index.js';
 import type { DeliveryDaily } from '../../../shared/business/index.js';
 import type { Store } from '../../core/index.js';
 import { many, rows } from '../../core/index.js';
@@ -13,7 +14,6 @@ import { FlowService } from '../rules/service.js';
  */
 
 type MovementRow = z.output<typeof rows.stock_movements>;
-type Order = NonNullable<ReturnType<Store['order']>>;
 type StockItem = ReturnType<FlowService['ops']['repo']['items']>[number];
 
 /**
@@ -94,7 +94,7 @@ export function deliveryRecords(
   const flow = new FlowService(store);
   const deliveries = flow.list('delivery', includeArchived, workbenchDate, flowIds);
   const orderIds = [...new Set(deliveries.flatMap((d) => d.lines.map((l) => l.orderId)))];
-  const orders = new Map(store.ordersByIds(orderIds, true).map((o) => [o.id, o]));
+  const orders = new Map(sales(store).ordersByIds(orderIds, true).map((o) => [o.id, o]));
   const shipped = shippedByLine(store.db, orderIds);
   const stocks = new Map(flow.ops.items(true, deliveries.flatMap((d) => d.lines.map((l) => l.stockId))).map((s) => [s.id, s]));
   const customers = new Map(

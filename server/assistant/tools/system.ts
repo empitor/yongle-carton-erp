@@ -91,7 +91,7 @@ export function resetPreview(tools: SystemDeps, args: unknown, actor: Actor) {
 }
 /** 系统状态列的主要记录（业务表），和这些表的主人模块 */
 const RECORD_TABLES = ['customers', 'products', 'orders', 'suppliers', 'purchases', 'stock_movements', 'inbox_items', 'product_marks'];
-const RECORD_MODULES = ['基础', '采购库存', '识别导入', '业务总览'] as const;
+const RECORD_MODULES = ['基础', '采购库存', '识别导入', '客户产品订单'] as const;
 /**
  * 主要记录数：业务表由各模块按自己登记的清空语句数（core 的 resetCounts，和一键清空预览同一个数法），
  * 助手不直接数别的模块的表；会话数是助手自己的表。

@@ -1,5 +1,6 @@
 // 助手排查问题用的只读工具（history.records、ai.status、jobs.status、exports.list、settings.view、accounts.list、guide.read，
 // 以及放开给超级管理员的系统状态）：直接调用各工具。机密扫描和第二批工具一起在 assistant-logs-web.test.ts。数据全是虚构的，库在内存里。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ const historyView = { 修改历史: listedRows };
 const lastCheck = z.looseObject({ 结果: z.string() });
 /** 和页面一样改一次客户名字（manualWrite 办完写修改记录） */
 function renamedCustomer(store: Store, who = staff) {
-  const c = store.saveCustomer(customerSchema.parse({ name: '虚构客户原名' }));
+  const c = sales(store).createCustomer(customerSchema.parse({ name: '虚构客户原名' }));
   manualWrite(store, { entity: 'customers', action: 'update', id: c.id, input: { ...c, name: '虚构客户新名' } }, who);
   return c;
 }

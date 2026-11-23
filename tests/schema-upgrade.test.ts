@@ -1,5 +1,6 @@
 // 业务库升级：待做的步骤在一个事务里执行、失败整体回滚、升级前快照、重建自增表编号不回头、步骤编号连续。
 // 升级步骤都是虚构的：在第 20 版的库上从第 21 版编起（schema-fixture.ts），和程序真有几步无关。
+import { sales } from '../server/sales/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -102,7 +103,7 @@ test('升级失败整体回滚：前面成功的步骤一起退回，版本、�
     // 回滚以后当前程序照常打开
     const store = new Store(w.path);
     try {
-      assert.equal(store.customers()[0].name, '虚构升级客户');
+      assert.equal(sales(store).customers()[0].name, '虚构升级客户');
     } finally {
       store.close();
     }

@@ -1,6 +1,7 @@
 // 更正完工单（server/flow/correction/correction.ts + production-correction-plan.ts）：超级管理员模式改合格数、报废数、领料；
 // 本机管理员另能改完工日期、产品、生产任务。撤销原单、另出替代单，流水只追加。内存库、虚构数据。
 // 末尾一条守三种更正（到货、送货、完工）同一请求号重发交回的结果和第一次一样。
+import { sales } from '../server/sales/index.js';
 import { pageActor } from './actor-fixture.js';
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
@@ -123,7 +124,7 @@ test('超计划只提示，“已入库”不算原单自己；加一行衬板�
 
 test('本机管理员换产品（换成品库存）、不挂任务、改完工日期：两个成品库存、任务已入库都对', (t) => {
   const f = setup(t, '300');
-  const other = f.store.saveProduct(productSchema.parse({ name: '虚构另一款纸箱' }));
+  const other = sales(f.store).createProduct(productSchema.parse({ name: '虚构另一款纸箱' }));
   const plan = f.preview(f.done.id, { productId: other.id, taskId: null, date: '2026-10-26' }, f.actor);
   assert.deepEqual([plan.product.before.name, plan.product.after.name], ['虚构纸箱', '虚构另一款纸箱']);
   assert.equal(count(f.store.db, 'SELECT count(*) n FROM stock_items WHERE product_id=?', other.id), 0, '预览不建成品库存');

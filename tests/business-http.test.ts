@@ -1,5 +1,6 @@
 // 客户、产品、订单的接口（server/orders/、不带登录的 createApp）：增改查、校验、版本冲突、筛选、首页金额、来源保护、重开库后数据还在。
 // 每条测试自己起服务、自己造虚构数据，互不依赖。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -111,7 +112,7 @@ test('拒绝负数、小数数量、不存在的客户、无效日期及交期�
       { costs: { material: 0, processing: 0, waste: 0, other: 0, basis: '' } },
     ])
       assert.equal((await h.request('/orders', { ...o, ...bad })).status, 400, JSON.stringify(bad));
-    assert.equal(h.store.orders().length, 1);
+    assert.equal(sales(h.store).orders().length, 1);
   } finally {
     await h.close();
   }
@@ -143,9 +144,9 @@ test('订单旧版本修改被拒，金额、明细、状态都不变', async ()
   try {
     const { o } = await h.seed();
     await h.request('/orders/' + o.id, { ...o, notes: '先改一次' }, 'PUT');
-    const before = h.store.order(o.id);
+    const before = sales(h.store).order(o.id);
     assert.equal((await h.request('/orders/' + o.id, { ...o, lines: [{ ...o.lines[0], quantity: 999 }] }, 'PUT')).status, 409);
-    assert.deepEqual(h.store.order(o.id), before);
+    assert.deepEqual(sales(h.store).order(o.id), before);
   } finally {
     await h.close();
   }
@@ -204,9 +205,9 @@ test('关闭数据库再打开，客户、订单和订单明细仍存在', async
     await h.close();
     const store = new Store(file);
     try {
-      assert.equal(store.orders().length, 1);
-      assert.equal(store.order(o.id)?.totalCents, 571);
-      assert.equal(store.customer(c.id)?.name, customer.name);
+      assert.equal(sales(store).orders().length, 1);
+      assert.equal(sales(store).order(o.id)?.totalCents, 571);
+      assert.equal(sales(store).customer(c.id)?.name, customer.name);
     } finally {
       store.close();
     }

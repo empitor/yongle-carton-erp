@@ -1,3 +1,4 @@
+import { sales } from '../sales/index.js';
 import { trackOrders } from './tracked-orders.js';
 import { z } from 'zod';
 import { pageRows, InputError, type Store } from '../core/index.js';
@@ -42,7 +43,7 @@ function listed<T extends { id: number }>(rows: T[], archivedIds: Set<number>, a
  */
 export function customerList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
   const f = customerQuerySchema.parse(query);
-  const scoped = listed(store.customers(includeArchived), store.archivedIds('customers'), f.archived);
+  const scoped = listed(sales(store).customers(includeArchived), store.archivedIds('customers'), f.archived);
   const rows = scoped.filter((row) => matchesOperationalRecord(row, f.q));
   return query.withMetrics === '1' ? { rows, totalRecords: scoped.length, metrics: null } : rows;
 }
@@ -53,7 +54,7 @@ export function customerList(store: Store, query: Record<string, unknown>, inclu
  */
 export function productList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
   const f = productQuerySchema.parse(query);
-  const scoped = listed(store.products(includeArchived), store.archivedIds('products'), f.archived);
+  const scoped = listed(sales(store).products(includeArchived), store.archivedIds('products'), f.archived);
   const matched = scoped.filter((row) => matchesProduct(row, f.q ?? ''));
   if (query.withMetrics !== '1') return matched;
   // 按客户筛：这个客户下过单的产品（产品本身不挂客户，靠订单明细关联）
@@ -69,7 +70,7 @@ export function productList(store: Store, query: Record<string, unknown>, includ
 /** 订单列表。withMetrics=1 时分页并带统计（{ rows, filteredRecords, page…, totalRecords, metrics }），不带时直接返回数组 */
 export function orderList(store: Store, query: Record<string, unknown>, includeArchived: boolean) {
   const f = orderQuerySchema.parse(query);
-  const scoped = listed(trackOrders(store, store.orders(includeArchived)), store.archivedIds('orders'), f.archived);
+  const scoped = listed(trackOrders(store, sales(store).orders(includeArchived)), store.archivedIds('orders'), f.archived);
   const rows = filterOrders(f, scoped);
   return query.withMetrics === '1'
     ? { ...pageRows(rows, query), totalRecords: scoped.length, metrics: orderMetrics(rows) }

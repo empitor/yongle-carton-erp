@@ -23,11 +23,12 @@ export const modules: Rule[] = [
   { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
   // 系统资料：运行日志、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
   { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
-  // 业务主线只能往下：采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览
+  { name: '客户产品订单', paths: ['server/sales/'], allow: ['基础', '共用-基础', '共用-业务'] },
+  // 业务主线只能往下：客户产品订单 ← 采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览
   {
     name: '采购库存',
     paths: ['server/operations/'],
-    allow: ['基础', '共用-基础', '共用-业务'],
+    allow: ['基础', '客户产品订单', '共用-基础', '共用-业务'],
     // 从下往上：账和读（写流水和采购明细、按编号读、库存品内容的规格）← 库存品、订货单 ← 采购单 ← 服务和路由（服务、路由、删除登记）；层名不用模块名，免得被当成跨模块的层
     layers: [
       { name: '账和读', paths: ['server/operations/ledger/'] },
@@ -39,7 +40,7 @@ export const modules: Rule[] = [
   {
     name: '单据流转',
     paths: ['server/flow/'],
-    allow: ['基础', '采购库存', '共用-基础', '共用-业务'],
+    allow: ['基础', '客户产品订单', '采购库存', '共用-基础', '共用-业务'],
     // 从下往上：单据存取（存取、读、关联、只读窗口）← 规则和服务（核对、预览、确认、撤销、订单进度、FlowService、采购库存的完整视图和保存入口）
     // ← 按种类（到货、生产、送货）← 更正（三种更正、编辑说明）← 路由和台账（路由、删除登记、跨种类的仓库台账）
     layers: [
@@ -50,20 +51,20 @@ export const modules: Rule[] = [
       { name: '路由和台账', paths: ['server/flow/daily.ts', 'server/flow/deletion.ts', 'server/flow/router.ts', 'server/flow/stock-router.ts'] },
     ],
   },
-  { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
-  { name: '订单服务', paths: ['server/orders/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
-  { name: '业务总览', paths: ['server/overview/'], allow: ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '共用-基础', '共用-业务'] },
+  { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
+  { name: '订单服务', paths: ['server/orders/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
+  { name: '业务总览', paths: ['server/overview/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '订单服务', '共用-基础', '共用-业务'] },
   // 财务用单据流转只许经只读窗口 financeFacts（module-narrow-refs.test.ts）
   { name: '财务', paths: ['server/finance/'], allow: ['基础', '单据流转', '共用-基础', '共用-业务', '共用-财务'] },
   {
     name: '单据导出',
     paths: ['server/documents/'],
-    allow: ['基础', '采购库存', '单据流转', '共用-基础', '共用-业务', '共用-单据'],
+    allow: ['基础', '客户产品订单', '采购库存', '单据流转', '共用-基础', '共用-业务', '共用-单据'],
   },
   {
     name: '识别导入',
     paths: ['server/import/', 'server/inbox/'],
-    allow: ['基础', 'AI接入', '单据流转', '共用-基础', '共用-AI', '共用-识别'],
+    allow: ['基础', '客户产品订单', 'AI接入', '单据流转', '共用-基础', '共用-AI', '共用-识别'],
   },
   {
     name: '数据管理',
@@ -74,18 +75,19 @@ export const modules: Rule[] = [
   {
     name: '助手',
     paths: ['server/assistant/'],
-    allow: ['基础', 'AI接入', '系统资料', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
+    allow: ['基础', '客户产品订单', 'AI接入', '系统资料', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
   },
   // 服务端根目录只放启动、装配和命令行入口，可以引用全部（只算根目录的文件，新建的子目录要登记进上面的模块）
   { name: '装配', paths: ['server/'], allow: ['*'] },
   // 前后端共用，和服务端同一套分法
   { name: '共用-基础', paths: ['shared/core/'], allow: [] },
   {
-    // 一个平铺的目录，按文件分成和服务端业务主线一样的五层；服务端对应模块只能用同层或下层的文件（经 index.ts 引的名字按来源文件算）
+    // 一个平铺的目录，按文件分成和服务端业务主线一样的六层；服务端对应模块只能用同层或下层的文件（经 index.ts 引的名字按来源文件算）
     name: '共用-业务',
     paths: ['shared/business/'],
     allow: ['共用-基础'],
     layers: [
+      { name: '客户产品订单', paths: business(['mark-api', 'mark-inputs']) },
       {
         name: '采购库存',
         paths: business([
@@ -115,7 +117,7 @@ export const modules: Rule[] = [
       {
         name: '业务总览',
         paths: business([
-          'mark-api', 'mark-inputs', 'workbench-api', 'overview', 'order-next-step', 'order-chain',
+          'workbench-api', 'overview', 'order-next-step', 'order-chain',
           'history-fields', 'history-text', 'record-history', 'record-changes', 'data-management-templates',
         ]),
       },

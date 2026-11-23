@@ -2,6 +2,7 @@
 // 照原样带回的格子不算改了（已生效单据整条读出来、只改备注能存）；明细带编号的按编号对行，没编号的按内容对
 // （和记录里哪一行一样的格子最多就是哪一行，一样多才按第几行）；
 // 已生效单据删行、对调这类动了明细的，说“请用更正”，不说成改了算出来的栏目。虚构数据。
+import { sales } from '../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ManagedModule } from '../server/admin/managed-records.js';
@@ -20,7 +21,7 @@ const send = (f: F, module: ManagedModule, row: { id: number; version: number },
   f.dataManagement.execute(command(module, 'update', [row], patch), f.who, 's', 'management-assistant');
 /** 一张两行的已确认订单（同一个产品，100 只、200 只） */
 const twoLineOrder = (f: F) =>
-  f.store.saveOrder(
+  sales(f.store).saveOrder(
     orderSchema.parse({
       customerId: f.customer.id,
       orderDate: '2026-10-01',
@@ -67,13 +68,13 @@ test('订单明细按编号对行：照读到的明细插一行、删一行都�
     let row = listed(f, 'orders', order.id);
     const added = { productId: f.product.id, quantity: 50, unit: '只', unitPriceCents: 100 };
     send(f, 'orders', row.record, { lines: [added, ...row.record.lines] });
-    const savedLines = f.store.order(order.id, true)?.lines;
+    const savedLines = sales(f.store).order(order.id, true)?.lines;
     assert.ok(savedLines);
     assert.deepEqual(savedLines.map((l) => l.quantity), [100, 200, 50]);
     assert.deepEqual(savedLines.slice(0, 2).map((l) => l.id), order.lines.map((l) => l.id));
     row = listed(f, 'orders', order.id);
     send(f, 'orders', row.record, { lines: row.record.lines.filter((l) => l.id !== savedLines[2].id) });
-    assert.deepEqual(f.store.order(order.id, true)?.lines.map((l) => l.quantity), [100, 200]);
+    assert.deepEqual(sales(f.store).order(order.id, true)?.lines.map((l) => l.quantity), [100, 200]);
     row = listed(f, 'orders', order.id);
     const [first, second] = row.record.lines;
     assert.throws(() => send(f, 'orders', row.record, { lines: [{ ...second, shippedQuantity: 5 }, first] }), /明细第1项的已发数量：是系统算出来的/);
