@@ -1,5 +1,5 @@
 // 按建表生成每张表的 zod 行结构：server/core/schema/rows.ts（汇总）和 rows/ 下的几份。读库时校验用（server/core/storage/sqlite/sql.ts）。
-// 由 npm run schema:dump 一起生成（scripts/schema-dump.ts 调这里），守它的测试在 tests/schema-evolution.test.ts。
+// 由 npm run schema:dump 一起生成（scripts/schema-dump.ts 调这里），守它的测试在 tests/core/schema-evolution.test.ts。
 //
 // - 业务库按 server/core/schema/tables/ 的分组依次建一遍，按分组写进几份文件（一份不超过 500 行）；
 // - 配置库（账号、AI 设置、提示词、助手工具设置、机器人设置、识别工作区、出错记录）按各主人模块登记的规格

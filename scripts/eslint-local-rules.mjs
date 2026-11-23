@@ -68,7 +68,7 @@ const directDbRead = {
 };
 
 // 单据的状态、种类（shared/business/flow/physical-flow.ts 的 flowStatus、flowKinds）：词表在这里另写一份，
-// 规则的样例测试（tests/eslint-flow-literals.test.ts）逐个拿 shared 的常量比，两边对不上就报红
+// 规则的样例测试（tests/checks/eslint-flow-literals.test.mjs）逐个拿 shared 的常量比，两边对不上就报红
 const FLOW_STATUSES = ['draft', 'confirmed', 'cancelled', 'reversed'];
 const FLOW_KINDS = ['arrival', 'task', 'production', 'delivery'];
 const quotedWord = (words) => `'(?:${words.join('|')})'`;

@@ -20,7 +20,7 @@ const here = fileURLToPath(new URL('./', import.meta.url));
 
 // 同一组的流程按顺序共用一个实例的状态；不同组互不相干。财务各组开头用接口自己准备前置数据，不依赖别的组。
 // 按大约用时从长到短排：同时跑的组数少于组数时，长的先开跑。
-// 新加的 flow-*.mjs 要写进某一组，不然永远不跑（tests/ui-check-groups.test.mjs 查）。
+// 新加的 flow-*.mjs 要写进某一组，不然永远不跑（tests/checks/ui-check-groups.test.mjs 查）。
 export const groups = [
   { name: 'finance-close', flows: ['closing'], about: '撤销核销和收款、银行流水、发票、保证金、费用、工资、成本计提结转结账报表反结账、压款利息和逾期' },
   { name: 'finance', flows: ['basics', 'ledger'], about: '启用财务、资金账户、账期、各页签；补税、生成凭证、提交审核记账、收款核销、叫法' },

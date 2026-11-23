@@ -5,14 +5,14 @@
 //
 // 用法：
 //   npm test                         主套件 + 串行组
-//   npm test -- tests/a.test.ts      只跑这几个文件
+//   npm test -- tests/<大类>/a.test.ts      只跑这几个文件
 //   npm run test:isolated            每个文件一个进程，慢但互不影响；怀疑文件之间互相影响时对照
 //   npm run test:release             发布前检查（tests/release/）
 //   npm run test:coverage            带覆盖统计跑主套件，列出 server/、shared/ 里行覆盖低于 80% 又没登记原因的文件，有就失败（test-coverage.mjs）
 //   TEST_JOBS=4 npm test             分几组（默认按 CPU 数，最多 8）
 //
 // 测试文件连子目录一起找（suites）：tests/release/ 是发布检查、tests/serial/ 是串行组、tests/fixtures/ 是测试数据，
-// 其余（tests/ 和它下面别的子目录）都归主套件。test-related.mjs 和守卫 tests/test-suites.test.mjs 用同一个 suites。
+// 其余（tests/ 和它下面别的子目录）都归主套件。test-related.mjs 和守卫 tests/checks/test-suites.test.mjs 用同一个 suites。
 //
 // 不管调用方设没设，测试进程的本机数据目录（Windows 的 LOCALAPPDATA）、配置目录（ERP_CONFIG_DIR、
 // Linux 的 XDG_CONFIG_HOME）都指向一个新建的临时目录，跑完删掉，碰不到本机真实的程序数据和凭据。

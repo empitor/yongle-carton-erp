@@ -18,7 +18,7 @@ export async function createRealModelSettings() {
   const fake = process.env.UI_CHECK_FAKE_DEEPSEEK === '1';
   let settings: Settings;
   if (fake) {
-    const { fakeDeepSeek, testProtector } = await import('../../tests/fake-deepseek.ts');
+    const { fakeDeepSeek, testProtector } = await import('../../tests/support/fake-deepseek.ts');
     const deepseek = fakeDeepSeek({
       chat: (body) => fakeAnswer(body),
       asrText: '测试订单五百只',

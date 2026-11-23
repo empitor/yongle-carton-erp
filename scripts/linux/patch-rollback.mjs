@@ -16,7 +16,7 @@ export function hasRevertCommand(erpShText) {
 
 /**
  * 配置库升级前备份的文件名，照程序（server/core/backup/versioned-sqlite-backup.ts）另写一份，格式定下不改；
- * tests/patch-rollback.test.ts 拿程序真做出来的备份核对两边对得上：
+ * tests/core/patch-rollback.test.ts 拿程序真做出来的备份核对两边对得上：
  * <库文件名去掉 .sqlite>-upgrade-v<旧版>-to-v<新版>-<UTC 时间>-<6 位十六进制>.sqlite。
  * 业务库的升级快照叫 upgrade-v…（前面没有库名），不算在内。
  */

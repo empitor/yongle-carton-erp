@@ -6,7 +6,7 @@
 //   版本记录的时间和程序版本换成固定的占位值（结构比较 describeSchema 本来就不比这两列）。
 // - 顺序：建表、索引、触发器、视图按 sqlite_schema 里的先后（就是建库时的先后）；数据的表也按这个先后，行按 rowid。
 // - 当前建表已经不是第 20 版（steps.ts 里有了升级步骤）就拒绝导出：0.9.0 发布后这份快照不许再改。
-// 守它的测试在 tests/schema-evolution.test.ts（“第 20 版结构快照”几条）。
+// 守它的测试在 tests/core/schema-evolution.test.ts（“第 20 版结构快照”几条）。
 // 同一个命令还按建表生成每张表的行结构（server/core/schema/rows.ts，见 scripts/schema-rows.ts），
 // 并导出还没有升级步骤的配置库的基线快照（tests/fixtures/config-db/，见 scripts/config-db-dump.ts）。
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';

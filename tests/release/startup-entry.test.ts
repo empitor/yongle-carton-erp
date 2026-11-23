@@ -6,7 +6,7 @@ import { readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { legacyDatabase, sha256, workspace } from '../schema-fixture.js';
+import { legacyDatabase, sha256, workspace } from '../support/schema-fixture.js';
 
 const projectRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const entry = join(projectRoot, 'server/index.ts');

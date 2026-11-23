@@ -1,5 +1,5 @@
 // 把每个配置库基线版本的结构导出成可以直接执行的 SQL：tests/fixtures/config-db/<短名>-v<基线>.sql。
-// 由 npm run schema:dump 一起生成（scripts/schema-dump.ts 调这里），守它的测试在 tests/config-db-evolution.test.ts。
+// 由 npm run schema:dump 一起生成（scripts/schema-dump.ts 调这里），守它的测试在 tests/core/config-db-evolution.test.ts。
 //
 // - 只在内存里按各库主人模块登记的规格（registerVersionedSqlite）建空库，不碰任何数据文件。
 // - 还没有升级步骤的库才导出：这时 create 建出来的就是基线结构。有了步骤以后基线快照定下不改，这里不再碰它。

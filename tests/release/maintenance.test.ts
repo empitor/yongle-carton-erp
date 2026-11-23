@@ -14,7 +14,7 @@ import {
 } from '../../server/core/index.js';
 import { SCHEMA_LATEST } from '../../server/core/schema/index.js';
 import { snapshotForUpgrade } from '../../server/core/schema/upgrade.js';
-import { alterBackupDatabase, versionOf } from '../backup-fixture.js';
+import { alterBackupDatabase, versionOf } from '../support/backup-fixture.js';
 
 /** 在临时目录里起命令行维护脚本（server/maintenance.ts）；env 把业务库、备份目录这些指进临时目录 */
 const runner =
