@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Linter } from 'eslint';
 import { localRules } from '../scripts/eslint-local-rules.mjs';
-import { flowEntity, flowKinds, flowStatus } from '../shared/business/index.js';
+import { flowEntity, flowStatus } from '../shared/business/index.js';
+import { flowKinds } from '../shared/core/index.js';
 
 const RULE = 'local/no-flow-literals';
 const linter = new Linter({ configType: 'flat' });
