@@ -7,6 +7,7 @@ import CustomerEditor from './CustomerEditor';
 import ProductEditor from './ProductEditor';
 import OrderLines from './OrderLines';
 import OrderMoreInfo from './OrderMoreInfo';
+import { soleRetryButton } from './order-customer-change';
 import { useOrderEditor, type OrderEditorProps, type OrderSource } from './useOrderEditor';
 
 type Editor = ReturnType<typeof useOrderEditor>;
@@ -122,7 +123,8 @@ function OrderHead({ e, value }: { e: Editor; value: OrderEditorProps['value'] }
 
 /** 订单明细和合计 */
 function OrderLinesSection({ e }: { e: Editor }) {
-  const { totalExact, fractional, uncounted } = e.totals;
+  const { totalExact, fractional, uncounted } = e.totals,
+    retry = soleRetryButton(e.retryingSole);
   return (
     <FormSection
       title={ORDER_LINES_TITLE}
@@ -138,8 +140,8 @@ function OrderLinesSection({ e }: { e: Editor }) {
       {e.customerBlocked && !e.customerWaiting && (
         <FormMessage
           action={
-            <button type="button" className="secondary" onClick={e.retrySole}>
-              重试
+            <button type="button" className="secondary" disabled={retry.disabled} onClick={e.retrySole}>
+              {retry.label}
             </button>
           }
         >

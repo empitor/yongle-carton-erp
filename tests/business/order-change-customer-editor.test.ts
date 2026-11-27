@@ -5,7 +5,15 @@ import assert from 'node:assert/strict';
 import { sales } from '../../server/sales/index.js';
 import { orderSchema } from '../../shared/core/index.js';
 import { fillProduct, initialLines } from '../../src/editors/order-draft.js';
-import { crossCustomerLine, customerChangeBlocked, keptLineProducts, movingNotice, pruneLinesForCustomer } from '../../src/editors/order-customer-change.js';
+import {
+  crossCustomerLine,
+  customerChangeBlocked,
+  keptLineProducts,
+  movingNotice,
+  pruneLinesForCustomer,
+  soleRetryButton,
+} from '../../src/editors/order-customer-change.js';
+import { loadStatus } from '../../src/ui/data-hooks.js';
 import { pageActor } from '../support/actor-fixture.js';
 import { businessBase } from '../support/business-base-fixture.js';
 
@@ -64,4 +72,16 @@ test('编辑已有订单时，还没读到或读失败“只在这张订单里�
   );
   assert.equal(customerChangeBlocked(true, { loading: false, error: '' }), '');
   assert.equal(customerChangeBlocked(false, { loading: false, error: '' }), '');
+});
+
+test('读失败后点“重试”：重读还没回来时按钮不可点、写“正在重试…”，读完（成功或再失败）恢复成“重试”', () => {
+  // 上一次读完的是订单 7 的第 0 次；点了重试是第 1 次，还没读完
+  assert.deepEqual(loadStatus({ key: '7', revision: 0 }, '7', 1), { loading: false, reloading: true });
+  assert.deepEqual(soleRetryButton(true), { disabled: true, label: '正在重试…' });
+  // 第 1 次读完了（不管成功还是又失败）
+  assert.deepEqual(loadStatus({ key: '7', revision: 1 }, '7', 1), { loading: false, reloading: false });
+  assert.deepEqual(soleRetryButton(false), { disabled: false, label: '重试' });
+  // 换了一张订单是“还在读”，不算重读；没有要读的（key 为空）调了 reload 也不算
+  assert.deepEqual(loadStatus({ key: '7', revision: 1 }, '8', 1), { loading: true, reloading: false });
+  assert.deepEqual(loadStatus({ key: null, revision: 0 }, null, 1), { loading: false, reloading: false });
 });

@@ -22,6 +22,11 @@ export function customerChangeBlocked(editing: boolean, sole: { loading: boolean
   return sole.loading ? '正在读这张订单的产品，读完才能换客户。' : '';
 }
 
+/** 读失败那句旁边的“重试”按钮：重读还没回来时不可点、写“正在重试…”，人看得出点上了（再失败一次那句红字不会变） */
+export function soleRetryButton(retrying: boolean) {
+  return { disabled: retrying, label: retrying ? '正在重试…' : '重试' };
+}
+
 /**
  * 留着原产品的明细：行编号 → 原产品编号。没换客户全留（老订单没动的明细不拦）；换了客户只留跟着改归新客户的
  * （productMovesWithOrder）。

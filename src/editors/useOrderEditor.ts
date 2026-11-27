@@ -134,7 +134,7 @@ const mergeRecords = <T extends { id: number }>(base: T[], added: T[]) => [
 /**
  * 换客户：编辑已有订单时读“订单明细只在这张订单里”的产品，跟着改归新客户的行不清空，属别家客户的行清空
  * （留哪些行、提示怎么写在 order-customer-change.ts）。还在读、读失败都不能换客户（blocked 是原因和怎么办，
- * waiting 是还在读，retry 重读）。
+ * waiting 是还在读，retry 重读，retrying 是重读还没回来）。
  * notice：保存后会一起改归新客户的产品按现在的明细每次现算，后面接换客户时清空了哪几行（clearedNotice）。kept 是现在这家客户下留着原产品的行。
  */
 function useCustomerChange(value: Order | undefined, d: Draft, customers: Customer[], products: Product[]) {
@@ -158,6 +158,7 @@ function useCustomerChange(value: Order | undefined, d: Draft, customers: Custom
     blocked,
     waiting: !!value && sole.loading && !sole.error,
     retry: sole.reload,
+    retrying: sole.reloading,
   };
 }
 
@@ -232,7 +233,7 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   return {
     ...d,
-    changeCustomer, keptProducts, customerNotice, customerBlocked: customer.blocked, customerWaiting: customer.waiting, retrySole: customer.retry,
+    changeCustomer, keptProducts, customerNotice, customerBlocked: customer.blocked, customerWaiting: customer.waiting, retrySole: customer.retry, retryingSole: customer.retrying,
     availableCustomers, availableProducts, quickCreate, setQuickCreate, customerCreated, productCreated,
     status, pending, submitStatus, chooseProduct, submit,
     onInvalid: invalidHandler(d, setInvalid),
