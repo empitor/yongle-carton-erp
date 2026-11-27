@@ -29,7 +29,7 @@ function fixture() {
   const c = correctionFixture(f, clerk);
   f.stockIn('100');
   const order = f.order(100);
-  const delivery = f.confirm('delivery', { customerId: f.customer.id, address: '虚构旧地址', lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: f.finished.id, quantity: '10' }] });
+  const delivery = f.confirm('delivery', { customerId: f.customer.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: f.finished.id, quantity: '10' }] });
   const production = f.confirm('production', {
     productId: f.product.id,
     finishedStockId: f.finished.id,
@@ -84,7 +84,7 @@ test('送货单：改地址、联系人、联系方式、实际时间、备注�
     assert.equal(r.status, 'confirmed');
     assert.deepEqual(f.movements(), moves);
     assert.equal(trackedOrder(f.store, f.order.id, true)?.lines[0].shippedQuantity, 10);
-    assert.deepEqual(f.audits(f.delivery.id)[0].before, { address: '虚构旧地址', contact: '', phone: '', actualTime: null });
+    assert.deepEqual(f.audits(f.delivery.id)[0].before, { address: f.customer.sites[0].address, contact: '', phone: '', actualTime: null });
     assert.throws(() => f.edit(f.delivery.id, { operator: '虚构' }), failsWith(422, /送货单没有“操作人”这一项可改/));
     assert.throws(() => f.edit(f.delivery.id, {}), /请写要改的内容/);
   } finally {

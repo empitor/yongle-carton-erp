@@ -62,6 +62,43 @@ test('说甲动乙：改订单交期、改客户电话，卡片标题和第一�
   }
 });
 
+test('助手删除仅被已出库送货单引用的客户厂区时，卡片不误报历史送货单清空收货厂区', () => {
+  const { f, who, prepare, base, product } = setup();
+  try {
+    const c = base.customer({
+      name: '虚构多厂区客户',
+      sites: [
+        { name: '虚构东厂', contact: '王工', phone: '1001', address: '虚构东路', isDefault: true, notes: '' },
+        { name: '虚构西厂', contact: '李工', phone: '1002', address: '虚构西路', isDefault: false, notes: '' },
+      ],
+    });
+    const p = product('虚构纸箱厂区');
+    const o = base.order(c, [base.line(p, 20)], { orderDate: '2026-10-01', deliveryDate: '2026-11-30' });
+    const stock = base.finished(p, {}, { quantity: '20', date: '2026-10-01' });
+    const delivery = base.flow.save(
+      'delivery',
+      {
+        date: '2026-10-15',
+        customerId: c.id,
+        siteId: c.sites[0].id,
+        lines: [{ orderId: o.id, orderLineId: o.lines[0].id, stockId: stock.id, quantity: '10' }],
+      },
+      who,
+    );
+    base.check(delivery);
+    const plan = prepare('records.propose_save', {
+      module: 'customers',
+      id: c.id,
+      patch: { sites: [{ ...c.sites[1], isDefault: true }] },
+    });
+    const shown = text(plan);
+    assert.match(shown, /厂区/);
+    assert.doesNotMatch(shown, new RegExp(delivery.number));
+  } finally {
+    f.close();
+  }
+});
+
 test('订单明细夹带的改动（换产品、产品名称、行备注、客户料号、行税率、计税方式、行交期）每样都有一行，只改这些时卡片也不空', () => {
   const { f, prepare, customer, product, order } = setup();
   try {
@@ -149,7 +186,7 @@ test('批量归档三个客户：写成“归档：甲、乙、丙（不删除�
 });
 
 test('兜底：订单、明细、产品、客户、供应商、采购单、库存品参数结构里每个能改的字段，改了卡片上都有一行、用中文叫法', () => {
-  const skip = new Set(['id', 'version', 'kind', 'lines', 'length', 'width', 'height', 'dimensionUnit', 'status']);
+  const skip = new Set(['id', 'version', 'kind', 'lines', 'sites', 'length', 'width', 'height', 'dimensionUnit', 'status']);
   const valueOf = (key: string, side: 0 | 1) => (/Id$/.test(key) ? side + 1 : typeof side === 'number' && /^(is|has|allow)/.test(key) ? !!side : 'v' + side);
   const refs: HistoryRefs = { customers: { 1: { name: '甲' }, 2: { name: '乙' } }, suppliers: { 1: { name: '甲' }, 2: { name: '乙' } }, products: { 1: { name: '甲' }, 2: { name: '乙' } }, stock_items: { 1: { name: '甲' }, 2: { name: '乙' } }, orders: { 1: { name: '甲' }, 2: { name: '乙' } } };
   for (const module of ['orders', 'products', 'customers', 'suppliers', 'purchases', 'stock_items']) {
@@ -163,7 +200,8 @@ test('兜底：订单、明细、产品、客户、供应商、采购单、库�
     }
     for (const key of editable.lines) {
       if (skip.has(key)) continue;
-      const lines = cardChanges(module, { lines: [{ [key]: valueOf(key, 0) }] }, { lines: [{ [key]: valueOf(key, 1) }] }, refs, editable);
+      const field = module === 'customers' ? 'sites' : 'lines';
+      const lines = cardChanges(module, { [field]: [{ [key]: valueOf(key, 0) }] }, { [field]: [{ [key]: valueOf(key, 1) }] }, refs, editable);
       assert.ok(lines.length, module + ' 明细.' + key + ' 改了没有列出');
       assert.ok(lines.every((l) => !l.value.includes(key + '：')), module + ' 明细.' + key + ' 没有中文叫法：' + JSON.stringify(lines));
     }

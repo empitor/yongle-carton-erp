@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { errorMessage } from '../../shared/core/index';
+import { errorMessage, productFitsCustomer, productsForCustomer } from '../../shared/core/index';
 import {
   blocksNewProduct,
   emptyImportMapping,
@@ -7,7 +7,6 @@ import {
   invalidateImportMapping,
   productCandidatesForLine,
   productMatchKey,
-  productsForCustomer,
   resolveCustomerCandidates,
   type ImportMapping,
   type ImportMatchData,
@@ -18,7 +17,7 @@ import {
 import { readMatches } from './workspace-api';
 
 /**
- * 订单识别结果里客户、产品对哪个档案：读候选档案，按名字唯一对上的、本客户老产品直接选中，人改的先留在页面上，
+ * 订单识别结果里客户、产品对哪个档案：读候选档案，按名字唯一对上的客户、唯一推荐的产品直接选中，人改的先留在页面上，
  * 保存时交给 onSave（保存客户与产品选择）。服务端回来的新版本没被本地改过的选择覆盖时跟着它。
  */
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -146,8 +145,8 @@ function useCandidates(draft: OrderDraft, matches: ImportMatchData | null, custo
 }
 
 /**
- * 按名字唯一对上的客户，和名称、尺寸都相同又没有冲突的唯一档案、本客户的老产品，直接选中（人没碰过、没被作废的才选）。
- * 每月重复下单时不用一行行点确认。
+ * 按名字唯一对上的客户，和本客户或通用产品里名称、尺寸都相同又没有冲突的唯一档案，直接选中（人没碰过、没被作废的才选）。
+ * 没写尺寸单位、对不上唯一一个的仍要人点确认。
  */
 function useAutoChoose(
   state: MappingState,
@@ -206,7 +205,7 @@ function unresolvedOf(
       Object.values(mapping.products).some((choice) => {
         if (choice.mode !== 'existing') return false;
         const p = matches.products.find((x) => x.id === choice.id && x.version === choice.version);
-        return !p || (p.customerId != null && p.customerId !== customerId);
+        return !p || !productFitsCustomer(p, customerId);
       })) ||
     lines.some(
       (l) =>
@@ -298,7 +297,7 @@ export function useImportMatching(
         for (const [lineId, choice] of Object.entries(updated.products)) {
           if (choice.mode !== 'existing') continue;
           const p = matches.products.find((x) => x.id === choice.id);
-          if (p && p.customerId != null && p.customerId !== nextCid) {
+          if (p && !productFitsCustomer(p, nextCid)) {
             updated.products[lineId] = { mode: 'pending' };
             notices.products[lineId] = '已更换客户，原产品属于其他客户，请重新选择';
           }

@@ -1,4 +1,5 @@
 // 前端请求：读响应、出错说中文、401 回登录、页面凭证、上传、断网。不开浏览器、不连真实服务：fetch 和 window 换成替身。
+// 另扫 src/：只有 src/ui 的请求入口直接调 fetch，上传只走 uploadFile。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';

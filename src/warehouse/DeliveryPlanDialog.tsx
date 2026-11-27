@@ -9,7 +9,7 @@ import { emit } from '../ui/index';
 import { readCatalog } from '../recordkit/catalog-api';
 import DeliveryPlanGroup, { type GroupInput } from './DeliveryPlanGroup';
 import { StockOwners, Unplanned } from './DeliveryPlanNotes';
-import { deliveryBody, emptyText, planLookups, planProblem, shownGroups, type PlanData } from './delivery-plan';
+import { deliveryBody, emptyText, planGroupKey, planLookups, planProblem, shownGroups, type PlanData } from './delivery-plan';
 
 type Props = {
   stockIds?: number[];
@@ -56,34 +56,36 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
     [owners, setOwners] = useState<Record<number, number>>({}),
     [edits, setEdits] = useState<Record<string, string>>({}),
     [removed, setRemoved] = useState<string[]>([]),
-    [inputs, setInputs] = useState<Record<number, Partial<GroupInput>>>({});
+    [inputs, setInputs] = useState<Record<string, Partial<GroupInput>>>({}),
+    [destinations, setDestinations] = useState<Record<string, number>>({});
   // 重试时内容没变就沿用同一个请求编号（服务端不会重复建单）；已经建好的不再提交
-  const requests = useRef<Record<number, { body: string; id: string }>>({}),
-    created = useRef<Record<number, string>>({});
+  const requests = useRef<Record<string, { body: string; id: string }>>({}),
+    created = useRef<Record<string, string>>({});
   const chooseCustomer = !stockIds && !orderIds && !preset;
   const plan = useMemo(
     () => deliveryPlan(data || NO_DATA, { preset, stockIds, orderIds, customerId: pickedCustomer, owners }),
     [data, preset, stockIds, orderIds, pickedCustomer, owners],
   );
   const { blockers, contested } = plan;
-  const groups = shownGroups(plan, removed, edits);
+  const groups = shownGroups(plan, removed, edits, destinations);
   const look = planLookups(data, inputs);
+  const madeAny = Object.keys(created.current).length > 0;
   async function submit() {
     const problem = planProblem(groups, created.current, look);
     if (problem) return setError(problem);
     setBusy(true);
     setError('');
-    const made: string[] = Object.entries(created.current).map(([id, n]) => look.customerName(Number(id)) + ' ' + n);
+    const made = Object.values(created.current);
     try {
       for (const g of groups) {
-        if (created.current[g.customerId]) continue;
+        if (created.current[g.key]) continue;
         const body = deliveryBody(g, look.inputOf(g), look.overOf(g.lines).length > 0);
         const text = JSON.stringify(body),
-          prior = requests.current[g.customerId];
-        if (!prior || prior.body !== text) requests.current[g.customerId] = { body: text, id: crypto.randomUUID() };
-        const saved = await createFlow('delivery', { ...body, requestId: requests.current[g.customerId].id });
-        created.current[g.customerId] = saved.number || '';
-        made.push(look.customerName(g.customerId) + ' ' + (saved.number || ''));
+          prior = requests.current[g.key];
+        if (!prior || prior.body !== text) requests.current[g.key] = { body: text, id: crypto.randomUUID() };
+        const saved = await createFlow('delivery', { ...body, requestId: requests.current[g.key].id });
+        created.current[g.key] = look.customerName(g.customerId) + ' ' + saved.number;
+        made.push(created.current[g.key]);
       }
       emit('erp-business-changed');
       done('已安排 ' + made.length + ' 张送货：' + made.join('；') + '。在送货里待送货，导出送货单时出库。');
@@ -97,7 +99,7 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
   return (
     <ManagementDialog
       title="安排送货"
-      subtitle={groups.length > 1 ? '按客户分成 ' + groups.length + ' 张送货单' : undefined}
+      subtitle={groups.length > 1 ? '分成 ' + groups.length + ' 张送货单' : undefined}
       size="lg"
       close={close}
       busy={busy}
@@ -121,27 +123,41 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
             <CustomerPicker
               customers={[...new Set(data.orders.filter(openOrder).map((o) => o.customerId))]}
               picked={pickedCustomer}
+              locked={busy || madeAny}
               customerName={look.customerName}
               pick={(id) => {
                 setPickedCustomer(id);
                 setEdits({});
                 setRemoved([]);
+                setDestinations({});
+                setInputs({});
+                setError('');
+                requests.current = {};
               }}
             />
           )}
           {blockers.length > 0 && <DeliveryBlockers blockers={blockers} />}
-          {contested.length > 0 && (
+          {contested.length > 0 && !busy && !madeAny && (
             <StockOwners contested={contested} owners={owners} setOwners={setOwners} customerName={look.customerName} />
           )}
           {groups.map((g, n) => (
             <DeliveryPlanGroup
-              key={g.customerId}
+              key={g.key}
               title={(groups.length > 1 ? '送货单 ' + (n + 1) + ' · ' : '') + look.customerName(g.customerId)}
               lines={g.lines}
               input={look.inputOf(g)}
-              change={(patch) => setInputs((x) => ({ ...x, [g.customerId]: { ...x[g.customerId], ...patch } }))}
+              change={(patch) => setInputs((x) => ({ ...x, [g.key]: { ...x[g.key], ...patch } }))}
               over={look.overOf(g.lines)}
-              locked={busy || !!created.current[g.customerId]}
+              locked={busy || !!created.current[g.key]}
+              destination={{
+                siteId: g.siteId,
+                sites: g.sites.filter((site) => site.id === g.siteId || !created.current[planGroupKey(g.customerId, site.id)]),
+                assign: (id, keys = g.lines.map((l) => l.key)) => {
+                  const target = planGroupKey(g.customerId, id);
+                  setDestinations((old) => ({ ...old, ...Object.fromEntries(keys.map((key) => [key, id])) }));
+                  setInputs((old) => ({ ...old, [target]: old[target] ?? old[g.key] }));
+                },
+              }}
               stockName={(id) => {
                 const item = data.items.find((i) => i.id === id);
                 return item ? nameWithCustomer(item.name, item.kind === 'finished' ? item.customerName : undefined) : '库存品';
@@ -170,18 +186,20 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
 function CustomerPicker({
   customers,
   picked,
+  locked,
   customerName,
   pick,
 }: {
   customers: number[];
   picked: number | null;
+  locked: boolean;
   customerName: (id: number) => string;
   pick: (id: number | null) => void;
 }) {
   return (
     <FormSection title="送给谁" hint="选了客户，按交期先后带出这个客户在等的订单和可用库存">
       <FormField label="客户" required span="full">
-        <select aria-label="送给哪个客户" value={picked ?? ''} onChange={(e) => pick(Number(e.target.value) || null)}>
+        <select aria-label="送给哪个客户" value={picked ?? ''} disabled={locked} onChange={(e) => pick(Number(e.target.value) || null)}>
           <option value="">请选择有订单在等的客户</option>
           {customers.map((id) => (
             <option key={id} value={id}>

@@ -1,5 +1,6 @@
 // 窄引用：模块表允许了方向（tests/module-map.ts），但只许用对方的几个名字。按 refsOf 记下的引入名字查，看不出名字的也拦。
-// 财务从业务拿数据只走单据流转的只读窗口，用共用业务只许单据和财务的约定加几样算金额、显示用的（docs/架构/财务.md“财务从哪拿业务数据”）。
+// 财务从业务拿数据只走单据流转的只读窗口，用共用业务只许单据和财务的约定加几样算金额、显示用的（docs/功能/财务取数和补扫.md“财务从哪拿业务数据”）。
+// 改已有产品（updateProduct）只许订单服务调，由它在同一个保存点里同步成品库存。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';

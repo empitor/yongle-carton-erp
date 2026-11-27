@@ -1,5 +1,5 @@
 import { codeNames, purchaseStatusLabel } from '../../shared/business/index';
-import { FINISHED_UNIT, RAW_UNIT, fieldTable, orderTaxModes, statuses, type FieldTable, isFlowKind } from '../../shared/core/index';
+import { FINISHED_UNIT, PRODUCT_CUSTOMER_LOCKED, RAW_UNIT, fieldTable, orderTaxModes, statuses, type FieldTable, isFlowKind } from '../../shared/core/index';
 import { flowStates, pendingLabels, storedFlowStatusName } from '../../shared/business/index';
 import { purchaseBusinessStatuses } from '../../shared/business/index';
 import type { RecordRefs, RefOption } from './record-refs';
@@ -29,6 +29,7 @@ type RefKind = keyof RecordRefs | 'source' | 'batch';
 /** 指向的表 → 编辑窗用哪一类候选（哪个栏目指向哪张表只在栏目登记表 shared/core/field-names.ts 登记） */
 const refKindOfTable: Record<FieldTable, RefKind> = {
   customers: 'customers',
+  customer_sites: 'customerSites',
   suppliers: 'suppliers',
   products: 'products',
   stock_items: 'stock_items',
@@ -58,6 +59,7 @@ function optionalRef(module: string, key: string) {
     'finishedStockId',
     'taskId',
     'sourceId',
+    'siteId',
   ].includes(key);
 }
 /** 库存品按用途筛：到货、领料、采购的是原材料，送货、入库的是成品 */
@@ -124,6 +126,7 @@ function candidates(key: string, ctx: FieldContext, line: JsonObject | null): re
   const kind = refKind(key),
     refs: RecordRefs = ctx.refs ?? {};
   if (kind === 'orderLines') return refs.orderLines?.[String(line?.orderId ?? '')] || [];
+  if (kind === 'customerSites') return refs.customerSites?.[String(line?.customerId ?? '')] || [];
   if (kind === 'stock_items') {
     const wanted = stockFilter(ctx.module, key);
     return (refs.stock_items || []).filter((s) => !wanted || s.kind === wanted);
@@ -144,7 +147,7 @@ export function refOptions(key: string, current: unknown, ctx: FieldContext, lin
       (o) => !(key === 'parentProductId' && ctx.module === 'products' && o.value === self),
     );
   const now = current == null ? '' : String(current);
-  const options = optionalRef(ctx.module, key) ? [{ value: '', label: '不关联' }, ...list] : list;
+  const options = optionalRef(ctx.module, key) ? [{ value: '', label: key === 'siteId' ? '使用默认厂区' : '不关联' }, ...list] : list;
   // 候选还在读的时候不补“找不到”，免得一闪
   if (now && ctx.refs && !options.some((o) => o.value === now))
     options.push({ value: now, label: '原来关联的记录（已找不到）' });
@@ -167,7 +170,7 @@ function stockLockedReason(key: string, value: JsonObject, record: ManagedRecord
 export function lockedReason(key: string, value: JsonObject, path: string, ctx: FieldContext): string | null {
   if (path) return null;
   if (ctx.module === 'products' && key === 'customerId' && ctx.record?.ordered && ctx.record?.customerId != null)
-    return '这个产品已经下过单，不能更改所属客户；要给别的客户用请复制一份';
+    return PRODUCT_CUSTOMER_LOCKED;
   if (ctx.module === 'stock_items') return stockLockedReason(key, value, ctx.record);
   return null;
 }
@@ -195,6 +198,7 @@ export function unitNote(module: string, path: string) {
 /** 选择器的占位文字：按这一类能搜到的写（搜索也查名称后面的小字），产品没有单号就不写单号 */
 export const refPlaceholders: Partial<Record<keyof RecordRefs, string>> = {
   customers: '输入客户名称、联系人或电话搜索',
+  customerSites: '输入厂区名称或地址搜索',
   suppliers: '输入供应商名称、联系人或电话搜索',
   products: '输入产品名称、尺寸或料号搜索',
   stock_items: '输入库存品名称或规格搜索',

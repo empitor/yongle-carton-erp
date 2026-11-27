@@ -1,5 +1,6 @@
 import { FormField, FormSection } from '../ui/index';
 import DeliveryStockPicker from './DeliveryStockPicker';
+import DeliverySiteFields from './DeliverySiteFields';
 import Select from './Select';
 import type { DeliveryEditing, DeliveryFormData } from './delivery-stock';
 import { dateInput as date, timeInput as time } from './form-inputs';
@@ -27,26 +28,19 @@ export default function DeliveryForm({
           value={v.customerId}
           options={data.customers}
           onChange={(customerId) => {
-            const c = data.customers.find((c) => c.id === customerId);
             // 换了客户：成品留着，原来挂的订单明细和数量清掉重选
             change({
               customerId,
-              address: c?.address || '',
-              contact: c?.contact || '',
-              phone: c?.phone || '',
+              siteId: null,
               lines: v.lines.filter((l) => l.stockId).map((l) => ({ ...l, orderId: null, orderLineId: null, quantity: '' })),
             });
           }}
         />
-        <FormField label="收货地址" span="full">
-          <input aria-label="收货地址" value={v.address} onChange={(e) => change({ address: e.currentTarget.value })} />
-        </FormField>
-        <FormField label="收货联系人">
-          <input aria-label="收货联系人" value={v.contact} onChange={(e) => change({ contact: e.currentTarget.value })} />
-        </FormField>
-        <FormField label="联系方式">
-          <input aria-label="联系方式" value={v.phone} onChange={(e) => change({ phone: e.currentTarget.value })} />
-        </FormField>
+        <DeliverySiteFields
+          sites={data.customers.find((c) => c.id === v.customerId)?.sites ?? []}
+          siteId={v.siteId}
+          change={(siteId) => change({ siteId })}
+        />
       </FormSection>
       {/* 安排送货只定计划；实际发货日是导出送货单出库的那天（已出库的改日期走“更正送货单”） */}
       <FormSection title="什么时候送" columns={2}>

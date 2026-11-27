@@ -152,13 +152,12 @@ export function matchesMovement(row: MovementMatchRow, query: MovementFilters) {
 /** 流水页地址上 range 能给的取值；不给或不认识时看最近两个月 */
 const movementRangePresets: readonly DatePreset[] = ['1', '2', '3', 'all', 'custom'];
 const DEFAULT_MOVEMENT_RANGE: DatePreset = '2';
-export function initialMovementRange(params: URLSearchParams, date?: string) {
-  const raw = params.get('range');
-  const preset = movementRangePresets.find((p) => p === raw) ?? DEFAULT_MOVEMENT_RANGE;
+export function initialMovementRange(route: { range?: DatePreset; start?: string; end?: string }, date?: string) {
+  const preset = movementRangePresets.find((p) => p === route.range) ?? DEFAULT_MOVEMENT_RANGE;
   const range = presetRange(preset, date);
   return {
     preset,
-    start: preset === 'custom' ? params.get('start') || '' : range.start,
-    end: preset === 'custom' ? params.get('end') || '' : range.end,
+    start: preset === 'custom' ? route.start || '' : range.start,
+    end: preset === 'custom' ? route.end || '' : range.end,
   };
 }

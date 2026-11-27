@@ -1,7 +1,6 @@
 // 模块表和取引用的解析器：每个文件属于哪个模块、能用哪些模块，一个文件引用了哪些项目文件。
-// 模块表和理由见 docs/架构说明.md“模块”一节；改这里的规则要同时改那一节。
-// 规则的检查在 module-boundaries.test.ts（引用、模块内分层）、module-narrow-refs.test.ts（只许用对方几个名字的窄引用）、module-api-owners.test.ts（前端请求的地址）、
-// module-table-owners.test.ts（表）、css-modules.test.ts（样式的类名，前端模块和层都读这张表）。
+// docs/生成/模块表.md 由 npm run docs:gen 从这里生成（模块的 what、layerNote 和 moduleChecks 是写给它的说明），改了这里重新生成。
+// 守规则的检查和各拦什么登记在下面的 moduleChecks。
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { posix } from 'node:path';
 import ts from 'typescript';
@@ -10,15 +9,19 @@ import ts from 'typescript';
 export type Layer = { name: string; paths: string[] };
 /** layers：模块内部从下往上分层，同一模块里只能引同层或下层（module-boundaries 查）；模块的每个文件都要落在某一层，入口 index.ts、pages.ts 可以不登记 */
 export type Rule = { name: string; paths: string[]; allow: string[]; layers?: Layer[] };
+/** 模块表里的一项：what 是这个模块管什么，layerNote 是分层的说明（分了层的要写），都写进生成的模块表；Markdown 写法，代码名字带反引号 */
+export type ModuleRule = Rule & { what: string; layerNote?: string };
 
 // 越往下越基础。paths 按最长前缀匹配；目录写到末尾的斜杠，单个文件写全名。
-// allow 和实际用到的一致（module-boundaries 有测试查）：新用到一个模块就在这里加上，不再用了就删掉，架构图跟着改。
-export const modules: Rule[] = [
+// allow 和实际用到的一致（module-boundaries 有测试查）：新用到一个模块就在这里加上，不再用了就删掉，生成的模块表跟着重新生成。
+export const modules: ModuleRule[] = [
   // 服务端
   {
     name: '基础',
     paths: ['server/core/'],
     allow: ['共用-基础'],
+    what: '业务库建表和升级、配置库版本、业务库连接和归档标记（`Store`）、取号、防重复提交、请求身份接口和权限规则、审计、统一报错、归档恢复、流式写出、备份和快照、每日清理、出错记录（`diagnostics/`）；给上层登记用的接口',
+    layerNote: '建表、升级和备份共用 SQLite 的只读连接和一致副本。`Store` 使用下层的记录种类登记，归档、审计和删除规则使用 `Store`。其他模块引 `server/core/index.ts`',
     layers: [
       { name: '请求和报错', paths: ['server/core/http/'] },
       { name: '文件校验', paths: ['server/core/files/'] },
@@ -31,17 +34,22 @@ export const modules: Rule[] = [
       { name: '出错记录', paths: ['server/core/diagnostics/'] },
     ],
   },
-  { name: '账号', paths: ['server/accounts/'], allow: ['基础', '共用-基础'] },
-  { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'] },
-  // 系统资料：运行日志、读程序代码、使用手册，只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）
-  { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'] },
-  { name: '客户产品订单', paths: ['server/sales/'], allow: ['基础', '共用-基础', '共用-业务'] },
+  { name: '账号', paths: ['server/accounts/'], allow: ['基础', '共用-基础'],
+    what: '登录、会话、账号管理、账号申请和登录记录；地址 `/api/auth`。账号规则和接口表在 `shared/core/`；登录页和账号菜单在前端-装配，账号管理页在前端-管理' },
+  { name: 'AI接入', paths: ['server/ai/'], allow: ['基础', '共用-基础', '共用-AI'],
+    what: '发给 DeepSeek 的唯一出口：地址 `https://api.deepseek.com`、模型 `deepseek-flash` 写死在 `shared/ai/deepseek.ts`，界面不能改。对话和识别用 `/chat/completions`（流式、工具调用，思考档位关、低、高、最高），联网 `/v1/tools/search`、`/v1/tools/fetch`，语音 `/v1/tools/asr`、`/v1/tools/tts`，另有文件接口。回来的 JSON 都经 `transport.ts` 的 `readShaped` 按结构核对，不合报“格式不对”。另管密钥设置、提示词库（`createPromptManagers`；默认内容由用它的模块给：识别的在 `server/import/default-prompts/`，助手的在 `server/assistant/default-prompt.ts`）。没有页面，设置页在前端-管理' },
+  { name: '系统资料', paths: ['server/system/'], allow: ['基础', '共用-基础', '共用-系统资料'],
+    what: '给助手和管理员查的只读资料：运行日志、读程序代码、使用手册（`GET /api/guide`）；只有助手和装配在用（出错记录是请求关卡和页面上报写的，留在基础）' },
   // 业务主线只能往下：客户产品订单 ← 采购库存 ← 单据流转 ← 删除归档 ← 订单服务 ← 业务总览
+  { name: '客户产品订单', paths: ['server/sales/'], allow: ['基础', '共用-基础', '共用-业务'],
+    what: '客户和收货厂区、产品和普通订单读写（`sales(store)`）、查重、唛头资料；地址 `/marks`、`/products/:id/marks`' },
   {
     name: '采购库存',
     paths: ['server/operations/'],
     allow: ['基础', '客户产品订单', '共用-基础', '共用-业务'],
-    // 从下往上：账和读（写流水和采购明细、按编号读、库存品内容的规格）← 库存品、订货单 ← 采购单 ← 服务和路由（服务、路由、删除登记）；层名不用模块名，免得被当成跨模块的层
+    what: '供应商、采购单、库存品和流水、订货单的表、写入规则、基本视图和订料进度（只有自己的数据）；轻量只读 `lookups.ts`（版本号和余额、一笔流水的范围、负库存等）；地址只有 `/suppliers`',
+    layerNote: '`ledger/` 放写流水、采购明细和版本号的 `ledger.ts`，三类记录都要用的读取 `repository.ts`，库存品规格，写入共用的权限和版本核对；根目录放服务、路由和删除登记',
+    // 层名不用模块名，免得被当成跨模块的层
     layers: [
       { name: '账和读', paths: ['server/operations/ledger/'] },
       { name: '库存品和订货单', paths: ['server/operations/stock/', 'server/operations/batches/'] },
@@ -53,8 +61,8 @@ export const modules: Rule[] = [
     name: '单据流转',
     paths: ['server/flow/'],
     allow: ['基础', '客户产品订单', '采购库存', '共用-基础', '共用-业务'],
-    // 从下往上：单据存取（存取、读、关联、只读窗口）← 规则和服务（核对、预览、确认、撤销、订单进度、FlowService、采购库存的完整视图和保存入口）
-    // ← 按种类（到货、生产、送货）← 更正（三种更正、编辑说明）← 路由和台账（路由、删除登记、跨种类的仓库台账）
+    what: '到货、生产任务、完工、送货、采购退货、排程、成品批次、订单状态和已发数量的派生、管理员改数据的连带；采购单、库存品、流水、订货单的完整视图（`FlowService.views`）和保存入口（`FlowService.stock`）；地址 `/flow`、`/purchases`、`/warehouse`、`/order-batches`；单据轻量只读 `document-lookups.ts`',
+    layerNote: '`documents/` 放单据的存取、读、关联，财务只读窗口 `finance-facts/` 也在这层。`rules/` 放核对、预览、确认、撤销、订单进度、管理员连带和 `FlowService`；按种类的核对 `FlowService` 要用，也放这里。`stock/` 放采购单、库存品、流水、订货单的完整视图、保存入口、成品批次。`correction/` 放三种更正和编辑说明。根目录放路由、删除登记和跨种类的仓库台账 `daily.ts`',
     layers: [
       { name: '单据存取', paths: ['server/flow/documents/', 'server/flow/finance-facts/'] },
       { name: '规则和服务', paths: ['server/flow/rules/', 'server/flow/stock/'] },
@@ -63,41 +71,48 @@ export const modules: Rule[] = [
       { name: '路由和台账', paths: ['server/flow/daily.ts', 'server/flow/deletion.ts', 'server/flow/router.ts', 'server/flow/stock-router.ts'] },
     ],
   },
-  { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '共用-基础', '共用-业务'] },
-  { name: '订单服务', paths: ['server/orders/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'] },
-  { name: '业务总览', paths: ['server/overview/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '订单服务', '共用-基础', '共用-业务'] },
-  // 财务用单据流转只许经只读窗口 financeFacts（module-narrow-refs.test.ts）
-  { name: '财务', paths: ['server/finance/'], allow: ['基础', '单据流转', '共用-基础', '共用-业务', '共用-财务'] },
+  { name: '删除归档', paths: ['server/lifecycle/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '共用-基础', '共用-业务'],
+    what: '删除引擎（`/deletions`）、六类档案的归档恢复和什么时候不能归档（`/<档案>/batch`）、按类型读六类档案（`records.ts`）；没有自己的表' },
+  { name: '订单服务', paths: ['server/orders/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '共用-基础', '共用-业务'],
+    what: '客户、产品、订单的保存入口和列表筛选，厂区移除与送货单解除引用、带进度的订单视图、订单状态动作和改单连带协调；地址 `/customers`、`/products`、`/orders`' },
+  { name: '业务总览', paths: ['server/overview/'], allow: ['基础', '客户产品订单', '采购库存', '单据流转', '删除归档', '订单服务', '共用-基础', '共用-业务'],
+    what: '今日和经营概况、关联记录和修改历史、按模块读记录（`module-records.ts`，数据管理和助手共用）' },
+  { name: '财务', paths: ['server/finance/'], allow: ['基础', '单据流转', '共用-基础', '共用-业务', '共用-财务'],
+    what: '财务事件、凭证账簿、往来、资金发票、费用资产工资、成本、结账报表。用单据流转只许经只读窗口 `financeFacts`（`module-narrow-refs.test.ts` 查），不调业务服务、不读业务的表；业务不调财务' },
   {
     name: '单据导出',
     paths: ['server/documents/'],
     allow: ['基础', '客户产品订单', '采购库存', '单据流转', '共用-基础', '共用-业务', '共用-单据'],
+    what: '采购单、订货单、送货单的 Word/Excel，导出记录，模板设置。送货单材质楞型优先取已出库或留下的明细，待送货取产品档案；导出前核对在 `export-checks.ts`',
   },
   {
     name: '识别导入',
     paths: ['server/import/', 'server/inbox/'],
     allow: ['基础', '客户产品订单', 'AI接入', '单据流转', '共用-基础', '共用-AI', '共用-识别'],
+    what: 'AI 导入工作区、订单和到货单识别、正式导入、收件箱和三家机器人',
   },
   {
     name: '数据管理',
     paths: ['server/admin/'],
-    // 识别导入只引类型：识别导入的管理对象由装配传进来
     allow: ['基础', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览', '识别导入', '共用-基础', '共用-业务', '共用-管理'],
+    what: '初始化、本机管理员改业务数据、工作区管理；没有自己的表。命令入口 `DataManagementService.execute`；读记录在 `managed-records.ts`（录入结构 `inputSchemas`），保存在 `managed-save.ts`：补丁里录入结构不收的栏目拒收（明细、纸板资料也逐层查），照读出来原样带回的算出值（已发数量、金额）放过；已生效的单据只走说明编辑和更正。用识别导入只引类型：识别导入的管理对象由装配传进来',
   },
   {
     name: '助手',
     paths: ['server/assistant/'],
     allow: ['基础', '客户产品订单', 'AI接入', '系统资料', '采购库存', '单据流转', '删除归档', '订单服务', '业务总览', '财务', '单据导出', '识别导入', '数据管理', '*共用'],
+    what: '对话内核、工具注册表和命令目录、确认卡片、长期记忆、看页面、语音',
   },
-  // 服务端根目录只放启动、装配和命令行入口，可以引用全部（只算根目录的文件，新建的子目录要登记进上面的模块）
-  { name: '装配', paths: ['server/'], allow: ['*'] },
-  // 前后端共用，和服务端同一套分法
-  { name: '共用-基础', paths: ['shared/core/'], allow: [] },
+  { name: '装配', paths: ['server/'], allow: ['*'],
+    what: '启动、挂路由、请求关卡、命令行入口，可以引用全部；只算服务端根目录的文件，新建的子目录要登记进别的模块' },
+  { name: '共用-基础', paths: ['shared/core/'], allow: [],
+    what: '前后端共用的基础代码，和服务端同一套分法；账号规则和接口表、全站页面地址册子 `shared/core/pages.ts` 也在这里' },
   {
-    // 共用业务和服务端业务主线的层对应，走入口时按名字的来源文件算层
     name: '共用-业务',
     paths: ['shared/business/'],
     allow: ['共用-基础'],
+    what: '业务主线（客户产品订单到业务总览）的共用代码',
+    layerNote: '和服务端业务主线的层对应：文件所在的子目录决定它的层。每层对应一个服务端模块，对应模块只能用同层和下层的文件。经 `shared/business/index.ts` 引的名字按来源文件算层，看不出名字的引用（`import * as`、不带名字的 `import(…)`）直接报。删除归档层放删除的请求和叫法（`deletion-*.ts`）、批量归档接口表 `lifecycle-api.ts`、能删能管的记录种类 `data-management-modules.ts`',
     layers: [
       { name: '客户产品订单', paths: ['shared/business/sales/'] },
       { name: '采购库存', paths: ['shared/business/operations/'] },
@@ -107,26 +122,25 @@ export const modules: Rule[] = [
       { name: '业务总览', paths: ['shared/business/overview/'] },
     ],
   },
-  { name: '共用-财务', paths: ['shared/finance/'], allow: ['共用-基础'] },
-  { name: '共用-单据', paths: ['shared/documents/'], allow: ['共用-基础', '共用-业务'] },
-  { name: '共用-AI', paths: ['shared/ai/'], allow: [] },
-  { name: '共用-系统资料', paths: ['shared/system/'], allow: [] },
-  { name: '共用-识别', paths: ['shared/import/'], allow: ['共用-基础', '共用-AI'] },
-  { name: '共用-管理', paths: ['shared/admin/'], allow: ['共用-基础', '共用-业务'] },
-  { name: '共用-助手', paths: ['shared/assistant/'], allow: ['共用-基础', '共用-业务', '共用-AI'] },
+  { name: '共用-财务', paths: ['shared/finance/'], allow: ['共用-基础'], what: '财务的共用代码' },
+  { name: '共用-单据', paths: ['shared/documents/'], allow: ['共用-基础', '共用-业务'], what: '单据导出的共用代码' },
+  { name: '共用-AI', paths: ['shared/ai/'], allow: [], what: 'AI 接入的共用代码' },
+  { name: '共用-系统资料', paths: ['shared/system/'], allow: [], what: '系统资料的共用代码' },
+  { name: '共用-识别', paths: ['shared/import/'], allow: ['共用-基础', '共用-AI'], what: '识别导入的共用代码' },
+  { name: '共用-管理', paths: ['shared/admin/'], allow: ['共用-基础', '共用-业务'], what: '数据管理的共用代码' },
+  { name: '共用-助手', paths: ['shared/assistant/'], allow: ['共用-基础', '共用-业务', '共用-AI'], what: '助手的共用代码' },
   // 前端：和服务端同样分模块，能用的共用代码不超过服务端对应的模块；都不能引用服务端代码。
-  // 前端数据管理还放着 AI 接入的模型、提示词设置页和识别导入的消息接入设置页，所以多了共用-AI、共用-识别
-  { name: '前端-基础', paths: ['src/ui/'], allow: ['共用-基础'] },
-  // 使用说明页
-  { name: '前端-系统资料', paths: ['src/system/'], allow: ['前端-基础', '共用-基础', '共用-系统资料'] },
-  // 单据导出的前端（导出窗、模板设置、文件交付）：业务页面和助手经它的 index.ts、pages.ts 用；能用的共用代码不超过服务端单据导出
-  { name: '前端-单据导出', paths: ['src/documents/'], allow: ['前端-基础', '共用-基础', '共用-单据'] },
+  { name: '前端-基础', paths: ['src/ui/'], allow: ['共用-基础'],
+    what: '通用组件、请求、插槽、事件、样式变量；可请求账号接口，用 `/auth/state` 读取登录状态和更新页面凭证' },
+  { name: '前端-系统资料', paths: ['src/system/'], allow: ['前端-基础', '共用-基础', '共用-系统资料'], what: '使用说明页' },
+  { name: '前端-单据导出', paths: ['src/documents/'], allow: ['前端-基础', '共用-基础', '共用-单据'],
+    what: '单据导出的前端：导出窗、模板设置、文件交付。排在业务下面（业务页面嵌它的导出窗），业务页面和助手经它的 `index.ts`、`pages.ts` 用；能用的共用代码不超过服务端单据导出' },
   {
-    // 业务主线的前端按界面角色分四层，只往下用：上层嵌下层的窗口，下层要打开上层的页面用页面地址，不引上层的代码。
-    // 单据在采购仓储下面（采购、仓储页面要显示到货单、送货单，单据窗口用不着采购窗口），和服务端业务主线的顺序不同。
     name: '前端-业务',
     paths: ['src/records/', 'src/recordkit/', 'src/flow/', 'src/warehouse/', 'src/operations/', 'src/editors/', 'src/marks/'],
     allow: ['前端-基础', '前端-单据导出', '共用-基础', '共用-业务', '共用-单据'],
+    what: '业务主线（客户产品订单到业务总览）的页面合成的一个模块',
+    layerNote: '按界面角色分层，只往下用：上层嵌下层的窗口，下层要打开上层的页面用页面地址，不引上层的代码。单据在采购仓储下面（采购、仓储页面要显示到货单、送货单，单据窗口用不着采购窗口），和服务端业务主线的顺序不同',
     layers: [
       { name: '业务公共件', paths: ['src/recordkit/', 'src/marks/', 'src/editors/'] },
       { name: '单据', paths: ['src/flow/'] },
@@ -134,24 +148,38 @@ export const modules: Rule[] = [
       { name: '页面', paths: ['src/records/'] },
     ],
   },
-  { name: '前端-财务', paths: ['src/finance/'], allow: ['前端-基础', '共用-基础', '共用-财务'] },
+  { name: '前端-财务', paths: ['src/finance/'], allow: ['前端-基础', '共用-基础', '共用-财务'], what: '财务页面（单独打包）' },
   {
     name: '前端-识别',
     paths: ['src/import/'],
     allow: ['前端-基础', '前端-业务', '共用-基础', '共用-业务', '共用-AI', '共用-识别'],
+    what: '识别导入的页面',
   },
   {
     name: '前端-管理',
     paths: ['src/admin/'],
     allow: ['前端-基础', '前端-业务', '共用-基础', '共用-业务', '共用-管理', '共用-AI', '共用-识别'],
+    what: '数据管理页面，也放账号管理页、AI 接入的模型和提示词设置页、识别导入的消息接入设置页，所以还能用共用-AI、共用-识别；可请求账号接口',
   },
   {
     name: '前端-助手',
     paths: ['src/assistant/'],
     allow: ['前端-基础', '前端-业务', '前端-单据导出', '共用-基础', '共用-业务', '共用-AI', '共用-助手'],
+    what: '助手的前端，直接用前端-单据导出；可请求账号接口',
   },
-  // src 根目录和手机导航：入口、导航、登录、账号菜单、设置总页、插槽装配，把各模块的页面装起来
-  { name: '前端-装配', paths: ['src/', 'src/mobile/'], allow: ['前端-*', '*共用'] },
+  { name: '前端-装配', paths: ['src/', 'src/mobile/'], allow: ['前端-*', '*共用'],
+    what: '`src/` 根目录和手机导航：入口、导航、登录、账号菜单、设置总页、插槽装配，把各模块的页面装起来' },
+];
+
+/** 守模块规则的检查和各拦什么（写进生成的模块表）；tests/checks/ 下 module- 开头的检查都要登记在这里 */
+export const moduleChecks: { file: string; blocks: string }[] = [
+  { file: 'tests/checks/module-boundaries.test.ts', blocks: '只往下用、只走 `index.ts`、没有循环、模块内的层' },
+  { file: 'tests/checks/module-api-owners.test.ts', blocks: '前端只请求能用的模块的地址；地址前缀归属 `apiOwners`' },
+  { file: 'tests/checks/module-table-owners.test.ts', blocks: '表只由主人写，表的主人 `tableOwnerList`' },
+  { file: 'tests/checks/css-modules.test.ts', blocks: '样式只用本模块和能用的模块的类名、本层和下层的' },
+  { file: 'tests/checks/module-narrow-refs.test.ts', blocks: '财务经 `financeFacts` 读业务；订单服务调用 `updateProduct`，同一保存点同步成品库存' },
+  { file: 'tests/checks/module-test-entries.test.ts', blocks: '测试只经入口引模块' },
+  { file: 'tests/checks/module-names.test.ts', blocks: '登记用的模块名和模块表一致' },
 ];
 
 /** 目录下的全部文件（跳过 node_modules），路径用正斜杠、从项目根目录写起 */

@@ -1,7 +1,7 @@
 import type { Customer, Product } from '../core/index.js';
 import type { ImportMapping, MappingInvalidations } from './import-mapping.js';
 import type { OrderDraft } from './order-draft.js';
-import { dimensionKeys, dimensionValueSchema, normalizeDimensionUnit, normalizedDimensions, formatDimensions, parseDimension, nameKey } from '../core/index.js';
+import { dimensionKeys, dimensionValueSchema, normalizeDimensionUnit, normalizedDimensions, formatDimensions, parseDimension, nameKey, productsForCustomer } from '../core/index.js';
 
 /** 识别结果对应客户、产品时比名字用的键（shared/core/name-keys.ts 的 nameKey） */
 export const importNameKey = nameKey;
@@ -177,13 +177,6 @@ export function blocksNewProduct(c: ProductCandidate) {
     has('客户料号一致') ||
     (has('尺寸一致') && has('材质一致') && has('楞型一致'))
   );
-}
-/** 某客户订单能选的产品：归这家客户的，以及没定客户的通用产品；新客户（null）只看没定客户的 */
-export function productsForCustomer<T extends { customerId?: number | null }>(
-  products: readonly T[],
-  customerId: number | null | undefined,
-): T[] {
-  return products.filter((p) => p.customerId == null || (customerId != null && p.customerId === customerId));
 }
 type LineFacts = { f: Line['fields']; dims: ReturnType<typeof lineDimensions>; name: string };
 type Notes = { reasons: string[]; conflicts: string[] };

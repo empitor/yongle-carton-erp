@@ -148,7 +148,7 @@ test('已归档的到货单详情和在用的一样：有验收 / 入库、采�
   assert.deepEqual(uniqueMovementRows([{ m: { id: 'x' } }, { m: { id: 'x' } }, { m: { id: 'y' } }]).map((r) => r.m.id), ['x', 'y']);
 });
 
-test('到货单详情的顺序照界面规范：明细 → 基本信息 → 流水；核对窗里没有台账记录，不列验收入库和流水，到货日期写明待核对入库', () => {
+test('到货单详情的顺序照界面总规矩：明细 → 基本信息 → 流水；核对窗里没有台账记录，不列验收入库和流水，到货日期写明待核对入库', () => {
   const { doc, record } = stockedArrival(false);
   const html = renderToStaticMarkup(h(FlowDetails, { doc, data: {}, record }));
   const at = (text: string) => html.indexOf(text);

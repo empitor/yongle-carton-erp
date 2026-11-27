@@ -1,4 +1,4 @@
-// 文件的大小（AGENTS.md“文件怎么分”）：程序（server/、shared/、src/）、样式（src/ 下的 .css）、脚本（scripts/）、
+// 文件的大小（通用技能 code-discipline“文件和函数多大”，本项目补充在 docs/架构/模块规则.md“写代码的本项目补充”）：程序（server/、shared/、src/）、样式（src/ 下的 .css）、脚本（scripts/）、
 // 测试（tests/，连同测试数据里的文本文件）、两个应用外壳（apps/ 下的源码、测试、脚本、页面）超过 500 行就失败。
 // 依赖和构建产物（node_modules、Gradle 的 build/.gradle、Cargo 的 target、Tauri 生成的 gen）不算。
 import { test } from 'node:test';

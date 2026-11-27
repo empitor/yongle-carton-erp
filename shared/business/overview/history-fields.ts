@@ -10,12 +10,13 @@ import { recordStatusActionNames } from '../operations/record-status.js';
  */
 
 /** 审计里引用别的记录的编号，按表批量换成名称或单号（服务端 server/overview/history-refs.ts 查好一起给界面） */
-type HistoryRefTable = 'customers' | 'suppliers' | 'products' | 'stock_items' | 'orders' | 'flow';
+type HistoryRefTable = 'customers' | 'customer_sites' | 'suppliers' | 'products' | 'stock_items' | 'orders' | 'flow';
 export type HistoryRefs = Partial<Record<HistoryRefTable, Record<string, { name: string; unit?: string }>>>;
 
 /** 修改历史能查名称的几张表（单据记作 flow）；指向别的表的（订单明细、原件、订货单）是内部字段，不显示 */
 const historyTables: Partial<Record<FieldTable, HistoryRefTable>> = {
   customers: 'customers',
+  customer_sites: 'customer_sites',
   suppliers: 'suppliers',
   products: 'products',
   stock_items: 'stock_items',
@@ -32,6 +33,7 @@ export const refTables: Record<string, HistoryRefTable> = Object.fromEntries(
 /** 引用编号旁边单据里自己存的名称快照：编号查不到（删了）时先用它，再不行写“已删除的记录” */
 export const snapshotNames: Record<string, string> = {
   customerId: 'customerName',
+  siteId: 'siteName',
   supplierId: 'supplierName',
   productId: 'productName',
 };
@@ -61,7 +63,7 @@ export const quantityFields = new Set([
   'stockedQuantity',
 ]);
 export const sizeFields = new Set(['length', 'width', 'height', 'dimensionUnit']);
-export const lineFields = new Set(['lines', 'materials']);
+export const lineFields = new Set(['lines', 'materials', 'sites']);
 /**
  * 存的是代码的几个字段：显示的字。修改历史、助手卡片、数据管理的下拉都用这一张；每种叫法写在选项的值旁边
  * （种类 operations.ts、尺寸单位 product-details.ts、计价方式 units.ts、金额结算 domain.ts、币种 currency.ts）
@@ -127,6 +129,7 @@ const MAX_REF_DEPTH = 8;
 export function historyRefIds(details: unknown[]): Record<HistoryRefTable, number[]> {
   const found: Record<HistoryRefTable, Set<number>> = {
     customers: new Set(),
+    customer_sites: new Set(),
     suppliers: new Set(),
     products: new Set(),
     stock_items: new Set(),
@@ -150,6 +153,7 @@ export function historyRefIds(details: unknown[]): Record<HistoryRefTable, numbe
   const ids = (table: HistoryRefTable) => [...found[table]];
   return {
     customers: ids('customers'),
+    customer_sites: ids('customer_sites'),
     suppliers: ids('suppliers'),
     products: ids('products'),
     stock_items: ids('stock_items'),

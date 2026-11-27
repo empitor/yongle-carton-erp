@@ -17,6 +17,7 @@ import {
   duplicateKey,
   linePriceExact,
   plannedOrderSchema,
+  productCustomerIssue,
   productSchema,
   uniqueMessages,
   type Order,
@@ -157,10 +158,8 @@ export function checkReferences(store: Store, customer: CustomerPlanRef, product
     if (p.mode === 'existing') {
       const found = sales(store).product(p.id);
       if (!found || found.version !== p.version) throw new AppError(PRODUCT_CHANGED, 409);
-      if (found.customerId != null && found.customerId !== customerId) {
-        const owner = found.customerName || sales(store).customer(found.customerId, true)?.name || '其他客户';
-        throw new AppError(`这个产品是 ${owner} 的，要给 ${customer.name} 用请复制一份`, 409);
-      }
+      const issue = productCustomerIssue(found, { id: customerId, name: customer.name });
+      if (issue) throw new AppError(issue, 409);
     } else {
       plannedNew.push({ key: p.key, line: i + 1, input: { ...p.input, customerId } });
       if (customerId !== null) {

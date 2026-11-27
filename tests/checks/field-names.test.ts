@@ -1,4 +1,4 @@
-// 栏目叫法只有一套（shared/core/field-names.ts 的栏目登记表，docs/界面规范.md“栏目叫法”）：
+// 栏目叫法只有一套（shared/core/field-names.ts 的栏目登记表，docs/界面/叫法词表.md“栏目叫法”）：
 // 1. 统一叫法时退掉的旧说法不许再出现在给人看的文字里（服务端、共用、页面的字符串和 JSX 文字），免得改回去；
 // 2. “哪个栏目指向哪张表”登记的都是库里真有的表。
 import assert from 'node:assert/strict';
@@ -70,11 +70,8 @@ const retiredWhole: Record<string, string> = {
  * 旧说法照样留着的地方和原因。键是“文件:旧说法”。
  */
 const allowed: Record<string, string> = {
-  'shared/documents/document-templates.ts:客户采购订单号':
-    '模板“隐藏字段”里存的值（document_template_settings 里存着，改字要升级数据）；印出来换成登记表的叫法（document-layout.ts 的 printedInfoName）',
-  'shared/documents/document-layout.ts:客户采购订单号': '同上：信息格的键，printedInfoName 在这里把它换成印出来的字',
-  'server/documents/delivery-form.ts:客户采购订单号': '同上：送货单信息格的键',
-  'server/documents/sample.ts:客户采购订单号': '同上：样张信息格的键',
+  'shared/documents/document-fields.ts:客户采购订单号':
+    '单据信息格和模板“隐藏字段”的存储键（document_template_settings 里存着，改字要升级数据）；印出来换成登记表的叫法（printedInfoName）',
   'server/flow/rules/arrivals.ts:不合格': '“含不合格品”是到货单的验收结果（全部合格 / 含不合格品），不是数量栏目的名字',
   'shared/business/flow/flow-views.ts:不合格': '同上：验收结果的取值',
   'src/finance/parties/StatementTab.tsx:差异说明': '对账单上和客户账对不上的说明，是财务自己的栏目，不是到货的差异原因',

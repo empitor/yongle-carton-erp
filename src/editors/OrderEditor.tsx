@@ -75,15 +75,21 @@ function OrderHead({ e, value }: { e: Editor; value: OrderEditorProps['value'] }
       title="客户和交期"
       columns={4}
       extra={
-        <button type="button" className="secondary" onClick={() => e.setQuickCreate({ kind: 'customer' })}>
+        <button type="button" className="secondary" disabled={!!e.customerBlocked} onClick={() => e.setQuickCreate({ kind: 'customer' })}>
           <Plus size={14} aria-hidden="true" />
           新建客户
         </button>
       }
     >
-      <FormField label="客户" required span={2} hint={value ? '下单时客户名称：' + value.customerName : undefined}>
+      <FormField
+        label="客户"
+        required
+        span={2}
+        hint={value ? '下单时客户名称：' + value.customerName + (e.customerWaiting ? '；' + e.customerBlocked : '') : undefined}
+      >
         <Combobox
           required
+          disabled={!!e.customerBlocked}
           ariaLabel="订单客户"
           placeholder="搜索客户"
           value={String(e.customerId || '')}
@@ -129,6 +135,17 @@ function OrderLinesSection({ e }: { e: Editor }) {
         </button>
       }
     >
+      {e.customerBlocked && !e.customerWaiting && (
+        <FormMessage
+          action={
+            <button type="button" className="secondary" onClick={e.retrySole}>
+              重试
+            </button>
+          }
+        >
+          {e.customerBlocked}
+        </FormMessage>
+      )}
       {e.customerNotice && <FormMessage tone="warning">{e.customerNotice}</FormMessage>}
       <OrderLines
         lines={e.lines}

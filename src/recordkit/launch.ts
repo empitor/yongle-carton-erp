@@ -25,11 +25,3 @@ export function newPurchaseFrom({ supplierId, stockIds }: { supplierId?: number;
     n: Date.now(),
   });
 }
-
-/** 读地址栏里的 id 列表，例如 products=3,5。 */
-export function idList(value: string | null) {
-  return (value || '')
-    .split(',')
-    .map(Number)
-    .filter((id) => Number.isInteger(id) && id > 0);
-}

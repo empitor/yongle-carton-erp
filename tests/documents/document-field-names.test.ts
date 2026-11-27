@@ -10,8 +10,10 @@ import { test } from 'node:test';
 import { applyDocumentTemplate } from '../../server/documents/apply-template.js';
 import { deliveryForm } from '../../server/documents/delivery-form.js';
 import { purchaseForm } from '../../server/documents/purchase-form.js';
+import { sampleDocument } from '../../server/documents/sample.js';
 import {
   defaultDocumentTemplates,
+  documentFields,
   optionalDocumentFields,
   splitFields,
   templateInfoFields,
@@ -90,15 +92,35 @@ const unusedHideable = (hideable: readonly string[], written: ReadonlySet<string
 
 const kinds: DocumentKind[] = ['delivery', 'purchase'];
 const formsByKind = sampleForms();
-/** 一种单据套上模板以后写出的全部格子名 */
-const writtenNames = (kind: DocumentKind, hidden: readonly string[] = []) => [
-  ...new Set(formsByKind[kind].flatMap((form) => applyDocumentTemplate(form, fullTemplate(kind, hidden)).fields.map(([k]) => k))),
-];
+/** 一种单据套上模板以后（含样张 sampleDocument）写出的全部格子名 */
+const writtenNames = (kind: DocumentKind, hidden: readonly string[] = []) => {
+  const tpl = fullTemplate(kind, hidden);
+  return [
+    ...new Set([
+      ...formsByKind[kind].flatMap((form) => applyDocumentTemplate(form, tpl).fields.map(([k]) => k)),
+      ...sampleDocument(tpl).fields.map(([k]) => k),
+    ]),
+  ];
+};
 
-test('单据导出写出的信息格名字，预览和导出的排版都认得；排版排的格子拼单据都会写', () => {
+test('单据导出写出的信息格名字都在登记表且允许用于该单据种类；预览和导出的排版都认得，排了的格子拼单据都会写', () => {
   // 样例走到了各个分支：送货单的两种日期，订货单分批时的交货安排和合并时的对应采购单
   assert.ok(['送货日期', '计划送货日期'].every((k) => writtenNames('delivery').includes(k)), '送货单两种日期都拼到了');
   assert.ok(['交货安排', '对应采购单'].every((k) => writtenNames('purchase').includes(k)), '订货单分批、合并都拼到了');
+  for (const kind of kinds) {
+    const allowed = new Set(documentFields.filter((f) => f.kinds.includes(kind)).map((f) => f.key));
+    const written = writtenNames(kind);
+    assert.deepEqual(
+      written.filter((k) => !allowed.has(k)),
+      [],
+      `${kind} 写出了未在登记表登记或不允许用于该单据种类的字段`,
+    );
+    assert.deepEqual(
+      [...allowed].filter((k) => !written.includes(k)),
+      [],
+      `${kind} 登记表里有字段从未被单据或模板写出`,
+    );
+  }
   const problems = kinds.flatMap((kind) =>
     layoutMismatches(kind, writtenNames(kind), templateInfoFields(kind, [], fullTemplate(kind).companyAddress)),
   );
@@ -106,7 +128,7 @@ test('单据导出写出的信息格名字，预览和导出的排版都认得�
     problems,
     [],
     '拼单据（server/documents/delivery-form.ts、purchase-form.ts、apply-template.ts）和排版' +
-      '（shared/documents/document-layout.ts）的格子名对不上：改叫法要两边一起改',
+      '（shared/documents/document-layout.ts）的格子名对不上：统一在 shared/documents/document-fields.ts 登记',
   );
 });
 
@@ -115,7 +137,7 @@ test('可隐藏清单的每一格都有单据会写，勾了隐藏以后写出�
   assert.deepEqual(
     unusedHideable(optionalDocumentFields, written),
     [],
-    'shared/documents/document-templates.ts 的 optionalDocumentFields 里有拼单据不写的名字：叫法改了要一起改，不用了就删掉',
+    'shared/documents/document-fields.ts 派生的 optionalDocumentFields 里有拼单据不写的名字：叫法改了要同步，不用了就删掉',
   );
   for (const kind of kinds) {
     const hidden = writtenNames(kind, optionalDocumentFields).filter((k) => optionalDocumentFields.some((h) => h === k));

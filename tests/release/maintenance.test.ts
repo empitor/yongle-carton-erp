@@ -1,3 +1,4 @@
+// 备份恢复演练（发布检查）：命令行备份、整份和单文件恢复、换回配置库都在临时目录里真跑一遍；0.9.0 以前的库、比程序新的配置库、WAL 模式的文件在动文件之前就拒绝，数据目录不留暂存文件。
 import { sales } from '../../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

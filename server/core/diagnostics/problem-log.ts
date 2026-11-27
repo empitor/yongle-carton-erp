@@ -21,7 +21,10 @@ export const problemLogDatabase: VersionedSqliteSpec = {
   baseline: 1,
   steps: [],
   create(db) {
-    db.exec(`CREATE TABLE recent_problems(
+    db.exec(`-- 库文件旁边的 run.log 是运行日志（超 2 MB 换一份，留两份），不是数据库
+
+      -- 服务端失败的请求和页面上报，存前打码、截断；留 30 天，按来源分份限条数
+      CREATE TABLE recent_problems(
         id INTEGER PRIMARY KEY,
         at TEXT NOT NULL,
         source TEXT NOT NULL CHECK(source IN ('server','page')),

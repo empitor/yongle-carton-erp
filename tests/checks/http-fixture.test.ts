@@ -1,3 +1,4 @@
+// 测试用 HTTP 服务（tests/support/http-fixture.ts）读完响应后保留连接，夹具关闭时才断开。
 import assert from 'node:assert/strict';
 import type { Socket } from 'node:net';
 import { test } from 'node:test';

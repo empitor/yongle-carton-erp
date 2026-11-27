@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { canEditBusiness, hashParams, useAuthState, useBusinessRevision, useLoad } from '../ui/index';
+import { canEditBusiness, useAuthState, useBusinessRevision, useLoad } from '../ui/index';
 import { initialScope, recordRange, type Scope } from './page-state';
+import { recordRoute } from './record-filters';
 
 /**
  * 供应商、采购单、库存、流水页共用的骨架：登录状态、地址参数、搜索词、记录范围（待处理 / 全部 / 已归档）、
@@ -14,10 +15,10 @@ export function useRecordPage({
   const auth = useAuthState(),
     superMode = !!auth?.actor?.superAdminMode,
     canEdit = canEditBusiness(auth);
-  const params = hashParams();
+  const route = recordRoute(location.hash);
   const [revision, bump] = useBusinessRevision();
-  const [search, setSearch] = useState(params.get('q') || ''),
-    [scope, setScope] = useState<Scope>(() => initialScope(params, recycle, pendingByDefault)),
+  const [search, setSearch] = useState(route.q ?? ''),
+    [scope, setScope] = useState<Scope>(() => initialScope(route, recycle, pendingByDefault)),
     [all, setAll] = useState(false),
     [notice, setNotice] = useState('');
   useEffect(() => {
@@ -28,7 +29,7 @@ export function useRecordPage({
     auth,
     superMode,
     canEdit,
-    params,
+    route,
     revision,
     search,
     setSearch,

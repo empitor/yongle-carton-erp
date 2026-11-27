@@ -5,7 +5,9 @@
 import { isSha256 } from './checks.js';
 
 export const importTables = `
--- 订单导入的执行记录（来源和幂等）；seq 是登记先后，同一原件按它找最近一次
+-- 订单导入的执行记录（来源和幂等）；seq 是登记先后，同一原件按它找最近一次。不存预览；
+-- 同一工作区、同一人、同一摘要再交返回原回执；同一原件只能有一条挂着订单；
+-- order_id 删订单时置空（全库唯一的跨模块级联）
 CREATE TABLE import_executions(
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   id TEXT NOT NULL UNIQUE,
@@ -23,7 +25,8 @@ CREATE UNIQUE INDEX import_live_file_unique ON import_executions(file_hash) WHER
 CREATE INDEX import_order_lookup ON import_executions(order_id);
 
 -- 收件箱条目。附件的四列（文件名、类型、大小、摘要）要么都有要么都没有；处理人和处理时间一起记。
--- 状态和转成了什么（converted_kind）故意不联动：允许“已转单据但没记是哪种”这类组合
+-- 状态和转成了什么（converted_kind）故意不联动：允许“已转单据但没记是哪种”这类组合。同来源同消息只一条。
+-- pending、ignored 收到 180 天后由每日清理删掉，converted 留着
 CREATE TABLE inbox_items(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   channel TEXT NOT NULL CHECK(channel IN ('manual','wecom_bot','feishu_bot','dingtalk_bot')),
@@ -51,7 +54,7 @@ CREATE TABLE inbox_items(
 ) STRICT;
 CREATE INDEX inbox_status_received ON inbox_items(status,received_at);
 
--- 收件箱附件
+-- 收件箱附件，按 SHA-256 存一份
 CREATE TABLE inbox_files(
   sha256 TEXT PRIMARY KEY CHECK(${isSha256('sha256')}),
   size INTEGER NOT NULL CHECK(size>=0),

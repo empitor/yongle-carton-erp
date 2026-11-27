@@ -23,7 +23,13 @@ const groups = z.array(z.looseObject({ lines: rows }));
 function setup(store: StoreType) {
   const base = businessBase(actor, store),
     { ops } = base;
-  const a = base.customer({ name: '虚构甲电器', address: '虚构路1号' }),
+  const a = base.customer({
+      name: '虚构甲电器',
+      sites: [
+        { name: '虚构一厂', isDefault: true, address: '虚构路1号', contact: '虚构联系人', phone: '0001' },
+        { name: '虚构二厂', address: '虚构路3号' },
+      ],
+    }),
     b = base.customer({ name: '虚构乙食品', address: '虚构路2号' });
   const box = base.product({ name: '虚构外箱' }),
     tray = base.product({ name: '虚构内托' });
@@ -52,6 +58,9 @@ test('按交期先后把成品排满：先给交期早的甲，剩下给乙；�
       ],
     );
     assert.equal(plan.contested.length, 1, '两个客户在等，先问给谁');
+    const first = plan.groups[0];
+    assert.deepEqual([first.siteId, first.siteName, first.address, first.contact, first.phone, first.sites],
+      [f.a.sites[0].id, '虚构一厂', '虚构路1号', '虚构联系人', '0001', f.a.sites]);
     const onlyB = readAs(tools.read('delivery.plan', { stockIds: [f.stock.id], owners: [{ stockId: f.stock.id, customerId: f.b.id }] }, actor), { groups, contested: z.array(z.unknown()) });
     assert.deepEqual(onlyB.groups.map((g) => [g.customerName, g.lines[0].quantity]), [['虚构乙食品', '400']]);
     // 和窗口一样：指定了给谁的还列着，带上指定的客户

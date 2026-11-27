@@ -12,7 +12,7 @@ import { changeLifecycle } from '../../server/lifecycle/index.js';
 import { recordContext } from '../../server/overview/record-context.js';
 import { DataManagementService } from '../../server/admin/data-management-service.js';
 import { localAdministratorActor } from '../../server/core/index.js';
-import { businessBase } from '../support/business-base-fixture.js';
+import { businessBase, manualWrite } from '../support/business-base-fixture.js';
 import {
   dataManagementCommandSchema,
   movementSchema,
@@ -26,7 +26,7 @@ import { historyActionNames } from '../../shared/business/overview/history-field
 import { HistoryList } from '../../src/recordkit/RecordContext.js';
 import { archiveDoc } from '../support/receive-fixture.js';
 import { firstResult } from '../support/data-management-fixture.js';
-import { assertClean, C, F, GONE, ids, L, O, P, refs, row, S, SUP } from './history-fixture.js';
+import { assertClean, C, F, GONE, ids, L, O, P, refs, row, S, SITE, SUP } from './history-fixture.js';
 import { actor, superActor } from '../support/actor-fixture.js';
 import { must } from '../support/read-result.js';
 
@@ -115,7 +115,7 @@ const dynamicActions: Record<string, string[]> = {
 };
 
 /** 每个动作一份照服务端写法造的审计内容，确认能逐项显示 */
-const delivery = { id: 9, kind: 'delivery', status: 'draft', customerId: C, lines: [{ orderId: O, orderLineId: 3, stockId: F, quantity: '10', notes: '' }] };
+const delivery = { id: 9, kind: 'delivery', status: 'draft', customerId: C, siteId: SITE, siteName: '虚构东厂', lines: [{ orderId: O, orderLineId: 3, stockId: F, quantity: '10', notes: '' }] };
 const stock = { id: S, name: '虚构五层纸板', kind: 'raw', unit: '张', specification: '', notes: '', quantity: '300' };
 const samples: Record<string, { module: string; detail: unknown }> = {
   create: { module: 'customers', detail: { before: null, after: { id: C, name: '虚构客户甲', contact: '王', phone: '', address: '', notes: '' } } },
@@ -157,7 +157,7 @@ const samples: Record<string, { module: string; detail: unknown }> = {
     module: 'delivery',
     detail: { before: { ...delivery, lines: [...delivery.lines, { ...delivery.lines[0], orderId: O }] }, after: delivery, movedMovements: ['1'], movedTo: { id: 12, number: 'SH-2' } },
   },
-  'change-delivery-customer': { module: 'delivery', detail: { before: delivery, after: { ...delivery, customerId: GONE } } },
+  'change-delivery-customer': { module: 'delivery', detail: { before: delivery, after: { ...delivery, customerId: GONE, siteId: null, siteName: '' } } },
   'split-delivery': { module: 'delivery', detail: { from: { id: 9, number: 'SH-1' }, after: { ...delivery, status: 'confirmed' }, movements: ['1'] } },
   in: { module: 'stock_items', detail: { movementId: 1, source: { action: 'in', kind: 'manual', date: '2026-11-13', notes: '入' }, before: '0', after: '10', deltaUnits: 10000 } },
   out: { module: 'stock_items', detail: { movementId: 1, source: { action: 'out', kind: 'manual', date: '2026-11-13', notes: '出' }, before: '10', after: '0', deltaUnits: -10000 } },
@@ -319,6 +319,34 @@ test('真实业务操作留下的修改历史：批次备注、送货单状态�
     assert.deepEqual(created.items.find((i) => i.label === L('lines')), { label: L('lines'), value: '虚构历史产品 10 只' });
     assert.deepEqual(viewOf('stock_items', raw.id, 'in').items[0], { label: '库存', value: '0 张 → 500 张' });
     assert.deepEqual(viewOf('suppliers', supplier.id, 'update').items, [{ label: L('phone'), value: '未填写 → 0574-0000' }]);
+  } finally {
+    store.close();
+  }
+});
+
+test('送货单换收货厂区的修改历史写厂区名称、不露编号；厂区删掉以后照样按单上存的名称显示', () => {
+  const base = businessBase(actor), { store, flow } = base;
+  try {
+    const site = (name: string, isDefault: boolean) => ({ name, contact: '', phone: '', address: name + '地址', notes: '', isDefault });
+    const customer = base.customer({ name: '虚构厂区客户', sites: [site('虚构东厂', true), site('虚构西厂', false)] });
+    const [east, west] = customer.sites, product = base.product({ name: '虚构厂区产品' });
+    const finished = base.finished(product, {}, { quantity: '100', date: '2026-11-01' });
+    const order = base.order(customer, [base.line(product, 100)]);
+    const input = { date: '2026-11-07', customerId: customer.id, siteId: east.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: finished.id, quantity: '10' }] };
+    const d = flow.save('delivery', input, actor);
+    flow.save('delivery', { ...input, siteId: west.id, version: d.version }, actor, d.id);
+    base.check({ id: d.id });
+    const siteRow = () => {
+      const ctx = recordContext(store, 'delivery', d.id, superActor());
+      const entry = must(ctx.history.find((e) => e.action === 'update-draft'), '改厂区那条历史');
+      const view = historyView({ module: 'delivery', action: 'update-draft', detail: entry.detail, recordId: d.id }, ctx.historyRefs);
+      assertClean(view, '送货单换厂区', [east.id, west.id].filter((n) => n > 9));
+      return row(view, L('siteId'));
+    };
+    assert.deepEqual(siteRow(), ['虚构东厂 → 虚构西厂']);
+    // 还在的厂区按现在的名称（和客户、产品一样），删掉的按单上存的名称
+    manualWrite(store, { entity: 'customers', action: 'update', id: customer.id, input: { ...customer, sites: [{ ...east, name: '虚构东厂新名' }] } }, actor);
+    assert.deepEqual(siteRow(), ['虚构东厂新名 → 虚构西厂']);
   } finally {
     store.close();
   }

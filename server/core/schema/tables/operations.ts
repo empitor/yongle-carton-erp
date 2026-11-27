@@ -6,7 +6,7 @@ import { FINISHED_UNIT, RAW_UNIT } from '../../../../shared/core/index.js';
 import { isDate, isDateOrNull, isJsonArray, isJsonObject } from './checks.js';
 
 export const operationsTables = `
--- 供应商
+-- 供应商档案。名称不能空；带 version
 CREATE TABLE suppliers(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL CHECK(length(trim(name))>0),
@@ -22,7 +22,7 @@ CREATE TABLE suppliers(
 -- 库存品（原材料、成品）。同一种货只有一个库存品，归档的也算：
 -- 单位只有两种：原材料“张”、成品“只”（shared/core/units.ts）；
 -- 成品一定关联产品、一个产品只有一个成品库存（product_id 上的唯一索引）；原材料不关联产品；
--- raw_key 是原材料的查重键（shared/business/stock-identity.ts 的 rawStockKey 算出来存这里，服务端查重用同一个函数），
+-- raw_key 是原材料的查重键（shared/business/operations/stock-identity.ts 的 rawStockKey 算出来存这里，服务端查重用同一个函数），
 -- 名称、规格说明、尺寸、材质、楞型规范化后相同的原材料只能有一个（唯一索引）；成品不存（按产品唯一）
 CREATE TABLE stock_items(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +42,8 @@ CREATE TABLE stock_items(
 CREATE UNIQUE INDEX stock_items_product ON stock_items(product_id) WHERE product_id IS NOT NULL;
 CREATE UNIQUE INDEX stock_items_raw_key ON stock_items(raw_key) WHERE raw_key IS NOT NULL;
 
--- 采购单
+-- 采购单。status 只存 待订货、已订货、已取消，到货进度（未到货、部分到货、全部到货）只在视图上；
+-- expected_date 不早于 order_date；customer_order_id 是给哪张订单订的料
 CREATE TABLE purchases(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   number TEXT NOT NULL UNIQUE,
@@ -61,8 +62,9 @@ CREATE TABLE purchases(
 CREATE INDEX purchases_order ON purchases(customer_order_id);
 CREATE INDEX purchases_supplier ON purchases(supplier_id);
 
--- 采购明细；received_units 是按有效到货重算的缓存。
--- customer_order_id：这一行给哪张订单订的料，空着跟采购单头走；只存在这一列，document 里不许再有 customerOrderId
+-- 采购明细；received_units 是按有效到货重算的缓存。只由 server/operations/ledger/ledger.ts 写。
+-- customer_order_id：这一行给哪张订单订的料，空着跟采购单头走；只存在这一列，document 里不许再有 customerOrderId。
+-- 没关联库存品的行长、宽必填，其余选填（规则只在 requiredPurchaseSize，页面和保存共用）
 CREATE TABLE purchase_lines(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   purchase_id INTEGER NOT NULL REFERENCES purchases(id),
@@ -77,10 +79,12 @@ CREATE INDEX purchase_lines_order ON purchase_lines(purchase_id);
 CREATE INDEX purchase_lines_stock_item ON purchase_lines(stock_item_id);
 CREATE INDEX purchase_lines_customer_order ON purchase_lines(customer_order_id) WHERE customer_order_id IS NOT NULL;
 
--- 库存流水：余额只由它派生；seq 是登记顺序，永不变、删掉的也不复用。
+-- 库存流水：只追加，余额只由它派生，前后余额不为负；seq 是登记顺序，永不变、删掉的也不复用。
 -- 数量是 0 的流水只有盘点（adjust）能记，表示盘过了、数量没变；别的出入库一律不记 0（表末尾的 CHECK）。
 -- 写流水的地方（确认、冲销、管理员编辑、拆送货单、到货更正、采购退货及冲销、批量完工、手工出入库、删除时库存不动）
--- 都只记非 0，server/operations/ledger.ts 的 insertMovement 另有一道中文提示的拦截。
+-- 都只记非 0，server/operations/ledger/ledger.ts 的 insertMovement 另有一道中文提示的拦截。
+-- 来源 source_kind：manual、flow_arrival、flow_production、flow_delivery、flow_reversal、purchase_return、database-maintenance；
+-- 代码里按名字引 movementSource。
 -- 故意不加的约束：after_units=before_units+delta_units（管理员重写流水时先按 0/0 插入，同一事务里再重算）、
 -- 出库必为负入库必为正（数据维护核对差额时会反着记）
 CREATE TABLE stock_movements(
@@ -108,7 +112,8 @@ CREATE INDEX stock_movements_source ON stock_movements(source_kind,source_id);
 CREATE INDEX stock_movements_purchase_line ON stock_movements(purchase_line_id);
 CREATE INDEX stock_movements_order ON stock_movements(customer_order_id);
 
--- 管理员改写、删除流水留下的修订记录（流水、库存品删了记录还留着，所以两个编号都不加外键）
+-- 管理员改写、删除流水留下的修订记录，改写流水必须写（流水、库存品删了记录还留着，所以两个编号都不加外键）。
+-- 修订记录来自本机管理员改订单时流水改挂、删除时库存不动
 CREATE TABLE stock_movement_revisions(
   id INTEGER PRIMARY KEY,
   movement_id TEXT NOT NULL,
@@ -123,7 +128,7 @@ CREATE TABLE stock_movement_revisions(
 CREATE INDEX stock_movement_revisions_item ON stock_movement_revisions(item_id);
 CREATE INDEX stock_movement_revisions_movement ON stock_movement_revisions(movement_id);
 
--- 订货批次：发给供应商的一份订货单，到货安排存在 schedule（JSON）里。
+-- 订货单（订货批次）：发给供应商的一份订货单，单号唯一，到货安排存在 schedule（JSON）里。
 -- export_id 指向生成这份订货单的导出记录（单据导出的表）：采购库存只存这个编号，不读那张表
 CREATE TABLE order_batches(
   id INTEGER PRIMARY KEY AUTOINCREMENT,

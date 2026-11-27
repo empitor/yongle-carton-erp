@@ -17,7 +17,7 @@
   background: var(--fill-2);
 }
 
-/* ===== 全站公共件（docs/界面规范.md） ===== */
+/* ===== 全站公共件（docs/界面/公共件.md） ===== */
 
 /* “更多”菜单：危险项红色、和普通项之间有分隔线；固定定位，弹窗里也不会被裁掉 */
 :root[data-ui='refined'] .more-menu-list :is(button, a).danger-text,

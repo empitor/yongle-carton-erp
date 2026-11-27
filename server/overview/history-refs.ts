@@ -5,6 +5,7 @@ import { historyRefIds, type HistoryRefs } from '../../shared/business/index.js'
 /** 每张表取名称（单据取单号）；库存品另带单位，出入库那几条写“300 张 → 310 张”要用 */
 const sources: readonly (readonly [keyof HistoryRefs, string])[] = [
   ['customers', 'SELECT id,name AS label,NULL AS unit FROM customers'],
+  ['customer_sites', 'SELECT id,name AS label,NULL AS unit FROM customer_sites'],
   ['suppliers', 'SELECT id,name AS label,NULL AS unit FROM suppliers'],
   ['products', 'SELECT id,name AS label,NULL AS unit FROM products'],
   ['stock_items', 'SELECT id,name AS label,unit FROM stock_items'],

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { hashParams } from '../ui/index';
-import { errorMessage } from '../../shared/core/index';
+import { errorMessage, pageParams } from '../../shared/core/index';
 import { NO_KEY } from './ImportDialog';
 import { fileMode, modeLabels, type FileItem, type FileMode } from './fileStatus';
 import { recognizableOrders } from './page-state';
@@ -13,8 +12,7 @@ const PREVIEW_KEY = 'erp-import-preview';
 
 /** 地址里带 mode=arrival（从到货页跳过来）：新上传的文件按到货单识别。 */
 function hashUploadMode(): FileMode {
-  const mode = hashParams().get('mode');
-  return mode === 'arrival' ? mode : 'order';
+  return pageParams('ai-import', location.hash).mode === 'arrival' ? 'arrival' : 'order';
 }
 function readPreviewShown() {
   try {

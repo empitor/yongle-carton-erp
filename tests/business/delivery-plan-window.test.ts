@@ -3,13 +3,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { today } from '../../shared/core/index.js';
+import { deliverySiteSnapshot } from '../../shared/business/index.js';
 import { deliveryBody, emptyText, planLookups, planProblem, shownGroups } from '../../src/warehouse/delivery-plan.js';
 
 const planLine = (orderLineId: number, stockId: number, quantity: string) => ({ orderId: 1, orderLineId, stockId, quantity, notes: '' });
+const site = { id: 7, name: '虚构一厂', address: '虚构路1号', contact: '虚构甲', phone: '000-1', notes: '', isDefault: true };
 const plan = {
   groups: [
-    { customerId: 1, address: '虚构路1号', contact: '虚构甲', phone: '000-1', lines: [planLine(11, 7, '30'), planLine(12, 8, '5')] },
-    { customerId: 2, address: '', contact: '', phone: '', lines: [planLine(21, 7, '10')] },
+    { customerId: 1, sites: [site], ...deliverySiteSnapshot(site), lines: [planLine(11, 7, '30'), planLine(12, 8, '5')] },
+    { customerId: 2, sites: [], ...deliverySiteSnapshot(undefined), lines: [planLine(21, 7, '10')] },
   ],
 };
 
@@ -21,30 +23,32 @@ test('窗口里的送货单：人删掉的行不显示，删空的送货单整�
   );
 });
 
-test('每张送货单的输入：没改过的按排出来的收货信息和今天预填，人改过的优先', () => {
+test('每张送货单的计划日预填今天，超订单用人填写的原因', () => {
   const [g] = shownGroups(plan, [], {});
-  const look = planLookups(null, { 1: { phone: '000-9', reason: '客户要多送' } });
-  assert.deepEqual(look.inputOf(g), { plannedDate: today(), address: '虚构路1号', contact: '虚构甲', phone: '000-9', reason: '客户要多送' });
+  const look = planLookups(null, { '1/7': { reason: '客户要多送' } });
+  assert.deepEqual(look.inputOf(g), { plannedDate: today(), reason: '客户要多送' });
   assert.equal(look.customerName(1), '客户', '读到数据之前没有客户名');
   assert.deepEqual(look.overOf(g.lines), []);
 });
 
 test('交之前查：没写计划日、超订单没写原因的拦下说清给谁；已经建好的那张不再查', () => {
   const groups = shownGroups(plan, [], {});
-  const base = planLookups(null, { 1: { plannedDate: '' } });
+  const base = planLookups(null, { '1/7': { plannedDate: '' } });
   assert.match(planProblem(groups, {}, base), /请填写送给 客户 的计划送货日期/);
-  assert.equal(planProblem(groups, { 1: 'SH-1' }, base), '');
-  const over = { ...planLookups(null, { 2: { reason: '  ' } }), overOf: () => ['2|21|7'] };
-  assert.match(planProblem(groups, { 1: 'SH-1' }, over), /超过订单数量，请写明超订单的原因/);
-  const reasoned = { ...planLookups(null, { 2: { reason: '客户要多送' } }), overOf: () => ['2|21|7'] };
-  assert.equal(planProblem(groups, { 1: 'SH-1' }, reasoned), '');
+  const created = { '1/7': 'SH-1' };
+  assert.equal(planProblem(groups, created, base), '');
+  const over = { ...planLookups(null, { '2/': { reason: '  ' } }), overOf: () => ['2|21|7'] };
+  assert.match(planProblem(groups, created, over), /超过订单数量，请写明超订单的原因/);
+  const reasoned = { ...planLookups(null, { '2/': { reason: '客户要多送' } }), overOf: () => ['2|21|7'] };
+  assert.equal(planProblem(groups, created, reasoned), '');
 });
 
 test('交给服务端的送货单：超订单时带上去掉首尾空白的原因，不超时不带；行里不带窗口用的键', () => {
   const [g] = shownGroups(plan, [], {});
-  const input = { plannedDate: '2026-11-25', address: '虚构路1号', contact: '虚构甲', phone: '000-1', reason: ' 客户要多送 ' };
+  const input = { plannedDate: '2026-11-25', reason: ' 客户要多送 ' };
   const over = deliveryBody(g, input, true);
   assert.equal(over.allowOverdelivery, true);
+  assert.equal(over.siteId, 7);
   assert.equal(over.overdeliveryReason, '客户要多送');
   assert.deepEqual(over.lines, [planLine(11, 7, '30'), planLine(12, 8, '5')]);
   const normal = deliveryBody(g, input, false);

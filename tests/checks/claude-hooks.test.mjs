@@ -1,4 +1,5 @@
-// 三家共用的保护钩子：保留原有的拦截范围，验证各工具的输入和进程输出。
+// 三家共用的保护钩子（.claude/hooks/）：保留原有的拦截范围，验证各工具的输入和进程输出；Antigravity 按共用清单请求确认；
+// 文件变长提醒经 Claude Code 和 Codex 的 PostToolUse 输出；Claude Code 的 permissions.ask 和 Codex 的 ask-before.rules 两份命令审批清单逐项一致。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -104,7 +105,7 @@ test('命令行：正常开发命令不误拦', () => {
     'node -e "console.log(process.env.LOCALAPPDATA)"',
     'cat .env.example',
     'ssh -i ~/.ssh/empitor.pem yongle-erp uptime',
-    'LOCALAPPDATA=/tmp/erp-x npx tsx --test tests/delete-rules.test.ts',
+    'LOCALAPPDATA=/tmp/erp-x ERP_CONFIG_DIR=/tmp/erp-x/c DB_PATH=/tmp/erp-x/a.sqlite ERP_BACKUP_DIR=/tmp/erp-x/b npx tsx --test tests/delete-rules.test.ts',
     'node scripts/ui-check/preview.mjs --remote',
   ])
     assert.equal(bash(command), '', command);
@@ -286,7 +287,16 @@ for (const { prefix } of readAskRules(repo).filter((rule) => rule.tool === 'Bash
     assert.ok(result.reason.includes(command));
   });
 }
-for (const CommandLine of ['FOO=1 git push', '(git push)', 'if ($true) { git push }', '& "C:\\Program Files\\Git\\bin\\git.exe" push']) {
+for (const CommandLine of [
+  'FOO=1 git push',
+  '(git push)',
+  'if ($true) { git push }',
+  '& "C:\\Program Files\\Git\\bin\\git.exe" push',
+  'git -C . push',
+  'git -c core.x=y --no-pager push origin main',
+  'powershell -NoProfile -c "git push"',
+  'npm --save-dev install x',
+]) {
   test('Antigravity 要求确认包装过的命令 ' + CommandLine, () => {
     assert.equal(agyDecision(agyCall('run_command', { CommandLine })), 'ask');
   });

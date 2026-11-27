@@ -7,13 +7,13 @@ export type Scope = 'pending' | 'all' | 'archived';
  * pendingByDefault 为真（采购单没带条件进来）时默认待处理，其余看全部。
  */
 export function initialScope(
-  params: URLSearchParams,
+  route: { archived?: boolean; scope?: string; pending?: boolean },
   recycle: boolean,
   pendingByDefault = false,
 ): Scope {
-  return recycle || params.get('archived') === '1' || params.get('scope') === 'archived'
+  return recycle || route.archived || route.scope === 'archived'
     ? 'archived'
-    : params.get('pending') === '1' || params.get('scope') === 'pending' || pendingByDefault
+    : route.pending || route.scope === 'pending' || pendingByDefault
       ? 'pending'
       : 'all';
 }

@@ -1,8 +1,8 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { z } from 'zod';
 import type { Customer, Product, ProductInput } from '../../shared/core/index.js';
-import { priceToE4 } from '../../shared/core/index.js';
-import { ConflictError, InputError, exists, many, type Store } from '../core/index.js';
+import { PRODUCT_CUSTOMER_LOCKED, priceToE4, productMovesWithOrder } from '../../shared/core/index.js';
+import { AppError, ConflictError, InputError, exists, many, type Store } from '../core/index.js';
 import { chosenExact, readBack, type ExistingRecord } from './record-fields.js';
 
 /*
@@ -47,10 +47,14 @@ function hasProductOrders(db: DatabaseSync, productId: number) {
   return exists(db, 'SELECT 1 FROM order_lines WHERE product_id=? LIMIT 1', productId);
 }
 
+/** 产品要定给的客户不存在或已归档 */
+const CUSTOMER_UNAVAILABLE = '客户不存在或已归档，请先恢复客户或重新选择。';
+
 /**
  * 所属客户核对：
  * - 没下过单的产品随时可以改客户或清空；
- * - 下过单的产品只能从“没定客户”补定给某一家，不能从 A 改给 B 或清空（要给别的客户用请复制一份）；
+ * - 下过单的产品只能从“没定客户”补定给某一家，不能从 A 改给 B 或清空（要给别的客户用得新建一份）；唯一的例外是订单换客户时
+ *   只在这张订单里下过单的产品跟着走（moveProductsWithOrder，不经这里）；
  * - 只有原归属本来就是这家归档客户且未变动时才允许沿用；任何新指派（含超管、数据管理、助手）一律拒绝归档客户。
  */
 function checkedCustomer(
@@ -60,10 +64,10 @@ function checkedCustomer(
 ) {
   const next = customerId ?? null;
   if (previous && previous.customerId != null && next !== previous.customerId && hasProductOrders(ctx.db, previous.id))
-    throw new InputError('这个产品已经下过单，不能更改所属客户；要给别的客户用请复制一份。');
+    throw new InputError(PRODUCT_CUSTOMER_LOCKED);
   if (next === null) return null;
   const keepArchived = previous?.customerId === next;
-  if (!ctx.customer(next, keepArchived)) throw new InputError('客户不存在或已归档，请先恢复客户或重新选择。');
+  if (!ctx.customer(next, keepArchived)) throw new InputError(CUSTOMER_UNAVAILABLE);
   return next;
 }
 
@@ -147,6 +151,64 @@ export function saveProductRecord(
 }
 
 const idRow = z.object({ id: z.number() });
+
+/** 这几个产品里订单明细全在 orderId 这张订单里的：别的订单一行都没有（不管状态、归没归档）；一行明细都没有的不算 */
+export function productsOnlyInOrder(db: DatabaseSync, orderId: number, productIds: readonly number[]): Set<number> {
+  if (!productIds.length) return new Set();
+  const rows = many(
+    db,
+    idRow,
+    'SELECT product_id AS id FROM order_lines WHERE product_id IN (SELECT value FROM json_each(?)) GROUP BY product_id HAVING SUM(order_id<>?)=0',
+    JSON.stringify(productIds),
+    orderId,
+  );
+  return new Set(rows.map((r) => r.id));
+}
+
+/** 订单换客户带过去的产品：改前、改后 */
+export type MovedProduct = { before: Product; after: Product };
+/** 带产品过去时要用的：读客户、产品，和按新客户查重（撞上抛错） */
+type ProductMoveContext = Pick<ProductSaveContext, 'db' | 'customer' | 'product'> & {
+  assertUnique(product: Product, customerId: number): void;
+};
+
+/**
+ * 订单换客户（order 是改之前的，next 是这次要存的）：明细里属原客户、订单明细只在这张订单里的产品（productMovesWithOrder）
+ * 改归新客户。这是“下过单不能改所属客户”（checkedCustomer）唯一的例外，所以按库里的明细再核一遍，不信调用方。
+ * 新客户不存在的不管（订单保存会拒），已归档的拒（任何新指派都拒归档客户）；改过去撞查重的拒，前面说清是哪个产品。
+ * 版本号加一、更新时间跟着改；成品库存不用同步（客户名是读的时候带出来的）。由订单服务在订单保存的同一个保存点里调。
+ */
+export function moveProductsWithOrder(
+  ctx: ProductMoveContext,
+  order: { id: number; customerId: number },
+  next: { customerId: number; lines: readonly { productId: number }[] },
+  includeArchived: boolean,
+): MovedProduct[] {
+  const change = { from: order.customerId, to: next.customerId };
+  if (change.from === change.to || !ctx.customer(change.to, true)) return [];
+  const ids = [...new Set(next.lines.map((l) => l.productId))],
+    sole = productsOnlyInOrder(ctx.db, order.id, ids);
+  const moving = ids.flatMap((id) => {
+    const p = ctx.product(id, includeArchived);
+    return p && productMovesWithOrder(p, change, sole.has(id)) ? [p] : [];
+  });
+  if (!moving.length) return [];
+  const customer = ctx.customer(change.to, false);
+  if (!customer) throw new InputError(CUSTOMER_UNAVAILABLE);
+  return moving.map((before) => {
+    try {
+      ctx.assertUnique(before, customer.id);
+    } catch (e) {
+      if (!(e instanceof AppError)) throw e;
+      throw new AppError('产品“' + before.name + '”只在这张订单里下过单，要跟着订单改归 ' + customer.name + '：' + e.message, e.status, e.code);
+    }
+    const r = ctx.db
+      .prepare('UPDATE products SET customer_id=?,updated_at=?,version=version+1 WHERE id=? AND version=?')
+      .run(customer.id, new Date().toISOString(), before.id, before.version);
+    if (!r.changes) throw new ConflictError();
+    return { before, after: readBack(ctx.product(before.id, includeArchived), '产品') };
+  });
+}
 const productCustomerRow = z.object({ productId: z.number(), customerName: z.string() });
 const unassignedRow = z.object({ id: z.number(), name: z.string() });
 

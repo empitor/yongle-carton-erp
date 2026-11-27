@@ -51,7 +51,7 @@ export { stockBatches } from './flow/stock-batches.js';
 export { rawStockKey, sameRawSpec } from './operations/stock-identity.js';
 export type { StockBatchesResponse, StockBatchView } from './flow/stock-batches.js';
 export { deliveryBlockers, deliveryCandidates, pendingByOrderLine, planOrderDelivery, selectedStockUnits, specificationMismatch, specificationMismatchText, stockByProduct } from './flow/warehouse-delivery.js';
-export { deliveryPlan, openOrder, overOrderLines } from './flow/delivery-plan.js';
+export { deliveryPlan, deliverySiteSnapshot, openOrder, overOrderLines } from './flow/delivery-plan.js';
 export type { PlanPreset } from './flow/delivery-plan.js';
 export type { Listed, ProductDetailRecord, ProductListRow, RecordsApi } from './orders/records-api.js';
 export { customerQuerySchema, orderQuerySchema, productQuerySchema } from './orders/record-queries.js';

@@ -2,7 +2,8 @@
   "before": {
     "operation_requests": [
       {"kind":"order-status","request_id":"g-order","actor_id":"g-actor","digest":"g-content","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":\"1.5%\",\"taxMode\":\"不含税\",\"status\":\"已确认\",\"lines\":[{\"id\":1,\"taxRate\":\"13个点\",\"taxMode\":\"含13%\"},{\"id\":2,\"taxRate\":\"０．５％\",\"taxMode\":\"含税\"}]}"},
-      {"kind":"finance-resolution","request_id":"g-other","actor_id":"g-actor","digest":"g-other","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":\"13\",\"taxMode\":\"不含税\",\"lines\":[]}"}
+      {"kind":"finance-resolution","request_id":"g-other","actor_id":"g-actor","digest":"g-other","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":\"13\",\"taxMode\":\"不含税\",\"lines\":[]}"},
+      {"kind":"order-status","request_id":"g-order-space","actor_id":"g-actor","digest":"g-space","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":\"1.5%\",\"taxMode\":\" 含税 \",\"status\":\"已确认\",\"lines\":[{\"id\":3,\"taxRate\":\"1.5\",\"taxMode\":\"　含税价　\"}]}"}
     ],
     "customers": [
       {"id":1,"name":"虚构税率客户","contact":"","phone":"","address":"","notes":"","created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z"}
@@ -38,7 +39,13 @@
       {"id":25,"number":"虚构税率-25","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":".5%","tax_mode":null,"version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
       {"id":26,"number":"虚构税率-26","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"-0","tax_mode":null,"version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
       {"id":27,"number":"虚构税率-27","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"0.00","tax_mode":null,"version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
-      {"id":28,"number":"虚构税率-28","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"13 %\n","tax_mode":null,"version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""}
+      {"id":28,"number":"虚构税率-28","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"13 %\n","tax_mode":null,"version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
+      {"id":29,"number":"虚构税率-29","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"13%","tax_mode":" 含税","version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
+      {"id":30,"number":"虚构税率-30","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"13","tax_mode":"不含税 ","version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
+      {"id":31,"number":"虚构税率-31","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"6%","tax_mode":"　未税　","version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
+      {"id":32,"number":"虚构税率-32","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":null,"tax_mode":"\t未明确\n","version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
+      {"id":33,"number":"虚构税率-33","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"13%","tax_mode":"　含税价　","version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""},
+      {"id":34,"number":"虚构税率-34","customer_id":1,"customer_name":"虚构税率客户","order_date":"2026-11-01","delivery_date":"2026-11-30","status":"已确认","total_cents":123,"rounding_policy":"half-up-cent","tax_rate":"\n13个点","tax_mode":"含税\n价","version":2,"created_at":"2026-11-01T00:00:00.000Z","updated_at":"2026-11-01T00:00:00.000Z","notes":""}
     ],
     "order_lines": [
       {"id":1,"order_id":1,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"１３％","tax_mode":"含税"},
@@ -68,13 +75,20 @@
       {"id":25,"order_id":25,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":".5%","tax_mode":null},
       {"id":26,"order_id":26,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"-0","tax_mode":null},
       {"id":27,"order_id":27,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"0.00","tax_mode":null},
-      {"id":28,"order_id":28,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"13 %\n","tax_mode":null}
+      {"id":28,"order_id":28,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"13 %\n","tax_mode":null},
+      {"id":29,"order_id":29,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"13%","tax_mode":" 含税"},
+      {"id":30,"order_id":30,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"13","tax_mode":"不含税 "},
+      {"id":31,"order_id":31,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"6%","tax_mode":"　未税　"},
+      {"id":32,"order_id":32,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":null,"tax_mode":"\t未明确\n"},
+      {"id":33,"order_id":33,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"13%","tax_mode":"　含税价　"},
+      {"id":34,"order_id":34,"product_id":1,"quantity":1,"unit_price_e4":12340,"product_name":"虚构纸箱","specification":"","tax_rate":"\n13个点","tax_mode":"含税\n价"}
     ]
   },
   "after": {
     "operation_requests": [
       {"kind":"order-status","request_id":"g-order","actor_id":"g-actor","digest":"g-content","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":1.5,\"taxMode\":\"未税\",\"status\":\"已确认\",\"lines\":[{\"id\":1,\"taxText\":\"13个点\\n口径：含13%\"},{\"id\":2,\"taxRate\":0.5,\"taxMode\":\"含税\",\"taxText\":\"０．５％\"}],\"taxText\":\"1.5%\"}"},
-      {"kind":"finance-resolution","request_id":"g-other","actor_id":"g-actor","digest":"g-other","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":\"13\",\"taxMode\":\"不含税\",\"lines\":[]}"}
+      {"kind":"finance-resolution","request_id":"g-other","actor_id":"g-actor","digest":"g-other","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":\"13\",\"taxMode\":\"不含税\",\"lines\":[]}"},
+      {"kind":"order-status","request_id":"g-order-space","actor_id":"g-actor","digest":"g-space","created_at":"2026-11-01T00:00:00.000Z","result":"{\"taxRate\":1.5,\"taxMode\":\"含税\",\"status\":\"已确认\",\"lines\":[{\"id\":3,\"taxRate\":1.5,\"taxText\":\"1.5\\n口径：　含税价　\"}],\"taxText\":\"1.5%\"}"}
     ],
     "orders": [
       {"id":1,"tax_rate_bp":1300,"tax_mode":"含税","tax_text":"１３％","version":2,"total_cents":123},
@@ -104,7 +118,13 @@
       {"id":25,"tax_rate_bp":null,"tax_mode":null,"tax_text":".5%","version":2,"total_cents":123},
       {"id":26,"tax_rate_bp":null,"tax_mode":null,"tax_text":"-0","version":2,"total_cents":123},
       {"id":27,"tax_rate_bp":0,"tax_mode":null,"tax_text":"0.00","version":2,"total_cents":123},
-      {"id":28,"tax_rate_bp":1300,"tax_mode":null,"tax_text":"13 %\n","version":2,"total_cents":123}
+      {"id":28,"tax_rate_bp":1300,"tax_mode":null,"tax_text":"13 %\n","version":2,"total_cents":123},
+      {"id":29,"tax_rate_bp":1300,"tax_mode":"含税","tax_text":"13%","version":2,"total_cents":123},
+      {"id":30,"tax_rate_bp":1300,"tax_mode":"未税","tax_text":"13","version":2,"total_cents":123},
+      {"id":31,"tax_rate_bp":600,"tax_mode":"未税","tax_text":"6%","version":2,"total_cents":123},
+      {"id":32,"tax_rate_bp":null,"tax_mode":"未明确","tax_text":null,"version":2,"total_cents":123},
+      {"id":33,"tax_rate_bp":1300,"tax_mode":null,"tax_text":"13%\n口径：　含税价　","version":2,"total_cents":123},
+      {"id":34,"tax_rate_bp":null,"tax_mode":null,"tax_text":"\n13个点\n口径：含税\n价","version":2,"total_cents":123}
     ],
     "order_lines": [
       {"id":1,"tax_rate_bp":1300,"tax_mode":"含税","tax_text":"１３％","order_id":1,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
@@ -134,7 +154,13 @@
       {"id":25,"tax_rate_bp":null,"tax_mode":null,"tax_text":".5%","order_id":25,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
       {"id":26,"tax_rate_bp":null,"tax_mode":null,"tax_text":"-0","order_id":26,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
       {"id":27,"tax_rate_bp":0,"tax_mode":null,"tax_text":"0.00","order_id":27,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
-      {"id":28,"tax_rate_bp":1300,"tax_mode":null,"tax_text":"13 %\n","order_id":28,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123}
+      {"id":28,"tax_rate_bp":1300,"tax_mode":null,"tax_text":"13 %\n","order_id":28,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
+      {"id":29,"tax_rate_bp":1300,"tax_mode":"含税","tax_text":"13%","order_id":29,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
+      {"id":30,"tax_rate_bp":1300,"tax_mode":"未税","tax_text":"13","order_id":30,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
+      {"id":31,"tax_rate_bp":600,"tax_mode":"未税","tax_text":"6%","order_id":31,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
+      {"id":32,"tax_rate_bp":null,"tax_mode":"未明确","tax_text":null,"order_id":32,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
+      {"id":33,"tax_rate_bp":1300,"tax_mode":null,"tax_text":"13%\n口径：　含税价　","order_id":33,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123},
+      {"id":34,"tax_rate_bp":null,"tax_mode":null,"tax_text":"\n13个点\n口径：含税\n价","order_id":34,"product_id":1,"unit_price_e4":12340,"unit_price_cents":123}
     ]
   }
 }

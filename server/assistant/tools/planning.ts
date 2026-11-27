@@ -26,7 +26,7 @@ const productionPlanSchema = z.strictObject({ orderIds: z.array(positive).min(1)
 export const planningTools = [
   readTool({
     name: 'delivery.plan',
-    description: '算送货方案：安排送货前用（多选库存或订单时）。和“安排送货”窗口同一算法：stockIds 按交期把库存分给在等的订单，orderIds 把订单没发完的排满；按客户分组。contested 里没 owner 的先问用户给谁，再用 owners 指定。只读；保存用 records.propose_save 的 items，一组一张送货单，组里的 address、contact、phone 照带上。',
+    description: '算送货方案：安排送货前用（多选库存或订单时）。stockIds 按交期分配库存，orderIds 排未发完的订单。按客户分组，预选默认厂区并列出可选厂区和收货信息。contested 里没 owner 的先问用户给谁，再用 owners 指定。只读；保存用 records.propose_save 的 items，每张带 siteId。同客户多厂区时按实际收货厂区拆分明细，每个厂区一张。',
     schema: deliveryPlanSchema,
   }, planDelivery),
   readTool({

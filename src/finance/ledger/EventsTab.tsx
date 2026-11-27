@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { FormMessage, useConfirm, hashParams, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
-import { today } from '../../../shared/core/index';
+import { FormMessage, useConfirm, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
+import { pageParams, today } from '../../../shared/core/index';
 import { useFinPerms } from '../fin-api';
 import { UnsyncedNotice } from '../reports/unsynced';
 import { type HeadFn } from '../layout';
@@ -27,7 +27,7 @@ const eventColumns: Col<EventRow>[] = [
 export default function EventsTab({ head }: { head: HeadFn }) {
   const perms = useFinPerms();
   // 结账页“去处理”带 status=all 过来看全部（要处理的有差异、待补税率、待算成本……都在里面），平常默认“可记账”
-  const [status, setStatus] = useState(() => (hashParams().get('status') === 'all' ? '' : 'ready'));
+  const [status, setStatus] = useState(() => (pageParams('finance-ledger', location.hash).status === 'all' ? '' : 'ready'));
   const [confirmDialog, confirm] = useConfirm();
   const [row, setRow] = useState<EventRow | null>(null);
   const [rows, setRows] = useState<EventRow[]>([]);

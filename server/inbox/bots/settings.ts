@@ -26,7 +26,8 @@ const botDatabase = {
   steps: [],
   create(db: DatabaseSync) {
     db.exec(
-      `CREATE TABLE bots(channel TEXT PRIMARY KEY CHECK(channel IN (${botChannels.map((c) => `'${c}'`).join(',')})),app_id TEXT NOT NULL,secret TEXT NOT NULL,enabled INTEGER NOT NULL,updated_at TEXT NOT NULL)`,
+      `-- 每家一行：应用编号、加密的 Secret、是否启用
+      CREATE TABLE bots(channel TEXT PRIMARY KEY CHECK(channel IN (${botChannels.map((c) => `'${c}'`).join(',')})),app_id TEXT NOT NULL,secret TEXT NOT NULL,enabled INTEGER NOT NULL,updated_at TEXT NOT NULL)`,
     );
   },
 };

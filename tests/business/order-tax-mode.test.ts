@@ -7,7 +7,9 @@ import { randomUUID } from 'node:crypto';
 import { ZodError } from 'zod';
 import { count } from '../../server/core/index.js';
 import { changeOrderStatus } from '../../server/orders/index.js';
-import { fieldNamer, hasUnrecognizedTaxRate, orderSchema, orderTaxOriginal, userError } from '../../shared/core/index.js';
+import {
+  clearRecognizedTaxText, fieldNamer, hasUnrecognizedTax, orderSchema, orderTaxOriginal, orderTaxSnapshot, userError,
+} from '../../shared/core/index.js';
 import { evaluateDraft } from '../../shared/import/index.js';
 import { actor } from '../support/actor-fixture.js';
 import { businessBase, manualWrite } from '../support/business-base-fixture.js';
@@ -117,13 +119,55 @@ test('新送货单抄明细的规范税率或原话，明细没填时跟整单',
       f.confirmId(d.id, shipOnDocDate(f.flow, d.id));
       assert.equal(f.flow.get(d.id, 'delivery').lines[0].taxRate, expected);
     }
-    // “口径：…”行与已识别旧原话不误报“税率没认出来”
-    assert.equal(hasUnrecognizedTaxRate('口径：按约定', ''), false);
-    assert.equal(orderTaxOriginal('口径：按约定', ''), '原件写法：口径：按约定');
-    assert.equal(hasUnrecognizedTaxRate('13%', ''), false);
+    // 已识别的旧原话不误报“税率没认出来”
+    assert.equal(hasUnrecognizedTax('13%', ''), false);
     assert.equal(orderTaxOriginal('13%', ''), '原件写法：13%');
-    assert.equal(hasUnrecognizedTaxRate('13个点', ''), true);
+    assert.equal(hasUnrecognizedTax('13个点', ''), true);
     assert.match(orderTaxOriginal('13个点', ''), /税率没认出来/);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('原话里的“口径：…”：口径没选时新送货单照“口径：…”原样抄（财务认不出），明细的不退到整单；口径没选时算没认出来', () => {
+  const f = flowFixture();
+  try {
+    f.stockIn('100');
+    const cases = [
+      { head: { taxRate: 13, taxMode: '未税' }, line: { taxText: '口径：含税价' }, expected: ['13', '口径：含税价'] },
+      { head: { taxRate: 13, taxText: '13%\n口径：开票另计' }, line: {}, expected: ['13', '口径：开票另计'] },
+      // 原话正好写成能认的口径也照样带着“口径：”抄：下拉没选，财务就不按它算
+      { head: { taxRate: 13 }, line: { taxText: '口径：含税' }, expected: ['13', '口径：含税'] },
+      { head: { taxText: '口径：开票另计' }, line: { taxMode: '含税' }, expected: [undefined, '含税'] },
+      { head: { taxMode: '未税', taxText: '口径：开票另计' }, line: {}, expected: [undefined, '未税'] },
+      // 税率原话和第 24 步一样按全文认，不只看第一行：开头空一行的认不出的原话照样抄
+      { head: { taxRate: 13 }, line: { taxText: '\n13个点' }, expected: ['13个点', ''] },
+    ];
+    for (const { head, line, expected } of cases) {
+      const saved = f.base.order(f.customer, [f.base.line(f.product, 10, line)], head);
+      const d = f.draft('delivery', {
+        customerId: f.customer.id,
+        lines: [{ orderId: saved.id, orderLineId: saved.lines[0].id, stockId: f.finished.id, quantity: '1' }],
+      });
+      f.confirmId(d.id, shipOnDocDate(f.flow, d.id));
+      const [shipped] = f.flow.get(d.id, 'delivery').lines;
+      assert.deepEqual([shipped.taxRate, shipped.taxMode], expected, JSON.stringify({ head, line }));
+    }
+    assert.equal(hasUnrecognizedTax('口径：按约定', ''), true, '口径没选：编辑窗要展开');
+    assert.equal(hasUnrecognizedTax('口径：按约定', '', '含税'), false, '口径改选过了不再提醒');
+    assert.equal(hasUnrecognizedTax('13\n口径：含13%', 13), true, '税率认出来了、口径没认出来也要提醒');
+    assert.equal(hasUnrecognizedTax('13\n个点', ''), true, '多行的税率原话按全文认');
+    // “口径：…”是第 24 步接在税率原话后面的，逐字照存：从那一行读到末尾，口径原话里带换行也整段读出来
+    assert.deepEqual(orderTaxSnapshot({ taxText: '13%\n口径：含税\n价' }), { taxRate: undefined, taxMode: '口径：含税\n价' });
+    assert.deepEqual(orderTaxSnapshot({ taxText: '\n13个点\n口径：\n含税价' }), { taxRate: '13个点', taxMode: '口径：含税价' });
+    assert.equal(clearRecognizedTaxText('13%\n口径：含税\n价'), '口径：含税\n价', '清掉认得出的税率，口径原话整段留着');
+    // 一行写完的（订单详情、卡片、修改历史，都是只读的）只说没认出来、原件写的是什么，不叫人去选
+    assert.equal(orderTaxOriginal('口径：按约定', ''), '含税口径没认出来，原件写的是“按约定”。');
+    assert.equal(orderTaxOriginal('口径：按约定', '', '未税'), '原件写法：口径：按约定');
+    assert.equal(
+      orderTaxOriginal('13个点\n口径：含13%', ''),
+      '税率没认出来，原件写的是“13个点”。含税口径没认出来，原件写的是“含13%”。',
+    );
   } finally {
     f.store.close();
   }
@@ -191,4 +235,8 @@ test('识别结果：原件没写含税口径只提醒核对；写了别的说�
     issues.map((i) => i.message),
     ['含税口径原件写的是“不含税”，请改选含税、未税、未明确之一。', '含税口径原件写的是“含13%”，请改选含税、未税、未明确之一。'],
   );
+  // 识别结果是人要改的地方：税率没认出来照编辑窗税率格的说法，叫人填
+  draft.header.taxRate.value = '13个点';
+  const rate = evaluateDraft(draft).issues.filter((i) => i.path === 'header.taxRate');
+  assert.deepEqual(rate.map((i) => i.message), ['税率没认出来，原件写的是“13个点”，请选择或填写税率。']);
 });

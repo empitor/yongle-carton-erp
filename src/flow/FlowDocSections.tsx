@@ -80,7 +80,7 @@ function MovementList({ title, rows: listed }: { title: string; rows: readonly L
 
 /** 经办人：有确认人写确认人，没有（还没核对）才写登记人；四种单据一样 */
 export const handler = (d: Pick<FlowDocView, 'confirmedBy' | 'actorName'>) => d.confirmedBy || d.actorName;
-/** 撤销、更正以后原来的日期照常显示，后面写明（界面规范“详情”） */
+/** 撤销、更正以后原来的日期照常显示，后面写明（docs/界面/总规矩.md“详情”） */
 const undoneMark = (d: Pick<FlowDocView, 'status' | 'replacedBy'>) =>
   d.status === 'reversed' ? (d.replacedBy ? ' · 已更正' : ' · 已撤销') : '';
 
@@ -170,6 +170,7 @@ export function DeliverySections({ d, record, data }: { d: FlowDocView<'delivery
             { label: fieldShort('plannedDate', { record: 'delivery' }), value: when(planDate(d), d.plannedTime) },
             { label: fieldLabel('date', { record: 'delivery' }), value: shipped ? shipped + undoneMark(d) : '还没出库' },
             { label: '送达', value: d.deliveredAt, hidden: !d.deliveredAt },
+            { label: fieldLabel('siteName'), value: d.siteName, hidden: !d.siteName },
             { label: fieldLabel('contact', { record: 'delivery' }), value: [d.contact, d.phone].filter(Boolean).join(' ') },
             { label: '经办人', value: handler(d) },
             { label: '收货地址', value: d.address, wide: true },

@@ -3,6 +3,7 @@ import { CUSTOMER_NAME_MAX, type Customer, type CustomerInput, fieldLabel } from
 import { ManagementDialog, notify, useAction } from '../ui/index';
 import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
 import { saveCustomer } from './editor-api';
+import CustomerSites from './CustomerSites';
 
 /** 改的时候带着打开窗口时读到的版本号（保存靠它做版本校验） */
 type CustomerForm = CustomerInput & { version?: number };
@@ -97,9 +98,10 @@ export default function CustomerEditor({
 }) {
   const formId = useId();
   // 改的时候表单从打开时的记录起，保存带的是这时读到的版本号；页面重读这条也不跟着换
-  const [form, setForm] = useState<CustomerForm>(value ?? blank),
+  const [initialSites] = useState(() => value?.sites ?? []);
+  const [form, setForm] = useState<CustomerForm>(value ? { ...value, sites: undefined } : blank),
     { busy: saving, error, run } = useAction();
-  const change = (key: keyof CustomerForm, v: string) => setForm((f) => ({ ...f, [key]: v }));
+  const change = (key: 'name' | 'contact' | 'phone' | 'address' | 'notes', v: string) => setForm((f) => ({ ...f, [key]: v }));
   const submit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     void run(async () => {
@@ -138,6 +140,10 @@ export default function CustomerEditor({
           </FormField>
         </FormSection>
         <ContactSection noun="客户" form={form} change={change} />
+        <CustomerSites
+          sites={form.sites ?? initialSites}
+          change={(sites) => setForm((f) => ({ ...f, sites }))}
+        />
       </form>
     </ManagementDialog>
   );

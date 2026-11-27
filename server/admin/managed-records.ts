@@ -34,10 +34,13 @@ export const inputSchemas: Record<ManagedModule, z.core.$ZodType> = {
   delivery: deliverySchema,
 };
 type RecordInput<E extends RecordEntity> = z.output<(typeof recordSchemas)[E]>;
-/** 每类记录整理成编辑窗的内容；采购单的状态取它自己定的那个（baseStatus），不是按到货派生的 */
+/**
+ * 每类记录整理成编辑窗的内容；采购单的状态取它自己定的那个（baseStatus），不是按到货派生的。
+ * 没定客户的产品记录上没有 customerId，补成 null（和新建模板一样），编辑窗才有“客户”这一格可补归属。
+ */
 const businessInputs: { [E in RecordEntity]: (record: BusinessRecord<E>) => RecordInput<E> } = {
   customers: (r) => customerSchema.parse(r),
-  products: (r) => productSchema.parse(r),
+  products: (r) => productSchema.parse({ ...r, customerId: r.customerId ?? null }),
   orders: (r) => orderSchema.parse(r),
   suppliers: (r) => supplierSchema.parse(r),
   purchases: (r) => purchaseSchema.parse({ ...r, status: r.baseStatus }),

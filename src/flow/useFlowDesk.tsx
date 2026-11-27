@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { FlowDocView } from '../../shared/business/index';
-import { errorMessage, type FlowKind } from '../../shared/core/index';
-import { canEditBusiness, emit, notify as bottomNotice, useAuthState, hashParams } from '../ui/index';
+import { errorMessage, pageParams, type FlowKind } from '../../shared/core/index';
+import { canEditBusiness, emit, notify as bottomNotice, useAuthState } from '../ui/index';
 import type { FlowActionContext } from './FlowActions';
 import { useDeskWindows } from './desk-windows';
 import { deskActions, useDeskWork } from './flow-desk-actions';
@@ -11,12 +11,25 @@ import { editorLookups, latest, lookupNeedKey, needsOfKey, type NamedRow } from 
 import type { CatalogLists } from '../recordkit/catalog-api';
 import { useCatalog } from '../recordkit/useCatalog';
 
+/** 从别处带来的链接参数（键和地址参数一样，开关写 '1'） */
+type Launch = Readonly<Record<string, string | undefined>>;
+
+/**
+ * 地址栏里的链接参数：单据页只在生产页（和归档页）上看地址，按生产页的登记表读（pageParams），写成和 launch 一样：
+ * 打开、编辑、核对某张单据，登记某张任务的完工，带着订单新建
+ */
+export function hashLaunch(hash: string): Launch {
+  const { doc, edit, review, task, create, order } = pageParams('production', hash);
+  const on = (value: boolean) => (value ? '1' : undefined);
+  return { doc: doc?.toString(), edit: on(edit), review: on(review), task: task?.toString(), create: on(create), order: order?.toString() };
+}
+
 type DeskOptions = {
   kind: FlowKind;
   setKind: (kind: FlowKind) => void;
   dialogOnly: boolean;
   /** 从别处带来的参数（没有时看地址栏） */
-  launch?: Readonly<Record<string, string | undefined>>;
+  launch?: Launch;
   /** 当前读到的这一类单据 */
   rows: FlowDocView[];
   archived: boolean;
@@ -154,9 +167,9 @@ export function useFlowDesk(o: DeskOptions) {
   }, [rows, setView]);
   /** 链接参数：从别处带来的，或地址栏里的 */
   const linkParams = () =>
-    launch
-      ? new URLSearchParams(Object.entries(launch).flatMap(([key, value]) => (value === undefined ? [] : [[key, value]])))
-      : hashParams();
+    new URLSearchParams(
+      Object.entries(launch ?? hashLaunch(location.hash)).flatMap(([key, value]) => (value === undefined ? [] : [[key, value]])),
+    );
   /**
    * 打开编辑窗：先读这类单据要用的最新档案，再装进单据（编辑已有的；新建只剩没有采购单的到货）。
    * 读档案期间 opening 大于 0；档案没读到也打开编辑窗，原因显示在窗里，可以取消后重试。

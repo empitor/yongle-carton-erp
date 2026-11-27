@@ -56,7 +56,7 @@ test('送货单换了客户、换挂到别的订单明细：客户名和这一�
     customerName: '虚构新客户',
     lines: [{ ...docs.delivery.lines[0], orderLineId: 5, stockId: 6, ...fresh }],
   });
-  assertSnapshots(after, { doc: ['customerName'], lines: { 0: snapshotFields.delivery.lines?.keys ?? [] } });
+  assertSnapshots(after, { doc: snapshotFields.delivery.doc?.keys, lines: { 0: snapshotFields.delivery.lines?.keys ?? [] } });
   const [l] = after.lines;
   assert.deepEqual([after.customerName, l.productName, l.unitPriceExact, l.taxRate, l.material, l.length], ['虚构新客户', '虚构现在的品名', '2.0000', '13', '虚构材质', 300]);
   assert.equal(l.amountExact, lineMoney('10', '2.0000'));

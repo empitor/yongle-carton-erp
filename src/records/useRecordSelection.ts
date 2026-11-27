@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
-import { errorMessage, type RecordSort } from '../../shared/core/index';
+import { errorMessage, pageParams, type RecordSort } from '../../shared/core/index';
 import type { RecordEntity } from '../../shared/business/index';
 import { emit, listen, useAction, LIST_PAGE_SIZE } from '../ui/index';
 import { lifecycleOutcome } from '../recordkit/lifecycle';
@@ -19,8 +19,14 @@ type Message = { text: string; tone: 'warning' | 'danger' } | null;
 type SelectRow = { id: number; version: number; number?: string; name?: string };
 type SetView<R> = (row: R | null | ((current: R | null) => R | null)) => void;
 type Edge = RefObject<'first' | 'last' | null>;
-/** 地址里能直接打开的记录种类（订单 order=，其余 record=） */
-const routeEntities: readonly RecordEntity[] = ['orders', 'customers', 'purchases', 'products', 'stock_items'];
+/** 地址里能直接打开的记录种类，各在哪一页、读哪个参数（订单 order=，其余 record=；库存品在 #warehouse） */
+const routeRecordId: Partial<Record<RecordEntity, (hash: string) => number | undefined>> = {
+  orders: (hash) => pageParams('orders', hash).order,
+  customers: (hash) => pageParams('customers', hash).record,
+  purchases: (hash) => pageParams('purchases', hash).record,
+  products: (hash) => pageParams('products', hash).record,
+  stock_items: (hash) => pageParams('warehouse', hash).record,
+};
 /** 按一条读这一类记录（recordkit/record-api.ts 的 readRecord），由列表传进来：读回来的就是列表里那种行 */
 type ReadRow<R> = (id: number | string) => Promise<R>;
 
@@ -49,9 +55,8 @@ function useRouteRecord<R extends SelectRow>(
     show = useEffectEvent(open),
     report = useEffectEvent(setMessage);
   useEffect(() => {
-    const params = new URLSearchParams(routeHash.split('?')[1] || '');
-    const id = params.get(entity === 'orders' ? 'order' : 'record');
-    if (!id || !/^\d+$/.test(id) || !routeEntities.includes(entity)) return;
+    const id = routeRecordId[entity]?.(routeHash);
+    if (!id) return;
     let active = true;
     fetchRow(id)
       .then((row) => {

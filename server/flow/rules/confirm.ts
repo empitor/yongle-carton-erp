@@ -97,7 +97,7 @@ function shipment(flow: FlowCommands, doc: FlowDocView<'delivery'>, given: strin
   return { date: shipDate, shippedAt: shipDate !== today() ? shippedAtOf(shipDate) : new Date().toISOString() };
 }
 
-/** 确认后存的单据：核对补全的明细、名称快照、流水号、确认人和时间；送货单另记出库日期、出库人和出库时间 */
+/** 确认后补明细快照、流水和经办记录；送货单保留安排时的收货信息，另记出库日期、出库人和出库时间。 */
 function confirmedDocument(
   flow: FlowCommands,
   doc: FlowDocument,

@@ -1,4 +1,4 @@
-import { dateSchema, FINISHED_UNIT, finishedUnit, inspectCurrency, lineSchema, MAX_CM_DIMENSION, MAX_PRICE_UNITS, MAX_PRICE_YUAN, normalizeDimensionUnit, orderTaxModes, orderTaxOriginal, parseDimension, PRICE_DECIMALS, readTaxRate } from '../core/index.js';
+import { dateSchema, FINISHED_UNIT, finishedUnit, inspectCurrency, lineSchema, MAX_CM_DIMENSION, MAX_PRICE_UNITS, MAX_PRICE_YUAN, normalizeDimensionUnit, orderTaxModes, orderTaxRateHint, parseDimension, PRICE_DECIMALS, readTaxRate } from '../core/index.js';
 import { fieldLabels, headerFields, lineFields } from './order-draft.js';
 import type { DraftEvaluation, DraftField, DraftIssue, HeaderField, LineField, OrderDraft } from './order-draft.js';
 
@@ -88,7 +88,8 @@ function headerIssues(h: OrderDraft['header'], issue: Issue) {
   taxRateIssue(h.taxRate.value, 'header.taxRate', issue);
 }
 function taxRateIssue(value: string | null, path: string, issue: Issue) {
-  const message = readTaxRate(value) === null ? orderTaxOriginal(value) : '';
+  // 识别结果是人要改的地方：和编辑窗税率格同一句，叫人填
+  const message = readTaxRate(value) === null ? orderTaxRateHint(value) : '';
   if (message) issue(path, message);
 }
 /** 含税口径只收含税、未税、未明确：原件写的别的说法（如“不含税”）不猜着归并，要人在识别结果里改选 */

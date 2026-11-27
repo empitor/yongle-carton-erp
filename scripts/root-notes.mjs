@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 /** 根目录的每一项和它的作用（一句话，GitHub 列表里放得下） */
 export const rootNotes = {
   '.agents': 'Antigravity 的指路配置（钩子和技能，内容都在 .claude/）',
-  '.claude': '三家智能体共用的环境：须知、审查员、技能、保护真实数据的钩子',
+  '.claude': '三家智能体共用的环境：技能、审查员、文档更新员、保护真实数据的钩子',
   '.codex': 'Codex 的钩子入口和命令审批规则，对应 .claude/ 的共用脚本和审批清单',
   '.env.example': '环境变量示例（不填密钥，密钥在网页设置里填）',
   '.gitattributes': '换行规则：脚本和结构快照固定换行，检出后校验才对得上',
@@ -23,7 +23,7 @@ export const rootNotes = {
   'README.md': '项目介绍：是什么、谁在用、部署在哪、怎么装和跑',
   'THIRD_PARTY_NOTICES.md': '第三方代码和字体的出处、许可',
   apps: '两个应用外壳：安卓 App、Windows 客户端（只是打开 ERP 的窗口）',
-  docs: '文档：架构、数据模型、功能链路、使用手册、部署运维、路线图、更新日志',
+  docs: '文档：业务规则、架构、功能、界面、运维、计划、生成的表结构和模块表、使用手册、更新日志',
   'eslint-suppressions.json': '代码检查的豁免登记（已清空，不许再登记）',
   'eslint.config.js': '代码检查（ESLint）的规则',
   'index.html': '网页的入口页',

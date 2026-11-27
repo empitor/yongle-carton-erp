@@ -1,5 +1,5 @@
 // 样式检查（npm run lint:css）：管两件事——颜色、字号、圆角、层级不写死，只引用变量；“多窄算手机”只有 700 一个标准。
-// 变量只在 src/ui/tokens.css 定义（字号、圆角的档位见 AGENTS.md“界面”、docs/界面规范.md）；别的风格规则不开。
+// 变量只在 src/ui/tokens.css 定义（字号、圆角的档位见 docs/界面/样式和主题.md）；别的风格规则不开。
 // - 颜色：tokens.css 以外不许出现色值（#hex、rgb()/hsl() 这类、颜色名），box-shadow、border、渐变里的也算；
 //   用变量调出来的 color-mix(in srgb, var(--a) 20%, transparent) 不算写死。
 // - 字号、圆角、层级：整个值只能是 var(--…)；transparent、currentColor、inherit、0、none、auto 这类关键字放行。
@@ -13,7 +13,7 @@ const tokens = 'src/ui/tokens.css';
 const desktopWidth = /^(9\d\d|[1-9]\d{3})px$/;
 const breakpointMessage = (name, value) =>
   '断点“' + name + ': ' + value + '”不许用：手机只有 max-width: 700px（min-width: 701px）一个标准，' +
-  '701～899 之间不立断点，范围写法改成 max-width/min-width（见 docs/界面规范.md“页签、手机、质感”）';
+  '701～899 之间不立断点，范围写法改成 max-width/min-width（见 docs/界面/样式和主题.md“页签、手机、质感”）';
 
 export default {
   plugins: ['stylelint-declaration-strict-value'],

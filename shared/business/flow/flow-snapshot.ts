@@ -34,6 +34,7 @@ type DeliveryInputLine = Input<typeof deliverySchema>['lines'][number];
 const arrivalContent = (l: ArrivalLine) => [l.item, l.quantity, l.unitPrice, l.priceBasis];
 /** 送货明细抄的是订单明细（品名、规格、单价、税率）和它的产品（材质、楞型） */
 const orderLine = { ref: (l: DeliveryLine) => l.orderLineId };
+const deliverySite = { ref: (d: Delivery) => [d.customerId, d.siteId] };
 /** 尺寸先取成品库存品的，没填取产品的（server/flow/validate-delivery.ts） */
 const dimensions = { ref: (l: DeliveryLine) => [l.orderLineId, l.stockId] };
 
@@ -62,7 +63,13 @@ const rules: {
   task: { doc: { productName: { ref: (d) => d.productId } } },
   production: { doc: { productName: { ref: (d) => d.productId } } },
   delivery: {
-    doc: { customerName: { ref: (d) => d.customerId } },
+    doc: {
+      customerName: { ref: (d) => d.customerId },
+      siteName: deliverySite,
+      address: deliverySite,
+      contact: deliverySite,
+      phone: deliverySite,
+    },
     lines: {
       productName: orderLine,
       specification: orderLine,

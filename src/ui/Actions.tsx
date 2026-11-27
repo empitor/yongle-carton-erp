@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import MoreMenu from './MoreMenu';
 
 /**
- * 全站一套“主 / 次 / 更多”的动作模型（docs/界面规范.md“按钮和入口”）：
+ * 全站一套“主 / 次 / 更多”的动作模型（docs/界面/总规矩.md“按钮和入口”）：
  * 详情头部用 ActionBar（主、次在最左，然后“更多”），页头用 PageHeading 的 primary、secondary、more（在最右），
  * 勾选后的操作条用 SelectionBar。“更多”里的一项只用 MenuItem 写。
  */
@@ -20,7 +20,7 @@ export type RecordAction = {
   title?: string;
   icon?: ReactNode;
   hidden?: boolean;
-  /** 和主按钮并列、同样高亮。只用于产品的“新建订单”（和“安排生产”并列，界面规范里登记的唯一例外） */
+  /** 和主按钮并列、同样高亮。只用于产品的“新建订单”（和“安排生产”并列，界面总规矩里登记的唯一例外） */
   emphasis?: boolean;
 };
 

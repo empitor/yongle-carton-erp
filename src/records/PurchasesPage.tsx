@@ -1,20 +1,19 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Plus } from 'lucide-react';
-import { pageHref, presetRange, type DatePreset, type RecordSort } from '../../shared/core/index';
+import { pageHref, pageParams, presetRange, type DatePreset, type RecordSort } from '../../shared/core/index';
 import { matchesPurchase, purchaseStatuses, purchaseStatusOptions } from '../../shared/business/index';
-import { PageHeading, readOnlyNotice, useResettingPage, notify, DateFilter, hashParams, ListToolbar, FilterRow } from '../ui/index';
+import { PageHeading, readOnlyNotice, useResettingPage, notify, DateFilter, ListToolbar, FilterRow } from '../ui/index';
 import BusinessRecords from './BusinessRecords';
-import { idList } from '../recordkit/launch';
 import OperationsSummary from './OperationsSummary';
 import { AllRecordsCheck } from './page-state';
 import { supplierOptionsOf, usePurchaseData, type Dates, type SupplierOption } from './purchase-page-data';
-import { cleanDateParams } from './record-filters';
+import { routeDates, type RouteDates } from './record-filters';
 import { useOperationsEditor } from './useOperationsEditor';
 import { useRecordPage } from './useRecordPage';
 import RecordPageBody from './RecordPageBody';
 
 /** 地址里的采购状态（status 或 businessStatus）：认得的（待订货、待到货……）才用，不认识的当作没筛选。 */
-const statusParam = (v: string | null) => purchaseStatuses.find((s) => s === v) ?? '';
+const statusParam = (v: string | undefined) => purchaseStatuses.find((s) => s === v) ?? '';
 const scopes = [
   { value: 'pending', label: '待处理' },
   { value: 'all', label: '全部' },
@@ -24,9 +23,9 @@ const scopes = [
 const routePresets = ['1', '2', '3', 'custom'] as const satisfies readonly DatePreset[];
 
 /** 地址里的采购状态；采购单默认看待处理，带着条件过来的（今日页“待订货”、供应商“全部采购单”）看全部 */
-function routeFilters(params: URLSearchParams) {
-  const initialStatus = statusParam(params.get('status') || params.get('businessStatus'));
-  return { initialStatus, pendingByDefault: !params.get('scope') && !initialStatus && !params.get('q') };
+function routeFilters(route: { status?: string; businessStatus?: string; scope?: string; q?: string }) {
+  const initialStatus = statusParam(route.status || route.businessStatus);
+  return { initialStatus, pendingByDefault: !route.scope && !initialStatus && !route.q };
 }
 /** 待处理范围里一张都没有、也没搜没筛：说一句“都到齐了” */
 const nothingPending = (scope: string, search: string, filterCount: number) =>
@@ -34,38 +33,40 @@ const nothingPending = (scope: string, search: string, filterCount: number) =>
     ? { title: '没有待处理的采购单', description: '都到齐了。切到“全部”看以前的，缺纸板时点右上角“新建采购单”。' }
     : undefined;
 
-/** 地址带进来的日期筛选：认得的预设或合法的自定义日期才用（record-filters.ts 的 cleanDateParams），否则不限日期 */
-function initialDates(params: URLSearchParams): Dates {
-  const preset: DatePreset = routePresets.find((r) => r === params.get('range')) ?? 'all';
+/** 地址带进来的日期筛选：认得的预设或合法的自定义日期才用（record-filters.ts 的 routeDates），否则不限日期 */
+function initialDates(route: RouteDates): Dates {
+  const preset: DatePreset = routePresets.find((r) => r === route.range) ?? 'all';
   const range = presetRange(preset);
   return preset === 'custom'
-    ? { preset, start: params.get('start') || '', end: params.get('end') || '' }
+    ? { preset, start: route.start ?? '', end: route.end ?? '' }
     : { preset, start: range.start, end: range.end };
 }
 
 type SetEditor = ReturnType<typeof useOperationsEditor>['setEditor'];
 
-/** 采购单页的编辑窗：#purchases?create=1 新建（从供应商、原材料过来的预先填好），带 order= 的按订单“安排订料” */
+/** #purchases?create=1 要打开的编辑窗：带 order= 的按订单“安排订料”，其余新建（带来的供应商、纸板预先填好）；不是新建给 null */
+export function routePurchaseEditor(hash: string): Parameters<SetEditor>[0] {
+  const { create, order, products, supplier, stocks } = pageParams('purchases', hash);
+  if (!create) return null;
+  if (order) return { type: 'purchase-launch', value: { orderId: order, productIds: products } };
+  return { type: 'purchase', seed: { supplierId: supplier, stockIds: stocks } };
+}
+
+/** 采购单页的编辑窗：地址带 create=1 时打开（routePurchaseEditor） */
 function useCreateFromRoute(p: ReturnType<typeof useRecordPage>, setEditor: SetEditor) {
   const signedIn = !!p.auth?.actor,
     canEdit = p.canEdit,
     // 地址变了（点了“新建采购单”“安排订料”的链接）才看要不要打开
     hash = location.hash;
   useEffect(() => {
-    const params = new URLSearchParams(hash.split('?')[1] || '');
-    if (params.get('create') !== '1' || !signedIn) return;
+    const editor = routePurchaseEditor(hash);
+    if (!editor || !signedIn) return;
     // 只读账号点了“新建采购单”“安排订料”的链接：不打开编辑窗，说一句为什么
     if (!canEdit) {
       notify(readOnlyNotice, 'error');
       return;
     }
-    const order = Number(params.get('order'));
-    if (order > 0) setEditor({ type: 'purchase-launch', value: { orderId: order, productIds: idList(params.get('products')) } });
-    else
-      setEditor({
-        type: 'purchase',
-        seed: { supplierId: Number(params.get('supplier')) || undefined, stockIds: idList(params.get('stocks')) },
-      });
+    setEditor(editor);
   }, [signedIn, canEdit, hash, setEditor]);
 }
 
@@ -119,10 +120,10 @@ function PurchaseFilters(o: {
  * recycle 是归档页里的已归档采购单。
  */
 export default function PurchasesPage({ recycle = false }: { recycle?: boolean }) {
-  const params = cleanDateParams(hashParams());
-  const { initialStatus, pendingByDefault } = routeFilters(params);
+  const route = pageParams('purchases', location.hash);
+  const { initialStatus, pendingByDefault } = routeFilters(route);
   const p = useRecordPage({ recycle, pendingByDefault });
-  const [dates, setDates] = useState(() => initialDates(params)),
+  const [dates, setDates] = useState(() => initialDates(routeDates(route))),
     [supplierFilter, setSupplierFilter] = useState(''),
     [status, setStatus] = useState<string>(initialStatus),
     [purchaseSort, setPurchaseSort] = useState<RecordSort>('recent');

@@ -31,7 +31,7 @@ export const slowTests = {
 };
 
 export const lowCoverage = {
-  'server/index.ts': '正式启动入口，测试不许加载（AGENTS.md“绝对不能做”）；装配在 server/app.ts 测',
+  'server/index.ts': '正式启动入口，测试不许加载（AGENTS.md“碰不得的”）；装配在 server/app.ts 测',
   'server/maintenance.ts': '一加载就执行的命令行入口，测试不许加载',
   'server/stop.ts': '一加载就执行的命令行入口（会去连正式实例的 3001 端口），测试不许加载',
 };

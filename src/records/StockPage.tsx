@@ -85,10 +85,10 @@ const stockMore = (o: { kind: string; busy: boolean; zeroOnly: boolean; create: 
  */
 export default function StockPage({ recycle = false }: { recycle?: boolean }) {
   const p = useRecordPage({ recycle });
-  const [kind, setKind] = useState(p.params.get('kind') === 'finished' ? 'finished' : 'raw'),
+  const [kind, setKind] = useState(p.route.kind === 'finished' ? 'finished' : 'raw'),
     // 库存按往来单位筛：原材料按供应商，成品按客户
     [stockParty, setStockParty] = useState(''),
-    [zeroOnly, setZeroOnly] = useState(p.params.get('zero') === '1');
+    [zeroOnly, setZeroOnly] = useState(!!p.route.zero);
   const { data, error, busy } = useRecordData(
     [p.revision, p.range, p.search, kind, zeroOnly, stockParty].join('|'),
     () =>

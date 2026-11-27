@@ -2,7 +2,7 @@ import { sales } from '../../sales/index.js';
 import type { Actor } from '../../core/index.js';
 import { AppError, isLocalAdministrator } from '../../core/index.js';
 import { FINISHED_UNIT, RAW_UNIT, UNITS_PER_QUANTITY, deliverableOrder, finishedUnitMessage, rawUnitMessage, today, quantityUnits, quantityString, MAX_STOCK_UNITS, type FlowKind } from '../../../shared/core/index.js';
-import { arrivalSchema, flowInput, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
+import { arrivalSchema, deliverySiteSnapshot, flowInput, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
 import { fail, taskOf } from '../documents/base.js';
 import type { ArrivalLine, Check, DeliveryLine, FlowCheck, FlowCommands, StockChange, StockItemRow } from '../documents/base.js';
 import { checkArrival } from './validate-arrival.js';
@@ -27,7 +27,7 @@ function inputDocument(kind: FlowKind, raw: unknown): FlowDocument {
       return { ...flowInput(kind, raw), kind };
     case 'delivery': {
       const v = flowInput(kind, raw);
-      return { ...v, plannedDate: v.plannedDate || v.date, kind };
+      return { ...deliverySiteSnapshot(undefined), ...v, plannedDate: v.plannedDate || v.date, kind };
     }
   }
 }

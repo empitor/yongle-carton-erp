@@ -1,4 +1,4 @@
-import { FormMessage, Loading, Section, StatusChip, useLoad } from '../ui/index';
+import { FormMessage, Loading, Section, StatusChip, useBusinessRevision, useLoad } from '../ui/index';
 import { loadOrdersWhere, type OrdersWhere } from './list-api';
 import Chain from './Chain';
 import { orderDisplayStatus, pageHref } from '../../shared/core/index';
@@ -17,7 +17,9 @@ export default function RelatedOrderList({
   moreHref?: string;
   moreLabel?: string;
 }) {
-  const loaded = useLoad(JSON.stringify(query), () => loadOrdersWhere(query));
+  // 业务数据变了就重读，开着的详情不留旧的
+  const [revision] = useBusinessRevision();
+  const loaded = useLoad(JSON.stringify(query) + '|' + revision, () => loadOrdersWhere(query));
   // 换了条件：上一份不再显示
   const orders = loaded.loading || loaded.error ? null : loaded.data,
     error = loaded.loading ? '' : loaded.error;

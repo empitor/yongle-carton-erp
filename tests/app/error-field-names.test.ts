@@ -33,7 +33,7 @@ test('保存采购单、订单没通过：报错按那种记录的栏目叫法�
   }
 });
 
-test('改待送货的送货单（地址里只有单据编号）：报错按这张单据的种类说，地址叫“收货地址”', async (t) => {
+test('改待送货单厂区值不合格时按“收货厂区”报错', async (t) => {
   const f = deliverySetup(t),
     h = await startHttp(f.store);
   try {
@@ -46,14 +46,14 @@ test('改待送货的送货单（地址里只有单据编号）：报错按这�
         date: d.date,
         plannedDate: d.plannedDate,
         customerId: d.customerId,
-        address: '虚构'.repeat(3000),
+        siteId: 0,
         lines: d.lines.map((l) => ({ orderId: l.orderId, orderLineId: l.orderLineId, stockId: l.stockId, quantity: l.quantity })),
       },
       h.cookie,
       { method: 'PUT' },
     );
     assert.equal(response.status, 400);
-    assert.match(await messageOf(response), /^收货地址：/);
+    assert.match(await messageOf(response), /^收货厂区：/);
   } finally {
     await h.close();
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import VoucherPanel from './VoucherPanel';
-import { hashParams, col, mon, type Col } from '../../ui/index';
+import { pageParams } from '../../../shared/core/index';
+import { col, mon, type Col } from '../../ui/index';
 import { FinList } from '../table';
 import { PeriodInput, type HeadFn } from '../layout';
 import { exportHref } from '../fin-api';
@@ -57,9 +58,7 @@ const bookRowKey = (r: BookRow, i: number) =>
 export default function BooksTab({ head }: { head: HeadFn }) {
   const [period, setPeriod] = usePeriod();
   const [kind, setKind] = useState('balance');
-  const [account, setAccount] = useState(
-    () => hashParams().get('account') || '',
-  );
+  const [account, setAccount] = useState(() => pageParams('finance-ledger', location.hash).account ?? '');
   const [voucher, setVoucher] = useState<number | null>(null);
   const summary = ['balance', 'general', 'auxiliary'].includes(kind);
   const query = { period, account: account.trim() || undefined };

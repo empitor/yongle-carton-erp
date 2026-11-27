@@ -39,7 +39,6 @@ export { isNetworkError, readAuthState, request, responseData, retryWhenBusy, se
 export { DataManagementEditorSlot, FinanceRelatedSlot, SlotProvider, useAdmin, useSlots } from './slots';
 export type { AdminService, FileSaver, Slots } from './slots';
 export { useAction, useBusinessRevision, useLoad } from './data-hooks';
-export { hashParams } from './hash-params';
 export { afterBackLayersClosed, closeTopLayer, hasBackLayer, useBackLayer } from './back-layers';
 export { useSaveFile } from './save-file';
 export { stepper } from './stepper';

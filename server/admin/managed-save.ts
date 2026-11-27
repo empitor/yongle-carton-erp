@@ -46,17 +46,12 @@ export class ManagedSaves {
   ) {
     if (isFlowModule(module)) flowInput(module, input);
     else recordSchemas[module].parse(input);
-    const extra = new Set(unknownFields(patch, inputSchemas[module]).flatMap((p) => (p.length === 1 ? [p[0]] : [])));
-    const edits = editedKeys(patch, current).filter((key) => !extra.has(key));
-    const infoEdit = isFlowModule(module) && id ? this.infoEditOnly(module, id, edits) : false;
-    const { changed, unknown } = rejectedFields(patch, inputSchemas[module], current?.record);
-    if (changed.length || unknown.length) throw new AppError(rejectionText(module, { changed, unknown }));
-    if (infoEdit && id) {
-      const info = Object.fromEntries(edits.map((key) => [key, patch[key]]));
-      return updateDocumentInfo(this.store, id, { expectedVersion: input.version, ...info }, actor);
-    }
+    const info = this.checkedInfoPatch({ module, current }, id, patch);
+    if (info && id) return updateDocumentInfo(this.store, id, { expectedVersion: input.version, ...info }, actor);
     if (isBusinessWritable(module)) {
-      const body = module === 'products' && confirmDistinct ? { ...input, confirmDistinct: true } : input;
+      const body = { ...input };
+      if (module === 'products' && confirmDistinct) body.confirmDistinct = true;
+      if (module === 'customers' && !Object.hasOwn(patch, 'sites')) delete body.sites;
       return createBusinessService(this.store).execute(
         id ? { entity: module, action: 'update', id, input: body } : { entity: module, action: 'create', input: body },
         {
@@ -75,16 +70,31 @@ export class ManagedSaves {
     if (module === 'stock_items') return this.flow.stock.saveItem(input, actor, id);
     return this.saveFlow(module, input, actor, id);
   }
+  /** 说明编辑的栏目由现有说明接口核对，待核对单据仍只收录入结构里的栏目。 */
+  private checkedInfoPatch(
+    { module, current }: Pick<SaveContext, 'module' | 'current'>,
+    id: number | undefined,
+    patch: Record<string, unknown>,
+  ) {
+    const schema = inputSchemas[module];
+    const fields: readonly string[] = isFlowModule(module) && module !== 'task' ? documentInfoFields[module] : [];
+    const extra = new Set(unknownFields(patch, schema).flatMap((p) => (p.length === 1 ? [p[0]] : [])));
+    const edits = editedKeys(patch, current).filter((key) => !extra.has(key) || fields.includes(key));
+    const infoEdit = isFlowModule(module) && id ? this.infoEditOnly(module, id, edits, fields) : false;
+    const candidate = infoEdit ? Object.fromEntries(Object.entries(patch).filter(([key]) => !fields.includes(key))) : patch;
+    const { changed, unknown } = rejectedFields(candidate, schema, current?.record);
+    if (changed.length || unknown.length) throw new AppError(rejectionText(module, { changed, unknown }));
+    return infoEdit ? Object.fromEntries(edits.map((key) => [key, patch[key]])) : undefined;
+  }
   /**
    * 改单据之前先看能不能改：待核对的单据和生产任务照常改（返回 false）；已生效的到货、送货、完工单只改说明（备注这类）的
    * 走说明编辑（返回 true，批量改备注照常能用），改了明细、日期这类要用更正，整张没发生用撤销；
    * 已撤销、已取消、已被更正替代的不再改。edits 是改了的录入栏目（照原样带回的不算）。
    */
-  private infoEditOnly(kind: FlowKind, id: number, edits: readonly string[]) {
+  private infoEditOnly(kind: FlowKind, id: number, edits: readonly string[], fields: readonly string[]) {
     const doc = this.flow.get(id);
     if (doc.status === 'draft' || kind === 'task') return false;
     if (doc.status !== 'confirmed' || doc.replacedBy) throw new AppError('已撤销、已取消、已被更正替代的单据不能再改。', 409);
-    const fields: readonly string[] = documentInfoFields[kind] ?? [];
     if (edits.every((key) => fields.includes(key))) return true;
     const name = flowDocNames[kind];
     throw new AppError('已生效的' + name + '改数量请用“更正' + name + '”，只改备注这类用“编辑”；这张单整张没发生用撤销。', 409);

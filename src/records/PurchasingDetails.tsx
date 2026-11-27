@@ -12,7 +12,7 @@ import { PurchaseDetails, type PurchaseReceipt } from './PurchaseDetails';
 import type { Related } from './useRelatedData';
 
 /**
- * 采购单、供应商、库存品的详情正文，按 docs/界面规范.md 排版。采购单正文在 PurchaseDetails.tsx。
+ * 采购单、供应商、库存品的详情正文，按 docs/界面/总规矩.md 排版。采购单正文在 PurchaseDetails.tsx。
  * 面板头部（类型、编号、状态、操作）由 records/RecordPanel 负责，正文从文件末尾的 purchasingDetails 接入。
  */
 

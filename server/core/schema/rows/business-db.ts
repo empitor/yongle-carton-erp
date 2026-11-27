@@ -23,6 +23,18 @@ export const businessRows = {
     created_at: z.string(),
     updated_at: z.string(),
   }),
+  customer_sites: z.object({
+    id: z.number(),
+    customer_id: z.number(),
+    name: z.string(),
+    contact: z.string(),
+    phone: z.string(),
+    address: z.string(),
+    is_default: z.number(),
+    notes: z.string(),
+    created_at: z.string(),
+    updated_at: z.string(),
+  }),
   products: z.object({
     id: z.number(),
     name: z.string(),

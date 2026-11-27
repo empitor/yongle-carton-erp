@@ -84,8 +84,10 @@ function valueChange(ctx: Ctx, f: Field, label: string, editable: boolean): Chan
   const bt = valueText(ctx, f.key, b, f.before, f.parent),
     at = valueText(ctx, f.key, a, f.after, f.parent);
   if (bt === at) {
-    // 卡片：人能改的字段变了，写法认不出（代码不在词表里）或写出来一样时，照原值列，不略过
+    // 卡片：人能改的字段变了，写法认不出（代码不在词表里）或写出来一样时，照原值列，不略过；
+    // 仅解除历史引用（编号置空、快照名称没变，如删厂区后的历史送货单）不算收货厂区内容变化
     if (!editable || (blank(b) && blank(a))) return [];
+    if (refTables[f.key]) return blank(a) && snapshotNames[f.key] ? [] : [{ label, before: bt ?? EMPTY, after: at ?? EMPTY }];
     return [{ label, before: bt ?? (blank(b) ? EMPTY : String(b)), after: String(a) }];
   }
   const shownLabelText = f.parent ? nestedLabel(label, f.key, f.parent, historyFieldLabel(f.parent, '', ctx.module) || '') : label;
@@ -99,8 +101,9 @@ const editableField = ({ editable }: Ctx, key: string, parent: string) =>
 function fieldChanges(ctx: Ctx, f: Field): Change[] {
   const { key, parent } = f,
     b = f.before[key],
-    a = f.after[key];
-  if (same(b, a)) return [];
+    a = f.after[key],
+    snap = snapshotNames[key];
+  if (same(b, a) && (!snap || same(f.before[snap], f.after[snap]))) return [];
   const editable = editableField(ctx, key, parent);
   // 明细里只在一边有的字段是确认时补进来的快照（产品名称、单价……），不是改动
   if (lineFields.has(parent) && (b === undefined || a === undefined) && !editable) return [];
@@ -171,7 +174,8 @@ function nestedItems(ctx: Ctx, key: string, label: string, value: Row): HistoryI
 
 /** 一个字段在新建内容里的几行 */
 function contentItems(ctx: Ctx, row: Row, key: string, value: unknown): HistoryItem[] {
-  if (blank(value) || value === false || (Array.isArray(value) && !value.length)) return [];
+  const snap = snapshotNames[key];
+  if ((blank(value) && !(snap && !blank(row[snap]))) || value === false || (Array.isArray(value) && !value.length)) return [];
   if (lineFields.has(key)) return [{ label: historyFieldLabel(key) || '明细', value: linesText(ctx, value, key) }];
   const label = shownLabel(ctx, key, row, '');
   // 数量已经带着单位写了，单位不再单列（库存品没有数量这一项，单位照列）

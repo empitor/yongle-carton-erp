@@ -8,7 +8,7 @@ import type { dataManagementModules } from '../lifecycle/data-management-modules
 type DataManagementModule = (typeof dataManagementModules)[number];
 
 const contactTemplate = () => ({ contact: '', phone: '', address: '' });
-const customerTemplate = () => ({ name: '', ...contactTemplate(), notes: '' });
+const customerTemplate = () => ({ name: '', ...contactTemplate(), notes: '', sites: [] });
 const supplierTemplate = () => ({ name: '', ...contactTemplate(), notes: '' });
 const productTemplate = () => ({
   name: '',
@@ -139,9 +139,7 @@ const deliveryTemplate = (today: string) => ({
   plannedTime: null,
   notes: '',
   customerId: null,
-  address: '',
-  contact: '',
-  phone: '',
+  siteId: null,
   allowOverdelivery: false,
   overdeliveryReason: '',
   lines: [{ orderId: null, orderLineId: null, stockId: null, quantity, notes: '' }],

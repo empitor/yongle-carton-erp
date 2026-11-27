@@ -11,7 +11,7 @@ import type { FlowCommands } from '../documents/base.js';
 const { rebalanceMovements } = stockLedger;
 
 /*
- * 订单的生产中、待发货、已发货由有效单据派生（AGENTS.md“订单状态”）：按生产任务、完工、送货重算订单状态，
+ * 订单的生产中、待发货、已发货由有效单据派生（docs/业务规则.md“派生的状态要重算”）：按生产任务、完工、送货重算订单状态，
  * 管理员改了单据、档案或删了记录以后连同已到货、库存结余、订单合计一起重算。
  */
 

@@ -128,6 +128,7 @@ export const financeFieldClasses = {
   delivery: {
     doc: {
       notes: 'info', address: 'info', contact: 'info', phone: 'info', actualTime: 'info',
+      siteId: 'skip', siteName: 'skip',
       customerId: 'count', customerName: 'count', lines: 'count', confirmedAt: 'count', correctionOf: 'count', replacedBy: 'count',
       date: 'skip', plannedDate: 'skip', plannedTime: 'skip', allowOverdelivery: 'skip', overdeliveryReason: 'skip',
       confirmedBy: 'skip', movements: 'skip', cancellation: 'skip', reversal: 'skip', correctionReason: 'skip', correctedAt: 'skip',

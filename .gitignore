@@ -46,15 +46,25 @@ playwright-report/
 test-results/
 .eslintcache
 
-# docs 只放行根目录的文档、架构说明拆出来的 docs/架构/ 和商标；放进子目录的本机报告可能含业务样例、用户路径和接口地址，不进仓库。
+# docs 只放行根目录的文档、六个门类文件夹（架构、功能、界面、运维、计划、生成）里的文档和商标；放进别的子目录的本机报告可能含业务样例、用户路径和接口地址，不进仓库。
 docs/**
 !docs/*.md
 !docs/架构/
 !docs/架构/*.md
+!docs/功能/
+!docs/功能/*.md
+!docs/界面/
+!docs/界面/*.md
+!docs/运维/
+!docs/运维/*.md
+!docs/计划/
+!docs/计划/*.md
+!docs/生成/
+!docs/生成/*.md
 !docs/brand/
 !docs/brand/**
 
-# 给 AI 工具看的规则（AGENTS.md、CLAUDE.md，.claude/ 下共用的须知、审查员、技能、钩子，以及 .agents/、.codex/ 下指向 .claude/ 的指路小配置）随仓库公开；
+# 给 AI 工具看的规则（AGENTS.md、CLAUDE.md，.claude/ 下共用的审查员、docs-updater、技能、钩子，以及 .agents/、.codex/ 下指向 .claude/ 的指路小配置）随仓库公开；
 # 只留在开发机上的：各人自己的设置（上面的 settings.local.json）、临时工作区、Codex 自动生成的本机环境。
 .claude/worktrees/
 .claude/scheduled_tasks.lock

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { hashParams, useBusinessRevision, useLoad, useResettingPage } from '../ui/index';
-import { errorMessage } from '../../shared/core/index';
+import { useBusinessRevision, useLoad, useResettingPage } from '../ui/index';
+import { errorMessage, pageParams } from '../../shared/core/index';
 import type { InboxChannelOption, InboxItem, InboxList, InboxStatus } from '../../shared/import/index';
 import { readInbox, readInboxChannels, readInboxItem, type InboxFilter } from './inbox-api';
 
@@ -8,8 +8,6 @@ import { readInbox, readInboxChannels, readInboxItem, type InboxFilter } from '.
 const POLL_MS = 15000;
 /** 搜索框打字时等一会儿再读 */
 const TYPING_MS = 150;
-/** 地址里 item= 带的收件编号 */
-const linkedId = (raw: string | null) => (raw && /^\d+$/.test(raw) ? raw : null);
 
 /**
  * 读一页列表；打开的那一条不在当前页（比如从今日点进来的）时单独再读一次，详情不会自己关掉；
@@ -92,8 +90,9 @@ export function useInboxList() {
   const { data, selected, setSelected } = usePage({ status, channel, q, page }, revision, setError);
   const channels = useChannels(bump);
 
-  const linked = hashParams().get('item');
-  const linkedRow = useLoad(linkedId(linked), (id) => readInboxItem(Number(id)));
+  // 地址里 item= 带的收件编号
+  const linked = pageParams('inbox', location.hash).item;
+  const linkedRow = useLoad(linked ? String(linked) : null, (id) => readInboxItem(Number(id)));
   useEffect(() => {
     const row = linkedRow.data;
     if (!row) return;

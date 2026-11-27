@@ -10,8 +10,11 @@ export type DeliveryEditLine = Omit<DeliveryDoc['lines'][number], 'orderId' | 'o
   orderId: number | null;
   orderLineId: number | null;
 };
-/** 编辑窗里的送货单：已有送货单的副本，客户可能还没选，明细可能还没挂订单 */
-export type DeliveryEditing = Omit<DeliveryDoc, 'customerId' | 'lines'> & { customerId: number | null; lines: DeliveryEditLine[] };
+/** 编辑窗按所选厂区现场预览收货信息，单据上原有的收货快照不参与录入。 */
+export type DeliveryEditing = Omit<DeliveryDoc, 'customerId' | 'lines' | 'siteName' | 'address' | 'contact' | 'phone'> & {
+  customerId: number | null;
+  lines: DeliveryEditLine[];
+};
 /** 送货单表单要对照的档案：客户、库存品、产品、订单 */
 export type DeliveryFormData = Pick<CatalogLists, 'customers' | 'items' | 'products' | 'orders'>;
 /** 一种库存品（库存品清单里的一条） */

@@ -10,6 +10,7 @@ export type RefOption = { value: string; label: string; hint?: string; keywords?
  */
 export type RecordRefs = {
   customers?: RefOption[];
+  customerSites?: Record<string, RefOption[]>;
   suppliers?: RefOption[];
   products?: RefOption[];
   stock_items?: (RefOption & { kind?: string })[];
@@ -36,7 +37,7 @@ export const recordLabel = (record: JsonObject | undefined) =>
 /** 编辑每个模块要读哪些关联的候选（自己模块的从列表里拿） */
 export const refModules: Record<string, readonly ManagedModule[]> = {
   orders: ['customers', 'products'],
-  products: [],
+  products: ['customers'],
   stock_items: ['products'],
   purchases: ['suppliers', 'orders', 'stock_items'],
   arrival: ['suppliers', 'stock_items', 'purchases'],
@@ -105,6 +106,10 @@ export function buildRefs(lists: Record<string, readonly JsonObject[]>): RecordR
     orders = lists.orders || [];
   return {
     customers: parties(lists.customers),
+    customerSites: Object.fromEntries((lists.customers ?? []).map((c) => [
+      String(c.id),
+      linesOf(c.sites).map((s) => option(s, textOf(s.name), hintOf(s.isDefault && '默认', s.address, s.contact, s.phone))),
+    ])),
     suppliers: parties(lists.suppliers),
     products: productOptions(products),
     stock_items: stockOptions(lists.stock_items || []),

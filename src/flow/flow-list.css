@@ -18,7 +18,7 @@
   height: 6px;
   accent-color: var(--accent-ink);
 }
-/* warehouse：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。 */
+/* warehouse：详情与编辑窗重做时新增的样式。规范见 docs/界面/总规矩.md。 */
 
 /* 通用小件 */
 .wh-muted {

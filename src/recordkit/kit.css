@@ -8,3 +8,47 @@
   border-radius: var(--r-small);
   font-size: var(--text-xs);
 }
+
+/* 详情里一条一块（InfoBlocks）：白色卡片里放浅灰底圆角块，块之间留空，不靠细线分。成品批次、客户厂区共用，变体写在各自目录 */
+.kit-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kit-block {
+  padding: 10px var(--space-md);
+  border-radius: var(--r-control);
+  background: var(--surface-muted);
+}
+.kit-block > header {
+  margin-bottom: var(--space-sm);
+}
+.kit-block > header:last-child {
+  margin-bottom: 0;
+}
+.kit-block dl {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+}
+/* 字段名一列和详情里“库存”“规格”等节的字段名对齐：那边 96px 从卡片内边距算起，这里块自己有 12px 内边距 */
+.kit-block dl > div {
+  display: flex;
+  gap: var(--space-md);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.kit-block dt {
+  flex: none;
+  width: 84px;
+  color: var(--text-secondary);
+}
+.kit-block dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}

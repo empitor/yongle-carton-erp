@@ -11,29 +11,34 @@ import type { GroupInput, PlanLine } from './DeliveryPlanGroup';
 
 /** 排送货要的：库存品、订单、客户，和每条订单明细已经排在待送货单上的数量 */
 export type PlanData = Pick<CatalogLists, 'items' | 'orders' | 'customers'> & { pending: Map<number, number> };
-/** 排出来的送货单（一个客户一张，带预填的收货信息） */
+/** 排出来的送货单，最初每个客户按默认厂区排一张。 */
 type Plan = Pick<ReturnType<typeof deliveryPlan>, 'groups'>;
 type PlanGroup = Plan['groups'][number];
 /** 窗口里的一行送货：排出来的一行加上它的键（客户、订单明细、库存品） */
 type KeyedLine = PlanLine & { key: string };
-type ShownGroup = Omit<PlanGroup, 'lines'> & { lines: KeyedLine[] };
+type ShownGroup = Pick<PlanGroup, 'customerId' | 'sites' | 'siteId'> & { key: string; lines: KeyedLine[] };
 
 const lineKey = (customerId: number, l: PlanLine) => customerId + '|' + l.orderLineId + '|' + l.stockId;
+export const planGroupKey = (customerId: number, siteId: number | null) => customerId + '/' + (siteId ?? '');
 
 /** 窗口里显示的送货单：去掉人删掉的行，数量用人改过的 */
-export const shownGroups = (plan: Plan, removed: string[], edits: Record<string, string>): ShownGroup[] =>
-  plan.groups
-    .map((g) => ({
-      ...g,
-      lines: g.lines
-        .map((l) => ({ ...l, key: lineKey(g.customerId, l) }))
-        .filter((l) => !removed.includes(l.key))
-        .map((l) => ({ ...l, quantity: edits[l.key] ?? l.quantity })),
-    }))
-    .filter((g) => g.lines.length);
+export function shownGroups(plan: Plan, removed: string[], edits: Record<string, string>, destinations: Record<string, number> = {}) {
+  const groups = new Map<string, ShownGroup>(), hidden = new Set(removed);
+  for (const g of plan.groups) {
+    for (const l of g.lines) {
+      const line = lineKey(g.customerId, l);
+      if (hidden.has(line)) continue;
+      const siteId = destinations[line] ?? g.siteId, key = planGroupKey(g.customerId, siteId);
+      const group = groups.get(key) ?? { key, customerId: g.customerId, siteId, sites: g.sites, lines: [] };
+      group.lines.push({ ...l, key: line, quantity: edits[line] ?? l.quantity });
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()];
+}
 
 /** 窗口里要查的：客户名、每张送货单的输入（没改过的按排出来的收货信息和今天预填）、一行的订单和产品、超订单的行 */
-export function planLookups(data: PlanData | null, inputs: Record<number, Partial<GroupInput>>) {
+export function planLookups(data: PlanData | null, inputs: Record<string, Partial<GroupInput>>) {
   const customer = (id: number) => data?.customers.find((c) => c.id === id);
   const orderLine = (l: PlanLine) => {
     const order = data?.orders.find((o) => o.id === l.orderId);
@@ -43,11 +48,8 @@ export function planLookups(data: PlanData | null, inputs: Record<number, Partia
     customerName: (id: number) => customer(id)?.name || '客户',
     inputOf: (g: ShownGroup): GroupInput => ({
       plannedDate: today(),
-      address: g.address,
-      contact: g.contact,
-      phone: g.phone,
       reason: '',
-      ...inputs[g.customerId],
+      ...inputs[g.key],
     }),
     lineInfo: (l: PlanLine) => {
       const { order, line } = orderLine(l);
@@ -59,9 +61,9 @@ export function planLookups(data: PlanData | null, inputs: Record<number, Partia
 type Lookups = ReturnType<typeof planLookups>;
 
 /** 交之前查：每张还没建的送货单要有计划日，超订单的要写原因；有问题返回那句话，没问题是空串 */
-export function planProblem(groups: ShownGroup[], created: Record<number, string>, look: Lookups) {
+export function planProblem(groups: ShownGroup[], created: Record<string, string>, look: Lookups) {
   for (const g of groups) {
-    if (created[g.customerId]) continue;
+    if (created[g.key]) continue;
     const v = look.inputOf(g);
     if (!v.plannedDate) return '请填写送给 ' + look.customerName(g.customerId) + ' 的计划送货日期。';
     if (look.overOf(g.lines).length && !v.reason.trim())
@@ -78,9 +80,7 @@ export function deliveryBody(g: ShownGroup, v: GroupInput, over: boolean) {
     actualTime: null,
     notes: '',
     customerId: g.customerId,
-    address: v.address,
-    contact: v.contact,
-    phone: v.phone,
+    siteId: g.siteId,
     allowOverdelivery: over,
     overdeliveryReason: over ? v.reason.trim() : '',
     lines: g.lines.map(({ key: _, ...l }) => l),

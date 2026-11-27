@@ -1,7 +1,6 @@
-import { deliveryDateLabels, type DocumentTemplate } from '../../shared/documents/index.js';
+import { docField, type BusinessForm, type DocumentTemplate } from '../../shared/documents/index.js';
 import { displayAmount } from '../../shared/core/index.js';
 import { applyDocumentTemplate } from './apply-template.js';
-import type { BusinessForm } from '../../shared/documents/index.js';
 /** 纯展示样张，无业务ID、不创建订单、不使用真实库记录。 */
 export function sampleDocument(template: DocumentTemplate): BusinessForm {
   const purchase = template.kind === 'purchase';
@@ -13,20 +12,20 @@ export function sampleDocument(template: DocumentTemplate): BusinessForm {
       sample: true,
       fields: purchase
         ? [
-            ['采购单号', 'TEST-PO-001'],
-            ['供应商', '虚构示例纸板厂'],
-            ['供应商联系信息', '示例联系人 / 000-0000'],
-            ['下单日期', '2026-10-29'],
-            ['预计交货日期', '2026-11-02'],
+            docField('purchaseNumber', 'TEST-PO-001'),
+            docField('supplier', '虚构示例纸板厂'),
+            docField('supplierContact', '示例联系人 / 000-0000'),
+            docField('orderDate', '2026-10-29'),
+            docField('expectedDeliveryDate', '2026-11-02'),
           ]
         : [
-            ['送货单号', 'TEST-DN-001'],
-            ['客户', '虚构示例客户'],
-            ['收货地址', '虚构工业园示例仓库'],
-            ['客户联系信息', '示例联系人 / 000-0000'],
-            [deliveryDateLabels.shipped, '2026-10-29'],
-            ['关联销售订单', 'TEST-SO-001'],
-            ['客户采购订单号', 'TEST-CPO-001'],
+            docField('deliveryNumber', 'TEST-DN-001'),
+            docField('customer', '虚构示例客户'),
+            docField('deliveryAddress', '虚构工业园示例仓库'),
+            docField('customerContact', '示例联系人 / 000-0000'),
+            docField('shippedDate', '2026-10-29'),
+            docField('relatedOrders', 'TEST-SO-001'),
+            docField('customerOrderNumber', 'TEST-CPO-001'),
           ],
       headers: [],
       columnKeys: purchase

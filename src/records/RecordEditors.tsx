@@ -1,8 +1,7 @@
 import { lazy, Suspense, useEffect, useEffectEvent, useState } from 'react';
-import type { Customer, Order, Product } from '../../shared/core/index';
+import { pageParams, type Customer, type Order, type Product } from '../../shared/core/index';
 import { emit, listen, readOnlyNotice } from '../ui/index';
 import { readRecord } from '../recordkit/record-api';
-import { idList } from '../recordkit/launch';
 
 // 编辑窗点了才用，按需加载
 const CustomerEditor = lazy(() => import('../editors/CustomerEditor'));
@@ -39,6 +38,12 @@ function withFresh(latest: RecordEditor, fresh: OpenEditor): RecordEditor {
   return latest;
 }
 
+/** #orders?create=1 新建订单时的预填：从客户、产品“新建订单”过来的客户或产品；不是新建订单的地址给 null */
+export function orderCreatePreset(routeKey: string) {
+  const { create, customer, products } = pageParams('orders', routeKey);
+  return create ? { customerId: customer, productIds: products } : null;
+}
+
 /**
  * 编辑窗开哪个：换页就关；#orders?create=1 打开新建订单（只读账号只说一句为什么）；
  * 业务数据变了，开着的那条按主键重读，免得拿旧版本去存。
@@ -64,20 +69,13 @@ export function useRecordEditor({
     setEditor(null);
   }, [page]);
   useEffect(() => {
-    const params = new URLSearchParams(routeKey.split('?')[1] || '');
-    if (page !== 'orders' || params.get('create') !== '1' || !signedIn) return;
+    const preset = orderCreatePreset(routeKey);
+    if (page !== 'orders' || !preset || !signedIn) return;
     if (!canCreate) {
       say(readOnlyNotice, 'error');
       return;
     }
-    setEditor({
-      kind: 'orders',
-      // 从客户、产品“新建订单”过来的：预先填客户或产品
-      preset: {
-        customerId: Number(params.get('customer')) || undefined,
-        productIds: idList(params.get('products')),
-      },
-    });
+    setEditor({ kind: 'orders', preset });
   }, [page, routeKey, signedIn, canCreate]);
   useEffect(
     () =>

@@ -1,5 +1,5 @@
 /**
- * 服务端模块的中文名（模块表在 tests/module-map.ts，说明在 docs/架构说明.md“模块”）。
+ * 服务端模块的中文名（模块登记在 tests/checks/module-map.ts，生成的说明在 docs/生成/模块表.md）。
  * 各模块往基础登记删除、初始化规则和可归档的记录种类时写自己的名字，类型是这里的 ModuleName：写错编译不过。
  * tests/module-names.test.ts 核对这张清单和模块表里的服务端模块一样，加、改模块两边一起改。
  */

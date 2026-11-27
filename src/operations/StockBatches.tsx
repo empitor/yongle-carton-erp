@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { flowDocHref, pageHref } from '../../shared/core/index';
 import { FormMessage, Hint, Loading, Section, StatusChip } from '../ui/index';
 import { canEditBusiness, emit, notify, useAuthState, useLoad } from '../ui/index';
@@ -6,9 +6,7 @@ import type { StockBatchView, StockItemView } from '../../shared/business/index'
 import { readStockBatches } from '../flow/flow-api';
 import { infoSavedMessage } from '../flow/flow-words';
 import DocumentInfoDialog from '../flow/DocumentInfoDialog';
-
-/** 批次块下面的一行：标题和内容 */
-type BlockRow = { label: string; value: ReactNode; className?: string };
+import { InfoBlock, InfoBlocks, type InfoBlockRow } from '../recordkit/InfoBlocks';
 
 /** 订单和客户：单号不拆开；客户名放不下时整个换到下一行，不和单号挤在一起断 */
 function BatchOrders({ orders }: { orders: StockBatchView['orders'] }) {
@@ -65,8 +63,8 @@ function BatchNote({ batch, edit }: { batch: StockBatchView; edit?: () => void }
 }
 
 /** 批次块下面只列有内容的几行：生产任务、订单和客户、用料、原因（其他入库）、操作人、批次备注 */
-function blockRows(batch: StockBatchView, edit?: () => void): BlockRow[] {
-  const rows: BlockRow[] = [];
+function blockRows(batch: StockBatchView, edit?: () => void): InfoBlockRow[] {
+  const rows: InfoBlockRow[] = [];
   if (batch.taskId)
     rows.push({
       label: '生产任务',
@@ -149,19 +147,11 @@ function BatchBlock({
   const edit = editNote && !other && batch.documentId ? () => editNote(batch) : undefined;
   const rows = blockRows(batch, edit);
   return (
-    <li className={'pur-batch' + (left ? '' : ' is-depleted') + (other ? ' is-other' : '')}>
-      <BatchHeader batch={batch} unit={unit} />
-      {rows.length > 0 && (
-        <dl>
-          {rows.map((r) => (
-            <div key={r.label} className={r.className}>
-              <dt>{r.label}</dt>
-              <dd>{r.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </li>
+    <InfoBlock
+      className={'pur-batch' + (left ? '' : ' is-depleted') + (other ? ' is-other' : '')}
+      header={<BatchHeader batch={batch} unit={unit} />}
+      rows={rows}
+    />
   );
 }
 
@@ -180,20 +170,20 @@ function BatchGroups({
   return (
     <>
       {made.length > 0 && (
-        <ul className="pur-batches">
+        <InfoBlocks className="pur-batches">
           {made.map((b) => (
             <BatchBlock key={b.key} batch={b} unit={unit} editNote={editNote} />
           ))}
-        </ul>
+        </InfoBlocks>
       )}
       {others.length > 0 && (
         <>
           <h4 className="pur-batches-group">其他入库</h4>
-          <ul className="pur-batches is-other">
+          <InfoBlocks className="pur-batches is-other">
             {others.map((b) => (
               <BatchBlock key={b.key} batch={b} unit={unit} />
             ))}
-          </ul>
+          </InfoBlocks>
         </>
       )}
     </>

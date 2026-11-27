@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Customer, Order, OrderInput, Product } from '../../shared/core/index.js';
-import { FINISHED_UNIT, clearRecognizedTaxText, finishedUnit, finishedUnitMessage, legacyCents, orderSchema, percentFromTaxRateBp, precisionTotal, priceFromE4, priceToE4, statuses, taxRateToBp, totalCost } from '../../shared/core/index.js';
+import { FINISHED_UNIT, clearRecognizedTaxText, finishedUnit, finishedUnitMessage, legacyCents, orderSchema, percentFromTaxRateBp, precisionTotal, priceFromE4, productCustomerIssue, priceToE4, statuses, taxRateToBp, totalCost } from '../../shared/core/index.js';
 import { z } from 'zod';
 import { ConflictError, InputError, inSavepoint, many, nextAutoId, parseStoredJson, rows, type Store } from '../core/index.js';
 import { chosenExact, given, readBack, type ExistingRecord } from './record-fields.js';
@@ -234,10 +234,8 @@ function savedLines(
     const old = previous?.lines.find((x) => x.id === l.id && x.productId === l.productId);
     // 新加或换了产品的明细（或订单换了客户）要核对产品归属；老订单里没动的已有明细不拦
     const unchanged = !!old && previous?.customerId === v.customerId;
-    if (!unchanged && p.customerId != null && p.customerId !== v.customerId) {
-      const owner = p.customerName || ctx.customer(p.customerId, true)?.name || '其他客户';
-      throw new InputError(`这个产品是 ${owner} 的，要给 ${customer.name} 用请复制一份`);
-    }
+    const issue = unchanged ? null : productCustomerIssue(p, customer);
+    if (issue) throw new InputError(issue);
     const productName = lineName(l, previous, old, p.name);
     // 产品数量单位只有“只”：“个”、没写、pcs 都存成“只”，别的一律拒收
     const unit = finishedUnit(l.unit ?? old?.unit);

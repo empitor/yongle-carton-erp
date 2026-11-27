@@ -210,6 +210,19 @@
 .queue-note.wh-late {
   color: var(--danger);
 }
+/* 安排送货窗：一张单两行以上时，每行“对应订单明细”下面一个“拆给别的厂区”，按字宽显示，不加宽表格、不挤掉行尾的删除 */
+.line-table select.wh-site-split {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  margin-top: var(--space-2xs);
+}
+/* 手机上明细表本来就横向放不下：下拉跟着这一格的宽度，不按字宽把这一列撑宽 */
+@media (max-width: 700px) {
+  .line-table select.wh-site-split {
+    width: 100%;
+  }
+}
 button.wh-ready-more {
   margin: var(--space-sm) var(--space-lg) var(--space-md);
 }

@@ -51,6 +51,8 @@ export type RecordsApi = StatusActions & {
   'GET /orders': { query?: OrderQuery; response: Listed<TrackedOrder>[] };
   'GET /orders?withMetrics=1': { query?: OrderPageQuery; response: ListResult<Listed<TrackedOrder>, ReturnType<typeof orderMetrics>> };
   'GET /orders/:id': { response: TrackedOrder };
+  /** 这张订单上只在这张订单里下过单的产品（编辑窗换客户时提示哪些产品跟着改归新客户） */
+  'GET /orders/:id/sole-products': { response: { productIds: number[] } };
   'POST /orders': { body: OrderBody; response: TrackedOrder };
   'PUT /orders/:id': { body: Versioned<OrderBody>; response: TrackedOrder };
 };

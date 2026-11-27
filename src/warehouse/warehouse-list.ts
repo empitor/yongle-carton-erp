@@ -116,7 +116,7 @@ type RowFilter = {
   from: string;
   to: string;
   /** 从采购单跳过来时只看这张采购单的到货 */
-  purchaseFilter?: string | null;
+  purchaseFilter?: number;
   purchases: readonly WarehousePurchase[];
 };
 /** 筛选条件下这一行留不留 */
@@ -128,7 +128,7 @@ const kept = (kind: WarehouseKind, r: ListRow, o: RowFilter) =>
   (!o.from || dateOf(kind, r) >= o.from) &&
   (!o.to || dateOf(kind, r) <= o.to) &&
   (!o.purchaseFilter ||
-    r.lines.some((l) => Number(l.purchaseId || purchaseOfLine(o.purchases, l)?.id) === Number(o.purchaseFilter)));
+    r.lines.some((l) => (l.purchaseId || purchaseOfLine(o.purchases, l)?.id) === o.purchaseFilter));
 /** 日期先后：早的在前是负数 */
 const byDate = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 

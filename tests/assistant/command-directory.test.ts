@@ -1,4 +1,5 @@
 // 命令目录（server/assistant/command-directory.ts）：目录文字、用法、找命令、常用名单。直接调纯函数，输入是注册表按账号给出的可用命令。
+// 拦：命令在目录里不是恰好一次、常用说法在前三条里找不到对的命令、命令说明超过 200 字、状态行叫法带英文。
 import { pageActor, actor, superActor } from '../support/actor-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

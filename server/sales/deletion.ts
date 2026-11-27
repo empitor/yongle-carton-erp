@@ -12,6 +12,7 @@ registerTableDeletion({
   module: '客户产品订单',
   statements: {
     customers: { update: 'UPDATE customers SET', remove: 'DELETE FROM customers WHERE rowid=?' },
+    customer_sites: { update: 'UPDATE customer_sites SET', remove: 'DELETE FROM customer_sites WHERE rowid=?' },
     products: { update: 'UPDATE products SET', remove: 'DELETE FROM products WHERE rowid=?' },
     orders: { update: 'UPDATE orders SET', remove: 'DELETE FROM orders WHERE rowid=?' },
     order_lines: { update: 'UPDATE order_lines SET', remove: 'DELETE FROM order_lines WHERE rowid=?' },
@@ -82,6 +83,7 @@ registerReset({
     'DELETE FROM order_lines',
     'DELETE FROM orders',
     'DELETE FROM products',
+    'DELETE FROM customer_sites',
     'DELETE FROM customers',
   ],
 });

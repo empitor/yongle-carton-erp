@@ -157,7 +157,6 @@ test('多种产品的送货单：待送货不扣库存；保存、确认同一�
     const input = {
       customerId: f.customer.id,
       date: today(),
-      address: '虚构地址',
       requestId: randomUUID(),
       lines: f.order.lines.map((l, i) => ({
         orderId: f.order.id,
@@ -171,7 +170,7 @@ test('多种产品的送货单：待送货不扣库存；保存、确认同一�
     assert.equal(f.flow.save('delivery', input, actor).id, doc.id);
     assert.equal(f.flow.list('delivery').length, 1);
     assert.throws(
-      () => f.flow.save('delivery', { ...input, address: '改变内容' }, actor),
+      () => f.flow.save('delivery', { ...input, notes: '改变内容' }, actor),
       /同一请求/,
     );
     const preview = f.flow.preview(doc.id, actor),

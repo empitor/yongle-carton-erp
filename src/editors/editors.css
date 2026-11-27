@@ -400,3 +400,10 @@ output.unit-fixed {
   color: var(--ink);
   font-size: var(--text-md);
 }
+
+.sales-site-default {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+}

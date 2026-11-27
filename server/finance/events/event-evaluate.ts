@@ -4,6 +4,7 @@ import { errorMessage, quantityUnits, readTaxRate } from '../../../shared/core/i
 import { one, rows } from '../../core/index.js';
 import { financeError } from '../base/core.js';
 import { documentMoney, theoreticalMoney } from '../base/amounts.js';
+import { partyTaxRate } from '../parties/terms.js';
 import type { SourceHead } from '../../flow/index.js';
 import type { EventColumns } from './event-columns.js';
 import type { DocumentMoney, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
@@ -107,12 +108,21 @@ function choose(line: string | null | undefined, party: string | null | undefine
   const index = values.findIndex((v) => v != null && v.trim() && v.trim() !== UNSPECIFIED_TAX_MODE);
   return { value: index < 0 ? '' : String(values[index]).trim(), source: ['line', 'party'][index] ?? null };
 }
-const validTax = ({ mode, rate }: { mode: string; rate: string }) =>
-  /^\d{1,3}(\.\d{1,2})?%?$/.test(rate) && readTaxRate(rate) !== null && storedTaxModes.some((m) => m === mode);
+/**
+ * 税率写清了没有，按从哪来（choose 记的 source）分开认：
+ * - 往来单位的默认税率照往来条款的存法 partyTaxRate（parties/terms.ts：最多六位小数，往来页的输入框带 % 单位，0.5 就是 0.5%）。
+ * - 单据抄来的原话照订单的认法 readTaxRate（最多两位小数，0 到 1 之间没带 % 的有歧义），只认半角写法。
+ */
+const validRate = (rate: string, source: TaxSource['rate']) =>
+  source === 'party'
+    ? partyTaxRate.safeParse(rate).success
+    : /^\d{1,3}(\.\d{1,2})?%?$/.test(rate) && readTaxRate(rate) !== null;
+const validTax = ({ mode, rate }: { mode: string; rate: string }, rateSource: TaxSource['rate']) =>
+  validRate(rate, rateSource) && storedTaxModes.some((m) => m === mode);
 // 算出来就是 0 的行（数量为 0，或单价明确填了 0）不管什么口径金额都是 0：没写清税率口径时按“未税 / 0”计，
 // 不算资料待补，否则要人给一张 0 元单子补税率。单价没填是未知，前面已按缺价格转资料待补，到不了这里。
-const priced = (exact: string, tax: { mode: string; rate: string }) =>
-  /^0+(\.0+)?$/.test(exact) && !validTax(tax) ? { exact, mode: '未税', rate: '0' } : { exact, ...tax };
+const priced = (exact: string, tax: { mode: string; rate: string }, rateSource: TaxSource['rate']) =>
+  /^0+(\.0+)?$/.test(exact) && !validTax(tax, rateSource) ? { exact, mode: '未税', rate: '0' } : { exact, ...tax };
 
 /** 算一张单据逐行金额时的上下文：哪种单据、往来单位默认税率，逐行记下税率来源和提醒，缺资料时缺的是数量还是价格 */
 type LineContext = {
@@ -143,7 +153,7 @@ function lineValue(context: LineContext, line: FinanceSourceLine, index: number)
     context.lacking = value.lacking;
     financeError(value.message);
   }
-  return priced(value.exact, tax);
+  return priced(value.exact, tax, rate.source);
 }
 
 /** 送货、到货按明细算金额：缺税率的待补（先记理论金额），0 元的不挂往来，齐了的可记账（开票确认收入的送货等开票） */
@@ -160,7 +170,7 @@ function evaluateLines(source: SourceKindStatus, doc: FinanceSourceDocument, pol
     context.lacking = 'price';
     const { taxSource, warnings } = context;
     const theoretical = theoreticalMoney(values);
-    if (values.some((line) => !validTax(line)))
+    if (values.some((line, i) => !validTax(line, taxSource[i].rate)))
       return {
         status: 'info_pending',
         problem: '待补税率或含税口径。',

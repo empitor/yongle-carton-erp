@@ -14,7 +14,8 @@ export { detachTasks, moveDeliveries, retainDeliveryLines } from './rules/order-
 export { orderEditGuard } from './rules/order-edit-guard.js';
 export { shippedByLine } from './documents/shipped.js';
 export { FlowService } from './rules/service.js';
-export { arrivalHeads, documentVersions, pendingCompletionVersions, referencingDocuments, sourceFileNames } from './documents/document-lookups.js';
+export { arrivalHeads, documentVersions, pendingCompletionVersions, pendingDeliveryNumbersBySite, referencingDocuments, sourceFileNames } from './documents/document-lookups.js';
+export { clearHistoricalDeliverySites } from './documents/document-store.js';
 export { finishedStockOfProduct, stockItemBatches } from './stock/stock-batches.js';
 export { updateDocumentInfo } from './correction/document-info.js';
 // 财务从业务拿数据的只读窗口：财务只引这一个对象（tests/module-narrow-refs.test.ts）

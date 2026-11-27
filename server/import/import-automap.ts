@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type { Store } from '../core/index.js';
 import { AppError } from '../core/index.js';
 import type { ImportMapping, OrderDraft } from '../../shared/import/index.js';
-import { blocksNewProduct, productCandidatesForLine, productsForCustomer } from '../../shared/import/index.js';
-import { MAX_CM_DIMENSION, hasCompleteProductIdentity, productIdentityParts, type Product } from '../../shared/core/index.js';
+import { blocksNewProduct, productCandidatesForLine } from '../../shared/import/index.js';
+import { MAX_CM_DIMENSION, hasCompleteProductIdentity, productIdentityParts, productsForCustomer, type Product } from '../../shared/core/index.js';
 import { resolveImportCustomer } from './customer-resolution.js';
 import { productFieldsFromDraft } from './product-input.js';
 

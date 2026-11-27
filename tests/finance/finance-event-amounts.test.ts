@@ -280,9 +280,9 @@ test('事件金额直接算：税率齐的可记账，缺税率待补并带理�
         { customerId: 1, lines: [{ unit: '只', quantity: '10', unitPriceExact: '10.0000', taxMode: '含税', taxRate }] },
         { policy: 'delivery', taxTerms: () => ({ tax_rate: '13%', tax_mode: '含税' }) },
       );
-    assert.equal(evalLine(orderTaxSnapshot({ taxRate: 0.13 })).status, 'ready');
+    assert.equal(evalLine(orderTaxSnapshot({ taxRate: 0.13 }).taxRate).status, 'ready');
     for (const ambiguous of ['0.13', '13.123']) {
-      const ev = evalLine(orderTaxSnapshot({ taxText: ambiguous }));
+      const ev = evalLine(orderTaxSnapshot({ taxText: ambiguous }).taxRate);
       assert.equal(ev.status, 'info_pending', ambiguous + ' 应待补税率');
       assert.deepEqual(ev.missing, ['tax']);
     }

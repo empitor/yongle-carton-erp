@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { DatePreset } from '../../shared/core/index';
-import { hashParams, LIST_PAGE_SIZE } from '../ui/index';
+import { pageParams, type DatePreset } from '../../shared/core/index';
+import { LIST_PAGE_SIZE } from '../ui/index';
 import { useWarehouseData } from './useWarehouseData';
 import { warehouseRows, type WarehouseKind, type WarehouseRow, type WarehouseScope } from './warehouse-list';
 
@@ -9,20 +9,20 @@ import { warehouseRows, type WarehouseKind, type WarehouseRow, type WarehouseSco
  * 待处理 / 全部 / 已归档）、翻页。地址栏带来的条件（待处理、某一天、某张采购单）在打开时用一次。
  */
 export function useWarehouseList(kind: WarehouseKind, actorId: unknown) {
-  const params = hashParams(),
-    purchaseFilter = params.get('purchase');
+  const route = pageParams('warehouse', location.hash),
+    purchaseFilter = route.purchase;
   // 读了全部记录，还是只读了待处理和最近一段时间的
   const [full, setFull] = useState(false),
     [q, setQ] = useState(''),
     [scope, setScope] = useState<WarehouseScope>(
-      params.get('state') === 'pending' || kind === 'delivery' ? 'open' : 'all',
+      route.state === 'pending' || kind === 'delivery' ? 'open' : 'all',
     ),
     [status, setStatus] = useState(''),
     // 到货按供应商、送货按客户：记录上有编号的按编号（改过名的也算一家），老记录没有编号的按名称
     [party, setParty] = useState(''),
-    [datePreset, setDatePreset] = useState<DatePreset>(params.get('date') ? 'custom' : 'all'),
-    [from, setFrom] = useState(params.get('date') || ''),
-    [to, setTo] = useState(params.get('date') || ''),
+    [datePreset, setDatePreset] = useState<DatePreset>(route.date ? 'custom' : 'all'),
+    [from, setFrom] = useState(route.date ?? ''),
+    [to, setTo] = useState(route.date ?? ''),
     [page, setPage] = useState(1);
   const data = useWarehouseData(kind, scope, full, actorId);
   const { records, archivedRows, purchases, recentFrom } = data;

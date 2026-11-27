@@ -52,7 +52,7 @@ input[type='checkbox'] {
 .choice-list label > small {
   flex: none;
 }
-/* finance-cash：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。
+/* finance-cash：详情与编辑窗重做时新增的样式。规范见 docs/界面/总规矩.md。
    只用新类名；要压过旧样式时加一层选择器，不改 design.css。 */
 
 /* 财务编辑窗的字段（src/finance/FinForm.tsx）：外层同时有 .field 和 .form-field，

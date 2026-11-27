@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fieldLabel, fieldTitle } from '../core/index.js';
+import { optionalDocumentFields } from './document-fields.js';
 /** 单据抬头里的我方公司名（模板没填公司名时也印它）。 */
 export const factoryName = '宁波甬勒包装制品有限公司';
 /** 模板的单据种类：采购订货单、送货单。 */
@@ -80,19 +81,6 @@ export const deliveryColumns: DocumentColumn[] = [
   'orderNumber',
   'notes',
 ];
-export const optionalDocumentFields = [
-  '供应商联系信息',
-  '客户联系信息',
-  '预计交货日期',
-  '我方联系人',
-  '交货地址',
-  '客户采购订单号',
-  '关联销售订单',
-  '交货要求',
-  '验收要求',
-  '付款条件',
-  '税费说明',
-] as const;
 const documentPaperKeys = ['a4', 'continuous-241x140', 'continuous-241x93', 'a5'] as const;
 export type DocumentPaper = (typeof documentPaperKeys)[number];
 /** 纸张：A4 走激光/喷墨；241 宽的是针式打印联单（二等分、三等分）。单位 mm。 */

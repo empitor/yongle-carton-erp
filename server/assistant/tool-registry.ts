@@ -27,12 +27,16 @@ const toolSettingsDatabase = {
   steps: [],
   pragmas: 'PRAGMA synchronous=FULL',
   create(db: DatabaseSync) {
-    db.exec(`CREATE TABLE tool_settings(name TEXT PRIMARY KEY, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL);
+    db.exec(`-- 单个工具和整组工具的启停
+      CREATE TABLE tool_settings(name TEXT PRIMARY KEY, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL);
+      -- tool_settings 的修订号，每次保存启停加一
       CREATE TABLE tool_settings_revision(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL);`);
     // 按账号的助手设置（account-settings.ts）和长期记忆（memory-store.ts），每行都带 user_id
-    db.exec(`CREATE TABLE assistant_account_settings(
+    db.exec(`-- 按账号的设置（自动记忆 memory.autoSave、思考档位 assistant.thinking）
+      CREATE TABLE assistant_account_settings(
         user_id TEXT NOT NULL, name TEXT NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(user_id, name)
       ) STRICT;
+      -- 长期记忆，只给本人看和改；记用到的次数和时间，上下文按它挑；上限在 server/assistant/memory-rules.ts
       CREATE TABLE assistant_memories(
         id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, content TEXT NOT NULL,
         source TEXT NOT NULL CHECK(source IN ('assistant','manual')),

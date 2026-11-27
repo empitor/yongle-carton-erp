@@ -1,11 +1,11 @@
 ---
 name: ui-check
-description: 改完界面后在真实浏览器里看效果：起虚构数据的预览实例（本机管理员模式或模拟从域名访问），用无头 Chrome 截图或走流程，必要时用内置浏览器给用户看。界面改动、删除和权限相关改动要“在真实浏览器里看过才算完成”时使用。
+description: 改完界面后在真实浏览器里看效果：起虚构数据的预览实例（本机管理员模式或模拟从域名访问），用无头 Chrome 截图或走流程，必要时用内置浏览器给用户看；几路同时改时用固定副本，连真实模型的实例先问用户。界面改动、删除和权限相关改动要“在真实浏览器里看过才算完成”时使用。
 ---
 
 # 界面实测
 
-AGENTS.md 要求界面改动在真实浏览器里看过才算完成。用下面这套隔离实例，不要连用户的正式实例（127.0.0.1:3001，那里是真实数据，只能在用户要求时只读查看）。
+界面改动要在真实浏览器里看过才算完成（`docs/界面/总规矩.md`）。用下面这套隔离实例，不要连用户的正式实例（127.0.0.1:3001，那里是真实数据，只能在用户要求时只读查看）。
 
 ## 起预览实例
 
@@ -24,6 +24,16 @@ AGENTS.md 要求界面改动在真实浏览器里看过才算完成。用下面�
 - 自动流程：`npm run test:ui -- --list` 看有哪些组和各组走什么，改了哪块就跑哪组（写组名或组里任一流程名，如 `npm run test:ui -- production`）；不带组名跑全部，默认同时 6 组（`UI_CHECK_JOBS` 改），约三分钟。组表在 `scripts/ui-check/run.mjs` 的 `groups`，其中 `a11y` 组用 axe 查无障碍，登记（`scripts/ui-check/a11y-known.json`）之外的违规会失败。新界面要把检查写进对应组的 `flow-*.mjs`，别只留临时脚本。
 - 流程中途出错时截图目录里留 `FAIL-<流程>-N.png` 和 trace（`npx playwright show-trace` 回放），每组的日志是 `group-<组名>.log`。
 
+## 几路同时改时：用固定副本
+
+几路同时改代码时，审查和浏览器查看用一份固定副本，不用正在改的主项目。
+
+1. 在草稿目录建副本，复制 `server shared src scripts tests public docs` 和根目录的 `package.json package-lock.json tsconfig.json vite.config.ts index.html AGENTS.md`。
+2. `node_modules` 用目录联接指向主项目（PowerShell）：`New-Item -ItemType Junction -Path <副本>\node_modules -Target <项目>\node_modules`。
+3. 在副本目录里照上面“起预览实例”后台起实例，等输出 `READY`。改了 `server/`、`shared/` 要重启实例。
+4. 截图、走流程、给助手排模型替身的回复照本技能做；走流程在草稿目录写一个复用 `scripts/ui-check/lib.mjs` 的脚本一次走完，不用内置浏览器一步一步点。
+5. 用完照下面“收尾”清理副本。
+
 ## 真实模型模式（会调用 DeepSeek、产生费用）
 
 | 场景 | 命令 | 地址 |
@@ -32,9 +42,9 @@ AGENTS.md 要求界面改动在真实浏览器里看过才算完成。用下面�
 | 冒烟脚本自测（连假 DeepSeek，配置目录用临时目录） | `node scripts/ui-check/preview.mjs --real-model --fake-deepseek` | http://127.0.0.1:3197 |
 
 - 业务数据照旧是每次新建的虚构种子；不装模型替身，`/__ui-check/replies` 不可用。
-- 密钥由用户在这个实例的“设置 → API 配置”里填一次，加密存在测试专用的固定目录（和正式实例的配置目录分开、不在它里面，`preview.mjs` 自己拼路径），重启接着用。不读、不打印那个目录里的文件；启动日志只说“已保存密钥：是/否”。
+- 密钥由用户在这个实例的“设置 → API 配置”里填一次，加密存在测试专用的固定目录（和正式实例的配置目录分开、不在它里面，`preview.mjs` 自己拼路径），重启接着用。不读、不打印、不复制、不打开那个目录里的任何文件，命令行里不写它的路径（钩子会拦）；启动日志只说“已保存密钥：是/否”。
 - 全量场景测试：`node scripts/ui-check/real-suite.mjs`（用法写在文件开头：`--list` 只列场景，`--start --fake` 连假 DeepSeek 自测，`--start --yes` 连真实接口，`--approaches high,low` 选思考档位，`--repeat k` 跑几轮看稳不稳，`--rejudge <结果目录>` 不发请求按现在的判定重判）。连真实接口一遍几百上千次请求，跑之前由主智能体估好费用问用户。
-- 冒烟：`node scripts/ui-check/real-smoke.mjs --yes [--port 3197] [--only chat,image]`。只走 HTTP、登录虚构管理员，测查余额、最短对话、虚构表格和 PDF 上传引用再删除、图片内联、录音识别、朗读、搜索、读网页；虚构文件当场现造。每项打印通过或失败和耗时，结尾打印一共发了几次请求。连真实 DeepSeek 前先问用户（预计不到 0.1 元）；连假 DeepSeek 自测不用 `--yes`。
+- 冒烟：`node scripts/ui-check/real-smoke.mjs --yes [--port 3197] [--only chat,image]`。只走 HTTP、登录虚构管理员，测查余额、最短对话、虚构表格和 PDF 上传引用再删除、图片内联、录音识别、朗读、搜索、读网页；虚构文件当场现造。每项打印通过或失败和耗时，结尾打印一共发了几次请求。`--yes` 连真实 DeepSeek，跑之前必须由主智能体问过用户（预计不到 0.1 元；命令会弹确认），只发脚本现造的虚构文件。改冒烟脚本自测用 `--fake-deepseek`，不用 `--yes`。
 
 ## 截图看页面
 
@@ -57,3 +67,8 @@ node scripts/ui-check/shot.mjs "#warehouse?kind=finished" "#orders" --user 虚�
 - 汇报时如实说明看了哪些页面、哪些步骤，哪些没看。
 - 用完关掉预览实例（停掉后台任务）。
 - 截图和临时脚本留在临时目录，不进仓库。
+- 清理固定副本：**不要直接递归删除副本**，会顺着 `node_modules` 联接把主项目的依赖删掉。按这个顺序（PowerShell）：
+  1. 关掉副本上的测试实例。
+  2. 只删联接本身：`(Get-Item <副本>\node_modules).Delete()`。
+  3. 确认主项目依赖还在：`Test-Path <项目>\node_modules\.bin` 返回 `True`。
+  4. 再删副本：`Remove-Item -Recurse -Force <副本>`。

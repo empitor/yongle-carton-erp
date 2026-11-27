@@ -1,6 +1,7 @@
 // 待补税率的收付核销和批量补税、税率来源、账期和分期、现结优惠（全部是虚构数据，只用内存库）
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ZodError } from 'zod';
 import { Store } from '../../server/core/index.js';
 import { FinanceParties } from '../../server/finance/parties/parties.js';
 import { FinanceEvents } from '../../server/finance/events/events.js';
@@ -16,6 +17,7 @@ import { FinanceSettlements } from '../../server/finance/cash/settlements.js';
 import { FinanceEventVouchers } from '../../server/finance/events/event-voucher.js';
 import { FinanceEventHandling } from '../../server/finance/events/event-handling.js';
 import { readSnapshot } from '../../server/finance/events/source-snapshot.js';
+import { evaluateSource } from '../../server/finance/events/event-evaluate.js';
 
 test('财务不卡业务：订单和供应商都没写税率时，送货、到货照常确认，收款照常核销到理论金额往来；只有正式报表和结账被拦，补完税率放行', async () => {
   const t = await flowFinance();
@@ -65,6 +67,94 @@ test('财务不卡业务：订单和供应商都没写税率时，送货、到�
     assert.equal(t.closingOk(), true);
   } finally {
     t.f.store.close();
+  }
+});
+
+test('原话里的“口径：…”（第 24 步记的认不出的旧口径，或人手写的）：口径没选就记资料待补，不退到往来单位的默认口径，明细的也不退到整单', async () => {
+  const t = await flowFinance();
+  try {
+    const { f } = t;
+    new FinanceParties(f.store).saveTerms(maker, {
+      kind: 'customer', partyId: f.customer.id, termDays: 0, taxRate: '13', taxMode: '含税', requestId: 'customer-tax',
+    });
+    const headNote = f.base.order(f.customer, [f.base.line(f.product, 100)], { deliveryDate: '2026-12-30', taxText: '口径：含税价' });
+    const lineNote = f.base.order(f.customer, [f.base.line(f.product, 100, { taxText: '口径：含税价' })], {
+      deliveryDate: '2026-12-30', taxRate: 13, taxMode: '未税',
+    });
+    // 数据管理、助手能把原话写成“口径：含税”“口径：不含税”：下拉没选，就不按原话自动定口径算钱
+    const written = (taxText: string) =>
+      f.base.order(f.customer, [f.base.line(f.product, 100)], { deliveryDate: '2026-12-30', taxRate: 13, taxText });
+    const cases = [
+      { sent: t.deliver('10', [headNote]), mode: '口径：含税价', taxSource: [{ mode: 'line', rate: 'party' }] },
+      { sent: t.deliver('10', [lineNote]), mode: '口径：含税价', taxSource: [{ mode: 'line', rate: 'line' }] },
+      { sent: t.deliver('10', [written('口径：含税')]), mode: '口径：含税', taxSource: [{ mode: 'line', rate: 'line' }] },
+      { sent: t.deliver('10', [written('口径：不含税')]), mode: '口径：不含税', taxSource: [{ mode: 'line', rate: 'line' }] },
+    ];
+    t.sync();
+    for (const { sent, mode, taxSource } of cases) {
+      assert.equal(f.flow.get(sent.id, 'delivery').lines[0].taxMode, mode, '送货快照照“口径：…”原样抄，财务认不出');
+      const e = t.current(sent.id);
+      assert.equal(e.status, 'info_pending', '口径认不出，不按往来默认或整单的口径算');
+      const snapshot = readSnapshot(e);
+      assert.deepEqual(snapshot.missing, ['tax']);
+      assert.deepEqual(snapshot.taxSource, taxSource);
+    }
+  } finally {
+    t.f.store.close();
+  }
+});
+
+test('往来单位默认税率照往来条款的存法认：默认 0.5（往来页单位是 %）含税、订单没写税率，送货补扫后可记账，按 0.5% 算', async () => {
+  const t = await flowFinance();
+  try {
+    const { f } = t;
+    new FinanceParties(f.store).saveTerms(maker, {
+      kind: 'customer', partyId: f.customer.id, termDays: 0, taxRate: '0.5', taxMode: '含税', requestId: 'customer-tax',
+    });
+    const sent = t.deliver('10', [f.order(100)]);
+    t.sync();
+    const e = t.current(sent.id);
+    assert.equal(e.status, 'ready');
+    const snapshot = readSnapshot(e);
+    assert.deepEqual(snapshot.taxSource, [{ mode: 'party', rate: 'party' }]);
+    assert.deepEqual(
+      [snapshot.money?.gross, snapshot.money?.net, snapshot.money?.tax],
+      [1000, 995, 5],
+      '含税 10 元按 0.5%：不含税 9.95 元、税额 0.05 元',
+    );
+  } finally {
+    t.f.store.close();
+  }
+});
+
+test('往来单位默认税率：往来条款收下的写法补扫都认（最多六位小数，0 到 1 之间不用带 %），不收的记待补税率；单据抄来的同样写法仍照订单认法', () => {
+  const s = new Store(':memory:');
+  try {
+    newSettings(s);
+    const parties = new FinanceParties(s);
+    const evaluate = (party: string | null, taxRate?: string) =>
+      evaluateSource(
+        s.db,
+        { kind: 'delivery', status: 'confirmed' },
+        { customerId: 1, lines: [{ unit: '只', quantity: '10', unitPriceExact: '10.0000', taxRate }] },
+        { policy: 'delivery', taxTerms: () => ({ tax_rate: party, tax_mode: '含税' }) },
+      );
+    let version: number | undefined;
+    for (const [i, rate] of ['0.5', '0.13', '13.125', '13.123456', '6%', '0', '100', ' 13 '].entries()) {
+      const saved = parties.saveTerms(maker, { kind: 'customer', partyId: 1, termDays: 0, taxRate: rate, version, requestId: 'terms-' + i });
+      version = saved.version;
+      assert.equal(evaluate(saved.tax_rate).status, 'ready', rate + '：往来条款收下了，补扫就认');
+    }
+    for (const [i, rate] of ['13.1234567', '100.5', '0013', '1.2.3', '13%%', 'abc'].entries()) {
+      const save = () => parties.saveTerms(maker, { kind: 'customer', partyId: 1, termDays: 0, taxRate: rate, version, requestId: 'bad-' + i });
+      assert.throws(save, ZodError, rate + '：往来条款不收');
+      const ev = evaluate(rate);
+      assert.deepEqual([ev.status, ev.missing], ['info_pending', ['tax']], rate + '：补扫也不认');
+    }
+    // 单据抄来的原话照订单认法：没带 % 的 0.5 有歧义、三位小数认不出，不拿往来默认顶上
+    for (const rate of ['0.5', '13.125']) assert.equal(evaluate('13', rate).status, 'info_pending', '单据原话 ' + rate);
+  } finally {
+    s.close();
   }
 });
 

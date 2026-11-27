@@ -7,7 +7,7 @@ import { isDateOrNull } from './checks.js';
 export const documentsTables = `
 -- 单据导出记录：一次导出一行，文件内容和交付状态都在这里。
 -- record_id 按 record_kind 指采购单或送货单，故意不加外键：单据删了，导出记录照旧留着。
--- bytes 过了保存期清成 NULL，行、摘要、模板快照都留着。
+-- bytes 过了保存期（文件留 180 天）清成 NULL，行、摘要、模板快照都留着。batch_number 唯一。
 CREATE TABLE document_exports(
   id TEXT PRIMARY KEY,
   digest TEXT NOT NULL,

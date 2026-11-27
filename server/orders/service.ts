@@ -1,14 +1,14 @@
 import { sales, assertNewProductAllowed, productIdentityChanged } from '../sales/index.js';
 import { z } from 'zod';
 import { customerSchema, productSchema, orderSchema, derivedOrderStatuses } from '../../shared/core/index.js';
-import type { Customer, Product, TrackedOrder } from '../../shared/core/index.js';
-import { Store, InputError, exists, notFound } from '../core/index.js';
+import type { Customer, Order, OrderInput, Product, TrackedOrder } from '../../shared/core/index.js';
+import { AppError, Store, InputError, exists, notFound } from '../core/index.js';
 import { validAssistantGrant } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
-import { FlowService, orderEditGuard } from '../flow/index.js';
+import { clearHistoricalDeliverySites, FlowService, orderEditGuard, pendingDeliveryNumbersBySite } from '../flow/index.js';
 import { syncFinishedStock } from '../operations/index.js';
-import { audit, inSavepoint, isSuperMode } from '../core/index.js';
+import { audit, inSavepoint, isRehearsing, isSuperMode } from '../core/index.js';
 import { TakenSnapshot } from '../lifecycle/index.js';
 import type { Actor } from '../core/index.js';
 import { trackOrders, trackedOrder } from './tracked-orders.js';
@@ -45,12 +45,7 @@ const confirmsDistinct = (input: unknown) =>
 
 /** 每类记录怎么存：按 entity 取，返回值跟着 entity 走 */
 const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] } = {
-  customers: (store, job) => {
-    const customer = customerSchema.parse(job.input);
-    return job.action === 'create'
-      ? sales(store).createCustomer(customer)
-      : sales(store).updateCustomer(customer, job.id, job.version, job.context.superAdminMode);
-  },
+  customers: saveCustomerCommand,
   products: (store, { action, input, id, version, context }) => {
     const product = productSchema.parse(input);
     // 新建前查重（三个入口同一套，server/sales/duplicate-records.ts）：已有同名、尺寸或材质不同的，
@@ -80,8 +75,20 @@ const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] 
   orders: saveOrderCommand,
 };
 
+function saveCustomerCommand(store: Store, job: SaveJob) {
+  const input = customerSchema.parse(job.input), records = sales(store);
+  if (job.action === 'create') return records.createCustomer(input);
+  const { id, version, context } = job;
+  return records.updateCustomer(input, id, version, context.superAdminMode, (removed) => {
+    const pending = pendingDeliveryNumbersBySite(store, removed);
+    if (pending.length) throw new AppError('这些厂区仍被待送货单使用，不能删除：' + pending.join('、'), 409);
+    if (!isRehearsing(store.db)) TakenSnapshot.take(store, 'customer-site-delete');
+    clearHistoricalDeliverySites(store, removed);
+  });
+}
+
 function saveOrderCommand(store: Store, { input: raw, id, version, context }: SaveJob): TrackedOrder {
-  // 生产中/待发货/已发货只由任务和送货单派生（AGENTS.md“订单状态”），谁都不能手工改成这些状态，
+  // 生产中/待发货/已发货只由任务和送货单派生（docs/业务规则.md“派生的状态要重算”），谁都不能手工改成这些状态，
   // 本机管理员也一样，否则会绕过实物流转
   {
     const next = orderSchema.parse(raw).status,
@@ -103,6 +110,7 @@ function saveOrderCommand(store: Store, { input: raw, id, version, context }: Sa
       input = orderSchema.parse(raw);
     return inSavepoint(store.db, () => {
       prepareOrderEdit(store, before, input.lines, actor, snapshot);
+      carryProducts(store, before, input, context, true);
       const current = sales(store).order(orderId, true) ?? notFound(ORDER_NOT_FOUND);
       const updated = sales(store).saveOrder(input, orderId, current.version, true);
       alignOrder(store, before, updated, actor);
@@ -112,7 +120,35 @@ function saveOrderCommand(store: Store, { input: raw, id, version, context }: Sa
       return savedOrder(store, orderId);
     });
   }
-  return saveOrderWithProgress(store, orderSchema.parse(raw), id, version, context.superAdminMode);
+  const input = orderSchema.parse(raw),
+    includeArchived = context.superAdminMode;
+  if (!id) return saveOrderWithProgress(store, input, id, version, includeArchived);
+  return inSavepoint(store.db, () => {
+    carryProducts(store, sales(store).order(id, includeArchived) ?? notFound(ORDER_NOT_FOUND), input, context, includeArchived);
+    return saveOrderWithProgress(store, input, id, version, includeArchived);
+  });
+}
+
+/**
+ * 订单换客户：只在这张订单里下过单的原客户产品，和订单在同一个保存点里改归新客户（规则 shared/core/product-details.ts 的
+ * productMovesWithOrder，改法 server/sales/products.ts 的 moveProductsWithOrder），每个产品记一条修改历史，写明是订单换客户带过去的。
+ * 编辑窗、数据管理、助手卡片、本机管理员连带都经 saveOrderCommand 走到这里；后面订单保存不成（版本、单据限制、别的行跨客户）整体回滚。
+ */
+function carryProducts(store: Store, before: Order, input: OrderInput, context: WriteContext, includeArchived?: boolean) {
+  const moved = sales(store).moveProductsWithOrder(before, input, includeArchived);
+  if (!context.actor) return;
+  for (const { before: from, after } of moved)
+    audit(store, context.actor, {
+      action: 'update',
+      entity: 'products',
+      id: after.id,
+      document: {
+        before: from,
+        after,
+        reason: '订单 ' + before.number + ' 换了客户，这个产品只在这张订单里下过单，所属客户跟着改',
+        trigger: { action: 'update', entity: 'orders', id: before.id, number: before.number },
+      },
+    });
 }
 
 export function createBusinessService(store: Store) {

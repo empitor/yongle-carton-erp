@@ -60,7 +60,7 @@ test('规则 1、3：没定客户的产品各家都能下单；选别家客户�
     assert.ok(sales(store).saveOrder(simpleOrder(a.id, [{ productId: pA.id }])));
     assert.ok(sales(store).saveOrder(simpleOrder(a.id, [{ productId: generic.id }])));
     assert.ok(sales(store).saveOrder(simpleOrder(b.id, [{ productId: generic.id }])));
-    assert.throws(() => sales(store).saveOrder(simpleOrder(b.id, [{ productId: pA.id }])), /这个产品是 虚构甲公司 的，要给 虚构乙公司 用请复制一份/);
+    assert.throws(() => sales(store).saveOrder(simpleOrder(b.id, [{ productId: pA.id }])), /这个产品是 虚构甲公司 的，要给 虚构乙公司 用请新建一份/);
     // 老订单先用未定客户产品，后来该产品定给甲客户：不动明细只改备注放行
     const legacy = base.product({ name: '历史未定箱' });
     const oldOrder = sales(store).saveOrder(simpleOrder(b.id, [{ productId: legacy.id }]));
@@ -70,17 +70,17 @@ test('规则 1、3：没定客户的产品各家都能下单；选别家客户�
     // 老订单新加甲产品行：拦下
     assert.throws(
       () => sales(store).saveOrder(simpleOrder(b.id, [{ id: edited.lines[0].id, productId: legacy.id }, { productId: pA.id }]), edited.id, edited.version),
-      /这个产品是 虚构甲公司 的，要给 虚构乙公司 用请复制一份/,
+      /这个产品是 虚构甲公司 的，要给 虚构乙公司 用请新建一份/,
     );
     // 换给乙自己产品允许；之后换客户保留乙产品、或把既有行直接换成甲产品均被拒
     const switched = sales(store).saveOrder(simpleOrder(b.id, [{ id: edited.lines[0].id, productId: pB.id }]), edited.id, edited.version);
     assert.throws(
       () => sales(store).saveOrder(simpleOrder(a.id, [{ id: switched.lines[0].id, productId: pB.id }]), switched.id, switched.version),
-      /这个产品是 虚构乙公司 的，要给 虚构甲公司 用请复制一份/,
+      /这个产品是 虚构乙公司 的，要给 虚构甲公司 用请新建一份/,
     );
     assert.throws(
       () => sales(store).saveOrder(simpleOrder(b.id, [{ id: switched.lines[0].id, productId: pA.id }]), switched.id, switched.version),
-      /这个产品是 虚构甲公司 的，要给 虚构乙公司 用请复制一份/,
+      /这个产品是 虚构甲公司 的，要给 虚构乙公司 用请新建一份/,
     );
   } finally {
     store.close();

@@ -1,3 +1,4 @@
+import { productFitsCustomer } from '../../shared/core/index';
 import { blocksNewProduct, productCandidateDetails } from '../../shared/import/index';
 import type { ImportMapping, ImportMatchData } from '../../shared/import/index';
 import { StatusChip, type Tone, loadingText } from '../ui/index';
@@ -153,7 +154,7 @@ function ProductSelect({
 function chosenProduct(choice: Choice | undefined, matches: ImportMatchData | null, customerId: number | null) {
   if (choice?.mode !== 'existing') return { product: undefined, unavailable: false, wrongCustomer: false };
   const product = matches?.products.find((p) => p.id === choice.id);
-  const wrongCustomer = Boolean(product && product.customerId != null && product.customerId !== customerId);
+  const wrongCustomer = Boolean(product && !productFitsCustomer(product, customerId));
   return { product, unavailable: !!matches && (!product || product.version !== choice.version), wrongCustomer };
 }
 

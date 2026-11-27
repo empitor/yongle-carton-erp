@@ -20,6 +20,7 @@ type Owner = { module: string; id: unknown };
 /** 记下改动的业务表 → 记到哪条记录上 */
 const tables: Record<string, (row: Row) => Owner | null> = {
   customers: (r) => ({ module: 'customers', id: r.id }),
+  customer_sites: (r) => ({ module: 'customers', id: r.customer_id }),
   suppliers: (r) => ({ module: 'suppliers', id: r.id }),
   products: (r) => ({ module: 'products', id: r.id }),
   stock_items: (r) => ({ module: 'stock_items', id: r.id }),

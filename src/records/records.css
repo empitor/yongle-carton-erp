@@ -105,6 +105,20 @@
   font-size: var(--text-sm);
 }
 
+/* 客户详情里的厂区：块和字段行是 recordkit/kit.css 的 kit-block（InfoBlocks），这里只写头部一行“名称 默认”和保留换行 */
+.rb-site-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3xs) var(--space-xs);
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.rb-sites dd {
+  white-space: pre-wrap;
+}
+
 /* 客户、产品详情里的相关订单：单号、交期、进度、状态排一行 */
 .sales-order-links {
   display: grid;

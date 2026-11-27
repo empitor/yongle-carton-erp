@@ -1,5 +1,14 @@
-import { fieldLabel, uppercaseAmount } from '../core/index.js';
+import { uppercaseAmount } from '../core/index.js';
 import { UNPRICED_TEXT } from '../business/index.js';
+import {
+  dateKeys,
+  documentFields,
+  numberKeys,
+  ownKeys,
+  termKeys,
+  wideKeys,
+} from './document-fields.js';
+import type { DocumentKind } from './document-templates.js';
 /** Word、Excel 和页面预览共用的单据版式规则。只重排字段位置，不改字段内容。 */
 type LayoutForm = {
   number: string;
@@ -8,22 +17,9 @@ type LayoutForm = {
   draft: boolean;
   sample?: boolean;
 };
-/** 单号、日期放右上角，我方资料放抬头下方，条款放明细之后，其余进客户/供应商信息格。 */
-/** 送货单抬头的日期：出库了印送货日期，待送货的印计划送货日期（栏目登记表的叫法） */
-export const deliveryDateLabels = {
-  shipped: fieldLabel('date', { record: 'delivery' }),
-  planned: fieldLabel('plannedDate', { record: 'delivery' }),
-};
-const numberKeys = ['采购单号', '送货单号'],
-  // 订货单是给供应商看的，日期照旧写“下单日期”
-  dateKeys = ['下单日期', deliveryDateLabels.shipped, deliveryDateLabels.planned],
-  ownKeys = ['我方联系人', '我方地址'],
-  // 交货安排、对应采购单是合并订货单才有的，内容长短不定，放在明细后面的条款区（高度跟着内容走）
-  termKeys = ['交货安排', '对应采购单', '交货要求', '验收要求', '付款条件', '税费说明'],
-  wideKeys = ['收货地址', '交货地址'];
 /** 把表单字段拆成抬头、信息格、条款三块，字段内容不变。 */
 export function splitFields(form: LayoutForm) {
-  const fields = form.fields.map(([k, v]) => [k, v || '未填写'] as [string, string]);
+  const fields = form.fields.map(([k, v]): [string, string] => [k, v || '未填写']);
   const number = fields.find(([k]) => numberKeys.includes(k))?.[1] || form.number,
     date = fields.find(([k]) => dateKeys.includes(k)),
     own = fields.filter(([k]) => ownKeys.includes(k)),
@@ -34,24 +30,24 @@ export function splitFields(form: LayoutForm) {
   return { number, date, own, terms, info };
 }
 type InfoItem = { k: string; v: string; slots: number };
-/**
- * 信息格的键就是模板“隐藏字段”里存的字（document_template_settings 里存着，不能改），和印出来的字不一样的
- * 在这里换成栏目登记表的叫法：送货单上的客户采购单号和明细列同一个叫法。
- */
-const printedNames: Readonly<Record<string, string>> = { 客户采购订单号: fieldLabel('externalPurchaseOrder') };
+const printedNames = new Map(documentFields.map((f) => [f.key, f.label]));
 /** 信息格（和模板设置里勾选隐藏的那一项）印出来的名字 */
-export const printedInfoName = (key: string) => (Object.hasOwn(printedNames, key) ? printedNames[key] : key);
+export const printedInfoName = (key: string) => printedNames.get(key) ?? key;
 /** 标准信息格由模板决定；缺少值仍保留位置，不随业务内容增减。 */
 export function templateInfoFields(
-  kind: 'purchase' | 'delivery',
+  kind: DocumentKind,
   hidden: readonly string[] = [],
   companyAddress = '',
 ): string[] {
-  const keys =
-    kind === 'purchase'
-      ? ['供应商', '供应商联系信息', '预计交货日期', ...(companyAddress ? ['交货地址'] : [])]
-      : ['客户', '收货地址', '客户联系信息', '关联销售订单', '客户采购订单号'];
-  return keys.filter((key) => !hidden.includes(key));
+  return documentFields
+    .filter(
+      (f) =>
+        f.zone === 'info' &&
+        f.kinds.includes(kind) &&
+        (!f.requiresCompanyAddress || Boolean(companyAddress)) &&
+        !hidden.includes(f.key),
+    )
+    .map((f) => f.key);
 }
 /** 合计独占整行，不依赖明细金额列的位置；数值仅取单据记录。 */
 export function totalLine(total: ReturnType<typeof totalParts>, last = true): string {

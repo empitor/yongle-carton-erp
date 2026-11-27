@@ -1,16 +1,16 @@
-import { deliverableOrder, safeUnits } from '../../core/index.js';
+import { defaultCustomerSite, deliverableOrder, safeUnits, type Customer, type CustomerSite } from '../../core/index.js';
 import { deliveryBlockers, planOrderDelivery, planStockDelivery, waitingCustomers, type OrderFacts } from './warehouse-delivery.js';
 
 /**
  * 安排送货的方案：页面“安排送货”窗口和助手 delivery.plan 都只用这一份。按怎么选的（可发货勾好的、选了成品、
- * 选了订单或客户）排出一个客户一张的送货单（带客户档案里的地址、联系人、电话），再说清几个客户在等同一种货的、
+ * 选了订单或客户）按客户排出初始送货单（预选默认厂区），再说清几个客户在等同一种货的、
  * 订单在等却对不上的、这次送不了的和原因。排法本身在 warehouse-delivery.ts。
  */
 
 /** 排送货用到的库存品：成品、可用量（扣掉待送货单占的，千分整数），列表行带“已归档” */
 type PlanStock = Parameters<typeof planStockDelivery>[0][number] & { kind: string; archived?: unknown };
 /** 预填收货信息用的客户档案 */
-type CustomerContact = { id: number; address?: string | null; contact?: string | null; phone?: string | null };
+type PlanCustomer = Pick<Customer, 'id' | 'sites'>;
 type PlanLine = ReturnType<typeof planStockDelivery>[number]['lines'][number];
 /** 可发货里勾好的：给哪个客户、哪几行多少 */
 export type PlanPreset = { customerId: number; lines: Omit<PlanLine, 'notes'>[] };
@@ -18,7 +18,7 @@ export type PlanPreset = { customerId: number; lines: Omit<PlanLine, 'notes'>[] 
 type PlanData<S extends PlanStock, O extends OrderFacts> = {
   items: S[];
   orders: O[];
-  customers: CustomerContact[];
+  customers: PlanCustomer[];
   pending: Map<number, number>;
 };
 /**
@@ -71,7 +71,7 @@ function idleReason(stock: PlanStock, orders: OrderFacts[]) {
 }
 
 /**
- * 算安排送货的方案。groups：一个客户一张送货单，带客户档案的地址、联系人、电话；contested：几个客户在等的成品
+ * 算安排送货的方案。groups：按客户带出默认厂区和可选厂区；contested：几个客户在等的成品
  * （已用 owners 指定了的也列着，好让人改）；blockers：订单在等却对不上的；idle：选的成品里送不了的和原因；
  * skipped、missing：选的订单里不能送的、缺货的明细。
  */
@@ -82,8 +82,8 @@ export function deliveryPlan<S extends PlanStock, O extends OrderFacts>(data: Pl
   const customers = new Map(data.customers.map((c) => [c.id, c]));
   return {
     groups: plan.groups.map((g) => {
-      const c = customers.get(g.customerId);
-      return { customerId: g.customerId, address: c?.address || '', contact: c?.contact || '', phone: c?.phone || '', lines: g.lines };
+      const sites = customers.get(g.customerId)?.sites ?? [];
+      return { ...g, sites, ...deliverySiteSnapshot(defaultCustomerSite(sites)) };
     }),
     missing: plan.missing,
     skipped: plan.skipped,
@@ -93,6 +93,17 @@ export function deliveryPlan<S extends PlanStock, O extends OrderFacts>(data: Pl
       .map((s) => ({ stock: s, customers: waitingCustomers(s, data.orders) }))
       .filter((x) => x.customers.length > 1),
     idle: stocks.map((s) => ({ stock: s, reason: idleReason(s, data.orders) })).filter((x) => x.reason),
+  };
+}
+
+/** 录入时预览、服务端保存时写入的收货信息。 */
+export function deliverySiteSnapshot(site: CustomerSite | undefined) {
+  return {
+    siteId: site?.id ?? null,
+    siteName: site?.name ?? '',
+    address: site?.address ?? '',
+    contact: site?.contact ?? '',
+    phone: site?.phone ?? '',
   };
 }
 

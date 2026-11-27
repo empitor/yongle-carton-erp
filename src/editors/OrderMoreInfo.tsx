@@ -1,4 +1,4 @@
-import { fieldLabel, roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
+import { fieldLabel, orderTaxModeHint, roundingPolicies, roundingPolicyLabels } from '../../shared/core/index';
 import { FormField, FormSection } from '../ui/index';
 import OrderCosts from './OrderCosts';
 import OrderTaxRateField from './OrderTaxRateField';
@@ -58,7 +58,7 @@ export default function OrderMoreInfo({
           />
         </FormField>
         <OrderTaxRateField tax={extras} change={(taxRate) => setExtras((v) => ({ ...v, taxRate }))} />
-        <FormField label={fieldLabel('taxMode')}>
+        <FormField label={fieldLabel('taxMode')} hint={orderTaxModeHint(extras.taxText, extras.taxMode)}>
           <TaxModeSelect
             label={fieldLabel('taxMode')}
             blank="未填写"

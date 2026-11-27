@@ -145,7 +145,7 @@ test('使用说明页的 Markdown 显示（src/ui/Markdown.tsx）：使用手册
   }
   assert.ok(tables > 0, '使用手册里的表格显示成表格');
   const sample = renderToStaticMarkup(
-    h(Markdown, { source: '### 小标题\n1. **第一步：** 点`保存`\n   - 子项\n2. 见[说明](部署与运维.md)和[订单](#orders)\n\n| 列 | 值 |\n|---|---|\n| 甲 | 乙 |' }),
+    h(Markdown, { source: '### 小标题\n1. **第一步：** 点`保存`\n   - 子项\n2. 见[说明](运维/部署.md)和[订单](#orders)\n\n| 列 | 值 |\n|---|---|\n| 甲 | 乙 |' }),
   );
   assert.equal(
     sample,

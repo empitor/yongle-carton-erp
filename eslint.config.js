@@ -80,7 +80,7 @@ export default [
     },
   },
   {
-    // 写死的数字（AGENTS.md“不把值写死”）：只查服务端和共用代码。0、1、2、100、1000、-1 和数组下标、默认值一眼就懂，放过；
+    // 写死的数字（docs/架构/写代码的规矩.md“不把值写死”）：只查服务端和共用代码。0、1、2、100、1000、-1 和数组下标、默认值一眼就懂，放过；
     // HTTP 状态码按位置放过（scripts/eslint-local-rules.mjs）。typescript-eslint 的版本另外放过枚举、字面量类型、只读属性、类型下标
     files: ['{server,shared}/**/*.{ts,mts}'],
     rules: {

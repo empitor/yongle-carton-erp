@@ -9,7 +9,7 @@ import { alignStock, detachPurchaseLines } from '../../server/flow/rules/mainten
 import { storedDocument } from '../../server/flow/documents/read.js';
 import { orderOf } from '../support/flow-fixture.js';
 import { fixture, splitDeliveryFixture } from '../support/maintenance-fixture.js';
-import { assertSnapshots, markSnapshots } from './snapshot-fixture.js';
+import { assertSnapshots, markSnapshots, snapshotFields } from './snapshot-fixture.js';
 
 test('改订单去掉一行：合送的送货单留下的那一行、只是少了订单的生产任务，快照都留着原来的', () => {
   const f = splitDeliveryFixture();
@@ -34,29 +34,36 @@ test('改订单去掉一行：合送的送货单留下的那一行、只是少�
   }
 });
 
-test('订单换客户：整张改客户的送货单客户名按新客户取，明细快照留着；和别的订单合送的拆出新单，两张的明细快照都留着', () => {
+test('订单换客户：整张改客户的已出库送货单只换客户名、清厂区编号，收货信息和明细快照留着；合送的拆出新单也一样；待送货单取新客户默认厂区', () => {
   const f = splitDeliveryFixture();
   try {
-    const other = f.base.customer({ name: '虚构新客户' });
+    const other = f.base.customer({ name: '虚构新客户', address: '虚构新厂区地址' });
     const alone = f.order([300]),
       own = f.ship([{ order: alone }]);
     const mixed = f.order([300]),
       kept = f.order([300]),
       shared = f.ship([{ order: mixed }, { order: kept }]);
-    markSnapshots(f.store, own.id);
-    markSnapshots(f.store, shared.id);
+    const later = f.order([300]),
+      waiting = f.pending([{ order: later }]);
+    for (const d of [own, shared, waiting]) markSnapshots(f.store, d.id);
     f.editOrder(alone.id, { customerId: other.id });
     f.editOrder(mixed.id, { customerId: other.id });
+    f.editOrder(later.id, { customerId: other.id });
     const moved = storedDocument(f.store, own.id, 'delivery');
     assertSnapshots(moved, { doc: ['customerName'] });
     assert.equal(moved.customerName, '虚构新客户');
+    assert.equal(moved.siteId, null);
     assertSnapshots(storedDocument(f.store, shared.id));
-    const split = f.deliveries().find((d) => d.id !== own.id && d.id !== shared.id && d.customerId === other.id);
+    const split = f.deliveries().find((d) => d.id !== own.id && d.id !== shared.id && d.id !== waiting.id && d.customerId === other.id);
     assert.ok(split, '拆出了新送货单');
     const created = storedDocument(f.store, split.id, 'delivery');
     assert.deepEqual(created.lines.map((l) => l.orderId), [mixed.id]);
     assertSnapshots(created, { doc: ['customerName'] });
     assert.equal(created.customerName, '虚构新客户');
+    assert.equal(created.siteId, null);
+    const pending = storedDocument(f.store, waiting.id, 'delivery');
+    assertSnapshots(pending, { doc: snapshotFields.delivery.doc?.keys });
+    assert.deepEqual([pending.siteId, pending.siteName, pending.address], [other.sites[0].id, other.sites[0].name, other.sites[0].address]);
   } finally {
     f.store.close();
   }

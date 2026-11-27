@@ -2,7 +2,8 @@
  * 页面地址一本册子（shared/core/pages.ts）：
  * 1) 全站代码（server/、shared/、src/）里 `#页面`、`#页面?参数`、未登记 `#slug`、模板或拼接出的页面地址只许出现在 shared/core/pages.ts，
  *    别处一律调 pageHref / flowDocHref / withPageQuery / withPageTab（跳过测试文件与文档）；
- * 2) 核对 pageHref、pageParams、withPageQuery、withPageTab、flowDocHref、isPageHref、pageIdOf、分组与短名的行为。
+ * 2) 地址参数只用 pageParams 读：别处不许手工读（hashParams、split('?')[1]、URLSearchParams(location.hash…)）；
+ * 3) 核对 pageHref、pageParams、withPageQuery、withPageTab、flowDocHref、isPageHref、pageIdOf、分组与短名的行为。
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -110,6 +111,124 @@ test('页面链接字面（#页面、#页面?参数、未登记 #slug 及拼接�
     .filter(isCode)
     .flatMap((file) => literalViolations(file));
   assert.deepEqual(found, []);
+});
+
+/** 按行拦的老写法：hashParams()、xxx.split('?')[1] */
+const manualParamRead = /\bhashParams\b|\.split\(\s*(['"`])\?\1\s*\)\s*\[\s*1\s*\]/;
+/** 对页面地址串做切分、查找，就是在手工读参数 */
+const stringCutters = new Set(['split', 'slice', 'substring', 'substr', 'indexOf', 'lastIndexOf', 'match', 'matchAll', 'search', 'replace', 'replaceAll']);
+/** 按字眼查参数（includes('assistant=1')）：参数里带 ?、=、& 才算，startsWith('#') 这种查页面的不算 */
+const wordCheckers = new Set(['includes', 'startsWith', 'endsWith']);
+const looksLikeParam = (node: ts.Node | undefined) => !!node && ts.isStringLiteralLike(node) && /[?=&]/.test(node.text);
+/** 只是换个写法、还是那串地址：decodeURIComponent(location.hash)、location.hash.trim() */
+const passThroughCalls = new Set(['decodeURIComponent', 'decodeURI', 'String']);
+const passThroughMethods = new Set(['trim', 'toLowerCase', 'toString']);
+/** 前端里装着页面地址的变量名（App 传下来的 routeKey，各处的 hash、routeHash）；服务端的 hash 多是摘要，不算 */
+const frontendHashNames = ['hash', 'routeKey', 'routeHash'];
+/** location.hash、window.location.hash、document.location.hash */
+const isLocationHash = (node: ts.Node) =>
+  ts.isPropertyAccessExpression(node) &&
+  node.name.text === 'hash' &&
+  ((ts.isIdentifier(node.expression) && node.expression.text === 'location') ||
+    (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'location'));
+
+/**
+ * 手工读地址参数：上面两种按行拦；语法树里再拦对页面地址（location.hash、从它取的变量、前端的 hash/routeKey/routeHash）
+ * 做切分、查找（解构 split('?')、slice、indexOf……），以及把页面地址交给 new URLSearchParams。读参数只用 pageParams。
+ */
+function manualReadViolations(file: string, text: string = readFileSync(file, 'utf8')): string[] {
+  if (file === PAGES_FILE) return [];
+  const lines = new Set<number>();
+  text.split(/\r?\n/).forEach((line, i) => manualParamRead.test(line) && lines.add(i + 1));
+  const names = file.startsWith('src/') ? frontendHashNames : [];
+  // 粗筛：没出现 location.hash 和这几个变量名就不解析语法树，保持快测
+  if (!new RegExp(['location\\.hash', ...names.map((n) => `\\b${n}\\b`)].join('|')).test(text)) return report(file, lines);
+  const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+  const aliases = new Set(names);
+  /** 这个表达式的值就是页面地址：拆开括号、||、??、条件表达式和只换写法的调用再看 */
+  const isHash = (node: ts.Node): boolean => {
+    if (isLocationHash(node) || (ts.isIdentifier(node) && aliases.has(node.text))) return true;
+    if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)) return isHash(node.expression);
+    if (ts.isConditionalExpression(node)) return isHash(node.whenTrue) || isHash(node.whenFalse);
+    if (ts.isBinaryExpression(node) && [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind))
+      return isHash(node.left) || isHash(node.right);
+    if (!ts.isCallExpression(node)) return false;
+    const callee = node.expression;
+    if (ts.isIdentifier(callee)) return passThroughCalls.has(callee.text) && node.arguments.some(isHash);
+    return ts.isPropertyAccessExpression(callee) && passThroughMethods.has(callee.name.text) && isHash(callee.expression);
+  };
+  // 放进 URLSearchParams 的东西里出现页面地址就算；整串交给别的函数（pageParams、hashLaunch……）的参数不看
+  const mentionsHash = (node: ts.Node): boolean => {
+    if (isHash(node)) return true;
+    if (!ts.isCallExpression(node)) return ts.forEachChild(node, mentionsHash) ?? false;
+    return ts.isPropertyAccessExpression(node.expression) && mentionsHash(node.expression.expression);
+  };
+  const lineOf = (node: ts.Node) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && isHash(node.initializer))
+      aliases.add(node.name.text);
+    const method = ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) ? node.expression : null;
+    const cut =
+      !!method &&
+      isHash(method.expression) &&
+      (stringCutters.has(method.name.text) ||
+        (wordCheckers.has(method.name.text) && ts.isCallExpression(node) && looksLikeParam(node.arguments[0])));
+    const parsed =
+      ts.isNewExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'URLSearchParams' &&
+      !!node.arguments?.some(mentionsHash);
+    if (cut || parsed) lines.add(lineOf(node));
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return report(file, lines);
+}
+const report = (file: string, lines: Set<number>) =>
+  [...lines].sort((a, b) => a - b).map((line) => `${file}:${line} 手工读地址参数：改用 shared/core/pages.ts 的 pageParams（这串不是页面地址的话，变量别叫 hash、routeKey、routeHash）`);
+
+test('地址参数只用 pageParams 读：server/、shared/、src/ 里不许再手工读（hashParams、split(\'?\')[1]、URLSearchParams(location.hash)）', () => {
+  const code = ['server', 'shared', 'src'].flatMap((dir) => files(dir)).filter(isCode);
+  assert.ok(code.length > 0, '一个代码文件都没扫到，检查失效');
+  assert.deepEqual(code.flatMap((file) => manualReadViolations(file)), []);
+});
+
+test('手工读地址参数检查回归样例：各种手工读法都拦下，取路径（split(\'?\')[0]）不误报', () => {
+  const sample = 'src/虚构样例.ts';
+  for (const code of [
+    "const id = hashParams().get('doc');",
+    "const p = new URLSearchParams(hash.split('?')[1] || '');",
+    'const p = new URLSearchParams(route.split("?")[1]);',
+    'const p = new URLSearchParams(location.hash.split(`?`) [1]);',
+    'const p = new URLSearchParams(location.hash.slice(1));',
+    "const [base, query] = location.hash.split('?');",
+    "const [, query] = routeKey.split('?');",
+    'const p = new URLSearchParams(window.location.hash.slice(1));',
+    "const hash = location.hash; const p = new URLSearchParams(hash.slice(hash.indexOf('?')));",
+    "const current = window.location.hash;\nconst at = current.indexOf('?');",
+    // 复审2：按字眼查参数；先 || ''、?? '' 存一份再切；包一层 decodeURIComponent 再交给 URLSearchParams
+    "const fromAssistant = location.hash.includes('assistant=1');",
+    "const channels = location.hash.endsWith('tab=channels');",
+    "const h = window.location.hash || '';\nconst [, query] = h.split('?');",
+    "const h = (location.hash ?? '').trim();\nconst at = h.indexOf('?');",
+    "const h = ready ? location.hash : '';\nconst at = h.indexOf('?');",
+    'const p = new URLSearchParams(decodeURIComponent(location.hash).slice(1));',
+    'const p = new URLSearchParams(decodeURIComponent(location.hash));',
+  ])
+    assert.equal(manualReadViolations(sample, code).length, 1, code);
+  for (const code of [
+    "const path = url.split('?')[0];",
+    "const q = pageParams('orders', location.hash).q;",
+    // 拼请求地址（src/ui/call.ts）不是读页面地址
+    "const [base, fixed] = path.split('?');",
+    "if (pageIdOf(location.hash) === 'ai-import') location.hash = pageHref('ai-import');",
+    "const page = location.hash.startsWith('#') ? 1 : 0;",
+    "const orders = location.hash.startsWith('#orders');",
+    // 读好的参数再交给 URLSearchParams（src/flow/useFlowDesk.tsx）
+    'const p = new URLSearchParams(Object.entries(launch ?? hashLaunch(location.hash)).flatMap(pair));',
+  ])
+    assert.equal(manualReadViolations(sample, code).length, 0, code);
 });
 
 test('页面链接检查回归样例：手写链接、过期页面、模板与拼接都拦下，颜色、注释、Markdown 标题与数字格式不误报', () => {

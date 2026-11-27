@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FormMessage, useConfirm, notify, hashParams, stepper, useAction, col, type Col } from '../../ui/index';
+import { pageParams } from '../../../shared/core/index';
+import { FormMessage, useConfirm, notify, stepper, useAction, col, type Col } from '../../ui/index';
 import VoucherEditor from './VoucherEditor';
 import VoucherPanel, { VoucherStatus } from './VoucherPanel';
 import { PeriodInput, type HeadFn } from '../layout';
@@ -51,15 +52,12 @@ export default function VouchersTab({ head }: { head: HeadFn }) {
   const perms = useFinPerms();
   const [period, setPeriod] = usePeriod();
   const [status, setStatus] = useState('');
-  const [selected, setSelected] = useState<number | null>(() => {
-    const v = hashParams().get('voucher');
-    return v ? Number(v) : null;
-  });
+  const [selected, setSelected] = useState<number | null>(() => pageParams('finance-ledger', location.hash).voucher ?? null);
   // 详情里点“冲销的是”那张凭证：页面不换，地址里的 voucher 变了也要跟着打开
   useEffect(() => {
     const follow = () => {
-      const v = hashParams().get('voucher');
-      if (v) setSelected(Number(v));
+      const v = pageParams('finance-ledger', location.hash).voucher;
+      if (v) setSelected(v);
     };
     window.addEventListener('hashchange', follow);
     return () => window.removeEventListener('hashchange', follow);

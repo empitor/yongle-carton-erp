@@ -1,4 +1,4 @@
-// 叠在页面上的一层都登记了安卓 App 的返回键（docs/界面规范.md）：src 里渲染 role 为 dialog、alertdialog、menu 的元素
+// 叠在页面上的一层都登记了安卓 App 的返回键（docs/界面/总规矩.md“编辑窗和确认窗”）：src 里渲染 role 为 dialog、alertdialog、menu 的元素
 // 或 <dialog> 的组件文件，都要调 src/ui 的 useBackLayer；用 ManagementDialog、DetailPanel 这类已登记的公共件的不自己写 role，不算。
 // 两个口子：按文件判断（同一个文件里一层登记了、另一层没登记也算过）；只认字面量 role="…"（role={…} 算出来的、
 // 只写了 aria-modal 没写 role 的认不出）。现在没有这样的组件，新写弹层照字面量写 role。

@@ -230,6 +230,7 @@ function candidateFor(module: Module, patch: Record<string, unknown>, before: Mo
   if (module === 'purchases' && before && 'baseStatus' in before && !Object.hasOwn(patch, 'status')) candidate.status = before.baseStatus;
   // 明细原样交给订单结构核对：不是对象的行（null、文字）在那里被拒收，不在这里滤掉
   if (module === 'orders' && Array.isArray(candidate.lines)) candidate.lines = candidate.lines.map(withLegacyCents);
+  if (module === 'customers' && !Object.hasOwn(patch, 'sites')) delete candidate.sites;
   const stockKind = stockKindOf(module);
   if (stockKind) candidate.kind = stockKind;
   return candidate;

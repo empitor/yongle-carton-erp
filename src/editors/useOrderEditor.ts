@@ -1,8 +1,9 @@
 import { useRef, useState, type SubmitEvent, type SyntheticEvent } from 'react';
-import { costYuan, hasUnrecognizedTaxRate, today, type Customer, type Order, type OrderInput, type Product } from '../../shared/core/index';
-import { emit, useAction } from '../ui/index';
+import { costYuan, hasUnrecognizedTax, productFitsCustomer, today, type Customer, type Order, type OrderInput, type Product } from '../../shared/core/index';
+import { emit, useAction, useLoad } from '../ui/index';
 import { changeOrderStatus } from '../recordkit/record-api';
-import { saveOrder } from './editor-api';
+import { saveOrder, soleOrderProducts } from './editor-api';
+import { crossCustomerLine, customerChangeBlocked, keptLineProducts, movingNotice, pruneLinesForCustomer } from './order-customer-change';
 import {
   blankLine,
   fillProduct,
@@ -66,28 +67,6 @@ function uniquePresetCustomer(preset: OrderEditorProps['preset'], products: Prod
   return owners.size === 1 ? [...owners][0] : undefined;
 }
 
-/** 原订单在未换客户时保留的“明细编号 → 原产品编号”映射（仅用于老订单未动明细的兼容显示） */
-function originalLineProducts(value: Order | undefined, customerId: string) {
-  const map = new Map<number, number>();
-  if (!value || Number(customerId) !== value.customerId) return map;
-  for (const l of value.lines) map.set(l.id, l.productId);
-  return map;
-}
-
-/** 这一行当前选的产品对目标客户是否冲突（原订单未换客户时的未动明细除外） */
-function isCrossCustomerLine(
-  line: OrderLineDraft,
-  nextCustomerId: number | null,
-  products: Product[],
-  kept: ReadonlyMap<number, number>,
-) {
-  if (!nextCustomerId || !line.productId) return false;
-  const pid = Number(line.productId);
-  if (line.id != null && kept.get(line.id) === pid) return false;
-  const p = products.find((x) => x.id === pid);
-  return Boolean(p && p.customerId != null && p.customerId !== nextCustomerId);
-}
-
 /** 窗口里填的内容：表头、明细（行 key 只在页面里记哪一行展开了，不提交）、更多信息、预估成本 */
 function useOrderDraft({ value, preset, products }: OrderEditorProps) {
   const presetCustomer = !value ? uniquePresetCustomer(preset, products) : undefined;
@@ -99,10 +78,13 @@ function useOrderDraft({ value, preset, products }: OrderEditorProps) {
   const nextKey = useRef(0);
   const key = () => 'line-' + nextKey.current++;
   const [lines, setLines] = useState<OrderLineDraft[]>(() => initialLines(value, preset, products, key)),
-    [open, setOpen] = useState<string[]>(() => lines.filter((l) => hasUnrecognizedTaxRate(l.taxText, l.taxRate)).map((l) => l.key));
+    // 税率或含税口径没认出来（原话认不出、口径还没选）的明细自动展开，叫人对照原件填
+    [open, setOpen] = useState<string[]>(() =>
+      lines.filter((l) => hasUnrecognizedTax(l.taxText, l.taxRate, l.taxMode)).map((l) => l.key),
+    );
   // 税费、合同条件、金额结算、预估成本、供应方用得少，默认收进“更多信息”；
-  // 合计有不足一分的尾数要选结算方式、或里面有没填好的必填项时自动展开
-  const [moreOpen, setMoreOpen] = useState(() => hasUnrecognizedTaxRate(extras.taxText, extras.taxRate)),
+  // 税率或含税口径没认出来、合计有不足一分的尾数要选结算方式、或里面有没填好的必填项时自动展开
+  const [moreOpen, setMoreOpen] = useState(() => hasUnrecognizedTax(extras.taxText, extras.taxRate, extras.taxMode)),
     [costed, setCosted] = useState(value?.costs != null),
     [costs, setCosts] = useState<CostDraft>(() => initialCosts(value));
   return {
@@ -149,23 +131,34 @@ const mergeRecords = <T extends { id: number }>(base: T[], added: T[]) => [
   ...added,
 ];
 
-/** 切换客户时把属于别家客户的产品行清空，返回更新后的明细和提示文案 */
-function pruneLinesForCustomer(
-  rows: OrderLineDraft[],
-  nextCid: number | null,
-  products: Product[],
-  kept: ReadonlyMap<number, number>,
-) {
-  const cleared: number[] = [];
-  const nextRows = rows.map((l, i) => {
-    if (!isCrossCustomerLine(l, nextCid, products, kept)) return l;
-    cleared.push(i + 1);
-    return fillProduct(l, undefined, '');
-  });
-  const notice = cleared.length
-    ? `切换客户后已清空第 ${cleared.join('、')} 行（原产品属于其他客户），请重新选择产品。`
-    : '';
-  return { nextRows, notice };
+/**
+ * 换客户：编辑已有订单时读“订单明细只在这张订单里”的产品，跟着改归新客户的行不清空，属别家客户的行清空
+ * （留哪些行、提示怎么写在 order-customer-change.ts）。还在读、读失败都不能换客户（blocked 是原因和怎么办，
+ * waiting 是还在读，retry 重读）。
+ * notice：保存后会一起改归新客户的产品按现在的明细每次现算，后面接换客户时清空了哪几行（clearedNotice）。kept 是现在这家客户下留着原产品的行。
+ */
+function useCustomerChange(value: Order | undefined, d: Draft, customers: Customer[], products: Product[]) {
+  const sole = useLoad(value ? String(value.id) : null, (id) => soleOrderProducts(Number(id)));
+  const soleIds = new Set(sole.data?.productIds),
+    blocked = customerChangeBlocked(!!value, sole);
+  const [clearedNotice, setClearedNotice] = useState('');
+  const change = (nextId: string) => {
+    if (blocked) return;
+    d.setCustomerId(nextId);
+    const pruned = pruneLinesForCustomer(d.lines, nextId ? Number(nextId) : null, products, keptLineProducts(value, nextId, products, soleIds));
+    d.setLines(pruned.nextRows);
+    setClearedNotice(pruned.notice);
+  };
+  const current = customers.find((c) => String(c.id) === d.customerId);
+  return {
+    kept: keptLineProducts(value, d.customerId, products, soleIds),
+    notice: movingNotice(d.lines, value, current, products, soleIds) + clearedNotice,
+    setNotice: setClearedNotice,
+    change,
+    blocked,
+    waiting: !!value && sole.loading && !sole.error,
+    retry: sole.reload,
+  };
 }
 
 /** 订单编辑窗的状态和动作：填的内容、保存（保存并确认）、快速建档回填。数据怎么算在 order-draft.ts。 */
@@ -183,25 +176,17 @@ export function useOrderEditor(props: OrderEditorProps) {
     pending = status === '待确认',
     submitStatus = useRef<OrderInput['status']>(status);
   const save = useAction();
-  const [invalid, setInvalid] = useState(''),
-    [customerNotice, setCustomerNotice] = useState('');
-  const keptProducts = originalLineProducts(value, d.customerId);
+  const [invalid, setInvalid] = useState('');
+  const customer = useCustomerChange(value, d, availableCustomers, availableProducts),
+    { kept: keptProducts, notice: customerNotice, setNotice: setCustomerNotice } = customer;
   const changeCustomer = (nextId: string) => {
-    d.setCustomerId(nextId);
     setInvalid('');
-    const { nextRows, notice } = pruneLinesForCustomer(
-      d.lines,
-      nextId ? Number(nextId) : null,
-      availableProducts,
-      originalLineProducts(value, nextId),
-    );
-    d.setLines(nextRows);
-    setCustomerNotice(notice);
+    customer.change(nextId);
   };
   const submit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setInvalid('');
-    const bad = d.lines.findIndex((l) => isCrossCustomerLine(l, d.customerId ? Number(d.customerId) : null, availableProducts, keptProducts));
+    const bad = d.lines.findIndex((l) => crossCustomerLine(l, d.customerId ? Number(d.customerId) : null, availableProducts, keptProducts));
     if (bad >= 0) return setInvalid(`第 ${bad + 1} 行的产品属于其他客户，请重新选择当前客户的产品或通用产品。`);
     void save
       .run(async () => {
@@ -225,7 +210,8 @@ export function useOrderEditor(props: OrderEditorProps) {
   /** 快速新建客户、产品后选进当前订单（产品带出名称、料号、规格和参考单价，和下拉选产品一样） */
   const customerCreated = (record: Customer) => {
     setCreatedCustomers((v) => [...v.filter((x) => x.id !== record.id), record]);
-    changeCustomer(String(record.id));
+    setInvalid('');
+    customer.change(String(record.id));
     setQuickCreate(null);
     emit('erp-business-changed');
   };
@@ -233,7 +219,7 @@ export function useOrderEditor(props: OrderEditorProps) {
     setCreatedProducts((v) => [...v.filter((x) => x.id !== record.id), record]);
     const line = quickCreate?.line;
     const orderCustomerId = d.customerId ? Number(d.customerId) : null;
-    if (orderCustomerId != null && record.customerId != null && record.customerId !== orderCustomerId) {
+    if (orderCustomerId != null && !productFitsCustomer(record, orderCustomerId)) {
       setCustomerNotice(
         '新建的产品“' + record.name + '”属于其他客户，未填入当前订单明细；请选当前客户的产品或通用产品。',
       );
@@ -246,7 +232,7 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   return {
     ...d,
-    changeCustomer, keptProducts, customerNotice,
+    changeCustomer, keptProducts, customerNotice, customerBlocked: customer.blocked, customerWaiting: customer.waiting, retrySole: customer.retry,
     availableCustomers, availableProducts, quickCreate, setQuickCreate, customerCreated, productCreated,
     status, pending, submitStatus, chooseProduct, submit,
     onInvalid: invalidHandler(d, setInvalid),

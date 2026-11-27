@@ -57,6 +57,11 @@ export function recordsRouter(store: Store, auth?: RequestAuth) {
     return orderList(store, fields, includeArchived);
   });
   on('GET /orders/:id', ({ param, req }) => trackedOrder(store, recordId(param('id')), elevated(req)) ?? notFound(ORDER_NOT_FOUND));
+  // 和读这张订单同一个范围（已归档的要超级管理员模式）
+  on('GET /orders/:id/sole-products', ({ param, req }) => {
+    const order = sales(store).order(recordId(param('id')), elevated(req)) ?? notFound(ORDER_NOT_FOUND);
+    return { productIds: sales(store).soleProductIds(order) };
+  });
   on('POST /orders', ({ body, req }) => manualWrite(store, { entity: 'orders', action: 'create', input: body }, editor(req)), created);
   on('PUT /orders/:id', ({ param, body, req }) => {
     assertOrderStatusKept(store, recordId(param('id')), body, elevated(req));

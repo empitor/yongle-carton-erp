@@ -6,7 +6,7 @@
 import type { Actor } from '../../core/index.js';
 import { historyRefs } from '../../overview/index.js';
 import { arrivalSchema, cardChanges, cardContents, deliverySchema, productionSchema, purchaseSchema, stockItemSchema, supplierSchema, taskSchema } from '../../../shared/business/index.js';
-import { customerSchema, isRecord, orderSchema, productSchema } from '../../../shared/core/index.js';
+import { customerSchema, customerSiteInputSchema, isRecord, orderSchema, productSchema } from '../../../shared/core/index.js';
 import { planModule, type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
 import { refuseAsync, rehearseChanges, type Touched } from './card-rehearsal.js';
@@ -22,7 +22,7 @@ type Other = Touched & { before: Obj | undefined; after: Obj | undefined };
 
 /** 这个模块人能改的字段（卡片上一个都不能漏）：它的参数结构里的字段；明细（lines）和完工单的领料（materials）另列 */
 const editableShapes: Record<string, { top: object; lines: object[] }> = {
-  customers: { top: customerSchema.shape, lines: [] },
+  customers: { top: customerSchema.shape, lines: [customerSiteInputSchema.shape] },
   suppliers: { top: supplierSchema.shape, lines: [] },
   products: { top: productSchema.shape, lines: [] },
   orders: { top: orderSchema.shape, lines: [orderSchema.shape.lines.element.shape] },
@@ -184,8 +184,16 @@ function createdLines(ctx: ToolContext, module: string, after: Obj, prefix: stri
   const { number: _number, ...row } = after;
   return [{ label: '新建', value: newTitle(ctx, module, after) }, ...cardContents(module, row, historyRefs(ctx.store, [{ after: row }]))];
 }
+/** 历史送货单仅解除了厂区编号引用、收货厂区名称与其余内容都未变（不算需要提醒用户的连带改动） */
+const detachedSiteOnly = (module: string, before: Obj, after: Obj) =>
+  module === 'delivery' &&
+  before.siteId != null &&
+  after.siteId == null &&
+  before.siteName === after.siteName &&
+  stable({ ...before, siteId: null }) === stable(after);
 /** 连带改了的记录：逐个字段列前后 */
 function changedLines(ctx: ToolContext, module: string, before: Obj, after: Obj): Line[] {
+  if (detachedSiteOnly(module, before, after)) return [];
   const items = cardChanges(module, before, after, historyRefs(ctx.store, [{ before, after }]), editableFields(module));
   const out = items.map((item) => ({ label: '连带：' + recordTitle(module, before) + ' ' + item.label, value: item.value }));
   // 兜底：改了、但修改历史那套写法列不出来的（派生的进度、合计这类），也要说一声动了哪条

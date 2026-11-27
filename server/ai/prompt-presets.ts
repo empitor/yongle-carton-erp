@@ -40,9 +40,11 @@ const promptDatabase = {
   steps: [],
   pragmas: 'PRAGMA synchronous=FULL',
   create(db: DatabaseSync) {
-    db.exec(
-      'CREATE TABLE prompt_settings(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, document TEXT NOT NULL)',
-    );
+    db.exec(`-- 每个提示词模块一个文件（文件名是 shared/ai/prompt-modules.ts 里各模块的 storageFile）。
+      -- 默认文字变了不用升版本，没改过的默认打开时自动换新
+
+      -- 一行 JSON（每个文件各一张）
+      CREATE TABLE prompt_settings(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, document TEXT NOT NULL)`);
   },
 };
 // 每个提示词模块的默认文件都登记进配置库登记表：恢复备份的维护命令行不打开提示词库，

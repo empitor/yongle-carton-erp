@@ -79,8 +79,8 @@ export const accountDatabase: VersionedSqliteSpec = {
   steps: [],
   scrubBackup: clearSessions,
   create(db) {
-    // account_requests：申请账号和忘记密码。处理后立即删除，结果记在 auth_events。
-    db.exec(`CREATE TABLE users(
+    db.exec(`-- 账号、角色、权限、临时密码到期（角色和申请种类在 shared/core/accounts.ts）
+      CREATE TABLE users(
         id TEXT PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
         salt TEXT NOT NULL,
@@ -90,7 +90,9 @@ export const accountDatabase: VersionedSqliteSpec = {
         disabled_at TEXT,
         must_change_password INTEGER NOT NULL DEFAULT 0,
         temp_password_expires INTEGER);
+      -- 账号和登录记录，登录类留 90 天；助手排查工具读它
       CREATE TABLE auth_events(id INTEGER PRIMARY KEY,at TEXT NOT NULL,actor_id TEXT,action TEXT NOT NULL);
+      -- 待处理的账号申请（申请账号和忘记密码），密码只存哈希；处理后立即删除，结果记在 auth_events；没处理的 14 天清掉
       CREATE TABLE account_requests(
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL CHECK(kind IN ('register','reset')),
@@ -101,6 +103,7 @@ export const accountDatabase: VersionedSqliteSpec = {
         client TEXT NOT NULL,
         created_at INTEGER NOT NULL);
       CREATE UNIQUE INDEX account_requests_reset ON account_requests(name) WHERE kind='reset';
+      -- 部署模式的登录会话，只存令牌哈希（本机模式不用，表照样建）。表名和“删光就是清空会话”的做法不许改，补丁回滚靠它
       CREATE TABLE auth_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
       CREATE INDEX auth_sessions_user ON auth_sessions(user_id);
       CREATE INDEX auth_sessions_expires ON auth_sessions(expires);`);

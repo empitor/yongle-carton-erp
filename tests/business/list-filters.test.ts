@@ -82,28 +82,31 @@ function fixture() {
 }
 
 test('流水默认两自然月，支持月末/闰年、全部日期和自定义，旧流水不是自动归档', () => {
-  assert.deepEqual(initialMovementRange(new URLSearchParams(), '2026-10-25'), {
+  assert.deepEqual(initialMovementRange({}, '2026-10-25'), {
     preset: '2',
     start: '2026-08-25',
     end: '2026-10-25',
   });
   assert.equal(
-    initialMovementRange(new URLSearchParams('range=1'), '2024-03-31').start,
+    initialMovementRange({ range: '1' }, '2024-03-31').start,
     '2024-02-29',
   );
   assert.equal(
-    initialMovementRange(new URLSearchParams('range=3'), '2026-01-31').start,
+    initialMovementRange({ range: '3' }, '2026-01-31').start,
     '2025-10-31',
   );
-  assert.deepEqual(initialMovementRange(new URLSearchParams('range=all'), '2026-10-25'), {
+  assert.deepEqual(initialMovementRange({ range: 'all' }, '2026-10-25'), {
     preset: 'all',
     start: '',
     end: '',
   });
   assert.deepEqual(
-    initialMovementRange(new URLSearchParams('range=custom&start=2026-07-01&end=2026-07-31')),
+    initialMovementRange({ range: 'custom', start: '2026-07-01', end: '2026-07-31' }),
     { preset: 'custom', start: '2026-07-01', end: '2026-07-31' },
   );
+  // 自定义只给了一头：另一头不限
+  assert.deepEqual(initialMovementRange({ range: 'custom', start: '2026-07-01' }), { preset: 'custom', start: '2026-07-01', end: '' });
+  assert.deepEqual(initialMovementRange({ range: 'custom', end: '2026-07-31' }), { preset: 'custom', start: '', end: '2026-07-31' });
   assert.equal(movementFilterSchema.safeParse({ start: '2026-02-30' }).success, false);
   assert.equal(
     movementFilterSchema.safeParse({ start: '2026-03-01', end: '2026-02-01' }).success,

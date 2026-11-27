@@ -1,8 +1,10 @@
 // 业务库升级：待做的步骤在一个事务里执行、失败整体回滚、升级前快照、重建自增表编号不回头、步骤编号连续。
-// 升级步骤都是虚构的：在第 20 版的库上从第 21 版编起（schema-fixture.ts），和程序真有几步无关。
+// 升级步骤都是虚构的：在第 20 版的库上从第 21 版编起（schema-fixture.ts），和程序真有几步无关；
+// 只有末尾一条用真的步骤：0.9.5 样子的待送货单，用程序打开升级、再打开、打开不改再保存。
 import { sales } from '../../server/sales/index.js';
+import { FlowService } from '../../server/flow/index.js';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -20,6 +22,7 @@ import {
   type UpgradeStep,
 } from '../../server/core/schema/index.js';
 import { baselineDatabase, counters, failing, fictionalBuild, fictionalSteps, one, quiet, rowsOf, sha256, versions, workspace } from '../support/schema-fixture.js';
+import { actor } from '../support/actor-fixture.js';
 
 test('升级成功：待做的步骤在一个事务里按顺序执行，版本记录带名字和程序版本，数据保留，外键检查恢复打开', () => {
   const w = workspace('erp-schema-upgrade-');
@@ -323,4 +326,81 @@ test('升级步骤从第 21 版起连续，当前版本等于基线加步骤数'
     assert.ok(step.name.trim(), `第 ${step.version} 版的步骤要有名字`);
   });
   assert.equal(SCHEMA_LATEST, SCHEMA_BASELINE + upgradeSteps.length);
+});
+
+const madeAt = '2026-10-01T00:00:00.000Z';
+/** 0.9.5 的待送货单：客户、地址、联系人、联系方式是当时手填的（0.9.5 存的时候都去了首尾空白） */
+const oldDrafts = [
+  [1, '临时仓库（手填）', '王五', '13900000000'],
+  [1, '虚构甲路1号', '张三', '13800000001'],
+  [2, '乙手填地址', '钱七', '13700000000'],
+  [2, '乙另一地址', '孙八', ''],
+] as const;
+/** 第 24 版文件库，内容是 0.9.5 存的样子：甲有档案联系方式、乙没有，各一张已确认订单，加上面 4 张没挂厂区的待送货单 */
+function v24WithOldDrafts(path: string) {
+  const db = new DatabaseSync(path);
+  const insert = (table: string, row: Record<string, string | number | null>) =>
+    db.prepare(`INSERT INTO ${table}(${Object.keys(row).join(',')}) VALUES(${Object.keys(row).map(() => '?').join(',')})`).run(...Object.values(row));
+  try {
+    db.exec(readFileSync('tests/fixtures/schema-v20.sql', 'utf8'));
+    upgradeSchema(db, { appVersion: 'test-9.9.9', steps: upgradeSteps.filter((s) => s.version < 25) });
+    const stock = { specification: '', length: null, width: null, height: null, dimensionUnit: null, material: '', flute: '', notes: '' };
+    insert('products', { id: 1, name: '虚构外箱', created_at: madeAt, updated_at: madeAt });
+    insert('stock_items', { id: 1, name: '虚构外箱', kind: 'finished', unit: '只', product_id: 1, created_at: madeAt, updated_at: madeAt, document: JSON.stringify(stock) });
+    for (const [id, name, contact, phone, address] of [[1, '虚构甲', '张三', '13800000001', '虚构甲路1号'], [2, '虚构乙', '', '', '']] as const) {
+      insert('customers', { id, name, contact, phone, address, notes: '', created_at: madeAt, updated_at: madeAt });
+      insert('orders', { id, number: 'ZX-20261001-000' + id, customer_id: id, customer_name: name, order_date: '2026-10-01', delivery_date: '2026-10-30', status: '已确认', total_cents: 0, created_at: madeAt, updated_at: madeAt, notes: '' });
+      insert('order_lines', { id, order_id: id, product_id: 1, quantity: 100, unit_price_e4: 0, product_name: '虚构外箱', specification: '' });
+    }
+    oldDrafts.forEach(([customerId, address, contact, phone], i) => {
+      const line = { orderId: customerId, orderLineId: customerId, stockId: 1, quantity: '10', notes: '' };
+      const document = { date: '2026-10-05', notes: '', plannedDate: '2026-10-05', customerId, address, contact, phone, allowOverdelivery: false, overdeliveryReason: '', lines: [line] };
+      insert('flow_documents', { id: i + 1, kind: 'delivery', number: 'SH-20261005-0000' + (i + 1), date: '2026-10-05', status: 'draft', planned_date: '2026-10-05', actor_id: 'fict-user', actor_name: '虚构制单员', created_at: madeAt, updated_at: madeAt, document: JSON.stringify(document) });
+    });
+  } finally {
+    db.close();
+  }
+}
+
+test('真的第 25 步：0.9.5 样子的待送货单升级后挂上厂区，再打开不重复升级，打开不改再保存收货信息逐字不变', () => {
+  const w = workspace('erp-schema-v25-drafts-');
+  try {
+    v24WithOldDrafts(w.path);
+    const docs = (db: DatabaseSync) => db.prepare('SELECT id,version,updated_at,document FROM flow_documents ORDER BY id').all().map((r) => ({ ...r }));
+    const old = new DatabaseSync(w.path, { readOnly: true }), before = docs(old);
+    old.close();
+    let store = new Store(w.path);
+    const upgraded = { docs: docs(store.db), sites: rowsOf(store.db, 'customer_sites'), versions: versions(store.db) };
+    // 升级只往单据内容末尾加 siteId、siteName：版本号、更新时间不变，去掉这两项和原文逐字一样
+    for (const [i, d] of upgraded.docs.entries()) {
+      const stripped = store.db.prepare("SELECT json_remove(?,'$.siteId','$.siteName') AS v").get(d.document)?.v;
+      assert.deepEqual({ ...d, document: stripped }, before[i]);
+    }
+    store.close();
+    store = new Store(w.path);
+    try {
+      assert.deepEqual({ docs: docs(store.db), sites: rowsOf(store.db, 'customer_sites'), versions: versions(store.db) }, upgraded, '再打开一行不变');
+      assert.equal(readdirSync(join(w.dir, 'snapshots')).length, 1, '再打开不再拍升级前快照');
+      const flow = new FlowService(store);
+      const sites = [[2, '送货单 SH-20261005-00001 的地址'], [1, '默认厂区'], [3, '默认厂区'], [4, '送货单 SH-20261005-00004 的地址']];
+      oldDrafts.forEach(([, address, contact, phone], i) => {
+        const id = i + 1, [siteId, siteName] = sites[i], view = flow.get(id, 'delivery');
+        const shown = (v: typeof view) => ({ siteId: v.siteId, siteName: v.siteName, address: v.address, contact: v.contact, phone: v.phone });
+        assert.deepEqual(shown(view), { siteId, siteName, address, contact, phone }, '升级后 ' + view.number);
+        // 编辑窗什么都不改点保存：按单上的厂区交回去
+        const input = {
+          date: view.date, plannedDate: view.plannedDate, customerId: view.customerId, siteId: view.siteId, notes: view.notes,
+          lines: view.lines.map((l) => ({ orderId: l.orderId, orderLineId: l.orderLineId, stockId: l.stockId, quantity: l.quantity, notes: l.notes })),
+          version: view.version,
+        };
+        const saved = flow.save('delivery', input, actor, id);
+        assert.deepEqual(shown(saved), { siteId, siteName, address, contact, phone }, '再保存后 ' + view.number);
+        assert.equal(saved.version, 2);
+      });
+    } finally {
+      store.close();
+    }
+  } finally {
+    w.close();
+  }
 });

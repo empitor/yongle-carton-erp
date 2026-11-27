@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { initialMovementRange, matchesMovement, movementLabels, movementTypes, type MovementSummary, type MovementView, type StockItemView } from '../../shared/business/index';
-import { presetRange, type DatePreset, stockKinds } from '../../shared/core/index';
-import { PageHeading, useResettingPage, DateFilter, hashParams, LIST_PAGE_SIZE, ListToolbar, FilterRow } from '../ui/index';
+import { pageParams, presetRange, type DatePreset, stockKinds } from '../../shared/core/index';
+import { PageHeading, useResettingPage, DateFilter, LIST_PAGE_SIZE, ListToolbar, FilterRow } from '../ui/index';
 import MovementRecords from '../warehouse/MovementRecords';
 import { loadMovements, loadStockItems } from './list-api';
 import { recordRange } from './page-state';
-import { cleanDateParams } from './record-filters';
+import { routeDates, type RouteDates } from './record-filters';
 import { useRecordData, useRecordPage } from './useRecordPage';
 import RecordPageBody from './RecordPageBody';
 
@@ -30,15 +30,13 @@ const emptyMovements: MovementData = {
 type FlowItem = { id: number; name: string };
 
 /**
- * 进页面时的日期：地址带了认得的范围按它（写坏的日期当作没写，见 cleanDateParams）；
+ * 进页面时的日期：地址带了认得的范围按它（写坏的日期当作没写，见 routeDates）；
  * 从库存品详情“查看全部”过来的只看这一项、不限日期；其余默认最近两个月（initialMovementRange）。
  */
-function initialDates(params: URLSearchParams, oneItem: boolean): { preset: DatePreset; start: string; end: string } {
-  return oneItem ? { preset: 'all', ...presetRange('all') } : initialMovementRange(params);
+function initialDates(route: RouteDates, oneItem: boolean): { preset: DatePreset; start: string; end: string } {
+  return oneItem ? { preset: 'all', ...presetRange('all') } : initialMovementRange(route);
 }
 
-/** 地址里的仓库（kind=raw / finished），别的当作全部仓库 */
-const warehouseParam = (params: URLSearchParams) => stockKinds.find((k) => k === params.get('kind')) ?? '';
 /** 只看某一个库存品时显示的名称：带过来的、库存品清单里的、流水里的，都没有就说“选中的库存品” */
 const itemName = (item: FlowItem, items: readonly StockItemView[], movements: readonly MovementView[]) =>
   item.name || items.find((i) => i.id === item.id)?.name || movements[0]?.itemName || '选中的库存品';
@@ -130,19 +128,21 @@ function MovementFilters(o: {
  */
 export default function MovementsPage() {
   const p = useRecordPage();
-  const params = cleanDateParams(hashParams());
+  const route = pageParams('warehouse', location.hash),
+    linkedDates = routeDates(route);
   // 从库存品详情“查看全部”过来的流水：看这一项的全部日期
-  const oneItem = Number(params.get('item')) > 0 && !params.get('range');
-  const [dates, setDates] = useState(() => initialDates(params, oneItem)),
+  const oneItem = !!route.item && !linkedDates.range;
+  const [dates, setDates] = useState(() => initialDates(linkedDates, oneItem)),
     // 读库存品只为了显示选中的那一个的名称：原材料或成品（地址里带的），和库存页一样
-    [kind] = useState(params.get('kind') === 'finished' ? 'finished' : 'raw'),
-    [flowKind, setFlowKind] = useState<string>(warehouseParam(params)),
+    [kind] = useState(route.kind === 'finished' ? 'finished' : 'raw'),
+    // 地址里的仓库（kind=raw / finished），别的当作全部仓库
+    [flowKind, setFlowKind] = useState<string>(route.kind ?? ''),
     [flowAction, setFlowAction] = useState(''),
     [summaryPage, setSummaryPage] = useState(1),
     [movementView, setMovementView] = useState<'details' | 'summary'>('details'),
     // 从库存品详情“最近流水 · 查看全部”过来的：只看这一个库存品
     [flowItem, setFlowItem] = useState<FlowItem | null>(() =>
-      Number(params.get('item')) > 0 ? { id: Number(params.get('item')), name: '' } : null,
+      route.item ? { id: route.item, name: '' } : null,
     );
   const { start, end } = dates;
   const [movementPage, setMovementPage] = useResettingPage(

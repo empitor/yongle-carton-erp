@@ -136,12 +136,15 @@ test('送货单上的金额按两位小数写', (t) => {
   assert.equal(form.lineData?.[0].amount, '600.00');
 });
 
-test('送货单没填收货地址、联系人、电话：导出印“未记录”，不拿客户档案的顶上', (t) => {
+test('送货单导出使用保存时的收货厂区快照', (t) => {
   const f = deliverySetup(t);
   const { customerId } = f.flow.get(f.delivery.id, 'delivery');
   const customer = sales(f.store).customer(customerId) ?? assert.fail('有客户');
   sales(f.store).updateCustomer(
-    customerSchema.parse({ ...customer, address: '虚构客户档案地址', contact: '虚构档案联系人', phone: '000-档案' }),
+    customerSchema.parse({
+      ...customer, address: '虚构客户档案地址',
+      sites: [{ name: '虚构收货厂区', address: '虚构收货地址', contact: '虚构收货人', phone: '000-111' }],
+    }),
     customerId,
     customer.version,
   );
@@ -150,7 +153,7 @@ test('送货单没填收货地址、联系人、电话：导出印“未记录�
     return ['收货地址', '客户联系信息'].map((name) => fields.find(([label]) => label === name)?.[1]);
   };
   assert.deepEqual(printed(f.delivery.id), ['未记录', '未记录']);
-  const filled = f.arrange('2026-11-11', '10', { address: '虚构收货地址', contact: '虚构收货人', phone: '000-111' });
+  const filled = f.arrange('2026-11-11', '10');
   assert.deepEqual(printed(filled.id), ['虚构收货地址', '虚构收货人 · 000-111']);
 });
 

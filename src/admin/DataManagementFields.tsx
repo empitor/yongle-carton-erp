@@ -1,9 +1,10 @@
 import { createContext, useContext } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { dataManagementFieldName } from '../../shared/business/index';
-import { FINISHED_UNIT, MAX_TAX_PERCENT, RAW_UNIT, TAX_PERCENT_STEP, type ApiJson } from '../../shared/core/index';
+import { blankCustomerSite, FINISHED_UNIT, MAX_TAX_PERCENT, RAW_UNIT, TAX_PERCENT_STEP, type ApiJson } from '../../shared/core/index';
 import { FormField } from '../ui/index';
 import RefField from './RefField';
+import { withField } from './field-update';
 import type { RecordRefs } from './record-refs';
 import {
   isJsonList,
@@ -84,12 +85,13 @@ function FieldValue({ value, change, path, module }: Where & { value: ApiJson | 
 /** 明细数组：每项一张卡片（可移除），最后一个“增加明细”；编号清单（生产任务的关联订单）每项一个选择器 */
 function FieldList({ value, change, path, module }: Where & { value: readonly ApiJson[]; change: (v: ApiJson) => void }) {
   const outer = useContext(EditorContext);
-  const primitive = !value.some((x) => x && typeof x === 'object');
+  const primitive = path !== 'sites' && !value.some((x) => x && typeof x === 'object');
   const replace = (i: number, next: ApiJson) => change(value.map((x, j) => (j === i ? next : x)));
   // 明细照第一项的样子加一项（不带它的编号）；编号清单（生产任务的关联订单）加一项留空让人选，不拿 0 冒充编号
   const add = () => {
     const first = value[0];
-    change([...value, isJsonObject(first) ? { ...structuredClone(first), id: undefined } : null]);
+    const item = path === 'sites' ? blankCustomerSite() : isJsonObject(first) ? { ...structuredClone(first), id: undefined } : null;
+    change([...value, item]);
   };
   return (
     <div className="adm-data-array">
@@ -155,7 +157,7 @@ function FieldCell({ field: key, v, value, change, path, module }: CellProps) {
   const outer = useContext(EditorContext);
   const ctx = { ...outer, module: module || outer.module };
   const title = dataManagementFieldName(key, path, ctx.module),
-    update = (x: ApiJson) => change({ ...value, [key]: x });
+    update = (x: ApiJson) => change(withField(value, key, x, module));
   if (isJsonObject(v) || isJsonList(v))
     return (
       <div className="form-field span-full adm-data-group" role="group" aria-label={title}>

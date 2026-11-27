@@ -1,25 +1,22 @@
 // 文档里“见 某文档‘某一节’”的指路要对得上：[文字](路径.md)“小节”、`路径.md`“小节”、AGENTS.md“小节”、
-// 光写名字的 架构说明“小节”（docs/ 根目录下的各份），指到的那份文档里要真有这个标题或加粗小标题。
+// 光写名字的 业务规则“小节”（docs/ 根目录下的各份），指到的那份文档里要真有这个标题或加粗小标题。
 // 文档拆分、改标题以后指路最容易过期，doc-paths 只查路径不查小节，所以另查。连写的“甲”“乙”、“甲”的“乙”都要在那份里。
-// 查 docs/（含子目录）、AGENTS.md、.claude/子智能体须知.md。
+// 查 docs/（含子目录）、AGENTS.md、技能（.claude/skills/<名字>/SKILL.md）和子智能体定义（.claude/agents/*.md）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { posix } from 'node:path';
+import { docFiles, markdown } from './doc-files.js';
 
 /** 指的不是标题、加粗小标题的指路：哪份文档里、指的哪份的哪个名字、为什么。改了、不提了就删掉 */
 const notSections: { doc: string; target: string; name: string; why: string }[] = [];
 
-const markdown = (dir: string): string[] =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? markdown(dir + '/' + e.name) : e.name.endsWith('.md') ? [dir + '/' + e.name] : [],
-  );
 const ownDocs = (dir: string) => (existsSync(dir) ? markdown(dir) : []);
-const docs = [...markdown('docs'), 'AGENTS.md', '.claude/子智能体须知.md'];
+const docs = docFiles();
 /** 光写文件名（`构建与测试.md`）时去这几处按文件名找；两个外壳各一份同名的，两份都要有这个小节 */
 const searchable = [...docs, ...ownDocs('apps/android/docs'), ...ownDocs('apps/desktop/docs')];
-/** 光写名字就算指一份文档的：docs/ 根目录下各份（README、CHANGELOG 不算） */
-const bare = readdirSync('docs').filter((n) => n.endsWith('.md') && n !== 'README.md' && n !== 'CHANGELOG.md').map((n) => n.slice(0, -3));
+/** 光写名字就算指一份文档的：docs/ 根目录下各份（CHANGELOG 不算） */
+const bare = readdirSync('docs').filter((n) => n.endsWith('.md') && n !== 'CHANGELOG.md').map((n) => n.slice(0, -3));
 
 const ref = new RegExp(
   '(?:\\[[^\\]\\n]*\\]\\(([^)\\s]+?\\.md)(?:#[^)\\s]*)?\\)|`([^`\\s]+\\.md)`|(AGENTS\\.md)|(' + bare.join('|') + '))' +
@@ -84,7 +81,7 @@ test('文档里“见 某文档‘某一节’”的指路，那份文档里真�
   const missing = found
     .filter((f) => !sections(f.target).has(f.name) && !notSections.some((e) => listed(e, f)))
     .map((f) => f.at + ' → ' + f.target + '“' + f.name + '”');
-  assert.deepEqual([...lost, ...missing], [], '这些指路对不上：改成现在的文档和小节名（拆过的文档看 docs/架构说明.md“别的在哪份”）');
+  assert.deepEqual([...lost, ...missing], [], '这些指路对不上：改成现在的文档和小节名（哪件事写在哪份看 AGENTS.md“做什么读哪份”）');
 });
 
 test('notSections 名单里的指路还在文档里、指的也确实还不是小节（改了、不提了就删掉）', () => {

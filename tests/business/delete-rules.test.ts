@@ -161,17 +161,19 @@ test('删前要别的模块配合的记录：没有模块登记删前配合就�
   assert.doesNotThrow(() => requireRecordDeletionHook('orders'));
 });
 
-test('删掉最后一个客户、最后一张订单后，新编号和订单号不复用', () => {
+test('删客户连带删厂区，删掉最后一个客户或订单后新编号和订单号不复用', () => {
   const f = orderWithImports();
   try {
     const admin = localAdministratorActor(superActor()),
       service = new DatabaseMaintenanceService(f.store);
     // 客户：建一个没有往来的，用删除引擎删掉，再建一个
-    const lonely = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构新客户' }));
+    const lonely = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构新客户', address: '虚构收货地址' }));
     const selection = { module: 'customers', items: [{ id: lonely.id, version: lonely.version }] };
     const plan = service.preview(selection, admin);
+    assert.ok(plan.impact.some((row) => row.table === 'customer_sites' && row.name === lonely.sites[0].name));
     service.delete({ ...selection, requestId: randomUUID(), deletionDigest: plan.digest }, admin, 'test-binding');
     assert.ok(!f.store.db.prepare('SELECT 1 FROM customers WHERE id=?').get(lonely.id), '客户删掉了');
+    assert.equal(count(f.store.db, 'SELECT count(*) FROM customer_sites WHERE customer_id=?', lonely.id), 0);
     const fresh = sales(f.store).createCustomer(customerSchema.parse({ name: '虚构再建客户' }));
     assert.ok(fresh.id > lonely.id, '新客户不接上被删客户的编号');
     // 订单：不在本机的超级管理员模式删掉最后一张，再建一张

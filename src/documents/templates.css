@@ -17,7 +17,7 @@
   color: var(--text-secondary);
   font-size: var(--text-xs);
 }
-/* admin：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。
+/* admin：详情与编辑窗重做时新增的样式。规范见 docs/界面/总规矩.md。
    只用新类名（adm- 开头），不覆盖 design.css 的公共样式。字号 12/13/14/16，圆角 4/8。
    几个模块都用的说明文字、行内状态、勾选项（adm-muted、adm-inline-status、adm-check）在 ui/elements.css。 */
 

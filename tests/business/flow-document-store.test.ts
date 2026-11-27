@@ -23,7 +23,7 @@ const production = (extra: Partial<FlowDocument<'production'>> = {}): FlowDocume
   kind: 'production', date, notes: '', taskId: null, productId: 1, finishedStockId: null, goodQuantity: '1', scrapQuantity: '0', operator: '虚构机长', materials: [], ...extra,
 });
 const delivery = (extra: Partial<FlowDocument<'delivery'>> = {}): FlowDocument<'delivery'> => ({
-  kind: 'delivery', date, plannedDate: date, notes: '', customerId: 1, address: '', contact: '', phone: '', allowOverdelivery: false, overdeliveryReason: '', lines: [], ...extra,
+  kind: 'delivery', date, plannedDate: date, notes: '', customerId: 1, siteId: null, address: '', contact: '', phone: '', allowOverdelivery: false, overdeliveryReason: '', lines: [], ...extra,
 });
 const arrival = (extra: Partial<FlowDocument<'arrival'>> = {}): FlowDocument<'arrival'> => ({
   kind: 'arrival', date, notes: '', supplierId: 1, reference: '虚构-1', sourceId: null, lines: [], ...extra,

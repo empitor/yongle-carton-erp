@@ -6,6 +6,38 @@ export function nameWithCustomer(name: string, customerName?: string | null) {
   const who = customerName?.trim();
   return who ? name + '（' + who + '）' : name;
 }
+/** 产品能不能用在这家客户的订单上：没定客户的通用产品哪家都能用，有主的只给那一家；新客户（还没编号）只能用通用的 */
+export function productFitsCustomer(product: { customerId?: number | null }, customerId: number | null | undefined) {
+  return product.customerId == null || (customerId != null && product.customerId === customerId);
+}
+/**
+ * 订单换客户时这个产品跟不跟着改归新客户（用户 2026-11-27 定）：订单真换了客户、产品属原客户、而且它的订单明细全在这张订单里
+ * （onlyThisOrder：别的订单一行都没有，不管状态、归没归档，由服务端按 order_lines 查）。跟着走的不算跨客户；服务端保存时照这条再核一遍。
+ */
+export function productMovesWithOrder(
+  product: { customerId?: number | null },
+  change: { from: number; to: number | null | undefined },
+  onlyThisOrder: boolean,
+) {
+  return onlyThisOrder && change.to != null && change.to !== change.from && product.customerId === change.from;
+}
+/** 某客户订单能选的产品 */
+export function productsForCustomer<T extends { customerId?: number | null }>(
+  products: readonly T[],
+  customerId: number | null | undefined,
+): T[] {
+  return products.filter((p) => productFitsCustomer(p, customerId));
+}
+/** 产品属别家客户时给人看的话（下单、导入、助手导入匹配共用）；能用返回 null。customer 是这张订单的客户，新客户只有名字 */
+export function productCustomerIssue(
+  product: { customerId?: number | null; customerName?: string },
+  customer: { id?: number | null; name?: string | null },
+) {
+  if (productFitsCustomer(product, customer.id)) return null;
+  return `这个产品是 ${product.customerName || '其他客户'} 的，要给 ${customer.name || '当前客户'} 用请新建一份`;
+}
+/** 下过单、已定客户的产品不能改所属客户（服务端拒收和编辑窗、数据管理的锁定说明同一句） */
+export const PRODUCT_CUSTOMER_LOCKED = '这个产品已经下过单，不能更改所属客户；要给别的客户用请新建一份。';
 /** 尺寸单位的叫法：选择、说单位本身时写全“毫米（mm）”；跟在尺寸数值后面照旧写 mm、cm */
 export const dimensionUnitNames: Record<DimensionUnit, string> = { mm: '毫米（mm）', cm: '厘米（cm）' };
 /** 规格字段：规格说明、长宽高和尺寸单位、材质、楞型（都可以没写）。产品、纸板、订货单行、查重都用这一组。 */

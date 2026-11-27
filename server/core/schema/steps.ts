@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { customerSitesV25 } from './tables/sales.js';
 
 /** 一段升级：把结构从第 version-1 版带到第 version 版 */
 export type UpgradeStep = {
@@ -51,7 +52,10 @@ function rebuildTable(db: DatabaseSync, table: string, definition: string, colum
     ALTER TABLE ${rebuilt} RENAME TO ${table};`);
 }
 
-/** v24 的历史写法转换固定在这一步，和 readTaxRate 的等价性由升级样例测试核对。 */
+/**
+ * v24 的历史写法转换固定在这一步：税率照 readTaxRate 认，含税口径照录入的认法先去掉首尾空白再认（taxModeSchema 先 trim）；
+ * 和程序认法一致由升级样例测试核对（tests/core/upgrade-step-samples.test.ts）。
+ */
 const taxWhitespace = [...'\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff']
   .map((ch) => ch.charCodeAt(0));
 const withoutTaxSpaces = taxWhitespace.reduce((sql, cp) => `replace(${sql},char(${cp}),'')`, 'tax_rate');
@@ -75,10 +79,12 @@ const v24Rate = `(
         SELECT whole*100+fraction FROM parsed
         WHERE whole<=100 AND whole*100+fraction<=10000 AND (whole>0 OR fraction=0 OR percent)
       )`;
-const v24Mode = `CASE WHEN tax_mode='不含税' THEN '未税'
-  WHEN tax_mode IN ('含税','未税','未明确') THEN tax_mode END`;
+const v24ModeText = `trim(tax_mode,char(${taxWhitespace.join(',')}))`;
+const v24Mode = `CASE WHEN ${v24ModeText}='不含税' THEN '未税'
+  WHEN ${v24ModeText} IN ('含税','未税','未明确') THEN ${v24ModeText} END`;
+// 认不出的口径逐字接在税率原话后面，另起一行加“口径：”（shared/core/tax-rate.ts 从这一行读到末尾，送货快照照抄它）
 const v24Text = `NULLIF(concat_ws(char(10),NULLIF(tax_rate,''),CASE
-  WHEN trim(tax_mode,char(${taxWhitespace.join(',')}))<>'' AND (${v24Mode}) IS NULL
+  WHEN ${v24ModeText}<>'' AND (${v24Mode}) IS NULL
   THEN '口径：'||tax_mode END),'')`;
 
 function stageOrderTax(db: DatabaseSync, table: 'orders' | 'order_lines') {
@@ -152,6 +158,74 @@ function rebuildOrderTax(db: DatabaseSync) {
     CREATE INDEX order_lines_order ON order_lines(order_id);
     CREATE INDEX order_lines_product ON order_lines(product_id);`);
   migrateOrderStatusResults(db);
+}
+
+/*
+ * v25 的片段。名字、上限都写成字面量：升级结果固定在这一步，不随程序以后改常量、改上限而变。
+ * 空白清单就是 JS trim() 认的那一套（半角、全角、制表、换行和别的 Unicode 空白），SQLite 默认的 trim 只去半角空格。
+ */
+const v25Blank = 'char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)';
+const v25Trim = (sql: string) => `trim(${sql},${v25Blank})`;
+const v25Field = (key: string) => v25Trim(`coalesce(json_extract(d.document,'$.${key}'),'')`);
+/** 厂区录入每一项最多几个字（customerSiteInputSchema 的联系人、联系方式、地址） */
+const v25SiteMax = { contact: 60, phone: 50, address: 300 } as const;
+/**
+ * 这一项在不在厂区录入的上限以内，超了的不建厂区：升级不造程序不收的数据。按 JS 字符串长度比，四字节的字（表情等）
+ * 算 2，SQLite 的 length 按字算，所以另数编号大于 65535 的字；现在的 zod 按码位数（四字节的字算 1），这里只会更严。
+ * 最多数到最长的上限就够（upto），再长的 length 已经超了。length 只数到 NUL，带 NUL 的一律算超长。
+ */
+const v25Fits = (column: keyof typeof v25SiteMax) => `(instr(${column},char(0))=0 AND length(${column})+(
+  SELECT count(*) FROM upto WHERE i<=length(${column}) AND unicode(substr(${column},i,1))>65535)<=${v25SiteMax[column]})`;
+/** 要挂厂区的待送货单：没挂厂区（归档的也算）、客户还在，三项去首尾空白后不全空、都在厂区录入的上限以内 */
+const v25Pending = `upto(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM upto WHERE i<${Math.max(...Object.values(v25SiteMax))}),
+  drafts AS (
+    SELECT d.id, c.id AS customer_id, ${v25Field('address')} AS address, ${v25Field('contact')} AS contact,
+      ${v25Field('phone')} AS phone
+    FROM flow_documents d JOIN customers c ON c.id=json_extract(d.document,'$.customerId')
+    WHERE d.kind='delivery' AND d.status='draft' AND json_extract(d.document,'$.siteId') IS NULL
+  ),
+  pending AS (
+    SELECT * FROM drafts WHERE address||contact||phone<>''
+      AND ${v25Fits('address')} AND ${v25Fits('contact')} AND ${v25Fits('phone')}
+  )`;
+/** 这家客户名下三项逐字相同的厂区（同一客户这样的厂区至多一个） */
+const v25SameSite = 's.customer_id=p.customer_id AND s.address=p.address AND s.contact=p.contact AND s.phone=p.phone';
+
+/**
+ * v25：建厂区表，按客户档案回填默认厂区，再给 0.9.5 留下的待送货单挂上厂区（以后照常保存，收货信息不变）。
+ * - 档案三项去首尾空白后不全空的，回填“默认厂区”，时间取档案的。
+ * - 待送货单三项和档案一样的，挂默认厂区；不一样的，同一客户三项相同的几张补建一个厂区：客户一个厂区都没有时，
+ *   编号最小那组叫“默认厂区”并当默认，别的叫“送货单 <组里编号最小那张的单号> 的地址”；时间取那张单的建单时间。
+ *   单号唯一、不带空白，补建的名字互相不重，也不和“默认厂区”重（照 looseKey 比也一样）。
+ * - 三项全空的、超出厂区录入上限的、客户已不在的待送货单，和已出库、已取消、已撤销的单据一字不动。
+ * - 只往单据内容末尾加 siteId、siteName，版本号、更新时间和别的内容不变，不写审计。
+ * 每张单的结果只看它自己的三项和厂区表，求值顺序不影响结果。
+ */
+function addCustomerSites(db: DatabaseSync) {
+  db.exec(customerSitesV25);
+  db.exec(`INSERT INTO customer_sites(customer_id,name,contact,phone,address,is_default,created_at,updated_at)
+    SELECT id,'默认厂区',${v25Trim('contact')},${v25Trim('phone')},${v25Trim('address')},1,created_at,updated_at
+    FROM customers WHERE ${v25Trim('address||contact||phone')}<>'' ORDER BY id;`);
+  db.exec(`WITH RECURSIVE ${v25Pending},
+    groups AS (
+      SELECT customer_id, address, contact, phone, MIN(id) AS first_id FROM pending p
+      WHERE NOT EXISTS(SELECT 1 FROM customer_sites s WHERE ${v25SameSite})
+      GROUP BY customer_id, address, contact, phone
+    ),
+    placed AS (
+      SELECT g.*, d.number, d.created_at,
+        NOT EXISTS(SELECT 1 FROM customer_sites s WHERE s.customer_id=g.customer_id)
+          AND g.first_id=MIN(g.first_id) OVER (PARTITION BY g.customer_id) AS is_default
+      FROM groups g JOIN flow_documents d ON d.id=g.first_id
+    )
+    INSERT INTO customer_sites(customer_id,name,contact,phone,address,is_default,created_at,updated_at)
+    SELECT customer_id, CASE WHEN is_default THEN '默认厂区' ELSE '送货单 '||number||' 的地址' END,
+      contact, phone, address, is_default, created_at, created_at
+    FROM placed ORDER BY customer_id, first_id;`);
+  db.exec(`WITH RECURSIVE ${v25Pending}
+    UPDATE flow_documents SET document=json_set(document,'$.siteId',s.id,'$.siteName',s.name)
+    FROM pending p JOIN customer_sites s ON ${v25SameSite}
+    WHERE flow_documents.id=p.id;`);
 }
 
 export const upgradeSteps: readonly UpgradeStep[] = [
@@ -239,5 +313,10 @@ export const upgradeSteps: readonly UpgradeStep[] = [
     version: 24,
     name: '订单和明细的税率改存万分比、含税口径和原话',
     up: rebuildOrderTax,
+  },
+  {
+    version: 25,
+    name: '客户加收货厂区，按已有联系方式回填默认厂区，给没挂厂区的待送货单挂上',
+    up: addCustomerSites,
   },
 ];

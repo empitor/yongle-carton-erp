@@ -43,7 +43,8 @@ test('单价写法不猜计价方式；规格里已有的尺寸不重复、但�
 test('订单显示规范税率和原件写法，认不出的原话提示核对', () => {
   assert.equal(orderTaxText({ taxRate: 0, taxMode: '含税' }), '0% 含税');
   assert.equal(orderTaxText({ taxRate: 13, taxText: '１３％' }), '13% · 原件写法：１３％');
-  assert.equal(orderTaxText({ taxText: '免税' }), '税率没认出来，原件写的是“免税”，请选择或填写税率。');
+  // 订单详情是只读的：只说没认出来、原件写的是什么，不叫人去选
+  assert.equal(orderTaxText({ taxText: '免税' }), '税率没认出来，原件写的是“免税”。');
   assert.equal(orderTaxText({}), '未明确');
 });
 

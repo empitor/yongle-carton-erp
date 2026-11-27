@@ -1,5 +1,5 @@
 /**
- * 数据库表也按模块管（表的归属和说明见 docs/数据模型.md）：
+ * 数据库表也按模块管（表归哪个模块见 docs/架构/数据库约定.md，每张表管什么见 docs/生成/表结构.md）：
  * - 写（INSERT、UPDATE、DELETE）：只有表的主人能写；别的模块要改，调它的接口（比如库存流水调 operations/ledger.ts）。
  *   例外只有 tableWriteExceptions 登记的几处，各写明原因。
  * - 读：顺着代码依赖读（能引用哪个模块，就能读它的表），没有逆着读的例外。
@@ -20,7 +20,7 @@ const tableOwnerList: [module: string, tables: string][] = [
   ['采购库存', 'suppliers purchases purchase_lines stock_items stock_movements stock_movement_revisions order_batches order_batch_purchases'],
   // flow_ 开头的都归单据流转
   ['单据流转', 'purchase_returns'],
-  ['客户产品订单', 'customers products orders order_lines product_marks mark_files'],
+  ['客户产品订单', 'customers customer_sites products orders order_lines product_marks mark_files'],
   ['识别导入', 'import_executions inbox_files inbox_items workspaces recognition_failures bots'],
   // 导出记录（文件内容和交付状态）、单据模板设置；订货批次的 export_id 指向导出记录，采购库存只存编号不读这张表
   ['单据导出', 'document_exports document_template_settings'],
@@ -50,7 +50,7 @@ const tableWriteExceptions: { path: string; why: string }[] = [
 /**
  * 财务的 SQL 只许读这些表：自己的 fin_ 表，和基础的审计表（只给财务操作记录页展示，见 auditReaders）。
  * 业务数据（单据流转、采购库存的表，客户产品订单和归档标记的表）一律经只读窗口 financeFacts 拿
- * （server/flow/finance-facts/，docs/架构/财务.md“财务从哪拿业务数据”），业务改表时财务一行不用动。
+ * （server/flow/finance-facts/，docs/功能/财务取数和补扫.md“财务从哪拿业务数据”），业务改表时财务一行不用动。
  * 不是表的名字（json_each、WITH 起的名字）不算。FROM、JOIN 后表名位置是拼进来的，看不出读谁，也报；
  * 拼的是财务自己的 SQL 片段（片段的文字也在财务文件里，同样受这条查）或类型只收 fin_ 表的表名，按“哪个文件拼的什么”登记在 financeDynamicReads。
  */
@@ -64,7 +64,7 @@ const financeDynamicReads: { file: string; splice: string; why: string }[] = [
   { file: 'server/finance/reports/overview.ts', splice: 'snapshotLines', why: 'events/source-snapshot.ts 的片段：事件快照明细的 json_each' },
 ];
 
-/** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/架构/财务.md“财务从哪拿业务数据”） */
+/** 只读的目录：里面一处写 SQL 都不许有，自己模块的表也不许写。财务从业务拿数据的窗口（docs/功能/财务取数和补扫.md“财务从哪拿业务数据”） */
 const readOnlyPaths = ['server/flow/finance-facts/'];
 
 /**
@@ -93,7 +93,7 @@ const auditReaders: { file: string; why: string }[] = [
 
 /**
  * 助手只读自己的表（assistant_ 开头的、助手的配置库）：业务数据一律经各模块的读函数和服务拿，表名拼出来的读也算
- * （docs/架构/助手.md“读业务数据走各模块的正门”）。SQLite 自己的伪表（pragma_ 开头、json_each）不是谁的表；别的例外登记在这里，写明原因。
+ * （docs/功能/助手结构.md“读业务数据走各模块的正门”）。SQLite 自己的伪表（pragma_ 开头、json_each）不是谁的表；别的例外登记在这里，写明原因。
  */
 const assistantReadExceptions: { table: string; why: string }[] = [];
 const sqliteOwn = (t: string) => t.startsWith('pragma_') || t === 'json_each';

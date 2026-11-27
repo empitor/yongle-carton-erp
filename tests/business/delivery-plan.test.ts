@@ -70,10 +70,8 @@ const stock = (id: number, productId: number, availableUnits: number, extra: { a
   archived: extra.archived ?? false,
   availableUnits,
 });
-const customers = [
-  { id: 1, address: '虚构路1号', contact: '虚构甲', phone: '000-1' },
-  { id: 2, address: null, contact: null, phone: null },
-];
+const site = { id: 5, name: '虚构一厂', address: '虚构路1号', contact: '虚构甲', phone: '000-1', isDefault: true, notes: '' };
+const customers = [{ id: 1, sites: [site] }, { id: 2, sites: [] }];
 const planData = (items: ReturnType<typeof stock>[], orders: ReturnType<typeof order>[], pending = new Map<number, number>()) => ({
   items,
   orders,
@@ -87,8 +85,8 @@ test('按成品排：几个客户在等的列进 contested（指定了给谁的�
   const data = planData(items, orders);
   const plan = deliveryPlan(data, { stockIds: [7, 8, 9, 10] });
   assert.deepEqual(plan.groups, [
-    { customerId: 1, address: '虚构路1号', contact: '虚构甲', phone: '000-1', lines: [{ orderId: 1, orderLineId: 11, stockId: 7, quantity: '300', notes: '' }] },
-    { customerId: 2, address: '', contact: '', phone: '', lines: [{ orderId: 2, orderLineId: 21, stockId: 7, quantity: '200', notes: '' }] },
+    { customerId: 1, sites: [site], siteId: 5, siteName: '虚构一厂', address: '虚构路1号', contact: '虚构甲', phone: '000-1', lines: [{ orderId: 1, orderLineId: 11, stockId: 7, quantity: '300', notes: '' }] },
+    { customerId: 2, sites: [], siteId: null, siteName: '', address: '', contact: '', phone: '', lines: [{ orderId: 2, orderLineId: 21, stockId: 7, quantity: '200', notes: '' }] },
   ]);
   assert.deepEqual(plan.contested.map((c) => [c.stock.id, c.customers]), [[7, [1, 2]]]);
   assert.deepEqual(plan.idle.map((x) => [x.stock.id, x.reason]), [
@@ -137,7 +135,7 @@ test('选了客户：只带出这个客户还能送的订单；没选客户时�
 test('可发货勾好的照搬成一张送货单，只补收货信息，不再排、不出别的提示', () => {
   const preset = { customerId: 1, lines: [{ orderId: 1, orderLineId: 11, stockId: 7, quantity: '999' }] };
   const plan = deliveryPlan(planData([stock(7, 1, 0)], [order(1, 1, null, [line(11, 1, 10)])]), { preset });
-  assert.deepEqual(plan.groups, [{ customerId: 1, address: '虚构路1号', contact: '虚构甲', phone: '000-1', lines: [{ ...preset.lines[0], notes: '' }] }]);
+  assert.deepEqual(plan.groups.map((g) => [g.customerId, g.siteId, g.address, g.lines]), [[1, site.id, site.address, [{ ...preset.lines[0], notes: '' }]]]);
   assert.deepEqual([plan.missing, plan.skipped, plan.blockers, plan.contested, plan.idle], [[], [], [], [], []]);
 });
 

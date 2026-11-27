@@ -4,7 +4,7 @@ import { AppError } from '../core/index.js';
 import { FlowService } from '../flow/index.js';
 import { formatStockSize, type FlowDocView } from '../../shared/business/index.js';
 import { displayAmount, plainPrice, type Customer, type Order, type Product } from '../../shared/core/index.js';
-import { deliveryDateLabels } from '../../shared/documents/index.js';
+import { docField } from '../../shared/documents/index.js';
 import { joinSpecification, type RawForm } from './forms.js';
 // 送货单要印的内容（只读，不写库）：单据视图加上客户、关联订单补全的字段。
 
@@ -28,25 +28,24 @@ const joinedUnique = (values: (string | undefined)[]) => [...new Set(values)].jo
 function deliveryFields(record: Delivery, customer: Customer | undefined, orders: Orders): [string, string][] {
   const confirmed = record.status === 'confirmed';
   return [
-    ['送货单号', record.number],
-    ['客户', customer?.name || '历史客户'],
+    docField('deliveryNumber', record.number),
+    docField('customer', customer?.name || '历史客户'),
     // 地址、联系人、电话单据上没记就印“未记录”，不拿客户档案的顶上（客户可能有好几个收货的地方，印错了会送错）
-    ['收货地址', record.address || UNRECORDED],
-    ['客户联系信息', [record.contact, record.phone].filter(Boolean).join(' · ') || UNRECORDED],
-    ['关联销售订单', joinedUnique(record.lines.map((l) => l.orderNumber || orders.get(l.orderId)?.number))],
-    [
-      confirmed ? deliveryDateLabels.shipped : deliveryDateLabels.planned,
+    docField('deliveryAddress', record.address || UNRECORDED),
+    docField('customerContact', [record.contact, record.phone].filter(Boolean).join(' · ') || UNRECORDED),
+    docField('relatedOrders', joinedUnique(record.lines.map((l) => l.orderNumber || orders.get(l.orderId)?.number))),
+    docField(
+      confirmed ? 'shippedDate' : 'plannedDate',
       confirmed
         ? [record.date, record.actualTime].filter(Boolean).join(' ')
         : [record.plannedDate || record.date, record.plannedTime].filter(Boolean).join(' '),
-    ],
-    [
-      // 信息格的键（模板“隐藏字段”里存的就是它），印出来是“客户采购单号”（shared/documents/document-layout.ts 的 printedInfoName）
-      '客户采购订单号',
+    ),
+    docField(
+      'customerOrderNumber',
       joinedUnique(
         record.lines.map((l) => l.externalPurchaseOrder ?? orders.get(l.orderId)?.externalPurchaseOrder).filter(Boolean),
       ) || UNRECORDED,
-    ],
+    ),
   ];
 }
 

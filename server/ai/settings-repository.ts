@@ -27,7 +27,9 @@ const settingsDatabase = {
   steps: [],
   pragmas: 'PRAGMA synchronous=FULL; PRAGMA secure_delete=ON',
   create(db: DatabaseSync) {
-    db.exec('CREATE TABLE ai_settings(id INTEGER PRIMARY KEY CHECK(id=1), document TEXT NOT NULL)');
+    db.exec(`-- 一行 JSON：DeepSeek 密钥和识别并发数。密钥加密存：Windows 用 DPAPI；Linux 用 AES-256-GCM，
+      -- 主密钥在配置目录 credentials/master.key，不进备份
+      CREATE TABLE ai_settings(id INTEGER PRIMARY KEY CHECK(id=1), document TEXT NOT NULL)`);
   },
 };
 const documentRow = rows.ai_settings.pick({ document: true });

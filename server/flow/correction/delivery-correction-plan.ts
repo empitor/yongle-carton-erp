@@ -96,7 +96,7 @@ function plan(flow: FlowCommands, original: FlowDocView<'delivery'>, stored: Flo
     maintenance: true,
   });
   // 抄下来的快照引用没变的留着原单出库时的（品名、规格、单价、税率、材质楞型、尺寸，金额按新数量乘出库时的单价重算）；
-  // 换挂、新加的行按那条订单明细、产品现在的取
+  // 收货快照同样沿用保存时的内容，厂区已删除时仍只保留当时的文字。换挂、新加的行按现在的订单明细和产品取。
   const document = keepSnapshot(stored, { ...checked.document, customerName: sales(flow.store).customer(checked.document.customerId, true)?.name }),
     lines = document.lines;
   const orders = new Map(

@@ -1,10 +1,12 @@
 import { useEffect, useEffectEvent, useState } from 'react';
-import { errorMessage } from '../../shared/core/index';
-import { hashParams } from '../ui/index';
+import { errorMessage, pageParams } from '../../shared/core/index';
 import { readFlow } from '../flow/flow-api';
 import type { FlowDesk } from '../flow/useFlowDesk';
 import type { WarehouseList } from './useWarehouseList';
 import { docIdOf, isFlowDoc, needsWork, type WarehouseKind, type WarehouseRow } from './warehouse-list';
+
+/** 地址里要打开的那一张单据（doc=编号），没带或写坏的给 null */
+export const linkedDocId = (hash: string) => pageParams('warehouse', hash).doc ?? null;
 
 /**
  * 到货、送货页打开的那一条：点一行读它的单据（按钮按单据现在的状态算）、地址栏带着 doc 时打开那一张、
@@ -30,7 +32,7 @@ export function useWarehouseView(kind: WarehouseKind, list: WarehouseList, desk:
   // 从链接打开某一张：不在待处理里就切到全部；是更早的单据就读全部再找。记录读到或变了时看一次，只打开一回
   const [focused, setFocused] = useState(false);
   const focusLinked = useEffectEvent(() => {
-    const focus = Number(hashParams().get('doc')) || null;
+    const focus = linkedDocId(location.hash);
     if (!focus || focused || !loaded) return;
     const found = records.find((r) => docIdOf(r) === focus);
     if (!found) {

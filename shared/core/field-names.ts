@@ -1,6 +1,6 @@
 /**
  * 栏目登记表：业务栏目全站一个叫法，编辑窗、详情、列表列名、数据管理、修改历史、助手卡片、报错、识别结果表、
- * 导出单据都从这里取；以及哪个栏目指向哪张表。改叫法只改这里（docs/界面规范.md“栏目叫法”）。
+ * 导出单据都从这里取；以及哪个栏目指向哪张表。改叫法只改这里（docs/界面/叫法词表.md“栏目叫法”）。
  * 放在共用-基础：报错（user-errors.ts）、识别导入、前端财务都只能引到这一层。
  * 选项的叫法（尺寸单位、计价方式、币种、种类、状态）跟选项的值写在一起，不在这里。
  */
@@ -29,6 +29,10 @@ export const fields = {
   priceCents: { label: '参考单价', unit: '分' },
   priceExact: { label: '参考单价', unit: '元' },
   customerId: { label: '客户' },
+  sites: { label: '厂区' },
+  isDefault: { label: '默认厂区' },
+  siteId: { label: '收货厂区' },
+  siteName: { label: '收货厂区' },
   supplierId: { label: '供应商' },
   productId: { label: '产品' },
   stockId: { label: '库存品' },
@@ -95,6 +99,7 @@ export type FieldKey = keyof typeof fields;
 
 /** 上一层下面另起的叫法（预估成本里的 material 不是材质）：按“上一层.栏目”找 */
 const nested: Record<string, Field> = {
+  'sites.name': { label: '厂区名称' },
   'costs.material': { label: '材料成本', unit: '元' },
   'costs.processing': { label: '加工成本', unit: '元' },
   'costs.waste': { label: '损耗成本', unit: '元' },
@@ -189,6 +194,7 @@ export const fieldLabel = (key: FieldKey, place?: FieldPlace) => fieldAt(key, pl
  * 数据管理按它出选择器（src/admin/field-rules.ts）。tests/field-names.test.ts 核对表名都登记过主人。
  */
 export const fieldTables = {
+  siteId: 'customer_sites',
   customerId: 'customers',
   supplierId: 'suppliers',
   productId: 'products',

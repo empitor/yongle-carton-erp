@@ -238,9 +238,7 @@ export const deliverySchema = z.object({
   plannedTime: arrivalTimeSchema,
   actualTime: arrivalTimeSchema,
   customerId: id('客户'),
-  address: text,
-  contact: text,
-  phone: text,
+  siteId: optionalId('收货厂区'),
   allowOverdelivery: z.boolean().default(false),
   overdeliveryReason: text,
   lines: z

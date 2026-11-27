@@ -3,11 +3,12 @@ import type { z } from 'zod';
 import type { Actor, Store } from '../../core/index.js';
 import { AppError, audit, many, rows } from '../../core/index.js';
 import { quantityUnits, type Order } from '../../../shared/core/index.js';
-import { flowEntity, lifecycleFields, movementSource, type FlowDocView } from '../../../shared/business/index.js';
+import { flowEntity, flowStatus, lifecycleFields, movementSource, type FlowDocView } from '../../../shared/business/index.js';
 import { stockLedger } from '../../operations/index.js';
 import { referencingDocuments } from '../documents/document-lookups.js';
 import { carryOverFlowDocument, replaceFlowDocument } from './maintenance-writes.js';
 import { FlowService } from './service.js';
+import { deliveryDestination } from './validate-delivery.js';
 
 /*
  * 本机管理员改订单时连带改单据：送货单、生产任务和它们的库存流水跟着订单的新明细、新客户走。
@@ -177,8 +178,18 @@ export function moveDeliveries(store: Store, job: CustomerChange) {
   }
 }
 
+/**
+ * 换了客户的送货单收货信息：待送货的取新客户默认厂区（和保存待送货单同一个做法）；已出库、已取消、已撤销的
+ * 留着当时的厂区名、地址、联系人、联系方式，只清厂区编号（货当时送到哪儿，单上记的才是事实；和删厂区同一个做法）
+ */
+function movedDestination(store: Store, d: Delivery, customerId: number) {
+  const destination = { customerId, siteId: null };
+  if (d.status === flowStatus.draft) return { ...destination, ...deliveryDestination(store, destination, true) };
+  return { ...destination, siteName: d.siteName, address: d.address, contact: d.contact, phone: d.phone };
+}
+
 function changeCustomer(store: Store, { flow, after, actor, d }: CustomerChange & { d: Delivery }) {
-  replaceFlowDocument(store, d.id, { ...d, customerId: after.customerId, customerName: after.customerName });
+  replaceFlowDocument(store, d.id, { ...d, ...movedDestination(store, d, after.customerId), customerName: after.customerName });
   flow.maintenanceReferences(d.id);
   audit(store, actor, {
     action: 'change-delivery-customer',
@@ -209,20 +220,21 @@ function splitDelivery(store: Store, job: CustomerChange & { d: Delivery; other:
     affected = d.lines.filter((l) => l.orderId === after.id);
   const created = flow.save(
     'delivery',
-    { ...d, customerId: after.customerId, lines: affected, requestId: randomUUID() },
+    { ...d, customerId: after.customerId, siteId: null, lines: affected, requestId: randomUUID() },
     actor,
     undefined,
     { moved: true },
   );
   const detached = retainDeliveryLines(store, d, job.other, actor, created);
   // 新单据经过待核对单据的校验只剩录入的内容：明细抄下来的快照按原单同一条订单明细的照留（carryOverFlowDocument 的 keepSnapshot），
-  // 客户换了，客户名按新客户
+  // 客户换了，客户名按新客户，收货信息按原单的状态定（movedDestination）
   carryOverFlowDocument(
     store,
     created.id,
     d.status,
     {
       ...created,
+      ...movedDestination(store, d, after.customerId),
       customerName: after.customerName,
       ...present(d, carried),
       // 已出库的：拆出去的那几笔出库已经改挂到新单名下。已撤销的：出库和冲销两组流水都留在原单上，

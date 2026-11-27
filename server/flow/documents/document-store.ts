@@ -2,7 +2,7 @@ import type { FlowKind } from '../../../shared/core/index.js';
 import { z } from 'zod';
 import type { Actor, Store } from '../../core/index.js';
 import { AppError, nextAutoId, one, rows } from '../../core/index.js';
-import { flowDocNames, flowDocumentContent, flowDocumentOfView, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
+import { flowDocNames, flowDocumentContent, flowDocumentOfView, flowStatus, type FlowDocument, type FlowDocView } from '../../../shared/business/index.js';
 
 /*
  * 单据表（flow_documents）的写入都在这个文件。别处只剩 deletion.ts 里登记给删除引擎和初始化的语句，
@@ -144,5 +144,13 @@ export function touchFlowDocument(store: Store, id: number, at?: string) {
   store.db
     .prepare('UPDATE flow_documents SET version=version+1,updated_at=coalesce(?,updated_at) WHERE id=?')
     .run(at ?? null, id);
+}
+
+/** 客户删除厂区时只解除历史送货单的引用，保留当时收货信息，不动版本号和更新时间，避免触发财务重扫或编辑冲突。与厂区删除在同一保存点内。 */
+export function clearHistoricalDeliverySites(store: Store, siteIds: readonly number[]) {
+  store.db.prepare(`
+    UPDATE flow_documents SET document=json_set(document,'$.siteId',NULL)
+    WHERE kind='delivery' AND status<>? AND json_extract(document,'$.siteId') IN (SELECT value FROM json_each(?))
+  `).run(flowStatus.draft, JSON.stringify(siteIds));
 }
 

@@ -16,7 +16,7 @@ import {
   UNPRICED_TEXT,
 } from '../../shared/business/index.js';
 import { displayAmount, fieldLabel, quantityString, today } from '../../shared/core/index.js';
-import { documentColumns } from '../../shared/documents/index.js';
+import { docField, documentColumns } from '../../shared/documents/index.js';
 import { joinSpecification, type RawForm } from './forms.js';
 // 采购订货单要印的内容（只读，不写库）：一张或几张同一家供应商的采购单合成一份。
 
@@ -69,14 +69,14 @@ function purchaseFields({ number, record, purchases, batch, supplier, rows }: Fi
   const schedulePlan = rows.filter((r) => r.schedule.some((x) => x.dueDate)).map((r) => r.name + '：' + scheduleText(r));
   const fields: [string, string][] = [
     // 版式只认“采购单号”放在右上角；几张合并时这里是 DG- 开头的订货单号，对应的采购单写在备注里
-    ['采购单号', number],
-    ['供应商', record.supplierName],
-    ['供应商联系信息', [supplier?.contact, supplier?.phone, supplier?.address].filter(Boolean).join(' · ')],
-    ['下单日期', single ? record.orderDate : batch?.orderDate || today()],
-    ['预计交货日期', due],
+    docField('purchaseNumber', number),
+    docField('supplier', record.supplierName),
+    docField('supplierContact', [supplier?.contact, supplier?.phone, supplier?.address].filter(Boolean).join(' · ')),
+    docField('orderDate', single ? record.orderDate : batch?.orderDate || today()),
+    docField('expectedDeliveryDate', due),
   ];
-  if (due === SPLIT_DUE) fields.push(['交货安排', schedulePlan.join('；')]);
-  if (!single) fields.push(['对应采购单', purchases.map((p) => p.number).join('、')]);
+  if (due === SPLIT_DUE) fields.push(docField('deliverySchedule', schedulePlan.join('；')));
+  if (!single) fields.push(docField('relatedPurchases', purchases.map((p) => p.number).join('、')));
   return fields;
 }
 

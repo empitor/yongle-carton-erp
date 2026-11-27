@@ -1,13 +1,37 @@
 import {
   defaultTemplateColumns,
+  docField,
   documentColumns,
+  documentFields,
   templatePaper,
   templateCopyLabels,
+  type BusinessForm,
+  type DocumentFieldId,
   type DocumentTemplate,
+  type TemplatedForm,
 } from '../../shared/documents/index.js';
-import type { BusinessForm, TemplatedForm } from '../../shared/documents/index.js';
 import { fieldLabel } from '../../shared/core/index.js';
 import { documentRowsPerPage } from './layout.js';
+
+const TAX_TERMS_TEXT = '本单未记录独立税费约定；如有约定，以本单备注为准，不自动推算税额。';
+
+/** 模板里配的我方资料和采购通用条款，按登记表允许的单据种类补进单据字段。 */
+function templateExtraFields(template: DocumentTemplate): [string, string][] {
+  const candidates: [DocumentFieldId, string][] = [
+    ['companyContact', [template.companyContact, template.companyPhone].filter(Boolean).join(' / ')],
+    ['companyAddress', template.companyAddress],
+    ['purchaseDeliveryAddress', template.companyAddress],
+    ['deliveryTerms', template.deliveryTerms],
+    ['acceptanceTerms', template.acceptanceTerms],
+    ['paymentTerms', template.paymentTerms],
+    ['taxTerms', TAX_TERMS_TEXT],
+  ];
+  const allowed = new Set(documentFields.filter((f) => f.kinds.includes(template.kind)).map((f) => f.key));
+  return candidates
+    .map(([id, value]) => docField(id, value))
+    .filter(([key, value]) => Boolean(value) && allowed.has(key));
+}
+
 /** 把拼好的单据内容套上模板：列和顺序、隐藏的字段、我方资料和条款、纸张字号，再算出每张放几行。 */
 export function applyDocumentTemplate(
   form: BusinessForm,
@@ -17,21 +41,7 @@ export function applyDocumentTemplate(
   const keys = template.columns || defaultTemplateColumns(template.kind);
   const originalKeys = form.columnKeys || defaultTemplateColumns(template.kind);
   const hidden: readonly string[] = template.hiddenFields;
-  const fields: [string, string][] = [...form.fields];
-  if (template.companyContact || template.companyPhone)
-    fields.push([
-      '我方联系人',
-      [template.companyContact, template.companyPhone].filter(Boolean).join(' / '),
-    ]);
-  if (template.kind === 'delivery' && template.companyAddress)
-    fields.push(['我方地址', template.companyAddress]);
-  if (template.kind === 'purchase') {
-    if (template.companyAddress) fields.push(['交货地址', template.companyAddress]);
-    if (template.deliveryTerms) fields.push(['交货要求', template.deliveryTerms]);
-    if (template.acceptanceTerms) fields.push(['验收要求', template.acceptanceTerms]);
-    if (template.paymentTerms) fields.push(['付款条件', template.paymentTerms]);
-    fields.push(['税费说明', '本单未记录独立税费约定；如有约定，以本单备注为准，不自动推算税额。']);
-  }
+  const fields: [string, string][] = [...form.fields, ...templateExtraFields(template)];
   const applied: TemplatedForm = {
     ...form,
     kind: template.kind,

@@ -21,7 +21,7 @@ import { AUDIT_SOURCE } from '../../shared/core/audit-sources.js';
 import { dataManagementCommand } from '../../src/admin/data-api.js';
 import { userError } from '../../shared/core/user-errors.js';
 import { RecordInputError, editableInput, submittedInput, valueAt } from '../../src/admin/record-input.js';
-import { buildRefs } from '../../src/admin/record-refs.js';
+import { buildRefs, refModules } from '../../src/admin/record-refs.js';
 import { ZodError, z } from 'zod';
 import { one, rows } from '../../server/core/index.js';
 import DataManagementFields from '../../src/admin/DataManagementFields.js';
@@ -157,7 +157,7 @@ test('数据管理每个模块的每个可编辑字段都有中文名（编辑�
   assert.equal(dataManagementFieldName('plannedDate'), '计划日期');
   assert.equal(dataManagementFieldName('material', 'costs'), '材料成本（元）');
   assert.equal(dataManagementFieldName('material', 'lines'), '材质 / 配纸');
-  // 和各编辑窗同一个叫法（界面规范的词表）
+  // 和各编辑窗同一个叫法（docs/界面/叫法词表.md）
   assert.equal(dataManagementFieldName('specification'), '规格');
   // 给人看的名字里没有“编号”“（分）”：关联字段是选择器（显示名称），金额按元填。
   // 只有产品参考单价、订单明细单价的“分”例外：编辑窗里不显示，由“元”算出来
@@ -416,3 +416,40 @@ test('数据管理订单编辑窗：预估成本填得不对，原因写在那�
   }
 });
 
+
+test('数据管理编辑产品：所属客户一格按编辑窗读的候选列出客户（显示名称），已定的不显示“已找不到”', () => {
+  const f = basics();
+  try {
+    // 和编辑窗一样：只读 refModules 里登记的那几类候选
+    const lists = Object.fromEntries(
+      refModules.products.map((m) => [m, viaJsonList(f.service.list(m, f.who).records.map((r) => r.record))]),
+    );
+    const record = must(f.service.list('products', f.who).records.find((r) => r.record.id === f.product.id), '产品记录').record;
+    const ctx = { module: 'products', record, refs: buildRefs(lists) };
+    const labels = (current: unknown) => refOptions('customerId', current, ctx).map((o) => o.label);
+    assert.deepEqual(labels(null), ['不关联', '虚构开发客户']);
+    assert.deepEqual(labels(f.customer.id), ['不关联', '虚构开发客户']);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('数据管理编辑没定客户的已有产品：编辑窗内容里有 customerId: null，“客户”一格在、能选客户', () => {
+  const f = basics();
+  try {
+    const free = sales(f.store).createProduct(productSchema.parse({ name: '虚构没定客户的箱' }));
+    const listed = must(f.service.list('products', f.who).records.find((r) => r.record.id === free.id), '产品记录');
+    const value = editableInput('products', viaJsonList([listed.input])[0]);
+    assert.ok(Object.hasOwn(value, 'customerId'), '编辑窗内容里有客户这一项');
+    assert.equal(value.customerId, null);
+    const lists = Object.fromEntries(
+      refModules.products.map((m) => [m, viaJsonList(f.service.list(m, f.who).records.map((r) => r.record))]),
+    );
+    const ctx = { module: 'products', record: listed.record, refs: buildRefs(lists) };
+    assert.deepEqual(refOptions('customerId', value.customerId, ctx).map((o) => o.label), ['不关联', '虚构开发客户']);
+    const html = renderToStaticMarkup(h(DataManagementFields, { value, change: () => {}, ...ctx }));
+    assert.match(html, /aria-label="数据管理 客户"/);
+  } finally {
+    f.store.close();
+  }
+});

@@ -1,7 +1,8 @@
-import { Facts, FormMessage, Hint, Loading, Section, useLoad } from '../ui/index';
+import { Facts, FormMessage, Hint, Loading, Section, StatusChip, useBusinessRevision, useLoad } from '../ui/index';
 import ContactSection from '../recordkit/ContactSection';
+import { InfoBlock, InfoBlocks } from '../recordkit/InfoBlocks';
 import ProductMarks from '../marks/ProductMarks';
-import { formatDimensions, dimensionKeys, normalizeDimensionUnit, pageHref, plainPrice, priceFromCents } from '../../shared/core/index';
+import { formatDimensions, dimensionKeys, fieldLabel, normalizeDimensionUnit, pageHref, plainPrice, priceFromCents } from '../../shared/core/index';
 import RelatedOrderList from './RelatedOrderList';
 import { loadCustomerProducts } from './list-api';
 import { useRecordContext } from '../recordkit/record-meta';
@@ -14,7 +15,9 @@ const PRODUCTS_SHOWN = 20;
 
 /** 客户详情里的“产品”一节：列出属于这家客户的产品，点开看详情，多的时候点“全部产品”跳产品页 */
 function CustomerProductList({ customerId }: { customerId: number }) {
-  const loaded = useLoad(String(customerId), () => loadCustomerProducts(customerId));
+  // 业务数据变了（存了订单、改了产品归属）就重读，开着的详情不留旧的
+  const [revision] = useBusinessRevision();
+  const loaded = useLoad(customerId + '|' + revision, () => loadCustomerProducts(customerId));
   const products = loaded.loading || loaded.error ? null : loaded.data,
     error = loaded.loading ? '' : loaded.error;
   return (
@@ -48,12 +51,39 @@ function CustomerProductList({ customerId }: { customerId: number }) {
   );
 }
 
+const siteKeys = ['contact', 'phone', 'address', 'notes'] as const;
+/**
+ * 客户详情里的“厂区”一节：一个厂区一块浅底圆角块上下排（和成品库存的批次共用 recordkit 的 InfoBlocks），
+ * 头部厂区名称和“默认”标记，下面只列填了的联系人、联系方式、地址、备注，长地址换行不撑宽，备注保留换行。
+ */
+function CustomerSiteList({ sites }: { sites: RecordRowOf['customers']['sites'] }) {
+  return (
+    <Section title={fieldLabel('sites')}>
+      <InfoBlocks className="rb-sites">
+        {sites.map((site) => (
+          <InfoBlock
+            key={site.id}
+            header={
+              <header className="rb-site-head">
+                <strong>{site.name}</strong>
+                {site.isDefault && <StatusChip tone="neutral">默认</StatusChip>}
+              </header>
+            }
+            rows={siteKeys.filter((key) => site[key].trim()).map((key) => ({ label: fieldLabel(key), value: site[key] }))}
+          />
+        ))}
+      </InfoBlocks>
+    </Section>
+  );
+}
+
 /** 客户详情：怎么联系，后面是这个客户的产品和订单。 */
 export function CustomerDetail({ row }: { row: RecordRowOf['customers'] }) {
   useRecordContext('customers', row.id, row.name);
   return (
     <div data-agent-module="customers" data-agent-record={row.id} data-agent-label={row.name}>
       <ContactSection row={row} />
+      {row.sites.length > 0 && <CustomerSiteList sites={row.sites} />}
       <CustomerProductList key={'cp' + row.id} customerId={row.id} />
       <RelatedOrderList
         key={'c' + row.id}

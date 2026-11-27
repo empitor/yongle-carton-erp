@@ -7,6 +7,8 @@ import type { DatabaseSync } from 'node:sqlite';
  */
 let counter = 0;
 const nextName = () => 'sp_' + ++counter;
+const rehearsing = new WeakSet<DatabaseSync>();
+export const isRehearsing = (db: DatabaseSync) => rehearsing.has(db);
 export const ASYNC_JOB = '事务里的函数必须是同步的：返回了 Promise，已整段回滚。';
 /** 带 then 方法的值（Promise 和别的 thenable） */
 function isThenable(value: unknown): value is PromiseLike<unknown> {
@@ -38,11 +40,14 @@ export function inSavepoint<T>(db: DatabaseSync, job: () => T): T {
 export function rehearse<T>(db: DatabaseSync, job: () => T): T {
   const name = nextName();
   db.exec('SAVEPOINT ' + name);
+  const nested = isRehearsing(db);
+  rehearsing.add(db);
   try {
     const result = job();
     assertSync(result);
     return result;
   } finally {
+    if (!nested) rehearsing.delete(db);
     db.exec('ROLLBACK TO ' + name + '; RELEASE ' + name);
   }
 }

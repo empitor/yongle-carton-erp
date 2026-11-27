@@ -30,7 +30,7 @@ CREATE TABLE fin_invoices(
 CREATE INDEX fin_invoice_date ON fin_invoices(direction,date);
 CREATE INDEX fin_invoices_original ON fin_invoices(original_id);
 
--- 发票和应收应付的对应；unit 是用户在关联时填的文字，不限定
+-- 发票和应收应付的对应（发票分到哪些往来）；unit 是用户在关联时填的文字，不限定；estimate_cents=0 标开错重开的蓝票
 CREATE TABLE fin_invoice_links(
   invoice_id INTEGER NOT NULL REFERENCES fin_invoices(id),
   obligation_id INTEGER NOT NULL REFERENCES fin_obligations(id),
@@ -62,7 +62,7 @@ CREATE TABLE fin_expenses(
 ) STRICT;
 CREATE INDEX fin_expenses_cash ON fin_expenses(cash_id);
 
--- 固定资产。category 是用户填的类别，不列枚举；months 是折旧月数，residual_bp 是残值率（万分之几）
+-- 固定资产卡片。category 是用户填的类别，不列枚举；months 是折旧月数，residual_bp 是残值率（万分之几）
 CREATE TABLE fin_assets(
   id INTEGER PRIMARY KEY,
   number TEXT NOT NULL UNIQUE,
@@ -79,7 +79,7 @@ CREATE TABLE fin_assets(
   version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1)
 ) STRICT;
 
--- 折旧
+-- 每期折旧
 CREATE TABLE fin_depreciation(
   asset_id INTEGER NOT NULL REFERENCES fin_assets(id),
   period TEXT NOT NULL CHECK(${isPeriod('period')}),
@@ -125,7 +125,7 @@ CREATE TABLE fin_inventory_costs(
   PRIMARY KEY(stock_id,period)
 ) STRICT;
 
--- 销售成本明细
+-- 销售成本明细，冲回的送货记负数
 CREATE TABLE fin_cost_sales(
   period TEXT NOT NULL CHECK(${isPeriod('period')}),
   movement_id TEXT NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE fin_cost_sales(
 ) STRICT;
 
 -- 期末处理：折旧、工资、发工资、成本、税金、结转损益、年结各一行。
--- 撤回重做的留底改名成“原名#第几次”（server/finance/jobs.ts），所以 kind 是七个原名之一，或原名加 # 加从 1 起的序号
+-- 撤回重做的留底改名成“原名#第几次”（server/finance/base/jobs.ts），所以 kind 是七个原名之一，或原名加 # 加从 1 起的序号
 CREATE TABLE fin_period_jobs(
   period TEXT NOT NULL CHECK(${isPeriod('period')}),
   kind TEXT NOT NULL CHECK(
@@ -152,7 +152,7 @@ CREATE TABLE fin_period_jobs(
   PRIMARY KEY(period,kind)
 ) STRICT;
 
--- 结账时的报表快照
+-- 结账时的报表快照，不可覆盖
 CREATE TABLE fin_report_snapshots(
   period TEXT NOT NULL REFERENCES fin_periods(period),
   version INTEGER NOT NULL CHECK(version>=1),
@@ -161,7 +161,7 @@ CREATE TABLE fin_report_snapshots(
   PRIMARY KEY(period,version)
 ) STRICT;
 
--- 预算
+-- 科目预算
 CREATE TABLE fin_budgets(
   period TEXT NOT NULL CHECK(${isPeriod('period')}),
   account_code TEXT NOT NULL REFERENCES fin_accounts(code),

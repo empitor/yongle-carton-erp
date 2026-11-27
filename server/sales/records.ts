@@ -1,14 +1,17 @@
 import type { z } from 'zod';
-import { priceFromE4, productSchema, type Customer, type CustomerInput, type Order, type OrderInput, type Product, type ProductInput } from '../../shared/core/index.js';
-import { ConflictError, many, one, rows, type Rows, type Store } from '../core/index.js';
+import { priceFromE4, productSchema, type Customer, type CustomerInput, type CustomerSite, type Order, type OrderInput, type Product, type ProductInput } from '../../shared/core/index.js';
+import { ConflictError, inSavepoint, many, one, rows, type Rows, type Store } from '../core/index.js';
+import { customerSites, initialCustomerSites, replaceCustomerSites } from './customer-sites.js';
 import { orderViews, saveOrder, type OrderEditCheck } from './orders.js';
-import { saveProductRecord } from './products.js';
+import { assertNewProductAllowed } from './duplicate-records.js';
+import { moveProductsWithOrder, productsOnlyInOrder, saveProductRecord } from './products.js';
 import { existingRecord, given, readBack } from './record-fields.js';
 
 /** 客户：库里的一行 → 接口里的客户档案 */
-const customerView = (r: Rows['customers']): Customer => ({
+const customerView = (r: Rows['customers'], sites: CustomerSite[] = []): Customer => ({
   id: r.id, name: r.name, contact: r.contact, phone: r.phone, address: r.address,
   notes: r.notes, version: r.version, createdAt: r.created_at, updatedAt: r.updated_at,
+  sites,
 });
 
 /** 产品的一行：尺寸单位只有 mm、cm（建表有 CHECK），按产品录入规则的同一个取值校验，附带所属客户名称 */
@@ -56,9 +59,10 @@ class SalesRecords {
   }
   customers(includeArchived = false, ids?: readonly number[]): Customer[] {
     const archived = includeArchived ? null : this.store.archivedIds('customers');
-    return many(this.db, rows.customers, 'SELECT * FROM customers' + idFilter(ids) + ' ORDER BY id DESC', ...idParams(ids))
-      .filter((r) => !archived?.has(r.id))
-      .map(customerView);
+    const records = many(this.db, rows.customers, 'SELECT * FROM customers' + idFilter(ids) + ' ORDER BY id DESC', ...idParams(ids))
+      .filter((r) => !archived?.has(r.id));
+    const sites = customerSites(this.store, records.map((r) => r.id));
+    return records.map((r) => customerView(r, sites.get(r.id)));
   }
   products(includeArchived = false, ids?: readonly number[]): Product[] {
     const archived = includeArchived ? null : this.store.archivedIds('products');
@@ -76,7 +80,7 @@ class SalesRecords {
   customer(id: number, includeArchived = false): Customer | undefined {
     if (!includeArchived && this.store.archived('customers', id)) return undefined;
     const row = one(this.db, rows.customers, 'SELECT * FROM customers WHERE id=?', id);
-    return row && customerView(row);
+    return row && customerView(row, customerSites(this.store, [id]).get(id));
   }
   product(id: number, includeArchived = false): Product | undefined {
     if (!includeArchived && this.store.archived('products', id)) return undefined;
@@ -89,24 +93,27 @@ class SalesRecords {
     return row && productView(row);
   }
   createCustomer(v: CustomerInput) {
-    // 编号由数据库分配（AUTOINCREMENT，删掉的也不复用）
-    const now = new Date().toISOString();
-    const id = Number(
-      this.db
+    return inSavepoint(this.db, () => {
+      const now = new Date().toISOString();
+      const id = Number(this.db
         .prepare('INSERT INTO customers(name,contact,phone,address,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?)')
-        .run(v.name, v.contact, v.phone, v.address, v.notes, now, now).lastInsertRowid,
-    );
-    return readBack(this.customer(id), '客户');
+        .run(v.name, v.contact, v.phone, v.address, v.notes, now, now).lastInsertRowid);
+      replaceCustomerSites(this.store, id, initialCustomerSites(v), now);
+      return readBack(this.customer(id), '客户');
+    });
   }
-  updateCustomer(v: CustomerInput, id: number, version: number, includeArchived = false) {
-    const now = new Date().toISOString();
-    const r = this.db
-      .prepare(
-        'UPDATE customers SET name=?,contact=?,phone=?,address=?,notes=?,updated_at=?,version=version+1 WHERE id=? AND version=?',
-      )
-      .run(v.name, v.contact, v.phone, v.address, v.notes, now, id, version);
-    if (!r.changes) throw new ConflictError();
-    return readBack(this.customer(id, includeArchived), '客户');
+  updateCustomer(v: CustomerInput, id: number, version: number, includeArchived = false, beforeSitesRemoved?: (ids: number[]) => void) {
+    return inSavepoint(this.db, () => {
+      const now = new Date().toISOString();
+      const r = this.db
+        .prepare(
+          'UPDATE customers SET name=?,contact=?,phone=?,address=?,notes=?,updated_at=?,version=version+1 WHERE id=? AND version=?',
+        )
+        .run(v.name, v.contact, v.phone, v.address, v.notes, now, id, version);
+      if (!r.changes) throw new ConflictError();
+      if (v.sites !== undefined) replaceCustomerSites(this.store, id, v.sites, now, beforeSitesRemoved);
+      return readBack(this.customer(id, includeArchived), '客户');
+    });
   }
   createProduct(v: ProductInput) {
     return saveProductRecord(this.productSaveContext(), v, { existing: undefined, includeArchived: false });
@@ -117,6 +124,17 @@ class SalesRecords {
   }
   private productSaveContext() {
     return { db: this.db, customer: this.customer.bind(this), product: this.product.bind(this) };
+  }
+  /** 这张订单上订单明细只在这张订单里的产品编号（编辑窗换客户时据此提示哪些产品跟着走，规则见 products.ts） */
+  soleProductIds(order: Pick<Order, 'id' | 'lines'>): number[] {
+    return [...productsOnlyInOrder(this.db, order.id, order.lines.map((l) => l.productId))];
+  }
+  /** 订单换客户时把只在这张订单里下过单的原客户产品改归新客户（规则见 products.ts 的 moveProductsWithOrder） */
+  moveProductsWithOrder(before: Order, next: Pick<OrderInput, 'customerId' | 'lines'>, includeArchived = false) {
+    const assertUnique = (p: Product, customerId: number) => {
+      assertNewProductAllowed(this.store, { ...p, customerId }, true, p.id);
+    };
+    return moveProductsWithOrder({ ...this.productSaveContext(), assertUnique }, before, next, includeArchived);
   }
   /** 普通订单视图（订单头和明细，见 orders.ts） */
   orders(includeArchived = false): Order[] {

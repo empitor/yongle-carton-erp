@@ -2,7 +2,7 @@
 import { isDate, isDateOrNull, isPeriod } from './checks.js';
 
 export const financeDealingTables = `
--- 往来单位的账期和税率。这里的 kind 是客户还是供应商（和应收应付表的 kind 不是一回事）；
+-- 往来单位的账期（term_type：none、days、monthly）、税率和授信。这里的 kind 是客户还是供应商（和应收应付表的 kind 不是一回事）；
 -- tax_rate 是 0～100 的数字文本，末尾可以带 %（发票表的税率不带 %，两边写法不同，按现状各管各的）
 CREATE TABLE fin_party_terms(
   kind TEXT NOT NULL CHECK(kind IN ('customer','supplier')),
@@ -21,7 +21,7 @@ CREATE TABLE fin_party_terms(
   PRIMARY KEY(kind,party_id)
 ) STRICT;
 
--- 应收应付。编号用 AUTOINCREMENT，初始化后不从头来。amount_cents 红冲时为负，不加非负
+-- 应收应付。编号用 AUTOINCREMENT，初始化后不从头来。amount_cents 红冲时为负，不加非负；红冲的 reversal_of 指原往来
 CREATE TABLE fin_obligations(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL CHECK(kind IN ('receivable','payable')),
@@ -77,7 +77,7 @@ CREATE TABLE fin_cash_documents(
 ) STRICT;
 CREATE INDEX fin_cash_account_date ON fin_cash_documents(account_id,date);
 
--- 收付款核销。金额红冲时为负，只要求不为 0
+-- 收付款核销（含反向核销、现结优惠、多付转抵）。金额红冲时为负，只要求不为 0
 CREATE TABLE fin_allocations(
   id INTEGER PRIMARY KEY,
   cash_id INTEGER NOT NULL REFERENCES fin_cash_documents(id),
@@ -121,7 +121,7 @@ CREATE TABLE fin_deposits(
   version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1)
 ) STRICT;
 
--- 押金的退还、抵扣；抵扣（apply）必须指明抵哪张往来单
+-- 押金、保证金的退还、抵扣（转抵）；抵扣（apply）必须指明抵哪张往来单
 CREATE TABLE fin_deposit_actions(
   id INTEGER PRIMARY KEY,
   deposit_id INTEGER NOT NULL REFERENCES fin_deposits(id),
@@ -135,8 +135,8 @@ CREATE TABLE fin_deposit_actions(
 CREATE INDEX fin_deposit_actions_deposit ON fin_deposit_actions(deposit_id);
 CREATE INDEX fin_deposit_actions_obligation ON fin_deposit_actions(obligation_id);
 
--- 逾期利息，一次确认一行；免除的记 0。date 是这次算到哪一天（也是凭证日期），period 是它的年月。
--- 一个月可以确认几次，下一次从上次算到的那天之后接着算，不重叠由程序保证（deposits-interest.ts）
+-- 逾期利息（经人确认的压款利息），一次确认一行；免除的记 0。date 是这次算到哪一天（也是凭证日期），period 是它的年月。
+-- 一个月可以确认几次，下一次从上次算到的那天之后接着算，不重叠由程序保证（server/finance/parties/deposits-interest.ts）
 CREATE TABLE fin_interest(
   id INTEGER PRIMARY KEY,
   obligation_id INTEGER NOT NULL REFERENCES fin_obligations(id),
@@ -223,7 +223,7 @@ CREATE TABLE fin_notes(
   CHECK(due_date>=date)
 ) STRICT;
 
--- 财务附件；media_type 按文件头判断，认不出的记 application/octet-stream
+-- 财务附件，按 SHA-256 去重；media_type 按文件头判断，认不出的记 application/octet-stream
 CREATE TABLE fin_attachments(
   id INTEGER PRIMARY KEY,
   sha256 TEXT NOT NULL UNIQUE,

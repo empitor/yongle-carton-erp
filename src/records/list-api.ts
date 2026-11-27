@@ -45,9 +45,8 @@ export const loadProducts = (query: ProductListQuery) => records('GET /products?
 export const loadOrders = (query: OrderListQuery) => records('GET /orders?withMetrics=1', { query });
 
 /** 地址里拼好的范围（page-state.tsx 的 recordRange：'?archived=all'、'?archived=1' 或空）里带不带已归档的 */
-function archivedOf(range: string) {
-  const archived = new URLSearchParams(range.slice(1)).get('archived');
-  return archived === '1' || archived === 'all' ? archived : undefined;
+function archivedOf(range: string): '1' | 'all' | undefined {
+  return range === '?archived=all' ? 'all' : range === '?archived=1' ? '1' : undefined;
 }
 /** 页面给的文字收窄成词表里的取值；空的、不认识的不带去请求 */
 const oneOf = <T extends string>(values: readonly T[], value: string | undefined) => values.find((v) => v === value);

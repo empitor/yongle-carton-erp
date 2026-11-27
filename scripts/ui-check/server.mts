@@ -67,8 +67,14 @@ const { store } = f, ops = new OperationsService(store), flow = new FlowService(
 const shift = (d: number) => { const t = new Date(today() + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
 // 种子是补录历史：送货单按单据上的日期出库（真实操作里出库日就是确认那天）
 const confirm = (d: FlowDocView) => { const p = flow.preview(d.id, actor); return flow.confirm(d.id, { previewDigest: p.previewDigest, requestId: randomUUID(), acknowledged: true, ...(d.kind === 'delivery' ? { shipDate: d.date } : {}) }, actor); };
-const customers = ['虚构东海电器有限公司', '虚构明远食品有限公司', '虚构海曙五金制品厂', '虚构北仑灯具有限公司', '虚构慈溪小家电有限公司', '虚构余姚塑料制品有限公司'].map((name, i) =>
-  sales(store).createCustomer(customerSchema.parse({ name, contact: '联系人' + (i + 1), phone: '0574-0000-00' + i, address: '虚构路' + (i + 1) + '号' })));
+const customers = ['虚构东海电器有限公司', '虚构明远食品有限公司', '虚构海曙五金制品厂', '虚构北仑灯具有限公司', '虚构慈溪小家电有限公司', '虚构余姚塑料制品有限公司'].map((name, i) => {
+  const contact = '联系人' + (i + 1), phone = '0574-0000-00' + i, address = '虚构路' + (i + 1) + '号';
+  const sites = [
+    { name: '虚构主厂区', contact, phone, address, isDefault: true },
+    { name: '虚构分厂', contact: '虚构分厂联系人', phone: '0574-2000', address: '虚构分厂路' + (i + 1) + '号' },
+  ];
+  return sales(store).createCustomer(customerSchema.parse({ name, contact, phone, address, sites }));
+});
 const productDefs = [
   ['电饭煲外箱 3L', 420, 320, 300, 'K=A', 'BC', 0],
   ['电饭煲外箱 5L', 480, 360, 340, 'K=A', 'BC', 0],
@@ -129,7 +135,7 @@ const confirmedOrders = orders.filter((o) => o.status === '已确认');
   const o = sales(store).saveOrder(orderSchema.parse({ customerId: customers[0].id, orderDate: prevEnd, deliveryDate: prevEnd, status: '已确认', notes: '', costs: null, externalPurchaseOrder: 'PO-虚构启用前', taxRate: 13, taxMode: '含税', roundingPolicy: 'half-up-cent', lines: [{ productId: p.id, productName: p.name, specification: `${p.length}×${p.width}×${p.height}`, quantity, unit: '只', unitPriceCents: 260, notes: '', customerProductCode: '' }] }));
   const l = o.lines[0], fin = finishedOf(l.productId);
   flow.stock.move(fin.id, { action: 'in', quantity: String(quantity), date: prevEnd, notes: '虚构期初', acknowledged: true, requestId: randomUUID(), expectedVersion: fin.version }, actor);
-  confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
+  confirm(flow.save('delivery', { date: prevEnd, plannedDate: prevEnd, customerId: o.customerId, siteId: customers[0].sites[1].id, lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: String(quantity), notes: '' }], notes: '虚构启用前送货' }, actor));
 }
 for (let i = 0; i < 11; i++) {
   const o = confirmedOrders[i], s = suppliers[i % suppliers.length], r = raws[i % raws.length], item = rawItems[i % rawItems.length];
@@ -152,7 +158,7 @@ for (let i = 0; i < 12; i++) {
     confirm(flow.save('production', { date: shift(-8 + i), taskId: task.id, productId: l.productId, finishedStockId: fin.id, goodQuantity: good, scrapQuantity: String(i * 3), operator: '虚构机长' + (i % 3), materials: [{ stockId: rawItems[0].id, issued: String(Math.ceil(l.quantity / 4)), returned: '0' }] }, actor));
     if (i < 5) {
       const ship = i < 3 ? String(l.quantity) : String(Math.floor(l.quantity / 2));
-      const d = flow.save('delivery', { date: shift(-5 + i), plannedDate: shift(-5 + i), customerId: o.customerId, address: '虚构收货地址', contact: '收货人', phone: '0574-2000', lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: ship, notes: '' }], notes: '' }, actor);
+      const d = flow.save('delivery', { date: shift(-5 + i), plannedDate: shift(-5 + i), customerId: o.customerId, siteId: null, lines: [{ orderId: o.id, orderLineId: l.id, stockId: fin.id, quantity: ship, notes: '' }], notes: '' }, actor);
       if (i < 4) confirm(d);
     }
   }

@@ -1,4 +1,4 @@
-import { errorMessage, legacyCents, plainPrice, priceFromCents, fieldLabel, fieldTitle } from '../../shared/core/index';
+import { PRODUCT_CUSTOMER_LOCKED, errorMessage, legacyCents, plainPrice, priceFromCents, fieldLabel, fieldTitle } from '../../shared/core/index';
 import { useEffect, useId, useState, type SubmitEvent } from 'react';
 import DimensionUnitSelect from './DimensionUnitSelect';
 import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../../shared/core/index';
@@ -111,7 +111,7 @@ function customerFieldHint(
   form: ProductForm,
   detail: ProductDetailRecord | null,
 ) {
-  if (state.locked) return '这个产品已经下过单，不能更改所属客户；要给别的客户用请复制一份。';
+  if (state.locked) return PRODUCT_CUSTOMER_LOCKED;
   if (state.checking) return '正在核对产品是否下过单，核对完成前暂不能更改所属客户。';
   if (state.blockedByError) return '未能确认产品是否下过单，已锁定所属客户，刷新后重试。';
   if (value && form.customerId == null && detail?.orderedCustomers?.length)

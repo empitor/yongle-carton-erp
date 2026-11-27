@@ -33,6 +33,11 @@ for (const [hash, noun, list, name] of [
     await dialog().getByLabel(noun + '名称', { exact: true }).fill(name);
     await dialog().getByLabel('联系人', { exact: true }).fill('虚构联系人');
     await dialog().getByLabel('联系方式', { exact: true }).fill('0574-9999-0000');
+    if (noun === '客户') {
+      await dialog().getByRole('button', { name: '新增厂区' }).click();
+      await dialog().getByLabel('厂区 1 名称').fill('虚构收货一厂');
+      await dialog().getByLabel('厂区 1 地址').fill('虚构一厂路');
+    }
     await dialog().getByRole('button', { name: '保存' + noun, exact: true }).click();
     await dialog().waitFor({ state: 'detached', timeout: 8000 });
     const said = await toast(name);
@@ -47,6 +52,34 @@ for (const [hash, noun, list, name] of [
     else ok('新建' + noun + ' ' + name + '：' + said);
   });
 }
+
+// 客户详情的厂区一个一块（InfoBlocks）：块头部写厂区名称，默认的那块头部另有“默认”标签
+const siteBlock = (site) =>
+  panel().locator('li.kit-block').filter({ has: page.locator('header strong', { hasText: new RegExp('^' + site + '$') }) });
+const defaultChip = (site) => siteBlock(site).locator('header .status-chip', { hasText: /^默认$/ });
+
+await step('客户增改厂区', async () => {
+  const name = '虚构界面新客户有限公司';
+  await page.goto(BASE + '#customers');
+  await page.getByRole('button', { name: '查看 ' + name }).first().click();
+  await defaultChip('虚构收货一厂').waitFor();
+  await action('编辑');
+  await dialog().getByRole('button', { name: '新增厂区' }).click();
+  await dialog().getByLabel('厂区 2 名称').fill('虚构收货二厂');
+  await dialog().getByLabel('厂区 2 地址').fill('虚构二厂路');
+  await dialog().getByRole('radio', { name: '厂区 2 设为默认' }).check();
+  await shot('客户编辑厂区');
+  await dialog().getByRole('button', { name: '保存客户', exact: true }).click();
+  await dialog().waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: '查看 ' + name }).first().click();
+  await defaultChip('虚构收货二厂').waitFor();
+  await siteBlock('虚构收货二厂').getByText('虚构二厂路').waitFor();
+  if (await defaultChip('虚构收货一厂').count()) fail('改了默认厂区后，原来的厂区还标着“默认”');
+  const customer = (await api('/api/customers')).find((c) => c.name === name);
+  if (customer?.sites?.length !== 2 || !customer.sites.find((s) => s.isDefault && s.name === '虚构收货二厂'))
+    fail('客户保存后默认厂区或厂区数量不对');
+  else ok('客户详情列出两家厂区，显示新的默认厂区和地址');
+});
 
 // 归档刚建的客户（没有订单，能归档），列表里没了；到归档页“客户”里恢复，回到客户列表
 await step('归档再恢复客户', async () => {

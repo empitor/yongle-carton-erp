@@ -115,6 +115,10 @@ const deliveryLine = z.strictObject({
 });
 const deliveryDocument = z.strictObject({
   ...deliverySchema.shape,
+  siteName: z.string().optional(),
+  address: z.string().default(''),
+  contact: z.string().default(''),
+  phone: z.string().default(''),
   plannedDate,
   lines: z.array(deliveryLine),
   ...lifecycle,

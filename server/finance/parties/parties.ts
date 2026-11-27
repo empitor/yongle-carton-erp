@@ -9,6 +9,7 @@ import {
   dayOfMonth,
   dueDate,
   installments,
+  partyTaxRate,
   partyTerms,
   readTermOptions,
   termDays,
@@ -30,8 +31,6 @@ import { readFinanceSettings } from '../base/settings.js';
 
 const partyKind = z.enum(partyKinds);
 const kind = z.enum(obligationKinds);
-/** 税率最大 100% */
-const MAX_TAX_RATE = 100;
 const terms = z
   .strictObject({
     kind: partyKind,
@@ -44,13 +43,7 @@ const terms = z
     cutoffDay: dayOfMonth.nullable().default(null),
     options: termOptions.optional(),
     creditLimit: centsSchema.nullable().default(null),
-    taxRate: z
-      .string()
-      .trim()
-      .regex(/^\d{1,3}(\.\d{1,6})?%?$/)
-      .refine((v) => Number(v.replace(/%$/, '')) <= MAX_TAX_RATE)
-      .nullable()
-      .optional(),
+    taxRate: partyTaxRate.nullable().optional(),
     taxMode: z.enum(storedTaxModes).nullable().optional(),
     version: versionSchema.optional(),
     requestId: requestIdSchema,

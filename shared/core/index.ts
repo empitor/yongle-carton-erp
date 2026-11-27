@@ -15,7 +15,7 @@ export { financeSource, financeSourceKinds } from './finance-sources.js';
 export type { FinanceSourceKind } from './finance-sources.js';
 export { fieldLabel, fieldName, fieldShort, fieldTable, fieldTables, fieldTitle, isRecordKind, unitLabel } from './field-names.js';
 export type { FieldKey, FieldTable } from './field-names.js';
-export { datePresets, monthsBefore, orderInView, presetRange } from './date-ranges.js';
+export { monthsBefore, orderInView, presetRange } from './date-ranges.js';
 export type { DatePreset, OrderView } from './date-ranges.js';
 export { flowKinds, isFlowKind, stockKinds } from './business-kinds.js';
 export type { FlowKind, StockKind } from './business-kinds.js';
@@ -23,8 +23,10 @@ export { financePageIds, flowDocHref, isFinancePage, isPageHref, isPageId, pageH
 export type { FinancePageId, PageGroup, PageId, PageTab, SettingsTab, TabbedPageId } from './pages.js';
 export { centsText, displayAmount, uppercaseAmount } from './display-amount.js';
 export { BUSINESS_TIME_ZONE, CUSTOMER_NAME_MAX, ISO_DATE_LENGTH, MAX_ORDER_LINES, MONTH_DAY_START, chosenId, closedOrder, contactFields, customerSchema, dateSchema, deliverableOrder, derivedOrderStatuses, displayOrderStatuses, effectiveOrder, exactPriceSchema, lineSchema, lineSpecification, orderDisplayStatus, orderSchema, orderTaxModes, plannedOrderSchema, productSchema, roundingPolicies, roundingPolicyLabels, sameSpecification, specification, specificationDifference, statuses, today, totalCost, uncountedOrderStatuses } from './domain.js';
-export { MAX_TAX_PERCENT, TAX_PERCENT_STEP, clearRecognizedTaxText, hasUnrecognizedTaxRate, orderTaxOriginal, orderTaxSnapshot, percentFromTaxRateBp, readTaxRate, shownTaxRate, taxRateToBp } from './tax-rate.js';
+export { MAX_TAX_PERCENT, TAX_PERCENT_STEP, clearRecognizedTaxText, hasUnrecognizedTax, orderTaxModeHint, orderTaxOriginal, orderTaxRateHint, orderTaxSnapshot, percentFromTaxRateBp, readTaxRate, shownTaxRate, taxRateToBp } from './tax-rate.js';
 export type { Customer, CustomerInput, OrderInput, PlannedOrderInput, Product, ProductInput } from './domain.js';
+export { DEFAULT_SITE_NAME, blankCustomerSite, customerSiteInputSchema, defaultCustomerSite } from './domain.js';
+export type { CustomerSite, CustomerSiteInput } from './domain.js';
 export { trackedOrderViewSchema } from './order-view.js';
 export type { Order, TrackedOrder } from './order-view.js';
 export { errorMessage } from './error-message.js';
@@ -33,6 +35,7 @@ export { arrivalLineStatus, fulfillmentSummary, lineShippingProgress, shippingPr
 export { PASSWORD_MAX_LENGTH, passwordHint, passwordPattern } from './password-policy.js';
 export { CENTS_PER_YUAN, MAX_PRICE_UNITS, MAX_PRICE_YUAN, PRICE_DECIMALS, UNITS_PER_YUAN, costCents, costYuan, exactText, legacyCents, linePrice, linePriceExact, plainPrice, precisionTotal, priceEdit, priceFromCents, priceFromE4, priceToE4, productPricePatch, roundedQuotient, samePrice } from './precision.js';
 export { MAX_CM_DIMENSION, cmLimitIssue, convertDimension, dimensionKeys, dimensionUnitNames, dimensionUnitSchema, dimensionValueSchema, formatDimensions, hasCompleteProductIdentity, nameWithCustomer, normalizeDimensionUnit, normalizedDimensions, parseDimension, productIdentityParts, productNotices, sameProductInBatch, uniqueMessages, withinCmLimit } from './product-details.js';
+export { PRODUCT_CUSTOMER_LOCKED, productCustomerIssue, productFitsCustomer, productMovesWithOrder, productsForCustomer } from './product-details.js';
 export type { DimensionUnit, SpecFields } from './product-details.js';
 export { DAY_MS, HOUR_MS, KIB, MIB, MINUTE_MS } from './measures.js';
 export { duplicateKey, looseKey, nameKey } from './name-keys.js';

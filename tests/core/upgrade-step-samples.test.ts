@@ -25,7 +25,9 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { upgradeSchema, upgradeSteps, type UpgradeStep } from '../../server/core/schema/index.js';
 import { openVersionedSqlite, type VersionedSqliteSpec } from '../../server/core/index.js';
-import { readTaxRate } from '../../shared/core/index.js';
+import { customerSiteInputSchema, looseKey, orderTaxModes, orderTaxSnapshot, percentFromTaxRateBp, readTaxRate } from '../../shared/core/index.js';
+import { legacyTaxMode } from '../../shared/finance/index.js';
+import { rowsOf, versions } from '../support/schema-fixture.js';
 import { CONFIG_BASELINE_DIRECTORY, configDatabases, configDbKeys } from '../../scripts/config-db-dump.js';
 import { configWorkspace, notesBaseline, notesSpec, quietLog, runSql } from '../support/config-db-fixture.js';
 
@@ -110,6 +112,21 @@ const afterMismatches = (db: DatabaseSync, label: string, after: Sample['after']
       : [`${label}跑完 ${table} 和样例不一样：\n  样例：${JSON.stringify(expected)}\n  实际：${JSON.stringify(actual)}`];
   });
 
+/** 第 20 版快照建内存库 → 跑完 steps 里第 index 步之前的步骤 → 写进 before，返回这个库（调用方关掉） */
+function databaseBefore(steps: readonly UpgradeStep[], index: number, before: Sample['before']) {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(SNAPSHOT_FILE, 'utf8'));
+    if (index > 0) upgradeSchema(db, { appVersion: 'test-9.9.9', steps: steps.slice(0, index) });
+    db.exec('PRAGMA foreign_keys=ON');
+    for (const [table, rows] of Object.entries(before)) insertRows(db, table, rows);
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+}
+
 /**
  * 跑一步的样例：第 20 版快照建内存库 → 跑完这一步之前的步骤 → 写进 before → 只跑这一步 → 逐表比 after。
  * steps 是全部步骤（从第 21 版起连续）；返回对不上的地方，空的就是对上了
@@ -117,35 +134,165 @@ const afterMismatches = (db: DatabaseSync, label: string, after: Sample['after']
 function runSample(steps: readonly UpgradeStep[], version: number, sample: Sample): string[] {
   const index = steps.findIndex((s) => s.version === version);
   if (index < 0) return [`第 ${version} 版没有升级步骤`];
-  const step = steps[index],
-    label = `第 ${version} 步（${step.name}）`,
-    db = new DatabaseSync(':memory:');
+  const label = `第 ${version} 步（${steps[index].name}）`;
+  let db: DatabaseSync | undefined;
   try {
-    db.exec(readFileSync(SNAPSHOT_FILE, 'utf8'));
-    if (index > 0) upgradeSchema(db, { appVersion: 'test-9.9.9', steps: steps.slice(0, index) });
-    db.exec('PRAGMA foreign_keys=ON');
-    for (const [table, rows] of Object.entries(sample.before)) insertRows(db, table, rows);
+    db = databaseBefore(steps, index, sample.before);
     upgradeSchema(db, { appVersion: 'test-9.9.9', steps: steps.slice(0, index + 1) });
     return afterMismatches(db, label, sample.after);
   } catch (error) {
     return [`${label}的样例跑不通：${reasonOf(error)}`];
   } finally {
-    db.close();
+    db?.close();
   }
 }
 
-test('第 24 步对订单头和明细的税率回填与 readTaxRate 一致', () => {
-  const sample = readSample(`${SAMPLE_DIR}/v24.json`);
-  assert.notEqual(typeof sample, 'string', String(sample));
+/** 程序怎么认含税口径：去掉首尾空白（录入的 taxModeSchema 先 trim）后是三项之一就是它，旧写法“不含税”归“未税”，别的认不出 */
+function programTaxMode(mode: Cell) {
+  const v = typeof mode === 'string' ? mode.trim() : '';
+  return v === legacyTaxMode.written ? legacyTaxMode.means : (orderTaxModes.find((m) => m === v) ?? null);
+}
+const textCell = (cell: Cell) => {
+  assert.ok(cell === null || typeof cell === 'string');
+  return cell;
+};
+function stepSample(version: number) {
+  const sample = readSample(`${SAMPLE_DIR}/v${version}.json`);
   if (typeof sample === 'string') throw new Error(sample);
+  return sample;
+}
+
+test('第 24 步对订单头和明细的税率、含税口径回填与程序的认法一致（税率 readTaxRate，口径去掉首尾空白再认）', () => {
+  const sample = stepSample(24);
   const after = Object.fromEntries(['orders', 'order_lines'].map((table) => [
     table,
-    sample.before[table].map(({ id, tax_rate }) => {
-      assert.ok(tax_rate === null || typeof tax_rate === 'string');
-      return { id, tax_rate_bp: readTaxRate(tax_rate) };
-    }),
+    sample.before[table].map(({ id, tax_rate, tax_mode }) => ({
+      id, tax_rate_bp: readTaxRate(textCell(tax_rate)), tax_mode: programTaxMode(tax_mode),
+    })),
   ]));
   assert.deepEqual(runSample(upgradeSteps, 24, { before: sample.before, after }), []);
+});
+
+test('第 24 步留下的原话，程序读回来还是原来认不出的写法：送货快照照抄，不当成没写', () => {
+  const sample = stepSample(24);
+  for (const table of ['orders', 'order_lines']) {
+    sample.before[table].forEach((before, i) => {
+      const after = sample.after[table][i];
+      const bp = after.tax_rate_bp, text = textCell(after.tax_text), mode = textCell(after.tax_mode);
+      const snapshot = orderTaxSnapshot({
+        taxRate: typeof bp === 'number' ? percentFromTaxRateBp(bp) : null, taxMode: mode, taxText: text,
+      });
+      // 原话逐字照存，读回来只去掉首尾空白；口径原话中间带换行的也整段读回来
+      const rawRate = textCell(before.tax_rate)?.trim() || undefined;
+      const rawMode = textCell(before.tax_mode)?.trim() || undefined;
+      const label = `${table} ${before.id}`;
+      if (bp === null) assert.equal(snapshot.taxRate, rawRate, label + ' 的税率原话');
+      // 认不出的口径带着“口径：”抄进送货快照，财务认不出、记待补
+      assert.equal(snapshot.taxMode, programTaxMode(before.tax_mode) ?? (rawMode && '口径：' + rawMode), label + ' 的口径');
+    });
+  }
+});
+
+// ---------- 第 25 步：建客户厂区，给没挂厂区的待送货单挂上（每种情形见 v25.json） ----------
+
+const v25 = upgradeSteps.findIndex((s) => s.version === 25);
+/** 第 25 步跑完的内存库（调用方关掉） */
+function afterV25(before: Sample['before']) {
+  const db = databaseBefore(upgradeSteps, v25, before);
+  upgradeSchema(db, { appVersion: 'test-9.9.9', steps: upgradeSteps.slice(0, v25 + 1) });
+  return db;
+}
+/** 厂区每一行都过得了程序的厂区录入规则、录入后原样不变；同一客户的厂区名照查重口径（looseKey）互不相同 */
+function validSites(db: DatabaseSync) {
+  const sites = rowsOf(db, 'customer_sites');
+  for (const s of sites) {
+    const site = { name: s.name, contact: s.contact, phone: s.phone, address: s.address, isDefault: s.is_default === 1, notes: s.notes };
+    assert.deepEqual(customerSiteInputSchema.parse(site), site, '厂区 ' + s.id);
+  }
+  const keys = sites.map((s) => s.customer_id + ' ' + looseKey(String(s.name)));
+  assert.equal(new Set(keys).size, keys.length, '同一客户有重名厂区');
+  return sites;
+}
+
+test('第 25 步建出的厂区都过得了程序的厂区录入规则（录入后原样不变），同一客户的厂区名照查重口径互不相同', () => {
+  const db = afterV25(stepSample(25).before);
+  try {
+    assert.equal(validSites(db).length, 8);
+  } finally {
+    db.close();
+  }
+});
+
+const madeAt = '2026-10-05T00:00:00.000Z';
+/** 客户 1 的一张待送货单，0.9.5 存的样子（明细从略） */
+const v25Draft = (id: number, [contact, phone, address]: readonly [string, string, string, boolean]) => ({
+  id, kind: 'delivery', number: 'SH-20261005-' + String(id).padStart(5, '0'), date: '2026-10-05', status: 'draft', version: 1,
+  planned_date: '2026-10-05', actor_id: 'fict-user', actor_name: '虚构制单员', created_at: madeAt, updated_at: madeAt,
+  document: JSON.stringify({ date: '2026-10-05', notes: '', plannedDate: '2026-10-05', customerId: 1, address, contact, phone, lines: [] }),
+});
+
+test('第 25 步判超长：去首尾空白后按 JS 字符串长度（四字节的字算 2）比厂区录入的上限，超长的单不建厂区、不挂、原文不变', () => {
+  // 联系人、联系方式、地址，挂不挂；上限是厂区录入的联系人 60、联系方式 50、地址 300
+  const cases: [string, string, string, boolean][] = [
+    ['甲'.repeat(60), '', '虚构路', true],
+    ['甲'.repeat(61), '', '虚构路', false],
+    ['　' + '甲'.repeat(60) + ' ', '', '虚构二路', true],
+    ['😀'.repeat(30), '', '虚构路', true],
+    // 程序（zod 按码位数）收 31 个，这一步不挂：只会比程序严
+    ['😀'.repeat(31), '', '虚构路', false],
+    ['甲'.repeat(58) + '😀', '', '虚构路', true],
+    ['甲'.repeat(59) + '😀', '', '虚构路', false],
+    ['', '1'.repeat(50), '虚构路', true],
+    ['', '1'.repeat(51), '虚构路', false],
+    ['', '', '路'.repeat(300), true],
+    ['', '', '路'.repeat(299) + '😀', false],
+    // 带 NUL 的：SQLite 的 length 只数到 NUL，一律算超长（只这一种比程序严）
+    ['甲\u0000乙', '', '虚构路', false],
+  ];
+  const customer = { id: 1, name: '虚构客户', contact: '张三', phone: '', address: '虚构档案地址', notes: '', created_at: madeAt, updated_at: madeAt };
+  const drafts = cases.map((c, i) => v25Draft(i + 1, c));
+  const db = afterV25({ customers: [customer], flow_documents: drafts });
+  try {
+    // 没挂的原文逐字不变
+    assert.deepEqual(rowsOf(db, 'flow_documents').map((r, i) => r.document !== drafts[i].document), cases.map((c) => c[3]));
+    // 挂不挂正好照 JS 字符串长度；挂上的，程序都收这个厂区（不比程序松）
+    cases.forEach(([contact, phone, address, attached], i) => {
+      const fits = [contact, phone, address].every((v, k) => !v.includes('\u0000') && v.trim().length <= [60, 50, 300][k]);
+      assert.equal(attached, fits, '第 ' + (i + 1) + ' 张');
+      if (attached) assert.ok(customerSiteInputSchema.safeParse({ name: '虚构厂区', contact, phone, address }).success, '第 ' + (i + 1) + ' 张');
+    });
+    assert.equal(validSites(db).length, 1 + cases.filter((c) => c[3]).length);
+  } finally {
+    db.close();
+  }
+});
+
+test('第 25 步做完以后出错：整个升级退回，没有厂区表，单据和客户逐行和升级前一样，版本停在第 24 版', () => {
+  const step = upgradeSteps[v25],
+    db = databaseBefore(upgradeSteps, v25, stepSample(25).before);
+  try {
+    const state = () => ({ flow: rowsOf(db, 'flow_documents'), customers: rowsOf(db, 'customers'), versions: versions(db) });
+    const before = state();
+    let attached = 0;
+    const broken: UpgradeStep = {
+      ...step,
+      up: (handle) => {
+        step.up(handle);
+        const row = handle.prepare("SELECT count(*) AS n FROM flow_documents WHERE json_extract(document,'$.siteId') IS NOT NULL").get();
+        attached = Number(row?.n);
+        throw new Error('虚构：第 25 步做完以后出错');
+      },
+    };
+    assert.throws(
+      () => upgradeSchema(db, { appVersion: 'test-9.9.9', steps: [...upgradeSteps.slice(0, v25), broken] }),
+      /第 24 版升级到第 25 版失败，已整体退回，数据没有改动：虚构：第 25 步做完以后出错/,
+    );
+    assert.equal(attached, 6, '出错前这一步已经挂上了 6 张单');
+    assert.deepEqual(state(), before);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE name='customer_sites'").get()?.n, 0);
+  } finally {
+    db.close();
+  }
 });
 
 test('每个升级步骤都登记了数据样例，样例真的跑过、结果和登记的一样', () => {

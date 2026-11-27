@@ -44,7 +44,7 @@ test('每种记录人能改的字段（卡片上一个都不能漏）按参数�
     return [[...e.top], [...e.lines]];
   };
   const party = ['name', 'contact', 'phone', 'address', 'notes'];
-  assert.deepEqual(fields('customers'), [party, []]);
+  assert.deepEqual(fields('customers'), [[...party, 'sites'], ['id', 'name', 'contact', 'phone', 'address', 'isDefault', 'notes']]);
   assert.deepEqual(fields('suppliers'), [party, []]);
   assert.deepEqual(fields('products'), [
     ['name', 'length', 'width', 'height', 'dimensionUnit', 'dimensionUnitRaw', 'material', 'flute', 'requirements', 'priceCents', 'priceExact', 'customerProductCode', 'customerId', 'parentProductId'],
@@ -64,7 +64,7 @@ test('每种记录人能改的字段（卡片上一个都不能漏）按参数�
     ['stockId', 'purchaseLineId', 'item', 'quantity', 'acceptedQuantity', 'rejectedQuantity', 'stockedQuantity', 'statedQuantity', 'unitPrice', 'priceBasis', 'statedArea', 'differenceReason'],
   ]);
   assert.deepEqual(fields('delivery'), [
-    ['date', 'notes', 'plannedDate', 'plannedTime', 'actualTime', 'customerId', 'address', 'contact', 'phone', 'allowOverdelivery', 'overdeliveryReason', 'lines'],
+    ['date', 'notes', 'plannedDate', 'plannedTime', 'actualTime', 'customerId', 'siteId', 'allowOverdelivery', 'overdeliveryReason', 'lines'],
     ['orderId', 'orderLineId', 'stockId', 'quantity', 'notes'],
   ]);
   assert.deepEqual(fields('production'), [
@@ -154,6 +154,7 @@ test('新建：数据管理新建订单和客户、新建生产任务，卡片�
       '新建：客户 虚构新客户',
       '名称：虚构新客户',
       '联系方式：555',
+      '厂区：默认厂区（默认） · 联系方式 555',
       '原因：虚构维护',
     ]);
     assert.deepEqual(shown(prepare('records.propose_save', { module: 'production_tasks', patch: { date: '2026-11-14', productId: p.id, quantity: '120', unit: '只', orderIds: [] } })), [
@@ -293,13 +294,22 @@ test('送货出库、更正送货单、换订单、订单换客户：连带改�
     ]);
     const items = [{ id: oa.id, version: sales(f.store).order(oa.id, true)?.version }];
     const patch = { customerId: customer('虚构客户乙').id };
-    assert.deepEqual(shown(prepare('management.execute', { requestId: randomUUID(), module: 'orders', action: 'update', items, reason: '虚构维护', patch })), [
+    // 已生效的送货单换客户只清厂区编号、留着当时的收货信息（用户 2026-11-27 定），卡片上没有收货厂区那一行
+    const changeCustomer = prepare('management.execute', { requestId: randomUUID(), module: 'orders', action: 'update', items, reason: '虚构维护', patch });
+    assert.deepEqual(shown(changeCustomer), [
       '数据管理：修改订单 1 条：' + orderTitle,
       '记录：' + orderTitle,
       '客户：虚构客户甲 → 虚构客户乙',
       '连带：' + title + ' 客户：虚构客户甲 → 虚构客户乙',
       '原因：虚构维护',
     ]);
+    const shipped = tools.flow.get(draft.id, 'delivery');
+    const receiving = (x: typeof shipped) => [x.siteId, x.siteName, x.address, x.contact, x.phone];
+    tools.commit(changeCustomer, who, 'card');
+    const moved = tools.flow.get(draft.id, 'delivery');
+    assert.equal(moved.customerId, patch.customerId);
+    assert.deepEqual(receiving(moved), [null, ...receiving(shipped).slice(1)]);
+    assert.equal(shipped.siteName, '默认厂区');
   } finally {
     f.close();
   }

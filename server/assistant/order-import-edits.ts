@@ -5,7 +5,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { AppError } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { resolveImportCustomer } from '../import/index.js';
-import { MAX_DRAFT_OPERATIONS, patchOperationSchema, productsForCustomer, type DraftOperation, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
+import { productCustomerIssue, productsForCustomer } from '../../shared/core/index.js';
+import { MAX_DRAFT_OPERATIONS, patchOperationSchema, type DraftOperation, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
 import { prepare, recognize } from './order-import-prepare.js';
 import type { OrderImportState, Task, TaskState, WorkflowContext } from './order-import-state.js';
 
@@ -77,12 +78,9 @@ function matchLine(wf: OrderImportState, w: ImportWorkspaceView, task: Task, map
   if (matches.length !== 1)
     throw new AppError('产品未唯一匹配，请明确选择档案编号，不能合并相似型号。');
   const p = matches[0];
-  if (p.customerId != null && p.customerId !== customerId) {
-    const owner = p.customerName || sales(wf.store).customer(p.customerId, true)?.name || '其他客户';
-    const target =
-      (customerId ? sales(wf.store).customer(customerId)?.name : w.draft?.header.buyerName.value) || '当前客户';
-    throw new AppError(`这个产品是 ${owner} 的，要给 ${target} 用请复制一份`, 409);
-  }
+  const target = customerId ? sales(wf.store).customer(customerId)?.name : w.draft?.header.buyerName.value;
+  const issue = productCustomerIssue(p, { id: customerId, name: target });
+  if (issue) throw new AppError(issue, 409);
   mapping.products[line.id] = { mode: 'existing', id: p.id, version: p.version };
 }
 /** 没指定客户、也没说新建：按名称和历史订单找唯一的那位，模糊的说明差异 */

@@ -192,6 +192,62 @@ await step('安排送货再导出并出库', async () => {
   else ok('订单 ' + target.o.number + ' 安排送货 100 只（' + arranged + '），导出 ' + name + ' 并出库，库存 ' + before + ' → ' + after + '，送货中');
 });
 
+await step('安排送货按厂区拆单', async () => {
+  const [customers, finished] = await Promise.all([api('/api/customers'), api('/api/warehouse/items?kind=finished')]);
+  const customer = customers.find((c) => c.sites?.length > 1 && finished.some((s) => s.customerId === c.id && s.availableUnits >= 20000));
+  const stock = finished.find((s) => s.customerId === customer?.id && s.availableUnits >= 20000);
+  if (!customer || !stock) throw new Error('种子里没有多厂区客户的可用成品');
+  const main = customer.sites.find((s) => s.isDefault), branch = customer.sites.find((s) => !s.isDefault);
+  const date = businessDay(), line = { productId: stock.productId, quantity: 10, unitPriceCents: 100 };
+  const order = await call(page, 'POST', '/orders', { customerId: customer.id, orderDate: date, deliveryDate: date, status: '已确认', lines: [line, line] });
+  if (!order.id) throw new Error('无法新建拆单用的虚构订单：' + order.error);
+  await page.goto(BASE + '#orders');
+  await page.goto(BASE + '#warehouse?kind=finished&deliveries=1&createDelivery=1&order=' + order.id);
+  const selector = dialog().getByLabel(/收货厂区$/);
+  await selector.waitFor();
+  if (await selector.inputValue() !== String(main.id)) fail('安排送货没有预选默认厂区');
+  await selector.selectOption(String(branch.id));
+  const address = dialog().getByLabel(/收货地址$/);
+  if (await address.inputValue() !== branch.address || await address.isEditable()) fail('收货地址预览没有随厂区更新或仍能编辑');
+  // 两行时每行的“去掉 …”看得见、点得到（不被拆单下拉挤掉），下拉宽得下“拆给别的厂区”整句
+  const removes = dialog().getByRole('button', { name: /^去掉 / }), splits = dialog().getByLabel(/^拆给别的厂区/);
+  if (await removes.count() !== 2 || await splits.count() !== 2) fail('两行明细应各有一个“去掉”和一个“拆给别的厂区”');
+  for (const b of await removes.all()) {
+    const box = await b.boundingBox();
+    if (!box || box.width < 16 || box.height < 16) fail('“去掉”按钮看不见：' + JSON.stringify(box));
+    await b.click({ trial: true });
+  }
+  for (const s of await splits.all()) {
+    const fits = await s.evaluate((el) => {
+      const probe = document.createElement('span');
+      probe.textContent = el.options[el.selectedIndex].text;
+      probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:' + getComputedStyle(el).font;
+      document.body.append(probe);
+      const need = probe.getBoundingClientRect().width;
+      probe.remove();
+      const style = getComputedStyle(el); // 右内边距里含下拉箭头，字只能排在两边内边距之间
+      return { text: el.options[el.selectedIndex].text, need, inner: el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) };
+    });
+    if (fits.text !== '拆给别的厂区' || fits.inner < fits.need) fail('拆单下拉显示不全：' + JSON.stringify(fits));
+  }
+  ok('两行明细：每行“去掉”看得见点得到，“拆给别的厂区”整句显示');
+  await splits.first().selectOption(String(main.id));
+  await dialog().getByRole('button', { name: '安排送货（2 张）' }).waitFor();
+  await shot('送货拆给别的厂区');
+  await dialog().getByRole('button', { name: '安排送货（2 张）' }).click();
+  await dialog().waitFor({ state: 'detached' });
+  const found = (await api('/api/flow?kind=delivery&status=draft')).filter((d) => d.lines.some((l) => l.orderId === order.id));
+  if (found.length !== 2 || found.some((d) => d.lines.length !== 1) ||
+    [main, branch].some((s) => !found.some((d) => d.siteId === s.id && d.siteName === s.name && d.address === s.address)))
+    throw new Error('按厂区拆开的两张送货单内容不对');
+  const d = found.find((v) => v.siteId === branch.id);
+  await page.goto(BASE + '#warehouse?kind=finished&deliveries=1&doc=' + d.id);
+  await panel().getByText('收货厂区', { exact: true }).waitFor();
+  await panel().getByText(branch.name, { exact: true }).waitFor();
+  await shot('送货详情的收货厂区');
+  ok('同一客户两行拆成两张待送货单，详情显示所选厂区');
+});
+
 await step('出入库和盘点', async () => {
   const open = async () => {
     await page.goto(BASE + '#warehouse');

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { parseStoredJson } from '../../core/index.js';
 import { financeSourceSchemas } from '../../../shared/business/index.js';
 import { storedTaxModes } from '../../../shared/finance/index.js';
+import { taxRateProblem } from '../parties/terms.js';
 
 /*
  * 财务事件存的来源单据快照（fin_events.snapshot）：同步时（events.ts）写，补财务资料、红字冲销并重做时
@@ -57,14 +58,22 @@ const eventSnapshot = z.strictObject({
 });
 export type EventSnapshot = z.output<typeof eventSnapshot>;
 export type DocumentMoney = z.output<typeof documentMoney>;
-/** 补财务资料时人填的一行：精确金额、含税口径、税率（event-handling.ts 收的，也是快照里 financialLines 的样子） */
+/** 补税率时税率超过 100% 的说法（和 base/amounts.ts 算金额时一样） */
+const TAX_RANGE_MESSAGE = '税率超出范围。';
+/**
+ * 补财务资料时人填的一行：精确金额、含税口径、税率（event-handling.ts 收的，也是快照里 financialLines 的样子）。
+ * 税率照往来条款同一份认法（parties/terms.ts 的 taxRateProblem）；写法不对不带中文说明，由财务接口统一说“税率无效”。
+ */
 export const evidenceLine = z.strictObject({
   exact: z.string().regex(/^\d{1,24}(\.\d{1,24})?$/),
   mode: z.enum(storedTaxModes),
   rate: z
     .string()
     .trim()
-    .regex(/^\d{1,3}(\.\d{1,6})?%?$/),
+    .superRefine((v, ctx) => {
+      const problem = taxRateProblem(v);
+      if (problem) ctx.addIssue({ code: 'custom', message: problem === 'range' ? TAX_RANGE_MESSAGE : 'invalid tax rate' });
+    }),
 });
 
 /** 读一条事件的快照 */

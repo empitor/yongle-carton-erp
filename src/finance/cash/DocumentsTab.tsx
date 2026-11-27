@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Hint, yuan, notify, hashParams, stepper, useAction, col, mon, type Col } from '../../ui/index';
+import { pageParams } from '../../../shared/core/index';
+import { Hint, yuan, notify, stepper, useAction, col, mon, type Col } from '../../ui/index';
 import { AccountDialog } from './AccountsTab';
 import CashPanel, { type CashDialog, type CashListRow, type RevokeRow } from './CashPanel';
 import { CashDocDialogs, RevokeAllocationDialog } from './CashDialogs';
@@ -49,10 +50,7 @@ export default function DocumentsTab({ head }: { head: HeadFn }) {
   const perms = useFinPerms();
   const [period, setPeriod] = usePeriod();
   const [kind, setKind] = useState('');
-  const [selected, setSelected] = useState<number | null>(() => {
-    const id = hashParams().get('cash');
-    return id ? Number(id) : null;
-  });
+  const [selected, setSelected] = useState<number | null>(() => pageParams('finance-cash', location.hash).cash ?? null);
   const [creatingAccount, setCreatingAccount] = useState(false);
   const allAccounts = useFinRead(ALL_CASH_ACCOUNTS);
   const noAccount = !!allAccounts.data && !allAccounts.data.rows.some((a) => a.enabled);

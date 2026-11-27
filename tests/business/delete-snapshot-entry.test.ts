@@ -1,4 +1,4 @@
-// 删除前一定留破坏前快照（AGENTS.md“删除和初始化前调用 snapshotBeforeDestructive”）：删除引擎对外只有先拍快照的 delete；
+// 删除前一定留破坏前快照（docs/业务规则.md“写入”：删除和初始化前调用 snapshotBeforeDestructive）：删除引擎对外只有先拍快照的 delete；
 // 不另拍快照的那条（server/lifecycle/database-maintenance.ts 的 deleteAfterSnapshot）只给改订单连带删送货单用，
 // 要本库真拍过快照的凭证（TakenSnapshot.take，构造函数私有）；订单服务和业务总览的入口都不转交这两样。
 import '../../server/import/index.js';

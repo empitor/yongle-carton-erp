@@ -330,7 +330,7 @@ test('进超级管理员模式输错 5 次就锁 5 分钟，过了能再进；�
 // 拿不准、等界面流程那一路确认：列表行上没有删除（删除在详情面板的“更多”里）这一点界面流程有没有看过；
 // 后半段扫源码守“登录和删除的代码不碰浏览器存储”（密码不存浏览器），排查报告建议搬到 frontend。
 test('客户列表行上只有查看、没有删除，详情显示全部字段；登录和删除的代码不碰浏览器存储', () => {
-  const row = { id: 1, name: '虚构客户', contact: '联系人', phone: '123', address: '地址', notes: '备注', version: 1, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z' };
+  const row = { id: 1, name: '虚构客户', contact: '联系人', phone: '123', address: '地址', notes: '备注', sites: [], version: 1, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z' };
   const html = renderToStaticMarkup(
     createElement(BusinessRecords, { entity: 'customers', rows: [row], archived: false, edit: () => {}, changed: () => {} }),
   );

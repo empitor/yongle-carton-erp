@@ -13,6 +13,7 @@ import { StockFlowService } from '../stock/stock-entries.js';
 import { StockViews } from '../stock/stock-views.js';
 import { rewriteRefs } from '../documents/refs.js';
 import { documentInput, validateFlow } from './validate.js';
+import { deliveryDestination } from './validate-delivery.js';
 import { arrivalRecords } from './arrivals.js';
 import { recomputeAfterMaintenance, refreshOrderProgress, updateOrders } from './order-progress.js';
 import { draftIds, get, list, storedDocument, taskUntouched, viewOfKind, waitingGood } from '../documents/read.js';
@@ -77,9 +78,12 @@ export class FlowService implements FlowCommands {
       return onceByRequest(this.store, request, () => viewOfKind(this.saveDocument(v, actor, target), kind), flowViewSchema(kind));
     });
   }
-  private saveDocument(v: FlowDocument, actor: Actor, target: SaveTarget) {
+  private saveDocument(input: FlowDocument, actor: Actor, target: SaveTarget) {
     const before = target.id ? this.get(target.id) : null,
-      task = before ? this.editableTask(before, v, actor, target.version) : null;
+      task = before ? this.editableTask(before, input, actor, target.version) : null;
+    const v = input.kind === 'delivery'
+      ? { ...input, ...deliveryDestination(this.store, input, isLocalAdministrator(actor)) }
+      : input;
     if (v.kind === 'production') v.finishedStockId = this.finishedStockOf(v, actor, before ? '完工单 ' + before.number : undefined);
     validateFlow(this, v, actor, false, { excludingId: target.id, skipRemaining: target.moved, registered: target.registered });
     // 安排生产就是下达：生产任务不动库存，新建时直接存成已下达，没有“待下达”这一步
@@ -121,12 +125,12 @@ export class FlowService implements FlowCommands {
   }
   /**
    * 整份写回改过的单据；改已下达的任务：保留下达人和下达时间，产品名快照没换产品的留着原来的、换了按新产品取（keepSnapshot）。
-   * 待核对的单据还没有快照（确认时才抄），整份换成新内容
+   * 待送货单的收货信息随每次保存重新从所选厂区取。
    */
   private rewrite(id: number, v: FlowDocument, task: FlowDocView<'task'> | null) {
     const stored = storedDocument(this.store, id),
       next: FlowDocument = task && v.kind === 'task' && stored.kind === 'task' ? { ...stored, ...v, productName: sales(this.store).product(v.productId, true)?.name } : v;
-    writeFlowDocument(this.store, id, keepSnapshot(stored, next), { date: v.date, at: new Date().toISOString() });
+    writeFlowDocument(this.store, id, v.kind === 'delivery' ? v : keepSnapshot(stored, next), { date: v.date, at: new Date().toISOString() });
     return id;
   }
   /** 新建一张单据，返回编号；生产任务新建就是下达：和确认后的单据一样带上产品名、下达人和下达时间 */

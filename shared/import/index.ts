@@ -3,7 +3,7 @@ export type { ImportFailureRecord } from './failure-record.js';
 export { importStateLabel, importStateLabels } from './import-words.js';
 export { mappingSchema } from './import-mapping.js';
 export type { ImportMapping, MappingInvalidations } from './import-mapping.js';
-export { blocksNewProduct, emptyImportMapping, importNameKey, invalidateImportMapping, productCandidateDetails, productCandidatesForLine, productMatchKey, productsForCustomer, resolveCustomerCandidates } from './import-matching.js';
+export { blocksNewProduct, emptyImportMapping, importNameKey, invalidateImportMapping, productCandidateDetails, productCandidatesForLine, productMatchKey, resolveCustomerCandidates } from './import-matching.js';
 export type { ImportMatchData } from './import-matching.js';
 export { INBOX_MAX_FILE, INBOX_MAX_FILE_TEXT, botChannels, botCredentialLabels, botSettingsSchema, botStateLabels, convertedKinds, inboxChannelLabels, inboxChannels, inboxConvertSchema, inboxFilterSchema, inboxKinds, inboxStatusSchema, inboxStatuses, inboxTextSchema } from './inbox.js';
 export type { InboxApi, InboxChannelOption, InboxList } from './inbox-api.js';

@@ -6,7 +6,7 @@ import { useAccounts, useCashAccounts, useFinRead, useParties } from './fin-api'
 import { partyObligations } from './parties/parties-api';
 
 /*
- * 财务编辑窗和筛选用的字段件，按 docs/界面规范.md 做：标签在上、说明在下。
+ * 财务编辑窗和筛选用的字段件，按 docs/界面/总规矩.md 做：标签在上、说明在下。
  * 一般的字段用 src/ui 的 FormField（外层是 label.field，界面检查脚本按它找输入框）。
  */
 

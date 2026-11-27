@@ -1,4 +1,4 @@
-import { datePresets, dateSchema, displayOrderStatuses, pageIdOf, presetRange } from '../../shared/core/index';
+import { displayOrderStatuses, pageIdOf, pageParams, presetRange } from '../../shared/core/index';
 import type { DatePreset, OrderView, RecordSort } from '../../shared/core/index';
 import type { CustomerListQuery, OrderListQuery, ProductListQuery } from './list-api';
 
@@ -16,44 +16,64 @@ export const isRecordPage = (page: string) => (recordPages as readonly string[])
 type DisplayOrderStatus = (typeof displayOrderStatuses)[number];
 const isDisplayStatus = (value: string): value is DisplayOrderStatus =>
   (displayOrderStatuses as readonly string[]).includes(value);
-const isDatePreset = (value: string): value is DatePreset => (datePresets as readonly string[]).includes(value);
+/** 地址里的客户编号最多认十位（比这长的当没筛选，和改用 pageParams 之前一样） */
+const MAX_ROUTE_CUSTOMER = 9_999_999_999;
+
+/** 地址带来的日期筛选（pageParams 读出的 range、start、end） */
+export type RouteDates = { range?: DatePreset; start?: string; end?: string };
 
 /**
- * 地址里的日期筛选（range、start、end）是人能手改的：写坏的日期当作没写；自定义范围两头都没有合法日期时，
- * 当作没有日期筛选（去掉 range，按各页的默认范围），筛选按钮上的数和实际筛的一致。改的是传进来的 params。
+ * 地址里的日期筛选是人能手改的：写坏的日期 pageParams 已当作没写；自定义范围两头都没有合法日期时，
+ * 当作没有日期筛选（去掉 range，按各页的默认范围），筛选按钮上的数和实际筛的一致。
  */
-export function cleanDateParams(params: URLSearchParams) {
-  for (const key of ['start', 'end'])
-    if (params.has(key) && !dateSchema.safeParse(params.get(key)).success) params.delete(key);
-  if (params.get('range') === 'custom' && !params.get('start') && !params.get('end')) params.delete('range');
-  return params;
+export const routeDates = ({ range, start, end }: RouteDates): RouteDates => ({
+  range: range === 'custom' && !start && !end ? undefined : range,
+  start,
+  end,
+});
+
+/** 列表几页从地址读的参数：这些列表和骨架（useRecordPage）挂在好几页上，按地址所在那一页的登记表读 */
+export type RecordRoute = RouteDates & {
+  q?: string;
+  scope?: string;
+  archived?: boolean;
+  status?: string;
+  customerId?: number;
+  unassigned?: boolean;
+  pending?: boolean;
+  kind?: string;
+  zero?: boolean;
+};
+
+/** 地址所在那一页的参数（pageParams）；不是登记过的页面时都当没给 */
+export function recordRoute(hash = location.hash): RecordRoute {
+  const page = pageIdOf(hash);
+  return page ? pageParams(page, hash) : {};
 }
 
 /** 从地址读列表筛选（订单默认看待处理、不限日期）。地址是人能手改的，不认识的值当作没筛选。 */
 export function readListFilters(hash = location.hash) {
-  const params = cleanDateParams(new URLSearchParams(hash.split('?')[1] || ''));
+  const route = recordRoute(hash),
+    { range: routeRange, start, end } = routeDates(route);
   const pageId = pageIdOf(hash),
     ordersPage = pageId === 'orders';
   // 订单默认看待处理、不限日期；“全部”（scope=all）不分状态。
-  const view: OrderView = ordersPage ? (params.get('scope') === 'all' ? 'current' : 'pending') : 'current';
+  const view: OrderView = ordersPage ? (route.scope === 'all' ? 'current' : 'pending') : 'current';
   // 地址是人能手改的：不认识的状态、客户编号、日期一律当作没筛选，不带去请求，免得服务端的校验原文冒到页面上
-  const rawStatus = params.get('status') || '',
-    status = isDisplayStatus(rawStatus) ? rawStatus : '',
-    rawCustomer = params.get('customerId') || '',
+  const status = route.status && isDisplayStatus(route.status) ? route.status : '',
     customerId =
-      pageId === 'products' && params.get('unassigned') === '1'
+      pageId === 'products' && route.unassigned
         ? UNASSIGNED_CUSTOMER
-        : /^[1-9]\d{0,9}$/.test(rawCustomer)
-          ? rawCustomer
+        : route.customerId && route.customerId <= MAX_ROUTE_CUSTOMER
+          ? String(route.customerId)
           : '';
-  const raw = params.get('range') || (!ordersPage && view === 'current' ? '2' : 'all');
-  const preset: DatePreset = isDatePreset(raw) ? raw : ordersPage ? 'all' : '2';
+  const preset: DatePreset = routeRange ?? (ordersPage ? 'all' : '2');
   const range = presetRange(preset);
   return {
     view,
     preset,
-    start: preset === 'custom' ? params.get('start') || '' : range.start,
-    end: preset === 'custom' ? params.get('end') || '' : range.end,
+    start: preset === 'custom' ? start ?? '' : range.start,
+    end: preset === 'custom' ? end ?? '' : range.end,
     status,
     customerId,
   };
@@ -61,8 +81,8 @@ export function readListFilters(hash = location.hash) {
 
 /** 地址里要看已归档的（archived=1 或 scope=archived） */
 export const archivedRoute = (hash = location.hash) => {
-  const params = new URLSearchParams(hash.split('?')[1] || '');
-  return params.get('archived') === '1' || params.get('scope') === 'archived';
+  const route = recordRoute(hash);
+  return route.archived === true || route.scope === 'archived';
 };
 
 type RecordListState = {

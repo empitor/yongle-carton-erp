@@ -67,8 +67,8 @@ function directionViolations(f: string, refs: Ref[] = refsOf(f)) {
     if (exceptions.some((e) => e.from === f && (e.to.endsWith('/') ? target.startsWith(e.to) : target === e.to))) continue;
     out.push(
       f + ':' + r.line + '（' + from.name + '）→ ' + target + '（' + to.name + '）：' + from.name + '不能用' + to.name +
-        '。把要用的东西挪到能用的更基础的模块，或照 AGENTS.md“模块”末尾的办法（调用方传进来、低层定义接口高层登记）；' +
-        '方向本来就该允许的，在 tests/checks/module-map.ts 这个模块的 allow 里加上，并改 docs/架构说明.md 的模块图',
+        '。把要用的东西挪到能用的更基础的模块，或照 docs/架构/模块规则.md“低层要用高层的东西”的办法（调用方传进来、低层定义接口高层登记）；' +
+        '方向本来就该允许的，在 tests/checks/module-map.ts 这个模块的 allow 里加上，再跑 npm run docs:gen 更新 docs/生成/模块表.md 的模块图',
     );
   }
   return out;
@@ -217,7 +217,7 @@ test('规则里允许的每个依赖都确实用到了（规则和代码一致�
     }
   }
   const unused = modules.flatMap((m) =>
-    m.allow.filter((a) => !a.includes('*') && !used.has(m.name + ' → ' + a)).map((a) => m.name + ' → ' + a + '：已经没有代码这样用，从 tests/checks/module-map.ts 这个模块的 allow 里删掉，并改 docs/架构说明.md 的模块图'),
+    m.allow.filter((a) => !a.includes('*') && !used.has(m.name + ' → ' + a)).map((a) => m.name + ' → ' + a + '：已经没有代码这样用，从 tests/checks/module-map.ts 这个模块的 allow 里删掉，再跑 npm run docs:gen 更新 docs/生成/模块表.md 的模块图'),
   );
   assert.deepEqual(unused, []);
 });

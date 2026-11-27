@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { matchesFlowStatus, planDate, type FlowDocView } from '../../shared/business/index';
-import { dateSchema, type DatePreset, type FlowKind } from '../../shared/core/index';
-import { hashParams, isPhoneNow, LIST_PAGE_SIZE, useBusinessRevision, useLoad } from '../ui/index';
+import { pageIdOf, pageParams, type DatePreset, type FlowKind } from '../../shared/core/index';
+import { isPhoneNow, LIST_PAGE_SIZE, useBusinessRevision, useLoad } from '../ui/index';
 import { readFlowList } from './flow-api';
 import { isOpen } from './flow-dates';
 
@@ -23,35 +23,36 @@ function flowFilter(
     (!f.to || dateOf(r) <= f.to);
 }
 
-/** 地址栏带来的日期：是合法的 YYYY-MM-DD 才用 */
-function routeDateOf(params: URLSearchParams) {
-  const date = params.get('date');
-  return date !== null && dateSchema.safeParse(date).success ? date : '';
+/** 地址栏带来的列表条件（日期是合法的 YYYY-MM-DD 才有）：单据页也会从别的页面弹出来，按地址所在那一页的登记表读 */
+type FlowRoute = { scope?: string; pending?: boolean; date?: string; view?: string; archived?: boolean; q?: string };
+function flowRoute(hash: string): FlowRoute {
+  const page = pageIdOf(hash);
+  return page ? pageParams(page, hash) : {};
 }
 
 /** 地址栏带来的“看哪些”：看全部、某一天的看全部；只看待处理、生产任务默认只看待处理；完工记录默认全部 */
-const routeScope = (params: URLSearchParams, routeDate: string, kind: FlowKind): FlowScope =>
-  params.get('scope') === 'all' || routeDate ? 'all' : params.get('pending') === '1' || kind === 'task' ? 'open' : 'all';
+const routeScope = (route: FlowRoute, routeDate: string, kind: FlowKind): FlowScope =>
+  route.scope === 'all' || routeDate ? 'all' : route.pending || kind === 'task' ? 'open' : 'all';
 
 /**
  * 单据页的列表：读这一类单据（业务数据变了就重读）、筛选（搜索、状态、日期、待处理）、排序、翻页、勾选。
  * 地址栏带来的条件（看全部、只看待处理、某一天、已归档、完工记录）在打开时用一次。
  */
 export function useFlowList({ mode, recycle, dialogOnly }: { mode: FlowKind; recycle: boolean; dialogOnly: boolean }) {
-  const routeParams = hashParams();
-  const routeDate = routeDateOf(routeParams);
+  const route = flowRoute(location.hash);
+  const routeDate = route.date ?? '';
   // 排产板靠拖动，手机上默认用列表；从链接带了筛选条件进来的也看列表。
   const [listView, setListView] = useState(
-    isPhoneNow() || routeParams.get('scope') === 'all' || routeParams.get('pending') === '1' || !!routeDate,
+    isPhoneNow() || route.scope === 'all' || !!route.pending || !!routeDate,
   );
   const [kind, setKind] = useState<FlowKind>(
-      mode === 'task' && routeParams.get('view') === 'production' ? 'production' : mode,
+      mode === 'task' && route.view === 'production' ? 'production' : mode,
     ),
     [q, setQ] = useState(''),
     [status, setStatus] = useState(''),
-    [archived, setArchived] = useState(recycle || routeParams.get('archived') === '1'),
+    [archived, setArchived] = useState(recycle || !!route.archived),
     // 待处理：生产任务默认只看没做完的；完工记录默认全部（登记即入库，待入库的很少）
-    [scope, setScope] = useState<FlowScope>(() => routeScope(routeParams, routeDate, kind)),
+    [scope, setScope] = useState<FlowScope>(() => routeScope(route, routeDate, kind)),
     [datePreset, setDatePreset] = useState<DatePreset>(routeDate ? 'custom' : 'all'),
     [from, setFrom] = useState(routeDate),
     [to, setTo] = useState(routeDate),

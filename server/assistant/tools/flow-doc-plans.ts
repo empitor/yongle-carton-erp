@@ -127,7 +127,7 @@ export function buildConfirmation(ctx: ToolContext, tool: string, { id }: z.outp
   return {
     tool,
     args: { id, requestId: randomUUID() },
-    // 和界面按钮同一个名字（界面规范的词表）：送货单是“不导出直接出库”，到货、完工是“核对入库”
+    // 和界面按钮同一个名字（docs/界面/叫法词表.md）：送货单是“不导出直接出库”，到货、完工是“核对入库”
     label: before.kind === 'delivery' ? '不导出直接出库' : before.kind === 'task' ? '下达生产任务' : '核对入库',
     highRisk: before.kind !== 'task',
     before,

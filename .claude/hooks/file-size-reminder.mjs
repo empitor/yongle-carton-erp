@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 写完文件后的提醒（Claude Code 的 Write、Edit、MultiEdit，Codex 的 apply_patch；Antigravity 的 PostToolUse 不能回文字，接不了）：
 // 代码、样式、测试文件被写长了，超过 300 行就当场提醒（只提醒，不拦）。
-// 规矩在 AGENTS.md“文件怎么分”：尽量 100 到 300 行，500 行封顶。真正守住它的是测试，这里只是发现得更早。
+// 规矩在通用技能 code-discipline“文件和函数多大”（本项目补充在 docs/架构/模块规则.md“写代码的本项目补充”）：尽量 100 到 300 行，500 行封顶。真正守住它的是测试，这里只是发现得更早。
 import { readFileSync } from 'node:fs';
 import { relative, extname } from 'node:path';
 import { HOOK_ROOT, hookCwd, parsePatch, readStdinJson } from './hook-input.mjs';
@@ -50,8 +50,8 @@ function reminder(file, cwd) {
   }
   if (lines <= SOFT) return '';
   return lines > HARD
-    ? `提醒：${path} 现在 ${lines} 行，超过了 500 行的上限（AGENTS.md“文件怎么分”）。这次改动又让它变长了：先按职责拆开，再继续加东西；没有特殊理由不能留着。`
-    : `提醒：${path} 现在 ${lines} 行，超过了 300 行（AGENTS.md“文件怎么分”：尽量 100 到 300 行）。先想这次加的东西能不能写得更简单，或者放进一个只管这件事的文件。`;
+    ? `提醒：${path} 现在 ${lines} 行，超过了 500 行的上限（技能 code-discipline“文件和函数多大”）。这次改动又让它变长了：先按职责拆开，再继续加东西；没有特殊理由不能留着。`
+    : `提醒：${path} 现在 ${lines} 行，超过了 300 行（技能 code-discipline“文件和函数多大”：尽量 100 到 300 行）。先想这次加的东西能不能写得更简单，或者放进一个只管这件事的文件。`;
 }
 
 try {

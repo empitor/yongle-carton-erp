@@ -5,7 +5,7 @@ import { AppError, failureMessage } from '../core/index.js';
 import { formatZodIssues } from '../import/index.js';
 import { resolveImportCustomer } from '../import/index.js';
 import { productFieldsFromDraft } from '../import/index.js';
-import { sameProductInBatch } from '../../shared/core/index.js';
+import { productFitsCustomer, sameProductInBatch } from '../../shared/core/index.js';
 import type { ImportMapping, ImportWorkspaceView } from '../../shared/import/index.js';
 import type { ImportPreview, OrderImportState, Task, TaskState, WorkflowContext, WorkflowState } from './order-import-state.js';
 
@@ -50,12 +50,7 @@ function reuseProducts(wf: OrderImportState, w: ImportWorkspaceView, mapping: Im
       const definition = productFieldsFromDraft(line.fields);
       const exact = sales(wf.store)
         .products()
-        .filter(
-          (p) =>
-            created.includes(p.id) &&
-            (p.customerId == null || (customerId !== null && p.customerId === customerId)) &&
-            sameProductInBatch(p, definition),
-        );
+        .filter((p) => created.includes(p.id) && productFitsCustomer(p, customerId) && sameProductInBatch(p, definition));
       if (exact.length === 1) {
         mapping.products[line.id] = { mode: 'existing', id: exact[0].id, version: exact[0].version };
         changed = true;

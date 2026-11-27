@@ -128,10 +128,24 @@ export const contactFields = {
 };
 /** 客户名称最多多少字（schema 和客户编辑窗共用） */
 export const CUSTOMER_NAME_MAX = 100;
+export const DEFAULT_SITE_NAME = '默认厂区';
+export const customerSiteInputSchema = z.object({
+  id: chosenId('厂区').optional(),
+  name: text(CUSTOMER_NAME_MAX).min(1, '请填写厂区名称'),
+  ...contactFields,
+  isDefault: z.boolean().default(false),
+  notes: blankText(1000).default(''),
+});
+export type CustomerSiteInput = z.output<typeof customerSiteInputSchema>;
+export type CustomerSite = CustomerSiteInput & { id: number };
+export const blankCustomerSite = (): CustomerSiteInput => ({ name: '', contact: '', phone: '', address: '', isDefault: false, notes: '' });
+export const defaultCustomerSite = (sites: readonly CustomerSite[]) => sites.find((site) => site.isDefault);
+
 export const customerSchema = z.object({
   name: text(CUSTOMER_NAME_MAX).min(1, '请填写客户名称'),
   ...contactFields,
   notes: blankText(1000).default(''),
+  sites: z.array(customerSiteInputSchema).optional(),
 });
 export const productSchema = z
   .object({
@@ -271,7 +285,7 @@ export type ProductInput = z.infer<typeof productSchema>;
 export type OrderInput = z.infer<typeof orderSchema>;
 export type PlannedOrderInput = z.infer<typeof plannedOrderSchema>;
 export type Cost = z.infer<typeof costSchema>;
-export type Customer = CustomerInput & { id: number; version: number; createdAt: string; updatedAt: string };
+export type Customer = Omit<CustomerInput, 'sites'> & { id: number; sites: CustomerSite[]; version: number; createdAt: string; updatedAt: string };
 export type Product = ProductInput & {
   id: number;
   customerName?: string;

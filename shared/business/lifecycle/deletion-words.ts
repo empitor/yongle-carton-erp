@@ -46,6 +46,7 @@ const tableLabels: Record<string, string> = {
   products: '产品',
   orders: '订单',
   order_lines: '订单明细',
+  customer_sites: '厂区',
   suppliers: '供应商',
   purchases: '采购单',
   purchase_lines: '采购明细',

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { pageHref, type DatePreset, type OrderView } from '../../shared/core/index';
-import { hashParams } from '../ui/index';
-import { archivedRoute, readListFilters } from './record-filters';
+import { archivedRoute, recordRoute, readListFilters } from './record-filters';
 
 /**
  * 订单、客户、产品、归档几页的列表筛选：随地址变，换页后还在（由 useRecordLists 一直挂着）。
@@ -30,7 +29,7 @@ export function useListFilters(page: string, superMode: boolean) {
       setStatus(filters.status);
       setCustomerId(filters.customerId);
       setAllRecordsView(false);
-      setSearch(hashParams().get('q') || '');
+      setSearch(recordRoute().q ?? '');
       setProductAttention(false);
     };
     window.addEventListener('hashchange', f);

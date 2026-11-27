@@ -52,8 +52,12 @@ const workspaceDatabase = {
   steps: [],
   pragmas: 'PRAGMA synchronous=FULL',
   create(db: DatabaseSync) {
-    db.exec(`CREATE TABLE workspaces(id TEXT PRIMARY KEY,file_hash TEXT NOT NULL,revision INTEGER NOT NULL,document TEXT NOT NULL);
+    db.exec(`-- 原件按工作区存在 ai-imports/<编号>/，正式导入的原件另存 import-archive/
+
+      -- 识别结果 JSON，归档标记也在里面；没有回收站表，不存“已核对”标记
+      CREATE TABLE workspaces(id TEXT PRIMARY KEY,file_hash TEXT NOT NULL,revision INTEGER NOT NULL,document TEXT NOT NULL);
       CREATE INDEX workspaces_hash ON workspaces(file_hash);
+      -- 错误档案
       CREATE TABLE recognition_failures(id TEXT PRIMARY KEY,workspace_id TEXT,recorded_at TEXT NOT NULL,legacy_key TEXT UNIQUE,document TEXT NOT NULL);
       CREATE INDEX recognition_failure_workspace ON recognition_failures(workspace_id,recorded_at);`);
   },

@@ -5,7 +5,7 @@
 import { isJsonObject, isSha256 } from './checks.js';
 
 export const assistantTables = `
--- 对话
+-- 对话（会话，按账号）。document 存搜索返回过的网址 webUrls、本会话的识别任务 orderWorkflow
 CREATE TABLE assistant_threads(
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -15,7 +15,11 @@ CREATE TABLE assistant_threads(
   document TEXT NOT NULL CHECK(${isJsonObject('document')})
 ) STRICT;
 
--- 消息；seq 是先后顺序（自增、不复用），排序、截取、清空都按它
+-- 消息；seq 是先后顺序（自增、不复用），排序、截取、清空都按它。document 的字段：
+--
+-- - turn：一轮的原样记录（messages、cards、files），存在那一轮的用户消息上，页面不给；压缩过的那一轮另有 restart，更早的行就没有 turn。
+-- - facts：这一轮服务器实际做了什么。interim：回答前先说的话，存全文。sources：搜到和读过的网页，最多 30 条，只收 http/https。
+-- - hidden：确认或拒绝卡片后的“接着办”，是一条不显示的用户消息。
 CREATE TABLE assistant_messages(
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   id TEXT NOT NULL UNIQUE,
@@ -27,7 +31,7 @@ CREATE TABLE assistant_messages(
 ) STRICT;
 CREATE INDEX assistant_messages_thread ON assistant_messages(thread_id);
 
--- 运行记录
+-- 每一轮的运行记录；state 只有 running、completed、failed
 CREATE TABLE assistant_runs(
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL REFERENCES assistant_threads(id),
@@ -38,7 +42,8 @@ CREATE TABLE assistant_runs(
 ) STRICT;
 CREATE INDEX assistant_runs_thread ON assistant_runs(thread_id);
 
--- 待确认的操作；expires_at 是毫秒时间戳，作废时写 0
+-- 待确认的操作（确认卡片），绑定账号和会话；expires_at 是毫秒时间戳，点“不执行”或作废时写 0。
+-- result 是执行结果；document.started、failed 有一样就不再执行
 CREATE TABLE assistant_previews(
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL REFERENCES assistant_threads(id),
@@ -51,7 +56,8 @@ CREATE TABLE assistant_previews(
 ) STRICT;
 CREATE INDEX assistant_previews_thread ON assistant_previews(thread_id);
 
--- 助手工具调用审计（只追加）。tool 是工具名（含插件）、state 含诊断阶段，都跟着功能增加，不列枚举，只要求不为空
+-- 助手工具调用审计（只追加）。tool 是工具名（含插件）、state 含诊断阶段，都跟着功能增加，不列枚举，只要求不为空。
+-- 压缩记 assistant.compaction（pruned、done、failed）；要删的 DeepSeek 文件记 attachments.remote（pending，删成后 deleted）
 CREATE TABLE assistant_audit(
   id INTEGER PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -63,7 +69,7 @@ CREATE TABLE assistant_audit(
 ) STRICT;
 CREATE INDEX assistant_audit_tool ON assistant_audit(user_id,tool);
 
--- 附件；seq 是上传先后（自增、不复用），清空附件按它截止；大字段放最后
+-- 聊天附件；seq 是上传先后（自增、不复用），清空附件按它截止；字节（bytes）放最后，删除时清空
 CREATE TABLE assistant_attachments(
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   id TEXT NOT NULL UNIQUE,
@@ -84,7 +90,7 @@ CREATE TABLE assistant_attachments(
 CREATE INDEX assistant_attachments_owner ON assistant_attachments(user_id,thread_id);
 CREATE INDEX assistant_attachments_thread ON assistant_attachments(thread_id);
 
--- 消息带的附件
+-- 消息带了哪些附件；删消息时跟着删
 CREATE TABLE assistant_message_attachments(
   message_id TEXT NOT NULL REFERENCES assistant_messages(id) ON DELETE CASCADE,
   attachment_id TEXT NOT NULL REFERENCES assistant_attachments(id),

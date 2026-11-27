@@ -12,6 +12,12 @@
 import { isDate, isJsonArray, isJsonObject, isPeriod, isPeriodOrNull } from './checks.js';
 
 export const financeLedgerTables = `
+-- - 金额都是整数分；能为负的（红冲、冲减后的往来、成本、跨期调整、分期）不加非负约束。
+-- - 状态、种类的取值在 server/finance/base/stored-values.ts，测试逐个和建表 CHECK 比对；页面下拉也要的收付方式、账期方式在 shared/finance/finance.ts。
+-- - 含税口径只用 orderTaxModes 一份；fin_party_terms.tax_mode 另认旧写法“不含税”（等于未税）。
+-- - 新库预置财务设置一行、科目 93 个、凭证模板 11 个（server/core/schema/tables/finance-seed.ts，按第 20 版冻结，要改得写升级步骤）。
+-- - 凭证、财务事件、往来、收付款单、发票的编号连财务一起初始化后也不从头来。
+
 -- 财务设置，只有一行
 CREATE TABLE fin_settings(
   id INTEGER PRIMARY KEY CHECK(id=1),
@@ -57,14 +63,14 @@ CREATE TABLE fin_accounts(
 ) STRICT;
 CREATE INDEX fin_accounts_parent ON fin_accounts(parent_code);
 
--- 会计期间
+-- 会计期间和结账状态
 CREATE TABLE fin_periods(
   period TEXT PRIMARY KEY CHECK(${isPeriod('period')}),
   status TEXT NOT NULL CHECK(status IN ('open','closed')),
   version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1)
 ) STRICT;
 
--- 期初余额；辅助核算的三列（种类、编号、名称）要么都有要么都没有
+-- 期初余额和年累计；辅助核算的三列（种类、编号、名称）要么都有要么都没有
 CREATE TABLE fin_opening(
   id INTEGER PRIMARY KEY,
   account_code TEXT NOT NULL REFERENCES fin_accounts(code),
@@ -80,7 +86,8 @@ CREATE TABLE fin_opening(
 CREATE UNIQUE INDEX fin_opening_key ON fin_opening(account_code,coalesce(auxiliary_id,''));
 
 -- 凭证。编号用 AUTOINCREMENT：连财务一起初始化以后编号不从头来，不会和审计里的旧编号混在一起。
--- period 就是 date 的年月；module_source、module_id 是生成这张凭证的财务功能和那边的记录编号，一起有或一起没有
+-- period 就是 date 的年月；module_source、module_id 是生成这张凭证的财务功能和那边的记录编号，一起有或一起没有。
+-- 红字凭证用 reversal_of 指原凭证
 CREATE TABLE fin_vouchers(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   number INTEGER NOT NULL,
@@ -113,7 +120,7 @@ CREATE INDEX fin_vouchers_reversal_of ON fin_vouchers(reversal_of);
 CREATE UNIQUE INDEX fin_vouchers_event ON fin_vouchers(event_id) WHERE event_id IS NOT NULL AND status<>'void';
 CREATE UNIQUE INDEX fin_vouchers_reversal ON fin_vouchers(reversal_of) WHERE reversal_of IS NOT NULL AND status<>'void';
 
--- 凭证分录；辅助核算的三列要么都有要么都没有；cash_flow 是用户填的现金流量项目，不列枚举
+-- 凭证分录；辅助核算存种类、编号、名称快照，三列要么都有要么都没有；cash_flow 是用户填的现金流量项目，不列枚举
 CREATE TABLE fin_entries(
   voucher_id INTEGER NOT NULL REFERENCES fin_vouchers(id),
   position INTEGER NOT NULL,
@@ -131,11 +138,14 @@ CREATE TABLE fin_entries(
 ) STRICT;
 CREATE INDEX fin_entries_account ON fin_entries(account_code,voucher_id);
 
--- 业务事件（由业务单据生成，待生成凭证）。编号用 AUTOINCREMENT，初始化后不从头来。
--- snapshot 是来源单据财务口径的 JSON 快照；problem 是给人看的文字，不是 JSON。
--- snapshot 后面几列（第 21 步加的）：上一条（被它接手的事件和它当时的状态）、单据金额只存在列里；
--- 往来单位、单号、理论金额、缺不缺税率是从快照里取出来的查询列，只由 server/finance/event-columns.ts 和快照在同一句里一起写。
--- 往来单位的种类和编号要么都有要么都没有
+-- 财务事件（业务事件，由业务单据生成，待生成凭证），一张业务单据一条。编号用 AUTOINCREMENT，初始化后不从头来。
+-- snapshot 是来源单据财务口径和算好的金额的 JSON 快照；amount_cents 是记账金额（送货含税、到货不含税）；problem 是给人看的文字，不是 JSON。
+-- snapshot 后面几列（第 21 步加的）：
+--
+-- - 只存在列里的：接手的上一条 previous_event_id 和它当时的状态 previous_status，同步时按单据算的金额 document_cents。
+-- - 从快照取出来的查询列：往来单位 party_kind（customer、supplier，和 party_id 同有同无）、party_name，
+--   单号 source_number（没有取对方单号），理论金额 theoretical_cents（含税），缺税率 missing_tax。
+--   只由 server/finance/events/event-columns.ts 和快照在同一句里一起写；SQL 查这几项读列。
 CREATE TABLE fin_events(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_kind TEXT NOT NULL CHECK(source_kind IN ('delivery','arrival','production','stock')),
@@ -167,7 +177,7 @@ CREATE INDEX fin_events_voucher ON fin_events(voucher_id);
 CREATE INDEX fin_events_previous ON fin_events(previous_event_id);
 CREATE INDEX fin_events_party ON fin_events(party_kind,party_id);
 
--- 业务单据最近一次被财务看到的版本；deleted 是财务已经处理过它被删除
+-- 业务单据最近一次被财务看到的版本；status 的 deleted 是财务已经处理过它被删除（被删的分流只做一次）
 CREATE TABLE fin_source_observations(
   source_kind TEXT NOT NULL CHECK(source_kind IN ('delivery','arrival','production','stock')),
   source_id TEXT NOT NULL,
@@ -178,7 +188,7 @@ CREATE TABLE fin_source_observations(
 ) STRICT;
 CREATE INDEX fin_source_observations_event ON fin_source_observations(event_id);
 
--- 凭证模板：只有建库时预置的这 11 个，运行时只改 mapping
+-- 凭证模板：只有建库时预置的这 11 个，运行时只改科目映射 mapping
 CREATE TABLE fin_templates(
   name TEXT PRIMARY KEY CHECK(name IN ('delivery.confirmed','arrival.confirmed','settlement.discount','deposit','interest','notes','bad_debt','expense','asset','payroll','inventory')),
   mapping TEXT NOT NULL CHECK(${isJsonObject('mapping')}),

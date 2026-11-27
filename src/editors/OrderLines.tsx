@@ -1,6 +1,6 @@
 import { ChevronDown, Plus } from 'lucide-react';
 import { orderLineAmount } from '../recordkit/OrderLinesView';
-import { fieldLabel, fieldTitle, finishedUnit, type FieldKey, type Product } from '../../shared/core/index';
+import { fieldLabel, fieldTitle, finishedUnit, orderTaxModeHint, productsForCustomer, type FieldKey, type Product } from '../../shared/core/index';
 import { Combobox, RowDelete } from '../ui/index';
 import { FormField } from '../ui/index';
 
@@ -162,7 +162,7 @@ function OrderLineExtras({ l, i, orderDate, expanded, change }: LineProps) {
             />
           </FormField>
           <OrderTaxRateField line={n} tax={l} change={(v) => change(i, 'taxRate', v)} />
-          <FormField label={lineName('taxMode')}>
+          <FormField label={lineName('taxMode')} hint={orderTaxModeHint(l.taxText, l.taxMode)}>
             <TaxModeSelect
               label={'第 ' + n + ' 行' + lineName('taxMode')}
               blank="同整单"
@@ -222,10 +222,9 @@ export default function OrderLines({
   quick: (index: number) => void;
   remove: (index: number) => void;
 }) {
-  // 选了客户后，下拉只列该客户的产品和没定客户的通用产品；仅老订单未换客户时的原明细保留原产品供显示
-  const scoped = customerId
-    ? products.filter((p) => p.customerId == null || p.customerId === customerId)
-    : products;
+  // 选了客户后，下拉只列该客户的产品和没定客户的通用产品；留着原产品的明细（老订单没换客户，或换了客户但产品跟着改归新客户，
+  // 见 order-customer-change.ts）把原产品补进这一行的下拉供显示
+  const scoped = customerId ? productsForCustomer(products, customerId) : products;
   const baseOptions = scoped.map(productOption);
   const optionsFor = (l: OrderLineDraft) => {
     if (!customerId || !l.productId || l.id == null || keptProducts.get(l.id) !== Number(l.productId)) return baseOptions;

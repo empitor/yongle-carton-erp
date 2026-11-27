@@ -389,7 +389,7 @@ test('客户和供应商编辑窗各自独立：标题、名称栏、保存按�
 
   const editCustomer = renderToStaticMarkup(
     h(CustomerEditor, {
-      value: { id: 11, version: 2, name: '虚构客户甲', contact: '张工', phone: '0574-1111', address: '虚构路1号', notes: '客户备注', createdAt: '2026-11-01', updatedAt: '2026-11-01' },
+      value: { id: 11, version: 2, name: '虚构客户甲', contact: '张工', phone: '0574-1111', address: '虚构路1号', notes: '客户备注', sites: [], createdAt: '2026-11-01', updatedAt: '2026-11-01' },
       close: () => {},
       saved: () => {},
     }),

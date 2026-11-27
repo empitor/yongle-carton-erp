@@ -23,7 +23,10 @@ function edited<B extends { version?: number }>(form: B): B & { version: number 
 export const saveOrder = (id: number | undefined, form: Form<RecordsApi['POST /orders']['body']>) =>
   id ? records('PUT /orders/:id', { params: { id }, body: edited(form) }) : records('POST /orders', { body: form });
 
-export const saveCustomer = (id: number | undefined, form: Form<RecordsApi['POST /customers']['body']>) =>
+/** 这张订单上订单明细只在这张订单里的产品（换客户时这些原客户产品会跟着改归新客户） */
+export const soleOrderProducts = (id: number) => records('GET /orders/:id/sole-products', { params: { id } });
+
+export const saveCustomer =(id: number | undefined, form: Form<RecordsApi['POST /customers']['body']>) =>
   id ? records('PUT /customers/:id', { params: { id }, body: edited(form) }) : records('POST /customers', { body: form });
 
 /** 存好的供应商（带采购历史） */

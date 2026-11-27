@@ -14,7 +14,7 @@ export const releaseFiles = [
   'LICENSE',
   'THIRD_PARTY_NOTICES.md',
   'docs/使用手册.md',
-  'docs/部署与运维.md',
+  'docs/运维',
   'docs/CHANGELOG.md',
   // 服务端和部署用到的脚本，开发脚本不进包。
   'scripts/start-system.mjs',

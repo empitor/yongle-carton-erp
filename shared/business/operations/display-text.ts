@@ -59,5 +59,5 @@ export function orderTaxText({ taxRate, taxMode, taxText }: {
   taxText?: string | null;
 }) {
   const rateAndMode = [shownTaxRate(taxRate), taxMode].filter(Boolean).join(' ');
-  return [rateAndMode, orderTaxOriginal(taxText, taxRate)].filter(Boolean).join(' · ') || '未明确';
+  return [rateAndMode, orderTaxOriginal(taxText, taxRate, taxMode)].filter(Boolean).join(' · ') || '未明确';
 }

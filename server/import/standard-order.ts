@@ -6,7 +6,7 @@ import { customerSchema, orderSchema, plannedOrderSchema, productSchema } from '
 import { legacyCents, MAX_PRICE_YUAN, PRICE_DECIMALS } from '../../shared/core/index.js';
 import { evaluateDraft, fieldLabels, type ImportMapping, type ImportWorkspaceView, type OrderDraft } from '../../shared/import/index.js';
 import { inspectCurrency } from '../../shared/core/index.js';
-import { fieldName, productNotices, uniqueMessages, userError } from '../../shared/core/index.js';
+import { fieldName, productCustomerIssue, productNotices, uniqueMessages, userError } from '../../shared/core/index.js';
 import { productFieldsFromDraft } from './product-input.js';
 
 type DraftLine = OrderDraft['lines'][number];
@@ -89,10 +89,8 @@ function checkExistingProduct(
     out.issues.push('关联产品不存在');
     return;
   }
-  if (existing.customerId != null && existing.customerId !== customer.id) {
-    const owner = existing.customerName || sales(store).customer(existing.customerId, true)?.name || '其他客户';
-    out.issues.push(`这个产品是 ${owner} 的，要给 ${customer.name || '当前客户'} 用请复制一份`);
-  }
+  const issue = productCustomerIssue(existing, customer);
+  if (issue) out.issues.push(issue);
   out.optionalProducts.push(existing);
 }
 

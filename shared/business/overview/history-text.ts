@@ -1,5 +1,5 @@
 import { FINISHED_UNIT, RAW_UNIT, isFlowKind } from '../../core/index.js';
-import { centsText, isRecord, orderDisplayStatus, orderTaxOriginal, plainPrice, shownTaxRate } from '../../core/index.js';
+import { centsText, hasUnrecognizedTax, isRecord, orderDisplayStatus, orderTaxOriginal, plainPrice, shownTaxRate } from '../../core/index.js';
 import { dataManagementFieldName } from '../lifecycle/data-management-modules.js';
 import { UNPRICED_TEXT, priceText, sizeText } from '../operations/display-text.js';
 import { purchaseState } from '../flow/labels.js';
@@ -117,11 +117,19 @@ export function lineName(ctx: Ctx, line: Row) {
   );
 }
 
-/** 一行明细的说法：“名称 数量 单位 × 单价”；领料是“名称 领 N 张，退 M 张” */
+function siteText(ctx: Ctx, site: Row, name: string) {
+  const details = ['contact', 'phone', 'address', 'notes'].flatMap((key) =>
+    blank(site[key]) ? [] : [labelOf(key, 'sites', ctx.module) + ' ' + String(site[key])],
+  );
+  return [name + (site.isDefault ? '（默认）' : ''), ...details].join(' · ');
+}
+
+/** 一行明细的说法：“名称 数量 单位 × 单价”；领料和厂区各用自己的资料。 */
 function lineText(ctx: Ctx, line: unknown, parent: string) {
   if (!isRecord(line)) return '';
-  const name = lineName(ctx, line),
-    unit = unitOf(ctx, line, parent);
+  const name = lineName(ctx, line);
+  if (parent === 'sites') return siteText(ctx, line, name);
+  const unit = unitOf(ctx, line, parent);
   if (parent === 'materials')
     return (
       name +
@@ -141,10 +149,14 @@ export function linesText(ctx: Ctx, lines: unknown, parent: string) {
   return lines.length ? lines.map((l) => lineText(ctx, l, parent)).join('；') : '没有明细';
 }
 
-/** 引用编号（一个或几个）写成名称 */
+/** 引用编号（一个或几个）写成名称；编号置空但旁边留有名称快照（如已删厂区的历史送货单）时仍显示快照名 */
 function refValueText(ctx: Ctx, key: string, value: unknown, row: Row | undefined) {
   if (Array.isArray(value)) return value.length ? value.map((id) => refName(ctx, key, id, row)).join('、') : '无';
-  if (blank(value)) return key === 'parentProductId' ? '无' : EMPTY;
+  if (blank(value)) {
+    const snap = snapshotNames[key];
+    if (snap && !blank(row?.[snap])) return String(row?.[snap]);
+    return key === 'parentProductId' ? '无' : EMPTY;
+  }
   return typeof value === 'number' ? refName(ctx, key, value, row) : null;
 }
 /** 存代码的字段、税率和普通的文字、数、是否 */
@@ -167,8 +179,14 @@ function filledValueText(ctx: Ctx, key: string, value: unknown, row: Row | undef
   if (key === 'unitPriceCents' || (parent === 'costs' && key !== 'basis')) return money(value);
   if (key === 'unitPriceExact') return exactPrice(value);
   if (quantityFields.has(key)) return withUnit(value, unitOf(ctx, row, parent));
-  if (ctx.module === 'orders' && key === 'taxText')
-    return typeof row?.taxRate === 'number' ? String(value) : orderTaxOriginal(textOf(value));
+  // 原件写法：这条记录当时的税率、口径有没认出来的才提示核对（和编辑窗、订单详情同一个判断），否则照原样列
+  if (ctx.module === 'orders' && key === 'taxText') {
+    const text = textOf(value),
+      rate = row?.taxRate,
+      rateNumber = typeof rate === 'number' ? rate : null,
+      mode = textOf(row?.taxMode);
+    return hasUnrecognizedTax(text, rateNumber, mode) ? orderTaxOriginal(text, rateNumber, mode) : String(value);
+  }
   return plainValueText(key, value);
 }
 

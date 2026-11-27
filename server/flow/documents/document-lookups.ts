@@ -29,6 +29,15 @@ export const pendingCompletionVersions = (store: Store) =>
 const arrivalHead = rows.flow_documents.pick({ id: true, number: true, status: true });
 const idRow = rows.flow_documents.pick({ id: true });
 
+/** 包含已归档的待送货单：只要还能恢复为待送货，就不能去掉厂区。 */
+export function pendingDeliveryNumbersBySite(store: Store, siteIds: readonly number[]) {
+  return many(
+    store.db, rows.flow_documents.pick({ number: true }),
+    "SELECT number FROM flow_documents WHERE kind='delivery' AND status=? AND json_extract(document,'$.siteId') IN (SELECT value FROM json_each(?)) ORDER BY id",
+    flowStatus.draft, JSON.stringify(siteIds),
+  ).map((d) => d.number);
+}
+
 /** 按 flow_refs 索引取关联单据编号。详情的关联业务和改订单的单据连带按各自的规则核对查到的单据。 */
 export function referencingDocuments(
   store: Store,

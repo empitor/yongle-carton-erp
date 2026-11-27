@@ -1,8 +1,8 @@
 import { sales } from '../../sales/index.js';
-import type { Actor } from '../../core/index.js';
+import type { Actor, Store } from '../../core/index.js';
 import { canEnterSuperMode, requireSuperModeFor } from '../../core/index.js';
-import { effectiveOrder, orderTaxSnapshot, quantityUnits, quantityString, type Order } from '../../../shared/core/index.js';
-import { lineMoney, specificationMismatch, specificationMismatchText, type FlowDocument } from '../../../shared/business/index.js';
+import { defaultCustomerSite, effectiveOrder, orderTaxSnapshot, quantityUnits, quantityString, type Order } from '../../../shared/core/index.js';
+import { deliverySiteSnapshot, lineMoney, specificationMismatch, specificationMismatchText, type FlowDocument } from '../../../shared/business/index.js';
 import { fail, type DeliveryLine, type LineCheck, type StockItemRow } from '../documents/base.js';
 import { shippedUnits } from '../documents/shipped.js';
 /*
@@ -27,6 +27,9 @@ function completedLine(ctx: LineCheck<DeliveryLine>, l: DeliveryLine, o: { order
   const { order, line: ol } = o;
   const product = sales(ctx.flow.store).product(ol.productId, true),
     dimensions = it.length != null || it.width != null ? it : product;
+  // 税率、含税口径各按明细、整单的顺序取第一个有的；认不出的原话也算有，不退到整单
+  const lineTax = orderTaxSnapshot(ol),
+    orderTax = orderTaxSnapshot(order);
   return {
     ...l,
     productName: ol.productName,
@@ -38,8 +41,8 @@ function completedLine(ctx: LineCheck<DeliveryLine>, l: DeliveryLine, o: { order
     // 订单明细的单价库里必填（unit_price_e4 NOT NULL），读出来的明细一定带精确单价
     unitPriceExact: ol.unitPriceExact,
     amountExact: lineMoney(l.quantity, ol.unitPriceExact),
-    taxRate: orderTaxSnapshot(ol) ?? orderTaxSnapshot(order),
-    taxMode: ol.taxMode || order.taxMode || '',
+    taxRate: lineTax.taxRate ?? orderTax.taxRate,
+    taxMode: lineTax.taxMode ?? orderTax.taxMode ?? '',
     productId: ol.productId,
     length: dimensions?.length ?? null,
     width: dimensions?.width ?? null,
@@ -71,8 +74,20 @@ function checkLine(ctx: LineCheck<DeliveryLine>, v: Delivery, l: DeliveryLine) {
 }
 
 /** 送货单：客户、订单明细、成品对应的产品和规格、超订单发货（要超级管理员模式并写原因） */
+function deliveryCustomer(store: Store, id: number, includeArchived: boolean) {
+  return sales(store).customer(id, includeArchived) ?? fail('客户不存在或已归档。');
+}
+
+/** 保存待送货单、换客户时取当前档案的厂区资料。 */
+export function deliveryDestination(store: Store, input: Pick<Delivery, 'customerId' | 'siteId'>, includeArchived: boolean) {
+  const { sites } = deliveryCustomer(store, input.customerId, includeArchived);
+  if (input.siteId === null) return deliverySiteSnapshot(defaultCustomerSite(sites));
+  const site = sites.find((s) => s.id === input.siteId) ?? fail('所选收货厂区不属于这个客户。', 400);
+  return deliverySiteSnapshot(site);
+}
+
 export function checkDelivery(ctx: LineCheck<DeliveryLine>, v: Delivery) {
-  if (!sales(ctx.flow.store).customer(v.customerId, ctx.maintenance)) fail('客户不存在或已归档。');
+  deliveryCustomer(ctx.flow.store, v.customerId, ctx.maintenance);
   const selected = new Set<number>();
   for (const l of v.lines) {
     if (selected.has(l.orderLineId)) fail('同一订单明细请合并为一条发货数量。');

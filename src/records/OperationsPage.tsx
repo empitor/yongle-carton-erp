@@ -4,10 +4,12 @@ import SuppliersPage from './SuppliersPage';
 import PurchasesPage from './PurchasesPage';
 import StockPage from './StockPage';
 import MovementsPage from './MovementsPage';
-import { notify, hashParams } from '../ui/index';
+import { pageParams } from '../../shared/core/index';
+import { notify } from '../ui/index';
 
 const DeliveryPlanDialog = lazy(() => import('../warehouse/DeliveryPlanDialog'));
-const ids = (v: string | null) => (v ? v.split(',').map(Number).filter((n) => n > 0) : undefined);
+/** 地址里没带编号时不传（安排送货窗口按没带处理：先选客户） */
+const ids = (list: number[]) => (list.length ? list : undefined);
 
 /**
  * 采购和库存的几个页面按地址分开：供应商、采购单；库存（#warehouse）下按参数是库存、流水（flow=1）、
@@ -22,20 +24,11 @@ export default function OperationsPage({
   recycle?: boolean;
 }) {
   // 进页面时读一次地址参数；换页面时外面换 key 重新挂载
-  const [route] = useState(() => {
-    const params = hashParams();
-    return {
-      flow: params.get('flow') === '1',
-      deliveries: params.get('deliveries') === '1',
-      arrivals: params.get('arrivals') === '1',
-    };
-  });
+  const [route] = useState(() => pageParams('warehouse', location.hash));
   // 带 createDelivery=1 进来：按地址里的订单（order）或成品库存（stock）打开安排送货窗口
   const [deliveryLaunch, setDeliveryLaunch] = useState<{ orderIds?: number[]; stockIds?: number[] } | null>(() => {
-    const params = hashParams();
-    return params.get('createDelivery') === '1'
-      ? { orderIds: ids(params.get('order')), stockIds: ids(params.get('stock')) }
-      : null;
+    const { createDelivery, order, stock } = pageParams('warehouse', location.hash);
+    return createDelivery ? { orderIds: ids(order), stockIds: ids(stock) } : null;
   });
   if (mode === 'suppliers') return <SuppliersPage recycle={recycle} />;
   if (mode === 'purchases') return <PurchasesPage recycle={recycle} />;

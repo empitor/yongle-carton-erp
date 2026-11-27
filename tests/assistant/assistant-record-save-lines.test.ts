@@ -1,7 +1,9 @@
 // 助手改订单（records.propose_save，server/assistant/tools/records-save.ts）：明细原样交给订单的表单结构核对，
-// 不是对象的明细（null、文字）被拒收，不悄悄丢掉再出卡片。虚构数据、内存库。
+// 不是对象的明细（null、文字）被拒收，不悄悄丢掉再出卡片；新建客户交空厂区照样按联系方式建默认厂区。虚构数据、内存库。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { sales } from '../../server/sales/index.js';
+import { DEFAULT_SITE_NAME } from '../../shared/core/index.js';
 import { toolsOf } from '../support/assistant-fixture.js';
 import { clerk, flowFixture } from '../support/flow-fixture.js';
 
@@ -16,6 +18,17 @@ test('改订单时明细里有 null 或一段文字：出方案就被拒，不�
       (e: unknown) => e instanceof Error && e.name === 'ZodError',
       String(bad),
     );
+});
+
+test('助手新建客户照模板交了空的厂区、填了联系方式：确认后也建一个默认厂区', () => {
+  const f = flowFixture();
+  const tools = toolsOf(f.store);
+  const patch = { name: '虚构助手新客户', contact: '王工', phone: '0001', address: '', sites: [] };
+  tools.commit(tools.prepare('records.propose_save', { module: 'customers', patch }, clerk, 'test'), clerk, 'test');
+  const created = sales(f.store).customers().find((c) => c.name === patch.name);
+  assert.deepEqual(created?.sites.map(({ id: _id, ...s }) => s), [
+    { name: DEFAULT_SITE_NAME, contact: '王工', phone: '0001', address: '', isDefault: true, notes: '' },
+  ]);
 });
 
 test('助手新建采购单漏写计价方式：出方案就被拒，提示选按平方米还是按张，不按默认算钱', () => {

@@ -72,7 +72,7 @@
     white-space: nowrap;
   }
 }
-/* purchasing：详情与编辑窗重做时新增的样式。规范见 docs/界面规范.md。 */
+/* purchasing：详情与编辑窗重做时新增的样式。规范见 docs/界面/总规矩.md。 */
 
 /* ---- 采购单编辑窗 ---- */
 .pur-line-fields {
@@ -240,28 +240,11 @@
   /* 说明末尾不留一两个孤字在第二行 */
   text-wrap: pretty;
 }
-.pur-batches {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-/* 一批一块：白色卡片里放浅灰底圆角块，块之间留空，不靠细线分 */
-.pur-batch {
-  padding: 10px var(--space-md);
-  border-radius: var(--r-control);
-  background: var(--surface-muted);
-}
+/* 一批一块：块和字段行是 recordkit/kit.css 的 kit-block（InfoBlocks），这里只写批次自己的头部和变体 */
 /* 头部两行：“日期 完工 · 完工单号”，“入库 N 只 · 估计还剩 N 只” */
 .pur-batch > header {
   display: grid;
   gap: var(--space-2xs);
-  margin-bottom: var(--space-sm);
-}
-.pur-batch > header:last-child {
-  margin-bottom: 0;
 }
 .pur-batch-title,
 .pur-batch-amount {
@@ -297,29 +280,6 @@
   color: var(--ink);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
-}
-.pur-batch dl {
-  display: grid;
-  gap: var(--space-xs);
-  margin: 0;
-}
-/* 字段名一列和详情里“库存”“规格”等节的字段名对齐：那边 96px 从卡片内边距算起，这里块自己有 12px 内边距 */
-.pur-batch dl > div {
-  display: flex;
-  gap: var(--space-md);
-  font-size: var(--text-sm);
-  line-height: 20px;
-}
-.pur-batch dt {
-  flex: none;
-  width: 84px;
-  color: var(--text-secondary);
-}
-.pur-batch dd {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 /* 单号是链接：和详情里别处的单号一样用强调色，悬停有下划线 */
 .pur-batch a {

@@ -1,5 +1,5 @@
-# 先问人的命令（推送、打标签、发布、打补丁、打包；AGENTS.md“用户说了才能做”）。
-# 源头是 .claude/settings.json 的 permissions.ask。改清单时照着改这里，tests/claude-hooks.test.mjs 核对两边一致。
+# 先问人的命令（推送、打标签、发布、打补丁、打包、装依赖、停正式实例、连真实模型；AGENTS.md“碰不得的”）。
+# 源头是 .claude/settings.json 的 permissions.ask。改清单时照着改这里，tests/checks/claude-hooks.test.mjs 核对两边一致。
 
 prefix_rule(pattern = [["git", "git.cmd", "git.exe"], "push"], decision = "prompt", justification = "推送要用户同意")
 prefix_rule(pattern = [["git", "git.cmd", "git.exe"], "tag"], decision = "prompt", justification = "打标签要用户同意")
@@ -9,3 +9,11 @@ prefix_rule(pattern = [["gh", "gh.cmd", "gh.exe"], "release", "create"], decisio
 prefix_rule(pattern = [["gh", "gh.cmd", "gh.exe"], "release", "upload"], decision = "prompt", justification = "发布要用户同意")
 prefix_rule(pattern = [["gh", "gh.cmd", "gh.exe"], "release", "edit"], decision = "prompt", justification = "发布要用户同意")
 prefix_rule(pattern = [["gh", "gh.cmd", "gh.exe"], "release", "delete"], decision = "prompt", justification = "发布要用户同意")
+prefix_rule(pattern = [["npm", "npm.cmd", "npm.exe"], "install"], decision = "prompt", justification = "加依赖要用户同意")
+prefix_rule(pattern = [["npm", "npm.cmd", "npm.exe"], "i"], decision = "prompt", justification = "加依赖要用户同意")
+prefix_rule(pattern = [["npm", "npm.cmd", "npm.exe"], "add"], decision = "prompt", justification = "加依赖要用户同意")
+prefix_rule(pattern = [["cargo", "cargo.cmd", "cargo.exe"], "add"], decision = "prompt", justification = "加依赖要用户同意")
+prefix_rule(pattern = [["npm", "npm.cmd", "npm.exe"], "stop"], decision = "prompt", justification = "停止正式实例要用户同意")
+prefix_rule(pattern = [["npm", "npm.cmd", "npm.exe"], "run", "stop"], decision = "prompt", justification = "停止正式实例要用户同意")
+prefix_rule(pattern = [["node", "node.cmd", "node.exe"], "scripts/ui-check/real-smoke.mjs"], decision = "prompt", justification = "连真实模型会花钱，要用户同意")
+prefix_rule(pattern = [["node", "node.cmd", "node.exe"], "scripts/ui-check/real-suite.mjs"], decision = "prompt", justification = "连真实模型会花钱，要用户同意")
