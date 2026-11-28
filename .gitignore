@@ -69,3 +69,4 @@ docs/**
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 .codex/environments/
+
