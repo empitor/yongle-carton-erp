@@ -113,4 +113,3 @@ export const accountDatabase: VersionedSqliteSpec = {
 export const defaultAccountPath = () => join(dirname(defaultDbPath), 'security', 'users.sqlite');
 // 默认位置登记进配置库登记表：恢复备份的维护命令行不打开账号库，靠这一条认出备份里的 security/users.sqlite 是账号库、支持到第几版
 registerVersionedSqlite(accountDatabase, defaultAccountPath);
-
