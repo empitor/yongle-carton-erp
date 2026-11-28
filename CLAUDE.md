@@ -9,4 +9,3 @@
 - 界面实测用 `ui-check` 技能；内置浏览器 `preview_start` 的配置在 `.claude/launch.json`（见 `ui-check` 技能“给用户看”）。
 - 收尾照 AGENTS.md 地图里收尾那一行（审查和更新文档派 `erp-rules-reviewer`、`docs-updater` 子智能体）。
 - 派子智能体时，派工说明里写“先读 AGENTS.md 和这一块的文档”。
-
