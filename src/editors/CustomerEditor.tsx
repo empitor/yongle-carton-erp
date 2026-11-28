@@ -8,21 +8,25 @@ import CustomerSites from './CustomerSites';
 /** 改的时候带着打开窗口时读到的版本号（保存靠它做版本校验） */
 type CustomerForm = CustomerInput & { version?: number };
 const blank: CustomerForm = { name: '', contact: '', phone: '', address: '', notes: '' };
+/** 客户的必填：名称；加了厂区，厂区名称也要填，两个以上要选一个默认 */
+const CUSTOMER_REQUIRED = '客户名称必填；加了厂区要填厂区名称、选一个默认，其余可以以后补。';
 
-/** 客户、供应商、产品档案窗口的底部：取消和保存（保存提交 formId 那张表单）。 */
+/** 客户、供应商、产品档案窗口的底部：取消和保存（保存提交 formId 那张表单）。note 是左边那句必填说明 */
 export function ArchiveFooter({
   formId,
   saving,
   close,
   label,
+  note = '只有名称必填，其余可以以后补。',
 }: {
   formId: string;
   saving: boolean;
   close: () => void;
   label: string;
+  note?: string;
 }) {
   return (
-    <EditorFooter note="只有名称必填，其余可以以后补。">
+    <EditorFooter note={note}>
       <button type="button" className="secondary" disabled={saving} onClick={close}>
         取消
       </button>
@@ -117,7 +121,7 @@ export default function CustomerEditor({
       size="md"
       busy={saving}
       close={close}
-      footer={<ArchiveFooter formId={formId} saving={saving} close={close} label="保存客户" />}
+      footer={<ArchiveFooter formId={formId} saving={saving} close={close} label="保存客户" note={CUSTOMER_REQUIRED} />}
     >
       <form
         id={formId}

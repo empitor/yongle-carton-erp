@@ -17,7 +17,7 @@
 
 ## 碰不得的
 
-- 真实数据、正式实例、密钥文件、不许改的快照和检查配置：钩子会拦或先问，被拦就照提示换做法，不绕过。Codex 的钩子只拦不问：连正式实例、启停正式服务、改检查配置，用 Codex 时先问用户。
+- 真实数据、正式实例、密钥文件、不许改的快照和检查配置：钩子会拦或先问，被拦就照提示换做法，不绕过。Codex 的钩子只拦不问：连正式实例、启停正式服务（含停本机的正式实例）、连真实模型、改检查配置，用 Codex 时先问用户。
 - 提交、推送、发布、装依赖、停止或重启正式实例、放宽或关掉检查、改本文件（随文档增删改地图那一行除外）：用户说了才做；不主动催提交，子智能体一律不提交。改完不用重启正式实例：改动留在项目文件里，下次启动自动生效。
 - 密钥、Secret 和三家机器人的应用编号（企业微信 Bot ID、飞书 App ID、钉钉 Client ID）不写进代码、日志、审计、文档和聊天。
 - 测试只用 `:memory:` 或临时目录配虚构数据，不用真实数据、真实客户文件和真实模型接口；真实客户文件不进仓库；发给真实模型前先问（外发文件、花钱）。
@@ -49,6 +49,6 @@
 | 发布 | 技能 `.claude/skills/release/`（只在用户说要发布时） |
 | 改外壳（安卓、Windows）和网页之间的接点 | `docs/架构/外壳和网页.md`；外壳自己的见 `apps/android/docs/`、`apps/desktop/docs/` |
 | 收尾 | 改完跑 `npm run check` → 改了业务代码（server/、shared/、src/）的派审查员 `.claude/agents/erp-rules-reviewer.md` 审 → 修完重跑 → `.claude/agents/docs-updater.md` 更新文档 → 收尾汇报；只改文档、测试、脚本的不派审查员。Codex、Antigravity 照这两份定义派 |
-| 看还剩什么没做 | `docs/计划/路线图.md`、`docs/计划/技术债.md`、`docs/计划/已知问题.md` |
+| 看还剩什么没做 | `docs/计划/路线图.md`、`docs/计划/技术债.md`、`docs/计划/已知问题.md`、`docs/计划/小改进.md` |
 
 技能在 `.claude/skills/<名字>/SKILL.md`：Claude Code 自动发现，Antigravity 经 `.agents/skills.json`，Codex 照上表路径读。通用技能在用户目录：Claude Code、Antigravity 读 `~/.claude/skills/<名字>/SKILL.md`，Codex 读 `~/.agents/skills/<名字>/SKILL.md`；项目写得更具体的以项目为准。三家怎么接钩子见 `.claude/hooks/protect-real-data.mjs` 开头。

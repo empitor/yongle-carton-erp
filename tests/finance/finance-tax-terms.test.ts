@@ -18,6 +18,7 @@ import { FinanceEventVouchers } from '../../server/finance/events/event-voucher.
 import { FinanceEventHandling } from '../../server/finance/events/event-handling.js';
 import { readSnapshot } from '../../server/finance/events/source-snapshot.js';
 import { evaluateSource } from '../../server/finance/events/event-evaluate.js';
+import { financeTaxRateReady } from '../../shared/finance/index.js';
 
 test('财务不卡业务：订单和供应商都没写税率时，送货、到货照常确认，收款照常核销到理论金额往来；只有正式报表和结账被拦，补完税率放行', async () => {
   const t = await flowFinance();
@@ -153,6 +154,24 @@ test('往来单位默认税率：往来条款收下的写法补扫都认（最�
     }
     // 单据抄来的原话照订单认法：没带 % 的 0.5 有歧义、三位小数认不出，不拿往来默认顶上
     for (const rate of ['0.5', '13.125']) assert.equal(evaluate('13', rate).status, 'info_pending', '单据原话 ' + rate);
+  } finally {
+    s.close();
+  }
+});
+
+test('页面判断单据税率写清没有和补扫是同一个函数：认得出的能记账，认不出的（老快照的全角、带空格，没带 % 的 0.13）记待补', () => {
+  const s = new Store(':memory:');
+  try {
+    newSettings(s);
+    for (const rate of ['13', '13%', ' 13% ', '0.5%', '１３％', '13 %', '0.13', '13.125']) {
+      const ev = evaluateSource(
+        s.db,
+        { kind: 'delivery', status: 'confirmed' },
+        { customerId: 1, lines: [{ unit: '只', quantity: '10', unitPriceExact: '10.0000', taxRate: rate, taxMode: '含税' }] },
+        { policy: 'delivery', taxTerms: () => undefined },
+      );
+      assert.equal(ev.status === 'ready', financeTaxRateReady(rate, 'line'), rate);
+    }
   } finally {
     s.close();
   }

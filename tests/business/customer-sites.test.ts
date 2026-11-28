@@ -9,6 +9,7 @@ import {
   financeFingerprint,
   flowDocumentContent,
   flowDocumentOfView,
+  historyView,
   type FlowDocView,
 } from '../../shared/business/index.js';
 import { actor } from '../support/actor-fixture.js';
@@ -171,4 +172,20 @@ test('已解除厂区引用的历史送货单在摘要和变更比对中保留�
     ),
     [{ label: '收货厂区', value: east.name + ' → 未填写' }],
   );
+});
+
+test('厂区改了名、编号没变：确认卡片和修改历史都写“旧名 → 新名”', () => {
+  const before = { siteId: 7, siteName: '虚构东厂旧名' }, after = { siteId: 7, siteName: '虚构东厂新名' };
+  const refs = { customer_sites: { 7: { name: '虚构东厂新名' } } };
+  const expected = [{ label: '收货厂区', value: '虚构东厂旧名 → 虚构东厂新名' }];
+  assert.deepEqual(cardChanges('delivery', before, after, refs, { top: new Set(['siteId']), lines: new Set() }), expected);
+  const history = historyView({ module: 'delivery', action: 'update-draft', detail: { before, after } }, refs);
+  assert.deepEqual(history.items.filter((i) => i.label === '收货厂区'), expected);
+});
+
+test('客户原来没有厂区、后来加了：修改历史写“没有厂区 → …”，不写“没有明细”', () => {
+  const site = { id: 7, ...east };
+  const history = historyView({ module: 'customers', action: 'update', detail: { before: { id: 1, sites: [] }, after: { id: 1, sites: [site] } } }, {});
+  const row = history.items.find((i) => i.label === '厂区');
+  assert.match(row?.value ?? '', /^没有厂区 → 虚构东厂/);
 });

@@ -1,5 +1,8 @@
 import { codeNames, purchaseStatusLabel } from '../../shared/business/index';
-import { FINISHED_UNIT, PRODUCT_CUSTOMER_LOCKED, RAW_UNIT, fieldTable, orderTaxModes, statuses, type FieldTable, isFlowKind } from '../../shared/core/index';
+import {
+  blankCustomerSite, FINISHED_UNIT, PRODUCT_CUSTOMER_LOCKED, RAW_UNIT, fieldTable, orderTaxModes, productsForCustomer, statuses, type FieldTable, isFlowKind,
+  type ApiJson,
+} from '../../shared/core/index';
 import { flowStates, pendingLabels, storedFlowStatusName } from '../../shared/business/index';
 import { purchaseBusinessStatuses } from '../../shared/business/index';
 import type { RecordRefs, RefOption } from './record-refs';
@@ -14,6 +17,8 @@ export type FieldContext = {
   record: ManagedRecord | null;
   refs: RecordRefs | null;
   errors?: Record<string, string>;
+  /** 整份编辑窗内容（最外层）：明细里的格子要看单头的值（订单明细的产品按订单客户筛） */
+  form?: JsonObject;
 };
 export const numberFields = new Set(['length', 'width', 'height']);
 /** 不给人看的键：明细自己的编号、版本、请求编号（数据还在，保存时原样带回） */
@@ -121,18 +126,45 @@ export function fieldChoices(key: string, current: unknown, module = ''): [strin
 const keptOnceChosen = new Set(['roundingPolicy']);
 export const allowsBlank = (key: string, current: unknown) => current == null || !keptOnceChosen.has(key);
 
-/** 这个字段那一类的候选（读来的那份，不改它）：订单明细按同一行选的订单列，库存品按用途筛 */
+/**
+ * 这个字段那一类的候选（读来的那份，不改它）：订单明细按同一行选的订单列，库存品按用途筛，
+ * 订单明细的产品只列这张订单客户的和没定客户的（和订单编辑窗同一个 productsForCustomer）
+ */
 function candidates(key: string, ctx: FieldContext, line: JsonObject | null): readonly RefOption[] {
   const kind = refKind(key),
     refs: RecordRefs = ctx.refs ?? {};
-  if (kind === 'orderLines') return refs.orderLines?.[String(line?.orderId ?? '')] || [];
-  if (kind === 'customerSites') return refs.customerSites?.[String(line?.customerId ?? '')] || [];
+  if (kind === 'orderLines') return grouped(refs.orderLines, line?.orderId);
+  if (kind === 'customerSites') return grouped(refs.customerSites, line?.customerId);
   if (kind === 'stock_items') {
     const wanted = stockFilter(ctx.module, key);
     return (refs.stock_items || []).filter((s) => !wanted || s.kind === wanted);
   }
+  if (kind === 'products' && ctx.module === 'orders' && key === 'productId') return orderProducts(refs, ctx.form);
   if (!kind || kind === 'source' || kind === 'batch') return [];
   return refs[kind] || [];
+}
+/** 按上级分组的候选（订单明细按订单、厂区按客户）里，这个上级的那一组 */
+const grouped = (groups: Record<string, RefOption[]> | undefined, parent: ApiJson | undefined) =>
+  groups?.[String(parent ?? '')] || [];
+/** 订单明细能选的产品：这张订单客户的和没定客户的 */
+function orderProducts(refs: RecordRefs, form: JsonObject | undefined) {
+  const customerId = form?.customerId;
+  return productsForCustomer(refs.products || [], typeof customerId === 'number' ? customerId : null);
+}
+/** 一类里全部的候选（不按客户、用途筛）：当前值被筛掉了还在这里的，照它的名称显示，不说“已找不到” */
+function everyCandidate(key: string, ctx: FieldContext): readonly RefOption[] {
+  const kind = refKind(key),
+    list = kind && kind !== 'source' && kind !== 'batch' ? ctx.refs?.[kind] : undefined;
+  return Array.isArray(list) ? list : [];
+}
+/**
+ * 收货厂区空着是什么意思：已生效的单是厂区删了、只留着当时的收货信息；还没选客户的先选客户；
+ * 待送货单保存时取默认厂区，客户没有厂区就没有可取的
+ */
+function blankSiteLabel(ctx: FieldContext, sites: readonly RefOption[], line: JsonObject | null) {
+  if (ctx.record && ctx.record.status !== 'draft') return '未关联厂区（保留单上的收货信息）';
+  if (line?.customerId == null) return '先选客户';
+  return sites.length ? '使用默认厂区' : '这个客户还没有厂区';
 }
 
 /**
@@ -147,11 +179,23 @@ export function refOptions(key: string, current: unknown, ctx: FieldContext, lin
       (o) => !(key === 'parentProductId' && ctx.module === 'products' && o.value === self),
     );
   const now = current == null ? '' : String(current);
-  const options = optionalRef(ctx.module, key) ? [{ value: '', label: key === 'siteId' ? '使用默认厂区' : '不关联' }, ...list] : list;
-  // 候选还在读的时候不补“找不到”，免得一闪
+  const blank = { value: '', label: key === 'siteId' ? blankSiteLabel(ctx, list, line) : '不关联' };
+  const options = optionalRef(ctx.module, key) ? [blank, ...list] : [...list];
+  // 候选还在读的时候不补“找不到”，免得一闪；被筛掉的（别家客户的产品）照名称列在最后，保存时由服务端说清
   if (now && ctx.refs && !options.some((o) => o.value === now))
-    options.push({ value: now, label: '原来关联的记录（已找不到）' });
+    options.push(everyCandidate(key, ctx).find((o) => o.value === now) ?? { value: now, label: '原来关联的记录（已找不到）' });
   return options;
+}
+
+type ListWords = { item: (i: number) => string; add: string; remove: string; blank?: () => JsonObject };
+/**
+ * 一组明细在编辑窗里怎么叫、新加一项用什么：客户的厂区照叫法词表（“厂区 1”“新增厂区”“删除厂区”），
+ * 新加的是空白厂区；别的明细“第 1 项”“增加明细”“移除本项”，照第一项的样子加
+ */
+export function listWords(path: string): ListWords {
+  return path === 'sites'
+    ? { item: (i) => '厂区 ' + (i + 1), add: '新增厂区', remove: '删除厂区', blank: blankCustomerSite }
+    : { item: (i) => '第' + (i + 1) + '项', add: '增加明细', remove: '移除本项' };
 }
 
 /** 用可搜索选择器的关联字段（订货单只读、送货单原件是下拉，不算） */

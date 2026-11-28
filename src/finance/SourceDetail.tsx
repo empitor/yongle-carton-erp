@@ -1,6 +1,8 @@
 import { useAuthState, ActionBar, Facts, Hint, Section, StatusChip, type RecordAction, yuan } from '../ui/index';
-import { financeOnlyAccount, flowDocHref, pageHref, pageIdOf, plainPrice } from '../../shared/core/index';
-import { missingAmountName } from '../../shared/finance/index';
+import {
+  financeOnlyAccount, flowDocHref, pageHref, pageIdOf, percentFromTaxRateBp, plainPrice, shownTaxRate,
+} from '../../shared/core/index';
+import { documentTaxRate, missingAmountName } from '../../shared/finance/index';
 import { documentName, metricNames, sourceMonthName } from './labels';
 import { chipTones, flowStatus } from './status';
 import { readSourceDetail, type SourceLine, type SourceRow } from './source-detail-view';
@@ -68,6 +70,19 @@ export function SourceActions({ row, primary }: { row: SourceRow; primary?: Reco
   );
 }
 
+/** 财务认不出的税率怎么写：单据明细的税率格和补税率的格子下面同一个说法 */
+export const unreadRateText = (raw: string) => '没认出来：' + raw;
+
+/**
+ * 单据明细上的税率，和补扫判断单据税率写清没有同一个 documentTaxRate：认得出的一律写成带 % 的百分数
+ * （单据里 13 和 0.5% 两种写法都有）；认不出的（含老快照的全角、带空格的）原话照写、标出来，和“待补税率”对得上
+ */
+function SourceRate({ rate }: { rate: string | undefined }) {
+  if (!rate?.trim()) return <span className="fb-warn">税率未填</span>;
+  const bp = documentTaxRate(rate);
+  return bp === null ? <span className="fb-warn">{unreadRateText(rate)}</span> : <>{shownTaxRate(percentFromTaxRateBp(bp))}</>;
+}
+
 /** 单据明细的一行：品名、数量和单位、单价、税率和口径 */
 function SourceLineRow({ line: l }: { line: SourceLine }) {
   return (
@@ -80,7 +95,7 @@ function SourceLineRow({ line: l }: { line: SourceLine }) {
         {l.unitPriceExact !== undefined ? plainPrice(l.unitPriceExact, 2) : (l.unitPrice ?? '—')}
       </td>
       <td>
-        {l.taxRate || <span className="fb-warn">税率未填</span>}
+        <SourceRate rate={l.taxRate} />
         <small>{l.taxMode || '口径未填'}</small>
       </td>
     </tr>

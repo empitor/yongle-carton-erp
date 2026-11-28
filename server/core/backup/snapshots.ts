@@ -5,6 +5,7 @@ import type { Store } from '../storage/db.js';
 import { AppError } from '../http/errors.js';
 import { SNAPSHOT_DIRECTORY, stamp } from '../schema/index.js';
 import { PARTIAL_SUFFIX, consistentCopy } from '../storage/sqlite/sqlite-copy.js';
+import { isRehearsing } from '../storage/savepoint.js';
 import { DAY_MS, MINUTE_MS, errorMessage } from '../../../shared/core/index.js';
 import { count, integrityPassed, pragmaInteger } from '../storage/sqlite/sql.js';
 
@@ -113,10 +114,12 @@ function reusableSnapshot(store: Store, dir: string) {
  * 用 consistentCopy（sqlite-copy.ts，单独的只读连接 VACUUM INTO，先写 .partial 再改名）：业务库是 WAL 模式，
  * 另一个连接只看得到已提交的数据，所以调用方已经开了事务或 SAVEPOINT 也能拍，得到的是这次操作之前已提交的状态。
  * 5 分钟内、且之后没有任何写入时复用上一份。
- * 拍不成（库忙、磁盘满、目录不可写）就抛错，由调用方中止破坏性操作；只有内存库返回 null。
+ * 拍不成（库忙、磁盘满、目录不可写）就抛错，由调用方中止破坏性操作。返回 null 的只有两种：内存库；试执行
+ * （出助手卡片时 rehearse 在回滚点里跑一遍，不管成没成都整段撤回，什么都没动，不用拍，也免得每出一张卡片就拷一次库）。
+ * 真执行不在 rehearse 里，照拍。
  */
 export function snapshotBeforeDestructive(store: Store, reason: string): string | null {
-  if (store.path === ':memory:') return null;
+  if (store.path === ':memory:' || isRehearsing(store.db)) return null;
   const dir = join(dirname(store.path), SNAPSHOT_DIR);
   const reused = reusableSnapshot(store, dir);
   if (reused) return reused;

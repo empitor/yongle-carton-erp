@@ -1,4 +1,5 @@
 import { dataManagementFieldName } from '../../shared/business/index.js';
+import { fieldLabel } from '../../shared/core/index.js';
 import type { FieldPath } from './input-fields.js';
 import { readableIssues } from './record-edit-rules.js';
 // 数据管理保存时补丁里有录入结构不收的栏目（input-fields.ts 的 rejectedFields 找出来的）：怎么说清是哪一格。
@@ -86,6 +87,10 @@ const topNames: Record<string, string> = { kind: '单据种类', quantity: '库�
 const STOCK_QUANTITY_KEYS = new Set(['quantity', 'balanceUnits', 'availableUnits']);
 const STOCK_HINT = '库存数量请登记盘点';
 const STATUS_HINT = '单据状态请用确认、取消、撤销';
+/** 送货单的收货信息由所选收货厂区带出：直接写这几格时说清去改选收货厂区，不说“系统算出来的” */
+const SITE_KEYS = new Set(['siteName', 'contact', 'phone', 'address']);
+const SITE_HINT = '要换收货信息请改选' + fieldLabel('siteId');
+const fromSite = (module: string, path: FieldPath) => module === 'delivery' && path.length === 1 && SITE_KEYS.has(String(path[0]));
 
 const own = (table: Record<string, string>, key: string) => (Object.hasOwn(table, key) ? table[key] : undefined);
 /** 读出来才有的栏目的叫法（没有返回 undefined，交给数据管理的字段叫法） */
@@ -104,7 +109,10 @@ function named(path: FieldPath, module: string) {
 /** 补丁里改了的、不认识的栏目，写成一句给人看的话（不露字段代码），后面按情况说该去哪办 */
 export function rejectionText(module: string, rejected: { changed: FieldPath[]; unknown: FieldPath[] }) {
   const issues = [
-    ...rejected.changed.map((path) => ({ path, message: '是系统算出来的，不能改' })),
+    ...rejected.changed.map((path) => ({
+      path,
+      message: fromSite(module, path) ? '由所选' + fieldLabel('siteId') + '带出，不能直接改' : '是系统算出来的，不能改',
+    })),
     ...rejected.unknown.map((path) =>
       named(path, module) ? { path, message: '这里不收这一项' } : { path: path.slice(0, -1), message: '有系统不认识的栏目' },
     ),
@@ -113,6 +121,7 @@ export function rejectionText(module: string, rejected: { changed: FieldPath[]; 
   const hints = [
     module === 'stock_items' && top.some((k) => STOCK_QUANTITY_KEYS.has(k)) ? STOCK_HINT : '',
     top.includes('status') ? STATUS_HINT : '',
+    rejected.changed.some((p) => fromSite(module, p)) ? SITE_HINT : '',
   ].filter(Boolean);
   return readableIssues(issues, module, derivedName) + '。没有保存，请去掉或改回这几项再提交' + (hints.length ? '；' + hints.join('；') : '') + '。';
 }

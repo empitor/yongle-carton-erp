@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { AppError } from '../../server/core/index.js';
 import { sales } from '../../server/sales/index.js';
 import { DEFAULT_SITE_NAME } from '../../shared/core/index.js';
+import { createElement as h } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import DataManagementFields from '../../src/admin/DataManagementFields.js';
 import { refOptions } from '../../src/admin/field-rules.js';
 import { withField } from '../../src/admin/field-update.js';
 import { buildRefs } from '../../src/admin/record-refs.js';
@@ -68,6 +71,12 @@ test('数据管理里的厂区：只改客户名称厂区不动；待送货单�
       () => dm.execute(command('delivery', 'create', [], input(f.other.sites[0].id)), f.who, 's'),
       (e: unknown) => e instanceof AppError && e.status === 400 && /不属于这个客户/.test(e.message),
     );
+    // 待送货单直接写收货地址：说清是厂区带出的、去改选收货厂区，不说“系统算出来的”
+    assert.throws(
+      () => dm.execute(command('delivery', 'update', [f.listed('delivery', id)], { address: '虚构手填地址' }), f.who, 's'),
+      (e: unknown) => e instanceof Error && /收货地址：由所选收货厂区带出/.test(e.message) && /改选收货厂区/.test(e.message)
+        && !/系统算出来/.test(e.message),
+    );
   } finally {
     f.store.close();
   }
@@ -89,4 +98,46 @@ test('数据管理编辑窗：收货厂区只列这张送货单所选客户的�
   } finally {
     f.store.close();
   }
+});
+
+test('数据管理厂区下拉的空选项按单据说：待送货单“使用默认厂区”，客户没厂区、已生效的单各说各的', () => {
+  const f = sitesFixture(), { customer } = f;
+  try {
+    const bare = manualWrite(f.store, { entity: 'customers', action: 'create', input: { name: '虚构没厂区客户' } }, f.who);
+    const refs = buildRefs({ customers: viaJsonList(f.dataManagement.list('customers', f.who).records.map((r) => r.record)) });
+    const blankOf = (id: number | null, customerId: number | null) =>
+      refOptions('siteId', null, { module: 'delivery', record: id ? f.listed('delivery', id) : null, refs }, { customerId })[0].label;
+    // 新建还没选客户：说先选客户，不说这个客户没有厂区
+    assert.equal(blankOf(null, null), '先选客户');
+    const order = f.order([300]);
+    const input = { customerId: customer.id };
+    const pending = f.pending([{ order, quantity: '5' }], input), shipped = f.ship([{ order, quantity: '6' }], input);
+    assert.deepEqual([blankOf(null, customer.id), blankOf(pending.id, customer.id)], ['使用默认厂区', '使用默认厂区']);
+    assert.equal(blankOf(null, bare.id), '这个客户还没有厂区');
+    assert.equal(blankOf(shipped.id, customer.id), '未关联厂区（保留单上的收货信息）');
+  } finally {
+    f.store.close();
+  }
+});
+
+test('数据管理编辑客户的厂区：每项写“厂区 N”，按钮叫“新增厂区”“删除厂区”，不叫“增加明细”“移除本项”', () => {
+  const value = { name: '虚构客户', sites: [{ ...east, id: 1 }, { ...west, id: 2 }] };
+  const html = renderToStaticMarkup(h(DataManagementFields, { value, change: () => {}, module: 'customers', record: null, refs: {} }));
+  assert.match(html, /厂区 1/);
+  assert.match(html, /厂区 2/);
+  assert.equal((html.match(/删除厂区/g) || []).length, 2);
+  assert.match(html, /新增厂区/);
+  assert.doesNotMatch(html, /增加明细|移除本项|第1项/);
+});
+
+test('数据管理改订单：明细的产品只列这张订单客户的和没定客户的，原来选的别家产品照名称显示，不写“已找不到”', () => {
+  const product = (id: number, name: string, customerId: number | null) =>
+    ({ id, name, customerId, customerName: customerId ? '虚构客户' + customerId : null });
+  const refs = buildRefs({ products: viaJsonList([product(1, '虚构甲的箱', 1), product(2, '虚构乙的箱', 2), product(3, '虚构通用箱', null)]) });
+  const ctx = (customerId: number) => ({ module: 'orders', record: null, refs, form: { customerId, lines: [] } });
+  const names = (customerId: number, current: number | null) =>
+    refOptions('productId', current, ctx(customerId), { productId: current }).map((o) => o.label);
+  assert.deepEqual(names(1, null), ['虚构甲的箱', '虚构通用箱']);
+  assert.deepEqual(names(2, null), ['虚构乙的箱', '虚构通用箱']);
+  assert.deepEqual(names(1, 2), ['虚构甲的箱', '虚构通用箱', '虚构乙的箱']);
 });

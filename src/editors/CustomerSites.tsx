@@ -15,8 +15,10 @@ export default function CustomerSites({ sites, change }: {
     const remaining = sites.filter((_, i) => i !== index);
     change(remaining.length === 1 ? [{ ...remaining[0], isDefault: true }] : remaining);
   };
+  // 有两个以上厂区就要恰好一个默认：删掉了默认的那个时提醒人重新指定，不替人选（服务端同一条校验：customer-sites.ts）
+  const needDefault = sites.length > 1 && !sites.some((s) => s.isDefault);
   return (
-    <FormSection title={fieldLabel('sites')} columns={1}>
+    <FormSection title={fieldLabel('sites')} columns={1} hint={needDefault ? '还没有默认厂区，请选一个设为默认。' : undefined}>
       {sites.map((site, index) => {
         const label = '厂区 ' + (index + 1);
         return (

@@ -305,6 +305,7 @@ test('送货出库、更正送货单、换订单、订单换客户：连带改�
     ]);
     const shipped = tools.flow.get(draft.id, 'delivery');
     const receiving = (x: typeof shipped) => [x.siteId, x.siteName, x.address, x.contact, x.phone];
+    assert.notEqual(shipped.siteId, null, '换客户之前这张已出库送货单挂着厂区');
     tools.commit(changeCustomer, who, 'card');
     const moved = tools.flow.get(draft.id, 'delivery');
     assert.equal(moved.customerId, patch.customerId);

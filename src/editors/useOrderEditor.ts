@@ -3,7 +3,7 @@ import { costYuan, hasUnrecognizedTax, productFitsCustomer, today, type Customer
 import { emit, useAction, useLoad } from '../ui/index';
 import { changeOrderStatus } from '../recordkit/record-api';
 import { saveOrder, soleOrderProducts } from './editor-api';
-import { crossCustomerLine, customerChangeBlocked, keptLineProducts, movingNotice, pruneLinesForCustomer } from './order-customer-change';
+import { clearedNotice, crossCustomerLine, customerChangeBlocked, keptLineProducts, movingNotice, pruneLinesForCustomer } from './order-customer-change';
 import {
   blankLine,
   fillProduct,
@@ -135,25 +135,24 @@ const mergeRecords = <T extends { id: number }>(base: T[], added: T[]) => [
  * 换客户：编辑已有订单时读“订单明细只在这张订单里”的产品，跟着改归新客户的行不清空，属别家客户的行清空
  * （留哪些行、提示怎么写在 order-customer-change.ts）。还在读、读失败都不能换客户（blocked 是原因和怎么办，
  * waiting 是还在读，retry 重读，retrying 是重读还没回来）。
- * notice：保存后会一起改归新客户的产品按现在的明细每次现算，后面接换客户时清空了哪几行（clearedNotice）。kept 是现在这家客户下留着原产品的行。
+ * notice：保存后会一起改归新客户的产品、换客户时清空了还空着的行，都按现在的明细每次现算。kept 是现在这家客户下留着原产品的行。
  */
 function useCustomerChange(value: Order | undefined, d: Draft, customers: Customer[], products: Product[]) {
   const sole = useLoad(value ? String(value.id) : null, (id) => soleOrderProducts(Number(id)));
   const soleIds = new Set(sole.data?.productIds),
     blocked = customerChangeBlocked(!!value, sole);
-  const [clearedNotice, setClearedNotice] = useState('');
+  const [cleared, setCleared] = useState<string[]>([]);
   const change = (nextId: string) => {
     if (blocked) return;
     d.setCustomerId(nextId);
     const pruned = pruneLinesForCustomer(d.lines, nextId ? Number(nextId) : null, products, keptLineProducts(value, nextId, products, soleIds));
     d.setLines(pruned.nextRows);
-    setClearedNotice(pruned.notice);
+    setCleared(pruned.cleared);
   };
   const current = customers.find((c) => String(c.id) === d.customerId);
   return {
     kept: keptLineProducts(value, d.customerId, products, soleIds),
-    notice: movingNotice(d.lines, value, current, products, soleIds) + clearedNotice,
-    setNotice: setClearedNotice,
+    notice: movingNotice(d.lines, value, current, products, soleIds) + clearedNotice(d.lines, cleared),
     change,
     blocked,
     waiting: !!value && sole.loading && !sole.error,
@@ -179,9 +178,12 @@ export function useOrderEditor(props: OrderEditorProps) {
   const save = useAction();
   const [invalid, setInvalid] = useState('');
   const customer = useCustomerChange(value, d, availableCustomers, availableProducts),
-    { kept: keptProducts, notice: customerNotice, setNotice: setCustomerNotice } = customer;
+    { kept: keptProducts } = customer;
+  // 快速新建的产品属别家客户、没填进明细时说一句；换客户、选产品时清掉
+  const [productNotice, setProductNotice] = useState('');
   const changeCustomer = (nextId: string) => {
     setInvalid('');
+    setProductNotice('');
     customer.change(nextId);
   };
   const submit = (e: SubmitEvent<HTMLFormElement>) => {
@@ -205,13 +207,14 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   const chooseProduct = (index: number, id: string) => {
     const p = availableProducts.find((x) => x.id === Number(id));
-    setCustomerNotice('');
+    setProductNotice('');
     d.setLines((rows) => rows.map((l, i) => (i === index ? fillProduct(l, p, id) : l)));
   };
   /** 快速新建客户、产品后选进当前订单（产品带出名称、料号、规格和参考单价，和下拉选产品一样） */
   const customerCreated = (record: Customer) => {
     setCreatedCustomers((v) => [...v.filter((x) => x.id !== record.id), record]);
     setInvalid('');
+    setProductNotice('');
     customer.change(String(record.id));
     setQuickCreate(null);
     emit('erp-business-changed');
@@ -221,11 +224,11 @@ export function useOrderEditor(props: OrderEditorProps) {
     const line = quickCreate?.line;
     const orderCustomerId = d.customerId ? Number(d.customerId) : null;
     if (orderCustomerId != null && !productFitsCustomer(record, orderCustomerId)) {
-      setCustomerNotice(
+      setProductNotice(
         '新建的产品“' + record.name + '”属于其他客户，未填入当前订单明细；请选当前客户的产品或通用产品。',
       );
     } else {
-      setCustomerNotice('');
+      setProductNotice('');
       d.setLines((v) => v.map((l, i) => (i === line ? fillProduct(l, record, String(record.id)) : l)));
     }
     setQuickCreate(null);
@@ -233,7 +236,7 @@ export function useOrderEditor(props: OrderEditorProps) {
   };
   return {
     ...d,
-    changeCustomer, keptProducts, customerNotice, customerBlocked: customer.blocked, customerWaiting: customer.waiting, retrySole: customer.retry, retryingSole: customer.retrying,
+    changeCustomer, keptProducts, customerNotice: customer.notice + productNotice, customerBlocked: customer.blocked, customerWaiting: customer.waiting, retrySole: customer.retry, retryingSole: customer.retrying,
     availableCustomers, availableProducts, quickCreate, setQuickCreate, customerCreated, productCreated,
     status, pending, submitStatus, chooseProduct, submit,
     onInvalid: invalidHandler(d, setInvalid),

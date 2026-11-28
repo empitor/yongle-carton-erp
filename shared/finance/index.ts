@@ -7,4 +7,5 @@ export type { FinanceEntry, VoucherTransition } from './finance.js';
 export type { FinanceApi } from './finance-api.js';
 export { cashKindNames, cashRecordText, documentName, financeMetricNames, financeRecordNames, financeRecordText, financeStatuses, missingAmountName, monthlyRowStatus, recordText, sourceMonthName, voucherStatusName } from './labels.js';
 export { financeAuditActions, financeAuditEntities } from './audit-names.js';
+export { HUNDRED_PERCENT, PERCENT_SCALE, documentTaxRate, financeTaxRateReady, partyTaxRate, percent, percentage, taxRateProblem } from './tax-rates.js';
 export { templateFieldTitles, templatePartyAccounts, templateTitles } from './templates.js';

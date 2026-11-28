@@ -3,26 +3,41 @@ import { Hint, Section, notify, useAction, FormField } from '../../ui/index';
 import { useFinPerms } from '../fin-api';
 import { resolveEventTax, type ResolveLine } from './tax-api';
 import { taxModeOptions } from '../fields';
-import { definiteTaxModes, legacyTaxMode } from '../../../shared/finance/index';
+import { definiteTaxModes, financeTaxRateReady, legacyTaxMode } from '../../../shared/finance/index';
 import { readSourceDetail, type SourceLine, type SourceRow } from '../source-detail-view';
+import { unreadRateText } from '../SourceDetail';
 
 /** 已经填过的口径：旧写法“不含税”按“未税”算，认不出的（包括“未明确”）空着让人选 */
 function modeOf(mode: string | undefined) {
   if (mode === legacyTaxMode.written) return legacyTaxMode.means;
   return definiteTaxModes.find((m) => m === mode) ?? '';
 }
-/** 补税率表里的一行：先填上补过的（financialLines）或单据明细上已有的 */
-const resolveLine = (l: SourceLine): ResolveLine => ({
-  exact: l.exact ?? '',
-  rate: (l.rate ?? l.taxRate ?? '').replace(/%$/, ''),
-  mode: modeOf(l.mode ?? l.taxMode),
-});
+/**
+ * 补税率表里的一行：先填上补过的（financialLines）或单据明细上已有的。税率照补扫的认法、按从哪来（source）判断
+ * （financeTaxRateReady：往来单位默认的照往来条款，0.5 就是 0.5%；单据抄来的照订单认法、只认半角）：认得出的照填（去掉末尾 %，
+ * 框的单位是 %）；认不出的（没带 % 的 0.13、三位小数、13个点、老快照的全角）框里空着，hint 是写在格子下面的一句
+ * （和单据明细的税率格同一个说法），让人对照原件填，不然人不改就点保存，“0.13”会照 0.13% 记下去。
+ */
+export function resolveLine(l: SourceLine, source: string | null | undefined): { line: ResolveLine; hint: string } {
+  const raw = (l.rate ?? l.taxRate ?? '').trim(),
+    ready = financeTaxRateReady(raw, source);
+  return {
+    line: { exact: l.exact ?? '', rate: ready ? raw.replace(/%$/, '') : '', mode: modeOf(l.mode ?? l.taxMode) },
+    hint: ready || !raw ? '' : unreadRateText(raw),
+  };
+}
 
 /** 单张补税率：逐行填税率和口径。缺价格或数量时也在这里补金额。放在台账详情的最后一节。 */
 export default function ResolveTax({ row, done }: { row: SourceRow; done: () => void }) {
   const perms = useFinPerms();
   const detail = readSourceDetail(row.detail);
-  const [lines, setLines] = useState(() => (detail.financialLines ?? detail.doc?.lines ?? []).map(resolveLine));
+  // 补过的财务行带着每行税率从哪来（taxSource）；没有财务行（缺价格、数量）时取单据明细，税率就是单据抄来的
+  const [start] = useState(() =>
+    detail.financialLines
+      ? detail.financialLines.map((l, i) => resolveLine(l, detail.taxSource?.[i]?.rate))
+      : (detail.doc?.lines ?? []).map((l) => resolveLine(l, 'line')),
+  );
+  const [lines, setLines] = useState(() => start.map((s) => s.line));
   const [evidence, setEvidence] = useState('');
   const action = useAction();
   const eventId = row.id;
@@ -79,6 +94,7 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
                       value={l.rate}
                       onChange={(e) => update({ rate: e.target.value })}
                     />
+                    {start[i]?.hint && <small>{start[i].hint}</small>}
                   </td>
                   <td className="fb-mode">
                     <select

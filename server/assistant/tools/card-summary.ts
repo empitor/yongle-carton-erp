@@ -5,7 +5,10 @@
 // 动的是哪几条在 card-targets.ts，每一行怎么写在 card-lines.ts。
 import type { Actor } from '../../core/index.js';
 import { historyRefs } from '../../overview/index.js';
-import { arrivalSchema, cardChanges, cardContents, deliverySchema, productionSchema, purchaseSchema, stockItemSchema, supplierSchema, taskSchema } from '../../../shared/business/index.js';
+import {
+  arrivalSchema, cardChanges, cardContents, deliverySchema, productionSchema, purchaseSchema, stockItemSchema, supplierSchema, taskSchema,
+  withRefsDetached,
+} from '../../../shared/business/index.js';
 import { customerSchema, customerSiteInputSchema, isRecord, orderSchema, productSchema } from '../../../shared/core/index.js';
 import { planModule, type Obj, type ToolPlan } from '../plan-rules.js';
 import { type ToolContext } from './context.js';
@@ -184,16 +187,10 @@ function createdLines(ctx: ToolContext, module: string, after: Obj, prefix: stri
   const { number: _number, ...row } = after;
   return [{ label: '新建', value: newTitle(ctx, module, after) }, ...cardContents(module, row, historyRefs(ctx.store, [{ after: row }]))];
 }
-/** 历史送货单仅解除了厂区编号引用、收货厂区名称与其余内容都未变（不算需要提醒用户的连带改动） */
-const detachedSiteOnly = (module: string, before: Obj, after: Obj) =>
-  module === 'delivery' &&
-  before.siteId != null &&
-  after.siteId == null &&
-  before.siteName === after.siteName &&
-  stable({ ...before, siteId: null }) === stable(after);
-/** 连带改了的记录：逐个字段列前后 */
+/** 连带改了的记录：逐个字段列前后。只解除了引用的（删厂区后的历史送货单，别的都没变）不算要提醒的连带改动 */
 function changedLines(ctx: ToolContext, module: string, before: Obj, after: Obj): Line[] {
-  if (detachedSiteOnly(module, before, after)) return [];
+  const detached = withRefsDetached(before, after);
+  if (detached && stable(detached) === stable(after)) return [];
   const items = cardChanges(module, before, after, historyRefs(ctx.store, [{ before, after }]), editableFields(module));
   const out = items.map((item) => ({ label: '连带：' + recordTitle(module, before) + ' ' + item.label, value: item.value }));
   // 兜底：改了、但修改历史那套写法列不出来的（派生的进度、合计这类），也要说一声动了哪条

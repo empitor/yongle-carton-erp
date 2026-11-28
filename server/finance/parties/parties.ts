@@ -2,14 +2,13 @@ import { z } from 'zod';
 import type { Actor } from '../../core/index.js';
 import type { Store } from '../../core/index.js';
 import { many, one, rows } from '../../core/index.js';
-import { accountCodeSchema, centsSchema, requestIdSchema, storedTaxModes, termTypes, versionSchema } from '../../../shared/finance/index.js';
+import { accountCodeSchema, centsSchema, partyTaxRate, requestIdSchema, storedTaxModes, termTypes, versionSchema } from '../../../shared/finance/index.js';
 import { dateSchema, today } from '../../../shared/core/index.js';
 import { FinanceLedger } from '../ledger/ledger.js';
 import {
   dayOfMonth,
   dueDate,
   installments,
-  partyTaxRate,
   partyTerms,
   readTermOptions,
   termDays,

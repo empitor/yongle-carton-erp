@@ -340,7 +340,8 @@ test('送货单换收货厂区的修改历史写厂区名称、不露编号；�
       const ctx = recordContext(store, 'delivery', d.id, superActor());
       const entry = must(ctx.history.find((e) => e.action === 'update-draft'), '改厂区那条历史');
       const view = historyView({ module: 'delivery', action: 'update-draft', detail: entry.detail, recordId: d.id }, ctx.historyRefs);
-      assertClean(view, '送货单换厂区', [east.id, west.id].filter((n) => n > 9));
+      // 厂区编号在内存库里是 1、2，和日期、数量里的数字分不开，不按编号查；不露编号由下面整句比对守着
+      assertClean(view, '送货单换厂区');
       return row(view, L('siteId'));
     };
     assert.deepEqual(siteRow(), ['虚构东厂 → 虚构西厂']);

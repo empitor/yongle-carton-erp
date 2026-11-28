@@ -244,7 +244,7 @@ await step('安排送货扣掉待送货单', async () => {
     .map((o) => {
       const line = o.lines[0];
       const stock = items.find((i) => i.kind === 'finished' && !i.archived && i.productId === line.productId && i.unit === line.unit);
-      return { o, line, stock, left: units(line.remainingQuantity ?? line.quantity) - (pending.get(line.id) || 0) };
+      return { o, line, stock, left: units(line.remainingQuantity) -(pending.get(line.id) || 0) };
     })
     .find((c) => pending.get(c.line.id) && c.left > 0 && c.stock && c.stock.availableUnits > 0);
   if (!target) return fail('种子数据里没有部分排进待送货单、又有可用库存的订单，这一步没测到');

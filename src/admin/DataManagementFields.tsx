@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { dataManagementFieldName } from '../../shared/business/index';
-import { blankCustomerSite, FINISHED_UNIT, MAX_TAX_PERCENT, RAW_UNIT, TAX_PERCENT_STEP, type ApiJson } from '../../shared/core/index';
+import { FINISHED_UNIT, MAX_TAX_PERCENT, RAW_UNIT, TAX_PERCENT_STEP, type ApiJson } from '../../shared/core/index';
 import { FormField } from '../ui/index';
 import RefField from './RefField';
 import { withField } from './field-update';
@@ -17,6 +17,7 @@ import {
   centsTwins,
   fieldChoices,
   hiddenFields,
+  listWords,
   lockedReason,
   longText,
   numberFields,
@@ -62,7 +63,7 @@ export default function DataManagementFields({
   errors?: Record<string, string>;
 }) {
   return (
-    <EditorContext.Provider value={{ module, record, refs, errors: errors ?? {} }}>
+    <EditorContext.Provider value={{ module, record, refs, errors: errors ?? {}, form: value }}>
       <FieldGroup value={value} change={change} path="" module={module} />
     </EditorContext.Provider>
   );
@@ -82,15 +83,16 @@ function FieldValue({ value, change, path, module }: Where & { value: ApiJson | 
   );
 }
 
-/** 明细数组：每项一张卡片（可移除），最后一个“增加明细”；编号清单（生产任务的关联订单）每项一个选择器 */
+/** 明细数组：每项一张卡片（可移除），最后一个“增加明细”；编号清单（生产任务的关联订单）每项一个选择器。叫法见 listWords */
 function FieldList({ value, change, path, module }: Where & { value: readonly ApiJson[]; change: (v: ApiJson) => void }) {
   const outer = useContext(EditorContext);
-  const primitive = path !== 'sites' && !value.some((x) => x && typeof x === 'object');
+  const words = listWords(path);
+  const primitive = !words.blank && !value.some((x) => x && typeof x === 'object');
   const replace = (i: number, next: ApiJson) => change(value.map((x, j) => (j === i ? next : x)));
   // 明细照第一项的样子加一项（不带它的编号）；编号清单（生产任务的关联订单）加一项留空让人选，不拿 0 冒充编号
   const add = () => {
     const first = value[0];
-    const item = path === 'sites' ? blankCustomerSite() : isJsonObject(first) ? { ...structuredClone(first), id: undefined } : null;
+    const item = words.blank ? words.blank() : isJsonObject(first) ? { ...structuredClone(first), id: undefined } : null;
     change([...value, item]);
   };
   return (
@@ -98,10 +100,10 @@ function FieldList({ value, change, path, module }: Where & { value: readonly Ap
       {value.map((item, i) => (
         <section key={i} className="line-card">
           <header>
-            <strong>第{i + 1}项</strong>
+            <strong>{words.item(i)}</strong>
             <button type="button" className="danger" onClick={() => change(value.filter((_, j) => i !== j))}>
               <Trash2 size={14} aria-hidden="true" />
-              移除本项
+              {words.remove}
             </button>
           </header>
           {primitive && refKind(path) ? (
@@ -119,7 +121,7 @@ function FieldList({ value, change, path, module }: Where & { value: readonly Ap
       ))}
       <button type="button" className="secondary adm-data-add" onClick={add}>
         <Plus size={14} aria-hidden="true" />
-        {primitive ? '再加一项' : '增加明细'}
+        {primitive ? '再加一项' : words.add}
       </button>
     </div>
   );

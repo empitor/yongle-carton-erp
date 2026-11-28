@@ -1,21 +1,9 @@
-import { z } from 'zod';
 import { CENTS_PER_YUAN, roundedQuotient } from '../../../shared/core/index.js';
-import { storedTaxModes } from '../../../shared/finance/index.js';
+import { HUNDRED_PERCENT, percent, storedTaxModes } from '../../../shared/finance/index.js';
 import { financeError } from './core.js';
 
-/** 比例写成百分数文字：最多三位整数、六位小数（“13”“0.5”“36.5”），算的时候放大成整数 */
-const PERCENT_DECIMALS = 6;
-export const PERCENT_SCALE = 10n ** BigInt(PERCENT_DECIMALS);
-/** 100% 放大以后的整数 */
-export const HUNDRED_PERCENT = BigInt(100) * PERCENT_SCALE;
-export const percentage = z
-  .string()
-  .regex(/^\d{1,3}(\.\d{1,6})?$/)
-  .refine((v) => /^\d{1,3}(\.\d{1,6})?$/.test(v) && percent(v) <= HUNDRED_PERCENT);
-export function percent(v: string) {
-  const [a, b = ''] = v.split('.');
-  return BigInt(a + b.padEnd(PERCENT_DECIMALS, '0'));
-}
+// 百分数文字的认法和放大（percentage、percent 这几样）定义在 shared/finance/tax-rates.ts，财务页面也用；财务服务端照旧从这里引
+export { HUNDRED_PERCENT, PERCENT_SCALE, percent, percentage } from '../../../shared/finance/index.js';
 export function percentCents(amount: number | bigint, rate: string, numerator = 1, denominator = 1) {
   const d = HUNDRED_PERCENT * BigInt(denominator);
   return safeCents(roundedQuotient(BigInt(amount) * percent(rate) * BigInt(numerator), d));
@@ -50,12 +38,15 @@ function cents(value: Rational) {
   return Number(n);
 }
 
+/** 税率超过 100% 时的说法：算金额（documentMoney）和补税率时的校验（events/source-snapshot.ts 的 evidenceLine）共用 */
+export const TAX_RATE_RANGE_MESSAGE = '税率超出范围。';
+
 export function documentMoney(lines: { exact: string; mode: string; rate: string }[]) {
   const amounts = lines.map(({ exact, mode, rate }) => {
     if (!storedTaxModes.some((m) => m === mode)) financeError('含税口径未明确。');
     if (!rate) financeError('缺少税率。');
     const r = decimal(rate.replace(/%$/, ''));
-    if (r.numerator > PERCENT * r.denominator) financeError('税率超出范围。');
+    if (r.numerator > PERCENT * r.denominator) financeError(TAX_RATE_RANGE_MESSAGE);
     const base = decimal(exact);
     const denominator = r.denominator * PERCENT;
     const numerator = denominator + r.numerator;

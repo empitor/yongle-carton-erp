@@ -17,23 +17,6 @@ export const termDays = z.number().int().min(0).max(TERM_MAX_DAYS);
 export const termMonths = z.number().int().min(0).max(TERM_MAX_MONTHS);
 /** 月结的付款日、截止日：1 到 31 号 */
 export const dayOfMonth = z.number().int().min(1).max(MAX_DAY_OF_MONTH);
-
-/**
- * 财务里人填的税率文字（往来单位的默认税率、补税率）怎么认，只这一处：去掉末尾的 % 以后照 percentage 认
- * （最多三位整数、六位小数，不超过 100）。输入框都带 % 单位，0.5 就是 0.5%。
- * 返回不收的原因：写法不对是 format，写法对、超过 100% 是 range；收下是 null。
- */
-export function taxRateProblem(text: string): 'format' | 'range' | null {
-  const checked = percentage.safeParse(text.replace(/%$/, ''));
-  if (checked.success) return null;
-  // percentage 写法不对时带 invalid_format（上限那条也跟着不过），只差上限的只有上限那一条
-  return checked.error.issues.some((issue) => issue.code === 'invalid_format') ? 'format' : 'range';
-}
-/** 往来单位的默认税率（往来条款的 taxRate；补扫认往来默认税率也用它，events/event-evaluate.ts） */
-export const partyTaxRate = z
-  .string()
-  .trim()
-  .refine((v) => taxRateProblem(v) === null);
 const calendar = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('days'), days: termDays }),
   z.strictObject({

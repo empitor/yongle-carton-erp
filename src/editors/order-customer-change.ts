@@ -57,21 +57,29 @@ export function crossCustomerLine(
   return Boolean(p && !productFitsCustomer(p, nextCustomerId));
 }
 
-/** 换客户：属于别家客户的产品行清空（留着原产品的行除外），返回更新后的明细和清空了哪几行的提示 */
+/** 换客户：属于别家客户的产品行清空（留着原产品的行除外），返回更新后的明细和清空了的行（行 key，提示由 clearedNotice 现算） */
 export function pruneLinesForCustomer(
   rows: OrderLineDraft[],
   nextCustomerId: number | null,
   products: Product[],
   kept: ReadonlyMap<number, number>,
 ) {
-  const cleared: number[] = [];
-  const nextRows = rows.map((l, i) => {
+  const cleared: string[] = [];
+  const nextRows = rows.map((l) => {
     if (!crossCustomerLine(l, nextCustomerId, products, kept)) return l;
-    cleared.push(i + 1);
+    cleared.push(l.key);
     return fillProduct(l, undefined, '');
   });
-  const notice = cleared.length ? `切换客户后已清空第 ${cleared.join('、')} 行（原产品属于其他客户），请重新选择产品。` : '';
-  return { nextRows, notice };
+  return { nextRows, cleared };
+}
+
+/**
+ * 换客户时清空了的行还空着的，按现在的行号提示（删了前面的行号跟着变；删掉了或重新选了产品就不再提）。
+ * cleared 是 pruneLinesForCustomer 给的行 key。
+ */
+export function clearedNotice(rows: OrderLineDraft[], cleared: readonly string[]) {
+  const lines = rows.flatMap((l, i) => (cleared.includes(l.key) && !l.productId ? [i + 1] : []));
+  return lines.length ? `切换客户后已清空第 ${lines.join('、')} 行（原产品属于其他客户），请重新选择产品。` : '';
 }
 
 /**

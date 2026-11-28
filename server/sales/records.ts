@@ -147,7 +147,7 @@ class SalesRecords {
     return orderViews(this.store, id, includeArchived)[0];
   }
   /**
-   * 订单的生产中、待发货、已发货由有效单据派生（AGENTS.md），不手工设置：单据流转按单据算出来后调这里写回。
+   * 订单的生产中、待发货、已发货由有效单据派生（docs/业务规则.md“派生的状态要重算”），不手工设置：单据流转按单据算出来后调这里写回。
    */
   setDerivedOrderStatus(id: number, status: string, at = new Date().toISOString()) {
     this.db.prepare('UPDATE orders SET status=?,version=version+1,updated_at=? WHERE id=?').run(status, at, id);

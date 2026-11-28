@@ -197,8 +197,11 @@ const resetRules = new Map<string, ResetRules>();
 export function registerReset(r: ResetRules) {
   for (const s of r.statements)
     if (!/^DELETE FROM \w+( WHERE .+)?$/.test(s)) throw new AppError(r.module + '登记的清空语句格式不对：' + s, 500);
-  // 同一个模块可以按外键依赖分几次清，各段按 order 排序。
-  resetRules.set(r.module + ':' + r.order, r);
+  // 同一个模块可以按外键依赖分几次清，各段按 order 排序；同一段再登记就报错，不悄悄盖掉前一段（那样会少清一块表）。
+  const key = r.module + ':' + r.order;
+  if (resetRules.has(key))
+    throw new AppError(r.module + '模块的清空规则第 ' + r.order + ' 段已经登记过，不能再登记一次（会盖掉前一段）。', 500);
+  resetRules.set(key, r);
 }
 /**
  * 参加初始化的模块：modules 是必须登记了的（没登记报错，不会悄悄少清一块）；另外登记了的模块也一起清，

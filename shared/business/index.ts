@@ -39,7 +39,7 @@ export { finishedAvailable, planProductionForOrders } from './flow/production-pl
 export type { ProductionPlanGroup } from './flow/production-plan.js';
 export { matchesPurchase, purchaseFilterSchema } from './operations/purchase-filters.js';
 export { purchaseReturnSchema } from './flow/purchase-return.js';
-export { cardChanges, cardContents } from './overview/record-changes.js';
+export { cardChanges, cardContents, withRefsDetached } from './overview/record-changes.js';
 export { historyView } from './overview/record-history.js';
 export { codeNames, historyActionName, historyRefIds } from './overview/history-fields.js';
 export type { HistoryRefs } from './overview/history-fields.js';

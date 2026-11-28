@@ -146,8 +146,10 @@ function lineText(ctx: Ctx, line: unknown, parent: string) {
 }
 export function linesText(ctx: Ctx, lines: unknown, parent: string) {
   if (!Array.isArray(lines)) return EMPTY;
-  return lines.length ? lines.map((l) => lineText(ctx, l, parent)).join('；') : '没有明细';
+  return lines.length ? lines.map((l) => lineText(ctx, l, parent)).join('；') : emptyLines[parent] ?? '没有明细';
 }
+/** 一组明细是空的时怎么说：客户的厂区说“没有厂区”，别的说“没有明细” */
+const emptyLines: Record<string, string> = { sites: '没有厂区' };
 
 /** 引用编号（一个或几个）写成名称；编号置空但旁边留有名称快照（如已删厂区的历史送货单）时仍显示快照名 */
 function refValueText(ctx: Ctx, key: string, value: unknown, row: Row | undefined) {

@@ -1,14 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { arrivalLineValue, deliveryLineValue } from '../../../shared/business/index.js';
-import { errorMessage, quantityUnits, readTaxRate } from '../../../shared/core/index.js';
+import { errorMessage, quantityUnits } from '../../../shared/core/index.js';
 import { one, rows } from '../../core/index.js';
 import { financeError } from '../base/core.js';
 import { documentMoney, theoreticalMoney } from '../base/amounts.js';
-import { partyTaxRate } from '../parties/terms.js';
 import type { SourceHead } from '../../flow/index.js';
 import type { EventColumns } from './event-columns.js';
 import type { DocumentMoney, FinanceSourceDocument, FinanceSourceLine } from './source-snapshot.js';
-import { storedTaxModes, UNSPECIFIED_TAX_MODE } from '../../../shared/finance/index.js';
+import { financeTaxRateReady, storedTaxModes, UNSPECIFIED_TAX_MODE } from '../../../shared/finance/index.js';
 
 type TaxTerms = { tax_rate: string | null; tax_mode: string | null };
 /** 评估只看来源的种类和状态（窗口交出的来源一条里的这两项） */
@@ -109,16 +108,11 @@ function choose(line: string | null | undefined, party: string | null | undefine
   return { value: index < 0 ? '' : String(values[index]).trim(), source: ['line', 'party'][index] ?? null };
 }
 /**
- * 税率写清了没有，按从哪来（choose 记的 source）分开认：
- * - 往来单位的默认税率照往来条款的存法 partyTaxRate（parties/terms.ts：最多六位小数，往来页的输入框带 % 单位，0.5 就是 0.5%）。
- * - 单据抄来的原话照订单的认法 readTaxRate（最多两位小数，0 到 1 之间没带 % 的有歧义），只认半角写法。
+ * 税率、口径都写清了才能算钱。税率按从哪来（choose 记的 source）分开认，规矩只在 shared/finance/tax-rates.ts 的
+ * financeTaxRateReady（往来单位默认的照往来条款，单据抄来的照订单认法、只认半角），财务页面判断同一行也用它。
  */
-const validRate = (rate: string, source: TaxSource['rate']) =>
-  source === 'party'
-    ? partyTaxRate.safeParse(rate).success
-    : /^\d{1,3}(\.\d{1,2})?%?$/.test(rate) && readTaxRate(rate) !== null;
 const validTax = ({ mode, rate }: { mode: string; rate: string }, rateSource: TaxSource['rate']) =>
-  validRate(rate, rateSource) && storedTaxModes.some((m) => m === mode);
+  financeTaxRateReady(rate, rateSource) && storedTaxModes.some((m) => m === mode);
 // 算出来就是 0 的行（数量为 0，或单价明确填了 0）不管什么口径金额都是 0：没写清税率口径时按“未税 / 0”计，
 // 不算资料待补，否则要人给一张 0 元单子补税率。单价没填是未知，前面已按缺价格转资料待补，到不了这里。
 const priced = (exact: string, tax: { mode: string; rate: string }, rateSource: TaxSource['rate']) =>

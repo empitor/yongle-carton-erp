@@ -151,7 +151,8 @@
   min-height: 32px;
   font-size: var(--text-sm);
 }
-.adm-data-check input {
+/* 带上 [type] 压过 .form-field input 的占满一行：明细里的勾选框（客户厂区的“默认厂区”）外面套着 .form-field 一层 */
+.adm-data-check input[type='checkbox'] {
   width: auto;
   min-height: 0;
 }

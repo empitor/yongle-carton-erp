@@ -43,6 +43,20 @@ function nestedLabel(label: string, key: string, parent: string, parentLabel: st
 
 const same = (b: unknown, a: unknown) => JSON.stringify(b) === JSON.stringify(a);
 
+/**
+ * 只解除了引用：编号从有变成空、旁边存的名称快照没变（删厂区后的历史送货单）。
+ * 不算改动：修改历史和确认卡片都不列，助手卡片也不当连带改动提醒（server/assistant/tools/card-summary.ts）。
+ */
+export function refDetached(key: string, before: Row, after: Row) {
+  const snap = snapshotNames[key];
+  return !!snap && !blank(before[key]) && blank(after[key]) && same(before[snap], after[snap]);
+}
+/** 改之前那份把只解除了引用的编号置空以后的样子；一项都没有返回 null。调用方拿它和改之后比，一样就是只解除了引用 */
+export function withRefsDetached(before: Row, after: Row): Row | null {
+  const keys = Object.keys(snapshotNames).filter((k) => refDetached(k, before, after));
+  return keys.length ? { ...before, ...Object.fromEntries(keys.map((k) => [k, null])) } : null;
+}
+
 function statusChange(ctx: Ctx, before: Row, after: Row): Change[] {
   const b = statusOf(ctx.module, before),
     a = statusOf(ctx.module, after);
@@ -84,10 +98,15 @@ function valueChange(ctx: Ctx, f: Field, label: string, editable: boolean): Chan
   const bt = valueText(ctx, f.key, b, f.before, f.parent),
     at = valueText(ctx, f.key, a, f.after, f.parent);
   if (bt === at) {
+    // 编号没变、单上存的名称快照变了：按快照写“旧名 → 新名”，卡片和修改历史都列。比法对所有带名称快照的引用一样，
+    // 实际只有厂区改了名后重存待送货单会碰到（订单、采购单、生产任务重存时名称快照照旧留着）
+    const snap = snapshotNames[f.key];
+    if (snap && same(b, a) && !blank(f.before[snap]) && !blank(f.after[snap]))
+      return [{ label, before: String(f.before[snap]), after: String(f.after[snap]) }];
     // 卡片：人能改的字段变了，写法认不出（代码不在词表里）或写出来一样时，照原值列，不略过；
-    // 仅解除历史引用（编号置空、快照名称没变，如删厂区后的历史送货单）不算收货厂区内容变化
+    // 仅解除历史引用（refDetached）不算内容变化
     if (!editable || (blank(b) && blank(a))) return [];
-    if (refTables[f.key]) return blank(a) && snapshotNames[f.key] ? [] : [{ label, before: bt ?? EMPTY, after: at ?? EMPTY }];
+    if (refTables[f.key]) return refDetached(f.key, f.before, f.after) ? [] : [{ label, before: bt ?? EMPTY, after: at ?? EMPTY }];
     return [{ label, before: bt ?? (blank(b) ? EMPTY : String(b)), after: String(a) }];
   }
   const shownLabelText = f.parent ? nestedLabel(label, f.key, f.parent, historyFieldLabel(f.parent, '', ctx.module) || '') : label;

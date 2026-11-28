@@ -12,7 +12,8 @@ export type RecordRefs = {
   customers?: RefOption[];
   customerSites?: Record<string, RefOption[]>;
   suppliers?: RefOption[];
-  products?: RefOption[];
+  /** 带所属客户：订单明细只列这张订单客户的和没定客户的 */
+  products?: (RefOption & { customerId: number | null })[];
   stock_items?: (RefOption & { kind?: string })[];
   orders?: RefOption[];
   task?: RefOption[];
@@ -58,9 +59,14 @@ const parties = (rows: readonly JsonObject[] = []) =>
 
 /** 产品的候选：名称，小字是规格和料号 */
 const productOptions = (products: readonly JsonObject[]) =>
-  products.map((p) =>
-    option(p, textOf(p.name), hintOf(specLine(p), p.customerProductCode && '料号 ' + textOf(p.customerProductCode), archived(p))),
-  );
+  products.map((p) => ({
+    ...option(
+      p,
+      textOf(p.name),
+      hintOf(specLine(p), p.customerProductCode && '料号 ' + textOf(p.customerProductCode), p.customerName, archived(p)),
+    ),
+    customerId: typeof p.customerId === 'number' ? p.customerId : null,
+  }));
 /** 库存品的候选：名称，小字是原材料还是成品和规格；带上种类，到货、送货按用途筛 */
 const stockOptions = (items: readonly JsonObject[]) =>
   items.map((s) => ({

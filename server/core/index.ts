@@ -36,7 +36,7 @@ export { beforeRecordDeleted, deletionColumns, deletionLabel, deletionMirror, de
 export { registerRecordKinds } from './records/kinds/record-kinds.js';
 export type { DeletionContext, DeletionGraph, DeletionRow } from './records/deletion-rules.js';
 export { onceByRequest, operationRequest, purgeOperationRequests, replayRequest, requestDone, saveRequest, updateRequestResult } from './storage/requests.js';
-export { inSavepoint, isRehearsing, rehearse } from './storage/savepoint.js';
+export { inSavepoint, rehearse } from './storage/savepoint.js';
 export { assertPreviewCurrent, previewDigest } from './storage/preview-digest.js';
 export { peekSequence, takeSequence } from './storage/sequences.js';
 export { scheduleDailyCleanup } from './backup/cleanup.js';

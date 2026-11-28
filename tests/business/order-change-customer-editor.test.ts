@@ -11,6 +11,7 @@ import {
   keptLineProducts,
   movingNotice,
   pruneLinesForCustomer,
+  clearedNotice,
   soleRetryButton,
 } from '../../src/editors/order-customer-change.js';
 import { loadStatus } from '../../src/ui/data-hooks.js';
@@ -41,9 +42,9 @@ test('换给乙：只在这张订单里下过单的甲专用箱那行留着、�
   const sole = new Set([mine.id, generic.id]);
   const kept = keptLineProducts(order, String(b.id), products, sole);
   assert.deepEqual([...kept], [[order.lines[0].id, mine.id]]);
-  const { nextRows, notice } = pruneLinesForCustomer(rows, b.id, products, kept);
+  const { nextRows, cleared } = pruneLinesForCustomer(rows, b.id, products, kept);
   assert.deepEqual(nextRows.map((l) => l.productId), [String(mine.id), '', String(generic.id)]);
-  assert.equal(notice, '切换客户后已清空第 2 行（原产品属于其他客户），请重新选择产品。');
+  assert.equal(clearedNotice(nextRows, cleared), '切换客户后已清空第 2 行（原产品属于其他客户），请重新选择产品。');
   assert.equal(movingNotice(nextRows, order, b, products, sole), MOVING);
   assert.equal(crossCustomerLine(nextRows[0], b.id, products, kept), false, '保存前核对不拦跟着走的行');
 });
@@ -60,7 +61,7 @@ test('给清空的行重新选了产品以后，“会一起改归乙”那句�
 test('换回原客户：明细全留、没有提示', () => {
   const { a, mine, order, products, rows } = setup();
   const back = keptLineProducts(order, String(a.id), products, new Set());
-  assert.deepEqual(pruneLinesForCustomer(rows, a.id, products, back), { nextRows: rows, notice: '' });
+  assert.deepEqual(pruneLinesForCustomer(rows, a.id, products, back), { nextRows: rows, cleared: [] });
   assert.equal(movingNotice(rows, order, a, products, new Set([mine.id])), '');
 });
 
@@ -84,4 +85,14 @@ test('读失败后点“重试”：重读还没回来时按钮不可点、写�
   // 换了一张订单是“还在读”，不算重读；没有要读的（key 为空）调了 reload 也不算
   assert.deepEqual(loadStatus({ key: '7', revision: 1 }, '8', 1), { loading: true, reloading: false });
   assert.deepEqual(loadStatus({ key: null, revision: 0 }, null, 1), { loading: false, reloading: false });
+});
+
+test('“已清空第 N 行”跟着现在的明细走：删掉前面的行，行号跟着变；清空的行删掉或重新选了产品，就不再提', () => {
+  const { b, mine, generic, order, products, rows } = setup();
+  const sole = new Set([mine.id, generic.id]);
+  const { nextRows, cleared } = pruneLinesForCustomer(rows, b.id, products, keptLineProducts(order, String(b.id), products, sole));
+  assert.equal(clearedNotice(nextRows.slice(1), cleared), '切换客户后已清空第 1 行（原产品属于其他客户），请重新选择产品。');
+  assert.equal(clearedNotice([nextRows[0], nextRows[2]], cleared), '');
+  const chosen = nextRows.map((l, i) => (i === 1 ? fillProduct(l, products.find((p) => p.id === generic.id), String(generic.id)) : l));
+  assert.equal(clearedNotice(chosen, cleared), '');
 });

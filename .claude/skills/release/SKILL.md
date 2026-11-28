@@ -24,6 +24,7 @@ disable-model-invocation: true
 
 - 开发机上 `npm run check`（类型、代码检查、完整测试、覆盖、发布检查、构建到临时目录）。串行组 `tests/serial/start-system.test.mjs` 偶尔有时序抖动，单独重跑通过才算。
 - 这一版改了界面就跑全部的 `npm run test:ui`（不带组名）。
+- 这一版带业务库升级步骤：照 `.claude/skills/release/references/升级前只读核对.md` 在服务器上点名跑升级测试、在正式库上只读查数（先问用户）。
 - 不要跑 `npm run build`，正式实例可能在用 `dist`。
 - 检查在哪台机器上跑见 `.claude/skills/testing/SKILL.md`“在哪台机器上跑”；Linux 上的测试在第 5 步、服务器上做。
 

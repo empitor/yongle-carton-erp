@@ -8,7 +8,7 @@ import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
 import { clearHistoricalDeliverySites, FlowService, orderEditGuard, pendingDeliveryNumbersBySite } from '../flow/index.js';
 import { syncFinishedStock } from '../operations/index.js';
-import { audit, inSavepoint, isRehearsing, isSuperMode } from '../core/index.js';
+import { audit, inSavepoint, isSuperMode } from '../core/index.js';
 import { TakenSnapshot } from '../lifecycle/index.js';
 import type { Actor } from '../core/index.js';
 import { trackOrders, trackedOrder } from './tracked-orders.js';
@@ -82,7 +82,7 @@ function saveCustomerCommand(store: Store, job: SaveJob) {
   return records.updateCustomer(input, id, version, context.superAdminMode, (removed) => {
     const pending = pendingDeliveryNumbersBySite(store, removed);
     if (pending.length) throw new AppError('这些厂区仍被待送货单使用，不能删除：' + pending.join('、'), 409);
-    if (!isRehearsing(store.db)) TakenSnapshot.take(store, 'customer-site-delete');
+    TakenSnapshot.take(store, 'customer-site-delete');
     clearHistoricalDeliverySites(store, removed);
   });
 }

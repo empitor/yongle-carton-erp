@@ -29,11 +29,14 @@ const lineView = z.object({
   mode: text,
 });
 const lines = z.array(lineView).optional().catch(undefined);
-/** 事件快照里要显示的：来源单据的明细、提醒、补过的税率行 */
+/** 逐行的税率、口径从哪来（server/finance/events/source-snapshot.ts 的 taxSource）：line、party、人补的；没有是 null */
+const taxSourceView = z.object({ rate: z.string().nullable().catch(null), mode: z.string().nullable().catch(null) });
+/** 事件快照里要显示的：来源单据的明细、提醒、补过的税率行和每行税率从哪来 */
 const snapshotView = z.object({
   doc: z.object({ lines }).optional().catch(undefined),
   warnings: z.array(z.string()).optional().catch(undefined),
   financialLines: lines,
+  taxSource: z.array(taxSourceView).optional().catch(undefined),
 });
 const detailView = snapshotView.extend({
   /** 收付款核销那一行：来源单据的快照 */

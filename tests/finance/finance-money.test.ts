@@ -13,7 +13,8 @@ import { FinanceSettings } from '../../server/finance/base/settings.js';
 import { FinanceLedger } from '../../server/finance/ledger/ledger.js';
 import { financeReadTools } from '../../shared/finance/finance-tools.js';
 import { entry } from '../../server/finance/base/query.js';
-import { documentMoney } from '../../server/finance/base/amounts.js';
+import { TAX_RATE_RANGE_MESSAGE, documentMoney } from '../../server/finance/base/amounts.js';
+import { evidenceLine } from '../../server/finance/events/source-snapshot.js';
 import { deliveryLineExact } from '../../shared/business/flow/document-value.js';
 import { maker, post } from './finance-fixture.js';
 
@@ -227,4 +228,11 @@ test('金额写坏、税率超过 100%、口径没写清、数量小数超过 3 
   assert.throws(() => documentMoney([{ exact: '100', mode: '未税', rate: '101' }]), /税率超出范围/);
   assert.throws(() => documentMoney([{ exact: '100', mode: '', rate: '13' }]), /含税口径未明确/);
   assert.throws(() => deliveryLineExact('1.2345', '1.0000'), /数量单位无法换算/);
+});
+
+test('“税率超出范围。”只有一份：算金额时和补税率时校验报的是同一句', () => {
+  const same = (error: unknown) => error instanceof Error && error.message === TAX_RATE_RANGE_MESSAGE;
+  assert.throws(() => documentMoney([{ exact: '100', mode: '未税', rate: '101' }]), same);
+  const checked = evidenceLine.shape.rate.safeParse('101');
+  assert.deepEqual(checked.success ? [] : checked.error.issues.map((issue) => issue.message), [TAX_RATE_RANGE_MESSAGE]);
 });
