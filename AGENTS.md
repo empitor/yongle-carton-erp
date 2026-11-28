@@ -53,4 +53,3 @@
 | 做模块修复 | `docs/计划/模块修复.md`、`docs/计划/模块终态图.md` |
 
 技能在 `.claude/skills/<名字>/SKILL.md`：Claude Code 自动发现，Antigravity 经 `.agents/skills.json`，Codex 照上表路径读。通用技能在用户目录：Claude Code、Antigravity 读 `~/.claude/skills/<名字>/SKILL.md`，Codex 读 `~/.agents/skills/<名字>/SKILL.md`；项目写得更具体的以项目为准。三家怎么接钩子见 `.claude/hooks/protect-real-data.mjs` 开头。
-
