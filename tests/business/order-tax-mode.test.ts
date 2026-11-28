@@ -10,7 +10,7 @@ import { changeOrderStatus } from '../../server/orders/index.js';
 import {
   clearRecognizedTaxText, fieldNamer, hasUnrecognizedTax, orderSchema, orderTaxOriginal, orderTaxSnapshot, userError,
 } from '../../shared/core/index.js';
-import { evaluateDraft } from '../../shared/import/index.js';
+import { DRAFT_VALUE_MAX, evaluateDraft } from '../../shared/import/index.js';
 import { actor } from '../support/actor-fixture.js';
 import { businessBase, manualWrite } from '../support/business-base-fixture.js';
 import { basics, command, shownError } from '../support/data-management-fixture.js';
@@ -83,6 +83,30 @@ test('规范税率写入整数万分比，省略沿用、显式留空清除，�
       ...withModeNote, taxRate: null, lines: withModeNote.lines.map((l) => ({ ...l, taxRate: null })),
     }), withModeNote.id, withModeNote.version);
     assert.deepEqual([clearedNote.taxText, clearedNote.lines[0].taxText], ['13个点', '口径：按约定']);
+  } finally {
+    base.store.close();
+  }
+});
+
+test('税率原话 taxText 去首尾空白、有上限；升级第 24 步写出的最长原话和识别原值都装得下，库里的老订单改状态照常', () => {
+  // 0.9.x 录入时税率文字最多 30 字、含税口径最多 60 字（都过 orderSchema），第 24 步接成“税率\n口径：口径”最长 94 字
+  const longestV24 = 'x'.repeat(30) + '\n口径：' + 'y'.repeat(60);
+  for (const taxText of [longestV24, 'z'.repeat(DRAFT_VALUE_MAX)])
+    assert.ok(orderSchema.safeParse(order({ taxText }, { taxText })).success, '装得下 ' + taxText.length + ' 字');
+  const trimmed = orderSchema.parse(order({ taxText: '　 13个点\n口径：含税价 \n' }, { taxText: '\t口径：开票另计　' }));
+  assert.deepEqual([trimmed.taxText, trimmed.lines[0].taxText], ['13个点\n口径：含税价', '口径：开票另计']);
+  assert.match(shown(order({ taxText: 'z'.repeat(DRAFT_VALUE_MAX + 1) })), /原件写法/);
+  assert.match(shown(order({}, { taxText: 'z'.repeat(DRAFT_VALUE_MAX + 1) })), /本项原件写法/);
+  // 读的路上也过 orderSchema：改订单状态把存着的订单再校验一遍，升级写出的最长原话（首尾带空白）照常
+  const base = businessBase(actor),
+    customer = base.customer(),
+    product = base.product();
+  try {
+    const created = base.order(customer, [{ productId: product.id, quantity: 10, unitPriceCents: 100 }], { status: '待确认' });
+    base.store.db.prepare('UPDATE orders SET tax_text=? WHERE id=?').run('\n' + longestV24, created.id);
+    base.store.db.prepare('UPDATE order_lines SET tax_text=? WHERE order_id=?').run(longestV24 + '　', created.id);
+    const confirmed = changeOrderStatus(base.store, created.id, 'confirm', { requestId: randomUUID(), expectedVersion: created.version }, actor);
+    assert.deepEqual([confirmed.status, confirmed.taxText, confirmed.lines[0].taxText], ['已确认', longestV24, longestV24]);
   } finally {
     base.store.close();
   }

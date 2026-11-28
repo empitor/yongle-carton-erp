@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
 import StockBatches from '../operations/StockBatches';
 import ContactSection from '../recordkit/ContactSection';
-import { purchaseState, sizeText, type PurchaseView, type StockItemView, type SupplierView } from '../../shared/business/index';
+import { movementTypeLabel, purchaseState, sizeText, type PurchaseView, type StockItemView, type SupplierView } from '../../shared/business/index';
 import RelatedBusiness from './RelatedBusiness';
 import { Facts, FormMessage, Hint, Loading, Section, StatusChip, useLoad } from '../ui/index';
-import { movementType } from '../warehouse/MovementDetail';
 import { pageHref, quantityString, fieldLabel } from '../../shared/core/index';
 import { businessStatusTone, useAgentRecord } from '../recordkit/record-meta';
 import { loadMovements } from './list-api';
@@ -86,7 +85,7 @@ function RecentMovements({ row }: { row: StockItemView }) {
         <ul className="rb-docs pur-movements">
           {rows.map((m) => (
             <li key={m.id}>
-              <span className="pur-movement-type">{movementType(m) || '变动'}</span>
+              <span className="pur-movement-type">{movementTypeLabel(m) || '变动'}</span>
               <strong className={m.direction === '-' ? 'pur-out' : 'pur-in'}>
                 {m.direction}
                 {m.delta} {m.unit}

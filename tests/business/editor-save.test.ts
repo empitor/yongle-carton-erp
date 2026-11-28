@@ -73,9 +73,30 @@ test('订单编辑窗开着时别人改了同一张：拿打开时的表单保�
       status: '待确认' as const,
       lines: [{ productId: 8, productName: '虚构纸箱', quantity: 100, unitPriceCents: 150 }],
     };
-    await assert.rejects(saveOrder(5, { ...order, notes: '我改的备注' }), { status: 409 });
+    await assert.rejects(saveOrder(5, { ...order, notes: '我改的备注' }, 'fictional-request'), { status: 409 });
     assert.deepEqual(server.requests(), [['PUT', '/api/orders/5']]);
     assert.deepEqual(server.sent.map(versionOf), [1]);
+  } finally {
+    server.restore();
+  }
+});
+
+test('订单编辑窗新建订单带上防重复请求号：同一个窗口再点一次保存（上次没回来）带的是同一个请求号；改已有订单不带', async () => {
+  const server = secondVersionServer();
+  try {
+    const order = {
+      customerId: 3,
+      orderDate: '2026-11-13',
+      deliveryDate: '2026-11-20',
+      status: '待确认' as const,
+      lines: [{ productId: 8, productName: '虚构纸箱', quantity: 100, unitPriceCents: 150 }],
+    };
+    const requestId = '6f1c2b0e-7d3a-4c8e-9b1f-2a3d4e5f6a7b';
+    for (let i = 0; i < 2; i++) await assert.rejects(saveOrder(undefined, order, requestId), { status: 409 });
+    await assert.rejects(saveOrder(5, { ...order, version: 1 }, requestId), { status: 409 });
+    assert.deepEqual(server.requests(), [['POST', '/api/orders'], ['POST', '/api/orders'], ['PUT', '/api/orders/5']]);
+    const requestOf = (body: unknown) => (typeof body === 'object' && body !== null && 'requestId' in body ? body.requestId : undefined);
+    assert.deepEqual(server.sent.map(requestOf), [requestId, requestId, undefined]);
   } finally {
     server.restore();
   }

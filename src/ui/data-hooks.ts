@@ -5,19 +5,27 @@ import { listen } from './events';
 /* 页面里读数据、办一件小事的几个 hook：读一份数据、点一下执行、业务数据变了就重读。 */
 
 /**
- * useLoad 眼前这份数据读到哪了（read 是上一次读完的 key 和第几次 reload）：loading 是“眼前这份还不是这个 key 的”；
- * reloading 是“还是这个 key，调了 reload、这一次还没读完”（重试按钮靠它显示点上了）。
+ * useLoad 眼前这份数据读到哪了（read 是上一次读完的 key、第几次 reload 和当时的 refresh）：loading 是“眼前这份还不是这个 key 的”；
+ * reloading 是“还是这个 key，调了 reload 或 refresh 变了、这一次还没读完”（重试按钮靠它显示点上了，这时旧内容照常显示）。
  */
-export function loadStatus(read: { key: string | null; revision: number }, key: string | null, revision: number) {
-  return { loading: read.key !== key, reloading: key !== null && read.key === key && read.revision !== revision };
+export function loadStatus(
+  read: { key: string | null; revision: number; refresh?: unknown },
+  key: string | null,
+  revision: number,
+  refresh?: unknown,
+) {
+  const again = read.revision !== revision || !Object.is(read.refresh, refresh);
+  return { loading: read.key !== key, reloading: key !== null && read.key === key && again };
 }
 
 /**
- * 按 key 读一份数据：key 变了或调了 reload 就重读；key 为 null 时不读。
+ * 按 key 读一份数据：key 变了、调了 reload 或 refresh 变了就重读；key 为 null 时不读。
+ * key 是“读哪一份”，变了眼前这份就不算数（loading）；refresh 是“同一份再读一次”的理由（例如业务版本号），
+ * 变了只算重读（reloading），读完之前旧内容照常显示，不闪“正在读取…”。
  * 读失败时留着上一份数据、给出原因；loading、reloading 见 loadStatus。
  */
-export function useLoad<T>(key: string | null, load: (key: string) => Promise<T>) {
-  const [state, setState] = useState<{ key: string | null; revision: number; data: T | null; error: string }>({
+export function useLoad<T>(key: string | null, load: (key: string) => Promise<T>, refresh?: unknown) {
+  const [state, setState] = useState<{ key: string | null; revision: number; refresh?: unknown; data: T | null; error: string }>({
     key: null,
     revision: 0,
     data: null,
@@ -35,13 +43,13 @@ export function useLoad<T>(key: string | null, load: (key: string) => Promise<T>
     let active = true;
     latestLoad
       .current(key)
-      .then((data) => active && setState({ key, revision, data, error: '' }))
-      .catch((e: unknown) => active && setState((s) => ({ key, revision, data: s.data, error: errorMessage(e) })));
+      .then((data) => active && setState({ key, revision, refresh, data, error: '' }))
+      .catch((e: unknown) => active && setState((s) => ({ key, revision, refresh, data: s.data, error: errorMessage(e) })));
     return () => {
       active = false;
     };
-  }, [key, revision]);
-  return { data: state.data, error: state.error, ...loadStatus(state, key, revision), reload };
+  }, [key, revision, refresh]);
+  return { data: state.data, error: state.error, ...loadStatus(state, key, revision, refresh), reload };
 }
 
 /** 按钮点一下就执行、失败时给出原因的小动作。 */

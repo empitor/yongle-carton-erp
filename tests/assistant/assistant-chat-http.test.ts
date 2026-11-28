@@ -57,7 +57,7 @@ test('当前记录从服务器读给模型（不信页面带来的内容）：�
   try {
     const p = businessBase(actor, f.store).product({ name: '虚构纸箱', requirements: '原始后端备注' });
     const result = await f.say(f.manager.create(actor).id, '查询当前产品', { context: { page: '#products', module: 'products', id: p.id } });
-    assert.equal(result.messages.at(-1)?.links?.[0].url, '#products?q=' + encodeURIComponent(p.name));
+    assert.equal(result.messages.at(-1)?.links?.[0].url, '#products?record=' + p.id);
     assert.match(JSON.stringify(f.requests[0].body), /原始后端备注/);
     assert.equal(audits(f), 0);
     assert(f.events.some(([e]) => e === 'draft'));

@@ -401,6 +401,10 @@ output.unit-fixed {
   font-size: var(--text-md);
 }
 
+/* 厂区卡片头部：“默认”单选在左、删除图标在右，分在两头，免得点“默认”时点到删除 */
+.sales-site-head {
+  justify-content: space-between;
+}
 .sales-site-default {
   display: inline-flex;
   align-items: center;

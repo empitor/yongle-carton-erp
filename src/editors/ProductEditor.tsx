@@ -5,7 +5,7 @@ import { convertDimension, normalizeDimensionUnit, dimensionKeys } from '../../s
 import { specification, type Customer, type Product, type ProductInput } from '../../shared/core/index';
 import { ManagementDialog, notify } from '../ui/index';
 import { FormField, FormMessage, FormSection } from '../ui/index';
-import { ArchiveFooter } from './CustomerEditor';
+import { ArchiveFooter } from './party-fields';
 import { Combobox } from '../ui/index';
 import { saveProduct } from './editor-api';
 import { useProductFamily } from '../recordkit/useProductFamily';

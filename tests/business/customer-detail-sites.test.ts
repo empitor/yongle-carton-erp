@@ -24,5 +24,8 @@ test('客户详情的厂区一条一块：名称后面“默认”标记，只�
   assert.deepEqual(text(blocks[0]), ['虚构东厂', '默认', '联系人', '王工', '联系方式', '0001', '地址', row.sites[0].address]);
   assert.deepEqual(text(blocks[1]), ['虚构西厂', '备注', '门卫登记']);
   assert.doesNotMatch(html, /（默认）/);
+  // “默认”是名称后面的小字标记，不借状态标签
+  assert.ok(blocks[0].includes('<small class="rb-site-default">默认</small>'));
+  assert.doesNotMatch(html.slice(html.indexOf('kit-blocks'), html.lastIndexOf('kit-block')), /status-chip/);
   assert.doesNotMatch(html, /sales-order-links/);
 });

@@ -1,9 +1,28 @@
-// 没有财务权限的账号：导航不显示财务，直接打开地址有明确提示。顺带确认按需加载的页面都能打开。
+// 没有财务权限的账号：导航不显示财务，直接打开地址有明确提示，今日页不发到期提醒请求。顺带确认按需加载的页面都能打开。
 // 设置：业务员只有“单据模板”页签，从提示词、API 配置、高级的旧链接进来也落到单据模板，不发越权请求；
 // 助手“更多”里没有插件与工具、管理提示词，自己的记忆照常加、改、删。管理员照常看到全部页签。
 import { BASE, SP, fail, go, login, ok, openAssistant, openChrome } from './lib.mjs';
 const { context, page, consoleErrors } = await openChrome({ width: 1440, height: 900 });
+
+/** 打开今日页（整页载入），等分组出来再多等一会儿，记下这期间发出的“近期到期应收应付”请求（src/records/useTodayData.ts） */
+async function dueSoonRequests(p) {
+  const sent = [];
+  const watch = (req) => req.url().includes('/api/finance/due-soon') && sent.push(new URL(req.url()).pathname);
+  p.on('request', watch);
+  // 登录后多半已经停在 #dashboard，只改 hash 不会重新载入，所以再整页刷新一次
+  await p.goto(BASE + '#dashboard');
+  await p.reload();
+  await p.locator('.td-groups').waitFor();
+  await p.waitForTimeout(800);
+  p.off('request', watch);
+  return sent;
+}
+
 await login(page, '虚构业务员');
+// 今日页：没有财务权限的业务员不发到期提醒请求（发了就是一条 403 进控制台）；管理员那边在文件末尾看一定发
+const staffDue = await dueSoonRequests(page);
+if (staffDue.length) fail('业务员打开今日页发了到期提醒请求：' + staffDue.join(' | '));
+else ok('业务员打开今日页不发到期提醒请求');
 if (await page.getByRole('button', { name: '财务', exact: true }).count()) fail('无权限账号看到了财务导航');
 await go(page, '#finance');
 await page.waitForTimeout(500);
@@ -94,4 +113,7 @@ const adminSelected = (await admin.page.locator(TABS + ' [role="tab"][aria-selec
 if (adminSelected !== '提示词') fail('管理员打开 tab=prompts 选中的是 ' + adminSelected);
 await admin.page.screenshot({ path: SP + '/permission-管理员设置.png' });
 ok('管理员的设置五个页签都在，tab=prompts 打开提示词');
+// 对照：能看财务的管理员打开今日页照常取到期提醒（上面业务员那条不发才有意义）
+if (!(await dueSoonRequests(admin.page)).length) fail('管理员打开今日页没有取到期提醒');
+else ok('管理员打开今日页照常取到期提醒');
 await admin.context.close();

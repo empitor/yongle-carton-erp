@@ -17,9 +17,9 @@ export default function RelatedOrderList({
   moreHref?: string;
   moreLabel?: string;
 }) {
-  // 业务数据变了就重读，开着的详情不留旧的
+  // 业务数据变了就重读同一份：读完换成新的，读的时候旧的照常显示、不先换成读取中的占位
   const [revision] = useBusinessRevision();
-  const loaded = useLoad(JSON.stringify(query) + '|' + revision, () => loadOrdersWhere(query));
+  const loaded = useLoad(JSON.stringify(query), () => loadOrdersWhere(query), revision);
   // 换了条件：上一份不再显示
   const orders = loaded.loading || loaded.error ? null : loaded.data,
     error = loaded.loading ? '' : loaded.error;

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fieldLabel } from '../../shared/core/index.js';
 import {
-  deliveryDateLabels,
   docField,
+  docFieldKey,
   documentFields,
   optionalDocumentFields,
   packInfo,
@@ -49,7 +49,8 @@ test('登记表键名唯一，optionalDocumentFields 保持兼容的 11 项存�
     '税费说明',
   ]);
   assert.deepEqual(docField('customerOrderNumber', 'PO-9'), ['客户采购订单号', 'PO-9']);
-  assert.deepEqual(docField('shippedDate', '2026-11-01'), [deliveryDateLabels.shipped, '2026-11-01']);
+  assert.deepEqual(docField('shippedDate', '2026-11-01'), ['送货日期', '2026-11-01']);
+  assert.deepEqual([docFieldKey('shippedDate'), docFieldKey('plannedDate')], ['送货日期', '计划送货日期']);
 });
 
 test('templateInfoFields 按单据种类、我方地址和隐藏清单返回准确的信息格顺序', () => {
@@ -96,7 +97,7 @@ test('splitFields 把登记表里的每个字段分到唯一且正确的区域',
     ],
   });
   assert.equal(deliverySplit.number, 'SH-1');
-  assert.deepEqual(deliverySplit.date, [deliveryDateLabels.shipped, '2026-11-23']);
+  assert.deepEqual(deliverySplit.date, ['送货日期', '2026-11-23']);
   assert.deepEqual(
     deliverySplit.own.map(([k]) => k),
     ['我方联系人', '我方地址'],

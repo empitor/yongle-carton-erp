@@ -292,7 +292,6 @@ test('pageParams 按登记表解析参数：守住安全整数边界、含问号
     n: undefined,
     q: undefined,
     scope: 'all',
-    view: undefined,
     archived: false,
     status: undefined,
     customerId: undefined,

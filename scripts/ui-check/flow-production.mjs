@@ -1,6 +1,7 @@
 // 产品、库存和订单的日常操作：附属品挂在主产品下面、“筛选”弹层按客户筛、
-// 订单明细的单位固定是“只”、从订单和从产品“安排生产”。完工批次在 flow-batches.mjs（同一组）。
-import { BASE, SP, fail, login, ok, openChrome, step as stepOn } from './lib.mjs';
+// 订单明细的单位固定是“只”、订单编辑窗读失败后的“重试”、从订单和从产品“安排生产”、今日分组（含规格对不上的订单）。
+// 完工批次在 flow-batches.mjs（同一组）。
+import { BASE, SP, businessDay, call, fail, login, ok, openChrome, step as stepOn } from './lib.mjs';
 const { context, page, consoleErrors } = await openChrome({ width: 1440, height: 900 });
 const dialog = () => page.locator('[role="dialog"][aria-modal="true"]').last();
 let shots = 0;
@@ -110,6 +111,46 @@ await step('订单编辑窗明细', async () => {
   await dialog().waitFor({ state: 'detached' }).catch(() => {});
 });
 
+// 编辑已有订单时先读“只在这张订单里的产品”（换客户要用）；第一次故意回 500，点“重试”后按钮马上变成不可点的
+// “正在重试…”（人看得出点上了），第二次读到以后红字和按钮都消失（src/editors/order-customer-change.ts 的 soleRetryButton）
+await step('订单编辑窗读失败后重试', async () => {
+  const errorsBefore = consoleErrors.length;
+  let calls = 0,
+    release;
+  const held = new Promise((r) => (release = r));
+  await page.route('**/api/orders/*/sole-products', async (route) => {
+    if (++calls === 1)
+      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: '虚构：服务器出错' }) });
+    await held;
+    await route.continue();
+  });
+  try {
+    await openOrder();
+    await page.locator('.detail-panel').getByRole('button', { name: '编辑', exact: true }).first().click();
+    await dialog().waitFor();
+    const retry = dialog().locator('.form-message', { hasText: '没读到这张订单里哪些产品' }).getByRole('button');
+    await retry.waitFor({ timeout: 8000 });
+    if ((await retry.innerText()).trim() !== '重试' || (await retry.isDisabled())) fail('读失败后按钮不是可点的“重试”');
+    await retry.click();
+    await page.waitForTimeout(300);
+    const label = (await retry.innerText()).trim(),
+      disabled = await retry.isDisabled();
+    await shot('订单编辑窗正在重试');
+    release();
+    await retry.waitFor({ state: 'detached', timeout: 8000 });
+    if (label !== '正在重试…' || !disabled) fail('点了“重试”、还没读完时按钮应是不可点的“正在重试…”，实际：' + label + (disabled ? '（不可点）' : '（可点）'));
+    else if (calls !== 2) fail('点“重试”应再读一次，实际读了 ' + calls + ' 次');
+    else ok('订单编辑窗读失败：点“重试”后显示“正在重试…”不可点，读到后红字消失');
+  } finally {
+    release();
+    await page.unroute('**/api/orders/*/sole-products');
+    // 故意回的 500 不算控制台报错
+    consoleErrors.splice(errorsBefore, consoleErrors.length - errorsBefore, ...consoleErrors.slice(errorsBefore).filter((e) => !/status of 500/.test(e)));
+    await page.keyboard.press('Escape');
+    await dialog().waitFor({ state: 'detached' }).catch(() => {});
+  }
+});
+
 const arrange = async (where, quantities = {}) => {
   await dialog().waitFor();
   for (const [name, quantity] of Object.entries(quantities))
@@ -164,6 +205,33 @@ await step('今日分组', async () => {
   if (wrong.length) fail('今日分组和服务端给的不一致：' + wrong.map((o) => o.number + ' 应在 ' + o.group + ' 实际 ' + (seen.get(o.number) || []).join('/')).join('；'));
   else ok('今日 ' + today.todo.length + ' 张订单各在一组，和服务端一致');
   await shot('今日');
+});
+
+// 今日：明细规格和产品现在对不上的订单已经进了别的分组时，提示挂在那一行下面，不再在“要核对订单”里多列一次
+// （src/records/today-groups.ts 的 specCheckOrders）。造一张两行的订单：一行照常，一行规格写错；看完取消掉
+await step('今日规格对不上的订单只出现一次', async () => {
+  const stock = (await api('/api/warehouse/items?kind=finished')).find((s) => s.availableUnits >= 20000 && s.length && s.width && s.dimensionUnit);
+  if (!stock) throw new Error('种子里没有带尺寸、有库存的成品');
+  const date = businessDay(),
+    line = { productId: stock.productId, quantity: 10, unitPriceCents: 100 };
+  const order = await call(page, 'POST', '/orders', { customerId: stock.customerId, orderDate: date, deliveryDate: date, status: '已确认', lines: [line, { ...line, specification: '999×999×999' }] });
+  if (!order.id) throw new Error('无法新建规格对不上的虚构订单：' + order.error);
+  const placed = (await api('/api/business/today')).todo.find((o) => o.id === order.id);
+  if (!placed?.mismatches?.length) throw new Error('服务端没把这张订单放进分组、或没带规格提示：' + JSON.stringify(placed));
+  // 上一步已停在 #dashboard，接口建的订单页面不知道，整页刷新再读
+  await page.goto(BASE + '#dashboard');
+  await page.reload();
+  await page.locator('.td-group').first().waitFor();
+  for (const more of await page.locator('.td-group button.td-all').all()) await more.click();
+  const rows = page.locator('.td-group .td-row', { has: page.locator('.td-no', { hasText: order.number }) });
+  const count = await rows.count(),
+    hint = count ? await rows.first().locator('.record-hint').allInnerTexts() : [];
+  await shot('今日规格对不上');
+  if (count !== 1) fail('规格对不上的订单 ' + order.number + ' 在今日页出现了 ' + count + ' 次（应只在“' + placed.group + '”那一组）');
+  else if (!hint.join().includes('规格和产品现在的不一样')) fail('规格对不上的提示没挂在那一行下面：' + hint.join(' | '));
+  else ok('规格对不上的订单只在一组里出现一次，提示挂在那一行下面');
+  const cancelled = await call(page, 'POST', '/orders/' + order.id + '/cancel', { expectedVersion: order.version, requestId: crypto.randomUUID(), reason: '虚构：看完今日分组' });
+  if (cancelled.error) fail('取消看完的虚构订单失败：' + cancelled.error);
 });
 
 // 今日“经营概况”的统计日期（和列表筛选同一个日期件）：换范围后订单总数跟着变，和服务端按同样日期算的一致

@@ -60,14 +60,23 @@ function openLinkedDoc(o: LaunchOptions, params: URLSearchParams) {
   return true;
 }
 
+/**
+ * 链接要给哪张生产任务登记完工（task=编号）；不是登记完工的链接给 null。登记完工窗口不分生产任务、完工记录哪一边，
+ * 所以 #production?task= 不带 view=production 也打开
+ */
+export function linkedCompletionTask(kind: FlowKind, params: URLSearchParams) {
+  return (kind === 'task' || kind === 'production') && params.get('task') ? Number(params.get('task')) : null;
+}
+
 /** 链接要登记完工或新建：返回 true 是办完了，false 是链接里没有这些 */
 function openLinkedCreate(o: LaunchOptions, params: URLSearchParams) {
   const { desk, kind } = o;
-  if (kind === 'production' && params.get('task')) {
+  const task = linkedCompletionTask(kind, params);
+  if (task) {
     // 登记完工只有一个窗口：从订单、今日带着任务进来，打开登记完工窗口，只列这一张
     if (!desk.canEdit) return refuse(desk);
     desk.setOpened(true);
-    void desk.openCompletion([Number(params.get('task'))]);
+    void desk.openCompletion([task]);
     return true;
   }
   if (!(desk.hasLaunch || params.get('create') === '1' || params.get('order'))) return false;

@@ -84,7 +84,7 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
           prior = requests.current[g.key];
         if (!prior || prior.body !== text) requests.current[g.key] = { body: text, id: crypto.randomUUID() };
         const saved = await createFlow('delivery', { ...body, requestId: requests.current[g.key].id });
-        created.current[g.key] = look.customerName(g.customerId) + ' ' + saved.number;
+        created.current[g.key] = look.groupName(g, groups) + ' ' + saved.number;
         made.push(created.current[g.key]);
       }
       emit('erp-business-changed');
@@ -143,7 +143,7 @@ export default function DeliveryPlanDialog({ stockIds, orderIds, preset, close, 
           {groups.map((g, n) => (
             <DeliveryPlanGroup
               key={g.key}
-              title={(groups.length > 1 ? '送货单 ' + (n + 1) + ' · ' : '') + look.customerName(g.customerId)}
+              title={(groups.length > 1 ? '送货单 ' + (n + 1) + ' · ' : '') + look.groupName(g, groups)}
               lines={g.lines}
               input={look.inputOf(g)}
               change={(patch) => setInputs((x) => ({ ...x, [g.key]: { ...x[g.key], ...patch } }))}

@@ -4,6 +4,13 @@ import { LIST_PAGE_SIZE } from '../ui/index';
 import { useWarehouseData } from './useWarehouseData';
 import { warehouseRows, type WarehouseKind, type WarehouseRow, type WarehouseScope } from './warehouse-list';
 
+/** 进页面时看哪些：带 archived=1 的（已归档单据的链接）看已归档；带 state=pending 的、送货页默认看待处理，到货页默认看全部 */
+export function routeWarehouseScope(kind: WarehouseKind, hash: string): WarehouseScope {
+  const route = pageParams('warehouse', hash);
+  if (route.archived) return 'archived';
+  return route.state === 'pending' || kind === 'delivery' ? 'open' : 'all';
+}
+
 /**
  * 到货、送货页的列表：读记录（默认只读待处理和最近的，要找更早的时读全部）、筛选（搜索、往来单位、状态、日期、
  * 待处理 / 全部 / 已归档）、翻页。地址栏带来的条件（待处理、某一天、某张采购单）在打开时用一次。
@@ -14,9 +21,7 @@ export function useWarehouseList(kind: WarehouseKind, actorId: unknown) {
   // 读了全部记录，还是只读了待处理和最近一段时间的
   const [full, setFull] = useState(false),
     [q, setQ] = useState(''),
-    [scope, setScope] = useState<WarehouseScope>(
-      route.state === 'pending' || kind === 'delivery' ? 'open' : 'all',
-    ),
+    [scope, setScope] = useState<WarehouseScope>(() => routeWarehouseScope(kind, location.hash)),
     [status, setStatus] = useState(''),
     // 到货按供应商、送货按客户：记录上有编号的按编号（改过名的也算一家），老记录没有编号的按名称
     [party, setParty] = useState(''),

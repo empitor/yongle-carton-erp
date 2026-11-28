@@ -1,7 +1,7 @@
 // 以前只打开过窗口、没真正提交过的操作，这里点到底：保存新订单、登记完工并确认入库、更正到货、
 // 采购退货再撤销、助手提出删除待送货单并在卡片上确认、网关出错的提示、
-// 只读账号看不到退货按钮。模拟从域名访问的那段在 flow-remote.mjs。全部虚构数据。
-import { BASE, SP, login, notice, openAssistant, openChrome, reviewButtonsFit } from './lib.mjs';
+// 只读账号看不到退货按钮、到货详情逐行的入库数和流水。模拟从域名访问的那段在 flow-remote.mjs。全部虚构数据。
+import { BASE, SP, businessDay, call, go, login, notice, openAssistant, openChrome, reviewButtonsFit } from './lib.mjs';
 const fail = (message) => console.log('ERR: ' + message);
 const ok = (message) => console.log('ok ' + message);
 const { context, page, consoleErrors } = await openChrome({ width: 1440, height: 900 });
@@ -426,6 +426,46 @@ await step('平板勾选条和提示', async () => {
   } finally {
     await tablet.context.close();
   }
+});
+
+// 到货详情：同一库存品两行（不挂采购单，3 张、7 张）的到货单，“到货明细”每行的入库数各是各的（不是每行都写总数），
+// “入库流水”两笔各列一次；再换到另一张到货单，不残留这张的流水（server/flow/rules/arrivals.ts 按行配流水、
+// src/flow/FlowDocSections.tsx 去重）。看完撤销这张，后面的流程挑已入库的到货单时挑不到它
+await step('到货详情逐行流水', async () => {
+  const raw = (await api('/api/warehouse/items')).find((i) => i.kind === 'raw' && !i.archived);
+  const supplier = (await api('/api/suppliers'))[0];
+  const { name, unit, specification, length, width, height, dimensionUnit, material, flute } = raw;
+  const item = { name, unit, specification, length, width, height, dimensionUnit, material, flute };
+  const line = (quantity) => ({ stockId: raw.id, item, quantity, differenceReason: '虚构无采购单到货' });
+  const draft = await call(page, 'POST', '/flow/arrival', { date: businessDay(), supplierId: supplier.id, reference: '虚构-' + Date.now(), lines: [line('3'), line('7')], requestId: crypto.randomUUID() });
+  const preview = draft.error ? draft : await call(page, 'POST', '/flow/' + draft.id + '/preview', {});
+  const doc = preview.error ? preview : await call(page, 'POST', '/flow/' + draft.id + '/confirm', { previewDigest: preview.previewDigest, requestId: crypto.randomUUID(), acknowledged: true });
+  if (doc.error) throw new Error('无法建两行同库存品的虚构到货单：' + doc.error);
+  /** 打开一张到货单，读“到货明细”每行最后一个数（入库数）和“入库流水”每笔的流水号 */
+  const read = async ({ id, number }) => {
+    await go(page, '#warehouse?arrivals=1&doc=' + id);
+    await panel().getByText(number).first().waitFor({ timeout: 8000 });
+    await panel().locator('section.record-section h3', { hasText: '入库流水' }).waitFor({ timeout: 8000 });
+    await page.waitForTimeout(500);
+    return panel().evaluate((el) => {
+      const section = (title) => [...el.querySelectorAll('section.record-section')].find((s) => s.querySelector('h3')?.textContent.trim() === title);
+      const stocked = [...(section('到货明细')?.querySelectorAll('tbody tr') || [])].map((tr) => tr.querySelectorAll('td')[2]?.textContent.match(/(\d[\d.]*)[^\d.]*$/)?.[1]);
+      const moves = [...(section('入库流水')?.querySelectorAll('tbody td[title^="流水号"]') || [])].map((td) => td.title.replace('流水号 ', ''));
+      return { stocked, moves };
+    });
+  };
+  const mine = await read(doc);
+  await shot('到货详情逐行流水');
+  const other = (await arrivals()).find((a) => a.id !== doc.id && a.status === 'confirmed');
+  if (!other) throw new Error('没有另一张已入库的到货单可换');
+  const next = await read(other);
+  const left = next.moves.filter((id) => mine.moves.includes(id));
+  if (mine.stocked.join() !== '3,7') fail('同一库存品两行的入库数应各是 3、7：' + mine.stocked.join('、'));
+  else if (mine.moves.length !== 2 || new Set(mine.moves).size !== 2) fail('入库流水应两笔各列一次：' + mine.moves.join('、'));
+  else if (left.length) fail('换到另一张到货单还留着上一张的流水：' + left.join('、'));
+  else ok('同一库存品两行的到货单：入库数各是 3、7，入库流水两笔各列一次，换单不残留');
+  const undone = await call(page, 'POST', '/flow/' + doc.id + '/reverse', { version: doc.version, reason: '虚构：看完到货详情', acknowledged: true });
+  if (undone.error) fail('撤销看完的虚构到货单失败：' + undone.error);
 });
 
 const real = [...new Set(consoleErrors)].filter((e) => !/status of (403|502)/.test(e));

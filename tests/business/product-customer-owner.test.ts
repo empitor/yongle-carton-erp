@@ -89,8 +89,8 @@ function codeFiles(dir: string): string[] {
 }
 
 test('两句提示的原文只写在 shared/core/product-details.ts', () => {
-  // 属别家客户那句的句式、下过单那句的前半、改之前的旧说法
-  const phrases = ['的，要给 ', '不能更改所属客户；', '用请复制一份'];
+  // 属别家客户那句的句式、下过单那句的前半、改之前的旧说法（含识别导入匹配页原来自己写的那句）
+  const phrases = ['的，要给 ', '不能更改所属客户；', '用请复制一份', '请改选当前客户产品'];
   const found = ['server', 'shared', 'src']
     .flatMap(codeFiles)
     .filter((file) => {

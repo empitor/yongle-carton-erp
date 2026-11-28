@@ -23,7 +23,7 @@ export { financePageIds, flowDocHref, isFinancePage, isPageHref, isPageId, pageH
 export type { FinancePageId, PageGroup, PageId, PageTab, SettingsTab, TabbedPageId } from './pages.js';
 export { centsText, displayAmount, uppercaseAmount } from './display-amount.js';
 export { BUSINESS_TIME_ZONE, CUSTOMER_NAME_MAX, ISO_DATE_LENGTH, MAX_ORDER_LINES, MONTH_DAY_START, chosenId, closedOrder, contactFields, customerSchema, dateSchema, deliverableOrder, derivedOrderStatuses, displayOrderStatuses, effectiveOrder, exactPriceSchema, lineSchema, lineSpecification, orderDisplayStatus, orderSchema, orderTaxModes, plannedOrderSchema, productSchema, roundingPolicies, roundingPolicyLabels, sameSpecification, specification, specificationDifference, statuses, today, totalCost, uncountedOrderStatuses } from './domain.js';
-export { MAX_TAX_PERCENT, TAX_PERCENT_STEP, clearRecognizedTaxText, hasUnrecognizedTax, orderTaxModeHint, orderTaxOriginal, orderTaxRateHint, orderTaxSnapshot, percentFromTaxRateBp, readTaxRate, shownTaxRate, taxRateToBp } from './tax-rate.js';
+export { MAX_TAX_PERCENT, TAX_PERCENT_STEP, clearRecognizedTaxText, hasUnrecognizedTax, orderTaxModeHint, orderTaxOriginal, orderTaxRateHint, orderTaxSnapshot, percentFromTaxRateBp, readTaxRate, shownTaxRate, snapshotModeOriginal, taxRateToBp } from './tax-rate.js';
 export type { Customer, CustomerInput, OrderInput, PlannedOrderInput, Product, ProductInput } from './domain.js';
 export { DEFAULT_SITE_NAME, blankCustomerSite, customerSiteInputSchema, defaultCustomerSite } from './domain.js';
 export type { CustomerSite, CustomerSiteInput } from './domain.js';

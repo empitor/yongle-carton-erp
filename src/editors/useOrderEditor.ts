@@ -174,7 +174,9 @@ export function useOrderEditor(props: OrderEditorProps) {
   // 已确认的照原状态保存；生产中、待发货、已发货由生产和送货单据推进。
   const status: OrderInput['status'] = value?.status || '待确认',
     pending = status === '待确认',
-    submitStatus = useRef<OrderInput['status']>(status);
+    submitStatus = useRef<OrderInput['status']>(status),
+    // 新建订单的防重复请求号：这个窗口开着时不变，网络断了重试、连点两下都只建一张
+    requestId = useRef(crypto.randomUUID());
   const save = useAction();
   const [invalid, setInvalid] = useState('');
   const customer = useCustomerChange(value, d, availableCustomers, availableProducts),
@@ -197,7 +199,7 @@ export function useOrderEditor(props: OrderEditorProps) {
         const confirmAfter = !!value && pending && submitStatus.current === '已确认';
         const { customerId, orderDate, deliveryDate, notes, lines, costed, costs, extras } = d;
         const body = { value, extras, customerId, orderDate, deliveryDate, notes, lines, costed, costs };
-        let record = await saveOrder(value?.id, orderPayload({ ...body, status: confirmAfter ? status : submitStatus.current }));
+        let record = await saveOrder(value?.id, orderPayload({ ...body, status: confirmAfter ? status : submitStatus.current }), requestId.current);
         if (confirmAfter) record = await changeOrderStatus(record, 'confirm');
         const message = savedText(record?.number || value?.number, !!value, pending && submitStatus.current === '已确认');
         await saved(record, message);

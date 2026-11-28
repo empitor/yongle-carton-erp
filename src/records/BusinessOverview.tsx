@@ -44,10 +44,25 @@ const units = (groups: UnitBalance[], empty = '暂无库存') =>
     <p className="bo-empty-inline">{empty}</p>
   );
 
+type OverviewRange = { range: 'custom'; start?: string; end?: string };
+
+/**
+ * 经营概况点进订单页的链接：所选日期的订单和按状态的看全部（订单页默认的“待处理”会滤掉已发货、已取消的）；
+ * 待完成和逾期（实时）看订单页默认的待处理、不限日期
+ */
+export function overviewOrderLinks(range: OverviewRange) {
+  return {
+    orders: pageHref('orders', { ...range, scope: 'all' }),
+    status: (status: string) => pageHref('orders', { ...range, scope: 'all', status: displayOrderStatuses.find((x) => x === status) }),
+    pending: pageHref('orders', { range: 'all' }),
+  };
+}
+
 /** 订单：总数、有效金额、待完成和逾期（实时）、状态分布、送货金额和预估毛利 */
-function OrdersSection({ data, range }: { data: Dashboard; range: { range: 'custom'; start?: string; end?: string } }) {
+function OrdersSection({ data, range }: { data: Dashboard; range: OverviewRange }) {
   const v = data.overview,
-    orders = pageHref('orders', range);
+    links = overviewOrderLinks(range),
+    orders = links.orders;
   return (
     <section className="bo-section">
       <header>
@@ -64,13 +79,13 @@ function OrdersSection({ data, range }: { data: Dashboard; range: { range: 'cust
         {metric(orders, '订单总数', v.orders.total, ['包含待确认和已取消', archivedNote(v.orders.archived)].filter(Boolean).join('；'))}
         {metric(orders, '有效订单金额', '¥' + yuan(data.amountCents), '不含待确认、已取消', 'bo-accent')}
         {metric(
-          pageHref('orders', { view: 'pending', range: 'all' }),
+          links.pending,
           '待完成订单 · 实时',
           v.orders.pendingAll,
           `所选日期内 ${v.orders.pendingInRange} 张，更早没完成的也算在内`,
         )}
         {metric(
-          pageHref('orders', { view: 'pending', range: 'all' }),
+          links.pending,
           '逾期未发货 · 实时',
           v.orders.overdueAll,
           '按交货日期算，不含待确认',
@@ -82,7 +97,7 @@ function OrdersSection({ data, range }: { data: Dashboard; range: { range: 'cust
           {data.byStatus.map((s) => (
             <a
               key={s.status}
-              href={pageHref('orders', { ...range, status: displayOrderStatuses.find((x) => x === s.status) })}
+              href={links.status(s.status)}
             >
               <span>{s.status}</span>
               <i>

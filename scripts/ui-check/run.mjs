@@ -28,13 +28,13 @@ export const groups = [
   { name: 'mobile', flows: ['mobile', 'app-bridge'], about: '手机宽度；安卓 App 通道：没登录先接通、登录后分享进 AI 导入，几 MB 的文件，超 10MB 不上传，纯财务账号被回绝；返回键按层级（含筛选浮层）；导出订货单经通道保存，存好才改状态、没存成不改；顶栏收起、滑到头只拉伸内容区' },
   { name: 'settings', flows: ['settings'], about: '设置页签、三家机器人已连接、数据管理报错位置、修改历史叫法、批量归档提示、AI 导入导航数字、全站深色和窄窗口' },
   { name: 'finance-more', flows: ['finance-more'], about: '带期初启用、票据到期、预算、员工借款、资产处置、蓝票红票' },
-  { name: 'finance-scenes', flows: ['scenes'], about: '已送货未开票、利息接着算、启用前单据、派生凭证撤回和红字冲销' },
-  { name: 'operations', flows: ['operations', 'remote', 'stock', 'corrections'], about: '新订单、完工入库、到货更正、退货撤销、助手删除卡片、网关出错、域名模式超级管理员；新建采购单到登记到货、安排送货到导出并出库、出入库和盘点；送货、完工更正和说明编辑（数据管理里也一样）' },
-  { name: 'access', flows: ['permission', 'cashier', 'supermode'], about: '业务员看不到财务、设置只有单据模板、自己的记忆照常管，出纳账号；从域名访问改账号和设置要先进超级管理员模式（电脑、手机宽度），只读账号没有设置' },
-  { name: 'production', flows: ['production', 'batches'], about: '附属品、筛选、订单编辑窗明细、安排生产、登记完工窗；成品批次块和批次备注' },
+  { name: 'finance-scenes', flows: ['scenes'], about: '已送货未开票、利息接着算、启用前单据、派生凭证撤回和红字冲销；被更正替代的单据说明、同一单号相邻、其他支出的对方科目' },
+  { name: 'operations', flows: ['operations', 'remote', 'stock', 'corrections'], about: '新订单、完工入库、到货更正、退货撤销、助手删除卡片、网关出错、域名模式超级管理员；新建采购单到登记到货、安排送货到导出并出库、出入库和盘点；送货、完工更正和说明编辑（数据管理里也一样）；到货详情同一库存品两行各自的入库数和流水' },
+  { name: 'access', flows: ['permission', 'cashier', 'supermode'], about: '业务员看不到财务、设置只有单据模板、自己的记忆照常管，出纳账号；从域名访问改账号和设置要先进超级管理员模式（电脑、手机宽度，横幅图标不挤扁），只读账号没有设置；业务员、只读账号的今日页不发到期提醒请求' },
+  { name: 'production', flows: ['production', 'batches'], about: '附属品、筛选、订单编辑窗明细和读失败后的“重试”、安排生产、登记完工窗；今日页规格对不上的订单只出现一次；成品批次块和批次备注' },
   { name: 'account', flows: ['account', 'busy', 'filing'], about: '账号、改密、登录；服务器正忙时自动再试一次；从域名访问时最底部的备案号（安卓 App、Windows 客户端里不显示）' },
   { name: 'records', flows: ['intake', 'records'], about: '收件箱标为已处理和恢复、文件转订单、AI 导入改一格后导入订单；新建客户和供应商、归档页恢复、初始化业务数据（最后一步，真清空）' },
-  { name: 'a11y', flows: ['a11y'], about: '无障碍检查（axe）：今日、订单、仓库、采购、财务概览、数据管理、助手面板各扫一遍，只列违规不拦' },
+  { name: 'a11y', flows: ['a11y'], about: '无障碍检查（axe）：今日、订单、仓库、采购、财务概览、数据管理、助手面板各扫一遍，登记（a11y-known.json）之外的违规算失败' },
 ];
 /** 流程名对应的脚本文件（和本文件在同一目录） */
 export const flowFile = (flow) => 'flow-' + flow + '.mjs';

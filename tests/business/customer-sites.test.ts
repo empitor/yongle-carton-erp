@@ -90,7 +90,7 @@ function shipping(t: TestContext) {
   return { ...f, customer, input };
 }
 
-test('录入时按所属厂区写快照，没厂区留空，待送货编辑刷新同一厂区的资料', (t) => {
+test('录入时按所属厂区写快照，没厂区留空，改厂区资料时待送货单跟着换、再存照样按厂区取', (t) => {
   const f = shipping(t), a = f.customer, b = f.create({ name: '虚构无厂区客户' });
   const input = f.input(a);
   const d = f.flow.save('delivery', { ...input, address: '不使用手填地址' }, actor);
@@ -101,8 +101,12 @@ test('录入时按所属厂区写快照，没厂区留空，待送货编辑刷�
   const selected = f.flow.save('delivery', { ...input, siteId: a.sites[1].id, version: d.version }, actor, d.id);
   assert.deepEqual(destination(selected), [a.sites[1].id, west.name, west.address, west.contact, west.phone]);
   f.update(a, { sites: [a.sites[0], { ...a.sites[1], address: '虚构新收货地址' }] });
-  const refreshed = f.flow.save('delivery', { ...selected, notes: '虚构备注' }, actor, d.id);
-  assert.deepEqual(destination(refreshed), [a.sites[1].id, west.name, '虚构新收货地址', west.contact, west.phone]);
+  // 改厂区资料时这张待送货单已经跟着换了、版本加一（customer-site-sync.test.ts），拿着旧版本存会撞版本
+  const synced = f.flow.get(d.id, 'delivery');
+  assert.deepEqual(destination(synced), [a.sites[1].id, west.name, '虚构新收货地址', west.contact, west.phone]);
+  assert.throws(() => f.flow.save('delivery', { ...selected, notes: '虚构备注' }, actor, d.id), /已被修改/);
+  const refreshed = f.flow.save('delivery', { ...input, siteId: a.sites[1].id, notes: '虚构备注', version: synced.version }, actor, d.id);
+  assert.deepEqual(destination(refreshed), destination(synced));
 });
 
 test('待送货单占用厂区时列出全部单号并回滚客户修改', (t) => {

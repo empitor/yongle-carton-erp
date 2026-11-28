@@ -11,9 +11,11 @@ import { readSourceDetail, type SourceLine, type SourceRow } from '../../src/fin
 
 /** 补税率表的一行：金额 100、口径含税，税率 rate、从 source 来 */
 const fill = (rate: string, source: string | null) => resolveLine({ exact: '100', rate, mode: '含税' }, source);
-const filled = (rate: string) => ({ line: { exact: '100', rate, mode: '含税' }, hint: '' });
+const filled = (rate: string) => ({ line: { exact: '100', rate, mode: '含税' }, amount: '100.00', rateHint: '', modeHint: '' });
 /** 框里空着；原来写了的，格子下面和单据明细的税率格同一个说法“没认出来：…” */
-const empty = (original: string) => ({ line: { exact: '100', rate: '', mode: '含税' }, hint: original ? '没认出来：' + original : '' });
+const empty = (original: string) => ({
+  line: { exact: '100', rate: '', mode: '含税' }, amount: '100.00', rateHint: original ? '没认出来：' + original : '', modeHint: '',
+});
 
 test('单张补税率：单据抄来的税率财务认得出才填；认不出的（没带 % 的 0.13、三位小数、13个点、老快照里的全角和带空格的）框里空着，原来写的放在格子下面', () => {
   for (const [rate, shown] of [['13', '13'], ['13%', '13'], ['0.5%', '0.5'], ['13.50', '13.50'], ['0', '0']])
@@ -22,7 +24,29 @@ test('单张补税率：单据抄来的税率财务认得出才填；认不出�
   assert.deepEqual(fill('', null), empty(''));
   // 缺价格的没有补过的财务行，取单据明细上的（来源就是单据）：认不出的口径（带“口径：”的原话）也空着让人选
   const docLine: SourceLine = { taxRate: '0.13', taxMode: '口径：含税价' };
-  assert.deepEqual(resolveLine(docLine, 'line'), { line: { exact: '', rate: '', mode: '' }, hint: '没认出来：0.13' });
+  assert.deepEqual(resolveLine(docLine, 'line'), {
+    line: { exact: '', rate: '', mode: '' }, amount: '', rateHint: '没认出来：0.13', modeHint: '没认出来：含税价',
+  });
+});
+
+test('单张补税率：口径认不出（带“口径：”的原话、升级前的旧写法）时空着让人选，下面写出原来写的是什么（不带“口径：”这个前缀）；没写、“未明确”、旧写法“不含税”不写', () => {
+  const row = (mode: string) => {
+    const r = resolveLine({ exact: '100', rate: '13', mode }, 'line');
+    return [r.line.mode, r.modeHint];
+  };
+  assert.deepEqual(row('口径：含税价'), ['', '没认出来：含税价']);
+  assert.deepEqual(row('含税价'), ['', '没认出来：含税价']);
+  for (const [mode, picked] of [['', ''], ['未明确', ''], ['不含税', '未税'], ['含税', '含税'], ['未税', '未税']])
+    assert.deepEqual(row(mode), [picked, ''], mode);
+});
+
+test('单张补税率的金额框：显示去掉末尾多余的 0、至少两位小数；人没改就照原来的精确金额提交，补完的金额一分不变', () => {
+  const cases = [['5475.0000000', '5475.00'], ['27.9000000', '27.90'], ['12.3450000', '12.345'], ['12.3456789', '12.3456789'], ['0', '0.00'], ['', '']];
+  for (const [exact, shown] of cases) {
+    const r = resolveLine({ exact, rate: '13', mode: '含税' }, 'line');
+    assert.equal(r.amount, shown, '框里显示 ' + exact);
+    assert.equal(r.line.exact, exact, '提交的仍是精确金额 ' + exact);
+  }
 });
 
 test('单张补税率：往来单位默认的税率照往来条款认（0.5 就是 0.5%、最多六位小数），和补扫、批量补一个说法；往来条款也不收的才空着', () => {

@@ -1,4 +1,4 @@
-import { Facts, FormMessage, Hint, Loading, Section, StatusChip, useBusinessRevision, useLoad } from '../ui/index';
+import { Facts, FormMessage, Hint, Loading, Section, useBusinessRevision, useLoad } from '../ui/index';
 import ContactSection from '../recordkit/ContactSection';
 import { InfoBlock, InfoBlocks } from '../recordkit/InfoBlocks';
 import ProductMarks from '../marks/ProductMarks';
@@ -15,9 +15,9 @@ const PRODUCTS_SHOWN = 20;
 
 /** 客户详情里的“产品”一节：列出属于这家客户的产品，点开看详情，多的时候点“全部产品”跳产品页 */
 function CustomerProductList({ customerId }: { customerId: number }) {
-  // 业务数据变了（存了订单、改了产品归属）就重读，开着的详情不留旧的
+  // 业务数据变了（存了订单、改了产品归属）就重读同一份：读完换成新的，读的时候旧的照常显示、不先换成读取中的占位
   const [revision] = useBusinessRevision();
-  const loaded = useLoad(customerId + '|' + revision, () => loadCustomerProducts(customerId));
+  const loaded = useLoad(String(customerId), () => loadCustomerProducts(customerId), revision);
   const products = loaded.loading || loaded.error ? null : loaded.data,
     error = loaded.loading ? '' : loaded.error;
   return (
@@ -66,7 +66,7 @@ function CustomerSiteList({ sites }: { sites: RecordRowOf['customers']['sites'] 
             header={
               <header className="rb-site-head">
                 <strong>{site.name}</strong>
-                {site.isDefault && <StatusChip tone="neutral">默认</StatusChip>}
+                {site.isDefault && <small className="rb-site-default">默认</small>}
               </header>
             }
             rows={siteKeys.filter((key) => site[key].trim()).map((key) => ({ label: fieldLabel(key), value: site[key] }))}

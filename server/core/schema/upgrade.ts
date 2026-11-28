@@ -80,6 +80,28 @@ function keepAutoIncrementCounters(db: DatabaseSync, before: ReadonlyMap<string,
   }
 }
 
+/** PRAGMA foreign_key_check 的一行：哪张表的哪一行，第几个外键指向哪张表 */
+const foreignKeyIssue = z.object({ table: z.string(), rowid: z.number().nullable(), parent: z.string(), fkid: z.number() });
+const keyColumnsRow = z.object({ columns: z.string().nullable() });
+/** 外键校验不过时，报错里最多写出几处 */
+const SHOWN_FOREIGN_KEY_ISSUES = 5;
+
+/**
+ * 外键校验不过的说明：一共几处，前几处是哪张表第几行的哪一列、在哪张表里找不到。
+ * 只写表名、行号、列名，不写行里的内容；处数多时只列前几处，不把整库打进日志。
+ */
+function foreignKeyFailure(db: DatabaseSync, issues: readonly unknown[]) {
+  const shown = issues.slice(0, SHOWN_FOREIGN_KEY_ISSUES).map((raw) => {
+    const issue = foreignKeyIssue.parse(raw);
+    const columns = one(
+      db, keyColumnsRow, 'SELECT group_concat("from") AS columns FROM pragma_foreign_key_list(?) WHERE id=?', issue.table, issue.fkid,
+    )?.columns;
+    return `${issue.table} 表第 ${issue.rowid ?? '?'} 行的 ${columns ?? '外键'} 在 ${issue.parent} 表里找不到`;
+  });
+  const more = issues.length > shown.length ? `，前 ${shown.length} 处` : '';
+  return `升级后数据关联校验失败，共 ${issues.length} 处${more}：${shown.join('；')}`;
+}
+
 /**
  * 把库从现在的版本升级到最新：全部待做的步骤在一个事务里执行，任何一步失败整体退回，版本、结构、数据都不变。
  * 升级步骤可能要重建表，外键检查先关掉（事务里改这个设置无效，必须在事务外），提交前统一查一遍；
@@ -110,7 +132,8 @@ export function upgradeSchema(
         record.run(step.version, step.name, new Date().toISOString(), options.appVersion);
       }
       keepAutoIncrementCounters(db, counters);
-      if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('升级后数据关联校验失败');
+      const broken = db.prepare('PRAGMA foreign_key_check').all();
+      if (broken.length) throw new Error(foreignKeyFailure(db, broken));
       options.check?.(db);
       db.exec('COMMIT');
     } catch (error) {

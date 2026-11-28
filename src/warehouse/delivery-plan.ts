@@ -44,8 +44,14 @@ export function planLookups(data: PlanData | null, inputs: Record<string, Partia
     const order = data?.orders.find((o) => o.id === l.orderId);
     return { order, line: order?.lines.find((x) => x.id === l.orderLineId) };
   };
+  const customerName = (id: number) => customer(id)?.name || '客户';
   return {
-    customerName: (id: number) => customer(id)?.name || '客户',
+    customerName,
+    /** 一张送货单怎么称呼（标题、校验、完成提示）：同一客户拆成几张时带上厂区名，只有一张时只写客户 */
+    groupName: (g: ShownGroup, all: readonly ShownGroup[]) => {
+      const site = all.filter((x) => x.customerId === g.customerId).length > 1 ? g.sites.find((s) => s.id === g.siteId) : undefined;
+      return customerName(g.customerId) + (site ? ' · ' + site.name : '');
+    },
     inputOf: (g: ShownGroup): GroupInput => ({
       plannedDate: today(),
       reason: '',
@@ -65,9 +71,9 @@ export function planProblem(groups: ShownGroup[], created: Record<string, string
   for (const g of groups) {
     if (created[g.key]) continue;
     const v = look.inputOf(g);
-    if (!v.plannedDate) return '请填写送给 ' + look.customerName(g.customerId) + ' 的计划送货日期。';
+    if (!v.plannedDate) return '请填写送给 ' + look.groupName(g, groups) + ' 的计划送货日期。';
     if (look.overOf(g.lines).length && !v.reason.trim())
-      return '送给 ' + look.customerName(g.customerId) + ' 的有几行超过订单数量，请写明超订单的原因。';
+      return '送给 ' + look.groupName(g, groups) + ' 的有几行超过订单数量，请写明超订单的原因。';
   }
   return '';
 }

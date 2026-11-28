@@ -25,8 +25,11 @@ test('订单已出库后改客户和数量：金额重算，只发这张订单�
     const a = f.order([100]);
     const d = f.ship([{ order: a }]);
     const customer = sales(f.store).createCustomer(customerSchema.parse({ name: '明确更正的客户' }));
-    const saved = f.editOrder(a.id, { customerId: customer.id, lines: orderOf(f.store, a.id).lines.map((l) => ({ ...l, quantity: 50 })) });
-    assert.deepEqual([saved.customerId, saved.lines[0].quantity, saved.totalCents], [customer.id, 50, 5000]);
+    assert.equal(orderOf(f.store, a.id).status, '已发货');
+    // 数量不能改得比已发的 100 只少（本机管理员改单的拦截），改多一些：金额、进度和状态跟着重算
+    const saved = f.editOrder(a.id, { customerId: customer.id, lines: orderOf(f.store, a.id).lines.map((l) => ({ ...l, quantity: 150 })) });
+    assert.deepEqual([saved.customerId, saved.lines[0].quantity, saved.totalCents], [customer.id, 150, 15000]);
+    assert.deepEqual([saved.status, saved.lines[0].shippedQuantity, saved.lines[0].remainingQuantity], ['待发货', 100, 50]);
     assert.equal(f.flow.get(d.id, 'delivery').customerId, customer.id);
     assert.equal(f.balance(), 760000);
     assert.deepEqual(f.foreignKeys(), []);

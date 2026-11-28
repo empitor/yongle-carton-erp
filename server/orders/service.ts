@@ -6,7 +6,7 @@ import { AppError, Store, InputError, exists, notFound } from '../core/index.js'
 import { validAssistantGrant } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
-import { clearHistoricalDeliverySites, FlowService, orderEditGuard, pendingDeliveryNumbersBySite } from '../flow/index.js';
+import { clearHistoricalDeliverySites, FlowService, followSiteEdits, maintenanceEditGuard, orderEditGuard, pendingDeliveriesBySite } from '../flow/index.js';
 import { syncFinishedStock } from '../operations/index.js';
 import { audit, inSavepoint, isSuperMode } from '../core/index.js';
 import { TakenSnapshot } from '../lifecycle/index.js';
@@ -75,15 +75,24 @@ const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] 
   orders: saveOrderCommand,
 };
 
+/**
+ * 改客户在一个保存点里办：去掉的厂区待送货单用着就拦，不拦的解除历史送货单的引用；厂区资料（名称、地址、联系人、
+ * 联系方式）变了的，挂着它的待送货单跟着换（单据流转的 followSiteEdits）。编辑窗、数据管理、助手卡片都走这里。
+ */
 function saveCustomerCommand(store: Store, job: SaveJob) {
   const input = customerSchema.parse(job.input), records = sales(store);
   if (job.action === 'create') return records.createCustomer(input);
   const { id, version, context } = job;
-  return records.updateCustomer(input, id, version, context.superAdminMode, (removed) => {
-    const pending = pendingDeliveryNumbersBySite(store, removed);
-    if (pending.length) throw new AppError('这些厂区仍被待送货单使用，不能删除：' + pending.join('、'), 409);
-    TakenSnapshot.take(store, 'customer-site-delete');
-    clearHistoricalDeliverySites(store, removed);
+  return inSavepoint(store.db, () => {
+    const before = records.customer(id, true)?.sites ?? [];
+    const saved = records.updateCustomer(input, id, version, context.superAdminMode, (removed) => {
+      const pending = pendingDeliveriesBySite(store, removed);
+      if (pending.length) throw new AppError('这些厂区仍被待送货单使用，不能删除：' + pending.map((d) => d.number).join('、'), 409);
+      TakenSnapshot.take(store, 'customer-site-delete');
+      clearHistoricalDeliverySites(store, removed);
+    });
+    followSiteEdits(store, { customer: saved, before }, context.actor);
+    return saved;
   });
 }
 
@@ -107,12 +116,14 @@ function saveOrderCommand(store: Store, { input: raw, id, version, context }: Sa
     // 快照另开只读连接拍，调用方已开 SAVEPOINT 也有效。连带删整张送货单时删除引擎凭这份不再另拍。
     const snapshot = TakenSnapshot.take(store, 'order-maintenance-edit');
     const orderId = id,
-      input = orderSchema.parse(raw);
+      input = orderSchema.parse(raw),
+      // 已出库的行不许换产品、数量不许少于已发：改单之前取好已发数量，存订单时核对（单据流转的 maintenanceEditGuard）
+      guard = maintenanceEditGuard(store.db, before);
     return inSavepoint(store.db, () => {
       prepareOrderEdit(store, before, input.lines, actor, snapshot);
       carryProducts(store, before, input, context, true);
       const current = sales(store).order(orderId, true) ?? notFound(ORDER_NOT_FOUND);
-      const updated = sales(store).saveOrder(input, orderId, current.version, true);
+      const updated = sales(store).saveOrder(input, orderId, current.version, true, guard);
       alignOrder(store, before, updated, actor);
       // 全库重算到货数、库存余额和订单金额（这三步不分范围）；传空数组是因为这张订单的生产、发货进度
       // alignOrder 已经按需重算过，这里不再重算任何订单的进度

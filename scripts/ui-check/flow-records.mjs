@@ -53,10 +53,10 @@ for (const [hash, noun, list, name] of [
   });
 }
 
-// 客户详情的厂区一个一块（InfoBlocks）：块头部写厂区名称，默认的那块头部另有“默认”标签
+// 客户详情的厂区一个一块（InfoBlocks）：块头部写厂区名称，默认的那块名称后面另有“默认”小字标记
 const siteBlock = (site) =>
   panel().locator('li.kit-block').filter({ has: page.locator('header strong', { hasText: new RegExp('^' + site + '$') }) });
-const defaultChip = (site) => siteBlock(site).locator('header .status-chip', { hasText: /^默认$/ });
+const defaultChip = (site) => siteBlock(site).locator('header .rb-site-default', { hasText: /^默认$/ });
 
 await step('客户增改厂区', async () => {
   const name = '虚构界面新客户有限公司';

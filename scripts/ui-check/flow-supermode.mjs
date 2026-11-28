@@ -1,6 +1,7 @@
 // 从域名访问时改全员共用的设置要先进超级管理员模式：账号管理、设置的 API 配置 / 提示词 / 消息接入 / 高级，
 // 没进模式时顶上一句提示和“进入超级管理员模式”、写按钮不在；点它弹出系统维护窗口，输本人密码后窗口关掉、写按钮出现。
-// 请求带 X-Forwarded-For，服务器不当成本机管理员（和 operations 的域名模式同一个做法）。电脑和手机宽度各看一遍。
+// 请求带 X-Forwarded-For，服务器不当成本机管理员（和 operations 的域名模式同一个做法）。电脑和手机宽度各看一遍；
+// 进了模式后手机宽度下顶上横幅的盾牌图标不被挤扁。
 import { BASE, SP, fail, login, ok, openChrome, passwordOf } from './lib.mjs';
 
 const pages = [
@@ -78,6 +79,14 @@ for (const p of pages)
     await shot(tag, p.name + '-进了模式');
   });
 ok('进了模式后五页的写按钮都出来了，提示不再显示');
+// 顶上的超级管理员横幅：手机宽度下正文长，盾牌图标不能被挤扁（src/admin/super-mode.css 的 flex-shrink）
+{
+  const icon = page.locator('.super-mode-banner > svg');
+  await icon.waitFor();
+  const { width, height } = await icon.boundingBox();
+  if (Math.abs(width - height) > 1) fail('手机宽度下超级管理员横幅的图标被挤扁：' + width.toFixed(1) + '×' + height.toFixed(1));
+  else ok('手机宽度下超级管理员横幅的图标是方的（' + Math.round(width) + '×' + Math.round(height) + '）');
+}
 const real = [...new Set(consoleErrors)].filter((e) => !/status of (401|403)/.test(e));
 if (real.length) fail('控制台报错：' + real.join(' | ').slice(0, 300));
 await context.close();

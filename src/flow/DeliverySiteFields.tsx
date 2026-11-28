@@ -31,7 +31,8 @@ export default function DeliverySiteFields({ sites, siteId, change, disabled, ti
       </FormField>
       {shownKeys.map((key) => (
         <FormField key={key} label={shownLabel(key)} span={key === 'address' ? 'full' : undefined}>
-          <input readOnly aria-label={aria(shownLabel(key))} value={info[key]} />
+          {/* 由所选厂区带出、这里改不了：写成只读文字，不画成看着能填的输入框 */}
+          <output className="wh-site-value" aria-label={aria(shownLabel(key))}>{info[key] || '—'}</output>
         </FormField>
       ))}
     </>

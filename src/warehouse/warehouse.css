@@ -217,10 +217,48 @@
   max-width: 100%;
   margin-top: var(--space-2xs);
 }
-/* 手机上明细表本来就横向放不下：下拉跟着这一格的宽度，不按字宽把这一列撑宽 */
+/*
+ * 手机上安排送货窗的明细表横向放不下：表头收起，一行排成一块。成品、对应订单明细（连同拆单下拉）各占一整行，
+ * 下面一行左边“本次送货”数量、右边删除图标；“本次送货”几个字取自那一格的 data-label
+ */
 @media (max-width: 700px) {
-  .line-table select.wh-site-split {
-    width: 100%;
+  .wh-plan-lines table,
+  .wh-plan-lines tbody {
+    display: block;
+  }
+  .wh-plan-lines thead {
+    display: none;
+  }
+  .wh-plan-lines tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2xs) var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border);
+  }
+  /* 一行的分隔线画在 tr 上，格子自己不画线、不留上下边距：要压过精致版式窗口里明细格的细线（dialogs.css）和文字格的上边距 */
+  :root .management-dialog .line-table.wh-plan-lines tr > td {
+    width: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+  .wh-plan-lines tr > td:nth-child(-n + 2) {
+    grid-column: 1 / -1;
+  }
+  .wh-plan-lines tr > td.num {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    text-align: left;
+  }
+  .wh-plan-lines tr > td.num::before {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    content: attr(data-label);
+  }
+  .wh-plan-lines tr > td:last-child {
+    align-self: center;
   }
 }
 button.wh-ready-more {

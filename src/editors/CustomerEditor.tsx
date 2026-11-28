@@ -1,94 +1,16 @@
 import { useId, useState, type SubmitEvent } from 'react';
-import { CUSTOMER_NAME_MAX, type Customer, type CustomerInput, fieldLabel } from '../../shared/core/index';
+import { CUSTOMER_NAME_MAX, type Customer, type CustomerInput } from '../../shared/core/index';
 import { ManagementDialog, notify, useAction } from '../ui/index';
-import { EditorFooter, FormField, FormMessage, FormSection } from '../ui/index';
+import { FormField, FormMessage, FormSection } from '../ui/index';
 import { saveCustomer } from './editor-api';
 import CustomerSites from './CustomerSites';
+import { ArchiveFooter, ContactSection } from './party-fields';
 
 /** 改的时候带着打开窗口时读到的版本号（保存靠它做版本校验） */
 type CustomerForm = CustomerInput & { version?: number };
 const blank: CustomerForm = { name: '', contact: '', phone: '', address: '', notes: '' };
 /** 客户的必填：名称；加了厂区，厂区名称也要填，两个以上要选一个默认 */
 const CUSTOMER_REQUIRED = '客户名称必填；加了厂区要填厂区名称、选一个默认，其余可以以后补。';
-
-/** 客户、供应商、产品档案窗口的底部：取消和保存（保存提交 formId 那张表单）。note 是左边那句必填说明 */
-export function ArchiveFooter({
-  formId,
-  saving,
-  close,
-  label,
-  note = '只有名称必填，其余可以以后补。',
-}: {
-  formId: string;
-  saving: boolean;
-  close: () => void;
-  label: string;
-  note?: string;
-}) {
-  return (
-    <EditorFooter note={note}>
-      <button type="button" className="secondary" disabled={saving} onClick={close}>
-        取消
-      </button>
-      <button type="submit" form={formId} className="primary" disabled={saving}>
-        {saving ? '正在保存…' : label}
-      </button>
-    </EditorFooter>
-  );
-}
-
-/** 客户、供应商编辑窗共用的“怎么联系”（联系人、联系方式、地址）和备注。 */
-export function ContactSection({
-  noun,
-  form,
-  change,
-}: {
-  noun: string;
-  form: { contact: string; phone: string; address: string; notes: string };
-  change: (key: 'contact' | 'phone' | 'address' | 'notes', v: string) => void;
-}) {
-  return (
-    <>
-      <FormSection title="怎么联系">
-        <FormField label={fieldLabel('contact')}>
-          <input
-            aria-label="联系人"
-            maxLength={60}
-            value={form.contact}
-            onChange={(e) => change('contact', e.target.value)}
-          />
-        </FormField>
-        <FormField label="联系方式">
-          <input
-            aria-label="联系方式"
-            maxLength={50}
-            value={form.phone}
-            onChange={(e) => change('phone', e.target.value)}
-          />
-        </FormField>
-        <FormField label={fieldLabel('address')} span="full">
-          <input
-            aria-label={noun + '地址'}
-            maxLength={300}
-            value={form.address}
-            onChange={(e) => change('address', e.target.value)}
-          />
-        </FormField>
-      </FormSection>
-      <FormSection columns={1}>
-        <FormField label="备注" span="full">
-          <textarea
-            aria-label={noun + '备注'}
-            maxLength={1000}
-            rows={3}
-            value={form.notes}
-            onChange={(e) => change('notes', e.target.value)}
-          />
-        </FormField>
-      </FormSection>
-    </>
-  );
-}
 
 /** 客户档案编辑窗：名称、怎么联系、备注。只有名称必填。 */
 export default function CustomerEditor({

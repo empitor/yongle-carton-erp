@@ -2,6 +2,8 @@ import { FormField, FormSection, RowDelete } from '../ui/index';
 import { fieldLabel, type CustomerSite } from '../../shared/core/index';
 import DeliverySiteFields from '../flow/DeliverySiteFields';
 
+const QUANTITY = '本次送货';
+
 export type PlanLine = { orderId: number; orderLineId: number; stockId: number; quantity: string; notes: string };
 /** 一张送货单在窗口里改的计划送货日期和超订单原因。 */
 export type GroupInput = { plannedDate: string; reason: string };
@@ -54,13 +56,14 @@ export default function DeliveryPlanGroup({
         />
       </FormField>
       <DeliverySiteFields sites={sites} siteId={siteId} change={assign} title={title} disabled={locked} />
-      <div className="line-table span-full">
+      {/* 手机上一行排成一块（warehouse.css 的 wh-plan-lines）：表头收起，“本次送货”写在那一格前面 */}
+      <div className="line-table span-full wh-plan-lines">
         <table>
           <thead>
             <tr>
               <th>成品</th>
               <th>对应订单明细</th>
-              <th className="num">本次送货</th>
+              <th className="num">{QUANTITY}</th>
               <th aria-label="操作" />
             </tr>
           </thead>
@@ -87,7 +90,7 @@ export default function DeliveryPlanGroup({
                       </select>
                     )}
                   </td>
-                  <td className="num">
+                  <td className="num" data-label={QUANTITY}>
                     <div className="wh-qty">
                       <input
                         aria-label={info.order + ' ' + info.product + ' 本次送货数量'}

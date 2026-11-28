@@ -309,8 +309,9 @@ test('连带整个 data、backups 的删除和复制拦：git clean -x、git sta
   ];
   assert.deepEqual(decisions(sweeps), all(sweeps, 'deny'));
   assert.match(bash('git clean -fdx').reason, /git clean -fd/);
-  const fromSrc = ['rm -rf ..', 'git clean -fdx', 'git stash -a'];
+  const fromSrc = ['rm -rf ..', 'git clean -fdx ..', 'git clean -fdx :/', 'git stash -a'];
   assert.deepEqual(decisions(fromSrc, bashAt(root + '\\src')), all(fromSrc, 'deny'));
+  assert.equal(decision(bashAt(root + '\\src')('git clean -fdx')), 'allow');
   const fine = [
     'git status',
     'git diff',

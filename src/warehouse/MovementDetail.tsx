@@ -10,9 +10,6 @@ type TypedMovement = Parameters<typeof movementTypeOf>[0];
 /** 流水关联的一张单据：链接、单号、是哪种单据 */
 type MovementLink = { href: string; label: string; kind: string };
 
-/** 流水的业务类型：全站同一个（shared/business/operations/movement-filters.ts 的 movementTypeLabel），采购退货、系统维护也认得出 */
-export const movementType = (m: TypedMovement) => movementTypeLabel(m);
-
 const flowKindName: Record<string, string> = flowNames;
 
 /** 类型标签的颜色：流水列表和详情同一个——撤销红色，出库灰色，入库绿色。 */
@@ -103,7 +100,7 @@ export default function MovementDetail({ m, close, previous, next }: Props) {
     <DetailPanel
       kicker={'出入库流水 · ' + (m.kind === 'raw' ? '原材料' : '成品')}
       title={m.itemName}
-      status={<StatusChip tone={movementTone(m)}>{movementType(m)}</StatusChip>}
+      status={<StatusChip tone={movementTone(m)}>{movementTypeLabel(m)}</StatusChip>}
       subtitle={quantity + '，变动后 ' + m.after + ' ' + m.unit}
       actions={flowHref ? <ActionBar secondary={[{ label: '去更正原单据', href: flowHref }]} /> : undefined}
       close={close}

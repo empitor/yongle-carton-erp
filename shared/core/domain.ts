@@ -42,6 +42,11 @@ const TEXT_MAX = {
   lineText: 2000,
   unit: 20,
   taxMode: 60,
+  /**
+   * 订单和明细的税率原件写法：要装得下识别原值（shared/import 的 DRAFT_VALUE_MAX，2000 字）和升级第 24 步写出的最长原话
+   * （0.9.x 的税率文字最多 30 字、口径最多 60 字，接成“税率\n口径：口径”最长 94 字）。改状态、数据管理读老订单也过这一条
+   */
+  taxText: 2000,
   terms: 4000,
 };
 /** 金额、单价的上限（分）：一百万元 */
@@ -75,7 +80,7 @@ const taxModeSchema = blankText(TEXT_MAX.taxMode)
 const orderTaxFields = {
   taxRate: taxRateSchema.nullish().describe('税率写数字，如 13 表示 13%，最多两位小数'),
   taxMode: taxModeSchema,
-  taxText: z.string().nullish(),
+  taxText: text(TEXT_MAX.taxText).nullish(),
 };
 /**
  * 要选的编号（客户、产品、订单、库存品……）：没选（null）、填了 0 或负数都报“请选择××”，

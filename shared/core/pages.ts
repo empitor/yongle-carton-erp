@@ -1,6 +1,6 @@
 import { flowKinds, stockKinds, type FlowKind } from './business-kinds.js';
 import { dateSchema, displayOrderStatuses } from './domain.js';
-import { datePresets, orderViews } from './date-ranges.js';
+import { datePresets } from './date-ranges.js';
 
 /**
  * 全站页面地址一本册子：页面编号、中文名、所在分组、允许的查询参数和参数类型。
@@ -102,7 +102,6 @@ export const settingsTabIds = ['api', 'prompts', 'templates', 'channels', 'tools
 export type SettingsTab = (typeof settingsTabIds)[number];
 
 const readDatePreset = oneOf(datePresets);
-const readOrderView = oneOf(orderViews);
 const readDisplayStatus = oneOf(displayOrderStatuses);
 const readListScope = oneOf(listScopes);
 const readSimpleScope = oneOf(simpleScopes);
@@ -133,7 +132,6 @@ const pageReaders = {
     n: posInt(p.get('n')),
     q: text(p.get('q')),
     scope: readListScope(p.get('scope')),
-    view: readOrderView(p.get('view')),
     archived: flag(p.get('archived')),
     status: readDisplayStatus(p.get('status')),
     customerId: posInt(p.get('customerId')),
@@ -198,7 +196,6 @@ const pageReaders = {
     deliveries: flag(p.get('deliveries')),
     flow: flag(p.get('flow')),
     doc: posInt(p.get('doc')),
-    receipt: text(p.get('receipt')),
     record: posInt(p.get('record')),
     item: posInt(p.get('item')),
     purchase: posInt(p.get('purchase')),

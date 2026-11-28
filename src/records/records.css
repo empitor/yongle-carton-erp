@@ -115,6 +115,12 @@
   font-size: var(--text-md);
   font-weight: 600;
 }
+/* 名称后面的“默认”：小字标记（叫法词表“详情用‘默认’标记”），不借状态标签 */
+.rb-site-default {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
 .rb-sites dd {
   white-space: pre-wrap;
 }

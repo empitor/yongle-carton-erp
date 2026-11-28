@@ -75,6 +75,12 @@ export function orderTaxSnapshot(tax: { taxRate?: number | null; taxMode?: strin
   };
 }
 
+/** 单据快照里含税口径的原写法给人看：orderTaxSnapshot 抄的“口径：…”去掉前缀和首尾空白，别的照原样（去首尾空白） */
+export function snapshotModeOriginal(mode: string) {
+  const shown = mode.trim();
+  return (shown.startsWith(MODE_NOTE) ? shown.slice(MODE_NOTE.length) : shown).trim();
+}
+
 export const shownTaxRate = (rate: number | null | undefined) => rate == null ? '' : rate + '%';
 
 /**

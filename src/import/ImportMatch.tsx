@@ -1,4 +1,4 @@
-import { productFitsCustomer } from '../../shared/core/index';
+import { productCustomerIssue, productFitsCustomer } from '../../shared/core/index';
 import { blocksNewProduct, productCandidateDetails } from '../../shared/import/index';
 import type { ImportMapping, ImportMatchData } from '../../shared/import/index';
 import { StatusChip, type Tone, loadingText } from '../ui/index';
@@ -19,19 +19,18 @@ export const selectChoice = (value: string, items: { id: number; version: number
 export const choiceValue = (c: Choice | CustomerChoice | undefined) =>
   c?.mode === 'existing' ? String(c.id) : c?.mode === 'new' ? 'new' : '';
 
-/** 一行产品那一格的状态：标签、颜色、一句说明 */
-function productStatus(
+/**
+ * 一行产品那一格的状态：标签、颜色、一句说明。customer 是这张订单选定的客户（新客户没有编号；名字取客户档案，没有就是空），
+ * 属别家客户时那句和下单、导入、助手报的是同一句（productCustomerIssue）。
+ */
+export function productStatus(
   choice: Choice | undefined,
-  found: { product?: ProductRecord; unavailable: boolean; wrongCustomer: boolean; loaded: boolean; list: Candidate[] },
+  found: { product?: ProductRecord; unavailable: boolean; customer: { id: number | null; name?: string }; loaded: boolean; list: Candidate[] },
 ): { tone: Tone; chip: string; text: string } {
-  const { product, unavailable, wrongCustomer, loaded, list } = found;
+  const { product, unavailable, customer, loaded, list } = found;
   if (choice?.mode === 'existing') {
-    if (wrongCustomer && product)
-      return {
-        tone: 'danger',
-        chip: '归属冲突',
-        text: '这个产品是 ' + (product.customerName || '其他客户') + ' 的，请改选当前客户产品或新建',
-      };
+    const issue = product && productCustomerIssue(product, customer);
+    if (issue) return { tone: 'danger', chip: '归属冲突', text: issue };
     if (unavailable) return { tone: 'danger', chip: '已失效', text: '原产品选择已失效，请重新选择' };
     if (!product) return { tone: 'neutral', chip: '已匹配', text: loadingText('档案') };
     const details = productCandidateDetails(product);
@@ -177,7 +176,8 @@ export function ProductMatch({
   const pick = (next: Choice) => match.select({ ...mapping, products: { ...mapping.products, [lineId]: next } }, lineId);
   const { product, unavailable, wrongCustomer } = chosenProduct(choice, matches, customerId);
   const pending = choice?.mode !== 'existing' && choice?.mode !== 'new';
-  const status = productStatus(choice, { product, unavailable, wrongCustomer, loaded: !!matches, list });
+  const customer = { id: customerId, name: matches?.customers.find((c) => c.id === customerId)?.name };
+  const status = productStatus(choice, { product, unavailable, customer, loaded: !!matches, list });
   return (
     <div className="aii-match" aria-label={'明细' + n + ' 产品档案匹配'}>
       <div className="aii-match-row">

@@ -2,7 +2,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { absolute } from './rules.mjs';
+import { absolute } from './paths.mjs';
 
 /** 本文件在 <根>/.claude/hooks/ 下，根目录不依赖会话的启动位置。 */
 export const HOOK_ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -61,21 +61,21 @@ function claudePaths(tool, args, cwd) {
 const CLAUDE_WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 /** 内置浏览器（含远程设备上的）和 Chrome 扩展的工具：批量动作、执行脚本的网址和脚本文字藏在参数里面 */
 const BROWSER_TOOL = /^mcp__.*(?:browser|chrome)/i;
-/** 参数里所有的字符串，一层层往里找 */
+/** 参数里所有的字符串，一层层往里找；在页面上找元素的 query 只是找字，不算 */
 const stringsIn = (value) =>
   typeof value === 'string' ? [value]
     : Array.isArray(value) ? value.flatMap(stringsIn)
-      : isObject(value) ? Object.values(value).flatMap(stringsIn) : [];
+      : isObject(value) ? Object.entries(value).flatMap(([key, item]) => (key === 'query' ? [] : stringsIn(item))) : [];
 
 /**
- * 一次工具调用要查的东西：command 命令文字；paths 碰到的路径（读写都算）；
- * writes 其中要写入的路径；urls 浏览器要打开的地址和要在页面里跑的脚本（只查连没连正式实例）。
+ * 一次工具调用要查的东西：command 命令文字；paths 碰到的路径（读写都算）；writes 其中要写入的路径；
+ * urls 浏览器要打开的地址和要在页面里跑的脚本（只查连没连正式实例）；globs Glob 工具的搜索目录和通配写法。
  */
 function claudeOrCodexCall(input, root) {
   const tool = input.tool_name;
   const args = isObject(input.tool_input) ? input.tool_input : {};
   const cwd = hookCwd(input, root);
-  const call = { antigravity: false, cwd, command: '', paths: [], writes: [], urls: [] };
+  const call = { antigravity: false, cwd, command: '', paths: [], writes: [], urls: [], globs: [] };
   // Codex 的命令行不论实际是哪种 shell，tool_name 都是 Bash
   if (tool === 'Bash' || tool === 'PowerShell') return { ...call, command: args.command };
   if (tool === 'apply_patch') {
@@ -86,18 +86,22 @@ function claudeOrCodexCall(input, root) {
   if (BROWSER_TOOL.test(tool)) return { ...call, urls: stringsIn(args) };
   if (typeof args.url === 'string') return { ...call, urls: [args.url] };
   const writes = CLAUDE_WRITE_TOOLS.includes(tool) ? [args.file_path, args.notebook_path] : [];
-  return { ...call, paths: claudePaths(tool, args, cwd), writes };
+  const globs = tool === 'Glob' ? [{ base: args.path, pattern: args.pattern }] : [];
+  return { ...call, paths: claudePaths(tool, args, cwd), writes, globs };
 }
 
-/** Antigravity：run_command 判 CommandLine 和 Cwd，其余工具判路径，run_workflow 另判 Script；按工具名认写入。 */
+/**
+ * Antigravity：run_command 判 CommandLine 和 Cwd，其余工具判路径（参数名以 Path 结尾的、Cwd、TargetFile、SearchDirectory），
+ * run_workflow 另判 Script；按工具名认写入。参数名没有实测样本，照工具说明写的。
+ */
 function antigravityCall(input, root) {
   const { name, args: rawArgs } = input.toolCall;
   const args = isObject(rawArgs) ? rawArgs : {};
   const cwd = hookCwd(input, root);
-  const call = { antigravity: true, cwd, command: '', paths: [], writes: [], urls: [] };
+  const call = { antigravity: true, cwd, command: '', paths: [], writes: [], urls: [], globs: [] };
   const valuesOf = (key) => Object.entries(args).filter(([k]) => key.test(k)).map(([, value]) => value);
   if (name === 'run_command') return { ...call, command: args.CommandLine, paths: valuesOf(/^cwd$/i) };
-  const paths = valuesOf(/(?:^cwd|path)$/i);
+  const paths = valuesOf(/(?:^cwd|path|^targetfile|^searchdirectory)$/i);
   const writes = /write|edit|replace|delete|move|create/i.test(name) ? paths : [];
   const command = name === 'run_workflow' ? args.Script : '';
   return { ...call, paths, writes, urls: valuesOf(/url$/i), command };

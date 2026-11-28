@@ -96,7 +96,8 @@ test('页面报全站记录种类：库存品按这一条是原材料还是成�
   assert.match(urlOf('stock_items', raw.id), /^#warehouse\?kind=raw&/);
   assert.match(urlOf('stock_items', finished.id), /^#warehouse\?kind=finished&/);
   assert.equal(urlOf('task', task.id), '#production?doc=' + task.id);
-  assert.match(urlOf('products', product.id), /^#products\?q=/);
+  // 没归档的产品按编号直接打开（已归档的仍在已归档列表里按名称搜，见 tests/assistant/assistant-record-links.test.ts）
+  assert.equal(urlOf('products', product.id), '#products?record=' + product.id);
   assert.throws(() => tools.pageRecord('stock_items', raw.id + 999, actor), /记录不存在/);
 });
 

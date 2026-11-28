@@ -242,7 +242,7 @@ export function todayGroups(input: {
       id: 'confirm',
       title: '待确认',
       total: pendingConfirm?.total ?? 0,
-      all: pageHref('orders', { view: 'pending', range: 'all', status: '待确认' }),
+      all: pageHref('orders', { range: 'all', status: '待确认' }),
       rows: (pendingConfirm?.rows || []).map((o) => ({
         ...orderRow(o, today, 'c'),
         status: undefined,

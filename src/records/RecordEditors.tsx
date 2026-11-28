@@ -94,6 +94,14 @@ export function useRecordEditor({
   return { editor, setEditor };
 }
 
+/**
+ * 带着产品新建订单（#orders?create=1&products=）时产品列表还没读到（整页刷新后）：先不开窗。
+ * 订单编辑窗的产品行在开窗那一刻按产品列表定下，这时开窗产品行就丢了；读到过产品以后重读时不再等。
+ */
+export function waitsForProducts(editor: RecordEditor, hasProducts: boolean, loading: boolean) {
+  return editor?.kind === 'orders' && !editor.value && !!editor.preset?.productIds?.length && loading && !hasProducts;
+}
+
 /** 客户、产品、订单的编辑窗，以及告诉助手当前打开的是哪条记录。保存后关窗、提示，列表靠“业务数据变了”重读。 */
 export default function RecordEditors({
   editor,
@@ -134,7 +142,7 @@ export default function RecordEditors({
         {editor?.kind === 'products' && (
           <ProductEditor value={editor.value} customers={customers} close={close} saved={saved} />
         )}
-        {editor?.kind === 'orders' && (
+        {editor?.kind === 'orders' && !waitsForProducts(editor, products.length > 0, loading) && (
           <OrderEditor
             loading={loading}
             key={editor.value ? editor.value.id + ':' + editor.value.version : 'new:' + routeKey}

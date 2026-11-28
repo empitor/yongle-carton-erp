@@ -2,7 +2,7 @@ import { fieldLabel } from '../core/index.js';
 import type { DocumentKind } from './document-templates.js';
 
 /** 送货单抬头的日期：出库了印送货日期，待送货的印计划送货日期（栏目登记表的叫法） */
-export const deliveryDateLabels = {
+const deliveryDateLabels = {
   shipped: fieldLabel('date', { record: 'delivery' }),
   planned: fieldLabel('plannedDate', { record: 'delivery' }),
 } as const;
@@ -104,8 +104,7 @@ export const numberKeys = keysOfZone('number'),
   termKeys = keysOfZone('term'),
   wideKeys: readonly string[] = documentFields.filter((f) => f.wide).map((f) => f.key);
 
+/** 登记表里这一格的键（存在模板隐藏清单里、也是单据上这一格的名字） */
+export const docFieldKey = (id: DocumentFieldId): string => fieldDefs[id].key;
 /** 按登记表标识构造一条单据字段 [key, value]，避免各处手写裸字符串键。 */
-export const docField = (id: DocumentFieldId, value: string): [string, string] => [
-  fieldDefs[id].key,
-  value,
-];
+export const docField = (id: DocumentFieldId, value: string): [string, string] => [docFieldKey(id), value];

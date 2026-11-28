@@ -49,14 +49,12 @@ export class AssistantTools {
   link(module: Module, row: unknown) {
     const id = field(row, 'id'),
       name = field(row, 'name'),
-      number = field(row, 'number'),
-      receipt = field(row, 'receiptRecordId');
+      number = field(row, 'number');
     return recordLink(module, {
       id: typeof id === 'number' ? id : String(id),
       archived: !!field(row, 'archived'),
       name: name === undefined ? undefined : String(name),
       number: number ? String(number) : undefined,
-      receiptRecordId: receipt ? String(receipt) : undefined,
     });
   }
   /**

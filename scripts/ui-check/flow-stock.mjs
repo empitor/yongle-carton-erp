@@ -208,7 +208,9 @@ await step('安排送货按厂区拆单', async () => {
   if (await selector.inputValue() !== String(main.id)) fail('安排送货没有预选默认厂区');
   await selector.selectOption(String(branch.id));
   const address = dialog().getByLabel(/收货地址$/);
-  if (await address.inputValue() !== branch.address || await address.isEditable()) fail('收货地址预览没有随厂区更新或仍能编辑');
+  // 收货信息是由厂区带出的只读文字（output），不是输入框
+  const shownAddress = await address.evaluate((el) => [el.tagName, el.textContent]);
+  if (shownAddress[0] !== 'OUTPUT' || shownAddress[1] !== branch.address) fail('收货地址预览没有随厂区更新或不是只读文字：' + shownAddress.join(' '));
   // 两行时每行的“去掉 …”看得见、点得到（不被拆单下拉挤掉），下拉宽得下“拆给别的厂区”整句
   const removes = dialog().getByRole('button', { name: /^去掉 / }), splits = dialog().getByLabel(/^拆给别的厂区/);
   if (await removes.count() !== 2 || await splits.count() !== 2) fail('两行明细应各有一个“去掉”和一个“拆给别的厂区”');

@@ -47,6 +47,16 @@ button.wh-link.danger-text {
   color: var(--danger);
 }
 
+/* 送货编辑窗、安排送货窗的收货联系人、联系方式、收货地址：由所选厂区带出的只读文字，和旁边输入框一样高、不画框 */
+.wh-site-value {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  color: var(--ink);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
 /* 编辑窗明细表（.line-table）的补充：文字格与输入框对齐、数量带单位、合计行、没有删除列的表 */
 .line-table td.wh-cell-text {
   padding-top: var(--space-md);

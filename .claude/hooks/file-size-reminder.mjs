@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { relative, extname } from 'node:path';
 import { HOOK_ROOT, hookCwd, parsePatch, readStdinJson } from './hook-input.mjs';
-import { absolute } from './rules.mjs';
+import { absolute } from './paths.mjs';
 
 const SOFT = 300;
 const HARD = 500;

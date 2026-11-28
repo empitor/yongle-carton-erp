@@ -8,7 +8,8 @@ import { flowEntity, toScheduleEntries } from '../../shared/business/index.js';
 import { today } from '../../shared/core/index.js';
 import {
   batchPreviewSchema,
-  deliveryDateLabels,
+  docField,
+  docFieldKey,
   documentExportSchema,
   previewFileSchema,
   type BusinessForm,
@@ -70,7 +71,7 @@ export class BusinessDocuments {
     const result = templated(this.store, kind, rawForms[kind](this.store, id), templateId);
     if (options.shipping && kind === 'delivery' && result.record.status === 'draft')
       result.form.fields = result.form.fields.map(([label, value]) =>
-        label === deliveryDateLabels.planned ? [deliveryDateLabels.shipped, options.shipDate ?? today()] : [label, value],
+        label === docFieldKey('plannedDate') ? docField('shippedDate', options.shipDate ?? today()) : [label, value],
       );
     return result;
   }

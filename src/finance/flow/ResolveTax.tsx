@@ -3,27 +3,39 @@ import { Hint, Section, notify, useAction, FormField } from '../../ui/index';
 import { useFinPerms } from '../fin-api';
 import { resolveEventTax, type ResolveLine } from './tax-api';
 import { taxModeOptions } from '../fields';
-import { definiteTaxModes, financeTaxRateReady, legacyTaxMode } from '../../../shared/finance/index';
+import { definiteTaxModes, financeTaxRateReady, legacyTaxMode, UNSPECIFIED_TAX_MODE } from '../../../shared/finance/index';
+import { plainPrice, snapshotModeOriginal } from '../../../shared/core/index';
 import { readSourceDetail, type SourceLine, type SourceRow } from '../source-detail-view';
 import { unreadRateText } from '../SourceDetail';
 
 /** 已经填过的口径：旧写法“不含税”按“未税”算，认不出的（包括“未明确”）空着让人选 */
-function modeOf(mode: string | undefined) {
+function modeOf(mode: string) {
   if (mode === legacyTaxMode.written) return legacyTaxMode.means;
   return definiteTaxModes.find((m) => m === mode) ?? '';
 }
+/** 补税率表一行的预填：交给服务端的（line）、金额框里显示的、税率和口径格子下面的一句 */
+type ResolveStart = { line: ResolveLine; amount: string; rateHint: string; modeHint: string };
 /**
- * 补税率表里的一行：先填上补过的（financialLines）或单据明细上已有的。税率照补扫的认法、按从哪来（source）判断
- * （financeTaxRateReady：往来单位默认的照往来条款，0.5 就是 0.5%；单据抄来的照订单认法、只认半角）：认得出的照填（去掉末尾 %，
- * 框的单位是 %）；认不出的（没带 % 的 0.13、三位小数、13个点、老快照的全角）框里空着，hint 是写在格子下面的一句
- * （和单据明细的税率格同一个说法），让人对照原件填，不然人不改就点保存，“0.13”会照 0.13% 记下去。
+ * 补税率表里的一行：先填上补过的（financialLines）或单据明细上已有的。
+ * - 金额：交给服务端的照原来的精确金额（line.exact，七位小数）；框里显示去掉末尾多余的 0、至少两位小数（amount）。
+ *   人没改金额就照精确金额提交，补完一分不变。
+ * - 税率：照补扫的认法、按从哪来（source）判断（financeTaxRateReady：往来单位默认的照往来条款，0.5 就是 0.5%；
+ *   单据抄来的照订单认法、只认半角）：认得出的照填（去掉末尾 %，框的单位是 %）；认不出的框里空着，rateHint 写在格子下面
+ *   （和单据明细的税率格同一个说法），让人对照原件填，不然人不改就点保存，“0.13”会照 0.13% 记下去。
+ * - 口径：认得出的照填（旧写法“不含税”按“未税”）；认不出的（“口径：含税价”这类原话、升级前的别的写法）空着让人选，
+ *   modeHint 写出原来写的是什么（不带“口径：”前缀，snapshotModeOriginal）；没写和“未明确”本来就是没定，空着不写。
  */
-export function resolveLine(l: SourceLine, source: string | null | undefined): { line: ResolveLine; hint: string } {
-  const raw = (l.rate ?? l.taxRate ?? '').trim(),
-    ready = financeTaxRateReady(raw, source);
+export function resolveLine(l: SourceLine, source: string | null | undefined): ResolveStart {
+  const exact = l.exact ?? '',
+    raw = (l.rate ?? l.taxRate ?? '').trim(),
+    ready = financeTaxRateReady(raw, source),
+    rawMode = (l.mode ?? l.taxMode ?? '').trim(),
+    mode = modeOf(rawMode);
   return {
-    line: { exact: l.exact ?? '', rate: ready ? raw.replace(/%$/, '') : '', mode: modeOf(l.mode ?? l.taxMode) },
-    hint: ready || !raw ? '' : unreadRateText(raw),
+    line: { exact, rate: ready ? raw.replace(/%$/, '') : '', mode },
+    amount: exact ? plainPrice(exact, 2) : '',
+    rateHint: ready || !raw ? '' : unreadRateText(raw),
+    modeHint: mode || !rawMode || rawMode === UNSPECIFIED_TAX_MODE ? '' : unreadRateText(snapshotModeOriginal(rawMode)),
   };
 }
 
@@ -38,6 +50,8 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
       : (detail.doc?.lines ?? []).map((l) => resolveLine(l, 'line')),
   );
   const [lines, setLines] = useState(() => start.map((s) => s.line));
+  // 金额框里显示的字：没改时是精确金额去掉末尾 0 的样子，改了就是人填的（同时作为提交的金额）
+  const [amounts, setAmounts] = useState(() => start.map((s) => s.amount));
   const [evidence, setEvidence] = useState('');
   const action = useAction();
   const eventId = row.id;
@@ -83,8 +97,12 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
                     <input
                       aria-label={'第 ' + (i + 1) + ' 行金额'}
                       inputMode="decimal"
-                      value={l.exact}
-                      onChange={(e) => update({ exact: e.target.value })}
+                      value={amounts[i] ?? ''}
+                      onChange={(e) => {
+                        const typed = e.target.value;
+                        setAmounts((all) => all.map((x, j) => (j === i ? typed : x)));
+                        update({ exact: typed });
+                      }}
                     />
                   </td>
                   <td className="num fb-rate">
@@ -94,7 +112,7 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
                       value={l.rate}
                       onChange={(e) => update({ rate: e.target.value })}
                     />
-                    {start[i]?.hint && <small>{start[i].hint}</small>}
+                    {start[i]?.rateHint && <small>{start[i].rateHint}</small>}
                   </td>
                   <td className="fb-mode">
                     <select
@@ -109,6 +127,7 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
                         </option>
                       ))}
                     </select>
+                    {start[i]?.modeHint && <small>{start[i].modeHint}</small>}
                   </td>
                 </tr>
               );

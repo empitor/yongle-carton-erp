@@ -195,7 +195,7 @@ export default function TodayQueue() {
         <div>
           本月发货 <strong>¥{displayAmount(s.monthShippedAmount)}</strong>
         </div>
-        <a className={overdueCount ? 'is-warn' : ''} href={pageHref('orders', { view: 'pending', range: 'all' })}>
+        <a className={overdueCount ? 'is-warn' : ''} href={pageHref('orders', { range: 'all' })}>
           逾期未发货 <strong>{overdueCount}</strong>
         </a>
       </div>

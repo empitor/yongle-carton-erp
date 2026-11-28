@@ -1,7 +1,7 @@
 import { useId, useState, type SubmitEvent } from 'react';
 import { SUPPLIER_NAME_MAX, type Supplier } from '../../shared/business/index';
 import { FormField, FormMessage, FormSection, ManagementDialog, notify, useAction } from '../ui/index';
-import { ArchiveFooter, ContactSection } from './CustomerEditor';
+import { ArchiveFooter, ContactSection } from './party-fields';
 import { saveSupplier, type SavedSupplier } from './editor-api';
 
 /** 供应商表单：改的时候带着打开窗口时读到的版本号（保存靠它做版本校验） */

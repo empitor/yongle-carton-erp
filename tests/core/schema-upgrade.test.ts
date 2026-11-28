@@ -113,6 +113,45 @@ test('升级失败整体回滚：前面成功的步骤一起退回，版本、�
   }
 });
 
+test('升级后数据关联校验不过：报错写出共几处、前 5 处是哪张表第几行的哪一列指向哪张表，不带行里的内容；照样整体退回', () => {
+  const w = workspace('erp-schema-foreign-key-');
+  try {
+    baselineDatabase(w.path);
+    const db = new DatabaseSync(w.path);
+    try {
+      db.exec('PRAGMA foreign_keys=ON');
+      const records = rowsOf(db, 'schema_migrations');
+      const orphans: UpgradeStep = {
+        version: 22,
+        name: '虚构：写进 7 条没有父行的子行',
+        up: (handle) => {
+          const insert = handle.prepare("INSERT INTO fictional_children(id,parent_id,note) VALUES(?,?,'虚构孤儿的备注')");
+          for (let i = 1; i <= 7; i++) insert.run(10 + i, 400 + i);
+        },
+      };
+      const shown = [11, 12, 13, 14, 15].map((row) => `fictional_children 表第 ${row} 行的 parent_id 在 fictional_parents 表里找不到`);
+      assert.throws(
+        () => upgradeSchema(db, { appVersion: 'test-9.9.9', steps: [fictionalSteps[0], orphans] }),
+        (error: Error) => {
+          assert.ok(error instanceof SchemaError);
+          assert.equal(
+            error.message,
+            '数据库从第 20 版升级到第 22 版失败，已整体退回，数据没有改动：升级后数据关联校验失败，共 7 处，前 5 处：' + shown.join('；'),
+          );
+          assert.doesNotMatch(error.message, /虚构孤儿的备注|fictional_children 表第 16 行/);
+          return true;
+        },
+      );
+      assert.deepEqual(rowsOf(db, 'schema_migrations'), records);
+      assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE name='fictional_children'").get()?.n, 0);
+    } finally {
+      db.close();
+    }
+  } finally {
+    w.close();
+  }
+});
+
 test('打开旧一些的库：先拍升级前快照（含 WAL 里已提交的内容、版本是升级前的），再升级；升级失败时库不变、快照留着', () => {
   const w = workspace('erp-schema-open-');
   try {

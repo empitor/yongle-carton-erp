@@ -122,9 +122,11 @@ function itemRoutes({ router, on, service, imports, actor, id }: InboxRoutes) {
     if (!imports) throw new AppError('AI 导入服务未启用。', 503);
     return service.toImport(id(param('id')), body, who, imports);
   });
-  on('POST /inbox/:id/status', ({ param, body, req }) =>
-    service.setStatus(id(param('id')), inboxStatusSchema.parse(body), actor(req)),
-  );
+  // 先查权限再看正文：没权限的不管正文写成什么都回没权限
+  on('POST /inbox/:id/status', ({ param, body, req }) => {
+    const who = actor(req);
+    return service.setStatus(id(param('id')), inboxStatusSchema.parse(body), who);
+  });
 }
 
 export function inboxRouter(

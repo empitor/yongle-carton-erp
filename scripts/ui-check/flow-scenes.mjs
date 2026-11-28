@@ -4,6 +4,7 @@
 // - 压款利息“已算到哪天、这次几天”：给一个客户设利息，记一笔已到期的手工应收，确认一次早于今天的利息
 // - 结账检查里“启用前单据的变动”：把种子里上个月的那张送货单冲销
 // - 派生凭证的撤回、红字冲销：保证金、票据、资产处置、坏账、费用报销各打开一次（没记账的撤回到底）
+// - 入过账的送货单被删、被更正：业务单据里同一张单据的几条挨着，被替代的说明和按钮；其他支出详情的科目名
 // 种子是虚构数据；脚本只走公开接口（财务的服务不对脚本开放）。
 import { call as callOn, checkConsole, fail, go, login, openChrome } from './lib.mjs';
 import { financeKit, period, shotsDir as out, today } from './finance-kit.mjs';
@@ -306,6 +307,81 @@ const withdrawWith = async (label) => {
     const left = Number((await blocked())?.count ?? 0);
     if (left !== stuck - 2) fail('两张单据已删都处理了，结账检查拦着的应少 2 张：' + stuck + ' → ' + left);
   }
+}
+
+// 7 入过账的送货单被更正（少送 1 只）：原单那条“有差异”，说明写“单据已被更正替代…”，按钮只有“红字冲销”、不说重做
+//   （server/finance/events/event-evaluate.ts 的 differenceProblem 先认被替代）
+{
+  const events = (await fin('GET', '/events?pageSize=200')).rows || [];
+  const deliveries = (await call('GET', '/flow?kind=delivery')) || [];
+  const target = events
+    .filter((e) => e.source_kind === 'delivery' && e.voucher_id && e.status === 'generated')
+    .map((e) => ({ e, d: deliveries.find((d) => String(d.id) === String(e.source_id)) }))
+    .find(({ d }) => d && d.status === 'confirmed' && !d.replacedBy && Number(d.lines[0]?.quantity) >= 2);
+  if (!target) fail('没有入过账、能更正的送货单，被替代单据的说明这一段没测');
+  else {
+    const { d } = target;
+    const lines = d.lines.map((l, index) => ({ index, quantity: String(index ? l.quantity : Number(l.quantity) - 1) }));
+    const body = { expectedVersion: d.version, reason: '虚构：少送 1 只', lines };
+    const preview = await call('POST', '/flow/' + d.id + '/correction-preview', body);
+    const done = preview.error ? preview : await call('POST', '/flow/' + d.id + '/correct', { ...body, requestId: crypto.randomUUID(), previewDigest: preview.previewDigest });
+    if (done.error) fail('更正送货单 ' + d.number + ' 失败：' + done.error);
+    await sync();
+    await go(page, '#finance-ledger?tab=events');
+    await page.getByLabel('单据状态').selectOption('difference');
+    await page.locator('.fin-table tbody tr.record-row', { hasText: d.number }).first().click();
+    const panel = page.locator('.detail-panel');
+    await panel.waitFor();
+    await panel.getByText('单据已被更正替代').first().waitFor({ timeout: 5000 }).catch(() => {});
+    const text = await panel.innerText();
+    const redo = await panel.getByRole('button', { name: '红字冲销并重做' }).count(),
+      plain = await panel.getByRole('button', { name: '红字冲销', exact: true }).count();
+    await shot('superseded-source-panel');
+    if (!text.includes('单据已被更正替代')) fail('被更正替代的送货单说明没写“单据已被更正替代”：' + text.replace(/\s+/g, ' ').slice(0, 200));
+    else if (redo || !plain) fail('被更正替代的送货单按钮应只有“红字冲销”，不说重做');
+    else log('被更正替代的送货单：说明写“单据已被更正替代”，按钮是“红字冲销” ok');
+    // 点“红字冲销”办完，再看业务单据列表（全部）：同一个单号的几条挨着排，中间不夹别的单据
+    // （server/finance/events/event-views.ts 的 list 按单据分组排序）
+    if (plain) {
+      await panel.getByRole('button', { name: '红字冲销', exact: true }).click();
+      await dlg().locator('textarea').first().fill('虚构：送货单更正了，原凭证冲掉');
+      await dlg().getByRole('button', { name: '确认红字冲销', exact: true }).click();
+      await dlg().waitFor({ state: 'detached', timeout: 8000 });
+      await postAll();
+    }
+    await go(page, '#finance-ledger?tab=events');
+    await page.getByLabel('单据状态').selectOption('');
+    await page.locator('.fin-table tbody tr.record-row').first().waitFor();
+    const rows = await page.locator('.fin-table tbody tr.record-row').allInnerTexts();
+    const numberOf = (text) => text.match(/[A-Z]{2,}-\d{8}-\d+/)?.[0];
+    const places = new Map();
+    rows.forEach((t, i) => numberOf(t) && places.set(numberOf(t), [...(places.get(numberOf(t)) || []), i]));
+    const multi = [...places].filter(([, at]) => at.length > 1);
+    const apart = multi.filter(([, at]) => at.at(-1) - at[0] !== at.length - 1);
+    await shot('events-grouped');
+    if (!places.get(d.number) || places.get(d.number).length < 2) fail('红字冲销后业务单据里 ' + d.number + ' 应不止一条：' + (places.get(d.number)?.length ?? 0));
+    else if (apart.length) fail('同一张单据的几条在业务单据里没挨着：' + apart.map(([n, at]) => n + ' 在第 ' + at.map((i) => i + 1).join('、') + ' 行').join('；'));
+    else log('业务单据里同一张单据的几条挨着（' + multi.map(([n, at]) => n + ' ' + at.length + ' 条').join('、') + '） ok');
+  }
+}
+
+// 8 其他支出（水电费）：资金单详情“对方科目”写“编码 名称”，不只写编码（src/finance/cash/CashPanel.tsx）
+{
+  const account = ((await fin('GET', '/cash/accounts?pageSize=50')).rows || [])[0];
+  const doc = await must('建其他支出', fin('PUT', '/cash/documents', { kind: 'outlay', date: today, method: '银行', accountId: Number(account.id), amount: 4321, counterAccount: '560202', cashFlow: '支付其他经营活动现金', description: '虚构水电费' }));
+  const accounts = await fin('GET', '/accounts');
+  const subject = (Array.isArray(accounts) ? accounts : []).find((a) => a.code === '560202')?.name;
+  await go(page, '#finance-cash?tab=documents');
+  await page.locator('.fin-table tbody tr.record-row', { hasText: '虚构水电费' }).first().click();
+  const panel = page.locator('.detail-panel');
+  await panel.getByText('对方科目').first().waitFor();
+  // 科目名要等科目表（GET /finance/accounts）读回来才换上，先等它出现（最多 8 秒），到点还没有再判
+  if (subject) await panel.getByText('560202 ' + subject).first().waitFor({ timeout: 8000 }).catch(() => {});
+  const text = await panel.innerText();
+  await shot('outlay-panel');
+  if (!doc?.id || !subject) fail('没建成其他支出或读不到 560202 的科目名');
+  else if (!text.includes('560202 ' + subject)) fail('其他支出详情的对方科目没写科目名：' + text.replace(/\s+/g, ' ').slice(0, 200));
+  else log('其他支出详情对方科目写“560202 ' + subject + '” ok');
 }
 
 checkConsole(consoleErrors);

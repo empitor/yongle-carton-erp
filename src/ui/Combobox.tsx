@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { shouldOpenUpward } from './combobox-placement';
 
 export type ComboOption = { value: string; label: string; hint?: string; keywords?: string };
 
@@ -22,8 +23,14 @@ export default function Combobox({
 }) {
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState(''),
-    [active, setActive] = useState(0);
+    [active, setActive] = useState(0),
+    [upward, setUpward] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  // 打开时量一次往哪边开：靠近窗口底边、下面放不下就往上开，不被正文截掉、被底栏盖住
+  const openList = () => {
+    if (!open && input.current) setUpward(shouldOpenUpward(input.current));
+    setOpen(true);
+  };
   const selected = options.find((o) => o.value === String(value));
   const { matches, hidden } = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -55,19 +62,19 @@ export default function Combobox({
         placeholder={selected ? selected.label : placeholder}
         value={open ? query : selected?.label || ''}
         onFocus={() => {
-          setOpen(true);
+          openList();
           setActive(0);
         }}
         onBlur={() => setOpen(false)}
         onChange={(e) => {
           setQuery(e.target.value);
-          setOpen(true);
+          openList();
           setActive(0);
         }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setOpen(true);
+            openList();
             setActive((i) => Math.min(i + 1, matches.length - 1));
           } else if (e.key === 'ArrowUp') {
             e.preventDefault();
@@ -83,7 +90,7 @@ export default function Combobox({
         }}
       />
       {open && (
-        <ul className="combobox-list" role="listbox" aria-label={ariaLabel}>
+        <ul className={'combobox-list' + (upward ? ' upward' : '')} role="listbox" aria-label={ariaLabel}>
           {matches.map((option, index) => (
             <li
               key={option.value}

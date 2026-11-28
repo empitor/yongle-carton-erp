@@ -1,14 +1,18 @@
-// 三家共用的 PreToolUse 挡板。认不出的输入或钩子自身出错时放行。拦什么、为什么写在 rules.mjs，被拦时的提示里有原因和改法。
+// 三家共用的 PreToolUse 挡板。认不出的输入或钩子自身出错时放行。拦什么、为什么写在 rules.mjs 和 data-commands.mjs，
+// 被拦时的提示里有原因和改法。
 //
 // 三家怎么接（工具执行前都调本文件，取参数的写法在 hook-input.mjs）：
 // - Claude Code：.claude/settings.json，新会话生效。Bash、PowerShell 取 tool_input.command；Read、Edit、Write、MultiEdit、
-//   NotebookEdit、Glob、Grep 取 tool_input 的 file_path、notebook_path、path（Glob 还查 pattern 第一个通配符前的路径）；
+//   NotebookEdit、Glob、Grep 取 tool_input 的 file_path、notebook_path、path（Glob 还查 pattern 第一个通配符前的路径，
+//   以及通配写法列不列得出 data、backups 里的文件名）；
 //   WebFetch 取 url；内置浏览器（含远程设备上的）的 navigate、preview_start、browser_batch、javascript_tool 和 Chrome 扩展的
-//   navigate、browser_batch、javascript_tool 取参数里的全部字符串（批量动作里每一步的网址、执行的脚本），只查连没连正式实例。
+//   navigate、browser_batch、javascript_tool 取参数里的字符串（批量动作里每一步的网址、执行的脚本；找元素的 query 不算），
+//   只查连没连正式实例。
 // - Codex：.codex/hooks.json，项目要受信任，钩子首次使用或定义改动后由用户用 /hooks 信任。终端按 Bash 上报（本机跑 PowerShell），
 //   取 tool_input.command；apply_patch 从同一字段的补丁头查 Add File、Update File、Delete File、Move to 的路径。
 // - Antigravity：.agents/hooks.json（matcher 为 *），新会话生效。run_command 取 toolCall.args.CommandLine，另查 Cwd；别的工具查参数名以
-//   Path 结尾的值和 Cwd（大小写不限），工具名含 write、edit、replace、delete、move、create 的算写入；参数名以 Url 结尾的按地址查；
+//   Path 结尾的值和 Cwd、TargetFile、SearchDirectory（大小写不限；参数名没有实测样本），工具名含 write、edit、replace、delete、
+//   move、create 的算写入；参数名以 Url 结尾的按地址查；
 //   run_workflow 还按命令文字查 Script。
 // 回答：Claude Code 和 Codex 回 hookSpecificOutput.permissionDecision（deny / ask），Antigravity 回顶层 decision。
 // Codex 不支持钩子回 ask（等于没拦），用 Codex 时连正式实例、启停服务器正式服务这类自己守。允许的和认不出的都不输出。
@@ -21,8 +25,9 @@
 // 写完文件后的提醒另在 file-size-reminder.mjs（Antigravity 的 PostToolUse 回不了文字，接不了）。
 import { realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { globReason } from './data-commands.mjs';
 import { HOOK_ROOT, projectRoots, readStdinJson, readToolCall } from './hook-input.mjs';
-import { commandWrites } from './shell-words.mjs';
+import { longPath, normRoot } from './paths.mjs';
 import {
   askReason,
   checkCommand,
@@ -30,10 +35,9 @@ import {
   checkPath,
   commandAskReason,
   lockedReason,
-  longPath,
-  normRoot,
   officialInstanceReason,
 } from './rules.mjs';
+import { commandWrites } from './shell-words.mjs';
 
 const first = (items, check) => items.map(check).find(Boolean) || '';
 
@@ -46,6 +50,7 @@ export function judge(call, roots) {
   const writes = [...call.writes, ...commandWrites(call.command)];
   const denied = checkCommand(call.command, normRoots, call.cwd)
     || first(call.paths, (path) => checkPath(path, normRoots, call.cwd))
+    || first(call.globs ?? [], ({ base, pattern }) => globReason(base, pattern, normRoots, call.cwd))
     || first(writes, (path) => lockedReason(path, normRoots, call.cwd));
   if (denied) return { decision: 'deny', reason: denied };
   const ask = first([call.command, ...call.urls], officialInstanceReason)
