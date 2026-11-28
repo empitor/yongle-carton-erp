@@ -50,5 +50,6 @@
 | 改外壳（安卓、Windows）和网页之间的接点 | `docs/架构/外壳和网页.md`；外壳自己的见 `apps/android/docs/`、`apps/desktop/docs/` |
 | 收尾 | 改完跑 `npm run check` → 改了业务代码（server/、shared/、src/）的派审查员 `.claude/agents/erp-rules-reviewer.md` 审 → 修完重跑 → `.claude/agents/docs-updater.md` 更新文档 → 收尾汇报；只改文档、测试、脚本的不派审查员。Codex、Antigravity 照这两份定义派 |
 | 看还剩什么没做 | `docs/计划/路线图.md`、`docs/计划/技术债.md`、`docs/计划/已知问题.md`、`docs/计划/小改进.md` |
+| 做模块修复 | `docs/计划/模块修复.md`、`docs/计划/模块终态图.md` |
 
 技能在 `.claude/skills/<名字>/SKILL.md`：Claude Code 自动发现，Antigravity 经 `.agents/skills.json`，Codex 照上表路径读。通用技能在用户目录：Claude Code、Antigravity 读 `~/.claude/skills/<名字>/SKILL.md`，Codex 读 `~/.agents/skills/<名字>/SKILL.md`；项目写得更具体的以项目为准。三家怎么接钩子见 `.claude/hooks/protect-real-data.mjs` 开头。
