@@ -106,4 +106,3 @@ export default function AiSettingsHub({ actor }: { actor: NonNullable<AuthState[
     </div>
   );
 }
-
