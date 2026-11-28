@@ -3,6 +3,7 @@
 import { sales } from '../../server/sales/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,6 +56,7 @@ async function served(file = ':memory:') {
       ],
       costs: null,
       totalCents: 1,
+      requestId: randomUUID(),
     });
     return { c, p, o };
   };
@@ -111,7 +113,7 @@ test('拒绝负数、小数数量、不存在的客户、无效日期及交期�
       { lines: [] },
       { costs: { material: 0, processing: 0, waste: 0, other: 0, basis: '' } },
     ])
-      assert.equal((await h.request('/orders', { ...o, ...bad })).status, 400, JSON.stringify(bad));
+      assert.equal((await h.request('/orders', { ...o, ...bad, requestId: randomUUID() })).status, 400, JSON.stringify(bad));
     assert.equal(sales(h.store).orders().length, 1);
   } finally {
     await h.close();
@@ -174,8 +176,8 @@ test('首页成本和毛利用同一批订单；待确认和已取消的不算�
     const costed = await h.json(orderView, '/orders/' + o.id, { ...o, costs: h.costs }, 'PUT');
     const d = await h.json(dashboardView, '/dashboard');
     assert.deepEqual([d.amountCents, d.estimatedCostCents, d.estimatedProfitCents, d.deliveredCents], [571, 180, 391, 0]);
-    await h.request('/orders', { ...costed, status: '待确认' });
-    await h.request('/orders', { ...costed, status: '已取消' });
+    await h.request('/orders', { ...costed, status: '待确认', requestId: randomUUID() });
+    await h.request('/orders', { ...costed, status: '已取消', requestId: randomUUID() });
     const next = await h.json(dashboardView, '/dashboard');
     assert.deepEqual([next.count, next.amountCents], [1, 571]);
   } finally {

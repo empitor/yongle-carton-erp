@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { useBackLayer } from './back-layers';
+import { hidePopup, placePopup, screenView } from './popup-position';
 
 /**
  * 次要操作收进“更多”。点击菜单项或菜单外、按 Esc、页面滚动时关闭。
@@ -43,49 +44,15 @@ export default function MoreMenu({
       }
     };
     const list = details.querySelector<HTMLElement>('.more-menu-list');
-    // 菜单放进浏览器顶层（popover）：祖先元素的 transform、filter、backdrop-filter 会让 fixed 改按祖先定位，
-    // overflow 会把菜单裁掉，放到顶层后这些都影响不到它。菜单仍在 details 里，点外面关闭、Tab 顺序照旧。
-    const topLayer = !!list && typeof list.showPopover === 'function';
-    if (list && topLayer) list.setAttribute('popover', 'manual');
-    const shown = () => !!list && topLayer && list.matches(':popover-open');
+    // 菜单放进浏览器顶层、按按钮在屏幕上的位置摆（src/ui/popup-position.ts，和可搜索下拉同一套）。
+    // 菜单仍在 details 里，点外面关闭、Tab 顺序照旧。
+    // 一挂上就标成顶层元素：没打开时不占位，打开的那一下不会先在原地排一遍、把按钮挤开
+    if (list && typeof list.showPopover === 'function') list.setAttribute('popover', 'manual');
     const place = () => {
       const summary = details.querySelector('summary');
       if (!list || !summary) return;
-      if (!details.open) {
-        if (shown()) list.hidePopover();
-        list.style.cssText = '';
-        return;
-      }
-      if (topLayer && !shown()) list.showPopover();
-      const r = summary.getBoundingClientRect(),
-        gap = 4,
-        edge = 8,
-        width = window.innerWidth,
-        screen = window.innerHeight;
-      list.style.position = 'fixed';
-      list.style.right = 'auto';
-      list.style.bottom = 'auto';
-      list.style.maxHeight = '';
-      list.style.overflowY = 'auto';
-      const natural = list.offsetHeight,
-        below = screen - r.bottom - gap - edge,
-        above = r.top - gap - edge;
-      // 下面放不下、上面更宽敞就往上开；还放不下就限高、菜单里滚动
-      const up = natural > below && above > below;
-      list.style.maxHeight = Math.max(below, above) + 'px';
-      const height = list.offsetHeight,
-        menuWidth = list.offsetWidth;
-      // 和按钮右边对齐；伸出屏幕左边时改成从按钮左边起，两边都不出界
-      let left = r.right - menuWidth;
-      if (left < edge) left = r.left;
-      left = Math.max(edge, Math.min(left, width - menuWidth - edge));
-      const top = Math.max(edge, Math.min(up ? r.top - gap - height : r.bottom + gap, screen - height - edge));
-      list.style.left = left + 'px';
-      list.style.top = top + 'px';
-      // 不支持顶层的浏览器：祖先让 fixed 改了定位基准时，按实际偏出去的距离拉回来
-      const actual = list.getBoundingClientRect();
-      if (Math.abs(actual.left - left) > 0.5) list.style.left = left - (actual.left - left) + 'px';
-      if (Math.abs(actual.top - top) > 0.5) list.style.top = top - (actual.top - top) + 'px';
+      if (details.open) placePopup(list, summary, { align: 'end', view: screenView() });
+      else hidePopup(list);
     };
     const onToggle = () => {
       setOpen(details.open);
@@ -107,7 +74,7 @@ export default function MoreMenu({
       document.removeEventListener('keydown', key, true);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', close);
-      if (list && shown()) list.hidePopover();
+      if (list) hidePopup(list);
     };
   }, []);
   return (

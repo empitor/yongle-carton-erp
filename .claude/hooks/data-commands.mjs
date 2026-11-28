@@ -5,7 +5,8 @@ import { existsSync } from 'node:fs';
 import {
   DATA_DIRS, DATA_RULE, absolute, dataReason, norm, normRoot, pathForms, protectedDataDir, resolveArg, segmentMatches, sweepsData,
 } from './paths.mjs';
-import { commandSegments, commandSteps, programOf, shellTokens, unquote } from './shell-words.mjs';
+import { commandSteps, programOf, shellTokens, unquote, writableText } from './shell-words.mjs';
+import { expandText, unresolved, variableValues } from './variables.mjs';
 
 /** 删、复制、搬、改名、打包、列目录、读文件的程序：后面裸写的 data、backups 也按当前目录解析 */
 const DIR_PROGRAMS = new Set([
@@ -41,19 +42,23 @@ const OPTION_WORD = /^-|^\/[a-z]+(?::\S*)?$/i;
 function stepsWithDirs(cased, cwd) {
   let here = cwd;
   let entered = true;
+  let unknownDir = false;
   return commandSteps(cased).map(({ words, before }) => {
     const keep = before === '&&' || (/^[;\n]+$/.test(before) && entered);
     if (!keep) {
       here = cwd;
       entered = true;
+      unknownDir = false;
     }
     const lower = words.map((word) => word.toLowerCase());
-    const step = { words: lower, cased: words, cwd: here };
+    const step = { words: lower, cased: words, cwd: here, before, unknownDir };
     const { name, rest } = programOf(lower);
     const target = CD.has(name) ? rest.find((word) => word === '-' || !word.startsWith('-')) : undefined;
     if (POP.has(name) || (target !== undefined && unknownTarget(target))) {
+      // 回到哪里认不出：按原目录判（R5-1），另记下“当前目录认不出”，后面删、搬相对路径的要拦
       here = cwd;
       entered = true;
+      unknownDir = target !== undefined && target !== '-';
     } else if (target) {
       here = resolveArg(here, target);
       entered = existsSync(here);
@@ -238,19 +243,34 @@ function findStarts(rest) {
 const sweeping = (words, roots, cwd) =>
   words.some((word) => pathForms(resolveArg(cwd, word)).some((abs) => sweepsData(abs, roots) || protectedDataDir(abs, roots)));
 
-/** 管道里前头列文件、后头删（Get-ChildItem -Recurse | Remove-Item、ls | xargs rm）：列的起点盖住 data、backups 就拦 */
-function pipelineSweeps(text, roots, cwd) {
-  for (const statement of text.split(/;|&&|\|\||\r?\n/)) {
-    const [head, ...tail] = statement.split('|');
-    const deletes = tail.some((stage) => commandSegments(stage).some((words) => SWEEP_DELETE.has(programOf(words).name)));
-    const lister = commandSegments(head ?? '')[0];
-    const { name, rest } = programOf(lister ?? []);
-    if (!deletes || !LISTERS.has(name)) continue;
-    const starts = name === 'find' || name === 'fd' ? findStarts(rest) : argumentsOf(rest);
-    if (sweeping(starts.length ? starts : ['.'], roots, cwd)) return true;
+/**
+ * 命令里的管道：按真正的 | 分隔符（拆段时认出来的，引号里的 | 不算）把段连成一串；ForEach-Object { … } 花括号里的段
+ * 算在这串管道里。只有一段的不算管道。
+ */
+function pipelines(steps) {
+  const out = [];
+  for (const step of steps) {
+    const current = out.at(-1);
+    const piped = step.before === '|' || (current?.length > 1 && /^[{}()]+$/.test(step.before));
+    if (piped && current) current.push(step);
+    else out.push([step]);
   }
-  return false;
+  return out.filter((line) => line.length > 1);
 }
+
+/** 管道后头有删除程序的，前头那段的程序名和起点 */
+function deletingPipelines(steps, deleters) {
+  return pipelines(steps).flatMap(([head, ...tail]) => {
+    if (!tail.some((step) => deleters.has(programOf(step.words).name))) return [];
+    const { name, rest } = programOf(head.words);
+    const starts = name === 'find' || name === 'fd' ? findStarts(rest) : argumentsOf(rest);
+    return [{ name, starts: starts.length ? starts : ['.'], cwd: head.cwd }];
+  });
+}
+
+/** 管道里前头列文件、后头删（Get-ChildItem -Recurse | Remove-Item、ls | xargs rm）：列的起点盖住 data、backups 就拦 */
+const pipelineSweeps = (steps, roots) =>
+  deletingPipelines(steps, SWEEP_DELETE).some(({ name, starts, cwd }) => LISTERS.has(name) && sweeping(starts, roots, cwd));
 
 /** 一条命令会不会连带整个 data、backups 一起删、搬、复制：拦下的理由，不会返回空串 */
 function sweepReason(text, steps, roots, cwd) {
@@ -271,22 +291,79 @@ function sweepReason(text, steps, roots, cwd) {
     const sources = SWEEP_COPY.has(program.name) && !destination && args.length > 1 ? args.slice(0, -1) : args;
     if (sources.some((word) => pathForms(resolveArg(step.cwd, word)).some((abs) => sweepsData(abs, roots)))) return SWEEP_REASON;
   }
-  return pipelineSweeps(text, roots, cwd) ? SWEEP_REASON : '';
+  return pipelineSweeps(steps, roots) ? SWEEP_REASON : '';
 }
 
 /** 命令行碰到真实数据目录：拦下的理由，不碰返回空串 */
-export function dataCommandReason(command, roots, cwd) {
-  // shell 的花括号展开（rm -rf {data,tmp}）先展开成几个词，花括号在拆段时会被当成分隔
-  const braces = (text) => text.replace(/([^\s{}]*)\{([^{}\s]*,[^{}\s]*)\}([^\s{}]*)/g, (_, head, list, tail) =>
-    list.split(',').map((item) => head + item + tail).join(' '));
-  // $(pwd)、$(Get-Location)、${PWD}、${HOME} 换成 $PWD、$HOME：括号在拆段时会被当成分隔
-  const pwd = (text) =>
-    text.replace(/\$\((?:pwd|get-location)\)/gi, '$$PWD').replace(/\$\{(pwd|home)\}/gi, (_, name) => '$' + name);
-  const text = pwd(norm(command));
-  const steps = stepsWithDirs(braces(pwd(norm(command, true))), cwd);
+// shell 的花括号展开（rm -rf {data,tmp}）先展开成几个词，花括号在拆段时会被当成分隔
+const braces = (text) => text.replace(/([^\s{}]*)\{([^{}\s]*,[^{}\s]*)\}([^\s{}]*)/g, (_, head, list, tail) =>
+  list.split(',').map((item) => head + item + tail).join(' '));
+// $(pwd)、$(Get-Location)、${PWD}、${HOME} 换成 $PWD、$HOME：括号在拆段时会被当成分隔
+const pwd = (text) =>
+  text.replace(/\$\((?:pwd|get-location)\)/gi, '$$PWD').replace(/\$\{(pwd|home)\}/gi, (_, name) => '$' + name);
+
+/** 一份命令文字（norm 过的小写和不转小写的两份）按点名、连带整个目录的规矩判 */
+function knownReason(text, cased, roots, cwd) {
+  const steps = stepsWithDirs(braces(cased), cwd);
   const dir = dataDirIn(text, steps, roots, cwd);
   if (dir) return dataReason(dir);
   return sweepReason(braces(text), steps, roots, cwd);
+}
+
+/** 删除、搬走的程序：目标认不出（变量没赋值、命令替换、子表达式）就拦 */
+const DELETE_MOVE = new Set([
+  'rm', 'rmdir', 'rd', 'del', 'erase', 'remove-item', 'ri', 'rimraf', 'del-cli', 'trash', 'unlink', 'shred',
+  'mv', 'move', 'move-item', 'mi', 'ren', 'rename', 'rename-item', 'rni',
+]);
+const UNKNOWN_REASON =
+  '删除、搬走的目标认不出（变量不是在同一条命令里赋的值、命令替换或子表达式算出来的路径、cd 到认不出的目录后的相对路径），' +
+  '挡板判断不了会不会碰到真实数据（AGENTS.md“碰不得的”）。写成字面路径，或在同一条命令里先赋值再用' +
+  '（如 T="$(mktemp -d)"; …; rm -rf "$T"，$t = Join-Path $env:TEMP x; Remove-Item -Recurse $t）。';
+/** 管道里交过来的那一项（ForEach-Object { Remove-Item $_ }）：按管道前头列文件的那段判 */
+const PIPED_ITEM = /^\$(?:_|psitem)(?:$|\.)/;
+
+/** 删除、搬走的目标（展开过变量的命令）里有认不出的：拦下的理由 */
+function unknownTargetReason(steps, text) {
+  for (const [i, step] of steps.entries()) {
+    const program = programOf(step.words);
+    const gitTargets = program.name === 'git' && ['rm', 'mv', 'clean'].includes(program.sub);
+    const finds = program.name === 'find' && /\s-delete\b|\s-(?:exec|execdir|ok)\s+(?:\S*\/)?(?:rm|rmdir|unlink|shred|mv)\b/.test(text);
+    if (!DELETE_MOVE.has(program.name) && !gitTargets && !finds) continue;
+    const args = finds ? findStarts(program.rest) : argumentsOf(gitTargets ? program.subArgs : program.rest);
+    const targets = args.filter((word) => !PIPED_ITEM.test(word));
+    if (targets.some(unresolved)) return UNKNOWN_REASON;
+    if (step.unknownDir && targets.some((word) => !/^(?:[a-z]:\/|\/|~)/.test(word))) return UNKNOWN_REASON;
+    // 删除程序后面没写路径：管道交过来的看前头；括号里算出来的（Remove-Item (…)）只认父目录写死的 Join-Path
+    const next = steps[i + 1];
+    const computed = !args.length && !gitTargets && next && next.before.endsWith('(');
+    if (computed && (programOf(next.words).name !== 'join-path' || next.words.some(unresolved))) return UNKNOWN_REASON;
+  }
+  // 管道后头删、前头不是列文件的程序，或者列文件的起点认不出
+  const piped = deletingPipelines(steps, DELETE_MOVE).some(({ name, starts }) => !LISTERS.has(name) || starts.some(unresolved));
+  return piped ? UNKNOWN_REASON : '';
+}
+
+/**
+ * 命令行碰到真实数据目录：拦下的理由，不碰返回空串。同一条命令里赋的变量、认得的环境变量先展开
+ * （几个值就判几份，原样的也判），展开完删除、搬走的目标还认不出的也拦。
+ */
+export function dataCommandReason(command, roots, cwd) {
+  const text = pwd(norm(command));
+  const cased = pwd(norm(command, true));
+  const values = variableValues(text, cwd, cased);
+  const lowers = [text, ...expandText(text, values).map((variant) => variant.toLowerCase()).filter((variant) => variant !== text)];
+  const caseds = [cased, ...expandText(cased, values).filter((variant) => variant !== cased)];
+  for (const [k, lower] of lowers.entries()) {
+    const reason = knownReason(lower, caseds[k] ?? lower, roots, cwd);
+    if (reason) return reason;
+  }
+  // 认删除目标只看真正会跑的：写进文件的 heredoc、here-string 正文（写笔记、写脚本时常提到 rm "$x"）不算
+  const runnable = writableText(command);
+  const runText = pwd(norm(runnable));
+  const runCased = pwd(norm(runnable, true));
+  const runValues = variableValues(runText, cwd, runCased);
+  const runLower = expandText(runText, runValues).at(-1).toLowerCase();
+  return unknownTargetReason(stepsWithDirs(braces(expandText(runCased, runValues).at(-1)), cwd), braces(runLower));
 }
 
 /**

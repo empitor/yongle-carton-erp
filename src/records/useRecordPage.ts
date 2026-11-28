@@ -51,10 +51,10 @@ export function useRecordPage({
 }
 
 /**
- * 读这一页的列表：key 变了（筛选、范围、业务版本）就重读；读的时候留着上一份（统计数不闪），没读到前用 initial。
- * 重读时不显示上一次的出错原因。
+ * 读这一页的列表：key 变了（筛选、范围）就换一份重读；refresh（业务版本）变了是同一份再读一次。
+ * 读的时候留着上一份（统计数不闪），没读到前用 initial。换了一份重读时不显示上一次的出错原因。
  */
-export function useRecordData<T>(key: string, load: () => Promise<T>, initial: T) {
-  const { data, error, loading } = useLoad(key, load);
+export function useRecordData<T>(key: string, load: () => Promise<T>, initial: T, refresh?: unknown) {
+  const { data, error, loading } = useLoad(key, load, refresh);
   return { data: data ?? initial, error: loading ? '' : error, busy: loading };
 }

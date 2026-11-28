@@ -29,16 +29,16 @@ export const pendingCompletionVersions = (store: Store) =>
 const arrivalHead = rows.flow_documents.pick({ id: true, number: true, status: true });
 const idRow = rows.flow_documents.pick({ id: true });
 
-const pendingDelivery = rows.flow_documents.pick({ id: true, number: true }).extend({ site_id: z.number() });
+const pendingDelivery = rows.flow_documents.pick({ id: true, number: true }).extend({ site_id: z.number().nullable() });
 /**
- * 挂在这些厂区上的待送货单（包含已归档的，只要还能恢复为待送货就算），按编号排：
- * 去掉厂区前拦（订单服务）、改厂区资料时跟着换（site-edits.ts）都按这一份。
+ * 这个客户的待送货单（包含已归档的，只要还能恢复为待送货就算）和挂的厂区（没挂是 null），按编号排：
+ * 去掉厂区前拦（订单服务按厂区筛）、改客户名称和厂区资料时跟着换（site-edits.ts）都按这一份。
  */
-export function pendingDeliveriesBySite(store: Store, siteIds: readonly number[]) {
+export function pendingDeliveriesOfCustomer(store: Store, customerId: number) {
   return many(
     store.db, pendingDelivery,
-    "SELECT id,number,json_extract(document,'$.siteId') AS site_id FROM flow_documents WHERE kind='delivery' AND status=? AND json_extract(document,'$.siteId') IN (SELECT value FROM json_each(?)) ORDER BY id",
-    flowStatus.draft, JSON.stringify(siteIds),
+    "SELECT id,number,json_extract(document,'$.siteId') AS site_id FROM flow_documents WHERE kind='delivery' AND status=? AND json_extract(document,'$.customerId')=? ORDER BY id",
+    flowStatus.draft, customerId,
   ).map((d) => ({ id: d.id, number: d.number, siteId: d.site_id }));
 }
 

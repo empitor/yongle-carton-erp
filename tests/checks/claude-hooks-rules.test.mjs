@@ -250,7 +250,8 @@ test('连真实模型的脚本不论斜杠怎么写都先问，连假模型、�
   ];
   assert.deepEqual(decisions(real), all(real, 'ask'));
   assert.deepEqual(decisions(real, (CommandLine) => agy('run_command', { CommandLine })), all(real, 'ask'));
-  const fake = ['node scripts/ui-check/real-suite.mjs --list', 'node scripts/ui-check/real-smoke.mjs --port 3201'];
+  // 正斜杠的完整写法在审批清单里（Claude Code 本来就问），这里用清单外的写法看挡板自己的规则不问
+  const fake = ['node .\\scripts\\ui-check\\real-suite.mjs --list', 'node scripts\\ui-check\\real-smoke.mjs --port 3201'];
   assert.deepEqual(decisions(fake), all(fake, 'allow'));
 });
 

@@ -91,7 +91,7 @@ type OrderTax = Pick<OrderInput, 'taxRate' | 'taxMode' | 'taxText'>;
 /** 省略税费栏目时沿用原值，显式清空已有规范税率时一并清掉可识别的旧原话（未识别原话与“口径：…”保留）。 */
 function carriedTax(next: OrderTax, old?: OrderTax): OrderTax {
   const clearingRecognized =
-    old?.taxRate != null && next.taxRate === null && (next.taxText === undefined || next.taxText === old.taxText);
+    old?.taxRate != null && next.taxRate === null && (next.taxText === undefined || next.taxText?.trim() === old.taxText?.trim());
   return {
     taxRate: next.taxRate === undefined ? old?.taxRate : next.taxRate,
     taxMode: next.taxMode === undefined ? old?.taxMode : next.taxMode,

@@ -3,8 +3,8 @@ import type { Customer, TrackedOrder, Product } from '../../shared/core/index';
 import { centsText, displayAmount } from '../../shared/core/index';
 
 /**
- * 档案、订单、采购单、库存品列表和详情里的一条，按记录种类：列表读到的带“已归档”标记，
- * 按一条重读的（recordkit/record-api.ts 的 readRecord）客户、产品、订单不带，所以那三种的 archived 可以没有。
+ * 档案、订单、采购单、库存品列表和详情里的一条，按记录种类：列表和按一条重读的（recordkit/record-api.ts 的 readRecord）
+ * 都带“已归档”标记；别处拼出来的行（如保存回来的）可能不带，所以 archived 可以没有。
  * 种类和行要对得上的地方，用按种类写的映射表（{ [K in RecordEntity]: … }）加泛型取，不靠断言。
  */
 type MaybeListed<T> = T & { archived?: boolean };

@@ -9,6 +9,8 @@ import { financeFacts } from '../../server/flow/index.js';
 import { recordContext } from '../../server/overview/record-context.js';
 import { DataManagementService } from '../../server/admin/data-management-service.js';
 import { sales } from '../../server/sales/index.js';
+import { deliveryForm } from '../../server/documents/delivery-form.js';
+import { docFieldKey } from '../../shared/documents/index.js';
 import { today, type Customer } from '../../shared/core/index.js';
 import { historyView, type FlowDocView } from '../../shared/business/index.js';
 import { actor, superActor } from '../support/actor-fixture.js';
@@ -161,4 +163,94 @@ test('助手卡片：出卡片时试执行不落库、卡片列出连带的送�
   assert.deepEqual([f.get(d).address, f.get(d).version], [east.address, d.version], '出卡片不落库');
   tools.commit(plan, who, 'card');
   assert.deepEqual([f.get(d).address, f.get(d).version], ['虚构助手地址', d.version + 1]);
+});
+
+// ---------- 客户改名（第六轮）：单上存了客户名的待送货单跟着换 ----------
+// 待送货单平常不存客户名（显示、导出、台账用客户档案的现名），只有订单换客户连带改过的待送货单单上存着客户名，
+// 改名只换这种；没存的单显示的已经是新名，不写、不加版本、不留历史（复审 R6-1，协调者定）。
+
+/**
+ * 单上存了客户名的待送货单：先给别的客户下单、排一张待送货单，再由本机管理员把订单改给这个客户
+ * （订单换客户连带改送货单会写上客户名，server/flow/rules/order-edit-cascade.ts 的 changeCustomer）
+ */
+function namedPending(f: ReturnType<typeof world>) {
+  const other = manualWrite(f.store, { entity: 'customers', action: 'create', input: { name: '虚构原客户' } }, f.who);
+  const product = f.product({ name: '虚构换客户纸箱' });
+  const stock = f.finished(product, { name: '虚构换客户成品' }, { date: today(), quantity: '10' });
+  const order = f.order(other, [f.line(product, 10)]);
+  const d = f.flow.save('delivery', { date: today(), customerId: other.id, lines: [{ orderId: order.id, orderLineId: order.lines[0].id, stockId: stock.id, quantity: '1' }] }, f.who);
+  const current = sales(f.store).order(order.id);
+  assert.ok(current);
+  manualWrite(f.store, { entity: 'orders', action: 'update', id: order.id, input: { ...current, customerId: f.customer.id } }, f.who);
+  const moved = f.get(d);
+  assert.deepEqual([moved.customerId, moved.customerName], [f.customer.id, f.customer.name], '单上存着这个客户的名字');
+  return moved;
+}
+/** 本机管理员办的（订单换客户要本机管理员） */
+const ownerWorld = (t: TestContext) => world(t, localAdministratorActor(superActor()));
+
+test('客户改名：单上存了客户名的待送货单换新名、加一个版本、一条历史写明改了名称；普通待送货单和已出库、已取消的都不动', (t) => {
+  const f = ownerWorld(t), [e, w] = f.customer.sites;
+  const named = namedPending(f);
+  const plain = [f.pending(e.id), f.pending(w.id)];
+  const shipped = f.check(f.pending(e.id), { shipDate: today() });
+  const cancelled = f.pending(w.id);
+  f.flow.cancel(cancelled.id, { version: cancelled.version, reason: '虚构：不送了', acknowledged: true }, f.who);
+  const kept = [...plain, shipped, cancelled].map((d) => f.get(d));
+  f.update(f.current().sites, { name: '虚构同步客户新名' });
+  const after = f.get(named);
+  assert.deepEqual([after.customerName, after.version], ['虚构同步客户新名', named.version + 1]);
+  const [entry, ...more] = f.history(named);
+  assert.ok(entry && !more.length, '一条历史');
+  const view = historyView({ module: 'delivery', action: SYNC, detail: entry.detail, recordId: named.id }, recordContext(f.store, 'delivery', named.id, superActor()).historyRefs);
+  const text = view.items.map((i) => i.label + '：' + i.value);
+  assert.ok(text.some((s) => s.startsWith('原因：') && s.includes('虚构同步客户新名') && s.includes('名称')), text.join('\n'));
+  for (const d of kept) {
+    const now = f.get(d);
+    assert.deepEqual([now.customerName, now.version, now.updatedAt], [d.customerName, d.version, d.updatedAt], d.number);
+    assert.deepEqual(f.history(d), [], d.number + ' 没有同步的历史');
+  }
+  // 普通待送货单单上没存客户名，一个字不写，导出的送货单照客户档案印的已经是新名
+  for (const d of plain) {
+    assert.equal(f.get(d).customerName, undefined);
+    assert.ok(deliveryForm(f.store, d.id).form.fields.some(([key, value]) => key === docFieldKey('customer') && value === '虚构同步客户新名'), d.number);
+  }
+});
+
+test('改名和改厂区一次保存：存了客户名的单只写一次、只加一个版本、一条历史；普通单只因厂区变了才写', (t) => {
+  const f = ownerWorld(t);
+  const named = namedPending(f);
+  const sites = f.current().sites, e = sites[0];
+  assert.equal(named.siteId, e.id, '换客户后挂在默认厂区');
+  const plain = f.pending(e.id);
+  f.update([{ ...e, address: '虚构新地址' }, ...sites.slice(1)], { name: '虚构同步客户新名' });
+  const after = f.get(named);
+  assert.deepEqual([after.customerName, after.address, after.version], ['虚构同步客户新名', '虚构新地址', named.version + 1]);
+  assert.equal(f.history(named).length, 1);
+  const plainAfter = f.get(plain);
+  assert.deepEqual([plainAfter.customerName, plainAfter.address, plainAfter.version], [plain.customerName, '虚构新地址', plain.version + 1]);
+  assert.equal(f.history(plain).length, 1);
+});
+
+test('助手卡片：改名时连带行写“旧名 → 新名”，没有“新名 → 新名”；数据管理只交名称也换，名称没变不写', (t) => {
+  const a = autoConfirmAssistant();
+  const owner = localAdministratorActor(superActor());
+  const f = world(t, owner, businessBase(owner, a.store));
+  const named = namedPending(f), plain = f.pending(f.customer.sites[0].id);
+  const plan = a.manager.tools.prepare('records.propose_save', { module: 'customers', id: f.customer.id, patch: { name: '虚构同步客户新名' } }, owner, 'card');
+  const lines = (plan.summary ?? []).map((l) => l.label + '：' + l.value);
+  assert.ok(lines.some((l) => l.startsWith('连带：') && l.includes(named.number) && l.includes('虚构同步客户 → 虚构同步客户新名')), lines.join('\n'));
+  assert.ok(!lines.some((l) => l.includes('虚构同步客户新名 → 虚构同步客户新名')), lines.join('\n'));
+  assert.ok(!lines.some((l) => l.includes(plain.number)), '普通待送货单不在连带里：' + lines.join('\n'));
+  const service = new DataManagementService(f.store);
+  const save = (patch: Record<string, unknown>) => {
+    const c = f.current();
+    service.execute({ requestId: randomUUID(), module: 'customers', action: 'update', items: [{ id: c.id, version: c.version }], patch, reason: '虚构维护' }, owner, 's');
+  };
+  save({ name: '虚构同步客户另一个名' });
+  const after = f.get(named);
+  assert.deepEqual([after.customerName, after.version], ['虚构同步客户另一个名', named.version + 1]);
+  assert.equal(f.get(plain).version, plain.version);
+  save({ notes: '虚构只改备注' });
+  assert.equal(f.get(named).version, after.version, '名称没变不写');
 });

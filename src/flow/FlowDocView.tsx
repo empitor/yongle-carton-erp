@@ -19,8 +19,10 @@ const ledgerKind = (view: DocView) => (view.kind === 'arrival' || view.kind === 
 function useFlowRecord(view: DocView, returnRevision: number) {
   const [revision] = useBusinessRevision();
   const kind = ledgerKind(view);
-  const loaded = useLoad(kind && [kind, view.id, view.version, returnRevision, revision].join('|'), () =>
-    kind ? readFlowRecord(kind, view.id) : Promise.resolve(null),
+  const loaded = useLoad(
+    kind && kind + '|' + view.id,
+    () => (kind ? readFlowRecord(kind, view.id) : Promise.resolve(null)),
+    [view.version, returnRevision, revision].join('|'),
   );
   const shown = loaded.data;
   const record = shown && ('flowId' in shown ? shown.flowId : shown.id) === view.id ? shown : undefined;

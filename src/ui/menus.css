@@ -9,14 +9,15 @@
 .combobox input::placeholder {
   color: var(--placeholder);
 }
+/*
+ * 列表放进浏览器顶层，位置、宽度由 popup-position.ts 按输入框在屏幕上的位置写（不被表格、窗口正文截掉）。
+ * 顶层元素的默认样式会把字色改成系统色，这里照旧跟着上一层
+ */
 .combobox-list {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
   z-index: var(--z-overlay-menu);
-  width: max(100%, 280px);
   max-height: 260px;
   margin: 0;
+  color: inherit;
   padding: var(--space-2xs);
   overflow: auto;
   list-style: none;
@@ -24,11 +25,6 @@
   border: 1px solid var(--border);
   border-radius: var(--r-panel);
   box-shadow: var(--shadow-sm);
-}
-/* 靠近窗口底边、下面放不下时往上开（combobox-placement.ts 量的），不被正文截掉、被底栏盖住 */
-.combobox-list.upward {
-  top: auto;
-  bottom: calc(100% + 2px);
 }
 .combobox-list li {
   display: flex;

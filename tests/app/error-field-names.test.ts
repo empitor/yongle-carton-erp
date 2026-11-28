@@ -24,6 +24,7 @@ test('保存采购单、订单没通过：报错按那种记录的栏目叫法�
       deliveryDate: '2026-11-30',
       status: '待确认',
       lines: [{ productId: 1, productName: '', quantity: 1, unitPriceCents: 100 }],
+      requestId: randomUUID(),
     });
     assert.equal(order.status, 400);
     assert.match(await messageOf(order), /明细第1项的本单名称：请填写本单名称/);

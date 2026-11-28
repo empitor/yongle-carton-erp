@@ -26,13 +26,14 @@ export default function SuppliersPage({ recycle = false }: { recycle?: boolean }
   const p = useRecordPage({ recycle });
   const [historyFilter, setHistoryFilter] = useState('');
   const { data, error, busy } = useRecordData(
-    [p.revision, p.range, p.search, historyFilter].join('|'),
+    [p.range, p.search, historyFilter].join('|'),
     () =>
       loadSuppliers({ range: p.range, search: p.search, history: historyFilter }).then((r) => ({
         suppliers: r.rows,
         supplierTotal: r.totalRecords,
       })),
     { suppliers: noSuppliers, supplierTotal: 0 },
+    p.revision,
   );
   const ops = useOperationsEditor({ superMode: p.superMode, setNotice: p.setNotice });
   const rows = data.suppliers.filter(

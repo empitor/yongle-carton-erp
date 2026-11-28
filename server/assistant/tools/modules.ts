@@ -185,12 +185,10 @@ export function recordRow(ctx: ToolContext, module: Module, actor: Actor, archiv
 /** 记录在页面上的链接要用的几项 */
 type Linkable = { id: number | string; archived?: boolean; name?: string; number?: string };
 /**
- * 记录在页面上的链接：和页面别处一样直接打开那一条（到货行的编号就是到货单编号）。供应商页不从地址打开，按名称搜；
- * 已归档的客户、产品、订单、采购单也按单号或名称在已归档列表里搜：页面单条读这几种只在超级管理员模式读得到已归档的
- * （采购单都读不到），普通账号按编号打开只会看到“不存在”
+ * 记录在页面上的链接：和页面别处一样直接打开那一条（到货行的编号就是到货单编号），已归档的也一样
+ * （单条读取和已归档列表同一条线，server/core/http/permissions.ts 的 includeArchivedForRecord）。供应商页不从地址打开，按名称搜
  */
 export function recordLink(module: Module, row: Linkable) {
-  const archivedSearch = { q: String(row.number || row.name), archived: true };
   switch (module) {
     case 'arrivals':
       return flowDocHref('arrival', Number(row.id), row.archived);
@@ -207,11 +205,11 @@ export function recordLink(module: Module, row: Linkable) {
     case 'finished_inventory':
       return pageHref('warehouse', { kind: 'finished', record: Number(row.id), archived: row.archived });
     case 'orders':
-      return pageHref('orders', row.archived ? archivedSearch : { order: Number(row.id) });
+      return pageHref('orders', { order: Number(row.id), archived: row.archived });
     case 'customers':
     case 'products':
     case 'purchases':
-      return pageHref(module, row.archived ? archivedSearch : { record: Number(row.id) });
+      return pageHref(module, { record: Number(row.id), archived: row.archived });
     case 'suppliers':
       return pageHref('suppliers', { q: String(row.name), archived: row.archived });
   }

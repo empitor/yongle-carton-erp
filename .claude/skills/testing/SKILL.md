@@ -63,7 +63,7 @@ description: 写测试、跑测试和交之前自查时照着做：点名跑哪�
    | 改文档、改标题 | `tests/checks/doc-section-refs.test.ts` |
    | 改建表（含注释）、配置库规格、`tests/checks/module-map.ts` | 先 `npm run docs:gen`，再跑 `tests/checks/docs-generated.test.ts` |
    | 改 `AGENTS.md`、`CLAUDE.md` | `tests/checks/rule-files-length.test.ts` |
-   | 改钩子或命令审批配置 | `tests/checks/claude-hooks.test.mjs`、`tests/checks/claude-hooks-rules.test.mjs` |
+   | 改钩子或命令审批配置 | `tests/checks/claude-hooks.test.mjs`、`tests/checks/claude-hooks-rules.test.mjs`、`tests/checks/claude-hooks-gaps.test.mjs`、`tests/checks/claude-hooks-fallback.test.mjs` |
    | 加测试、界面流程，改例外登记 | `tests/checks/test-suites.test.mjs`、`tests/checks/ui-check-groups.test.mjs`、`tests/checks/test-exemptions-current.test.mjs` |
    | 改 `scripts/linux/` | `tests/core/patch-rollback.test.ts`、`tests/release/patch-and-package.test.ts`、`tests/release/maintenance.test.ts`（命令见下一步） |
    | 改 `src/` 的引用关系 | `tests/release/first-screen-size.test.ts`（命令见下一步） |

@@ -23,6 +23,7 @@ export { clampPage, pageRows, parsePaging } from './http/paging.js';
 export {
   canEnterSuperMode,
   includeArchivedFor,
+  includeArchivedForRecord,
   isSuperMode,
   requirePermission,
   requireSuperAdminAccount,

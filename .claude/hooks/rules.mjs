@@ -8,9 +8,11 @@
 // 只拦明确命中的路径和命令。路径按长名比：Windows 的 8.3 短名（ADMINI~1）先展开成长名，两种写法都查。
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { dataCommandReason } from './data-commands.mjs';
 import { DATA_RULE, absolute, dataReason, longPath, norm, pathForms, protectedDataDir } from './paths.mjs';
-import { commandSegments, commandName, programOf } from './shell-words.mjs';
+import { commandSegments, commandName, commandSteps, programOf, substitutions, writableText } from './shell-words.mjs';
+import { expandText, variableValues } from './variables.mjs';
 
 /** 本机数据目录（%LOCALAPPDATA%）下不能碰的目录（小写）和理由 */
 const LOCAL_DIRS = {
@@ -65,9 +67,14 @@ const OFFICIAL_SERVICE = new RegExp(
   'i',
 );
 
-/** 读 Claude 的 Bash、PowerShell 命令前缀，Antigravity 共用这份审批清单。 */
+/** 本文件所在的项目（<根>/.claude/hooks/ 的上两级） */
+const HOOKS_HOME = fileURLToPath(new URL('../..', import.meta.url));
+
+/** 读 Claude 的 Bash、PowerShell 命令前缀，挡板也按这份审批清单判；给的根目录下没有 settings.json 时读本文件所在项目的 */
 export function readAskRules(root) {
-  const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+  const own = join(root, '.claude', 'settings.json');
+  const file = existsSync(own) ? own : join(HOOKS_HOME, '.claude', 'settings.json');
+  const settings = JSON.parse(readFileSync(file, 'utf8'));
   return settings.permissions.ask.flatMap((rule) => {
     const match = /^(Bash|PowerShell)\(([^()*]+) \*\)$/.exec(rule);
     if (!match) return [];
@@ -227,18 +234,102 @@ const STOP_REASON = '这会停掉本机的正式实例，要用户同意才能�
 const REAL_MODEL_REASON =
   '这是连真实模型的脚本，会花钱，要用户同意才能跑（AGENTS.md“碰不得的”），请用户确认；自测用假模型（.claude/skills/ui-check/SKILL.md）。';
 
-/** 停本机正式实例、连真实模型（花钱）的命令：要用户确认的理由，三家都由挡板判（前缀清单只认一种写法） */
+/** 跑脚本的运行器（npx tsx 跳过 npx 以后也是 tsx） */
+const RUNNER_PROGRAMS = new Set(['node', 'tsx', 'bun', 'deno', 'ts-node']);
+/**
+ * 只读、只打印、只比较文字的程序：这一段里只是提到正式实例地址、服务名，不算要连、要启停。
+ * 名单外的程序（curl、ssh、plink、wsl、.NET 的类、认不出的工具）遇到这些字样都算要连，照问（只放行认得的，不猜）。
+ */
+const READ_ONLY_PROGRAMS = new Set([
+  'grep', 'egrep', 'fgrep', 'rg', 'ag', 'ack', 'findstr', 'select-string', 'sls', 'echo', 'printf', 'write-output', 'write-host',
+  'cat', 'type', 'get-content', 'gc', 'head', 'tail', 'less', 'more', 'wc', 'sort', 'uniq', 'diff', 'fc', 'compare-object',
+  // 只把文字写进文件、排版的（写到哪由写入那几条规则管）
+  'tee', 'tee-object', 'set-content', 'add-content', 'out-file', 'out-string', 'out-null', 'select-object', 'sort-object',
+  'measure-object', 'format-table', 'format-list',
+]);
+const READ_ONLY_GIT = new Set(['grep', 'log', 'diff', 'show', 'blame', 'status', 'ls-files', 'shortlog']);
+/** git 能借来跑别的程序的配置和开关：-c 这些键、--ext-diff、-O（--open-files-in-pager）、GIT_PAGER 这类环境变量 */
+const GIT_RUNS_PROGRAM = /pager|external|command|editor|alias|textconv|filter|program|helper|fsmonitor|hookspath|askpass|proxy/;
+
+/**
+ * 一段命令原样的词（带着引号）里会执行的 $( … )、反引号：里面每一段都是只读的才算只读。单引号包住的部分是文字，不找；
+ * PowerShell 里反引号是转义符（`n），不当命令替换。不带引号的反引号会被拆到几个词里，所以连起来找。
+ */
+const substitutionsReadOnly = (raws, powershell) => {
+  const line = raws.map((raw) => raw.replace(/'[^']*'/g, "''")).join(' ');
+  if (!(powershell ? /\$\(/ : /\$\(|`/).test(line)) return true;
+  return substitutions(line, !powershell).every((text) =>
+    commandSteps(text).every(({ words, raws }) => readOnlyStep(words.map((w) => w.toLowerCase()), raws, powershell)));
+};
+
+/** 写进去会被执行的目标：脚本、$PROFILE、.git/hooks/ 下的 */
+const EXECUTABLE_TARGET = /\.(?:ps1|psm1|sh|bash|cmd|bat|js|mjs|cjs|ts|mts|py|vbs)$|^\$profile\b|(?:^|[\\/])\.git[\\/]hooks[\\/]/;
+/** 只把文字写进文件的程序：写进会被执行的目标时不算只读 */
+const FILE_WRITERS = new Set(['tee', 'tee-object', 'set-content', 'add-content', 'out-file']);
+
+/** git 这一段有没有借配置、开关、环境变量去跑别的程序 */
+function gitRunsProgram(words) {
+  return words.some((word, i) =>
+    /^git_\w+=/.test(word) || /^--(?:ext-diff|open-files-in-pager|textconv|config-env)/.test(word) ||
+    (word === '-o' && words.includes('grep')) || (word === '-c' && GIT_RUNS_PROGRAM.test(words[i + 1] ?? '')));
+}
+
+/**
+ * 这一段跑的是只读、只打印的程序（git grep/log/diff 这类、npm test 也算）。词里有 $( )、反引号的，
+ * 里面也得是只读的；git 借 -c、--ext-diff、GIT_PAGER 这类跑别的程序的，不算只读；
+ * tee、Set-Content 这类写进脚本、$PROFILE、.git/hooks/ 的，不算只读。raws 是原样的词（带引号），没有就用 words。
+ */
+function readOnlyStep(words, raws = words, powershell = false) {
+  if (!substitutionsReadOnly(raws, powershell)) return false;
+  const { name, rest, sub } = programOf(words);
+  if (FILE_WRITERS.has(name) && rest.some((word) => EXECUTABLE_TARGET.test(word.replace(/^-{1,2}[\w-]+[=:]/, '')))) return false;
+  if (READ_ONLY_PROGRAMS.has(name)) return true;
+  if (name === 'git') return READ_ONLY_GIT.has(sub) && !gitRunsProgram(words);
+  return name === 'npm' && rest.find((word) => !word.startsWith('-')) === 'test';
+}
+
+/**
+ * 命令行要连正式实例、启停服务器上的正式服务：要用户确认的理由。同一条命令里赋的变量先展开（地址可能赋在别的段里），
+ * 写进文件的 heredoc、here-string 正文不算；哪一段里有正式实例地址或服务名，而那一段跑的不是只读、只打印的程序，就问。
+ * 同一条管道里前头只读的段提到了、后头有一段不是只读的（echo 地址 | xargs curl），也问。
+ */
+export function commandInstanceReason(command, cwd = '.', powershell = false) {
+  if (!command || typeof command !== 'string') return '';
+  const runnable = writableText(command);
+  const values = variableValues(norm(runnable), cwd, norm(runnable, true));
+  for (const text of [runnable, ...expandText(runnable, values)]) {
+    let piped = '';
+    let length = 0;
+    for (const { words, raws, before } of commandSteps(text)) {
+      // 管道接着的段：| 后面的，和管道里 { … } 花括号里的
+      const inPipe = before === '|' || (length > 1 && /^[{}()]+$/.test(before));
+      if (!inPipe) [piped, length] = ['', 0];
+      length += 1;
+      const line = words.join(' ');
+      const mentioned = OFFICIAL_SERVICE.test(line) || OFFICIAL_INSTANCE.test(line);
+      const readOnly = readOnlyStep(words.map((word) => word.toLowerCase()), raws, powershell);
+      if (!readOnly && (mentioned || piped)) return officialInstanceReason(mentioned ? line : piped);
+      if (mentioned) piped = line;
+    }
+  }
+  return '';
+}
+
+/**
+ * 停本机正式实例、连真实模型（花钱）的命令：要用户确认的理由，三家都由挡板判（前缀清单只认一种写法）。
+ * 只看真正跑的程序：npm 跑 stop、双击的停止脚本、运行器跑 server/stop 或带 --yes/--start 的真实模型脚本；搜索里提到的不算。
+ */
 export function commandAskReason(command) {
   if (!command || typeof command !== 'string') return '';
-  const text = norm(command);
-  if (NPM_STOP.test(text) || commandSegments(text).some((words) => programOf(words).name === '停止系统'))
-    return STOP_REASON;
-  for (const segment of text.split(/[;&|\r\n]+/)) {
-    if (!RUNNER.test(segment)) continue;
-    if (/(?<![\w-])server\/stop(?:\.[cm]?[jt]s)?(?![\w.-])/.test(segment)) return STOP_REASON;
+  for (const { words } of commandSteps(norm(command))) {
+    const { name } = programOf(words);
+    const text = words.join(' ');
+    if ((name === 'npm' && NPM_STOP.test(text)) || name === '停止系统') return STOP_REASON;
+    if (!RUNNER_PROGRAMS.has(name)) continue;
+    if (/(?<![\w-])server\/stop(?:\.[cm]?[jt]s)?(?![\w.-])/.test(text)) return STOP_REASON;
     // 只认文件名：cd scripts/ui-check 以后 node real-smoke.mjs 也算
-    const realModel = /(?:^|[\s"'/])real-(?:smoke|suite|recognition)\.mjs/.test(segment);
-    if (realModel && /\s--(?:yes|start)(?=$|[\s=])/.test(segment)) return REAL_MODEL_REASON;
+    const realModel = /(?:^|[\s"'/])real-(?:smoke|suite|recognition)\.mjs/.test(text);
+    if (realModel && /\s--(?:yes|start)(?=$|[\s=])/.test(text)) return REAL_MODEL_REASON;
   }
   return '';
 }

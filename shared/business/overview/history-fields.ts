@@ -109,8 +109,8 @@ export const historyActionNames: Record<string, string> = {
   'split-delivery': '拆分送货单',
   'remove-delivery-lines': '送货单去掉明细',
   'change-delivery-customer': '送货单换客户',
-  // 改客户厂区的资料时待送货单跟着换（server/flow/rules/site-edits.ts）
-  'sync-delivery-site': '厂区资料同步到送货单',
+  // 改客户名称、厂区资料时待送货单跟着换（server/flow/rules/site-edits.ts；代码沿用最初只同步厂区时起的名字）
+  'sync-delivery-site': '客户资料同步到送货单',
   // 库存品上记的出入库（server/operations/service.ts 的 recordMovement），叫法和库存流水一样
   in: movementLabels.in,
   out: movementLabels.out,

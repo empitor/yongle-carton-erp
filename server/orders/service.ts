@@ -6,7 +6,7 @@ import { AppError, Store, InputError, exists, notFound } from '../core/index.js'
 import { validAssistantGrant } from '../core/index.js';
 import { isLocalAdministrator } from '../core/index.js';
 import { alignOrder, prepareOrderEdit } from './order-edit-cascade.js';
-import { clearHistoricalDeliverySites, FlowService, followSiteEdits, maintenanceEditGuard, orderEditGuard, pendingDeliveriesBySite } from '../flow/index.js';
+import { clearHistoricalDeliverySites, FlowService, followCustomerEdits, maintenanceEditGuard, orderEditGuard, pendingDeliveriesOfCustomer } from '../flow/index.js';
 import { syncFinishedStock } from '../operations/index.js';
 import { audit, inSavepoint, isSuperMode } from '../core/index.js';
 import { TakenSnapshot } from '../lifecycle/index.js';
@@ -76,22 +76,22 @@ const savers: { [E in WritableEntity]: (store: Store, job: SaveJob) => Saved[E] 
 };
 
 /**
- * 改客户在一个保存点里办：去掉的厂区待送货单用着就拦，不拦的解除历史送货单的引用；厂区资料（名称、地址、联系人、
- * 联系方式）变了的，挂着它的待送货单跟着换（单据流转的 followSiteEdits）。编辑窗、数据管理、助手卡片都走这里。
+ * 改客户在一个保存点里办：去掉的厂区待送货单用着就拦，不拦的解除历史送货单的引用；客户名称、厂区资料（名称、地址、
+ * 联系人、联系方式）变了的，待送货单跟着换（单据流转的 followCustomerEdits）。编辑窗、数据管理、助手卡片都走这里。
  */
 function saveCustomerCommand(store: Store, job: SaveJob) {
   const input = customerSchema.parse(job.input), records = sales(store);
   if (job.action === 'create') return records.createCustomer(input);
   const { id, version, context } = job;
   return inSavepoint(store.db, () => {
-    const before = records.customer(id, true)?.sites ?? [];
+    const before = records.customer(id, true) ?? notFound('记录不存在');
     const saved = records.updateCustomer(input, id, version, context.superAdminMode, (removed) => {
-      const pending = pendingDeliveriesBySite(store, removed);
+      const pending = pendingDeliveriesOfCustomer(store, id).filter((d) => d.siteId !== null && removed.includes(d.siteId));
       if (pending.length) throw new AppError('这些厂区仍被待送货单使用，不能删除：' + pending.map((d) => d.number).join('、'), 409);
       TakenSnapshot.take(store, 'customer-site-delete');
       clearHistoricalDeliverySites(store, removed);
     });
-    followSiteEdits(store, { customer: saved, before }, context.actor);
+    followCustomerEdits(store, { customer: saved, before }, context.actor);
     return saved;
   });
 }

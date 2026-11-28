@@ -93,7 +93,7 @@ export default function ResolveTax({ row, done }: { row: SourceRow; done: () => 
                   <td className="fb-cell-text">
                     第 {i + 1} 行{names[i] && <small>{names[i]}</small>}
                   </td>
-                  <td className="num">
+                  <td className="num fb-exact">
                     <input
                       aria-label={'第 ' + (i + 1) + ' 行金额'}
                       inputMode="decimal"

@@ -60,7 +60,7 @@ export function useFlowList({ mode, recycle, dialogOnly }: { mode: FlowKind; rec
     [selected, setSelected] = useState<number[]>([]);
   const [revision] = useBusinessRevision();
   // 打开和保存后只读当前列表；对照用的档案见 useFlowDesk 的 ensureLookups。
-  const list = useLoad(kind + '|' + archived + '|' + revision, () => readFlowList(kind, archived));
+  const list = useLoad(kind + '|' + archived, () => readFlowList(kind, archived), revision);
   const rows = list.data || [];
   const showBoard = kind === 'task' && mode === 'task' && !listView && !recycle && !archived && !dialogOnly;
   const planned = kind === 'task' || kind === 'delivery';

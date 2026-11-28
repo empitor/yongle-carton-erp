@@ -275,6 +275,7 @@ test('HTTP：POST /orders/:id/cancel 要原因；PUT 改状态被拒；/purchase
           deliveryDate: '2026-11-30',
           status: '已确认',
           lines: [{ productId: product.id, quantity: 10, unit: '只', unitPriceCents: 100 }],
+          requestId: randomUUID(),
         }),
         record,
       )

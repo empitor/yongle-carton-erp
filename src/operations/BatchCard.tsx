@@ -25,10 +25,13 @@ export default function BatchCard({ purchaseId }: { purchaseId: number }) {
   const [dialog, setDialog] = useState<'' | 'schedule'>('');
   const [revision] = useBusinessRevision();
   // 读到的订货单带着是哪张采购单的：换了一张，上一张的不再显示；读不到就不显示这一节
-  const loaded = useLoad(purchaseId + '|' + revision, () =>
-    batchOfPurchase(purchaseId)
-      .catch(() => null)
-      .then((b) => ({ purchaseId, b })),
+  const loaded = useLoad(
+    String(purchaseId),
+    () =>
+      batchOfPurchase(purchaseId)
+        .catch(() => null)
+        .then((b) => ({ purchaseId, b })),
+    revision,
   );
   const batch = loaded.data?.purchaseId === purchaseId ? loaded.data.b : null;
   if (!batch) return null;

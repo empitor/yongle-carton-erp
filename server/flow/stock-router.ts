@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { AppError, includeArchivedFor, notFound, pageRows, requirePermission, route } from '../core/index.js';
+import { AppError, includeArchivedFor, includeArchivedForRecord, notFound, pageRows, requirePermission, route } from '../core/index.js';
 import { pagingSchema } from '../../shared/core/index.js';
 import type { Actor, RequestAuth, Store } from '../core/index.js';
 import {
@@ -43,6 +43,8 @@ type Routes = {
   actor: (req: Request) => Actor | null;
   /** 列表带不带已归档的：全站同一个判断（server/core/http/permissions.ts） */
   include: (req: Request, archived: unknown) => boolean;
+  /** 按编号读一条带不带已归档的：和已归档列表同一条线（includeArchivedForRecord） */
+  includeForRecord: (req: Request) => boolean;
 };
 
 /**
@@ -85,15 +87,15 @@ function purchaseList({ flow, include }: Routes, query: unknown, req: Request) {
 
 /** 采购单 */
 function purchaseRoutes(routes: Routes) {
-  const { on, flow, actor, include } = routes;
+  const { on, flow, actor, includeForRecord } = routes;
   on('GET /purchases', ({ query, req }) => purchaseList(routes, query, req));
   on('POST /purchases', ({ body, req }) => flow.stock.savePurchase(body, actor(req)), created);
   // 整张保存不改状态；改成待到货、退回待订货、取消（要原因）、恢复各是一个动作（changePurchaseStatus）
   on('PUT /purchases/:id', ({ param, body, req }) => flow.stock.savePurchase(body, actor(req), recordId(param('id')), { keepStatus: true }));
   for (const action of recordStatusActions)
     on(`POST /purchases/:id/${action}`, ({ param, body, req }) => flow.stock.changePurchaseStatus(recordId(param('id')), action, body, actor(req)));
-  on('GET /purchases/:id', ({ param, query, req }) =>
-    flow.views.purchases(include(req, archivedQuerySchema.parse(query).archived), recordId(param('id'))).at(0) ?? notFound('采购单不存在'),
+  on('GET /purchases/:id', ({ param, req }) =>
+    flow.views.purchases(includeForRecord(req), recordId(param('id'))).at(0) ?? notFound('采购单不存在'),
   );
 }
 
@@ -187,6 +189,7 @@ export function stockFlowRouter(store: Store, auth?: RequestAuth) {
       return auth.actor(req);
     },
     include: (req, archived) => includeArchivedFor(auth?.actor(req), archived),
+    includeForRecord: (req) => includeArchivedForRecord(auth?.actor(req)),
   };
   // 登记到货（地址挂在订货单下面，唯一入口 registerArrival）；页面凭证由装配层对所有写接口统一检查
   // 登记的是到货单：校验没过时报错按到货单的栏目叫法说（实到数量、供应商送货单号，server/http-errors.ts）

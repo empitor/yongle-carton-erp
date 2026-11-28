@@ -21,7 +21,7 @@ function edited<B extends { version?: number }>(form: B): B & { version: number 
 }
 
 /** 订单：新建带上防重复请求号 requestId（编辑窗每开一次给一个，重试、连点只建一张） */
-export const saveOrder = (id: number | undefined, form: Form<RecordsApi['POST /orders']['body']>, requestId: string) =>
+export const saveOrder = (id: number | undefined, form: Form<Omit<RecordsApi['POST /orders']['body'], 'requestId'>>, requestId: string) =>
   id
     ? records('PUT /orders/:id', { params: { id }, body: edited(form) })
     : records('POST /orders', { body: { ...form, requestId } });

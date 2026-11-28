@@ -44,7 +44,7 @@ export function usePurchaseData(o: {
 }) {
   const { p, dates, supplierFilter, status, page, sort, signature } = o;
   return useRecordData(
-    [p.revision, p.range, signature, page, sort].join('|'),
+    [p.range, signature, page, sort].join('|'),
     () =>
       Promise.all([
         loadPurchaseLookups(p.superMode),
@@ -73,6 +73,7 @@ export function usePurchaseData(o: {
         }),
       ),
     emptyPurchases,
+    p.revision,
   );
 }
 

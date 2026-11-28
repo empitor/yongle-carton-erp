@@ -37,3 +37,26 @@ test('新建订单：同一个请求号重发只建一张、回同一张；同�
     store.close();
   }
 });
+
+test('新建订单不带请求号（升级前就开着的页面、外壳里缓存的旧网页）：拒收，说页面版本旧了要刷新，一张都不建', async () => {
+  const store = new Store(':memory:'),
+    h = await startHttp(store);
+  try {
+    const customer = saved.parse(await (await h.send('/customers', { name: '虚构客户' }, h.cookie)).json());
+    const product = saved.parse(await (await h.send('/products', { name: '虚构纸箱' }, h.cookie)).json());
+    const body = {
+      customerId: customer.id,
+      orderDate: '2026-11-20',
+      deliveryDate: '2026-11-30',
+      status: '待确认',
+      lines: [{ productId: product.id, quantity: 100, unit: '只', unitPriceCents: 200 }],
+    };
+    const refused = await h.send('/orders', body, h.cookie);
+    assert.equal(refused.status, 400);
+    assert.equal(z.object({ message: z.string() }).parse(await refused.json()).message, '页面版本旧了，请刷新页面后重新保存（这张订单没有建）。');
+    assert.equal(count(store.db, 'SELECT count(*) AS n FROM orders'), 0);
+  } finally {
+    await h.close();
+    store.close();
+  }
+});

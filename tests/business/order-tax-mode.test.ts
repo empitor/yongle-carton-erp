@@ -88,6 +88,30 @@ test('规范税率写入整数万分比，省略沿用、显式留空清除，�
   }
 });
 
+test('升级来的税率原话首尾带空白（如“ 13 % ”）：编辑窗照原样交回、清空税率，认得出的原话照样清掉，口径原话留着', () => {
+  const base = businessBase(actor),
+    customer = base.customer(),
+    product = base.product();
+  try {
+    const created = base.order(customer, [{ productId: product.id, quantity: 10, unitPriceCents: 100, taxRate: 13 }], { taxRate: 13 });
+    // 第 24 步逐字照存原话，首尾空白也留着
+    base.store.db.prepare('UPDATE orders SET tax_text=? WHERE id=?').run(' 13 % ', created.id);
+    base.store.db.prepare('UPDATE order_lines SET tax_text=? WHERE order_id=?').run('　13%\n口径：按约定　', created.id);
+    const stored = sales(base.store).order(created.id) ?? assert.fail('订单读不到');
+    // 编辑窗把读到的原话原样交回（orderPayload），只把税率清空
+    const cleared = sales(base.store).saveOrder(orderSchema.parse({
+      ...stored, taxRate: null, lines: stored.lines.map((l) => ({ ...l, taxRate: null })),
+    }), stored.id, stored.version);
+    // 认得出的“13 %”“13%”清掉；口径那段是原话，逐字留着（末尾的全角空格也是原样）
+    assert.deepEqual(
+      [cleared.taxRate, cleared.taxText, cleared.lines[0].taxRate, cleared.lines[0].taxText],
+      [undefined, undefined, undefined, '口径：按约定　'],
+    );
+  } finally {
+    base.store.close();
+  }
+});
+
 test('税率原话 taxText 去首尾空白、有上限；升级第 24 步写出的最长原话和识别原值都装得下，库里的老订单改状态照常', () => {
   // 0.9.x 录入时税率文字最多 30 字、含税口径最多 60 字（都过 orderSchema），第 24 步接成“税率\n口径：口径”最长 94 字
   const longestV24 = 'x'.repeat(30) + '\n口径：' + 'y'.repeat(60);

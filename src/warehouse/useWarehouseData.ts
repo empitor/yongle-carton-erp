@@ -25,19 +25,24 @@ const readBatches = (kind: WarehouseKind): Promise<OrderBatch[]> =>
  */
 export function useWarehouseData(kind: WarehouseKind, scope: WarehouseScope, full: boolean, actorId: unknown) {
   const [revision] = useBusinessRevision();
-  const main = useLoad(actorId ? [kind, full, revision, actorId].join('|') : null, () =>
-    Promise.all([readFlowDaily(kind, full ? null : RECENT_DAYS), readPurchases(kind), readBatches(kind)]).then(
-      ([d, purchases, batches]) => ({
-        records: d.records,
-        recentFrom: full ? '' : d.from || '',
-        purchases,
-        batches,
-      }),
-    ),
+  const main = useLoad(
+    actorId ? [kind, full, actorId].join('|') : null,
+    () =>
+      Promise.all([readFlowDaily(kind, full ? null : RECENT_DAYS), readPurchases(kind), readBatches(kind)]).then(
+        ([d, purchases, batches]) => ({
+          records: d.records,
+          recentFrom: full ? '' : d.from || '',
+          purchases,
+          batches,
+        }),
+      ),
+    revision,
   );
   // 已归档的单据（“已归档”这一档才读），和另两档同一张表、同一套筛选
-  const archived = useLoad(scope === 'archived' && actorId ? [kind, revision, actorId].join('|') : null, () =>
-    readFlowList(kind, true).then((rows) => rows.filter(isWarehouseDoc(kind))),
+  const archived = useLoad(
+    scope === 'archived' && actorId ? [kind, actorId].join('|') : null,
+    () => readFlowList(kind, true).then((rows) => rows.filter(isWarehouseDoc(kind))),
+    revision,
   );
   const data = actorId ? main.data : null;
   return {

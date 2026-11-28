@@ -1,4 +1,4 @@
-// 三家共用的保护钩子（.claude/hooks/）：保留原有的拦截范围，验证各工具的输入和进程输出；Antigravity 按共用清单请求确认；
+// 三家共用的保护钩子（.claude/hooks/）：保留原有的拦截范围，验证各工具的输入和进程输出；Antigravity 按共用清单判出要确认的拦下并说明；
 // 文件变长提醒经 Claude Code 和 Codex 的 PostToolUse 输出；Claude Code 的 permissions.ask 和 Codex 的 ask-before.rules 两份命令审批清单逐项一致。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -171,9 +171,11 @@ for (const [name, args] of [
     assert.equal(agyDecision(agyCall(name, args, repo)), 'deny');
   });
 }
-test('Antigravity 普通工具、无关参数和坏输入照常放行', () => {
-  assert.equal(output(agyCall('run_command', { CommandLine: 'git status', Path: 'data/a.txt' }, repo)), '');
-  assert.equal(output(agyCall('read_file', { Path: 'src/data/a.ts', File: 'data/a.txt' }, repo)), '');
+test('Antigravity 普通工具和坏输入照常放行，参数名认不出但写的是受保护路径的照拦', () => {
+  assert.equal(output(agyCall('run_command', { CommandLine: 'git status', Cwd: repo }, repo)), '');
+  assert.equal(output(agyCall('read_file', { Path: 'src/data/a.ts', Note: '只是提到 data/a.txt 的一句话' }, repo)), '');
+  assert.equal(agyDecision(agyCall('run_command', { CommandLine: 'git status', Path: 'data/a.txt' }, repo)), 'deny');
+  assert.equal(agyDecision(agyCall('read_file', { Path: 'src/data/a.ts', File: 'data/a.txt' }, repo)), 'deny');
   assert.equal(output({ toolCall: { args: { Path: 'data/a.txt' } } }), '');
   assert.equal(output('不是 JSON'), '');
 });
@@ -273,17 +275,18 @@ test('Antigravity 按脚本所在项目的 settings.json 决定哪些命令要�
   const ask = ['Bash(demo confirm *)', 'WebFetch(*)', 'PowerShell(Remove-Item *)'];
   writeFileSync(join(checkout, '.claude', 'settings.json'), JSON.stringify({ permissions: { ask } }));
   const options = { script: hookScript(checkout, 'protect-real-data') };
+  // Antigravity 认不认“先问”没有实测样本，判出要确认的一律拦下并说明
   const approved = JSON.parse(output(agyCall('run_command', { CommandLine: 'demo confirm' }), options));
-  assert.equal(approved.decision, 'ask');
-  assert.match(approved.reason, /demo confirm/);
-  assert.equal(agyDecision(agyCall('run_command', { CommandLine: 'remove-item example' }), options), 'ask');
+  assert.equal(approved.decision, 'deny');
+  assert.match(approved.reason, /demo confirm.*Antigravity/);
+  assert.equal(agyDecision(agyCall('run_command', { CommandLine: 'remove-item example' }), options), 'deny');
   assert.equal(output(agyCall('run_command', { CommandLine: 'git push' }), options), '');
 });
 for (const { prefix } of readAskRules(repo).filter((rule) => rule.tool === 'Bash')) {
   const command = prefix.join(' ');
-  test('Antigravity 对 ' + command + ' 请求确认', () => {
+  test('Antigravity 对要确认的 ' + command + ' 拦下并说明', () => {
     const result = JSON.parse(output(agyCall('run_command', { CommandLine: 'echo ready && ' + command })));
-    assert.equal(result.decision, 'ask');
+    assert.equal(result.decision, 'deny');
     assert.ok(result.reason.includes(command));
   });
 }
@@ -297,8 +300,8 @@ for (const CommandLine of [
   'powershell -NoProfile -c "git push"',
   'npm --save-dev install x',
 ]) {
-  test('Antigravity 要求确认包装过的命令 ' + CommandLine, () => {
-    assert.equal(agyDecision(agyCall('run_command', { CommandLine })), 'ask');
+  test('Antigravity 认出包装过的要确认命令并拦下 ' + CommandLine, () => {
+    assert.equal(agyDecision(agyCall('run_command', { CommandLine })), 'deny');
   });
 }
 test('Antigravity 放行类似的普通命令，明确要拦的命令优先返回 deny', () => {

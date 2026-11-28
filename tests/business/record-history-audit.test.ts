@@ -158,7 +158,7 @@ const samples: Record<string, { module: string; detail: unknown }> = {
     detail: { before: { ...delivery, lines: [...delivery.lines, { ...delivery.lines[0], orderId: O }] }, after: delivery, movedMovements: ['1'], movedTo: { id: 12, number: 'SH-2' } },
   },
   'change-delivery-customer': { module: 'delivery', detail: { before: delivery, after: { ...delivery, customerId: GONE, siteId: null, siteName: '' } } },
-  'sync-delivery-site': { module: 'delivery', detail: { before: delivery, after: { ...delivery, address: '虚构新地址' }, reason: '客户 虚构客户甲 的厂区“虚构东厂”改了资料，收货信息跟着更新', trigger: { action: 'update', entity: 'customers', id: C, name: '虚构客户甲' } } },
+  'sync-delivery-site': { module: 'delivery', detail: { before: delivery, after: { ...delivery, address: '虚构新地址' }, reason: '客户 虚构客户甲 改了名称，厂区“虚构东厂”改了资料，送货单跟着更新', trigger: { action: 'update', entity: 'customers', id: C, name: '虚构客户甲' } } },
   'split-delivery': { module: 'delivery', detail: { from: { id: 9, number: 'SH-1' }, after: { ...delivery, status: 'confirmed' }, movements: ['1'] } },
   in: { module: 'stock_items', detail: { movementId: 1, source: { action: 'in', kind: 'manual', date: '2026-11-13', notes: '入' }, before: '0', after: '10', deltaUnits: 10000 } },
   out: { module: 'stock_items', detail: { movementId: 1, source: { action: 'out', kind: 'manual', date: '2026-11-13', notes: '出' }, before: '10', after: '0', deltaUnits: -10000 } },

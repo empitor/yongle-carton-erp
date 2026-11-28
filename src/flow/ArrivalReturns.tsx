@@ -31,8 +31,10 @@ export function ArrivalReturns({
   changed: () => void;
 }) {
   // 读到的记录带着是哪张到货单的：换了一张，上一张的记录不再显示，不能对着上一张的退货操作
-  const loaded = useLoad(arrivalId + '|' + revision, () =>
-    readReturns(arrivalId).then((list) => ({ arrivalId, list })),
+  const loaded = useLoad(
+    String(arrivalId),
+    () => readReturns(arrivalId).then((list) => ({ arrivalId, list })),
+    revision,
   );
   const rows = loaded.data?.arrivalId === arrivalId ? loaded.data.list : [];
   const [reversing, setReversing] = useState<ReturnRow | null>(null);

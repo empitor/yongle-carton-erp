@@ -37,7 +37,7 @@ type StatusActions = {
 export type RecordsApi = StatusActions & {
   'GET /customers': { query?: CustomerQuery; response: Listed<Customer>[] };
   'GET /customers?withMetrics=1': { query?: CustomerQuery; response: { rows: Listed<Customer>[]; totalRecords: number; metrics: null } };
-  'GET /customers/:id': { response: Customer };
+  'GET /customers/:id': { response: Listed<Customer> };
   'POST /customers': { body: CustomerBody; response: Customer };
   'PUT /customers/:id': { body: Versioned<CustomerBody>; response: Customer };
   'GET /products': { query?: ProductQuery; response: Listed<Product>[] };
@@ -45,15 +45,15 @@ export type RecordsApi = StatusActions & {
     query?: ProductQuery;
     response: { rows: ProductListRow[]; totalRecords: number; metrics: ReturnType<typeof productMetrics> };
   };
-  'GET /products/:id': { response: ProductDetailRecord };
+  'GET /products/:id': { response: Listed<ProductDetailRecord> };
   'POST /products': { body: ProductBody; response: Product };
   'PUT /products/:id': { body: Versioned<ProductBody>; response: Product };
   'GET /orders': { query?: OrderQuery; response: Listed<TrackedOrder>[] };
   'GET /orders?withMetrics=1': { query?: OrderPageQuery; response: ListResult<Listed<TrackedOrder>, ReturnType<typeof orderMetrics>> };
-  'GET /orders/:id': { response: TrackedOrder };
+  'GET /orders/:id': { response: Listed<TrackedOrder> };
   /** 这张订单上只在这张订单里下过单的产品（编辑窗换客户时提示哪些产品跟着改归新客户） */
   'GET /orders/:id/sole-products': { response: { productIds: number[] } };
-  /** requestId：防重复请求号（编辑窗每开一次给一个），同一个请求号重发回上次建的那张 */
-  'POST /orders': { body: OrderBody & { requestId?: string }; response: TrackedOrder };
+  /** requestId：防重复请求号，必带（编辑窗每开一次给一个），同一个请求号重发回上次建的那张 */
+  'POST /orders': { body: OrderBody & { requestId: string }; response: TrackedOrder };
   'PUT /orders/:id': { body: Versioned<OrderBody>; response: TrackedOrder };
 };

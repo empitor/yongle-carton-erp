@@ -61,6 +61,11 @@ function claudePaths(tool, args, cwd) {
 const CLAUDE_WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 /** 内置浏览器（含远程设备上的）和 Chrome 扩展的工具：批量动作、执行脚本的网址和脚本文字藏在参数里面 */
 const BROWSER_TOOL = /^mcp__.*(?:browser|chrome)/i;
+/** 参数里所有的字符串连同它的参数名（数组里的用数组的参数名），一层层往里找 */
+const keyedStrings = (value, key = '') =>
+  typeof value === 'string' ? [[key, value]]
+    : Array.isArray(value) ? value.flatMap((item) => keyedStrings(item, key))
+      : isObject(value) ? Object.entries(value).flatMap(([name, item]) => keyedStrings(item, name)) : [];
 /** 参数里所有的字符串，一层层往里找；在页面上找元素的 query 只是找字，不算 */
 const stringsIn = (value) =>
   typeof value === 'string' ? [value]
@@ -77,7 +82,7 @@ function claudeOrCodexCall(input, root) {
   const cwd = hookCwd(input, root);
   const call = { antigravity: false, cwd, command: '', paths: [], writes: [], urls: [], globs: [] };
   // Codex 的命令行不论实际是哪种 shell，tool_name 都是 Bash
-  if (tool === 'Bash' || tool === 'PowerShell') return { ...call, command: args.command };
+  if (tool === 'Bash' || tool === 'PowerShell') return { ...call, command: args.command, powershell: tool === 'PowerShell' };
   if (tool === 'apply_patch') {
     const paths = parsePatch(args.command).flatMap((file) => [file.path, file.moveTo]);
     return { ...call, paths, writes: paths };
@@ -92,7 +97,8 @@ function claudeOrCodexCall(input, root) {
 
 /**
  * Antigravity：run_command 判 CommandLine 和 Cwd，其余工具判路径（参数名以 Path 结尾的、Cwd、TargetFile、SearchDirectory），
- * run_workflow 另判 Script；按工具名认写入。参数名没有实测样本，照工具说明写的。
+ * run_workflow 另判 Script；按工具名认写入。参数名没有实测样本，所以参数里一层层找到的字符串中看着像一个路径的
+ * （整串没有空白、带 / 或 \，或者就是 data、backups；网址不算）也都当路径判。
  */
 function antigravityCall(input, root) {
   const { name, args: rawArgs } = input.toolCall;
@@ -100,11 +106,17 @@ function antigravityCall(input, root) {
   const cwd = hookCwd(input, root);
   const call = { antigravity: true, cwd, command: '', paths: [], writes: [], urls: [], globs: [] };
   const valuesOf = (key) => Object.entries(args).filter(([k]) => key.test(k)).map(([, value]) => value);
-  if (name === 'run_command') return { ...call, command: args.CommandLine, paths: valuesOf(/^cwd$/i) };
-  const paths = valuesOf(/(?:^cwd|path|^targetfile|^searchdirectory)$/i);
+  // 只写 data、backups 一个词的，参数名像路径（含 path、dir、file、folder，或是 Cwd）才算；搜索的 Query: 'data' 不算
+  const pathLike = keyedStrings(args).filter(([key, value]) =>
+    value.length < 1000 && !/^[a-z][\w+.-]*:\/\//i.test(value) &&
+    (/^\S*[\\/]\S*$/.test(value) || (/^(?:data|backups)$/i.test(value) && /path|dir|file|folder|^cwd$/i.test(key))))
+    .map(([, value]) => value);
+  if (name === 'run_command') return { ...call, command: args.CommandLine, paths: [...valuesOf(/^cwd$/i), ...pathLike] };
+  const paths = [...new Set([...valuesOf(/(?:^cwd|path|^targetfile|^searchdirectory)$/i), ...pathLike])];
   const writes = /write|edit|replace|delete|move|create/i.test(name) ? paths : [];
   const command = name === 'run_workflow' ? args.Script : '';
-  return { ...call, paths, writes, urls: valuesOf(/url$/i), command };
+  // scriptText：command 是一段代码不是命令行，连正式实例那条照全文看
+  return { ...call, paths, writes, urls: valuesOf(/url$/i), command, scriptText: name === 'run_workflow' };
 }
 
 /** 认出是哪家的输入；认不出返回 null */

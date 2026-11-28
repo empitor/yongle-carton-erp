@@ -1,7 +1,7 @@
 import { orderedCustomersByProduct, productHasOrders, sales } from '../sales/index.js';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { includeArchivedFor, isSuperMode, notFound, onceByRequest, operationRequest, requirePermission, route, type RequestAuth, type Store } from '../core/index.js';
+import { InputError, includeArchivedFor, includeArchivedForRecord, isSuperMode, notFound, onceByRequest, operationRequest, requirePermission, route, type RequestAuth, type Store } from '../core/index.js';
 import { trackedOrderViewSchema } from '../../shared/core/index.js';
 import { customerList, listFields, orderList, productList } from './record-lists.js';
 import { ORDER_NOT_FOUND, manualWrite } from './service.js';
@@ -13,14 +13,19 @@ import { recordStatusActions, type RecordsApi } from '../../shared/business/inde
  * 客户、产品、订单的接口（挂在 /api 下，接口表 shared/business/orders/records-api.ts）：列表、单条、新建、修改，订单的状态动作。
  * 只取参数、判断权限、调服务；页面凭证由装配层对写接口统一检查。六类档案的批量归档、恢复在删除归档（server/lifecycle/lifecycle-router.ts）。
  */
-/** 新建订单正文里的防重复请求号（可以不带） */
-const orderRequestSchema = z.object({ requestId: z.uuid().optional() });
+/** 新建订单正文里的防重复请求号：必带（编辑窗每开一次给一个） */
+const orderRequestSchema = z.object({ requestId: z.uuid() });
+/** 正文没带请求号：多半是升级前就开着的页面、外壳里缓存的旧网页，窗口里没有这一格，叫人刷新 */
+const STALE_PAGE = '页面版本旧了，请刷新页面后重新保存（这张订单没有建）。';
 
 export function recordsRouter(store: Store, auth?: RequestAuth) {
   const router = Router();
   const on = route<RecordsApi>(router);
   const actorOf = (req: Request) => auth?.actor(req);
+  /** 写的路（改订单）里已归档的要超级管理员模式 */
   const elevated = (req: Request) => isSuperMode(actorOf(req));
+  /** 按编号读一条带不带已归档的：和已归档列表同一条线（server/core/http/permissions.ts） */
+  const readsArchived = (req: Request) => includeArchivedForRecord(actorOf(req));
   /** 列表的查询参数和带不带已归档的：全站同一个判断（server/core/http/permissions.ts） */
   const listQuery = (req: Request, query: unknown) => {
     const fields = listFields(query);
@@ -39,13 +44,20 @@ export function recordsRouter(store: Store, auth?: RequestAuth) {
     const { fields, includeArchived } = listQuery(req, query);
     return productList(store, fields, includeArchived);
   });
-  on('GET /customers/:id', ({ param, req }) => sales(store).customer(recordId(param('id')), elevated(req)) ?? notFound('客户不存在'));
+  /** 单条读回带上归档标记，和列表那一行同一个来源：从哪一档、哪个链接打开，详情都按记录本身显示 */
+  const withArchived = <T extends { id: number }>(entity: 'customers' | 'products' | 'orders', row: T) => ({
+    ...row,
+    archived: store.archived(entity, row.id),
+  });
+  on('GET /customers/:id', ({ param, req }) =>
+    withArchived('customers', sales(store).customer(recordId(param('id')), readsArchived(req)) ?? notFound('客户不存在')),
+  );
   on('GET /products/:id', ({ param, req }) => {
     const id = recordId(param('id'));
-    const product = sales(store).product(id, elevated(req)) ?? notFound('产品不存在');
+    const product = sales(store).product(id, readsArchived(req)) ?? notFound('产品不存在');
     const ordered = productHasOrders(store, id);
     const orderedCustomers = product.customerId == null ? orderedCustomersByProduct(store, [id]).get(id) : undefined;
-    return { ...product, ordered, ...(orderedCustomers?.length ? { orderedCustomers } : {}) };
+    return { ...withArchived('products', product), ordered, ...(orderedCustomers?.length ? { orderedCustomers } : {}) };
   });
   on('POST /customers', ({ body, req }) => manualWrite(store, { entity: 'customers', action: 'create', input: body }, editor(req)), created);
   on('POST /products', ({ body, req }) => manualWrite(store, { entity: 'products', action: 'create', input: body }, editor(req)), created);
@@ -60,21 +72,25 @@ export function recordsRouter(store: Store, auth?: RequestAuth) {
     const { fields, includeArchived } = listQuery(req, query);
     return orderList(store, fields, includeArchived);
   });
-  on('GET /orders/:id', ({ param, req }) => trackedOrder(store, recordId(param('id')), elevated(req)) ?? notFound(ORDER_NOT_FOUND));
-  // 和读这张订单同一个范围（已归档的要超级管理员模式）
+  on('GET /orders/:id', ({ param, req }) =>
+    withArchived('orders', trackedOrder(store, recordId(param('id')), readsArchived(req)) ?? notFound(ORDER_NOT_FOUND)),
+  );
+  // 和读这张订单同一个范围（已归档的和已归档列表同一条线）
   on('GET /orders/:id/sole-products', ({ param, req }) => {
-    const order = sales(store).order(recordId(param('id')), elevated(req)) ?? notFound(ORDER_NOT_FOUND);
+    const order = sales(store).order(recordId(param('id')), readsArchived(req)) ?? notFound(ORDER_NOT_FOUND);
     return { productIds: sales(store).soleProductIds(order) };
   });
-  // 新建订单带了请求号（编辑窗每开一次给一个）就防重复：同一个账号同一个请求号再提交（重试、连点），回上次建的那张，不再建；
-  // 换了内容拒收（onceByRequest）。没开登录（测试）没有账号可记，照常新建
+  // 新建订单必带请求号（编辑窗每开一次给一个），防重复：同一个账号同一个请求号再提交（重试、连点），回上次建的那张，不再建；
+  // 换了内容拒收（onceByRequest）。不带请求号拒收（先查权限再看正文）。没开登录（测试）没有账号可记，核对过请求号照常新建
   on(
     'POST /orders',
     ({ body, req }) => {
       const who = editor(req),
-        { requestId } = orderRequestSchema.parse(body);
+        parsed = orderRequestSchema.safeParse(body);
+      if (!parsed.success) throw new InputError(STALE_PAGE);
+      const { requestId } = parsed.data;
       const create = () => manualWrite(store, { entity: 'orders', action: 'create', input: body }, who);
-      return requestId && who
+      return who
         ? onceByRequest(store, operationRequest('order-create', requestId, who, body), create, trackedOrderViewSchema)
         : create();
     },

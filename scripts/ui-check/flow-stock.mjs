@@ -199,7 +199,7 @@ await step('安排送货按厂区拆单', async () => {
   if (!customer || !stock) throw new Error('种子里没有多厂区客户的可用成品');
   const main = customer.sites.find((s) => s.isDefault), branch = customer.sites.find((s) => !s.isDefault);
   const date = businessDay(), line = { productId: stock.productId, quantity: 10, unitPriceCents: 100 };
-  const order = await call(page, 'POST', '/orders', { customerId: customer.id, orderDate: date, deliveryDate: date, status: '已确认', lines: [line, line] });
+  const order = await call(page, 'POST', '/orders', { customerId: customer.id, orderDate: date, deliveryDate: date, status: '已确认', lines: [line, line], requestId: crypto.randomUUID() });
   if (!order.id) throw new Error('无法新建拆单用的虚构订单：' + order.error);
   await page.goto(BASE + '#orders');
   await page.goto(BASE + '#warehouse?kind=finished&deliveries=1&createDelivery=1&order=' + order.id);

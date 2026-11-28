@@ -11,6 +11,8 @@ type CustomerForm = CustomerInput & { version?: number };
 const blank: CustomerForm = { name: '', contact: '', phone: '', address: '', notes: '' };
 /** 客户的必填：名称；加了厂区，厂区名称也要填，两个以上要选一个默认 */
 const CUSTOMER_REQUIRED = '客户名称必填；加了厂区要填厂区名称、选一个默认，其余可以以后补。';
+/** 改已存的客户时客户名称格下的说明（服务端 server/flow/rules/site-edits.ts）；新建的还没有送货单，不说 */
+const CUSTOMER_RENAME = '改了名称，这个客户的待送货单会跟着换成新名称，已出库、已取消、已撤销的不变。';
 
 /** 客户档案编辑窗：名称、怎么联系、备注。只有名称必填。 */
 export default function CustomerEditor({
@@ -55,7 +57,7 @@ export default function CustomerEditor({
       >
         <FormMessage>{error}</FormMessage>
         <FormSection>
-          <FormField label="客户名称" required span="full">
+          <FormField label="客户名称" required span="full" hint={value ? CUSTOMER_RENAME : undefined}>
             <input
               aria-label="客户名称"
               required

@@ -54,7 +54,7 @@ function useMovementData(o: {
   const { p, kind, flowKind, flowAction, flowItem, page } = o,
     { start, end } = o.dates;
   return useRecordData(
-    [p.revision, p.superMode, start, end, p.search, flowKind, flowAction, flowItem?.id, kind, page].join('|'),
+    [p.superMode, start, end, p.search, flowKind, flowAction, flowItem?.id, kind, page].join('|'),
     () =>
       Promise.all([
         loadStockItems({ range: recordRange(p.superMode, false, false), kind, zeroOnly: false }),
@@ -79,6 +79,7 @@ function useMovementData(o: {
         }),
       ),
     emptyMovements,
+    p.revision,
   );
 }
 

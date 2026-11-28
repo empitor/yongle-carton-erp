@@ -90,7 +90,7 @@ export default function StockPage({ recycle = false }: { recycle?: boolean }) {
     [stockParty, setStockParty] = useState(''),
     [zeroOnly, setZeroOnly] = useState(!!p.route.zero);
   const { data, error, busy } = useRecordData(
-    [p.revision, p.range, p.search, kind, zeroOnly, stockParty].join('|'),
+    [p.range, p.search, kind, zeroOnly, stockParty].join('|'),
     () =>
       loadStockItems({ range: p.range, kind, zeroOnly, party: stockParty, search: p.search }).then((items) => ({
         items: items.rows,
@@ -98,6 +98,7 @@ export default function StockPage({ recycle = false }: { recycle?: boolean }) {
         inventoryMetrics: items.metrics,
       })),
     emptyStock,
+    p.revision,
   );
   // 库存“筛选”里的供应商、客户下拉：进库存列表时读一次
   const parties = useLoad(recycle ? null : 'parties', () => readCatalog(['suppliers', 'customers'])).data;

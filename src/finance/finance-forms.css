@@ -69,16 +69,28 @@
     min-width: 860px;
   }
 }
-.line-table td.fb-rate {
-  width: 96px;
-}
 /* 最后一列不是删除图标的明细表：不要共用样式给末列的 36px 窄宽 */
 .line-table.fb-no-tail td:last-child {
   width: auto;
   padding-right: 0;
 }
-.line-table.fb-no-tail td.fb-mode {
+/*
+ * 补税率表（flow/ResolveTax.tsx）：金额框 112px（只显示到分）、税率框 80px、口径 128px，余下留给“行”那一列放品名
+ * （详情面板 419px 宽时约 99px，品名一行放得下）。ui/detail-2.css 的 td.num 128px 排在后面，金额、税率两格多带一个类压过它。
+ */
+.line-table.fb-no-tail td.num.fb-exact {
   width: 112px;
+}
+.line-table.fb-no-tail td.num.fb-rate {
+  width: 80px;
+}
+.line-table.fb-no-tail td.fb-mode {
+  width: 128px;
+}
+/* 格子下面的“没认出来：…”只在冒号这类标点后折行，不把最后一个字单独挤到下一行；原话太长才在哪都能折 */
+.line-table.fb-no-tail :is(td.fb-rate, td.fb-mode) small {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .line-table.fb-no-tail td.num.fb-amount {
   width: 160px;

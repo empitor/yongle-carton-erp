@@ -214,7 +214,7 @@ await step('今日规格对不上的订单只出现一次', async () => {
   if (!stock) throw new Error('种子里没有带尺寸、有库存的成品');
   const date = businessDay(),
     line = { productId: stock.productId, quantity: 10, unitPriceCents: 100 };
-  const order = await call(page, 'POST', '/orders', { customerId: stock.customerId, orderDate: date, deliveryDate: date, status: '已确认', lines: [line, { ...line, specification: '999×999×999' }] });
+  const order = await call(page, 'POST', '/orders', { customerId: stock.customerId, orderDate: date, deliveryDate: date, status: '已确认', lines: [line, { ...line, specification: '999×999×999' }], requestId: crypto.randomUUID() });
   if (!order.id) throw new Error('无法新建规格对不上的虚构订单：' + order.error);
   const placed = (await api('/api/business/today')).todo.find((o) => o.id === order.id);
   if (!placed?.mismatches?.length) throw new Error('服务端没把这张订单放进分组、或没带规格提示：' + JSON.stringify(placed));

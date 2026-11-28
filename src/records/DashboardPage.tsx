@@ -55,8 +55,10 @@ function OverviewSection() {
     start: range.start || undefined,
     end: range.end || undefined,
   };
-  const { data, error } = useLoad([range.customerId, range.start, range.end, revision].join('|'), () =>
-    loadDashboard(query),
+  const { data, error } = useLoad(
+    [range.customerId, range.start, range.end].join('|'),
+    () => loadDashboard(query),
+    revision,
   );
   const change = (preset: DatePreset, start: string, end: string) => setRange((r) => ({ ...r, preset, start, end }));
   /** 清除筛选：回到最近两个月，不按客户 */

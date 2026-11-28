@@ -51,7 +51,7 @@ type PurchaseApi = PurchaseStatusActions & {
     query?: PurchaseQuery & PageQuery;
     response: ListResult<PurchaseView, ReturnType<typeof purchaseMetrics>> & { suppliers: { id: number; name: string }[] };
   };
-  'GET /purchases/:id': { query?: ArchivedQuery; response: PurchaseView };
+  'GET /purchases/:id': { response: PurchaseView };
   'POST /purchases': { body: PurchaseInput; response: PurchaseView };
   /** 整张保存不改状态（改状态走状态动作） */
   'PUT /purchases/:id': { body: Versioned<PurchaseInput>; response: PurchaseView };

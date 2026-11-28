@@ -63,7 +63,8 @@ export function requireSuperModeFor(
 }
 /**
  * 列表要不要带上已归档的（请求参数 archived）：all 是连同已归档的一起看，要超级管理员模式
- * （拒绝按 superModeDenied 分类，没登录的说请先登录）；1 是只看已归档的，谁都能看。全站列表都用这一个判断。
+ * （拒绝按 superModeDenied 分类，没登录的说请先登录）；1 是只看已归档的，谁都能看。全站列表都用这一个判断，
+ * 单条读取跟着它（includeArchivedForRecord）。
  */
 export function includeArchivedFor(actor: Actor | null | undefined, archived: unknown): boolean {
   if (archived === 'all') {
@@ -72,3 +73,9 @@ export function includeArchivedFor(actor: Actor | null | undefined, archived: un
   }
   return archived === '1';
 }
+
+/**
+ * 按编号读一条（客户、产品、订单、采购单……）带不带已归档的：和“只看已归档的”列表同一条线，
+ * 在已归档列表里看得到的单条也读得到，不比列表多；列表收紧这里跟着收紧。
+ */
+export const includeArchivedForRecord = (actor: Actor | null | undefined): boolean => includeArchivedFor(actor, '1');

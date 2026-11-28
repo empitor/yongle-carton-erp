@@ -5,7 +5,7 @@ import { FormField, FormMessage, FormSection, RowDelete } from '../ui/index';
 const contactKeys = ['contact', 'phone', 'address', 'notes'] as const;
 /** 厂区那节只有一句说明：客户自己的联系方式和厂区各改各的（新客户没加厂区时服务端按联系方式建一个，以后不再同步） */
 const SITES_APART = '客户的联系方式和厂区各改各的';
-/** 有存过的厂区时接着说：改了它的资料，用着它的待送货单跟着更新（服务端 server/flow/rules/site-edits.ts），别的状态不变 */
+/** 有存过的厂区时接着说：改了它的资料，用着它的待送货单跟着更新（服务端 server/flow/rules/site-edits.ts），别的状态不变。改客户名称那句在客户名称格 */
 const SITE_SYNC = '改了已存厂区的资料，用着它的待送货单会跟着更新，已出库、已取消、已撤销的不变';
 
 export default function CustomerSites({ sites, change }: {

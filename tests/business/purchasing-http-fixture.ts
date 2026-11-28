@@ -86,6 +86,7 @@ async function seed(good: Good) {
         deliveryDate: '2026-11-05',
         status: '已确认',
         lines: [{ productId: product.id, quantity: 1000, unitPriceCents: 139, unitPriceExact: '1.3900', unit: '只' }],
+        requestId: randomUUID(),
       }),
       { id: z.number(), number: z.string(), version: z.number() },
     );

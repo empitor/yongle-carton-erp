@@ -16,17 +16,19 @@ export const commandName = (word) => win32.basename(word).toLowerCase().replace(
 
 /**
  * 命令文字拆成段（按 ; & | 换行、括号分），每段是去掉引号的词，另给这段前面的分隔：'' 开头、'&&'、';'、'\n'、'|'、'||'、'&'、
- * 括号，几个连着的写在一起；powershell -c "…" 这类引号里另拆出的段是 'inner'。
+ * 括号，几个连着的写在一起；powershell -c "…" 这类引号里另拆出的段是 'inner'。raws 是没去掉引号的原样词。
  */
 export function commandSteps(text) {
   const steps = [];
   let words = [];
+  let raws = [];
   let before = '';
   let pending = '';
   for (const token of shellTokens(text)) {
     if (SEPARATOR.test(token)) {
-      if (words.length) steps.push({ words, before });
+      if (words.length) steps.push({ words, raws, before });
       words = [];
+      raws = [];
       if (token !== '\r') pending += token;
       continue;
     }
@@ -35,8 +37,9 @@ export function commandSteps(text) {
     if (word !== token && words.length && SHELLS.has(commandName(words[0])) && INNER_FLAG.test(words.at(-1)))
       steps.push(...commandSteps(word).map((step) => ({ ...step, before: 'inner' })));
     words.push(word);
+    raws.push(token);
   }
-  if (words.length) steps.push({ words, before });
+  if (words.length) steps.push({ words, raws, before });
   return steps;
 }
 
@@ -50,6 +53,8 @@ export const commandSegments = (text) => commandSteps(text).map((step) => step.w
 const LAUNCHERS = new Set([
   'sudo', 'cmd', 'call', 'start', 'start-process', 'saps', 'invoke-item', 'ii', 'nohup', 'exec', 'command', 'env', 'time',
   'powershell', 'pwsh', '.', 'npx', 'bunx', 'shx', 'xargs',
+  // shell 的关键字：for … ; do rm …、if …; then rm …
+  'do', 'then', 'else', 'elif', '!',
 ]);
 const LAUNCHER_VALUES = {
   npx: /^(?:-p|--package)$/i,
@@ -147,7 +152,7 @@ function readOnly(text) {
 const REDIRECT = /(?:^|[^-=<>\d*])[\d*]?>>?\s*(?!&)("[^"]*"|'[^']*'|[^\s;&|<>()]+)/g;
 
 /** 正文里会执行的命令替换：$( … )（括号套几层都认，里外层各算一条）和（shell 里的）反引号 */
-function substitutions(body, backticks) {
+export function substitutions(body, backticks) {
   const out = [];
   for (let start = body.indexOf('$('); start >= 0; start = body.indexOf('$(', start + 2)) {
     let depth = 0;
@@ -166,13 +171,13 @@ const EXECUTES = /\b(?:iex|invoke-expression|invoke-command)\b|\[scriptblock\]::
 const HEREDOC = /^([^\r\n]*<<-?\s*(\\?)(["']?)(\w+)\3[^\r\n]*)\r?\n([\s\S]*?)\r?\n[ \t]*\4[ \t]*(?=\r?\n|$)/gm;
 
 /**
- * 认写入时看的命令文字：写进文件的正文不是要跑的命令。
+ * 真正会跑的命令文字（认写入、认删除目标时看）：写进文件的正文不是要跑的命令。
  * - cat、tee 的 heredoc：界定符带引号（<<'EOF'、<<"EOF"、<<\EOF）去掉正文；不带引号的只留 $( … ) 和反引号里的命令（shell 会执行）。
  * - PowerShell 的 here-string：整条命令把它交给 iex、Invoke-Command、[scriptblock]::Create 执行时，正文逐行当命令；
  *   不然 @'…'@ 去掉正文，@"…"@ 只留 $( … ) 里的命令。
- * 别的判断照旧扫原文。
+ * 点名碰受保护目录那些判断照旧扫原文。
  */
-function writableText(command) {
+export function writableText(command) {
   const text = command.replace(HEREDOC, (all, head, backslash, quote, _name, body) => {
     if (!['cat', 'tee'].includes(programOf(commandSegments(head).at(-1) ?? []).name)) return all;
     return backslash || quote ? head : [head, ...substitutions(body, true)].join('\n');
